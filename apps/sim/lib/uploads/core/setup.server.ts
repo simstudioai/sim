@@ -1,20 +1,11 @@
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getStorageProvider, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/core/setup'
+import { getStorageProvider, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
 
 const logger = createLogger('UploadsSetup')
 
-// Server-only upload directory path
-// Use dynamic import for path to avoid bundling issues
-let UPLOAD_DIR_SERVER: string | undefined
-
-if (typeof window === 'undefined') {
-  const path = require('path')
-  const PROJECT_ROOT = path.resolve(process.cwd())
-  UPLOAD_DIR_SERVER = path.join(PROJECT_ROOT, 'uploads')
-}
-
-export { UPLOAD_DIR_SERVER }
+const PROJECT_ROOT = path.resolve(process.cwd())
+export const UPLOAD_DIR_SERVER = join(PROJECT_ROOT, 'uploads')
 
 /**
  * Server-only function to ensure uploads directory exists

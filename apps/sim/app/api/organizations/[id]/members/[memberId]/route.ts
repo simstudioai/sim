@@ -2,12 +2,19 @@ import { db } from '@sim/db'
 import { member, subscription as subscriptionTable, user, userStats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationMemberAPI')
+
+const updateMemberSchema = z.object({
+  role: z.enum(['owner', 'admin', 'member'], {
+    errorMap: () => ({ message: 'Invalid role' }),
+  }),
+})
 
 /**
  * GET /api/organizations/[id]/members/[memberId]
@@ -141,14 +148,16 @@ export async function PUT(
     }
 
     const { id: organizationId, memberId } = await params
-    const { role } = await request.json()
+    const body = await request.json()
 
-    // Validate input
-    if (!role || !['admin', 'member'].includes(role)) {
-      return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+    const validation = updateMemberSchema.safeParse(body)
+    if (!validation.success) {
+      const firstError = validation.error.errors[0]
+      return NextResponse.json({ error: firstError.message }, { status: 400 })
     }
 
-    // Verify user has admin access
+    const { role } = validation.data
+
     const userMember = await db
       .select()
       .from(member)

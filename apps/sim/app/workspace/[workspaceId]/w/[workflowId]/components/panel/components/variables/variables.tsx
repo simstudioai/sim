@@ -11,11 +11,8 @@ import {
   Plus,
   Trash,
 } from 'lucide-react'
-import { highlight, languages } from 'prismjs'
-import 'prismjs/components/prism-javascript'
-import 'prismjs/themes/prism.css'
-
 import Editor from 'react-simple-code-editor'
+import { highlight, languages, Tooltip } from '@/components/emcn'
 import {
   Button,
   DropdownMenu,
@@ -24,18 +21,32 @@ import {
   DropdownMenuTrigger,
   Input,
   ScrollArea,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
-import { validateName } from '@/lib/utils'
+import { cn, validateName } from '@/lib/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable, VariableType } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Variables')
+
+const TYPE_CONFIG: Record<VariableType, { icon: string; placeholder: string }> = {
+  plain: { icon: 'Abc', placeholder: 'Plain text value' },
+  number: { icon: '123', placeholder: '42' },
+  boolean: { icon: '0/1', placeholder: 'true' },
+  object: { icon: '{}', placeholder: '{\n  "key": "value"\n}' },
+  array: { icon: '[]', placeholder: '[\n  1,\n  2,\n  3\n]' },
+  string: { icon: 'Abc', placeholder: 'Plain text value' },
+}
+
+const VARIABLE_TYPES: Exclude<VariableType, 'string'>[] = [
+  'plain',
+  'number',
+  'boolean',
+  'object',
+  'array',
+]
 
 export function Variables() {
   const { activeWorkflowId } = useWorkflowRegistry()
@@ -47,17 +58,33 @@ export function Variables() {
     collaborativeDuplicateVariable,
   } = useCollaborativeWorkflow()
 
-  // Get variables for the current workflow
   const workflowVariables = activeWorkflowId ? getVariablesByWorkflowId(activeWorkflowId) : []
-
-  // Track editor references
   const editorRefs = useRef<Record<string, HTMLDivElement | null>>({})
-
-  // Track which variables are currently being edited
-  const [_activeEditors, setActiveEditors] = useState<Record<string, boolean>>({})
-
-  // Collapsed state per variable
   const [collapsedById, setCollapsedById] = useState<Record<string, boolean>>({})
+  const [localNames, setLocalNames] = useState<Record<string, string>>({})
+  const [nameErrors, setNameErrors] = useState<Record<string, string>>({})
+
+  const clearLocalState = (variableId: string) => {
+    setLocalNames((prev) => {
+      const updated = { ...prev }
+      delete updated[variableId]
+      return updated
+    })
+    setNameErrors((prev) => {
+      const updated = { ...prev }
+      delete updated[variableId]
+      return updated
+    })
+  }
+
+  const clearError = (variableId: string) => {
+    setNameErrors((prev) => {
+      if (!prev[variableId]) return prev
+      const updated = { ...prev }
+      delete updated[variableId]
+      return updated
+    })
+  }
 
   const toggleCollapsed = (variableId: string) => {
     setCollapsedById((prev) => ({
@@ -66,97 +93,75 @@ export function Variables() {
     }))
   }
 
-  // Handle variable name change with validation
   const handleVariableNameChange = (variableId: string, newName: string) => {
     const validatedName = validateName(newName)
-    collaborativeUpdateVariable(variableId, 'name', validatedName)
+    setLocalNames((prev) => ({
+      ...prev,
+      [variableId]: validatedName,
+    }))
+    clearError(variableId)
+  }
+
+  const isDuplicateName = (variableId: string, name: string): boolean => {
+    if (!name.trim()) return false
+    return workflowVariables.some((v) => v.id !== variableId && v.name === name.trim())
+  }
+
+  const handleVariableNameBlur = (variableId: string) => {
+    const localName = localNames[variableId]
+    if (localName === undefined) return
+
+    const trimmedName = localName.trim()
+
+    if (!trimmedName) {
+      setNameErrors((prev) => ({
+        ...prev,
+        [variableId]: 'Variable name cannot be empty',
+      }))
+      return
+    }
+
+    if (isDuplicateName(variableId, trimmedName)) {
+      setNameErrors((prev) => ({
+        ...prev,
+        [variableId]: 'Two variables cannot have the same name',
+      }))
+      return
+    }
+
+    collaborativeUpdateVariable(variableId, 'name', trimmedName)
+    clearLocalState(variableId)
+  }
+
+  const handleVariableNameKeyDown = (
+    variableId: string,
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur()
+    }
   }
 
   const handleAddVariable = () => {
     if (!activeWorkflowId) return
 
-    const id = collaborativeAddVariable({
+    collaborativeAddVariable({
       name: '',
       type: 'string',
       value: '',
       workflowId: activeWorkflowId,
     })
-
-    return id
   }
 
-  const getTypeIcon = (type: VariableType) => {
-    switch (type) {
-      case 'plain':
-        return 'Abc'
-      case 'number':
-        return '123'
-      case 'boolean':
-        return '0/1'
-      case 'object':
-        return '{}'
-      case 'array':
-        return '[]'
-      case 'string':
-        return 'Abc'
-      default:
-        return '?'
-    }
-  }
-
-  const getPlaceholder = (type: VariableType) => {
-    switch (type) {
-      case 'plain':
-        return 'Plain text value'
-      case 'number':
-        return '42'
-      case 'boolean':
-        return 'true'
-      case 'object':
-        return '{\n  "key": "value"\n}'
-      case 'array':
-        return '[\n  1,\n  2,\n  3\n]'
-      case 'string':
-        return 'Plain text value'
-      default:
-        return ''
-    }
-  }
-
-  const getEditorLanguage = (type: VariableType) => {
-    switch (type) {
-      case 'object':
-      case 'array':
-      case 'boolean':
-      case 'number':
-      case 'plain':
-        return 'javascript'
-      default:
-        return 'javascript'
-    }
-  }
+  const getTypeIcon = (type: VariableType) => TYPE_CONFIG[type]?.icon ?? '?'
+  const getPlaceholder = (type: VariableType) => TYPE_CONFIG[type]?.placeholder ?? ''
 
   const handleEditorChange = (variable: Variable, newValue: string) => {
     collaborativeUpdateVariable(variable.id, 'value', newValue)
   }
 
-  const handleEditorBlur = (variableId: string) => {
-    setActiveEditors((prev) => ({
-      ...prev,
-      [variableId]: false,
-    }))
-  }
-
-  const handleEditorFocus = (variableId: string) => {
-    setActiveEditors((prev) => ({
-      ...prev,
-      [variableId]: true,
-    }))
-  }
-
   const formatValue = (variable: Variable) => {
     if (variable.value === '') return ''
-
     return typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)
   }
 
@@ -213,10 +218,34 @@ export function Variables() {
   }
 
   useEffect(() => {
+    const variableIds = new Set(workflowVariables.map((v) => v.id))
     Object.keys(editorRefs.current).forEach((id) => {
-      if (!workflowVariables.some((v) => v.id === id)) {
+      if (!variableIds.has(id)) {
         delete editorRefs.current[id]
       }
+    })
+  }, [workflowVariables])
+
+  useEffect(() => {
+    setLocalNames((prev) => {
+      const variableIds = new Set(workflowVariables.map((v) => v.id))
+      const updated = { ...prev }
+      let changed = false
+
+      Object.keys(updated).forEach((id) => {
+        if (!variableIds.has(id)) {
+          delete updated[id]
+          changed = true
+        } else {
+          const variable = workflowVariables.find((v) => v.id === id)
+          if (variable && updated[id] === variable.name) {
+            delete updated[id]
+            changed = true
+          }
+        }
+      })
+
+      return changed ? updated : prev
     })
   }, [workflowVariables])
 
@@ -226,7 +255,7 @@ export function Variables() {
         <div className='flex h-full items-center justify-center'>
           <Button
             onClick={handleAddVariable}
-            className='h-9 rounded-lg border border-[#E5E5E5] bg-[#FFFFFF] px-3 py-1.5 font-normal text-muted-foreground text-sm shadow-xs transition-colors hover:text-muted-foreground dark:border-[#414141] dark:bg-[var(--surface-elevated)] dark:hover:text-muted-foreground'
+            className='h-9 rounded-lg border border-[#E5E5E5] bg-[var(--white)] px-3 py-1.5 font-normal text-muted-foreground text-sm shadow-xs transition-colors hover:text-muted-foreground dark:border-[#414141] dark:bg-[var(--surface-elevated)] dark:hover:text-muted-foreground'
             variant='outline'
           >
             <Plus className='h-4 w-4' />
@@ -239,106 +268,95 @@ export function Variables() {
             {workflowVariables.map((variable) => (
               <div key={variable.id} className='space-y-2'>
                 {/* Header: Variable name | Variable type | Options dropdown */}
-                <div className='flex items-center gap-2'>
-                  <Input
-                    className='h-9 flex-1 rounded-lg border-none bg-secondary/50 px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
-                    placeholder='Variable name'
-                    value={variable.name}
-                    onChange={(e) => handleVariableNameChange(variable.id, e.target.value)}
-                  />
+                <div className='space-y-1'>
+                  <div className='flex items-center gap-2'>
+                    <Input
+                      className={cn(
+                        'h-9 flex-1 rounded-lg border-none px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0',
+                        nameErrors[variable.id]
+                          ? 'border border-red-500 bg-[#F6D2D2] outline-none ring-0 focus:border-red-500 dark:bg-[#442929]'
+                          : 'bg-secondary/50'
+                      )}
+                      placeholder='Variable name'
+                      value={localNames[variable.id] ?? variable.name}
+                      onChange={(e) => handleVariableNameChange(variable.id, e.target.value)}
+                      onBlur={() => handleVariableNameBlur(variable.id)}
+                      onKeyDown={(e) => handleVariableNameKeyDown(variable.id, e)}
+                    />
 
-                  {/* Type selector */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <div className='flex h-9 w-16 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-secondary/50 px-3'>
-                        <span className='font-normal text-sm'>{getTypeIcon(variable.type)}</span>
-                        <ChevronDown className='ml-1 h-3 w-3 text-muted-foreground' />
-                      </div>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align='end'
-                      className='min-w-32 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
-                    >
-                      <DropdownMenuItem
-                        onClick={() => collaborativeUpdateVariable(variable.id, 'type', 'plain')}
-                        className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                    {/* Type selector */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <div className='flex h-9 w-16 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-secondary/50 px-3'>
+                          <span className='font-normal text-sm'>{getTypeIcon(variable.type)}</span>
+                          <ChevronDown className='ml-1 h-3 w-3 text-muted-foreground' />
+                        </div>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align='end'
+                        className='min-w-32 rounded-lg border-[#E5E5E5] bg-[var(--white)] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
                       >
-                        <div className='mr-2 w-5 text-center font-[380] text-sm'>Abc</div>
-                        <span className='font-[380]'>Plain</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => collaborativeUpdateVariable(variable.id, 'type', 'number')}
-                        className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-                      >
-                        <div className='mr-2 w-5 text-center font-[380] text-sm'>123</div>
-                        <span className='font-[380]'>Number</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => collaborativeUpdateVariable(variable.id, 'type', 'boolean')}
-                        className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-                      >
-                        <div className='mr-2 w-5 text-center font-[380] text-sm'>0/1</div>
-                        <span className='font-[380]'>Boolean</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => collaborativeUpdateVariable(variable.id, 'type', 'object')}
-                        className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-                      >
-                        <div className='mr-2 w-5 text-center font-[380] text-sm'>{'{}'}</div>
-                        <span className='font-[380]'>Object</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => collaborativeUpdateVariable(variable.id, 'type', 'array')}
-                        className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-                      >
-                        <div className='mr-2 w-5 text-center font-[380] text-sm'>[]</div>
-                        <span className='font-[380]'>Array</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        {VARIABLE_TYPES.map((type) => (
+                          <DropdownMenuItem
+                            key={type}
+                            onClick={() => collaborativeUpdateVariable(variable.id, 'type', type)}
+                            className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                          >
+                            <div className='mr-2 w-5 text-center font-[380] text-sm'>
+                              {TYPE_CONFIG[type].icon}
+                            </div>
+                            <span className='font-[380] capitalize'>{type}</span>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
 
-                  {/* Options dropdown */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-9 w-9 shrink-0 rounded-lg bg-secondary/50 p-0 text-muted-foreground hover:bg-secondary/70 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
+                    {/* Options dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-9 w-9 shrink-0 rounded-lg bg-secondary/50 p-0 text-muted-foreground hover:bg-secondary/70 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
+                        >
+                          <MoreVertical className='h-4 w-4' />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align='end'
+                        className='min-w-32 rounded-lg border-[#E5E5E5] bg-[var(--white)] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
                       >
-                        <MoreVertical className='h-4 w-4' />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align='end'
-                      className='min-w-32 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
-                    >
-                      <DropdownMenuItem
-                        onClick={() => toggleCollapsed(variable.id)}
-                        className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-                      >
-                        {(collapsedById[variable.id] ?? false) ? (
-                          <Maximize2 className='mr-2 h-4 w-4 text-muted-foreground' />
-                        ) : (
-                          <Minimize2 className='mr-2 h-4 w-4 text-muted-foreground' />
-                        )}
-                        {(collapsedById[variable.id] ?? false) ? 'Expand' : 'Collapse'}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => collaborativeDuplicateVariable(variable.id)}
-                        className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-                      >
-                        <Copy className='mr-2 h-4 w-4 text-muted-foreground' />
-                        Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => collaborativeDeleteVariable(variable.id)}
-                        className='cursor-pointer rounded-md px-3 py-2 font-[380] text-destructive text-sm hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive'
-                      >
-                        <Trash className='mr-2 h-4 w-4' />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        <DropdownMenuItem
+                          onClick={() => toggleCollapsed(variable.id)}
+                          className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                        >
+                          {(collapsedById[variable.id] ?? false) ? (
+                            <Maximize2 className='mr-2 h-4 w-4 text-muted-foreground' />
+                          ) : (
+                            <Minimize2 className='mr-2 h-4 w-4 text-muted-foreground' />
+                          )}
+                          {(collapsedById[variable.id] ?? false) ? 'Expand' : 'Collapse'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => collaborativeDuplicateVariable(variable.id)}
+                          className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                        >
+                          <Copy className='mr-2 h-4 w-4 text-muted-foreground' />
+                          Duplicate
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => collaborativeDeleteVariable(variable.id)}
+                          className='cursor-pointer rounded-md px-3 py-2 font-[380] text-destructive text-sm hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive'
+                        >
+                          <Trash className='mr-2 h-4 w-4' />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  {nameErrors[variable.id] && (
+                    <div className='mt-1 text-red-400 text-xs'>{nameErrors[variable.id]}</div>
+                  )}
                 </div>
 
                 {/* Value area */}
@@ -347,16 +365,16 @@ export function Variables() {
                     {/* Validation indicator */}
                     {variable.value !== '' && getValidationStatus(variable) && (
                       <div className='absolute top-2 right-2 z-10'>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
                             <div className='cursor-help'>
                               <AlertTriangle className='h-3 w-3 text-muted-foreground' />
                             </div>
-                          </TooltipTrigger>
-                          <TooltipContent side='bottom' className='max-w-xs'>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content side='bottom' className='max-w-xs'>
                             <p>{getValidationStatus(variable)}</p>
-                          </TooltipContent>
-                        </Tooltip>
+                          </Tooltip.Content>
+                        </Tooltip.Root>
                       </div>
                     )}
 
@@ -379,18 +397,12 @@ export function Variables() {
                         <Editor
                           key={`editor-${variable.id}-${variable.type}`}
                           value={formatValue(variable)}
-                          onValueChange={handleEditorChange.bind(null, variable)}
-                          onBlur={() => handleEditorBlur(variable.id)}
-                          onFocus={() => handleEditorFocus(variable.id)}
+                          onValueChange={(newValue) => handleEditorChange(variable, newValue)}
                           highlight={(code) =>
                             // Only apply syntax highlighting for non-basic text types
                             variable.type === 'plain' || variable.type === 'string'
                               ? code
-                              : highlight(
-                                  code,
-                                  languages[getEditorLanguage(variable.type)],
-                                  getEditorLanguage(variable.type)
-                                )
+                              : highlight(code, languages.javascript, 'javascript')
                           }
                           padding={0}
                           style={{
@@ -417,7 +429,7 @@ export function Variables() {
             {/* Add Variable Button */}
             <Button
               onClick={handleAddVariable}
-              className='mt-2 h-9 w-full rounded-lg border border-[#E5E5E5] bg-[#FFFFFF] px-3 py-1.5 font-[380] text-muted-foreground text-sm shadow-xs transition-colors hover:text-muted-foreground dark:border-[#414141] dark:bg-[var(--surface-elevated)] dark:hover:text-muted-foreground'
+              className='mt-2 h-9 w-full rounded-lg border border-[#E5E5E5] bg-[var(--white)] px-3 py-1.5 font-[380] text-muted-foreground text-sm shadow-xs transition-colors hover:text-muted-foreground dark:border-[#414141] dark:bg-[var(--surface-elevated)] dark:hover:text-muted-foreground'
               variant='outline'
             >
               <Plus className='h-4 w-4' />

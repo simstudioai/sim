@@ -2,126 +2,46 @@
 title: Fonction
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-Le bloc Fonction vous permet d'exécuter du code JavaScript ou TypeScript personnalisé dans vos flux de travail. Utilisez-le pour transformer des données, effectuer des calculs ou implémenter une logique personnalisée qui n'est pas disponible dans d'autres blocs.
+Le bloc Fonction exécute du code JavaScript ou TypeScript personnalisé dans vos flux de travail. Transformez des données, effectuez des calculs ou implémentez une logique personnalisée.
 
 <div className="flex justify-center">
   <Image
     src="/static/blocks/function.png"
-    alt="Bloc Fonction avec Éditeur de Code"
+    alt="Bloc de fonction avec éditeur de code"
     width={500}
-    height={350}
+    height={400}
     className="my-6"
   />
 </div>
 
-## Aperçu
+## Sorties
 
-Le bloc Fonction vous permet de :
-
-<Steps>
-  <Step>
-    <strong>Transformer des données</strong> : convertir des formats, analyser du texte, manipuler des tableaux et des objets
-  </Step>
-  <Step>
-    <strong>Effectuer des calculs</strong> : opérations mathématiques, statistiques, calculs financiers
-  </Step>
-  <Step>
-    <strong>Implémenter une logique personnalisée</strong> : conditions complexes, boucles et algorithmes
-  </Step>
-  <Step>
-    <strong>Traiter des données externes</strong> : analyser des réponses, formater des requêtes, gérer l'authentification
-  </Step>
-</Steps>
-
-## Comment ça fonctionne
-
-Le bloc Fonction exécute votre code dans un environnement sécurisé et isolé :
-
-1. **Recevoir des entrées** : accédez aux données des blocs précédents via l'objet `input`
-2. **Exécuter le code** : lancez votre code JavaScript/Python
-3. **Renvoyer les résultats** : utilisez `return` pour transmettre des données au bloc suivant
-4. **Gérer les erreurs** : gestion des erreurs et journalisation intégrées
-
-## Exécution à distance (E2B)
-
-  - **Langages** : exécutez JavaScript et Python dans un environnement sandbox E2B isolé.
-  - **Comment l'activer** : activez “Exécution de code à distance” dans le bloc Fonction.
-  - **Quand l'utiliser** : logique plus lourde, bibliothèques externes ou code spécifique à Python.
-  - **Performance** : plus lent que le JS local en raison du démarrage du sandbox et des délais réseau.
-  - **Remarques** : nécessite `E2B_API_KEY` si exécuté localement. Pour une latence minimale, utilisez le JS natif local (Mode rapide).
-
-## Entrées et sorties
-
-<Tabs items={['Configuration', 'Variables']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Code</strong> : votre code JavaScript/Python à exécuter
-      </li>
-      <li>
-        <strong>Délai d'expiration</strong> : temps d'exécution maximum (30 secondes par défaut)
-      </li>
-      <li>
-        <strong>Données d'entrée</strong> : toutes les sorties des blocs connectés disponibles via des variables
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>function.result</strong> : la valeur renvoyée par votre fonction
-      </li>
-      <li>
-        <strong>function.stdout</strong> : sortie console.log() de votre code
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<function.result>`**: La valeur retournée par votre fonction
+- **`<function.stdout>`**: Sortie console.log() de votre code
 
 ## Exemples de cas d'utilisation
 
-### Pipeline de traitement de données
+**Pipeline de traitement de données** - Transformer une réponse d'API en données structurées
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : transformer une réponse d'API en données structurées</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Le bloc API récupère les données brutes des clients</li>
-    <li>Le bloc de fonction traite et valide les données</li>
-    <li>Le bloc de fonction calcule les métriques dérivées</li>
-    <li>Le bloc de réponse renvoie les résultats formatés</li>
-  </ol>
-</div>
+```
+API (Fetch) → Function (Process & Validate) → Function (Calculate Metrics) → Response
+```
 
-### Implémentation de la logique métier
+**Implémentation de logique métier** - Calculer des scores et niveaux de fidélité
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : calculer les scores et niveaux de fidélité</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>L'agent récupère l'historique d'achat du client</li>
-    <li>Le bloc de fonction calcule les métriques de fidélité</li>
-    <li>Le bloc de fonction détermine le niveau du client</li>
-    <li>Le bloc de condition oriente en fonction du niveau</li>
-  </ol>
-</div>
+```
+Agent (Get History) → Function (Calculate Score) → Function (Determine Tier) → Condition (Route)
+```
 
-### Validation et assainissement des données
+**Validation et assainissement des données** - Valider et nettoyer les entrées utilisateur
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : valider et nettoyer les entrées utilisateur</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Entrée utilisateur reçue depuis un formulaire</li>
-    <li>Le bloc de fonction valide le format d'e-mail et les numéros de téléphone</li>
-    <li>Le bloc de fonction assainit et normalise les données</li>
-    <li>Le bloc API enregistre les données validées dans la base de données</li>
-  </ol>
-</div>
+```
+Input → Function (Validate & Sanitize) → API (Save to Database)
+```
 
-### Exemple : calculateur de score de fidélité
+### Exemple : Calculateur de score de fidélité
 
 ```javascript title="loyalty-calculator.js"
 // Process customer data and calculate loyalty score
@@ -149,8 +69,8 @@ return {
 
 ## Bonnes pratiques
 
-- **Gardez les fonctions ciblées** : écrivez des fonctions qui font bien une seule chose pour améliorer la maintenabilité et le débogage
-- **Gérez les erreurs avec élégance** : utilisez des blocs try/catch pour gérer les erreurs potentielles et fournir des messages d'erreur significatifs
-- **Testez les cas limites** : assurez-vous que votre code gère correctement les entrées inhabituelles, les valeurs nulles et les conditions aux limites
-- **Optimisez pour la performance** : soyez attentif à la complexité computationnelle et à l'utilisation de la mémoire pour les grands ensembles de données
-- **Utilisez console.log() pour le débogage** : exploitez la sortie stdout pour déboguer et surveiller l'exécution des fonctions
+- **Gardez les fonctions ciblées** : Écrivez des fonctions qui font bien une seule chose pour améliorer la maintenabilité et le débogage
+- **Gérez les erreurs avec élégance** : Utilisez des blocs try/catch pour gérer les erreurs potentielles et fournir des messages d'erreur significatifs
+- **Testez les cas limites** : Assurez-vous que votre code gère correctement les entrées inhabituelles, les valeurs nulles et les conditions limites
+- **Optimisez pour la performance** : Soyez attentif à la complexité computationnelle et à l'utilisation de la mémoire pour les grands ensembles de données
+- **Utilisez console.log() pour le débogage** : Exploitez la sortie stdout pour déboguer et surveiller l'exécution des fonctions

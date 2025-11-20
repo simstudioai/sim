@@ -1,4 +1,4 @@
-import { Label } from '@/components/ui'
+import { Label } from '@/components/emcn'
 import { getBaseDomain, getEmailDomain } from '@/lib/urls/utils'
 
 interface ExistingChat {

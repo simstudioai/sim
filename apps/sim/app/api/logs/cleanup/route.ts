@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
       for (const log of oldEnhancedLogs) {
         const today = new Date().toISOString().split('T')[0]
 
-        const enhancedLogKey = `archived-enhanced-logs/${today}/${log.id}.json`
+        const enhancedLogKey = `logs/archived/${today}/${log.id}.json`
         const enhancedLogData = JSON.stringify({
           ...log,
           archivedAt: new Date().toISOString(),
@@ -122,7 +122,9 @@ export async function GET(request: NextRequest) {
             file: Buffer.from(enhancedLogData),
             fileName: enhancedLogKey,
             contentType: 'application/json',
-            context: 'general',
+            context: 'logs',
+            preserveKey: true,
+            customKey: enhancedLogKey,
             metadata: {
               logId: String(log.id),
               workflowId: String(log.workflowId),
@@ -141,10 +143,15 @@ export async function GET(request: NextRequest) {
                 try {
                   await StorageService.deleteFile({
                     key: file.key,
-                    context: 'general',
+                    context: 'execution',
                   })
                   results.files.deleted++
-                  logger.info(`Deleted file: ${file.key}`)
+
+                  // Also delete from workspace_files table
+                  const { deleteFileMetadata } = await import('@/lib/uploads/server/metadata')
+                  await deleteFileMetadata(file.key)
+
+                  logger.info(`Deleted execution file: ${file.key}`)
                 } catch (fileError) {
                   results.files.deleteFailed++
                   logger.error(`Failed to delete file ${file.key}:`, { fileError })
@@ -163,26 +170,22 @@ export async function GET(request: NextRequest) {
               results.enhancedLogs.deleted++
             } else {
               results.enhancedLogs.deleteFailed++
-              logger.warn(
-                `Failed to delete enhanced log ${log.id} after archiving: No rows deleted`
-              )
+              logger.warn(`Failed to delete log ${log.id} after archiving: No rows deleted`)
             }
           } catch (deleteError) {
             results.enhancedLogs.deleteFailed++
-            logger.error(`Error deleting enhanced log ${log.id} after archiving:`, { deleteError })
+            logger.error(`Error deleting log ${log.id} after archiving:`, { deleteError })
           }
         } catch (archiveError) {
           results.enhancedLogs.archiveFailed++
-          logger.error(`Failed to archive enhanced log ${log.id}:`, { archiveError })
+          logger.error(`Failed to archive log ${log.id}:`, { archiveError })
         }
       }
 
       batchesProcessed++
       hasMoreLogs = oldEnhancedLogs.length === BATCH_SIZE
 
-      logger.info(
-        `Processed enhanced logs batch ${batchesProcessed}: ${oldEnhancedLogs.length} logs`
-      )
+      logger.info(`Processed logs batch ${batchesProcessed}: ${oldEnhancedLogs.length} logs`)
     }
 
     try {

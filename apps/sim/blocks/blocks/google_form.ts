@@ -1,5 +1,6 @@
 import { GoogleFormsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 
 export const GoogleFormsBlock: BlockConfig = {
   type: 'google_forms',
@@ -16,18 +17,20 @@ export const GoogleFormsBlock: BlockConfig = {
       id: 'credential',
       title: 'Google Account',
       type: 'oauth-input',
-      layout: 'full',
       required: true,
       provider: 'google-forms',
       serviceId: 'google-forms',
-      requiredScopes: [],
+      requiredScopes: [
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'https://www.googleapis.com/auth/forms.responses.readonly',
+      ],
       placeholder: 'Select Google account',
     },
     {
       id: 'formId',
       title: 'Form ID',
       type: 'short-input',
-      layout: 'full',
       required: true,
       placeholder: 'Enter the Google Form ID',
       dependsOn: ['credential'],
@@ -36,25 +39,15 @@ export const GoogleFormsBlock: BlockConfig = {
       id: 'responseId',
       title: 'Response ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter a specific response ID',
     },
     {
       id: 'pageSize',
       title: 'Page Size',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Max responses to retrieve (default 5000)',
     },
-    // Trigger configuration (shown when block is in trigger mode)
-    {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'google_forms',
-      availableTriggers: ['google_forms_webhook'],
-    },
+    ...getTrigger('google_forms_webhook').subBlocks,
   ],
   tools: {
     access: ['google_forms_get_responses'],

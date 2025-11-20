@@ -4,16 +4,23 @@ title: Webhooks
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
-Webhook 允许外部服务通过发送 HTTP 请求到您的工作流，从外部触发工作流的执行。Sim 支持两种基于 Webhook 的触发方式。
+Webhook 允许外部服务通过向您的工作流发送 HTTP 请求来触发工作流的执行。Sim 支持两种基于 Webhook 的触发方式。
 
 ## 通用 Webhook 触发器
 
 通用 Webhook 模块创建了一个灵活的端点，可以接收任何有效负载并触发您的工作流：
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="webhooks-1.mp4" width={700} height={450} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="通用 Webhook 配置"
+    width={500}
+    height={400}
+    className="my-6"
+  />
 </div>
 
 ### 工作原理
@@ -68,43 +75,59 @@ Webhook 允许外部服务通过发送 HTTP 请求到您的工作流，从外部
 
 ## 支持触发模式的服务
 
-以下服务模块支持触发模式：
+**开发与项目管理**
+- GitHub - 问题、PR、推送、发布、工作流运行
+- Jira - 问题事件、工作日志
+- Linear - 问题、评论、项目、周期、标签
 
-- **Slack** - 消息、提及、反应
-- **GitHub** - 推送、PR、问题事件  
-- **Airtable** - 记录更改
-- **Telegram** - 机器人消息和命令
-- **Gmail** - 邮件通知
-- **WhatsApp** - 消息事件
-- **Jira** - 问题更新、评论
-- **Linear** - 问题状态更改
-- **Notion** - 页面更新
+**通信**
+- Slack - 消息、提及、反应
+- Microsoft Teams - 聊天消息、频道通知
+- Telegram - 机器人消息、命令
+- WhatsApp - 消息事件
 
-## 安全性和最佳实践
+**电子邮件**
+- Gmail - 新邮件（轮询）、标签更改
+- Outlook - 新邮件（轮询）、文件夹事件
+
+**客户关系管理与销售**
+- HubSpot - 联系人、公司、交易、工单、对话
+- Stripe - 支付、订阅、客户
+
+**表单与调查**
+- Typeform - 表单提交
+- Google Forms - 表单响应
+- Webflow - 集合项、表单提交
+
+**其他**
+- Airtable - 记录更改
+- Twilio Voice - 来电、通话状态
+
+## 安全性与最佳实践
 
 ### 身份验证选项
 
-- **Bearer Tokens**：包含 `Authorization: Bearer <token>` 标头
-- **自定义标头**：定义自定义身份验证标头
+- **Bearer Tokens**: 包含 `Authorization: Bearer <token>` 标头
+- **自定义标头**: 定义自定义身份验证标头
 
-### 有效负载处理
+### 负载处理
 
-- **验证**：验证传入的有效负载以防止数据格式错误
-- **大小限制**：为安全起见，webhook 有有效负载大小限制
-- **错误处理**：为无效请求配置错误响应
+- **验证**: 验证传入的负载以防止数据格式错误
+- **大小限制**: Webhook 的负载大小有限制以确保安全
+- **错误处理**: 为无效请求配置错误响应
 
-### 测试 Webhooks
+### 测试 Webhook
 
-1. 使用 Postman 或 curl 等工具测试您的 webhook 端点
+1. 使用 Postman 或 curl 等工具测试您的 Webhook 端点
 2. 检查工作流执行日志以进行调试
 3. 验证负载结构是否符合您的预期
 4. 测试身份验证和错误场景
 
 <Callout type="warning">
-在处理工作流中的数据之前，请始终验证和清理传入的 webhook 数据。
+在处理工作流中的 Webhook 数据之前，请始终验证和清理传入的数据。
 </Callout>
 
-## 常见使用场景
+## 常见用例
 
 ### 实时通知
 - Slack 消息触发自动响应
@@ -122,5 +145,5 @@ Webhook 允许外部服务通过发送 HTTP 请求到您的工作流，从外部
 
 ### 客户支持
 - 支持工单创建工作流
-- 自动化升级流程
+- 自动升级流程
 - 多渠道通信路由

@@ -44,8 +44,7 @@ describe('WorkflowBlockHandler', () => {
       metadata: { duration: 0 },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
+      loopExecutions: new Map(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
       completedLoops: new Set(),
@@ -103,7 +102,7 @@ describe('WorkflowBlockHandler', () => {
     it('should throw error when no workflowId is provided', async () => {
       const inputs = {}
 
-      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
         'No workflow selected for execution'
       )
     })
@@ -118,7 +117,7 @@ describe('WorkflowBlockHandler', () => {
           'level1_sub_level2_sub_level3_sub_level4_sub_level5_sub_level6_sub_level7_sub_level8_sub_level9_sub_level10_sub_level11',
       }
 
-      await expect(handler.execute(mockBlock, inputs, deepContext)).rejects.toThrow(
+      await expect(handler.execute(deepContext, mockBlock, inputs)).rejects.toThrow(
         'Error in child workflow "child-workflow-id": Maximum workflow nesting depth of 10 exceeded'
       )
     })
@@ -132,7 +131,7 @@ describe('WorkflowBlockHandler', () => {
         statusText: 'Not Found',
       })
 
-      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
         'Error in child workflow "non-existent-workflow": Child workflow non-existent-workflow not found'
       )
     })
@@ -142,7 +141,7 @@ describe('WorkflowBlockHandler', () => {
 
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
-      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
         'Error in child workflow "child-workflow-id": Network error'
       )
     })
@@ -221,7 +220,9 @@ describe('WorkflowBlockHandler', () => {
       expect(result).toEqual({
         success: false,
         childWorkflowName: 'Child Workflow',
+        result: {},
         error: 'Child workflow failed',
+        childTraceSpans: [],
       })
     })
 

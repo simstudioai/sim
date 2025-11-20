@@ -50,7 +50,12 @@ export function normalizeChildWorkflowSpan(span: TraceSpan): TraceSpan {
 
   const mergedChildren = mergeTraceSpanChildren(normalizedChildren, outputChildSpans)
 
-  if (enrichedSpan.output && 'childTraceSpans' in enrichedSpan.output) {
+  if (
+    enrichedSpan.output &&
+    typeof enrichedSpan.output === 'object' &&
+    enrichedSpan.output !== null &&
+    'childTraceSpans' in enrichedSpan.output
+  ) {
     const { childTraceSpans, ...cleanOutput } = enrichedSpan.output as {
       childTraceSpans?: TraceSpan[]
     } & Record<string, unknown>

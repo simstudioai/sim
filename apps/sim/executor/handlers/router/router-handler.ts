@@ -2,8 +2,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType } from '@/executor/consts'
-import type { PathTracker } from '@/executor/path/path'
+import { BlockType, DEFAULTS, HTTP, isAgentBlockType, ROUTER } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -14,27 +13,23 @@ const logger = createLogger('RouterBlockHandler')
  * Handler for Router blocks that dynamically select execution paths.
  */
 export class RouterBlockHandler implements BlockHandler {
-  /**
-   * @param pathTracker - Utility for tracking execution paths
-   */
-  constructor(private pathTracker: PathTracker) {}
+  constructor(private pathTracker?: any) {}
 
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === BlockType.ROUTER
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<BlockOutput> {
-    const targetBlocks = this.getTargetBlocks(block, context)
+    const targetBlocks = this.getTargetBlocks(ctx, block)
 
     const routerConfig = {
       prompt: inputs.prompt,
-      model: inputs.model || 'gpt-4o',
+      model: inputs.model || ROUTER.DEFAULT_MODEL,
       apiKey: inputs.apiKey,
-      temperature: inputs.temperature || 0,
     }
 
     const providerId = getProviderFromModel(routerConfig.model)
@@ -42,7 +37,6 @@ export class RouterBlockHandler implements BlockHandler {
     try {
       const url = new URL('/api/providers', getBaseUrl())
 
-      // Create the provider request with proper message formatting
       const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
       const providerRequest = {
@@ -50,30 +44,27 @@ export class RouterBlockHandler implements BlockHandler {
         model: routerConfig.model,
         systemPrompt: systemPrompt,
         context: JSON.stringify(messages),
-        temperature: 0.1,
+        temperature: ROUTER.INFERENCE_TEMPERATURE,
         apiKey: routerConfig.apiKey,
-        workflowId: context.workflowId,
+        workflowId: ctx.workflowId,
       }
 
       const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': HTTP.CONTENT_TYPE.JSON,
         },
         body: JSON.stringify(providerRequest),
       })
 
       if (!response.ok) {
-        // Try to extract a helpful error message
         let errorMessage = `Provider API request failed with status ${response.status}`
         try {
           const errorData = await response.json()
           if (errorData.error) {
             errorMessage = errorData.error
           }
-        } catch (_e) {
-          // If JSON parsing fails, use the original error message
-        }
+        } catch (_e) {}
         throw new Error(errorMessage)
       }
 
@@ -90,23 +81,26 @@ export class RouterBlockHandler implements BlockHandler {
         throw new Error(`Invalid routing decision: ${chosenBlockId}`)
       }
 
-      const tokens = result.tokens || { prompt: 0, completion: 0, total: 0 }
+      const tokens = result.tokens || {
+        prompt: DEFAULTS.TOKENS.PROMPT,
+        completion: DEFAULTS.TOKENS.COMPLETION,
+        total: DEFAULTS.TOKENS.TOTAL,
+      }
 
-      // Calculate cost based on token usage, similar to how providers do it
       const cost = calculateCost(
         result.model,
-        tokens.prompt || 0,
-        tokens.completion || 0,
-        false // Router blocks don't typically use cached input
+        tokens.prompt || DEFAULTS.TOKENS.PROMPT,
+        tokens.completion || DEFAULTS.TOKENS.COMPLETION,
+        false
       )
 
       return {
         prompt: inputs.prompt,
         model: result.model,
         tokens: {
-          prompt: tokens.prompt || 0,
-          completion: tokens.completion || 0,
-          total: tokens.total || 0,
+          prompt: tokens.prompt || DEFAULTS.TOKENS.PROMPT,
+          completion: tokens.completion || DEFAULTS.TOKENS.COMPLETION,
+          total: tokens.total || DEFAULTS.TOKENS.TOTAL,
         },
         cost: {
           input: cost.input,
@@ -115,41 +109,31 @@ export class RouterBlockHandler implements BlockHandler {
         },
         selectedPath: {
           blockId: chosenBlock.id,
-          blockType: chosenBlock.type || 'unknown',
-          blockTitle: chosenBlock.title || 'Untitled Block',
+          blockType: chosenBlock.type || DEFAULTS.BLOCK_TYPE,
+          blockTitle: chosenBlock.title || DEFAULTS.BLOCK_TITLE,
         },
-      }
+        selectedRoute: String(chosenBlock.id),
+      } as BlockOutput
     } catch (error) {
       logger.error('Router execution failed:', error)
       throw error
     }
   }
 
-  /**
-   * Gets all potential target blocks for this router.
-   *
-   * @param block - Router block
-   * @param context - Current execution context
-   * @returns Array of potential target blocks with metadata
-   * @throws Error if target block not found
-   */
-  private getTargetBlocks(block: SerializedBlock, context: ExecutionContext) {
-    return context.workflow?.connections
+  private getTargetBlocks(ctx: ExecutionContext, block: SerializedBlock) {
+    return ctx.workflow?.connections
       .filter((conn) => conn.source === block.id)
       .map((conn) => {
-        const targetBlock = context.workflow?.blocks.find((b) => b.id === conn.target)
+        const targetBlock = ctx.workflow?.blocks.find((b) => b.id === conn.target)
         if (!targetBlock) {
           throw new Error(`Target block ${conn.target} not found`)
         }
 
-        // Extract system prompt for agent blocks
         let systemPrompt = ''
-        if (targetBlock.metadata?.id === BlockType.AGENT) {
-          // Try to get system prompt from different possible locations
+        if (isAgentBlockType(targetBlock.metadata?.id)) {
           systemPrompt =
             targetBlock.config?.params?.systemPrompt || targetBlock.inputs?.systemPrompt || ''
 
-          // If system prompt is still not found, check if we can extract it from inputs
           if (!systemPrompt && targetBlock.inputs) {
             systemPrompt = targetBlock.inputs.systemPrompt || ''
           }
@@ -164,7 +148,7 @@ export class RouterBlockHandler implements BlockHandler {
             ...targetBlock.config.params,
             systemPrompt: systemPrompt,
           },
-          currentState: context.blockStates.get(targetBlock.id)?.output,
+          currentState: ctx.blockStates.get(targetBlock.id)?.output,
         }
       })
   }

@@ -8,20 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="youtube"
   color="#FF0000"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      
-      viewBox='0 0 28 20'
-      fill='currentColor'
-      xmlns='http://www.w3.org/2000/svg'
-      
-    >
-      <path
-        d='M11.2 14L18.466 9.8L11.2 5.6V14ZM27.384 3.038C27.566 3.696 27.692 4.578 27.776 5.698C27.874 6.818 27.916 7.784 27.916 8.624L28 9.8C28 12.866 27.776 15.12 27.384 16.562C27.034 17.822 26.222 18.634 24.962 18.984C24.304 19.166 23.1 19.292 21.252 19.376C19.432 19.474 17.766 19.516 16.226 19.516L14 19.6C8.134 19.6 4.48 19.376 3.038 18.984C1.778 18.634 0.966 17.822 0.616 16.562C0.434 15.904 0.308 15.022 0.224 13.902C0.126 12.782 0.0839999 11.816 0.0839999 10.976L0 9.8C0 6.734 0.224 4.48 0.616 3.038C0.966 1.778 1.778 0.966 3.038 0.616C3.696 0.434 4.9 0.308 6.748 0.224C8.568 0.126 10.234 0.0839999 11.774 0.0839999L14 0C19.866 0 23.52 0.224 24.962 0.616C26.222 0.966 27.034 1.778 27.384 3.038Z'
-        fill='currentColor'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -40,7 +26,7 @@ In Sim, the YouTube integration enables your agents to programmatically search a
 
 ## Usage Instructions
 
-Integrate YouTube into the workflow. Can search for videos, get video details, get channel information, get playlist items, and get video comments.
+Integrate YouTube into the workflow. Can search for videos, get video details, get channel information, get all videos from a channel, get channel playlists, get playlist items, find related videos, and get video comments.
 
 
 
@@ -48,15 +34,26 @@ Integrate YouTube into the workflow. Can search for videos, get video details, g
 
 ### `youtube_search`
 
-Search for videos on YouTube using the YouTube Data API.
+Search for videos on YouTube using the YouTube Data API. Supports advanced filtering by channel, date range, duration, category, quality, captions, and more.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Search query for YouTube videos |
-| `maxResults` | number | No | Maximum number of videos to return |
+| `maxResults` | number | No | Maximum number of videos to return \(1-50\) |
 | `apiKey` | string | Yes | YouTube API Key |
+| `channelId` | string | No | Filter results to a specific YouTube channel ID |
+| `publishedAfter` | string | No | Only return videos published after this date \(RFC 3339 format: "2024-01-01T00:00:00Z"\) |
+| `publishedBefore` | string | No | Only return videos published before this date \(RFC 3339 format: "2024-01-01T00:00:00Z"\) |
+| `videoDuration` | string | No | Filter by video length: "short" \(&lt;4 min\), "medium" \(4-20 min\), "long" \(&gt;20 min\), "any" |
+| `order` | string | No | Sort results by: "date", "rating", "relevance" \(default\), "title", "videoCount", "viewCount" |
+| `videoCategoryId` | string | No | Filter by YouTube category ID \(e.g., "10" for Music, "20" for Gaming\) |
+| `videoDefinition` | string | No | Filter by video quality: "high" \(HD\), "standard", "any" |
+| `videoCaption` | string | No | Filter by caption availability: "closedCaption" \(has captions\), "none" \(no captions\), "any" |
+| `regionCode` | string | No | Return results relevant to a specific region \(ISO 3166-1 alpha-2 country code, e.g., "US", "GB"\) |
+| `relevanceLanguage` | string | No | Return results most relevant to a language \(ISO 639-1 code, e.g., "en", "es"\) |
+| `safeSearch` | string | No | Content filtering level: "moderate" \(default\), "none", "strict" |
 
 #### Output
 
@@ -118,6 +115,45 @@ Get detailed information about a YouTube channel.
 | `thumbnail` | string | Channel thumbnail URL |
 | `customUrl` | string | Channel custom URL |
 
+### `youtube_channel_videos`
+
+Get all videos from a specific YouTube channel, with sorting options.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | Yes | YouTube channel ID to get videos from |
+| `maxResults` | number | No | Maximum number of videos to return \(1-50\) |
+| `order` | string | No | Sort order: "date" \(newest first\), "rating", "relevance", "title", "viewCount" |
+| `pageToken` | string | No | Page token for pagination |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of videos from the channel |
+
+### `youtube_channel_playlists`
+
+Get all playlists from a specific YouTube channel.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | Yes | YouTube channel ID to get playlists from |
+| `maxResults` | number | No | Maximum number of playlists to return \(1-50\) |
+| `pageToken` | string | No | Page token for pagination |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of playlists from the channel |
+
 ### `youtube_playlist_items`
 
 Get videos from a YouTube playlist.
@@ -136,6 +172,25 @@ Get videos from a YouTube playlist.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of videos in the playlist |
+
+### `youtube_related_videos`
+
+Find videos related to a specific YouTube video.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | Yes | YouTube video ID to find related videos for |
+| `maxResults` | number | No | Maximum number of related videos to return \(1-50\) |
+| `pageToken` | string | No | Page token for pagination |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of related videos |
 
 ### `youtube_comments`
 

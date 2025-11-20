@@ -8,21 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="reddit"
   color="#FF5700"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      
-      
-      viewBox='0 0 50 50'
-      fill='#FFFFFF'
-      role='img'
-      xmlns='http://www.w3.org/2000/svg'
-    >
-      <path
-        d='M 29 3 C 26.894531 3 24.433594 4.652344 24.0625 12.03125 C 24.375 12.023438 24.683594 12 25 12 C 25.351563 12 25.714844 12.019531 26.0625 12.03125 C 26.300781 7.597656 27.355469 5 29 5 C 29.703125 5 30.101563 5.382813 30.84375 6.1875 C 31.710938 7.128906 32.84375 8.351563 35.0625 8.8125 C 35.027344 8.550781 35 8.269531 35 8 C 35 7.578125 35.042969 7.179688 35.125 6.78125 C 33.75 6.40625 33.023438 5.613281 32.3125 4.84375 C 31.519531 3.984375 30.609375 3 29 3 Z M 41 4 C 38.792969 4 37 5.796875 37 8 C 37 10.203125 38.792969 12 41 12 C 43.207031 12 45 10.203125 45 8 C 45 5.796875 43.207031 4 41 4 Z M 25 14 C 12.867188 14 3 20.179688 3 29 C 3 37.820313 12.867188 45 25 45 C 37.132813 45 47 37.820313 47 29 C 47 20.179688 37.132813 14 25 14 Z M 7.5 14.9375 C 6.039063 14.9375 4.652344 15.535156 3.59375 16.59375 C 1.871094 18.316406 1.515625 20.792969 2.5 22.84375 C 4.011719 19.917969 6.613281 17.421875 9.96875 15.5625 C 9.207031 15.175781 8.363281 14.9375 7.5 14.9375 Z M 42.5 14.9375 C 41.636719 14.9375 40.792969 15.175781 40.03125 15.5625 C 43.386719 17.421875 45.988281 19.917969 47.5 22.84375 C 48.484375 20.792969 48.128906 18.316406 46.40625 16.59375 C 45.347656 15.535156 43.960938 14.9375 42.5 14.9375 Z M 17 23 C 18.65625 23 20 24.34375 20 26 C 20 27.65625 18.65625 29 17 29 C 15.34375 29 14 27.65625 14 26 C 14 24.34375 15.34375 23 17 23 Z M 33 23 C 34.65625 23 36 24.34375 36 26 C 36 27.65625 34.65625 29 33 29 C 31.34375 29 30 27.65625 30 26 C 30 24.34375 31.34375 23 33 23 Z M 16.0625 34 C 16.3125 34.042969 16.558594 34.183594 16.71875 34.40625 C 16.824219 34.554688 19.167969 37.6875 25 37.6875 C 30.910156 37.6875 33.257813 34.46875 33.28125 34.4375 C 33.597656 33.988281 34.234375 33.867188 34.6875 34.1875 C 35.136719 34.503906 35.222656 35.109375 34.90625 35.5625 C 34.789063 35.730469 31.9375 39.6875 25 39.6875 C 18.058594 39.6875 15.210938 35.730469 15.09375 35.5625 C 14.777344 35.109375 14.859375 34.503906 15.3125 34.1875 C 15.539063 34.027344 15.8125 33.957031 16.0625 34 Z'
-        fill='currentColor'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -39,7 +24,7 @@ These operations let your agents access and analyze Reddit content as part of yo
 
 ## Usage Instructions
 
-Integrate Reddit into the workflow. Can get posts and comments from a subreddit.
+Integrate Reddit into workflows. Read posts, comments, and search content. Submit posts, vote, reply, edit, and manage your Reddit account.
 
 
 
@@ -57,6 +42,11 @@ Fetch posts from a subreddit with different sorting options
 | `sort` | string | No | Sort method for posts: "hot", "new", "top", or "rising" \(default: "hot"\) |
 | `limit` | number | No | Maximum number of posts to return \(default: 10, max: 100\) |
 | `time` | string | No | Time filter for "top" sorted posts: "day", "week", "month", "year", or "all" \(default: "day"\) |
+| `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | No | Show items that would normally be filtered \(e.g., "all"\) |
+| `sr_detail` | boolean | No | Expand subreddit details in the response |
 
 #### Output
 
@@ -77,12 +67,221 @@ Fetch comments from a specific Reddit post
 | `subreddit` | string | Yes | The subreddit where the post is located \(without the r/ prefix\) |
 | `sort` | string | No | Sort method for comments: "confidence", "top", "new", "controversial", "old", "random", "qa" \(default: "confidence"\) |
 | `limit` | number | No | Maximum number of comments to return \(default: 50, max: 100\) |
+| `depth` | number | No | Maximum depth of subtrees in the thread \(controls nested comment levels\) |
+| `context` | number | No | Number of parent comments to include |
+| `showedits` | boolean | No | Show edit information for comments |
+| `showmore` | boolean | No | Include "load more comments" elements in the response |
+| `showtitle` | boolean | No | Include submission title in the response |
+| `threaded` | boolean | No | Return comments in threaded/nested format |
+| `truncate` | number | No | Integer to truncate comment depth |
+| `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `post` | object | Post information including ID, title, author, content, and metadata |
+
+### `reddit_get_controversial`
+
+Fetch controversial posts from a subreddit
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Yes | The name of the subreddit to fetch posts from \(without the r/ prefix\) |
+| `time` | string | No | Time filter for controversial posts: "hour", "day", "week", "month", "year", or "all" \(default: "all"\) |
+| `limit` | number | No | Maximum number of posts to return \(default: 10, max: 100\) |
+| `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | No | Show items that would normally be filtered \(e.g., "all"\) |
+| `sr_detail` | boolean | No | Expand subreddit details in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Name of the subreddit where posts were fetched from |
+| `posts` | array | Array of controversial posts with title, author, URL, score, comments count, and metadata |
+
+### `reddit_search`
+
+Search for posts within a subreddit
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Yes | The name of the subreddit to search in \(without the r/ prefix\) |
+| `query` | string | Yes | Search query text |
+| `sort` | string | No | Sort method for search results: "relevance", "hot", "top", "new", or "comments" \(default: "relevance"\) |
+| `time` | string | No | Time filter for search results: "hour", "day", "week", "month", "year", or "all" \(default: "all"\) |
+| `limit` | number | No | Maximum number of posts to return \(default: 10, max: 100\) |
+| `restrict_sr` | boolean | No | Restrict search to the specified subreddit only \(default: true\) |
+| `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | No | Show items that would normally be filtered \(e.g., "all"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Name of the subreddit where search was performed |
+| `posts` | array | Array of search result posts with title, author, URL, score, comments count, and metadata |
+
+### `reddit_submit_post`
+
+Submit a new post to a subreddit (text or link)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Yes | The name of the subreddit to post to \(without the r/ prefix\) |
+| `title` | string | Yes | Title of the submission \(max 300 characters\) |
+| `text` | string | No | Text content for a self post \(markdown supported\) |
+| `url` | string | No | URL for a link post \(cannot be used with text\) |
+| `nsfw` | boolean | No | Mark post as NSFW |
+| `spoiler` | boolean | No | Mark post as spoiler |
+| `send_replies` | boolean | No | Send reply notifications to inbox \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the post was submitted successfully |
+| `message` | string | Success or error message |
+| `data` | object | Post data including ID, name, URL, and permalink |
+
+### `reddit_vote`
+
+Upvote, downvote, or unvote a Reddit post or comment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Thing fullname to vote on \(e.g., t3_xxxxx for post, t1_xxxxx for comment\) |
+| `dir` | number | Yes | Vote direction: 1 \(upvote\), 0 \(unvote\), or -1 \(downvote\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the vote was successful |
+| `message` | string | Success or error message |
+
+### `reddit_save`
+
+Save a Reddit post or comment to your saved items
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Thing fullname to save \(e.g., t3_xxxxx for post, t1_xxxxx for comment\) |
+| `category` | string | No | Category to save under \(Reddit Gold feature\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the save was successful |
+| `message` | string | Success or error message |
+
+### `reddit_unsave`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Subreddit name |
+| `posts` | json | Posts data |
+| `post` | json | Single post data |
+| `comments` | json | Comments data |
+
+### `reddit_reply`
+
+Add a comment reply to a Reddit post or comment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `parent_id` | string | Yes | Thing fullname to reply to \(e.g., t3_xxxxx for post, t1_xxxxx for comment\) |
+| `text` | string | Yes | Comment text in markdown format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the reply was posted successfully |
+| `message` | string | Success or error message |
+| `data` | object | Comment data including ID, name, permalink, and body |
+
+### `reddit_edit`
+
+Edit the text of your own Reddit post or comment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `thing_id` | string | Yes | Thing fullname to edit \(e.g., t3_xxxxx for post, t1_xxxxx for comment\) |
+| `text` | string | Yes | New text content in markdown format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the edit was successful |
+| `message` | string | Success or error message |
+| `data` | object | Updated content data |
+
+### `reddit_delete`
+
+Delete your own Reddit post or comment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Thing fullname to delete \(e.g., t3_xxxxx for post, t1_xxxxx for comment\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+| `message` | string | Success or error message |
+
+### `reddit_subscribe`
+
+Subscribe or unsubscribe from a subreddit
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Yes | The name of the subreddit \(without the r/ prefix\) |
+| `action` | string | Yes | Action to perform: "sub" to subscribe or "unsub" to unsubscribe |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the subscription action was successful |
+| `message` | string | Success or error message |
 
 
 

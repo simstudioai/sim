@@ -3,45 +3,14 @@ title: ループ
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-ループブロックはSimの中のコンテナブロックで、ブロックのグループを繰り返し実行することで反復的なワークフローを作成できます。ループを使用することで、ワークフロー内で反復処理が可能になります。
-
-ループブロックは4種類の反復処理をサポートしています：
+ループブロックはブロックを繰り返し実行するコンテナです。コレクションを反復処理したり、固定回数の操作を繰り返したり、条件が満たされている間継続したりすることができます。
 
 <Callout type="info">
-  ループブロックは他のブロックを内部に保持できるコンテナノードです。ループ内のブロックは設定に基づいて複数回実行されます。
+  ループブロックは内部に他のブロックを保持するコンテナノードです。含まれるブロックは設定に基づいて複数回実行されます。
 </Callout>
-
-## 概要
-
-ループブロックでは以下のことが可能です：
-
-<Steps>
-  <Step>
-    <strong>コレクションの反復処理</strong>：配列やオブジェクトを1アイテムずつ処理する
-  </Step>
-  <Step>
-    <strong>操作の繰り返し</strong>：ブロックを固定回数実行する
-  </Step>
-  <Step>
-    <strong>条件付きループ</strong>：条件が満たされている間、または満たされるまで実行を継続する
-  </Step>
-  <Step>
-    <strong>結果の集約</strong>：すべてのループ反復からの出力を収集する
-  </Step>
-</Steps>
-
-## 動作の仕組み
-
-ループブロックは順次反復を通じて含まれるブロックを実行します：
-
-1. **ループの初期化** - 反復パラメータ（回数またはコレクション）を設定
-2. **反復の実行** - 現在の反復に対して含まれるブロックを実行
-3. **結果の収集** - 各反復からの出力を保存
-4. **継続または完了** - 次の反復に進むか、ループを終了する
 
 ## 設定オプション
 
@@ -77,12 +46,12 @@ import { Image } from '@/components/ui/image'
 
   </Tab>
   <Tab>
-    **ForEach ループ（コレクション）** - 配列やオブジェクト内の各アイテムを反復処理するコレクションベースのループです：
+    **ForEach ループ（コレクション）** - 配列やオブジェクト内の各アイテムを反復処理するコレクションベースのループ：
     
     <div className="flex justify-center">
       <Image
         src="/static/blocks/loop-2.png"
-        alt="コレクションを使用したForEachループ"
+        alt="コレクションを使用したForEach ループ"
         width={500}
         height={400}
         className="my-6"
@@ -101,7 +70,7 @@ import { Image } from '@/components/ui/image'
 
   </Tab>
   <Tab>
-    **While ループ（条件ベース）** - 条件がtrueと評価される間、実行を継続します：
+    **While ループ（条件ベース）** - 条件が真と評価される間、実行を継続します：
     
     <div className="flex justify-center">
       <Image
@@ -114,24 +83,23 @@ import { Image } from '@/components/ui/image'
     </div>
     
     特定の条件が満たされるまでループする必要がある場合に使用します。条件は各反復の**前に**チェックされます。
-    
 
     ```
-    Example: While <variable.i> < 10
+    Example: While {"<variable.i>"} < 10
     - Check condition → Execute if true
-    - Inside loop: Increment <variable.i>
-    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Execute if true
     - Check condition → Exit if false
     ```
 
   </Tab>
   <Tab>
-    **Do-While ループ（条件ベース）** - 少なくとも1回実行し、その後条件がtrueの間継続します：
+    **Do-While ループ（条件ベース）** - 少なくとも1回実行し、その後条件が真である間継続します：
     
     <div className="flex justify-center">
       <Image
-        src="/static/blocks/loop-3.png"
+        src="/static/blocks/loop-4.png"
         alt="条件付きDo-While ループ"
         width={500}
         height={400}
@@ -140,13 +108,21 @@ import { Image } from '@/components/ui/image'
     </div>
     
     少なくとも1回実行し、その後条件が満たされるまでループする必要がある場合に使用します。条件は各反復の**後に**チェックされます。
-    
 
     ```
-    Example: Do-while <variable.i> < 10
+    Example: Do-while {"<variable.i>"} < 10
     - Execute blocks
-    - Inside loop: Increment <variable.i>
-    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
+    - Check condition → Continue if true
+    - Check condition → Exit if false
+    ```
+
+    少なくとも1回実行し、その後条件が満たされるまでループする必要がある場合に使用します。条件は各反復の**後に**チェックされます。
+
+    ```
+    Example: Do-While Loop
+    - Execute first iteration
     - Check condition → Continue if true
     - Check condition → Exit if false
     ```
@@ -159,54 +135,64 @@ import { Image } from '@/components/ui/image'
 ### ループの作成
 
 1. ツールバーからループブロックをキャンバスにドラッグします
-2. ループの種類とパラメータを設定します
+2. ループタイプとパラメータを設定します
 3. 他のブロックをループコンテナ内にドラッグします
 4. 必要に応じてブロックを接続します
 
 ### 結果へのアクセス
 
-ループが完了した後、集計された結果にアクセスできます：
+ループが完了すると、集計された結果にアクセスできます：
 
-- **`<loop.results>`**: すべてのループ反復からの結果の配列
+- **loop.results**: すべてのループ反復からの結果の配列
 
 ## 使用例
 
-### API結果の処理
+**API結果の処理** - ForEachループでAPIから取得した顧客レコードを処理
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：複数の顧客レコードを処理する</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>APIブロックが顧客リストを取得</li>
-    <li>ForEachループが各顧客に対して反復処理</li>
-    <li>ループ内：エージェントが顧客データを分析</li>
-    <li>ループ内：関数が分析結果を保存</li>
-  </ol>
-</div>
+```javascript
+// API結果を反復処理
+forEach(customerRecord in apiResponse.data) {
+  // 各顧客レコードを処理
+  processCustomer(customerRecord);
+  // 必要に応じてデータベースを更新
+  updateDatabase(customerRecord.id, { processed: true });
+}
+```
 
-### 反復的なコンテンツ生成
+**反復的なコンテンツ生成** - Forループで複数のコンテンツバリエーションを生成
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：複数のバリエーションを生成する</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Forループを5回の反復に設定</li>
-    <li>ループ内：エージェントがコンテンツのバリエーションを生成</li>
-    <li>ループ内：評価者がコンテンツを採点</li>
-    <li>ループ後：関数が最適なバリエーションを選択</li>
-  </ol>
-</div>
+```javascript
+// 5つのコンテンツバリエーションを生成
+for (let i = 0; i < 5; i++) {
+  // 各バリエーションに異なるトーンを使用
+  const tone = tones[i];
+  // AIを使用してコンテンツを生成
+  const content = generateContent(prompt, { tone: tone });
+  // 結果を保存
+  variations.push(content);
+}
+```
 
-### Whileループによるカウンター
+**Whileループによるカウンター** - Whileループでカウンターを使用してアイテムを処理
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：カウンターベースのループでアイテムを処理する</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>ワークフロー変数を初期化：`i = 0`</li>
-    <li>条件付きWhileループ：`<variable.i>` \< 10</li>
-    <li>ループ内：エージェントがインデックス `<variable.i>` のアイテムを処理</li>
-    <li>ループ内：変数がインクリメント `i = <variable.i> + 1`</li>
-    <li>iが10未満である限りループは継続</li>
-  </ol>
-</div>
+```javascript
+// カウンターを初期化
+let counter = 0;
+
+// 条件が満たされるまで処理を続ける
+while (counter < items.length && !foundTarget) {
+  // 現在のアイテムを処理
+  const result = processItem(items[counter]);
+  
+  // 目標が見つかったかチェック
+  if (result.isTarget) {
+    foundTarget = true;
+  }
+  
+  // カウンターを増加
+  counter++;
+}
+```
 
 ## 高度な機能
 
@@ -214,66 +200,60 @@ import { Image } from '@/components/ui/image'
 
 <Callout type="warning">
   コンテナブロック（ループと並列）は互いに入れ子にすることができません。つまり：
-  - ループブロック内に別のループブロックを配置できません
-  - ループブロック内に並列ブロックを配置できません
-  - どのコンテナブロック内にも別のコンテナブロックを配置できません
+  - ループブロックを別のループブロック内に配置することはできません
+  - 並列ブロックをループブロック内に配置することはできません
+  - どのコンテナブロックも別のコンテナブロック内に配置することはできません
   
-  多次元の反復処理が必要な場合は、連続したループを使用するか、データを段階的に処理するようにワークフローを再構成することを検討してください。
+  多次元反復が必要な場合は、順次ループを使用するか、データを段階的に処理するようにワークフローを再構成することを検討してください。
 </Callout>
 
 <Callout type="info">
-  ループは並列ではなく、順次実行されます。同時実行が必要な場合は、代わりに並列ブロックを使用してください。
+  ループは並列ではなく順次実行されます。同時実行が必要な場合は、代わりに並列ブロックを使用してください。
 </Callout>
 
 ## 入力と出力
 
-<Tabs items={['Configuration', 'Variables', 'Results']}>
+<Tabs items={['設定', '変数', '結果']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>ループタイプ</strong>: 'for'、'forEach'、'while'、または'doWhile'から選択
+        <strong>ループタイプ</strong>：'for'、'forEach'、'while'、または'doWhile'から選択
       </li>
       <li>
-        <strong>繰り返し回数</strong>: 実行する回数（forループ）
+        <strong>反復回数</strong>：実行する回数（forループ）
       </li>
       <li>
-        <strong>コレクション</strong>: 反復処理する配列またはオブジェクト（forEachループ）
+        <strong>コレクション</strong>：反復処理する配列またはオブジェクト（forEachループ）
       </li>
       <li>
-        <strong>条件</strong>: 評価するブール式（while/do-whileループ）
+        <strong>条件</strong>：評価するブール式（while/do-whileループ）
       </li>
     </ul>
   </Tab>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>loop.currentItem</strong>: 現在処理中のアイテム
+        <strong>loop.currentItem</strong>：現在処理中のアイテム
       </li>
       <li>
-        <strong>loop.index</strong>: 現在の繰り返し番号（0から始まる）
+        <strong>loop.index</strong>：現在の反復番号（0ベース）
       </li>
       <li>
-        <strong>loop.items</strong>: 完全なコレクション（forEachループ）
+        <strong>loop.items</strong>：完全なコレクション（forEachループ）
       </li>
     </ul>
   </Tab>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>loop.results</strong>: すべての繰り返し結果の配列
+        <strong>loop.results</strong>：すべての反復結果の配列
       </li>
       <li>
-        <strong>構造</strong>: 結果は繰り返し順序を維持
+        <strong>構造</strong>：結果は反復順序を維持
       </li>
       <li>
-        <strong>アクセス</strong>: ループ後のブロックで利用可能
+        <strong>アクセス</strong>：ループ後のブロックで利用可能
       </li>
     </ul>
   </Tab>
 </Tabs>
-
-## ベストプラクティス
-
-- **適切な制限を設定する**: 長い実行時間を避けるため、繰り返し回数を適切に保つ
-- **コレクションにはForEachを使用する**: 配列やオブジェクトを処理する場合、Forループの代わりにForEachを使用する
-- **エラーを適切に処理する**: 堅牢なワークフローのために、ループ内にエラー処理を追加することを検討する

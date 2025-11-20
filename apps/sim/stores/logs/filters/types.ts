@@ -118,6 +118,7 @@ export interface WorkflowLog {
     bucketName?: string
   }>
   cost?: CostMetadata
+  hasPendingPause?: boolean
   executionData?: ToolCallMetadata & {
     traceSpans?: TraceSpan[]
     totalDuration?: number
@@ -166,9 +167,6 @@ export type LogLevel = 'error' | 'info' | 'all'
 export type TriggerType = 'chat' | 'api' | 'webhook' | 'manual' | 'schedule' | 'all'
 
 export interface FilterState {
-  // Original logs from API
-  logs: WorkflowLog[]
-
   // Workspace context
   workspaceId: string
 
@@ -183,20 +181,10 @@ export interface FilterState {
   searchQuery: string
   triggers: TriggerType[]
 
-  // Loading state
-  loading: boolean
-  error: string | null
-
-  // Pagination state
-  page: number
-  hasMore: boolean
-  isFetchingMore: boolean
-
   // Internal state
   _isInitializing: boolean
 
   // Actions
-  setLogs: (logs: WorkflowLog[], append?: boolean) => void
   setWorkspaceId: (workspaceId: string) => void
   setViewMode: (viewMode: 'logs' | 'dashboard') => void
   setTimeRange: (timeRange: TimeRange) => void
@@ -208,17 +196,8 @@ export interface FilterState {
   setSearchQuery: (query: string) => void
   setTriggers: (triggers: TriggerType[]) => void
   toggleTrigger: (trigger: TriggerType) => void
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-  setPage: (page: number) => void
-  setHasMore: (hasMore: boolean) => void
-  setIsFetchingMore: (isFetchingMore: boolean) => void
-  resetPagination: () => void
 
   // URL synchronization methods
   initializeFromURL: () => void
   syncWithURL: () => void
-
-  // Build query parameters for server-side filtering
-  buildQueryParams: (page: number, limit: number) => string
 }

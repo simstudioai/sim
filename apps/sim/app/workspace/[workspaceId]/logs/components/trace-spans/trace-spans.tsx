@@ -19,10 +19,9 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
   const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set())
   const [typeFilters, setTypeFilters] = useState<Record<string, boolean>>({})
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const timelineHitboxRef = useRef<HTMLDivElement | null>(null)
-  const [hoveredPercent, setHoveredPercent] = useState<number | null>(null)
   const [hoveredWorkflowMs, setHoveredWorkflowMs] = useState<number | null>(null)
   const [hoveredX, setHoveredX] = useState<number | null>(null)
+  const [hoveredY, setHoveredY] = useState<number | null>(null)
   const [containerWidth, setContainerWidth] = useState<number>(0)
 
   type ChipVisibility = {
@@ -44,35 +43,42 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
     }
   }, [containerWidth])
 
-  if (!traceSpans || traceSpans.length === 0) {
-    return <div className='text-muted-foreground text-sm'>No trace data available</div>
-  }
+  const workflowStartTime = useMemo(() => {
+    if (!traceSpans || traceSpans.length === 0) return 0
+    return traceSpans.reduce((earliest, span) => {
+      const startTime = new Date(span.startTime).getTime()
+      return startTime < earliest ? startTime : earliest
+    }, Number.POSITIVE_INFINITY)
+  }, [traceSpans])
 
-  const workflowStartTime = traceSpans.reduce((earliest, span) => {
-    const startTime = new Date(span.startTime).getTime()
-    return startTime < earliest ? startTime : earliest
-  }, Number.POSITIVE_INFINITY)
-
-  const workflowEndTime = traceSpans.reduce((latest, span) => {
-    const endTime = span.endTime ? new Date(span.endTime).getTime() : 0
-    return endTime > latest ? endTime : latest
-  }, 0)
+  const workflowEndTime = useMemo(() => {
+    if (!traceSpans || traceSpans.length === 0) return 0
+    return traceSpans.reduce((latest, span) => {
+      const endTime = span.endTime ? new Date(span.endTime).getTime() : 0
+      return endTime > latest ? endTime : latest
+    }, 0)
+  }, [traceSpans])
 
   const actualTotalDuration = workflowEndTime - workflowStartTime
 
-  const handleSpanToggle = (spanId: string, expanded: boolean, hasSubItems: boolean) => {
-    const newExpandedSpans = new Set(expandedSpans)
-    if (expanded) {
-      newExpandedSpans.add(spanId)
-    } else {
-      newExpandedSpans.delete(spanId)
-    }
-    setExpandedSpans(newExpandedSpans)
+  const handleSpanToggle = useCallback(
+    (spanId: string, expanded: boolean, hasSubItems: boolean) => {
+      setExpandedSpans((prev) => {
+        const newExpandedSpans = new Set(prev)
+        if (expanded) {
+          newExpandedSpans.add(spanId)
+        } else {
+          newExpandedSpans.delete(spanId)
+        }
+        return newExpandedSpans
+      })
 
-    if (onExpansionChange && hasSubItems) {
-      onExpansionChange(newExpandedSpans.size > 0)
-    }
-  }
+      if (onExpansionChange && hasSubItems) {
+        onExpansionChange(!expandedSpans.has(spanId))
+      }
+    },
+    [onExpansionChange, expandedSpans]
+  )
 
   const availableTypes = useMemo(() => {
     const set = new Set<string>()
@@ -129,54 +135,43 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
         .filter(([, v]) => v)
         .map(([k]) => k)
     )
-    const filterTree = (spans: TraceSpan[]): TraceSpan[] =>
+    const filterTree = (spans: TraceSpan[], parentIsWorkflow = false): TraceSpan[] =>
       spans
-        .map((s) => ({ ...s }))
+        .map((s) => normalizeChildWorkflowSpan(s))
         .filter((s) => {
           const tl = s.type?.toLowerCase?.() || ''
           if (tl === 'workflow') return true
+          if (parentIsWorkflow) return true
           return allowed.has(tl)
         })
-        .map((s) => ({
-          ...s,
-          children: s.children ? filterTree(s.children) : undefined,
-        }))
+        .map((s) => {
+          const tl = s.type?.toLowerCase?.() || ''
+          return {
+            ...s,
+            children: s.children ? filterTree(s.children, tl === 'workflow') : undefined,
+          }
+        })
     return traceSpans ? filterTree(traceSpans) : []
   }, [traceSpans, effectiveTypeFilters])
 
-  const forwardHover = useCallback(
-    (clientX: number, clientY: number) => {
-      if (!timelineHitboxRef.current || !containerRef.current) return
-
-      const railRect = timelineHitboxRef.current.getBoundingClientRect()
+  const handleTimelineHover = useCallback(
+    (clientX: number, clientY: number, timelineRect: DOMRect) => {
+      if (!containerRef.current) return
       const containerRect = containerRef.current.getBoundingClientRect()
+      const clamped = Math.max(0, Math.min(1, (clientX - timelineRect.left) / timelineRect.width))
 
-      const withinX = clientX >= railRect.left && clientX <= railRect.right
-      const withinY = clientY >= railRect.top && clientY <= railRect.bottom
-
-      if (!withinX || !withinY) {
-        setHoveredPercent(null)
-        setHoveredWorkflowMs(null)
-        setHoveredX(null)
-        return
-      }
-
-      const clamped = Math.max(0, Math.min(1, (clientX - railRect.left) / railRect.width))
-      setHoveredPercent(clamped * 100)
       setHoveredWorkflowMs(workflowStartTime + clamped * actualTotalDuration)
-      setHoveredX(railRect.left + clamped * railRect.width - containerRect.left)
+      setHoveredX(timelineRect.left + clamped * timelineRect.width - containerRect.left)
+      setHoveredY(timelineRect.top - containerRect.top)
     },
     [actualTotalDuration, workflowStartTime]
   )
 
-  useEffect(() => {
-    const handleMove = (event: MouseEvent) => {
-      forwardHover(event.clientX, event.clientY)
-    }
-
-    window.addEventListener('pointermove', handleMove)
-    return () => window.removeEventListener('pointermove', handleMove)
-  }, [forwardHover])
+  const handleTimelineLeave = useCallback(() => {
+    setHoveredWorkflowMs(null)
+    setHoveredX(null)
+    setHoveredY(null)
+  }, [])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -190,8 +185,12 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
     return () => ro.disconnect()
   }, [])
 
+  if (!traceSpans || traceSpans.length === 0) {
+    return <div className='text-muted-foreground text-sm'>No trace data available</div>
+  }
+
   return (
-    <div className='w-full'>
+    <div className='relative w-full'>
       <div className='mb-2 flex items-center justify-between'>
         <div className='flex items-center gap-2'>
           <div className='font-medium text-muted-foreground text-xs'>Workflow Execution</div>
@@ -219,31 +218,21 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
           })()}
         </div>
       </div>
-      <div
-        ref={containerRef}
-        className='relative w-full overflow-hidden rounded-md border shadow-sm'
-        onMouseLeave={() => {
-          setHoveredPercent(null)
-          setHoveredWorkflowMs(null)
-          setHoveredX(null)
-        }}
-      >
+      <div ref={containerRef} className='relative w-full overflow-hidden border shadow-sm'>
         {filtered.map((span, index) => {
-          const normalizedSpan = normalizeChildWorkflowSpan(span)
           const hasSubItems = Boolean(
-            (normalizedSpan.children && normalizedSpan.children.length > 0) ||
-              (normalizedSpan.toolCalls && normalizedSpan.toolCalls.length > 0) ||
-              normalizedSpan.input ||
-              normalizedSpan.output
+            (span.children && span.children.length > 0) ||
+              (span.toolCalls && span.toolCalls.length > 0) ||
+              span.input ||
+              span.output
           )
 
-          // Calculate gap from previous span (for sequential execution visualization)
           let gapMs = 0
           let gapPercent = 0
           if (index > 0) {
             const prevSpan = filtered[index - 1]
             const prevEndTime = new Date(prevSpan.endTime).getTime()
-            const currentStartTime = new Date(normalizedSpan.startTime).getTime()
+            const currentStartTime = new Date(span.startTime).getTime()
             gapMs = currentStartTime - prevEndTime
             if (gapMs > 0 && actualTotalDuration > 0) {
               gapPercent = (gapMs / actualTotalDuration) * 100
@@ -253,20 +242,19 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
           return (
             <TraceSpanItem
               key={index}
-              span={normalizedSpan}
+              span={span}
               depth={0}
               totalDuration={
                 actualTotalDuration !== undefined ? actualTotalDuration : totalDuration
               }
               isLast={index === traceSpans.length - 1}
-              parentStartTime={new Date(normalizedSpan.startTime).getTime()}
+              parentStartTime={new Date(span.startTime).getTime()}
               workflowStartTime={workflowStartTime}
               onToggle={handleSpanToggle}
               expandedSpans={expandedSpans}
               hasSubItems={hasSubItems}
-              hoveredPercent={hoveredPercent}
-              hoveredWorkflowMs={hoveredWorkflowMs}
-              forwardHover={forwardHover}
+              onTimelineHover={handleTimelineHover}
+              onTimelineLeave={handleTimelineLeave}
               gapBeforeMs={gapMs}
               gapBeforePercent={gapPercent}
               showRelativeChip={chipVisibility.relative}
@@ -274,29 +262,17 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
             />
           )
         })}
-
-        {/* Time label for hover (keep top label, row lines render per-row) */}
-        {hoveredPercent !== null && hoveredX !== null && (
-          <div
-            className='-translate-x-1/2 pointer-events-none absolute top-1 rounded bg-popover px-1.5 py-0.5 text-[10px] text-foreground shadow'
-            style={{ left: hoveredX, zIndex: 20 }}
-          >
-            {formatDurationDisplay(Math.max(0, (hoveredWorkflowMs || 0) - workflowStartTime))}
-          </div>
-        )}
-
-        {/* Hover capture area - aligned to timeline bars, not extending to edge */}
-        <div
-          ref={timelineHitboxRef}
-          className='pointer-events-auto absolute inset-y-0 right-[73px] w-[calc(45%-73px)]'
-          onPointerMove={(e) => forwardHover(e.clientX, e.clientY)}
-          onPointerLeave={() => {
-            setHoveredPercent(null)
-            setHoveredWorkflowMs(null)
-            setHoveredX(null)
-          }}
-        />
       </div>
+
+      {/* Time label for hover (positioned at top of timeline) */}
+      {hoveredWorkflowMs !== null && hoveredX !== null && hoveredY !== null && (
+        <div
+          className='-translate-x-1/2 pointer-events-none absolute rounded border bg-popover px-1.5 py-0.5 font-mono text-[10px] text-foreground shadow-lg'
+          style={{ left: hoveredX, top: hoveredY, zIndex: 20 }}
+        >
+          {formatDurationDisplay(Math.max(0, (hoveredWorkflowMs || 0) - workflowStartTime))}
+        </div>
+      )}
     </div>
   )
 }

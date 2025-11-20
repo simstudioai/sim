@@ -40,8 +40,7 @@ describe('EvaluatorBlockHandler', () => {
       metadata: { duration: 0 },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
+      loopExecutions: new Map(),
       completedLoops: new Set(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
@@ -86,7 +85,7 @@ describe('EvaluatorBlockHandler', () => {
       temperature: 0.1,
     }
 
-    const result = await handler.execute(mockBlock, inputs, mockContext)
+    const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
     expect(mockFetch).toHaveBeenCalledWith(
@@ -154,7 +153,7 @@ describe('EvaluatorBlockHandler', () => {
       })
     })
 
-    await handler.execute(mockBlock, inputs, mockContext)
+    await handler.execute(mockContext, mockBlock, inputs)
 
     const fetchCallArgs = mockFetch.mock.calls[0]
     const requestBody = JSON.parse(fetchCallArgs[1].body)
@@ -186,7 +185,7 @@ describe('EvaluatorBlockHandler', () => {
       })
     })
 
-    await handler.execute(mockBlock, inputs, mockContext)
+    await handler.execute(mockContext, mockBlock, inputs)
 
     const fetchCallArgs = mockFetch.mock.calls[0]
     const requestBody = JSON.parse(fetchCallArgs[1].body)
@@ -215,7 +214,7 @@ describe('EvaluatorBlockHandler', () => {
       })
     })
 
-    const result = await handler.execute(mockBlock, inputs, mockContext)
+    const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect((result as any).quality).toBe(9)
   })
@@ -240,7 +239,7 @@ describe('EvaluatorBlockHandler', () => {
       })
     })
 
-    const result = await handler.execute(mockBlock, inputs, mockContext)
+    const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect((result as any).score).toBe(0)
   })
@@ -268,7 +267,7 @@ describe('EvaluatorBlockHandler', () => {
       })
     })
 
-    const result = await handler.execute(mockBlock, inputs, mockContext)
+    const result = await handler.execute(mockContext, mockBlock, inputs)
     expect((result as any).accuracy).toBe(0)
     expect((result as any).fluency).toBe(0)
   })
@@ -293,7 +292,7 @@ describe('EvaluatorBlockHandler', () => {
       })
     })
 
-    const result = await handler.execute(mockBlock, inputs, mockContext)
+    const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect((result as any).camelcasescore).toBe(7)
   })
@@ -321,7 +320,7 @@ describe('EvaluatorBlockHandler', () => {
       })
     })
 
-    const result = await handler.execute(mockBlock, inputs, mockContext)
+    const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect((result as any).presentscore).toBe(4)
     expect((result as any).missingscore).toBe(0)
@@ -339,6 +338,6 @@ describe('EvaluatorBlockHandler', () => {
       })
     })
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow('Server error')
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow('Server error')
   })
 })

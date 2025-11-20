@@ -97,7 +97,6 @@ export const sampleWorkflowState = {
       },
       enabled: true,
       horizontalHandles: true,
-      isWide: false,
       advancedMode: false,
       triggerMode: false,
       height: 95,
@@ -126,7 +125,6 @@ export const sampleWorkflowState = {
       },
       enabled: true,
       horizontalHandles: true,
-      isWide: false,
       advancedMode: false,
       triggerMode: false,
       height: 680,
@@ -911,49 +909,44 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
     },
   }))
 
-  vi.doMock('@/lib/uploads/core/setup', () => ({
+  vi.doMock('@/lib/uploads/config', () => ({
     USE_S3_STORAGE: provider === 's3',
     USE_BLOB_STORAGE: provider === 'blob',
     USE_LOCAL_STORAGE: provider === 'local',
     getStorageProvider: vi.fn().mockReturnValue(provider),
+    S3_CONFIG: {
+      bucket: 'test-s3-bucket',
+      region: 'us-east-1',
+    },
+    S3_KB_CONFIG: {
+      bucket: 'test-s3-kb-bucket',
+      region: 'us-east-1',
+    },
+    S3_CHAT_CONFIG: {
+      bucket: 'test-s3-chat-bucket',
+      region: 'us-east-1',
+    },
+    BLOB_CONFIG: {
+      accountName: 'testaccount',
+      accountKey: 'testkey',
+      containerName: 'test-container',
+    },
+    BLOB_KB_CONFIG: {
+      accountName: 'testaccount',
+      accountKey: 'testkey',
+      containerName: 'test-kb-container',
+    },
+    BLOB_CHAT_CONFIG: {
+      accountName: 'testaccount',
+      accountKey: 'testkey',
+      containerName: 'test-chat-container',
+    },
   }))
 
   if (provider === 's3') {
-    vi.doMock('@/lib/uploads/s3/s3-client', () => ({
+    vi.doMock('@/lib/uploads/providers/s3/client', () => ({
       getS3Client: vi.fn().mockReturnValue({}),
-      sanitizeFilenameForMetadata: vi.fn((filename) => filename),
     }))
-
-    vi.doMock('@/lib/uploads/setup', () => ({
-      S3_CONFIG: {
-        bucket: 'test-s3-bucket',
-        region: 'us-east-1',
-      },
-      S3_KB_CONFIG: {
-        bucket: 'test-s3-kb-bucket',
-        region: 'us-east-1',
-      },
-      S3_CHAT_CONFIG: {
-        bucket: 'test-s3-chat-bucket',
-        region: 'us-east-1',
-      },
-      BLOB_CONFIG: {
-        accountName: 'testaccount',
-        accountKey: 'testkey',
-        containerName: 'test-container',
-      },
-      BLOB_KB_CONFIG: {
-        accountName: 'testaccount',
-        accountKey: 'testkey',
-        containerName: 'test-kb-container',
-      },
-      BLOB_CHAT_CONFIG: {
-        accountName: 'testaccount',
-        accountKey: 'testkey',
-        containerName: 'test-chat-container',
-      },
-    }))
-
     vi.doMock('@aws-sdk/client-s3', () => ({
       PutObjectCommand: vi.fn(),
     }))
@@ -983,29 +976,9 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
       }),
     }
 
-    vi.doMock('@/lib/uploads/blob/blob-client', () => ({
+    vi.doMock('@/lib/uploads/providers/blob/client', () => ({
       getBlobServiceClient: vi.fn().mockReturnValue(mockBlobServiceClient),
-      sanitizeFilenameForMetadata: vi.fn((filename) => filename),
     }))
-
-    vi.doMock('@/lib/uploads/setup', () => ({
-      BLOB_CONFIG: {
-        accountName: 'testaccount',
-        accountKey: 'testkey',
-        containerName: 'test-container',
-      },
-      BLOB_KB_CONFIG: {
-        accountName: 'testaccount',
-        accountKey: 'testkey',
-        containerName: 'test-kb-container',
-      },
-      BLOB_CHAT_CONFIG: {
-        accountName: 'testaccount',
-        accountKey: 'testkey',
-        containerName: 'test-chat-container',
-      },
-    }))
-
     vi.doMock('@azure/storage-blob', () => ({
       BlobSASPermissions: {
         parse: vi.fn(() => 'w'),
@@ -1355,6 +1328,38 @@ export function setupFileApiMocks(
     authMocks.setUnauthenticated()
   }
 
+  vi.doMock('@/lib/auth/hybrid', () => ({
+    checkHybridAuth: vi.fn().mockResolvedValue({
+      success: authenticated,
+      userId: authenticated ? 'test-user-id' : undefined,
+      error: authenticated ? undefined : 'Unauthorized',
+    }),
+  }))
+
+  vi.doMock('@/app/api/files/authorization', () => ({
+    verifyFileAccess: vi.fn().mockResolvedValue(true),
+    verifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
+    verifyKBFileAccess: vi.fn().mockResolvedValue(true),
+    verifyCopilotFileAccess: vi.fn().mockResolvedValue(true),
+    lookupWorkspaceFileByKey: vi.fn().mockResolvedValue({
+      workspaceId: 'test-workspace-id',
+      uploadedBy: 'test-user-id',
+    }),
+  }))
+
+  vi.doMock('@/lib/uploads/contexts/workspace', () => ({
+    uploadWorkspaceFile: vi.fn().mockResolvedValue({
+      id: 'test-file-id',
+      name: 'test.txt',
+      url: '/api/files/serve/workspace/test-workspace-id/test-file.txt',
+      size: 100,
+      type: 'text/plain',
+      key: 'workspace/test-workspace-id/1234567890-test.txt',
+      uploadedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    }),
+  }))
+
   mockFileSystem({
     writeFileSuccess: true,
     readFileContent: 'test content',
@@ -1510,11 +1515,10 @@ export function mockUploadUtils(
     isUsingCloudStorage: vi.fn().mockReturnValue(isCloudStorage),
   }))
 
-  vi.doMock('@/lib/uploads/setup', () => ({
+  vi.doMock('@/lib/uploads/config', () => ({
     UPLOAD_DIR: '/test/uploads',
     USE_S3_STORAGE: isCloudStorage,
     USE_BLOB_STORAGE: false,
-    ensureUploadsDirectory: vi.fn().mockResolvedValue(true),
     S3_CONFIG: {
       bucket: 'test-bucket',
       region: 'test-region',

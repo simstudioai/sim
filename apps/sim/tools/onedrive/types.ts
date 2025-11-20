@@ -19,6 +19,17 @@ export interface MicrosoftGraphDriveItem {
     driveId: string
     path: string
   }
+  thumbnails?: Array<{
+    small?: { url: string }
+    medium?: { url: string }
+    large?: { url: string }
+  }>
+  createdBy?: {
+    user?: {
+      displayName?: string
+      email?: string
+    }
+  }
 }
 
 export interface OneDriveFile {
@@ -55,6 +66,24 @@ export interface OneDriveUploadResponse extends ToolResponse {
   }
 }
 
+export interface OneDriveDownloadResponse extends ToolResponse {
+  output: {
+    file: {
+      name: string
+      mimeType: string
+      data: Buffer | string // Buffer for direct use, string for base64-encoded data
+      size: number
+    }
+  }
+}
+
+export interface OneDriveDeleteResponse extends ToolResponse {
+  output: {
+    fileId: string
+    deleted: boolean
+  }
+}
+
 export interface OneDriveToolParams {
   accessToken: string
   folderSelector?: string
@@ -70,7 +99,13 @@ export interface OneDriveToolParams {
   pageToken?: string
   exportMimeType?: string
   // Optional Excel write parameters (used when creating an .xlsx without file content)
-  values?: (string | number | boolean | null)[][]
+  values?:
+    | (string | number | boolean | null)[][]
+    | Array<Record<string, string | number | boolean | null>>
 }
 
-export type OneDriveResponse = OneDriveUploadResponse | OneDriveListResponse
+export type OneDriveResponse =
+  | OneDriveUploadResponse
+  | OneDriveDownloadResponse
+  | OneDriveListResponse
+  | OneDriveDeleteResponse

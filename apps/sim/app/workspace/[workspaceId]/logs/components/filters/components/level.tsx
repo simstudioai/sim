@@ -1,5 +1,5 @@
 import { Check, ChevronDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,8 +28,7 @@ export default function Level() {
       <DropdownMenuTrigger asChild>
         <Button
           variant='outline'
-          size='sm'
-          className='w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] font-normal text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+          className='h-8 w-full justify-between border-[#E5E5E5] bg-[var(--white)] font-normal text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
         >
           {getDisplayLabel()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
@@ -37,7 +36,7 @@ export default function Level() {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align='start'
-        className='w-[180px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+        className='w-[180px] border-[#E5E5E5] bg-[var(--white)] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
       >
         <DropdownMenuItem
           key='all'
@@ -45,7 +44,7 @@ export default function Level() {
             e.preventDefault()
             setLevel('all')
           }}
-          className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+          className='flex cursor-pointer items-center justify-between px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
         >
           <span>Any status</span>
           {level === 'all' && <Check className='h-4 w-4 text-muted-foreground' />}
@@ -60,7 +59,7 @@ export default function Level() {
               e.preventDefault()
               setLevel(levelItem.value)
             }}
-            className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+            className='flex cursor-pointer items-center justify-between px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
           >
             <div className='flex items-center'>
               <div className={`mr-2 h-2 w-2 rounded-full ${levelItem.color}`} />

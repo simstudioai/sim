@@ -1,6 +1,6 @@
 ---
 title: Linear
-description: 在 Linear 中读取和创建问题
+description: 与 Linear 的问题、项目等进行交互
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -8,17 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="linear"
   color="#5E6AD2"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      xmlns='http://www.w3.org/2000/svg'
-      fill='currentColor'
-      viewBox='0 0 100 100'
-    >
-      <path
-        fill='currentColor'
-        d='M1.22541 61.5228c-.2225-.9485.90748-1.5459 1.59638-.857L39.3342 97.1782c.6889.6889.0915 1.8189-.857 1.5964C20.0515 94.4522 5.54779 79.9485 1.22541 61.5228ZM.00189135 46.8891c-.01764375.2833.08887215.5599.28957165.7606L52.3503 99.7085c.2007.2007.4773.3075.7606.2896 2.3692-.1476 4.6938-.46 6.9624-.9259.7645-.157 1.0301-1.0963.4782-1.6481L2.57595 39.4485c-.55186-.5519-1.49117-.2863-1.648174.4782-.465915 2.2686-.77832 4.5932-.92588465 6.9624ZM4.21093 29.7054c-.16649.3738-.08169.8106.20765 1.1l64.77602 64.776c.2894.2894.7262.3742 1.1.2077 1.7861-.7956 3.5171-1.6927 5.1855-2.684.5521-.328.6373-1.0867.1832-1.5407L8.43566 24.3367c-.45409-.4541-1.21271-.3689-1.54074.1832-.99132 1.6684-1.88843 3.3994-2.68399 5.1855ZM12.6587 18.074c-.3701-.3701-.393-.9637-.0443-1.3541C21.7795 6.45931 35.1114 0 49.9519 0 77.5927 0 100 22.4073 100 50.0481c0 14.8405-6.4593 28.1724-16.7199 37.3375-.3903.3487-.984.3258-1.3542-.0443L12.6587 18.074Z'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -38,7 +27,7 @@ Linear 的主要功能包括：
 
 ## 使用说明
 
-将 Linear 集成到工作流程中。可以读取和创建问题。需要 OAuth。
+将 Linear 集成到工作流程中。可以管理问题、评论、项目、标签、工作流状态、周期、附件等。还可以基于 Linear 的 webhook 事件触发工作流。
 
 ## 工具
 
@@ -59,9 +48,25 @@ Linear 的主要功能包括：
 | --------- | ---- | ----------- |
 | `issues` | array | 来自指定 Linear 团队和项目的问题数组，每个问题包含 id、title、description、state、teamId 和 projectId |
 
+### `linear_get_issue`
+
+通过 ID 从 Linear 获取单个问题的完整详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | Linear 问题 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `issue` | object | 包含完整详细信息的问题 |
+
 ### `linear_create_issue`
 
-在 Linear 中创建新问题
+在 Linear 中创建一个新问题
 
 #### 输入
 
@@ -77,6 +82,1381 @@ Linear 的主要功能包括：
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `issue` | object | 创建的问题，包含 id、title、description、state、teamId 和 projectId |
+
+### `linear_update_issue`
+
+更新 Linear 中的现有问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | 要更新的 Linear 问题 ID |
+| `title` | string | 否 | 新的问题标题 |
+| `description` | string | 否 | 新的问题描述 |
+| `stateId` | string | 否 | 工作流状态 ID（状态） |
+| `assigneeId` | string | 否 | 要分配问题的用户 ID |
+| `priority` | number | 否 | 优先级（0=无优先级，1=紧急，2=高，3=正常，4=低） |
+| `estimate` | number | 否 | 以点数估算 |
+| `labelIds` | array | 否 | 要设置在问题上的标签 ID 数组 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `issue` | object | 更新后的问题 |
+
+### `linear_archive_issue`
+
+在 Linear 中归档一个问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | 要归档的 Linear 问题 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 归档操作是否成功 |
+| `issueId` | string | 已归档问题的 ID |
+
+### `linear_unarchive_issue`
+
+在 Linear 中取消归档（恢复）一个已归档的问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | 要取消归档的 Linear 问题 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 取消归档操作是否成功 |
+| `issueId` | string | 已取消归档问题的 ID |
+
+### `linear_delete_issue`
+
+在 Linear 中删除（丢弃）一个问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | 要删除的 Linear 问题 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除操作是否成功 |
+
+### `linear_search_issues`
+
+使用全文搜索在 Linear 中查找问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 搜索查询字符串 |
+| `teamId` | string | 否 | 按团队 ID 过滤 |
+| `includeArchived` | boolean | 否 | 在搜索结果中包含已归档的问题 |
+| `first` | number | 否 | 返回结果的数量（默认值：50） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `issues` | array | 匹配问题的数组 |
+
+### `linear_add_label_to_issue`
+
+在 Linear 中为问题添加标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | Linear 问题 ID |
+| `labelId` | string | 是 | 要添加到问题的标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 标签是否成功添加 |
+| `issueId` | string | 问题的 ID |
+
+### `linear_remove_label_from_issue`
+
+在 Linear 中从问题中移除标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | Linear 问题 ID |
+| `labelId` | string | 是 | 要从问题中移除的标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 标签是否成功移除 |
+| `issueId` | string | 问题的 ID |
+
+### `linear_create_comment`
+
+在 Linear 中为问题添加评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | 要评论的 Linear 问题 ID |
+| `body` | string | 是 | 评论文本（支持 Markdown） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `comment` | object | 创建的评论 |
+
+### `linear_update_comment`
+
+在 Linear 中编辑评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | 是 | 要更新的评论 ID |
+| `body` | string | 是 | 新的评论文本（支持 Markdown） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `comment` | object | 更新的评论 |
+
+### `linear_delete_comment`
+
+从 Linear 中删除评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | 是 | 要删除的评论 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除操作是否成功 |
+
+### `linear_list_comments`
+
+列出 Linear 中某个问题的所有评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | Linear 问题 ID |
+| `first` | number | 否 | 返回的评论数量 \(默认值: 50\) |
+| `after` | string | 否 | 分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `comments` | array | 问题的评论数组 |
+
+### `linear_list_projects`
+
+列出 Linear 中的项目并支持可选过滤
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | 否 | 按团队 ID 过滤 |
+| `includeArchived` | boolean | 否 | 包括已归档的项目 |
+| `first` | number | 否 | 返回的项目数量 \(默认值: 50\) |
+| `after` | string | 否 | 分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projects` | array | 项目数组 |
+
+### `linear_get_project`
+
+通过 ID 从 Linear 获取单个项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | Linear 项目 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `project` | object | 包含完整详细信息的项目 |
+
+### `linear_create_project`
+
+在 Linear 中创建一个新项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | 是 | 要创建项目的团队 ID |
+| `name` | string | 是 | 项目名称 |
+| `description` | string | 否 | 项目描述 |
+| `leadId` | string | 否 | 项目负责人的用户 ID |
+| `startDate` | string | 否 | 项目开始日期（ISO 格式）|
+| `targetDate` | string | 否 | 项目目标日期（ISO 格式）|
+| `priority` | number | 否 | 项目优先级（0-4）|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `project` | object | 创建的项目 |
+
+### `linear_update_project`
+
+更新 Linear 中的现有项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 要更新的项目 ID |
+| `name` | string | 否 | 新的项目名称 |
+| `description` | string | 否 | 新的项目描述 |
+| `state` | string | 否 | 项目状态（计划中、已开始、已完成、已取消）|
+| `leadId` | string | 否 | 项目负责人的用户 ID |
+| `startDate` | string | 否 | 项目开始日期（ISO 格式）|
+| `targetDate` | string | 否 | 项目目标日期（ISO 格式）|
+| `priority` | number | 否 | 项目优先级（0-4）|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `project` | object | 更新后的项目 |
+
+### `linear_archive_project`
+
+在 Linear 中归档一个项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 要归档的项目 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 归档操作是否成功 |
+| `projectId` | string | 已归档项目的 ID |
+
+### `linear_list_users`
+
+列出 Linear 工作区中的所有用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `includeDisabled` | boolean | 否 | 包括已禁用/非活跃用户 |
+| `first` | number | 否 | 要返回的用户数量（默认值：50） |
+| `after` | string | 否 | 分页的游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `users` | array | 工作区用户的数组 |
+
+### `linear_list_teams`
+
+列出 Linear 工作区中的所有团队
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `first` | number | 否 | 要返回的团队数量（默认值：50） |
+| `after` | string | 否 | 分页的游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `teams` | array | 团队数组 |
+
+### `linear_get_viewer`
+
+获取当前已认证用户（查看者）信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `user` | object | 当前已认证用户 |
+
+### `linear_list_labels`
+
+列出 Linear 工作区或团队中的所有标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | 否 | 按团队 ID 筛选 |
+| `first` | number | 否 | 返回的标签数量 \(默认值：50\) |
+| `after` | string | 否 | 分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `labels` | array | 标签数组 |
+
+### `linear_create_label`
+
+在 Linear 中创建新标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | 是 | 标签名称 |
+| `color` | string | 否 | 标签颜色 \(十六进制格式，例如 "#ff0000"\) |
+| `description` | string | 否 | 标签描述 |
+| `teamId` | string | 否 | 团队 ID \(如果省略，则创建工作区标签\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `label` | object | 创建的标签 |
+
+### `linear_update_label`
+
+更新 Linear 中的现有标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `labelId` | string | 是 | 要更新的标签 ID |
+| `name` | string | 否 | 新的标签名称 |
+| `color` | string | 否 | 新的标签颜色（十六进制格式） |
+| `description` | string | 否 | 新的标签描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `label` | object | 更新的标签 |
+
+### `linear_archive_label`
+
+在 Linear 中归档标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `labelId` | string | 是 | 要归档的标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 归档操作是否成功 |
+| `labelId` | string | 已归档标签的 ID |
+
+### `linear_list_workflow_states`
+
+列出 Linear 中的所有工作流状态（状态）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | 否 | 按团队 ID 筛选 |
+| `first` | number | 否 | 要返回的状态数量（默认值：50） |
+| `after` | string | 否 | 分页的游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `states` | array | 工作流状态的数组 |
+
+### `linear_create_workflow_state`
+
+在 Linear 中创建一个新的工作流状态（状态）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | 是 | 要创建状态的团队 ID |
+| `name` | string | 是 | 状态名称 \(例如，"In Review"\) |
+| `color` | string | 是 | 状态颜色 \(十六进制格式\) |
+| `type` | string | 是 | 状态类型："backlog"、"unstarted"、"started"、"completed" 或 "canceled" |
+| `description` | string | 否 | 状态描述 |
+| `position` | number | 否 | 工作流中的位置 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `state` | object | 创建的工作流状态 |
+
+### `linear_update_workflow_state`
+
+更新 Linear 中的现有工作流状态
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `stateId` | string | 是 | 要更新的工作流状态 ID |
+| `name` | string | 否 | 新的状态名称 |
+| `color` | string | 否 | 新的状态颜色 \(十六进制格式\) |
+| `description` | string | 否 | 新的状态描述 |
+| `position` | number | 否 | 工作流中的新位置 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `state` | object | 更新后的工作流状态 |
+
+### `linear_list_cycles`
+
+列出 Linear 中的周期（冲刺/迭代）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | 否 | 按团队 ID 筛选 |
+| `first` | number | 否 | 返回的周期数量 \(默认值：50\) |
+| `after` | string | 否 | 分页的游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `cycles` | array | 周期数组 |
+
+### `linear_get_cycle`
+
+通过 ID 从 Linear 获取单个周期
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `cycleId` | string | 是 | 周期 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `cycle` | object | 包含完整详细信息的周期 |
+
+### `linear_create_cycle`
+
+在 Linear 中创建一个新周期（冲刺/迭代）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | 是 | 创建周期的团队 ID |
+| `startsAt` | string | 是 | 周期开始日期 \(ISO 格式\) |
+| `endsAt` | string | 是 | 周期结束日期 \(ISO 格式\) |
+| `name` | string | 否 | 周期名称 \(可选，如果未提供将自动生成\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `cycle` | object | 创建的周期 |
+
+### `linear_get_active_cycle`
+
+获取团队当前的活动周期
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | 是 | 团队 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `cycle` | object | 活动周期（如果没有活动周期，则为 null） |
+
+### `linear_create_attachment`
+
+在 Linear 中为问题添加附件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | 要附加的 Issue ID |
+| `url` | string | 是 | 附件的 URL |
+| `title` | string | 否 | 附件标题 |
+| `subtitle` | string | 否 | 附件副标题/描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `attachment` | object | 创建的附件 |
+
+### `linear_list_attachments`
+
+列出 Linear 中问题的所有附件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | Issue ID |
+| `first` | number | 否 | 要返回的附件数量（默认值：50） |
+| `after` | string | 否 | 分页的游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `attachments` | array | 附件数组 |
+
+### `linear_update_attachment`
+
+更新 Linear 中的附件元数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `attachmentId` | string | 是 | 要更新的附件 ID |
+| `title` | string | 否 | 新的附件标题 |
+| `subtitle` | string | 否 | 新的附件副标题 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `attachment` | object | 更新后的附件 |
+
+### `linear_delete_attachment`
+
+从 Linear 中删除附件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `attachmentId` | string | 是 | 要删除的附件 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除操作是否成功 |
+
+### `linear_create_issue_relation`
+
+在 Linear 中将两个问题链接在一起（阻止、相关、重复）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | 源问题 ID |
+| `relatedIssueId` | string | 是 | 要链接的目标问题 ID |
+| `type` | string | 是 | 关系类型："blocks"（阻止）、"blocked"（被阻止）、"duplicate"（重复）、"related"（相关） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `relation` | object | 创建的问题关系 |
+
+### `linear_list_issue_relations`
+
+列出 Linear 中某个问题的所有关系（依赖关系）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 是 | 问题 ID |
+| `first` | number | 否 | 要返回的关系数量 \(默认值：50\) |
+| `after` | string | 否 | 分页的游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `relations` | array | 问题关系的数组 |
+
+### `linear_delete_issue_relation`
+
+移除 Linear 中两个问题之间的关系
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `relationId` | string | 是 | 要删除的关系 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除操作是否成功 |
+
+### `linear_create_favorite`
+
+在 Linear 中收藏一个问题、项目、周期或标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | 否 | 要收藏的问题 ID |
+| `projectId` | string | 否 | 要收藏的项目 ID |
+| `cycleId` | string | 否 | 要收藏的周期 ID |
+| `labelId` | string | 否 | 要收藏的标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `favorite` | object | 创建的收藏项 |
+
+### `linear_list_favorites`
+
+列出当前用户在 Linear 中的所有书签项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `first` | number | 否 | 返回的收藏项数量 \(默认值: 50\) |
+| `after` | string | 否 | 分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `favorites` | array | 收藏项的数组 |
+
+### `linear_create_project_update`
+
+为 Linear 中的项目发布状态更新
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 要发布更新的项目 ID |
+| `body` | string | 是 | 更新消息 \(支持 Markdown\) |
+| `health` | string | 否 | 项目状态: "onTrack"、"atRisk" 或 "offTrack" |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `update` | object | 创建的项目更新 |
+
+### `linear_list_project_updates`
+
+列出 Linear 中某项目的所有状态更新
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID |
+| `first` | number | 否 | 返回的更新数量 \(默认值: 50\) |
+| `after` | string | 否 | 分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `updates` | array | 项目更新的数组 |
+
+### `linear_create_project_link`
+
+在 Linear 中为项目添加一个外部链接
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 要添加链接的项目 ID |
+| `url` | string | 是 | 外部链接的 URL |
+| `label` | string | 否 | 链接标签/标题 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `link` | object | 创建的项目链接 |
+
+### `linear_list_notifications`
+
+列出当前用户在 Linear 中的通知
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `first` | number | 否 | 要返回的通知数量（默认值：50） |
+| `after` | string | 否 | 用于分页的游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `notifications` | array | 通知的数组 |
+
+### `linear_update_notification`
+
+将 Linear 中的通知标记为已读或未读
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `notificationId` | string | 是 | 要更新的通知 ID |
+| `readAt` | string | 否 | 标记为已读的时间戳（ISO 格式）。传递 null 或省略以标记为未读 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `notification` | object | 更新后的通知 |
+
+### `linear_create_customer`
+
+在 Linear 中创建新客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | 是 | 客户名称 |
+| `domains` | array | 否 | 与此客户关联的域名 |
+| `externalIds` | array | 否 | 来自其他系统的外部 ID |
+| `logoUrl` | string | 否 | 客户的 logo URL |
+| `ownerId` | string | 否 | 拥有此客户的用户 ID |
+| `revenue` | number | 否 | 来自此客户的年收入 |
+| `size` | number | 否 | 客户组织的规模 |
+| `statusId` | string | 否 | 客户状态 ID |
+| `tierId` | string | 否 | 客户层级 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customer` | object | 创建的客户 |
+
+### `linear_list_customers`
+
+列出 Linear 中的所有客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `first` | number | 否 | 返回的客户数量 \(默认值: 50\) |
+| `after` | string | 否 | 分页的游标 |
+| `includeArchived` | boolean | 否 | 包括已归档的客户 \(默认值: false\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customers` | array | 客户数组 |
+
+### `linear_create_customer_request`
+
+在 Linear 中创建客户请求（需求）。分配给客户，设置紧急程度（优先级：0 = 不重要，1 = 重要），并可选地链接到一个问题。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | 是 | 要分配此请求的客户 ID |
+| `body` | string | 否 | 客户请求的描述 |
+| `priority` | number | 否 | 紧急程度：0 = 不重要，1 = 重要（默认：0）|
+| `issueId` | string | 否 | 要链接此请求的问题 ID |
+| `projectId` | string | 否 | 要链接此请求的项目 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customerNeed` | object | 创建的客户请求 |
+
+### `linear_update_customer_request`
+
+在 Linear 中更新客户请求（需求）。可以更改紧急程度、描述、客户分配和链接的问题。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `customerNeedId` | string | 是 | 要更新的客户请求 ID |
+| `body` | string | 否 | 更新后的客户请求描述 |
+| `priority` | number | 否 | 更新后的紧急程度：0 = 不重要，1 = 重要 |
+| `customerId` | string | 否 | 新的客户 ID，用于分配此请求 |
+| `issueId` | string | 否 | 新的问题 ID，用于链接此请求 |
+| `projectId` | string | 否 | 新的项目 ID，用于链接此请求 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customerNeed` | object | 更新的客户请求 |
+
+### `linear_list_customer_requests`
+
+列出 Linear 中的所有客户请求（需求）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `first` | number | 否 | 要返回的客户请求数量（默认值：50） |
+| `after` | string | 否 | 分页的游标 |
+| `includeArchived` | boolean | 否 | 包括已归档的客户请求（默认值：false） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customerNeeds` | array | 客户请求的数组 |
+
+### `linear_get_customer`
+
+在 Linear 中通过 ID 获取单个客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | 是 | 要检索的客户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customer` | object | 客户数据 |
+
+### `linear_update_customer`
+
+在 Linear 中更新客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | 是 | 要更新的客户 ID |
+| `name` | string | 否 | 更新的客户名称 |
+| `domains` | array | 否 | 更新的域名 |
+| `externalIds` | array | 否 | 更新的外部 ID |
+| `logoUrl` | string | 否 | 更新的 logo URL |
+| `ownerId` | string | 否 | 更新的所有者用户 ID |
+| `revenue` | number | 否 | 更新的年收入 |
+| `size` | number | 否 | 更新的组织规模 |
+| `statusId` | string | 否 | 更新的客户状态 ID |
+| `tierId` | string | 否 | 更新的客户层级 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customer` | object | 更新的客户 |
+
+### `linear_delete_customer`
+
+删除 Linear 中的客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | 是 | 要删除的客户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除是否成功 |
+
+### `linear_merge_customers`
+
+通过将所有数据从源客户移动到目标客户，合并 Linear 中的两个客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `sourceCustomerId` | string | 是 | 源客户 ID \(合并后将被删除\) |
+| `targetCustomerId` | string | 是 | 目标客户 ID \(将接收所有数据\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customer` | object | 合并后的目标客户 |
+
+### `linear_create_customer_status`
+
+在 Linear 中创建新的客户状态
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | 是 | 客户状态名称 |
+| `color` | string | 是 | 状态颜色 \(十六进制代码\) |
+| `displayName` | string | 否 | 状态的显示名称 |
+| `description` | string | 否 | 状态描述 |
+| `position` | number | 否 | 状态列表中的位置 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customerStatus` | object | 创建的客户状态 |
+
+### `linear_update_customer_status`
+
+更新 Linear 中的客户状态
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | 是 | 要更新的客户状态 ID |
+| `name` | string | 否 | 更新后的状态名称 |
+| `color` | string | 否 | 更新后的状态颜色 |
+| `displayName` | string | 否 | 更新后的显示名称 |
+| `description` | string | 否 | 更新后的描述 |
+| `position` | number | 否 | 更新后的位置 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customerStatus` | object | 更新后的客户状态 |
+
+### `linear_delete_customer_status`
+
+删除 Linear 中的客户状态
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | 是 | 要删除的客户状态 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除是否成功 |
+
+### `linear_list_customer_statuses`
+
+列出 Linear 中的所有客户状态
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customerStatuses` | array | 客户状态列表 |
+
+### `linear_create_customer_tier`
+
+在 Linear 中创建一个新的客户等级
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | 是 | 客户等级名称 |
+| `color` | string | 是 | 等级颜色（十六进制代码） |
+| `displayName` | string | 否 | 等级的显示名称 |
+| `description` | string | 否 | 等级描述 |
+| `position` | number | 否 | 等级列表中的位置 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customerTier` | object | 创建的客户等级 |
+
+### `linear_update_customer_tier`
+
+在 Linear 中更新客户等级
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `tierId` | string | 是 | 要更新的客户等级 ID |
+| `name` | string | 否 | 更新后的等级名称 |
+| `color` | string | 否 | 更新后的等级颜色 |
+| `displayName` | string | 否 | 更新后的显示名称 |
+| `description` | string | 否 | 更新后的描述 |
+| `position` | number | 否 | 更新后的位置 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customerTier` | object | 更新的客户等级 |
+
+### `linear_delete_customer_tier`
+
+在 Linear 中删除客户等级
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `tierId` | string | 是 | 要删除的客户等级 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除是否成功 |
+
+### `linear_list_customer_tiers`
+
+列出 Linear 中的所有客户层级
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customerTiers` | array | 客户层级列表 |
+
+### `linear_delete_project`
+
+删除 Linear 中的一个项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 要删除的项目 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除是否成功 |
+
+### `linear_create_project_label`
+
+在 Linear 中创建一个新的项目标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | 是 | 项目标签名称 |
+| `color` | string | 否 | 标签颜色 \(十六进制代码\) |
+| `description` | string | 否 | 标签描述 |
+| `isGroup` | boolean | 否 | 是否为标签组 |
+| `parentId` | string | 否 | 父标签组 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projectLabel` | object | 创建的项目标签 |
+
+### `linear_update_project_label`
+
+更新 Linear 中的项目标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `labelId` | string | 是 | 要更新的项目标签 ID |
+| `name` | string | 否 | 更新后的标签名称 |
+| `color` | string | 否 | 更新后的标签颜色 |
+| `description` | string | 否 | 更新后的描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projectLabel` | object | 更新后的项目标签 |
+
+### `linear_delete_project_label`
+
+删除 Linear 中的项目标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `labelId` | string | 是 | 要删除的项目标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除是否成功 |
+
+### `linear_list_project_labels`
+
+列出 Linear 中的所有项目标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 否 | 可选的项目 ID，用于筛选特定项目的标签 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projectLabels` | array | 项目标签列表 |
+
+### `linear_add_label_to_project`
+
+在 Linear 中为项目添加标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID |
+| `labelId` | string | 是 | 要添加的标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 标签是否成功添加 |
+| `projectId` | string | 项目 ID |
+
+### `linear_remove_label_from_project`
+
+从 Linear 项目中移除标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID |
+| `labelId` | string | 是 | 要移除的标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 标签是否成功移除 |
+| `projectId` | string | 项目 ID |
+
+### `linear_create_project_milestone`
+
+在 Linear 中创建新的项目里程碑
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID |
+| `name` | string | 是 | 里程碑名称 |
+| `description` | string | 否 | 里程碑描述 |
+| `targetDate` | string | 否 | 目标日期 \(ISO 8601\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projectMilestone` | object | 创建的项目里程碑 |
+
+### `linear_update_project_milestone`
+
+更新 Linear 中的项目里程碑
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `milestoneId` | string | 是 | 要更新的项目里程碑 ID |
+| `name` | string | 否 | 更新后的里程碑名称 |
+| `description` | string | 否 | 更新后的描述 |
+| `targetDate` | string | 否 | 更新后的目标日期 \(ISO 8601\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projectMilestone` | object | 更新后的项目里程碑 |
+
+### `linear_delete_project_milestone`
+
+删除 Linear 中的项目里程碑
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `milestoneId` | string | 是 | 要删除的项目里程碑 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除操作是否成功 |
+
+### `linear_list_project_milestones`
+
+列出 Linear 中项目的所有里程碑
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 要列出里程碑的项目 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projectMilestones` | array | 项目里程碑列表 |
+
+### `linear_create_project_status`
+
+在 Linear 中创建一个新的项目状态
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | 是 | 项目状态名称 |
+| `color` | string | 是 | 状态颜色 \(十六进制代码\) |
+| `description` | string | 否 | 状态描述 |
+| `indefinite` | boolean | 否 | 状态是否为无限期 |
+| `position` | number | 否 | 状态列表中的位置 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projectStatus` | object | 创建的项目状态 |
+
+### `linear_update_project_status`
+
+更新 Linear 中的项目状态
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | 是 | 要更新的项目状态 ID |
+| `name` | string | 否 | 更新后的状态名称 |
+| `color` | string | 否 | 更新后的状态颜色 |
+| `description` | string | 否 | 更新后的描述 |
+| `indefinite` | boolean | 否 | 更新后的无限期标志 |
+| `position` | number | 否 | 更新后的位置 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projectStatus` | object | 更新后的项目状态 |
+
+### `linear_delete_project_status`
+
+删除 Linear 中的项目状态
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | 是 | 要删除的项目状态 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除是否成功 |
+
+### `linear_list_project_statuses`
+
+列出 Linear 中的所有项目状态
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projectStatuses` | array | 项目状态列表 |
 
 ## 注意事项
 

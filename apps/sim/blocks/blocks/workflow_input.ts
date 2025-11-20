@@ -19,11 +19,11 @@ const getAvailableWorkflows = (): Array<{ label: string; id: string }> => {
 export const WorkflowInputBlock: BlockConfig = {
   type: 'workflow_input',
   name: 'Workflow',
-  description: 'Execute another workflow and map variables to its Input Form Trigger schema.',
-  longDescription: `Execute another child workflow and map variables to its Input Form Trigger schema. Helps with modularizing workflows.`,
+  description: 'Execute another workflow and map variables to its Start trigger schema.',
+  longDescription: `Execute another child workflow and map variables to its Start trigger schema. Helps with modularizing workflows.`,
   bestPractices: `
   - Usually clarify/check if the user has tagged a workflow to use as the child workflow. Understand the child workflow to determine the logical position of this block in the workflow.
-  - Remember, that the start point of the child workflow is the Input Form Trigger block.
+  - Remember, that the start point of the child workflow is the Start block.
   `,
   category: 'blocks',
   bgColor: '#6366F1', // Indigo - modern and professional
@@ -32,18 +32,18 @@ export const WorkflowInputBlock: BlockConfig = {
     {
       id: 'workflowId',
       title: 'Select Workflow',
-      type: 'dropdown',
+      type: 'combobox',
       options: getAvailableWorkflows,
+      placeholder: 'Search workflows...',
       required: true,
     },
-    // Renders dynamic mapping UI based on selected child workflow's Input Trigger inputFormat
+    // Renders dynamic mapping UI based on selected child workflow's Start trigger inputFormat
     {
       id: 'inputMapping',
       title: 'Input Mapping',
       type: 'input-mapping',
-      layout: 'full',
       description:
-        "Map fields defined in the child workflow's Input Trigger to variables/values in this workflow.",
+        "Map fields defined in the child workflow's Start block to variables/values in this workflow.",
       dependsOn: ['workflowId'],
     },
   ],

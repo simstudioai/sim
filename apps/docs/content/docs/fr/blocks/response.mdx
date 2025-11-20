@@ -3,11 +3,10 @@ title: Réponse
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-Le bloc Réponse est la dernière étape de votre workflow qui formate et envoie une réponse structurée aux appels API. C'est comme l'instruction « return » pour l'ensemble de votre workflow — il emballe les résultats et les renvoie.
+Le bloc Réponse formate et envoie des réponses HTTP structurées aux appelants de l'API. Utilisez-le pour renvoyer les résultats du workflow avec les codes d'état et les en-têtes appropriés.
 
 <div className="flex justify-center">
   <Image
@@ -23,54 +22,6 @@ Le bloc Réponse est la dernière étape de votre workflow qui formate et envoie
   Les blocs Réponse sont des blocs terminaux - ils mettent fin à l'exécution du workflow et ne peuvent pas se connecter à d'autres blocs.
 </Callout>
 
-## Aperçu
-
-Le bloc Réponse vous permet de :
-
-<Steps>
-  <Step>
-    <strong>Formater les réponses API</strong> : structurer les résultats du workflow en réponses HTTP appropriées
-  </Step>
-  <Step>
-    <strong>Définir les codes d'état</strong> : configurer les codes d'état HTTP appropriés en fonction des résultats du workflow
-  </Step>
-  <Step>
-    <strong>Contrôler les en-têtes</strong> : ajouter des en-têtes personnalisés pour les réponses API et les webhooks
-  </Step>
-  <Step>
-    <strong>Transformer les données</strong> : convertir les variables du workflow en formats de réponse adaptés aux clients
-  </Step>
-</Steps>
-
-## Comment ça fonctionne
-
-Le bloc Réponse finalise l'exécution du workflow :
-
-1. **Collecte des données** - Rassemble les variables et les sorties des blocs précédents
-2. **Formatage de la réponse** - Structure les données selon votre configuration
-3. **Définition des détails HTTP** - Applique les codes d'état et les en-têtes
-4. **Envoi de la réponse** - Renvoie la réponse formatée à l'appelant de l'API
-
-## Quand utiliser les blocs Réponse
-
-- **Points de terminaison API** : lorsque votre workflow est appelé via API, les blocs Réponse formatent les données de retour
-- **Webhooks** : renvoie une confirmation ou des données au système appelant
-- **Tests** : visualisez les résultats formatés lors du test de votre workflow
-
-## Deux façons de construire des réponses
-
-### Mode constructeur (recommandé)
-Interface visuelle pour construire la structure de réponse :
-- Glisser-déposer des champs
-- Référencer facilement les variables de flux
-- Aperçu visuel de la structure de réponse
-
-### Mode éditeur (avancé)
-Écrire du JSON directement :
-- Contrôle total sur le format de réponse
-- Prise en charge des structures imbriquées complexes
-- Utiliser la syntaxe `<variable.name>` pour les valeurs dynamiques
-
 ## Options de configuration
 
 ### Données de réponse
@@ -78,46 +29,33 @@ Interface visuelle pour construire la structure de réponse :
 Les données de réponse constituent le contenu principal qui sera renvoyé à l'appelant de l'API. Elles doivent être formatées en JSON et peuvent inclure :
 
 - Des valeurs statiques
-- Des références dynamiques aux variables de flux en utilisant la syntaxe `<variable.name>`
+- Des références dynamiques aux variables du workflow en utilisant la syntaxe `<variable.name>`
 - Des objets et tableaux imbriqués
 - Toute structure JSON valide
 
 ### Code d'état
 
-Définir le code d'état HTTP pour la réponse. Les codes d'état courants incluent :
+Définissez le code d'état HTTP pour la réponse (par défaut 200) :
 
-<Tabs items={['Succès (2xx)', 'Erreur client (4xx)', 'Erreur serveur (5xx)']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>200</strong> : OK - Réponse de succès standard</li>
-      <li><strong>201</strong> : Créé - Ressource créée avec succès</li>
-      <li><strong>204</strong> : Pas de contenu - Succès sans corps de réponse</li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>400</strong> : Mauvaise requête - Paramètres de requête invalides</li>
-      <li><strong>401</strong> : Non autorisé - Authentification requise</li>
-      <li><strong>404</strong> : Non trouvé - La ressource n'existe pas</li>
-      <li><strong>422</strong> : Entité non traitable - Erreurs de validation</li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>500</strong> : Erreur interne du serveur - Erreur côté serveur</li>
-      <li><strong>502</strong> : Mauvaise passerelle - Erreur de service externe</li>
-      <li><strong>503</strong> : Service indisponible - Service temporairement hors service</li>
-    </ul>
-  </Tab>
-</Tabs>
+**Succès (2xx) :**
+- **200** : OK - Réponse de succès standard
+- **201** : Created - Ressource créée avec succès
+- **204** : No Content - Succès sans corps de réponse
 
-<div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-  Le code d'état par défaut est 200 s'il n'est pas spécifié.
-</div>
+**Erreur client (4xx) :**
+- **400** : Bad Request - Paramètres de requête invalides
+- **401** : Unauthorized - Authentification requise
+- **404** : Not Found - La ressource n'existe pas
+- **422** : Unprocessable Entity - Erreurs de validation
+
+**Erreur serveur (5xx) :**
+- **500** : Internal Server Error - Erreur côté serveur
+- **502** : Bad Gateway - Erreur de service externe
+- **503** : Service Unavailable - Service temporairement indisponible
 
 ### En-têtes de réponse
 
-Configurer des en-têtes HTTP supplémentaires à inclure dans la réponse.
+Configurez des en-têtes HTTP supplémentaires à inclure dans la réponse.
 
 Les en-têtes sont configurés sous forme de paires clé-valeur :
 
@@ -129,91 +67,27 @@ Les en-têtes sont configurés sous forme de paires clé-valeur :
 
 ## Exemples de cas d'utilisation
 
-### Réponse du point de terminaison API
+**Réponse d'endpoint API** - Renvoyer des données structurées depuis une API de recherche
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : renvoyer des données structurées à partir d'une API de recherche</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Le workflow traite la requête de recherche et récupère les résultats</li>
-    <li>Le bloc de fonction formate et pagine les résultats</li>
-    <li>Le bloc de réponse renvoie du JSON avec les données, la pagination et les métadonnées</li>
-    <li>Le client reçoit une réponse structurée avec un statut 200</li>
-  </ol>
-</div>
+```
+Agent (Search) → Function (Format & Paginate) → Response (200, JSON)
+```
 
-### Confirmation de webhook
+**Confirmation de webhook** - Accuser réception et traitement d'un webhook
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : accuser réception et traitement d'un webhook</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Le déclencheur de webhook reçoit les données du système externe</li>
-    <li>Le workflow traite les données entrantes</li>
-    <li>Le bloc de réponse renvoie une confirmation avec l'état du traitement</li>
-    <li>Le système externe reçoit l'accusé de réception</li>
-  </ol>
-</div>
+```
+Webhook Trigger → Function (Process) → Response (200, Confirmation)
+```
 
-### Gestion des réponses d'erreur
+**Gestion des réponses d'erreur** - Renvoyer des réponses d'erreur appropriées
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : renvoyer des réponses d'erreur appropriées</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Le bloc de condition détecte un échec de validation ou une erreur système</li>
-    <li>Le routeur dirige vers le chemin de gestion d'erreur</li>
-    <li>Le bloc de réponse renvoie un statut 400/500 avec les détails de l'erreur</li>
-    <li>Le client reçoit des informations d'erreur structurées</li>
-  </ol>
-</div>
+```
+Condition (Error Detected) → Router → Response (400/500, Error Details)
+```
 
-## Entrées et sorties
+## Sorties
 
-<Tabs items={['Configuration', 'Variables', 'Résultats']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Données de réponse</strong> : structure JSON pour le corps de la réponse
-      </li>
-      <li>
-        <strong>Code de statut</strong> : code de statut HTTP (par défaut : 200)
-      </li>
-      <li>
-        <strong>En-têtes</strong> : en-têtes HTTP personnalisés sous forme de paires clé-valeur
-      </li>
-      <li>
-        <strong>Mode</strong> : mode Constructeur ou Éditeur pour la construction de la réponse
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>response.data</strong> : le corps de réponse structuré
-      </li>
-      <li>
-        <strong>response.status</strong> : code de statut HTTP envoyé
-      </li>
-      <li>
-        <strong>response.headers</strong> : en-têtes inclus dans la réponse
-      </li>
-      <li>
-        <strong>response.success</strong> : booléen indiquant la réussite de l'exécution
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Réponse HTTP</strong> : réponse complète envoyée à l'appelant de l'API
-      </li>
-      <li>
-        <strong>Terminaison du workflow</strong> : met fin à l'exécution du workflow
-      </li>
-      <li>
-        <strong>Accès</strong> : les blocs de réponse sont terminaux - aucun bloc subséquent
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+Les blocs de réponse sont terminaux - ils mettent fin à l'exécution du workflow et envoient la réponse HTTP à l'appelant de l'API. Aucune sortie n'est disponible pour les blocs en aval.
 
 ## Références de variables
 
@@ -240,7 +114,7 @@ Utilisez la syntaxe `<variable.name>` pour insérer dynamiquement des variables 
 ## Bonnes pratiques
 
 - **Utilisez des codes d'état significatifs** : choisissez des codes d'état HTTP appropriés qui reflètent précisément le résultat du workflow
-- **Structurez vos réponses de manière cohérente** : maintenez une structure JSON cohérente pour tous vos points d'accès API afin d'améliorer l'expérience des développeurs
+- **Structurez vos réponses de manière cohérente** : maintenez une structure JSON cohérente pour tous vos endpoints API afin d'améliorer l'expérience développeur
 - **Incluez les métadonnées pertinentes** : ajoutez des horodatages et des informations de version pour faciliter le débogage et la surveillance
 - **Gérez les erreurs avec élégance** : utilisez la logique conditionnelle dans votre workflow pour définir des réponses d'erreur appropriées avec des messages descriptifs
 - **Validez les références de variables** : assurez-vous que toutes les variables référencées existent et contiennent les types de données attendus avant l'exécution du bloc de réponse

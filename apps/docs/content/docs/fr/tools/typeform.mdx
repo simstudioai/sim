@@ -8,27 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="typeform"
   color="#262627"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      version='1.1'
-      id='Layer_1'
-      xmlns='http://www.w3.org/2000/svg'
-      xmlnsXlink='http://www.w3.org/1999/xlink'
-      x='0px'
-      y='0px'
-      viewBox='0 0 122.3 80.3'
-      xmlSpace='preserve'
-    >
-      <g>
-        <path
-          fill='currentColor'
-          d='M94.3,0H65.4c-26,0-28,11.2-28,26.2l0,27.9c0,15.6,2,26.2,28.1,26.2h28.8c26,0,28-11.2,28-26.1V26.2
-		C122.3,11.2,120.3,0,94.3,0z M0,20.1C0,6.9,5.2,0,14,0c8.8,0,14,6.9,14,20.1v40.1c0,13.2-5.2,20.1-14,20.1c-8.8,0-14-6.9-14-20.1
-		V20.1z'
-        />
-      </g>
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -46,7 +25,7 @@ Dans Sim, l'intégration Typeform permet à vos agents d'interagir programmatiqu
 
 ## Instructions d'utilisation
 
-Intégrez Typeform dans le flux de travail. Peut récupérer les réponses, télécharger des fichiers et obtenir des informations sur les formulaires. Nécessite une clé API.
+Intégrez Typeform dans le flux de travail. Permet de récupérer les réponses, télécharger des fichiers et obtenir des informations sur les formulaires. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un formulaire est soumis. Nécessite une clé API.
 
 ## Outils
 
@@ -69,9 +48,25 @@ Récupérer les réponses aux formulaires depuis Typeform
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `total_items` | nombre | Nombre total de réponses |
+| `total_items` | nombre | Nombre total de réponses/formulaires |
 | `page_count` | nombre | Nombre total de pages |
-| `items` | json | Éléments de réponse |
+| `items` | json | Tableau des éléments de réponse/formulaire |
+| `id` | chaîne | Identifiant unique du formulaire |
+| `title` | chaîne | Titre du formulaire |
+| `type` | chaîne | Type de formulaire |
+| `created_at` | chaîne | Horodatage ISO de création du formulaire |
+| `last_updated_at` | chaîne | Horodatage ISO de la dernière mise à jour |
+| `settings` | json | Objet des paramètres du formulaire |
+| `theme` | json | Objet de configuration du thème |
+| `workspace` | json | Informations sur l'espace de travail |
+| `fields` | json | Tableau des champs/questions du formulaire |
+| `thankyou_screens` | json | Tableau des écrans de remerciement |
+| `_links` | json | Liens vers les ressources associées |
+| `deleted` | booléen | Indique si le formulaire a été supprimé avec succès |
+| `message` | chaîne | Message de confirmation de suppression |
+| `fileUrl` | chaîne | URL du fichier téléchargé |
+| `contentType` | chaîne | Type de contenu du fichier |
+| `filename` | chaîne | Nom du fichier |
 
 ### `typeform_files`
 
@@ -112,6 +107,129 @@ Récupérer les insights et analyses pour les formulaires Typeform
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `fields` | array | Nombre d'utilisateurs qui ont abandonné à ce champ |
+
+### `typeform_list_forms`
+
+Récupérer la liste de tous les formulaires dans votre compte Typeform
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton d'accès personnel Typeform |
+| `search` | chaîne | Non | Requête de recherche pour filtrer les formulaires par titre |
+| `page` | nombre | Non | Numéro de page \(par défaut : 1\) |
+| `pageSize` | nombre | Non | Nombre de formulaires par page \(par défaut : 10, max : 200\) |
+| `workspaceId` | chaîne | Non | Filtrer les formulaires par ID d'espace de travail |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `total_items` | nombre | Nombre total de formulaires dans le compte |
+| `page_count` | nombre | Nombre total de pages disponibles |
+| `items` | tableau | Tableau d'objets de formulaire |
+
+### `typeform_get_form`
+
+Récupérer les détails complets et la structure d'un formulaire spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton d'accès personnel Typeform |
+| `formId` | chaîne | Oui | Identifiant unique du formulaire |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | chaîne | Identifiant unique du formulaire |
+| `title` | chaîne | Titre du formulaire |
+| `type` | chaîne | Type de formulaire \(form, quiz, etc.\) |
+| `created_at` | chaîne | Horodatage ISO de création du formulaire |
+| `last_updated_at` | chaîne | Horodatage ISO de la dernière mise à jour |
+| `settings` | objet | Paramètres du formulaire incluant langue, barre de progression, etc. |
+| `theme` | objet | Configuration du thème avec couleurs, polices et paramètres de design |
+| `workspace` | objet | Informations sur l'espace de travail |
+
+### `typeform_create_form`
+
+Créer un nouveau formulaire avec champs et paramètres
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton d'accès personnel Typeform |
+| `title` | chaîne | Oui | Titre du formulaire |
+| `type` | chaîne | Non | Type de formulaire \(par défaut : "form"\). Options : "form", "quiz" |
+| `workspaceId` | chaîne | Non | ID de l'espace de travail où créer le formulaire |
+| `fields` | json | Non | Tableau d'objets de champs définissant la structure du formulaire. Chaque champ nécessite : type, titre et propriétés/validations optionnelles |
+| `settings` | json | Non | Objet de paramètres du formulaire \(langue, barre de progression, etc.\) |
+| `themeId` | chaîne | Non | ID du thème à appliquer au formulaire |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | chaîne | Identifiant unique du formulaire créé |
+| `title` | chaîne | Titre du formulaire |
+| `type` | chaîne | Type de formulaire |
+| `created_at` | chaîne | Horodatage ISO de création du formulaire |
+| `last_updated_at` | chaîne | Horodatage ISO de la dernière mise à jour |
+| `settings` | objet | Paramètres du formulaire |
+| `theme` | objet | Configuration du thème appliqué |
+| `workspace` | objet | Informations sur l'espace de travail |
+| `fields` | tableau | Tableau des champs de formulaire créés |
+| `_links` | objet | Liens vers les ressources associées |
+
+### `typeform_update_form`
+
+Mettre à jour un formulaire existant à l'aide d'opérations JSON Patch
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton d'accès personnel Typeform |
+| `formId` | chaîne | Oui | Identifiant unique du formulaire à mettre à jour |
+| `operations` | json | Oui | Tableau d'opérations JSON Patch \(RFC 6902\). Chaque opération nécessite : op \(add/remove/replace\), path, et value \(pour add/replace\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | chaîne | Identifiant unique du formulaire mis à jour |
+| `title` | chaîne | Titre du formulaire |
+| `type` | chaîne | Type de formulaire |
+| `created_at` | chaîne | Horodatage ISO de création du formulaire |
+| `last_updated_at` | chaîne | Horodatage ISO de la dernière mise à jour |
+| `settings` | objet | Paramètres du formulaire |
+| `theme` | objet | Configuration du thème |
+| `workspace` | objet | Informations sur l'espace de travail |
+| `fields` | tableau | Tableau des champs du formulaire |
+| `thankyou_screens` | tableau | Tableau des écrans de remerciement |
+| `_links` | objet | Liens vers les ressources associées |
+
+### `typeform_delete_form`
+
+Supprimer définitivement un formulaire et toutes ses réponses
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton d'accès personnel Typeform |
+| `formId` | chaîne | Oui | Identifiant unique du formulaire à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | booléen | Indique si le formulaire a été supprimé avec succès |
+| `message` | chaîne | Message de confirmation de suppression |
 
 ## Notes
 

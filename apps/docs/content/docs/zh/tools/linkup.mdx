@@ -8,23 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="linkup"
   color="#D6D3C7"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      xmlns='http://www.w3.org/2000/svg'
-      viewBox='0 0 24 24'
-      
-      
-      fill='none'
-    >
-      <path
-        d='M20.2 14.1c-.4-.3-1.6-.4-2.9-.2.5-1.4 1.3-3.9.1-5-.6-.5-1.5-.7-2.6-.5-.3 0-.6.1-1 .2-1.1-1.6-2.4-2.5-3.8-2.5-1.6 0-3.1 1-4.1 2.9-1.2 2.1-1.9 5.1-1.9 8.8v.03l.4.3c3-.9 7.5-2.3 10.7-2.9 0 .9.1 1.9.1 2.8v.03l.4.3c.1 0 5.4-1.7 5.3-3.3 0-.2-.1-.5-.3-.7zM19.9 14.7c.03.4-1.7 1.4-4 2.3.5-.7 1-1.6 1.3-2.5 1.4-.1 2.4-.1 2.7.2zM16.4 14.6c-.3.7-.7 1.4-1.2 2-.02-.6-.1-1.2-.2-1.8.4-.1.9-.1 1.4-.2zM16.5 9.4c.8.7.9 2.4.1 5.1-.5.1-1 .1-1.5.2-.3-2-.9-3.8-1.7-5.3.3-.1.6-.2.8-.2.9-.1 1.7.05 2.3.2zM9.5 6.8c1.2 0 2.3.7 3.2 2.1-2.8 1.1-5.9 3.4-8.4 7.8.2-5.1 1.9-9.9 5.2-9.9zM4.7 17c3.4-4.9 6.4-6.8 8.4-7.8.7 1.3 1.2 2.9 1.5 4.8-3.2.6-7.3 1.8-9.9 3z'
-        fill='currentColor'
-        stroke='currentColor'
-        strokeWidth='0.5'
-        strokeLinejoin='round'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -52,12 +35,19 @@ Linkup 通过为您的 AI 代理提供搜索网络最新信息的能力来增强
 
 #### 输入
 
-| 参数 | 类型 | 必需 | 描述 |
+| 参数 | 类型 | 必填 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `q` | string | 是 | 搜索查询 |
 | `depth` | string | 是 | 搜索深度 \(必须是 "standard" 或 "deep"\) |
 | `outputType` | string | 是 | 返回的输出类型 \(必须是 "sourcedAnswer" 或 "searchResults"\) |
 | `apiKey` | string | 是 | 输入您的 Linkup API 密钥 |
+| `includeImages` | boolean | 否 | 是否在搜索结果中包含图片 |
+| `fromDate` | string | 否 | 过滤结果的开始日期 \(YYYY-MM-DD 格式\) |
+| `toDate` | string | 否 | 过滤结果的结束日期 \(YYYY-MM-DD 格式\) |
+| `excludeDomains` | string | 否 | 要从搜索结果中排除的域名列表（以逗号分隔） |
+| `includeDomains` | string | 否 | 限制搜索结果的域名列表（以逗号分隔） |
+| `includeInlineCitations` | boolean | 否 | 在答案中添加内联引用 \(仅当 outputType 为 "sourcedAnswer" 时适用\) |
+| `includeSources` | boolean | 否 | 在响应中包含来源 |
 
 #### 输出
 

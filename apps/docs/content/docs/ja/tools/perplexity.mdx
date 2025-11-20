@@ -1,6 +1,6 @@
 ---
 title: Perplexity
-description: Perplexity AIチャットモデルを使用する
+description: Perplexity AIをチャットと検索に使用する
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -8,14 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="perplexity"
   color="#20808D"
-  icon={true}
-  iconSvg={`<svg className="block-icon"   viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' >
-      <path
-        d='M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z'
-        fill='currentColor'
-        fillRule='nonzero'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -36,7 +28,7 @@ Simでは、Perplexity統合によりエージェントがワークフローの�
 
 ## 使用方法
 
-Perplexityをワークフローに統合します。Perplexity AIチャットモデルを使用して文章を生成できます。APIキーが必要です。
+Perplexityをワークフローに統合します。Perplexity AIチャットモデルを使用して文章を生成したり、高度なフィルタリングを使用してウェブ検索を実行したりできます。
 
 ## ツール
 
@@ -62,7 +54,32 @@ Perplexity AIチャットモデルを使用して文章を生成する
 | `success` | boolean | 操作の成功ステータス |
 | `output` | object | チャット生成結果 |
 
+### `perplexity_search`
+
+Perplexityからランク付けされた検索結果を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | はい | 検索クエリまたはクエリの配列（マルチクエリ検索の場合は最大5つ） |
+| `max_results` | number | いいえ | 返す検索結果の最大数（1-20、デフォルト：10） |
+| `search_domain_filter` | array | いいえ | 検索結果を制限するドメイン/URLのリスト（最大20） |
+| `max_tokens_per_page` | number | いいえ | 各ウェブページから取得する最大トークン数（デフォルト：1024） |
+| `country` | string | いいえ | 検索結果をフィルタリングする国コード（例：US、GB、DE） |
+| `search_recency_filter` | string | いいえ | 最新性で結果をフィルタリング：hour、day、week、month、またはyear |
+| `search_after_date` | string | いいえ | この日付以降に公開されたコンテンツのみを含める（形式：MM/DD/YYYY） |
+| `search_before_date` | string | いいえ | この日付以前に公開されたコンテンツのみを含める（形式：MM/DD/YYYY） |
+| `apiKey` | string | はい | Perplexity APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | 検索結果 |
+
 ## 注意事項
 
-- カテゴリー: `tools`
+- カテゴリ: `tools`
 - タイプ: `perplexity`

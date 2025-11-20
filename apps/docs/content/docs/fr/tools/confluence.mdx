@@ -8,22 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="confluence"
   color="#E0E0E0"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      
-      
-      viewBox='0 3 21 24'
-      focusable='false'
-      fill='none'
-      aria-hidden='true'
-      xmlns='http://www.w3.org/2000/svg'
-    >
-      <path
-        fill='#1868DB'
-        d='M20.602 20.234c-6.584-3.183-8.507-3.66-11.281-3.66-3.255 0-6.03 1.355-8.507 5.16l-.407.622c-.333.513-.407.696-.407.915s.111.403.518.659l4.18 2.598c.221.146.406.22.591.22.222 0 .37-.11.592-.44l.666-1.024c1.035-1.574 1.96-2.086 3.144-2.086 1.035 0 2.256.293 3.772 1.025l4.365 2.049c.444.22.925.11 1.146-.403l2.072-4.537c.222-.512.074-.842-.444-1.098M1.406 12.22c6.583 3.184 8.507 3.66 11.28 3.66 3.256 0 6.03-1.354 8.508-5.16l.407-.622c.332-.512.406-.695.406-.915s-.11-.402-.518-.658L17.31 5.927c-.222-.147-.407-.22-.592-.22-.222 0-.37.11-.592.44l-.665 1.024c-1.036 1.573-1.96 2.086-3.144 2.086-1.036 0-2.257-.293-3.773-1.025L4.18 6.183c-.444-.22-.925-.11-1.147.402L.962 11.123c-.222.512-.074.841.444 1.098'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -42,7 +26,7 @@ Dans Sim, l'intégration de Confluence permet à vos agents d'accéder et d'expl
 
 ## Instructions d'utilisation
 
-Intégrez Confluence dans le flux de travail. Peut lire et mettre à jour une page. Nécessite OAuth.
+Intégrez Confluence dans le flux de travail. Permet de lire, créer, mettre à jour, supprimer des pages, gérer les commentaires, les pièces jointes, les étiquettes et rechercher du contenu.
 
 ## Outils
 
@@ -90,6 +74,254 @@ Mettez à jour une page Confluence en utilisant l'API Confluence.
 | `pageId` | string | ID de la page Confluence |
 | `title` | string | Titre de la page mise à jour |
 | `success` | boolean | Statut de réussite de l'opération de mise à jour |
+
+### `confluence_create_page`
+
+Créer une nouvelle page dans un espace Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `spaceId` | chaîne | Oui | ID de l'espace Confluence où la page sera créée |
+| `title` | chaîne | Oui | Titre de la nouvelle page |
+| `content` | chaîne | Oui | Contenu de la page au format de stockage Confluence \(HTML\) |
+| `parentId` | chaîne | Non | ID de la page parente si vous créez une page enfant |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la création |
+| `pageId` | chaîne | ID de la page créée |
+| `title` | chaîne | Titre de la page |
+| `url` | chaîne | URL de la page |
+
+### `confluence_delete_page`
+
+Supprimer une page Confluence (la déplace dans la corbeille où elle peut être restaurée).
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence à supprimer |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la suppression |
+| `pageId` | chaîne | ID de la page supprimée |
+| `deleted` | booléen | Statut de la suppression |
+
+### `confluence_search`
+
+Rechercher du contenu dans les pages Confluence, les articles de blog et autres contenus.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `query` | chaîne | Oui | Chaîne de requête de recherche |
+| `limit` | nombre | Non | Nombre maximum de résultats à renvoyer \(par défaut : 25\) |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la recherche |
+| `results` | tableau | Résultats de la recherche |
+
+### `confluence_create_comment`
+
+Ajouter un commentaire à une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence sur laquelle commenter |
+| `comment` | chaîne | Oui | Texte du commentaire au format de stockage Confluence |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de création |
+| `commentId` | chaîne | ID du commentaire créé |
+| `pageId` | chaîne | ID de la page |
+
+### `confluence_list_comments`
+
+Lister tous les commentaires d'une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence dont il faut lister les commentaires |
+| `limit` | nombre | Non | Nombre maximum de commentaires à renvoyer \(par défaut : 25\) |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la récupération |
+| `comments` | tableau | Liste des commentaires |
+
+### `confluence_update_comment`
+
+Mettre à jour un commentaire existant sur une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `commentId` | chaîne | Oui | ID du commentaire Confluence à mettre à jour |
+| `comment` | chaîne | Oui | Texte du commentaire mis à jour au format de stockage Confluence |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la mise à jour |
+| `commentId` | chaîne | ID du commentaire mis à jour |
+| `updated` | booléen | Statut de la mise à jour |
+
+### `confluence_delete_comment`
+
+Supprimer un commentaire d'une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `commentId` | chaîne | Oui | ID du commentaire Confluence à supprimer |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la suppression |
+| `commentId` | chaîne | ID du commentaire supprimé |
+| `deleted` | booléen | Statut de la suppression |
+
+### `confluence_list_attachments`
+
+Lister toutes les pièces jointes d'une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence dont il faut lister les pièces jointes |
+| `limit` | nombre | Non | Nombre maximum de pièces jointes à renvoyer \(par défaut : 25\) |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la récupération |
+| `attachments` | tableau | Liste des pièces jointes |
+
+### `confluence_delete_attachment`
+
+Supprimer une pièce jointe d'une page Confluence (déplace vers la corbeille).
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `attachmentId` | chaîne | Oui | ID de la pièce jointe Confluence à supprimer |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la suppression |
+| `attachmentId` | chaîne | ID de la pièce jointe supprimée |
+| `deleted` | booléen | Statut de la suppression |
+
+### `confluence_list_labels`
+
+Lister tous les libellés d'une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence dont il faut lister les libellés |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la récupération |
+| `labels` | tableau | Liste des libellés |
+
+### `confluence_get_space`
+
+Obtenir les détails d'un espace Confluence spécifique.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `spaceId` | chaîne | Oui | ID de l'espace Confluence à récupérer |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la récupération |
+| `spaceId` | chaîne | ID de l'espace |
+| `name` | chaîne | Nom de l'espace |
+| `key` | chaîne | Clé de l'espace |
+| `type` | chaîne | Type d'espace |
+| `status` | chaîne | Statut de l'espace |
+| `url` | chaîne | URL de l'espace |
+
+### `confluence_list_spaces`
+
+Lister tous les espaces Confluence accessibles à l'utilisateur.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `limit` | nombre | Non | Nombre maximum d'espaces à renvoyer \(par défaut : 25\) |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la récupération |
+| `spaces` | tableau | Liste des espaces |
 
 ## Notes
 

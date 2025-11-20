@@ -100,7 +100,7 @@ jobs:
 
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
-    runs-on: linux-arm64-8-core
+    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
     if: github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false

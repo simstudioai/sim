@@ -6,11 +6,8 @@ import type { McpTransport } from '@/lib/mcp/types'
 
 const logger = createLogger('useMcpServerTest')
 
-/**
- * Check if transport type requires a URL
- */
 function isUrlBasedTransport(transport: McpTransport): boolean {
-  return transport === 'http' || transport === 'sse' || transport === 'streamable-http'
+  return transport === 'streamable-http'
 }
 
 export interface McpServerTestConfig {
@@ -84,12 +81,23 @@ export function useMcpServerTest() {
         const result = await response.json()
 
         if (!response.ok) {
+          if (result.data?.error || result.data?.success === false) {
+            const testResult: McpServerTestResult = {
+              success: false,
+              message: result.data.error || 'Connection failed',
+              error: result.data.error,
+              warnings: result.data.warnings,
+            }
+            setTestResult(testResult)
+            logger.error('MCP server test failed:', result.data.error)
+            return testResult
+          }
           throw new Error(result.error || 'Connection test failed')
         }
 
-        setTestResult(result)
-        logger.info(`MCP server test ${result.success ? 'passed' : 'failed'}:`, config.name)
-        return result
+        setTestResult(result.data || result)
+        logger.info(`MCP server test ${result.data?.success ? 'passed' : 'failed'}:`, config.name)
+        return result.data || result
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
         const result: McpServerTestResult = {

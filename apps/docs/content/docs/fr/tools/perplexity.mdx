@@ -1,6 +1,6 @@
 ---
 title: Perplexity
-description: Utilisez les modèles de chat Perplexity AI
+description: Utilisez Perplexity AI pour le chat et la recherche
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -8,14 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="perplexity"
   color="#20808D"
-  icon={true}
-  iconSvg={`<svg className="block-icon"   viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' >
-      <path
-        d='M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z'
-        fill='currentColor'
-        fillRule='nonzero'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -36,7 +28,7 @@ Dans Sim, l'intégration de Perplexity permet à vos agents d'exploiter ces puis
 
 ## Instructions d'utilisation
 
-Intégrez Perplexity dans le flux de travail. Peut générer des compléments à l'aide des modèles de chat Perplexity AI. Nécessite une clé API.
+Intégrez Perplexity dans votre flux de travail. Peut générer des compléments en utilisant les modèles de chat Perplexity AI ou effectuer des recherches web avec filtrage avancé.
 
 ## Outils
 
@@ -62,7 +54,32 @@ Générez des compléments à l'aide des modèles de chat Perplexity AI
 | `success` | boolean | Statut de réussite de l'opération |
 | `output` | object | Résultats du complément de chat |
 
-## Remarques
+### `perplexity_search`
+
+Obtenez des résultats de recherche classés depuis Perplexity
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Oui | Une requête de recherche ou un tableau de requêtes \(maximum 5 pour une recherche multi-requêtes\) |
+| `max_results` | number | Non | Nombre maximum de résultats de recherche à retourner \(1-20, par défaut : 10\) |
+| `search_domain_filter` | array | Non | Liste des domaines/URLs pour limiter les résultats de recherche \(max 20\) |
+| `max_tokens_per_page` | number | Non | Nombre maximum de tokens récupérés de chaque page web \(par défaut : 1024\) |
+| `country` | string | Non | Code pays pour filtrer les résultats de recherche \(ex. : US, GB, DE\) |
+| `search_recency_filter` | string | Non | Filtrer les résultats par récence : heure, jour, semaine, mois ou année |
+| `search_after_date` | string | Non | Inclure uniquement le contenu publié après cette date \(format : MM/JJ/AAAA\) |
+| `search_before_date` | string | Non | Inclure uniquement le contenu publié avant cette date \(format : MM/JJ/AAAA\) |
+| `apiKey` | string | Oui | Clé API Perplexity |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Résultats de recherche |
+
+## Notes
 
 - Catégorie : `tools`
 - Type : `perplexity`

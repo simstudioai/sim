@@ -8,18 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="elevenlabs"
   color="#181C1E"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      xmlns='http://www.w3.org/2000/svg'
-      
-      
-      viewBox='0 0 876 876'
-      fill='none'
-    >
-      <path d='M498 138H618V738H498V138Z' fill='currentColor' />
-      <path d='M258 138H378V738H258V138Z' fill='currentColor' />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -60,6 +48,7 @@ ElevenLabsの音声を使用してTTSに変換
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `audioUrl` | string | 生成された音声のURL |
+| `audioFile` | file | 生成された音声ファイル |
 
 ## 注意事項
 

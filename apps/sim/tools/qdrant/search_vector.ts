@@ -100,7 +100,7 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
 
       return {
         query: params.vector,
-        limit: params.limit ? Number.parseInt(params.limit.toString()) : 10,
+        limit: params.limit ? Number(params.limit) : 10,
         filter: params.filter,
         with_payload: withPayload,
         with_vector: withVector,

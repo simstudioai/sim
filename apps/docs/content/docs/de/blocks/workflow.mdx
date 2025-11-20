@@ -12,8 +12,8 @@ import { Image } from '@/components/ui/image'
   <Image
     src='/static/blocks/workflow.png'
     alt='Workflow-Block-Konfiguration'
-    width={400}
-    height={280}
+    width={500}
+    height={400}
     className='rounded-xl border border-border shadow-sm'
   />
 </div>
@@ -24,15 +24,38 @@ Füge einen Workflow-Block hinzu, wenn du einen untergeordneten Workflow als Tei
 
 1. **Wähle einen Workflow** aus dem Dropdown-Menü (Selbstreferenzen sind blockiert, um Schleifen zu verhindern).
 2. **Eingaben zuordnen**: Wenn der untergeordnete Workflow einen Eingabeformular-Trigger hat, siehst du jedes Feld und kannst übergeordnete Variablen verbinden. Die zugeordneten Werte sind das, was der untergeordnete Workflow erhält.
-3. **Ausgaben**: Nach Abschluss des untergeordneten Workflows stellt der Block folgendes bereit:
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/blocks/workflow-2.png'
+    alt='Workflow-Block mit Beispiel für Eingabezuordnung'
+    width={700}
+    height={400}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+3. **Ausgaben**: Nachdem der untergeordnete Workflow abgeschlossen ist, stellt der Block folgendes bereit:
    - `result` – die endgültige Antwort des untergeordneten Workflows
    - `success` – ob er ohne Fehler ausgeführt wurde
    - `error` – Nachricht, wenn die Ausführung fehlschlägt
 
-## Ausführungshinweise
+## Bereitstellungsstatus-Badge
+
+Der Workflow-Block zeigt ein Bereitstellungsstatus-Badge an, das dir hilft zu verfolgen, ob der untergeordnete Workflow ausführungsbereit ist:
+
+- **Bereitgestellt** – Der untergeordnete Workflow wurde bereitgestellt und ist einsatzbereit. Der Block führt die aktuell bereitgestellte Version aus.
+- **Nicht bereitgestellt** – Der untergeordnete Workflow wurde noch nie bereitgestellt. Du musst ihn bereitstellen, bevor der Workflow-Block ihn ausführen kann.
+- **Erneut bereitstellen** – Seit der letzten Bereitstellung wurden Änderungen im untergeordneten Workflow erkannt. Klicke auf das Badge, um den untergeordneten Workflow mit den neuesten Änderungen erneut bereitzustellen.
+
+<Callout type="warn">
+Der Workflow-Block führt immer die zuletzt bereitgestellte Version des untergeordneten Workflows aus, nicht die Editor-Version. Stelle sicher, dass du nach Änderungen eine erneute Bereitstellung durchführst, damit der Block die neueste Logik verwendet.
+</Callout>
+
+## Hinweise zur Ausführung
 
 - Untergeordnete Workflows laufen im gleichen Workspace-Kontext, sodass Umgebungsvariablen und Tools übernommen werden.
-- Der Block verwendet Deployment-Versionierung: Jede API-, Zeitplan-, Webhook-, manuelle oder Chat-Ausführung ruft den bereitgestellten Snapshot auf. Stelle den untergeordneten Workflow neu bereit, wenn du ihn änderst.
+- Der Block verwendet Bereitstellungsversionierung: Jede API-, Zeitplan-, Webhook-, manuelle oder Chat-Ausführung ruft den bereitgestellten Snapshot auf. Stelle den untergeordneten Workflow nach Änderungen erneut bereit.
 - Wenn der untergeordnete Workflow fehlschlägt, löst der Block einen Fehler aus, es sei denn, du behandelst ihn nachgelagert.
 
 <Callout>

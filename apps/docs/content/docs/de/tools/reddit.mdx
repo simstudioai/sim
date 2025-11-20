@@ -8,21 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="reddit"
   color="#FF5700"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      
-      
-      viewBox='0 0 50 50'
-      fill='#FFFFFF'
-      role='img'
-      xmlns='http://www.w3.org/2000/svg'
-    >
-      <path
-        d='M 29 3 C 26.894531 3 24.433594 4.652344 24.0625 12.03125 C 24.375 12.023438 24.683594 12 25 12 C 25.351563 12 25.714844 12.019531 26.0625 12.03125 C 26.300781 7.597656 27.355469 5 29 5 C 29.703125 5 30.101563 5.382813 30.84375 6.1875 C 31.710938 7.128906 32.84375 8.351563 35.0625 8.8125 C 35.027344 8.550781 35 8.269531 35 8 C 35 7.578125 35.042969 7.179688 35.125 6.78125 C 33.75 6.40625 33.023438 5.613281 32.3125 4.84375 C 31.519531 3.984375 30.609375 3 29 3 Z M 41 4 C 38.792969 4 37 5.796875 37 8 C 37 10.203125 38.792969 12 41 12 C 43.207031 12 45 10.203125 45 8 C 45 5.796875 43.207031 4 41 4 Z M 25 14 C 12.867188 14 3 20.179688 3 29 C 3 37.820313 12.867188 45 25 45 C 37.132813 45 47 37.820313 47 29 C 47 20.179688 37.132813 14 25 14 Z M 7.5 14.9375 C 6.039063 14.9375 4.652344 15.535156 3.59375 16.59375 C 1.871094 18.316406 1.515625 20.792969 2.5 22.84375 C 4.011719 19.917969 6.613281 17.421875 9.96875 15.5625 C 9.207031 15.175781 8.363281 14.9375 7.5 14.9375 Z M 42.5 14.9375 C 41.636719 14.9375 40.792969 15.175781 40.03125 15.5625 C 43.386719 17.421875 45.988281 19.917969 47.5 22.84375 C 48.484375 20.792969 48.128906 18.316406 46.40625 16.59375 C 45.347656 15.535156 43.960938 14.9375 42.5 14.9375 Z M 17 23 C 18.65625 23 20 24.34375 20 26 C 20 27.65625 18.65625 29 17 29 C 15.34375 29 14 27.65625 14 26 C 14 24.34375 15.34375 23 17 23 Z M 33 23 C 34.65625 23 36 24.34375 36 26 C 36 27.65625 34.65625 29 33 29 C 31.34375 29 30 27.65625 30 26 C 30 24.34375 31.34375 23 33 23 Z M 16.0625 34 C 16.3125 34.042969 16.558594 34.183594 16.71875 34.40625 C 16.824219 34.554688 19.167969 37.6875 25 37.6875 C 30.910156 37.6875 33.257813 34.46875 33.28125 34.4375 C 33.597656 33.988281 34.234375 33.867188 34.6875 34.1875 C 35.136719 34.503906 35.222656 35.109375 34.90625 35.5625 C 34.789063 35.730469 31.9375 39.6875 25 39.6875 C 18.058594 39.6875 15.210938 35.730469 15.09375 35.5625 C 14.777344 35.109375 14.859375 34.503906 15.3125 34.1875 C 15.539063 34.027344 15.8125 33.957031 16.0625 34 Z'
-        fill='currentColor'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -38,7 +23,7 @@ Diese Operationen ermöglichen es Ihren Agenten, auf Reddit-Inhalte zuzugreifen 
 
 ## Nutzungsanleitung
 
-Integrieren Sie Reddit in den Workflow. Kann Beiträge und Kommentare aus einem Subreddit abrufen. Erfordert OAuth.
+Integriere Reddit in Workflows. Lese Beiträge, Kommentare und durchsuche Inhalte. Veröffentliche Beiträge, stimme ab, antworte, bearbeite und verwalte dein Reddit-Konto.
 
 ## Tools
 
@@ -54,6 +39,11 @@ Beiträge aus einem Subreddit mit verschiedenen Sortieroptionen abrufen
 | `sort` | string | Nein | Sortiermethode für Beiträge: "hot", "new", "top" oder "rising" \(Standard: "hot"\) |
 | `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Beiträge \(Standard: 10, max: 100\) |
 | `time` | string | Nein | Zeitfilter für nach "top" sortierte Beiträge: "day", "week", "month", "year" oder "all" \(Standard: "day"\) |
+| `after` | string | Nein | Vollständiger Name eines Elements, nach dem Elemente abgerufen werden sollen \(für Paginierung\) |
+| `before` | string | Nein | Vollständiger Name eines Elements, vor dem Elemente abgerufen werden sollen \(für Paginierung\) |
+| `count` | number | Nein | Anzahl der bereits gesehenen Elemente in der Liste \(für Nummerierung verwendet\) |
+| `show` | string | Nein | Zeige Elemente an, die normalerweise gefiltert würden \(z.B. "all"\) |
+| `sr_detail` | boolean | Nein | Erweitere Subreddit-Details in der Antwort |
 
 #### Ausgabe
 
@@ -70,16 +60,225 @@ Kommentare von einem bestimmten Reddit-Beitrag abrufen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `postId` | string | Ja | Die ID des Reddit-Beitrags, von dem Kommentare abgerufen werden sollen |
-| `subreddit` | string | Ja | Das Subreddit, in dem sich der Beitrag befindet (ohne das r/-Präfix) |
-| `sort` | string | Nein | Sortiermethode für Kommentare: "confidence", "top", "new", "controversial", "old", "random", "qa" (Standard: "confidence") |
-| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Kommentare (Standard: 50, max: 100) |
+| `postId` | string | Ja | Die ID des Reddit-Beitrags, aus dem Kommentare abgerufen werden sollen |
+| `subreddit` | string | Ja | Das Subreddit, in dem sich der Beitrag befindet \(ohne das r/ Präfix\) |
+| `sort` | string | Nein | Sortiermethode für Kommentare: "confidence", "top", "new", "controversial", "old", "random", "qa" \(Standard: "confidence"\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Kommentare \(Standard: 50, max: 100\) |
+| `depth` | number | Nein | Maximale Tiefe von Unterbäumen im Thread \(steuert verschachtelte Kommentarebenen\) |
+| `context` | number | Nein | Anzahl der einzubeziehenden übergeordneten Kommentare |
+| `showedits` | boolean | Nein | Bearbeitungsinformationen für Kommentare anzeigen |
+| `showmore` | boolean | Nein | "Mehr Kommentare laden"-Elemente in die Antwort einbeziehen |
+| `showtitle` | boolean | Nein | Beitragstitel in die Antwort einbeziehen |
+| `threaded` | boolean | Nein | Kommentare im verschachtelten Format zurückgeben |
+| `truncate` | number | Nein | Ganzzahl zur Kürzung der Kommentartiefe |
+| `after` | string | Nein | Vollständiger Name eines Elements, nach dem Elemente abgerufen werden sollen \(für Paginierung\) |
+| `before` | string | Nein | Vollständiger Name eines Elements, vor dem Elemente abgerufen werden sollen \(für Paginierung\) |
+| `count` | number | Nein | Anzahl der bereits gesehenen Elemente in der Liste \(für Nummerierung verwendet\) |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `post` | object | Beitragsinformationen einschließlich ID, Titel, Autor, Inhalt und Metadaten |
+
+### `reddit_get_controversial`
+
+Kontroverse Beiträge aus einem Subreddit abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Ja | Der Name des Subreddits, aus dem Beiträge abgerufen werden sollen \(ohne das r/ Präfix\) |
+| `time` | string | Nein | Zeitfilter für kontroverse Beiträge: "hour", "day", "week", "month", "year" oder "all" \(Standard: "all"\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Beiträge \(Standard: 10, max: 100\) |
+| `after` | string | Nein | Vollständiger Name eines Elements, nach dem Elemente abgerufen werden sollen \(für Paginierung\) |
+| `before` | string | Nein | Vollständiger Name eines Elements, vor dem Elemente abgerufen werden sollen \(für Paginierung\) |
+| `count` | number | Nein | Anzahl der bereits gesehenen Elemente in der Liste \(für Nummerierung verwendet\) |
+| `show` | string | Nein | Zeigt Elemente an, die normalerweise gefiltert würden \(z.B. "all"\) |
+| `sr_detail` | boolean | Nein | Erweitert Subreddit-Details in der Antwort |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Name des Subreddits, aus dem Beiträge abgerufen wurden |
+| `posts` | array | Array von kontroversen Beiträgen mit Titel, Autor, URL, Punktzahl, Kommentaranzahl und Metadaten |
+
+### `reddit_search`
+
+Nach Beiträgen innerhalb eines Subreddits suchen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Ja | Der Name des Subreddits, in dem gesucht werden soll \(ohne das r/ Präfix\) |
+| `query` | string | Ja | Suchanfragentext |
+| `sort` | string | Nein | Sortiermethode für Suchergebnisse: "relevance", "hot", "top", "new" oder "comments" \(Standard: "relevance"\) |
+| `time` | string | Nein | Zeitfilter für Suchergebnisse: "hour", "day", "week", "month", "year" oder "all" \(Standard: "all"\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Beiträge \(Standard: 10, max: 100\) |
+| `restrict_sr` | boolean | Nein | Suche nur auf das angegebene Subreddit beschränken \(Standard: true\) |
+| `after` | string | Nein | Vollständiger Name eines Elements, nach dem Elemente abgerufen werden sollen \(für Paginierung\) |
+| `before` | string | Nein | Vollständiger Name eines Elements, vor dem Elemente abgerufen werden sollen \(für Paginierung\) |
+| `count` | number | Nein | Anzahl der bereits gesehenen Elemente in der Liste \(für Nummerierung verwendet\) |
+| `show` | string | Nein | Zeigt Elemente an, die normalerweise gefiltert würden \(z.B. "all"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Name des Subreddits, in dem die Suche durchgeführt wurde |
+| `posts` | array | Array von Suchergebnisbeiträgen mit Titel, Autor, URL, Punktzahl, Kommentaranzahl und Metadaten |
+
+### `reddit_submit_post`
+
+Einen neuen Beitrag in einem Subreddit einreichen (Text oder Link)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Ja | Der Name des Subreddits, in dem gepostet werden soll \(ohne das r/ Präfix\) |
+| `title` | string | Ja | Titel der Einreichung \(maximal 300 Zeichen\) |
+| `text` | string | Nein | Textinhalt für einen Selbstbeitrag \(Markdown wird unterstützt\) |
+| `url` | string | Nein | URL für einen Link-Beitrag \(kann nicht zusammen mit Text verwendet werden\) |
+| `nsfw` | boolean | Nein | Beitrag als NSFW markieren |
+| `spoiler` | boolean | Nein | Beitrag als Spoiler markieren |
+| `send_replies` | boolean | Nein | Antwortbenachrichtigungen an den Posteingang senden \(Standard: true\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Beitrag erfolgreich eingereicht wurde |
+| `message` | string | Erfolgs- oder Fehlermeldung |
+| `data` | object | Beitragsdaten einschließlich ID, Name, URL und Permalink |
+
+### `reddit_vote`
+
+Upvote, Downvote oder Zurücknahme einer Stimme für einen Reddit-Beitrag oder -Kommentar
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Ja | Vollständiger Name des Elements, für das abgestimmt werden soll \(z.B. t3_xxxxx für Beitrag, t1_xxxxx für Kommentar\) |
+| `dir` | number | Ja | Abstimmungsrichtung: 1 \(Upvote\), 0 \(Zurücknahme\), oder -1 \(Downvote\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Abstimmung erfolgreich war |
+| `message` | string | Erfolgs- oder Fehlermeldung |
+
+### `reddit_save`
+
+Einen Reddit-Beitrag oder Kommentar in deinen gespeicherten Elementen speichern
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Ja | Vollständiger Name des zu speichernden Elements \(z.B. t3_xxxxx für Beitrag, t1_xxxxx für Kommentar\) |
+| `category` | string | Nein | Kategorie, unter der gespeichert werden soll \(Reddit Gold-Funktion\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Speichern erfolgreich war |
+| `message` | string | Erfolgs- oder Fehlermeldung |
+
+### `reddit_unsave`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Subreddit-Name |
+| `posts` | json | Beitragsdaten |
+| `post` | json | Daten eines einzelnen Beitrags |
+| `comments` | json | Kommentardaten |
+
+### `reddit_reply`
+
+Einen Kommentar zu einem Reddit-Beitrag oder Kommentar hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `parent_id` | string | Ja | Vollständiger Name des Elements, auf das geantwortet werden soll \(z.B. t3_xxxxx für Beitrag, t1_xxxxx für Kommentar\) |
+| `text` | string | Ja | Kommentartext im Markdown-Format |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Antwort erfolgreich gepostet wurde |
+| `message` | string | Erfolgs- oder Fehlermeldung |
+| `data` | object | Kommentardaten einschließlich ID, Name, Permalink und Inhalt |
+
+### `reddit_edit`
+
+Bearbeite den Text deines eigenen Reddit-Beitrags oder -Kommentars
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `thing_id` | string | Ja | Vollständiger Name des zu bearbeitenden Elements \(z.B. t3_xxxxx für Beiträge, t1_xxxxx für Kommentare\) |
+| `text` | string | Ja | Neuer Textinhalt im Markdown-Format |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Bearbeitung erfolgreich war |
+| `message` | string | Erfolgs- oder Fehlermeldung |
+| `data` | object | Aktualisierte Inhaltsdaten |
+
+### `reddit_delete`
+
+Lösche deinen eigenen Reddit-Beitrag oder -Kommentar
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Ja | Vollständiger Name des zu löschenden Elements \(z.B. t3_xxxxx für Beiträge, t1_xxxxx für Kommentare\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Löschung erfolgreich war |
+| `message` | string | Erfolgs- oder Fehlermeldung |
+
+### `reddit_subscribe`
+
+Subreddit abonnieren oder Abonnement kündigen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Ja | Der Name des Subreddits \(ohne das r/ Präfix\) |
+| `action` | string | Ja | Auszuführende Aktion: "sub" zum Abonnieren oder "unsub" zum Kündigen des Abonnements |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Abonnementaktion erfolgreich war |
+| `message` | string | Erfolgs- oder Fehlermeldung |
 
 ## Hinweise
 

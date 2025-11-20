@@ -961,5 +961,58 @@ describe('Serializer', () => {
       // Unknown fields are filtered out (no subblock config found, so shouldIncludeField is not called)
       expect(slackBlock?.config.params.unknownField).toBeUndefined()
     })
+
+    it.concurrent(
+      'should preserve legacy agent fields (systemPrompt, userPrompt, memories) for backward compatibility',
+      () => {
+        const serializer = new Serializer()
+
+        // Simulate an old workflow with legacy agent block format (before messages array migration)
+        const legacyAgentBlock: any = {
+          id: 'agent-1',
+          type: 'agent',
+          name: 'Legacy Agent',
+          position: { x: 0, y: 0 },
+          advancedMode: false,
+          subBlocks: {
+            systemPrompt: {
+              id: 'systemPrompt',
+              type: 'long-input',
+              value: 'You are a helpful assistant.',
+            },
+            userPrompt: {
+              id: 'userPrompt',
+              type: 'long-input',
+              value: 'What is the weather today?',
+            },
+            memories: {
+              id: 'memories',
+              type: 'short-input',
+              value: [{ role: 'user', content: 'My name is Alice' }],
+            },
+            model: {
+              id: 'model',
+              type: 'combobox',
+              value: 'gpt-4',
+            },
+          },
+          outputs: {},
+          enabled: true,
+        }
+
+        const serialized = serializer.serializeWorkflow({ 'agent-1': legacyAgentBlock }, [], {})
+
+        const agentBlock = serialized.blocks.find((b) => b.id === 'agent-1')
+        expect(agentBlock).toBeDefined()
+
+        // Legacy fields should be preserved even though they're not in the current block config
+        expect(agentBlock?.config.params.systemPrompt).toBe('You are a helpful assistant.')
+        expect(agentBlock?.config.params.userPrompt).toBe('What is the weather today?')
+        expect(agentBlock?.config.params.memories).toEqual([
+          { role: 'user', content: 'My name is Alice' },
+        ])
+        expect(agentBlock?.config.params.model).toBe('gpt-4')
+      }
+    )
   })
 })

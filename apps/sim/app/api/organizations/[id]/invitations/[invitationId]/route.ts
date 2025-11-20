@@ -13,11 +13,18 @@ import {
 } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationInvitation')
+
+const updateInvitationSchema = z.object({
+  status: z.enum(['accepted', 'rejected', 'cancelled'], {
+    errorMap: () => ({ message: 'Invalid status. Must be "accepted", "rejected", or "cancelled"' }),
+  }),
+})
 
 // Get invitation details
 export async function GET(
@@ -84,14 +91,15 @@ export async function PUT(
   }
 
   try {
-    const { status } = await req.json()
+    const body = await req.json()
 
-    if (!status || !['accepted', 'rejected', 'cancelled'].includes(status)) {
-      return NextResponse.json(
-        { error: 'Invalid status. Must be "accepted", "rejected", or "cancelled"' },
-        { status: 400 }
-      )
+    const validation = updateInvitationSchema.safeParse(body)
+    if (!validation.success) {
+      const firstError = validation.error.errors[0]
+      return NextResponse.json({ error: firstError.message }, { status: 400 })
     }
+
+    const { status } = validation.data
 
     const orgInvitation = await db
       .select()
@@ -249,6 +257,7 @@ export async function PUT(
                   .set({
                     proPeriodCostSnapshot: currentProUsage,
                     currentPeriodCost: '0', // Reset so new usage is attributed to team
+                    currentPeriodCopilotCost: '0', // Reset copilot cost for new period
                   })
                   .where(eq(userStats.userId, userId))
 

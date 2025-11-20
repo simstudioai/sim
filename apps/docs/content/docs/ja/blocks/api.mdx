@@ -3,11 +3,10 @@ title: API
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-APIブロックを使用すると、HTTPリクエストを通じてAPIエンドポイントを使用して、ワークフローを外部サービスに接続できます。GET、POST、PUT、DELETE、PATCHなどの様々なメソッドをサポートしており、事実上あらゆるAPIエンドポイントと対話することができます。
+APIブロックは、HTTPリクエストを通じてワークフローを外部サービスに接続します。REST APIとの対話のために、GET、POST、PUT、DELETE、PATCHメソッドをサポートしています。
 
 <div className="flex justify-center">
   <Image
@@ -19,39 +18,11 @@ APIブロックを使用すると、HTTPリクエストを通じてAPIエンド�
   />
 </div>
 
-## 概要
-
-APIブロックでは以下のことが可能です：
-
-<Steps>
-  <Step>
-    <strong>外部サービスへの接続</strong>: REST APIやWebサービスへのHTTPリクエストを行う
-  </Step>
-  <Step>
-    <strong>データの送受信</strong>: レスポンスの処理や外部ソースからのデータ変換
-  </Step>
-  <Step>
-    <strong>サードパーティプラットフォームの統合</strong>: Stripe、Slack、またはカスタムAPIなどのサービスとの連携
-  </Step>
-  <Step>
-    <strong>認証の処理</strong>: BearerトークンやAPIキーなど、様々な認証方法をサポート
-  </Step>
-</Steps>
-
-## 動作の仕組み
-
-APIブロックは構造化されたアプローチでHTTPリクエストを処理します：
-
-1. **リクエストの設定** - URL、メソッド、ヘッダー、ボディパラメータを設定
-2. **リクエストの実行** - 指定されたエンドポイントにHTTPリクエストを送信
-3. **レスポンスの処理** - レスポンスデータ、ステータスコード、ヘッダーの処理
-4. **エラー処理** - タイムアウト、リトライ、エラー状態の管理
-
 ## 設定オプション
 
 ### URL
 
-APIリクエスト用のエンドポイントURL。以下のいずれかになります：
+APIリクエストのエンドポイントURL。以下のいずれかになります：
 
 - ブロックに直接入力された静的URL
 - 別のブロックの出力から接続された動的URL
@@ -61,11 +32,11 @@ APIリクエスト用のエンドポイントURL。以下のいずれかにな�
 
 リクエストに使用するHTTPメソッドを選択します：
 
-- **GET**: サーバーからデータを取得
-- **POST**: リソースを作成するためにサーバーにデータを送信
-- **PUT**: サーバー上の既存のリソースを更新
-- **DELETE**: サーバーからリソースを削除
-- **PATCH**: 既存のリソースを部分的に更新
+- **GET**: サーバーからデータを取得する
+- **POST**: リソースを作成するためにサーバーにデータを送信する
+- **PUT**: サーバー上の既存のリソースを更新する
+- **DELETE**: サーバーからリソースを削除する
+- **PATCH**: 既存のリソースを部分的に更新する
 
 ### クエリパラメータ
 
@@ -83,7 +54,7 @@ Value: 10
 
 ### ヘッダー
 
-リクエスト用のHTTPヘッダーを設定します。一般的なヘッダーには以下が含まれます：
+リクエストのHTTPヘッダーを設定します。一般的なヘッダーには以下があります：
 
 ```
 Key: Content-Type
@@ -95,7 +66,7 @@ Value: Bearer your_token_here
 
 ### リクエストボディ
 
-リクエストボディをサポートするメソッド（POST、PUT、PATCH）では、送信するデータを定義できます。ボディは以下のいずれかです：
+リクエストボディをサポートするメソッド（POST、PUT、PATCH）では、送信するデータを定義できます。ボディは以下のいずれかになります：
 
 - ブロックに直接入力されたJSONデータ
 - 別のブロックの出力から接続されたデータ
@@ -114,7 +85,7 @@ APIリクエストが完了すると、以下の出力にアクセスできま�
 
 ### 動的URL構築
 
-前のブロックからの変数を使用して動的にURLを構築します：
+前のブロックの変数を使用して動的にURLを構築します：
 
 ```javascript
 // In a Function block before the API
@@ -145,88 +116,30 @@ if (<api.status> === 200) {
 }
 ```
 
-## 入力と出力
+## 出力
 
-<Tabs items={['設定', '変数', '結果']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>URL</strong>: リクエストを送信するエンドポイント
-      </li>
-      <li>
-        <strong>メソッド</strong>: HTTPメソッド（GET、POST、PUT、DELETE、PATCH）
-      </li>
-      <li>
-        <strong>クエリパラメータ</strong>: URLパラメータのキーと値のペア
-      </li>
-      <li>
-        <strong>ヘッダー</strong>: 認証とコンテンツタイプのHTTPヘッダー
-      </li>
-      <li>
-        <strong>ボディ</strong>: POST/PUT/PATCHメソッド用のリクエストペイロード
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>api.data</strong>: API呼び出しからのレスポンスボディデータ
-      </li>
-      <li>
-        <strong>api.status</strong>: サーバーから返されたHTTPステータスコード
-      </li>
-      <li>
-        <strong>api.headers</strong>: サーバーからのレスポンスヘッダー
-      </li>
-      <li>
-        <strong>api.error</strong>: リクエストが失敗した場合のエラー詳細
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>レスポンスデータ</strong>: 主要なAPIレスポンスコンテンツ
-      </li>
-      <li>
-        <strong>ステータス情報</strong>: HTTPステータスとエラー詳細
-      </li>
-      <li>
-        <strong>アクセス</strong>: API呼び出し後のブロックで利用可能
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<api.data>`**: APIからのレスポンスボディデータ
+- **`<api.status>`**: HTTPステータスコード
+- **`<api.headers>`**: レスポンスヘッダー
+- **`<api.error>`**: リクエストが失敗した場合のエラー詳細
 
 ## 使用例
 
-### ユーザープロファイルデータの取得
+**ユーザープロファイルデータの取得** - 外部サービスからユーザー情報を取得する
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ: 外部サービスからユーザー情報を取得する</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>ファンクションブロックが入力からユーザーIDを構築</li>
-    <li>APIブロックがGET /users/&#123;id&#125;エンドポイントを呼び出す</li>
-    <li>ファンクションブロックがユーザーデータを処理・整形</li>
-    <li>レスポンスブロックが整形されたプロファイルを返す</li>
-  </ol>
-</div>
+```
+Function (Build ID) → API (GET /users/{id}) → Function (Format) → Response
+```
 
-### 決済処理
+**決済処理** - Stripe APIを通じて決済を処理する
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ: Stripe APIを通じて決済を処理する</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>ファンクションブロックが決済データを検証</li>
-    <li>APIブロックがStripeを通じて決済インテントを作成</li>
-    <li>条件ブロックが決済の成功/失敗を処理</li>
-    <li>Supabaseブロックがデータベース内の注文ステータスを更新</li>
-  </ol>
-</div>
+```
+Function (Validate) → API (Stripe) → Condition (Success) → Supabase (Update)
+```
 
 ## ベストプラクティス
 
 - **機密データには環境変数を使用する**: APIキーや認証情報をハードコードしないでください
-- **エラーを適切に処理する**: 失敗したリクエストに対してエラー処理ロジックを接続してください
+- **エラーを適切に処理する**: 失敗したリクエストにはエラー処理ロジックを接続してください
 - **レスポンスを検証する**: データを処理する前にステータスコードとレスポンス形式を確認してください
 - **レート制限を尊重する**: APIのレート制限に注意し、適切なスロットリングを実装してください

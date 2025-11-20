@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Input, Label } from '@/components/ui'
+import { Input, Label } from '@/components/emcn'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import { useIdentifierValidation } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/hooks/use-identifier-validation'
@@ -47,8 +47,8 @@ export function IdentifierInput({
       <Label htmlFor='identifier' className='font-medium text-sm'>
         Identifier
       </Label>
-      <div className='relative flex items-center rounded-md ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2'>
-        <div className='flex h-10 items-center whitespace-nowrap rounded-l-md border border-r-0 bg-muted px-3 font-medium text-muted-foreground text-sm'>
+      <div className='relative flex items-stretch'>
+        <div className='flex items-center whitespace-nowrap rounded-l-[4px] border border-[var(--surface-11)] border-r-0 bg-[var(--surface-6)] px-[8px] py-[6px] font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-9)]'>
           {getDomainPrefix()}
         </div>
         <div className='relative flex-1'>
@@ -60,9 +60,9 @@ export function IdentifierInput({
             required
             disabled={disabled}
             className={cn(
-              'rounded-l-none border-l-0 focus-visible:ring-0 focus-visible:ring-offset-0',
+              'rounded-l-none border-l-0',
               isChecking && 'pr-8',
-              error && 'border-destructive focus-visible:border-destructive'
+              error && 'border-destructive'
             )}
           />
           {isChecking && (

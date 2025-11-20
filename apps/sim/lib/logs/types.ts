@@ -93,10 +93,6 @@ export interface WorkflowExecutionLog {
     type: string
     url: string
     key: string
-    uploadedAt: string
-    expiresAt: string
-    storageProvider?: 's3' | 'blob' | 'local'
-    bucketName?: string
   }>
   // Execution details
   executionData: {
@@ -176,6 +172,9 @@ export interface TraceSpan {
     total?: number
   }
   providerTiming?: ProviderTiming
+  loopId?: string
+  parallelId?: string
+  iterationIndex?: number
 }
 
 export interface WorkflowExecutionSummary {

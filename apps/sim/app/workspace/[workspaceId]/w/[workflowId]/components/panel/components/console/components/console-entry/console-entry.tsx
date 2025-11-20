@@ -427,8 +427,8 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           <div className='flex h-5 items-center rounded-lg bg-secondary px-2'>
             <span className='font-normal text-muted-foreground text-xs leading-normal'>
               {entry.iterationTotal !== undefined
-                ? `${entry.iterationCurrent}/${entry.iterationTotal}`
-                : `${entry.iterationCurrent}`}
+                ? `${entry.iterationCurrent + 1}/${entry.iterationTotal}`
+                : `${entry.iterationCurrent + 1}`}
             </span>
           </div>
         )}
@@ -439,7 +439,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
               onClick={() => setShowInput(false)}
               className={`flex h-5 items-center rounded-lg px-2 transition-colors ${
                 !showInput
-                  ? 'border-[#e5e5e5] bg-[#f5f5f5] text-[#1a1a1a] dark:border-[#424242] dark:bg-[#1f1f1f] dark:text-[#ffffff]'
+                  ? 'border-[#e5e5e5] bg-[#f5f5f5] text-[#1a1a1a] dark:border-[var(--border-muted)] dark:bg-[#1f1f1f] dark:text-[var(--white)]'
                   : 'bg-secondary text-muted-foreground hover:bg-secondary hover:text-card-foreground'
               }`}
             >
@@ -449,7 +449,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
               onClick={() => setShowInput(true)}
               className={`flex h-5 items-center rounded-lg px-2 transition-colors ${
                 showInput
-                  ? 'border-[#e5e5e5] bg-[#f5f5f5] text-[#1a1a1a] dark:border-[#424242] dark:bg-[#1f1f1f] dark:text-[#ffffff]'
+                  ? 'border-[#e5e5e5] bg-[#f5f5f5] text-[#1a1a1a] dark:border-[var(--border-muted)] dark:bg-[#1f1f1f] dark:text-[var(--white)]'
                   : 'bg-secondary text-muted-foreground hover:bg-secondary hover:text-card-foreground'
               }`}
             >
@@ -480,7 +480,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
         {entry.error && !showInput && (
           <div className='rounded-lg bg-[#F6D2D2] p-3 dark:bg-[#442929]'>
             <div className='overflow-hidden whitespace-pre-wrap break-all font-normal text-[#DC2626] text-sm leading-normal dark:text-[#F87171]'>
-              {entry.error}
+              {entry.error instanceof Error ? entry.error.message : entry.error}
             </div>
           </div>
         )}

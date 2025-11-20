@@ -8,7 +8,11 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolExecution } from '@/providers/utils'
+import {
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+  trackForcedToolUsage,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('GroqProvider')
@@ -110,23 +114,26 @@ export const groqProvider: ProviderConfig = {
     }
 
     // Handle tools and tool usage control
-    if (tools?.length) {
-      // Filter out any tools with usageControl='none', but ignore 'force' since Groq doesn't support it
-      const filteredTools = tools.filter((tool) => {
-        const toolId = tool.function?.name
-        const toolConfig = request.tools?.find((t) => t.id === toolId)
-        // Only filter out 'none', treat 'force' as 'auto'
-        return toolConfig?.usageControl !== 'none'
-      })
+    // Groq supports full OpenAI-compatible tool_choice including forcing specific tools
+    let originalToolChoice: any
+    let forcedTools: string[] = []
+    let hasFilteredTools = false
 
-      if (filteredTools?.length) {
-        payload.tools = filteredTools
-        // Always use 'auto' for Groq, regardless of the tool_choice setting
-        payload.tool_choice = 'auto'
+    if (tools?.length) {
+      const preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'openai')
+
+      if (preparedTools.tools?.length) {
+        payload.tools = preparedTools.tools
+        payload.tool_choice = preparedTools.toolChoice || 'auto'
+        originalToolChoice = preparedTools.toolChoice
+        forcedTools = preparedTools.forcedTools || []
+        hasFilteredTools = preparedTools.hasFilteredTools
 
         logger.info('Groq request configuration:', {
-          toolCount: filteredTools.length,
-          toolChoice: 'auto', // Groq always uses auto
+          toolCount: preparedTools.tools.length,
+          toolChoice: payload.tool_choice,
+          forcedToolsCount: forcedTools.length,
+          hasFilteredTools,
           model: request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
         })
       }
@@ -328,6 +335,29 @@ export const groqProvider: ProviderConfig = {
           const thisToolsTime = Date.now() - toolsStartTime
           toolsTime += thisToolsTime
 
+          // Check if we used any forced tools and update tool_choice for the next iteration
+          let usedForcedTools: string[] = []
+          if (typeof originalToolChoice === 'object' && forcedTools.length > 0) {
+            const toolTracking = trackForcedToolUsage(
+              currentResponse.choices[0]?.message?.tool_calls,
+              originalToolChoice,
+              logger,
+              'openai',
+              forcedTools,
+              usedForcedTools
+            )
+            usedForcedTools = toolTracking.usedForcedTools
+            const nextToolChoice = toolTracking.nextToolChoice
+
+            // Update tool_choice for next iteration if we're still forcing tools
+            if (nextToolChoice && typeof nextToolChoice === 'object') {
+              payload.tool_choice = nextToolChoice
+            } else if (nextToolChoice === 'auto' || !nextToolChoice) {
+              // All forced tools have been used, switch to auto
+              payload.tool_choice = 'auto'
+            }
+          }
+
           // Make the next request with updated messages
           const nextPayload = {
             ...payload,
@@ -374,8 +404,8 @@ export const groqProvider: ProviderConfig = {
       }
 
       // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
-      if (request.stream && iterationCount > 0) {
-        logger.info('Using streaming for final Groq response after tool calls')
+      if (request.stream) {
+        logger.info('Using streaming for final Groq response after tool processing')
 
         // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
         // This prevents the API from trying to force tool usage again in the final streaming response

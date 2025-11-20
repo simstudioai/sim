@@ -3,46 +3,24 @@ title: Parallel
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-Der Parallel-Block ist ein Container-Block in Sim, der es ermöglicht, mehrere Instanzen von Blöcken gleichzeitig auszuführen, um Workflows schneller zu verarbeiten.
-
-Der Parallel-Block unterstützt zwei Arten der gleichzeitigen Ausführung:
+Der Parallel-Block ist ein Container, der mehrere Instanzen gleichzeitig ausführt, um Workflows schneller zu verarbeiten. Verarbeiten Sie Elemente simultan statt sequentiell.
 
 <Callout type="info">
   Parallel-Blöcke sind Container-Knoten, die ihre Inhalte mehrfach gleichzeitig ausführen, im Gegensatz zu Schleifen, die sequentiell ausgeführt werden.
 </Callout>
 
-## Überblick
-
-Der Parallel-Block ermöglicht es dir:
-
-<Steps>
-  <Step>
-    <strong>Arbeit zu verteilen</strong>: Mehrere Elemente gleichzeitig zu verarbeiten
-  </Step>
-  <Step>
-    <strong>Ausführung zu beschleunigen</strong>: Unabhängige Operationen gleichzeitig auszuführen
-  </Step>
-  <Step>
-    <strong>Massenoperationen zu bewältigen</strong>: Große Datensätze effizient zu verarbeiten
-  </Step>
-  <Step>
-    <strong>Ergebnisse zu aggregieren</strong>: Ausgaben aus allen parallelen Ausführungen zu sammeln
-  </Step>
-</Steps>
-
 ## Konfigurationsoptionen
 
 ### Parallel-Typ
 
-Wähle zwischen zwei Arten der parallelen Ausführung:
+Wählen Sie zwischen zwei Arten der parallelen Ausführung:
 
 <Tabs items={['Count-based', 'Collection-based']}>
   <Tab>
-    **Anzahlbasierte Parallelität** - Führe eine feste Anzahl paralleler Instanzen aus:
+    **Anzahlbasierte Parallelisierung** - Führen Sie eine feste Anzahl paralleler Instanzen aus:
     
     <div className="flex justify-center">
       <Image
@@ -54,21 +32,24 @@ Wähle zwischen zwei Arten der parallelen Ausführung:
       />
     </div>
     
-    Verwende dies, wenn du dieselbe Operation mehrmals gleichzeitig ausführen musst.
+    Verwenden Sie diese Option, wenn Sie dieselbe Operation mehrmals gleichzeitig ausführen müssen.
     
 
-    ```
-    Example: Run 5 parallel instances
-    - Instance 1 ┐
-    - Instance 2 ├─ All execute simultaneously
-    - Instance 3 │
-    - Instance 4 │
-    - Instance 5 ┘
-    ```
+```javascript
+// Beispiel: 3 parallele Instanzen ausführen
+const results = await blocks.parallel({
+  type: 'count',
+  count: 3,
+  async process(index) {
+    // Jede Instanz erhält einen eindeutigen Index (0, 1, 2)
+    return `Ergebnis von Instanz ${index}`;
+  }
+});
+```
 
   </Tab>
   <Tab>
-    **Sammlungsbasierte Parallelität** - Verteile eine Sammlung auf parallele Instanzen:
+    **Sammlungsbasierte Parallelisierung** - Verteilen Sie eine Sammlung auf parallele Instanzen:
     
     <div className="flex justify-center">
       <Image
@@ -83,45 +64,57 @@ Wähle zwischen zwei Arten der parallelen Ausführung:
     Jede Instanz verarbeitet gleichzeitig ein Element aus der Sammlung.
     
 
-    ```
-    Example: Process ["task1", "task2", "task3"] in parallel
-    - Instance 1: Process "task1" ┐
-    - Instance 2: Process "task2" ├─ All execute simultaneously
-    - Instance 3: Process "task3" ┘
-    ```
+```javascript
+// Beispiel: Eine Liste von URLs parallel verarbeiten
+const urls = [
+  'https://example.com/api/1',
+  'https://example.com/api/2',
+  'https://example.com/api/3'
+];
+
+const results = await blocks.parallel({
+  type: 'collection',
+  items: urls,
+  async process(url, index) {
+    // Jede Instanz verarbeitet eine URL
+    const response = await fetch(url);
+    return response.json();
+  }
+});
+```
 
   </Tab>
 </Tabs>
 
-## Wie man Parallel-Blöcke verwendet
+## Verwendung von Parallel-Blöcken
 
-### Einen Parallel-Block erstellen
+### Erstellen eines Parallel-Blocks
 
-1. Ziehe einen Parallel-Block aus der Werkzeugleiste auf deine Leinwand
-2. Konfiguriere den Parallel-Typ und die Parameter
-3. Ziehe einen einzelnen Block in den Parallel-Container
-4. Verbinde den Block nach Bedarf
+1. Ziehen Sie einen Parallel-Block aus der Symbolleiste auf Ihre Leinwand
+2. Konfigurieren Sie den Parallel-Typ und die Parameter
+3. Ziehen Sie einen einzelnen Block in den Parallel-Container
+4. Verbinden Sie den Block nach Bedarf
 
-### Auf Ergebnisse zugreifen
+### Zugriff auf Ergebnisse
 
-Nach Abschluss eines parallelen Blocks können Sie auf aggregierte Ergebnisse zugreifen:
+Nach Abschluss eines Parallel-Blocks können Sie auf aggregierte Ergebnisse zugreifen:
 
-- **`<parallel.results>`**: Array mit Ergebnissen aus allen parallelen Instanzen
+- **`results`**: Array von Ergebnissen aus allen parallelen Instanzen
 
 ## Beispielanwendungsfälle
 
-### Batch-API-Verarbeitung
+**Batch-API-Verarbeitung** - Verarbeiten Sie mehrere API-Aufrufe gleichzeitig
 
 <div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Mehrere API-Aufrufe gleichzeitig verarbeiten</h4>
+  <h4 className="font-medium">Szenario: Mehrere API-Endpunkte abfragen</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>Paralleler Block mit einer Sammlung von API-Endpunkten</li>
-    <li>Innerhalb des parallelen Blocks: API-Block ruft jeden Endpunkt auf</li>
-    <li>Nach dem parallelen Block: Alle Antworten gemeinsam verarbeiten</li>
+    <li>Sammlungsbasierte Parallelisierung über eine Liste von API-Endpunkten</li>
+    <li>Jede Instanz führt einen API-Aufruf durch und verarbeitet die Antwort</li>
+    <li>Ergebnisse werden in einem Array gesammelt und können weiterverarbeitet werden</li>
   </ol>
 </div>
 
-### Multi-Modell-KI-Verarbeitung
+**Multi-Modell-KI-Verarbeitung** - Erhalten Sie Antworten von mehreren KI-Modellen gleichzeitig
 
 <div className="mb-4 rounded-md border p-4">
   <h4 className="font-medium">Szenario: Antworten von mehreren KI-Modellen erhalten</h4>
@@ -138,11 +131,7 @@ Nach Abschluss eines parallelen Blocks können Sie auf aggregierte Ergebnisse zu
 
 Ergebnisse aus allen parallelen Instanzen werden automatisch gesammelt:
 
-```javascript
-// In a Function block after the parallel
-const allResults = input.parallel.results;
-// Returns: [result1, result2, result3, ...]
-```
+### Anwendungsbeispiele
 
 ### Instanzisolierung
 
@@ -155,27 +144,23 @@ Jede parallele Instanz läuft unabhängig:
 
 <Callout type="warning">
   Container-Blöcke (Schleifen und Parallele) können nicht ineinander verschachtelt werden. Das bedeutet:
-  - Sie können keinen Schleifenblock in einen parallelen Block platzieren
-  - Sie können keinen weiteren parallelen Block in einen parallelen Block platzieren
+  - Sie können keinen Schleifenblock in einen Parallelblock platzieren
+  - Sie können keinen weiteren Parallelblock in einen Parallelblock platzieren
   - Sie können keinen Container-Block in einen anderen Container-Block platzieren
 </Callout>
 
-<Callout type="warning">
-  Parallele Blöcke können nur einen einzigen Block enthalten. Sie können nicht mehrere Blöcke haben, die innerhalb eines parallelen Blocks miteinander verbunden sind - in diesem Fall würde nur der erste Block ausgeführt werden.
-</Callout>
-
 <Callout type="info">
-  Obwohl die parallele Ausführung schneller ist, sollten Sie Folgendes beachten:
+  Während die parallele Ausführung schneller ist, beachten Sie bitte:
   - API-Ratenbegrenzungen bei gleichzeitigen Anfragen
-  - Speichernutzung bei großen Datensätzen
+  - Speicherverbrauch bei großen Datensätzen
   - Maximum von 20 gleichzeitigen Instanzen, um Ressourcenerschöpfung zu vermeiden
 </Callout>
 
-## Parallel vs. Loop
+## Parallel vs. Schleife
 
-Verstehen, wann was zu verwenden ist:
+Wann Sie welche Methode verwenden sollten:
 
-| Funktion | Parallel | Loop |
+| Funktion | Parallel | Schleife |
 |---------|----------|------|
 | Ausführung | Gleichzeitig | Sequentiell |
 | Geschwindigkeit | Schneller für unabhängige Operationen | Langsamer, aber geordnet |
@@ -185,17 +170,17 @@ Verstehen, wann was zu verwenden ist:
 
 ## Eingaben und Ausgaben
 
-<Tabs items={['Konfiguration', 'Variablen', 'Ergebnisse']}>
+<Tabs items={['Configuration', 'Variables', 'Results']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
         <strong>Parallel-Typ</strong>: Wählen Sie zwischen 'count' oder 'collection'
       </li>
       <li>
-        <strong>Count</strong>: Anzahl der auszuführenden Instanzen (anzahlbasiert)
+        <strong>Anzahl</strong>: Anzahl der auszuführenden Instanzen (anzahlbasiert)
       </li>
       <li>
-        <strong>Collection</strong>: Array oder Objekt zur Verteilung (sammlungsbasiert)
+        <strong>Sammlung</strong>: Array oder Objekt zur Verteilung (sammlungsbasiert)
       </li>
     </ul>
   </Tab>
@@ -218,7 +203,7 @@ Verstehen, wann was zu verwenden ist:
         <strong>parallel.results</strong>: Array aller Instanzergebnisse
       </li>
       <li>
-        <strong>Access</strong>: Verfügbar in Blöcken nach dem Parallel
+        <strong>Zugriff</strong>: Verfügbar in Blöcken nach der Parallelausführung
       </li>
     </ul>
   </Tab>
@@ -227,5 +212,5 @@ Verstehen, wann was zu verwenden ist:
 ## Best Practices
 
 - **Nur unabhängige Operationen**: Stellen Sie sicher, dass Operationen nicht voneinander abhängen
-- **Rate-Limits berücksichtigen**: Fügen Sie Verzögerungen oder Drosselungen für API-intensive Workflows hinzu
+- **Ratenbegrenzungen berücksichtigen**: Fügen Sie Verzögerungen oder Drosselungen für API-intensive Workflows hinzu
 - **Fehlerbehandlung**: Jede Instanz sollte ihre eigenen Fehler angemessen behandeln

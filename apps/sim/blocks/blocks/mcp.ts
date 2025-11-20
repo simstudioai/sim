@@ -13,7 +13,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
   description: 'Execute tools from Model Context Protocol (MCP) servers',
   longDescription:
     'Integrate MCP into the workflow. Can execute tools from MCP servers. Requires MCP servers in workspace settings.',
-  docsLink: 'https://docs.sim.ai/tools/mcp',
+  docsLink: 'https://docs.sim.ai/mcp',
   category: 'tools',
   bgColor: '#181C1E',
   icon: ServerIcon,
@@ -22,7 +22,6 @@ export const McpBlock: BlockConfig<McpResponse> = {
       id: 'server',
       title: 'MCP Server',
       type: 'mcp-server-selector',
-      layout: 'full',
       required: true,
       placeholder: 'Select an MCP server',
       description: 'Choose from configured MCP servers in your workspace',
@@ -31,7 +30,6 @@ export const McpBlock: BlockConfig<McpResponse> = {
       id: 'tool',
       title: 'Tool',
       type: 'mcp-tool-selector',
-      layout: 'full',
       required: true,
       placeholder: 'Select a tool',
       description: 'Available tools from the selected MCP server',
@@ -46,7 +44,6 @@ export const McpBlock: BlockConfig<McpResponse> = {
       id: 'arguments',
       title: '',
       type: 'mcp-dynamic-args',
-      layout: 'full',
       description: '',
       condition: {
         field: 'tool',

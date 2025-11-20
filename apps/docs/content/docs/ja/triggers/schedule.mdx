@@ -11,7 +11,7 @@ import { Video } from '@/components/ui/video'
 
 <div className="flex justify-center">
   <Image
-    src="/static/schedule.png"
+    src="/static/blocks/schedule.png"
     alt="スケジュールブロック"
     width={500}
     height={400}
@@ -45,20 +45,24 @@ import { Video } from '@/components/ui/video'
 
 ## スケジュールの設定
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="configure-schedule.mp4" width={700} height={450} />
-</div>
-
 ワークフローがスケジュールされると：
-- スケジュールが**有効**になり、次回の実行時間が表示されます
+- スケジュールが**有効**になり、次の実行時間が表示されます
 - **「スケジュール済み」**ボタンをクリックするとスケジュールを無効にできます
-- **3回連続で失敗**すると、スケジュールは自動的に無効になります
-
-## 無効化されたスケジュール
+- スケジュールは**3回連続で失敗すると**自動的に無効になります
 
 <div className="flex justify-center">
   <Image
-    src="/static/schedule-disabled.png"
+    src="/static/blocks/schedule-2.png"
+    alt="アクティブなスケジュールブロック"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
     alt="無効化されたスケジュール"
     width={500}
     height={350}
@@ -66,8 +70,18 @@ import { Video } from '@/components/ui/video'
   />
 </div>
 
-無効化されたスケジュールは、最後にいつアクティブだったかを表示し、いつでも再有効化できます。
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
+    alt="無効化されたスケジュール"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+無効化されたスケジュールは、最後に有効だった時間を表示します。**「無効」**バッジをクリックすると、スケジュールを再度有効にできます。
 
 <Callout>
-スケジュールブロックは着信接続を受け取ることができず、純粋なワークフロートリガーとして機能します。
+スケジュールブロックは入力接続を受け取ることができず、純粋なワークフロートリガーとして機能します。
 </Callout>

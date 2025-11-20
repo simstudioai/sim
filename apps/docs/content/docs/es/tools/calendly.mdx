@@ -1,0 +1,172 @@
+---
+title: Calendly
+description: Gestiona programación y eventos de Calendly
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="calendly"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Calendly](https://calendly.com/) es una popular plataforma de automatización de programación que te ayuda a reservar reuniones, eventos y citas con facilidad. Con Calendly, los equipos e individuos pueden simplificar la programación, reducir los intercambios de correos electrónicos y automatizar tareas relacionadas con eventos.
+
+Con la integración de Sim Calendly, tus agentes pueden:
+
+- **Recuperar información sobre tu cuenta y eventos programados**: Utiliza herramientas para obtener información de usuario, tipos de eventos y eventos programados para análisis o automatización.
+- **Gestionar tipos de eventos y programación**: Accede y lista los tipos de eventos disponibles para usuarios u organizaciones, recupera detalles sobre tipos de eventos específicos y monitorea reuniones programadas y datos de invitados.
+- **Automatizar seguimientos y flujos de trabajo**: Cuando los usuarios programan, reprograman o cancelan reuniones, los agentes de Sim pueden activar automáticamente los flujos de trabajo correspondientes, como enviar recordatorios, actualizar CRMs o notificar a los participantes.
+- **Integración fácil mediante webhooks**: Configura flujos de trabajo de Sim para responder a eventos de webhook de Calendly en tiempo real, incluyendo cuando los invitados programan, cancelan o interactúan con formularios de enrutamiento.
+
+Ya sea que quieras automatizar la preparación de reuniones, gestionar invitaciones o ejecutar flujos de trabajo personalizados en respuesta a la actividad de programación, las herramientas de Calendly en Sim te brindan acceso flexible y seguro. Desbloquea nuevas automatizaciones reaccionando instantáneamente a los cambios de programación, simplificando las operaciones y comunicaciones de tu equipo.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Calendly en tu flujo de trabajo. Gestiona tipos de eventos, eventos programados, invitados y webhooks. También puede activar flujos de trabajo basados en eventos de webhook de Calendly (invitado programado, invitado cancelado, formulario de enrutamiento enviado). Requiere un token de acceso personal.
+
+## Herramientas
+
+### `calendly_get_current_user`
+
+Obtener información sobre el usuario de Calendly actualmente autenticado
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | string | Sí | Token de acceso personal de Calendly |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `resource` | object | Información del usuario actual |
+
+### `calendly_list_event_types`
+
+Recuperar una lista de todos los tipos de eventos para un usuario u organización
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de acceso personal de Calendly |
+| `user` | string | No | Devolver solo tipos de eventos que pertenecen a este usuario \(formato URI\) |
+| `organization` | string | No | Devolver solo tipos de eventos que pertenecen a esta organización \(formato URI\) |
+| `count` | number | No | Número de resultados por página \(predeterminado: 20, máximo: 100\) |
+| `pageToken` | string | No | Token de página para paginación |
+| `sort` | string | No | Orden de clasificación para resultados \(p. ej., "name:asc", "name:desc"\) |
+| `active` | boolean | No | Cuando es verdadero, muestra solo tipos de eventos activos. Cuando es falso o no está marcado, muestra todos los tipos de eventos \(tanto activos como inactivos\). |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `collection` | array | Array de objetos de tipo de evento |
+
+### `calendly_get_event_type`
+
+Obtener información detallada sobre un tipo de evento específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de acceso personal de Calendly |
+| `eventTypeUuid` | string | Sí | UUID del tipo de evento \(puede ser URI completa o solo el UUID\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `resource` | object | Detalles del tipo de evento |
+
+### `calendly_list_scheduled_events`
+
+Recuperar una lista de eventos programados para un usuario u organización
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de acceso personal de Calendly |
+| `user` | string | No | Devolver eventos que pertenecen a este usuario \(formato URI\). Se debe proporcionar "usuario" u "organización". |
+| `organization` | string | No | Devolver eventos que pertenecen a esta organización \(formato URI\). Se debe proporcionar "usuario" u "organización". |
+| `invitee_email` | string | No | Devolver eventos donde el invitado tiene este correo electrónico |
+| `count` | number | No | Número de resultados por página \(predeterminado: 20, máximo: 100\) |
+| `max_start_time` | string | No | Devolver eventos con hora de inicio antes de esta hora \(formato ISO 8601\) |
+| `min_start_time` | string | No | Devolver eventos con hora de inicio después de esta hora \(formato ISO 8601\) |
+| `pageToken` | string | No | Token de página para paginación |
+| `sort` | string | No | Orden de clasificación para resultados \(p. ej., "start_time:asc", "start_time:desc"\) |
+| `status` | string | No | Filtrar por estado \("active" o "canceled"\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `collection` | array | Array de objetos de eventos programados |
+
+### `calendly_get_scheduled_event`
+
+Obtener información detallada sobre un evento programado específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de acceso personal de Calendly |
+| `eventUuid` | string | Sí | UUID del evento programado \(puede ser URI completa o solo el UUID\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `resource` | object | Detalles del evento programado |
+
+### `calendly_list_event_invitees`
+
+Recuperar una lista de invitados para un evento programado
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de acceso personal de Calendly |
+| `eventUuid` | string | Sí | UUID del evento programado \(puede ser URI completa o solo el UUID\) |
+| `count` | number | No | Número de resultados por página \(predeterminado: 20, máximo: 100\) |
+| `email` | string | No | Filtrar invitados por dirección de correo electrónico |
+| `pageToken` | string | No | Token de página para paginación |
+| `sort` | string | No | Orden de clasificación para resultados \(p. ej., "created_at:asc", "created_at:desc"\) |
+| `status` | string | No | Filtrar por estado \("active" o "canceled"\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `collection` | array | Array de objetos de invitados |
+
+### `calendly_cancel_event`
+
+Cancelar un evento programado
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de acceso personal de Calendly |
+| `eventUuid` | string | Sí | UUID del evento programado a cancelar \(puede ser URI completa o solo el UUID\) |
+| `reason` | string | No | Motivo de la cancelación \(se enviará a los invitados\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `resource` | object | Detalles de la cancelación |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `calendly`

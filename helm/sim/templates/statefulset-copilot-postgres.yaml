@@ -1,0 +1,134 @@
+{{- if and .Values.copilot.enabled .Values.copilot.postgresql.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "sim.fullname" . }}-copilot-postgresql-secret
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: copilot-postgresql
+type: Opaque
+stringData:
+  POSTGRES_USER: {{ .Values.copilot.postgresql.auth.username | quote }}
+  POSTGRES_PASSWORD: {{ required "copilot.postgresql.auth.password is required when copilot is enabled" .Values.copilot.postgresql.auth.password | quote }}
+  POSTGRES_DB: {{ .Values.copilot.postgresql.auth.database | quote }}
+  DATABASE_URL: "postgresql://{{ .Values.copilot.postgresql.auth.username }}:{{ .Values.copilot.postgresql.auth.password }}@{{ include "sim.fullname" . }}-copilot-postgresql:{{ .Values.copilot.postgresql.service.port }}/{{ .Values.copilot.postgresql.auth.database }}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sim.fullname" . }}-copilot-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: copilot-postgresql
+spec:
+  type: {{ .Values.copilot.postgresql.service.type }}
+  ports:
+    - port: {{ .Values.copilot.postgresql.service.port }}
+      targetPort: {{ .Values.copilot.postgresql.service.targetPort }}
+      protocol: TCP
+      name: postgresql
+  selector:
+    app.kubernetes.io/name: {{ include "sim.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: copilot-postgresql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "sim.fullname" . }}-copilot-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: copilot-postgresql
+spec:
+  serviceName: {{ include "sim.fullname" . }}-copilot-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "sim.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: copilot-postgresql
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "sim.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: copilot-postgresql
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.copilot.postgresql.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.copilot.postgresql.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: postgresql
+          image: {{ include "sim.image" (dict "context" . "image" .Values.copilot.postgresql.image) }}
+          imagePullPolicy: {{ .Values.copilot.postgresql.image.pullPolicy }}
+          ports:
+            - name: postgresql
+              containerPort: {{ .Values.copilot.postgresql.service.targetPort }}
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ include "sim.fullname" . }}-copilot-postgresql-secret
+          {{- if .Values.copilot.postgresql.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.copilot.postgresql.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.copilot.postgresql.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.copilot.postgresql.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- with .Values.copilot.postgresql.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.copilot.postgresql.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.copilot.postgresql.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+          {{- end }}
+  {{- if .Values.copilot.postgresql.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "sim.labels" . | nindent 10 }}
+          app.kubernetes.io/component: copilot-postgresql
+      spec:
+        accessModes:
+          {{- range .Values.copilot.postgresql.persistence.accessModes }}
+          - {{ . | quote }}
+          {{- end }}
+        {{- if .Values.copilot.postgresql.persistence.storageClass }}
+        {{- if (eq "-" .Values.copilot.postgresql.persistence.storageClass) }}
+        storageClassName: ""
+        {{- else }}
+        storageClassName: {{ .Values.copilot.postgresql.persistence.storageClass | quote }}
+        {{- end }}
+        {{- else if .Values.global.storageClass }}
+        storageClassName: {{ .Values.global.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.copilot.postgresql.persistence.size | quote }}
+  {{- end }}
+{{- end }}
+

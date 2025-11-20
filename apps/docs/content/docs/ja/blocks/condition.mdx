@@ -3,54 +3,20 @@ title: 条件
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { Image } from '@/components/ui/image'
 
-条件ブロックを使用すると、ブール式に基づいてワークフローの実行パスを分岐させることができ、異なる実行パスを持つ動的で応答性の高いワークフローを作成できます。条件を評価してワークフローを適切に振り分け、LLMを必要とせずにデータやロジックに基づいて実行フローを制御できます。
+条件ブロックは、ブール式に基づいてワークフローの実行を分岐させます。以前のブロック出力を使用して条件を評価し、LLMを必要とせずに異なるパスにルーティングします。
 
 <div className="flex justify-center">
   <Image
     src="/static/blocks/condition.png"
     alt="条件ブロック"
     width={500}
-    height={350}
+    height={400}
     className="my-6"
   />
 </div>
-
-<Callout>
-  条件ブロックはLLMを必要とせず決定論的な意思決定を可能にし、単純な分岐ロジックに最適です。
-</Callout>
-
-## 概要
-
-条件ブロックでは以下のことが可能です：
-
-<Steps>
-  <Step>
-    <strong>分岐ロジックの作成</strong>：ブール式に基づいてワークフローをルーティング
-  </Step>
-  <Step>
-    <strong>データ駆動型の意思決定</strong>：前のブロックの出力を使用して条件を評価
-  </Step>
-  <Step>
-    <strong>複数のシナリオの処理</strong>：異なるパスを持つ複数の条件を定義
-  </Step>
-  <Step>
-    <strong>決定論的なルーティングの提供</strong>：LLMを必要とせずに決定を行う
-  </Step>
-</Steps>
-
-## 動作の仕組み
-
-条件ブロックは順次評価プロセスを通じて動作します：
-
-1. **式の評価** - 現在のワークフローデータを使用してJavaScript/TypeScriptのブール式を処理
-2. **結果の決定** - 式の評価に基づいて真または偽を返す
-3. **ワークフローのルーティング** - 結果に基づいて適切な宛先ブロックに実行を振り分ける  
-4. **コンテキストの提供** - デバッグとモニタリングのための決定に関するメタデータを生成
 
 ## 設定オプション
 
@@ -58,11 +24,11 @@ import { Image } from '@/components/ui/image'
 
 評価される1つ以上の条件を定義します。各条件には以下が含まれます：
 
-- **式**：真または偽に評価されるJavaScript/TypeScript式
-- **パス**：条件が真の場合にルーティングする宛先ブロック
-- **説明**：条件が何をチェックするかの任意の説明
+- **式**: trueまたはfalseに評価されるJavaScript/TypeScript式
+- **パス**: 条件がtrueの場合にルーティングする宛先ブロック
+- **説明**: 条件が何をチェックするかの任意の説明
 
-複数の条件を作成でき、それらは順番に評価されます。最初にマッチした条件が実行パスを決定します。
+複数の条件を作成でき、順番に評価されます。最初にマッチした条件が実行パスを決定します。
 
 ### 条件式のフォーマット
 
@@ -99,10 +65,10 @@ import { Image } from '@/components/ui/image'
 
 条件が評価された後、以下の出力にアクセスできます：
 
-- **`<condition.result>`**: 条件評価の真偽結果
-- **`<condition.matched_condition>`**: マッチした条件のID
-- **`<condition.content>`**: 評価結果の説明
-- **`<condition.path>`**: 選択されたルーティング先の詳細
+- **condition.result**: 条件評価のブール結果
+- **condition.matched_condition**: マッチした条件のID
+- **condition.content**: 評価結果の説明
+- **condition.path**: 選択されたルーティング先の詳細
 
 ## 高度な機能
 
@@ -141,101 +107,43 @@ true
 
 ### エラー処理
 
-条件は自動的に以下を処理します：
+条件は以下を自動的に処理します：
 - 未定義またはnull値の安全な評価
 - 型の不一致に対する適切なフォールバック
 - 無効な式のエラーログ記録
-- 欠落した変数のデフォルト値
+- 欠落した変数のデフォルト値処理
 
-## 入力と出力
+## 出力
 
-<Tabs items={['設定', '変数', '結果']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>条件</strong>: 評価する真偽式の配列
-      </li>
-      <li>
-        <strong>式</strong>: ブロック出力を使用するJavaScript/TypeScript条件
-      </li>
-      <li>
-        <strong>ルーティングパス</strong>: 各条件結果の宛先ブロック
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>condition.result</strong>: 条件評価の真偽結果
-      </li>
-      <li>
-        <strong>condition.matched_condition</strong>: マッチした条件のID
-      </li>
-      <li>
-        <strong>condition.content</strong>: 評価結果の説明
-      </li>
-      <li>
-        <strong>condition.path</strong>: 選択されたルーティング先の詳細
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>真偽結果</strong>: 主要な条件評価の結果
-      </li>
-      <li>
-        <strong>ルーティング情報</strong>: パス選択と条件の詳細
-      </li>
-      <li>
-        <strong>アクセス</strong>: 条件の後のブロックで利用可能
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<condition.result>`**: 評価の真偽結果
+- **`<condition.matched_condition>`**: マッチした条件のID
+- **`<condition.content>`**: 評価結果の説明
+- **`<condition.path>`**: 選択されたルーティング先の詳細
 
 ## 使用例
 
-### カスタマーサポートの振り分け
+**カスタマーサポートのルーティング** - 優先度に基づいてチケットをルーティング
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：優先度に基づいてサポートチケットを振り分ける</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>APIブロックがサポートチケットデータを取得</li>
-    <li>条件が `<api.priority>` が 'high' と等しいかチェック</li>
-    <li>高優先度チケット → エスカレーションツールを持つエージェントへ</li>
-    <li>通常優先度チケット → 標準サポートエージェントへ</li>
-  </ol>
-</div>
+```
+API (Ticket) → Condition (priority === 'high') → Agent (Escalation) or Agent (Standard)
+```
 
-### コンテンツモデレーション
+**コンテンツモデレーション** - 分析に基づいてコンテンツをフィルタリング
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：分析結果に基づいてコンテンツをフィルタリング</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>エージェントがユーザー生成コンテンツを分析</li>
-    <li>条件が `<agent.toxicity_score>` > 0.7 かチェック</li>
-    <li>有害コンテンツ → モデレーションワークフロー</li>
-    <li>クリーンコンテンツ → 公開ワークフロー</li>
-  </ol>
-</div>
+```
+Agent (Analyze) → Condition (toxicity > 0.7) → Moderation or Publish
+```
 
-### ユーザーオンボーディングフロー
+**ユーザーオンボーディングフロー** - ユーザータイプに基づいてオンボーディングをパーソナライズ
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：ユーザータイプに基づいてオンボーディングをパーソナライズ</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>ファンクションブロックがユーザー登録データを処理</li>
-    <li>条件が `<user.account_type>` === 'enterprise' かチェック</li>
-    <li>エンタープライズユーザー → 高度なセットアップワークフロー</li>
-    <li>個人ユーザー → シンプルなオンボーディングワークフロー</li>
-  </ol>
-</div>
+```
+Function (Process) → Condition (account_type === 'enterprise') → Advanced or Simple
+```
 
 ## ベストプラクティス
 
-- **条件を正しく順序付ける**：より具体的な条件を一般的な条件の前に配置し、特定のロジックがフォールバックよりも優先されるようにする
-- **デフォルト条件を含める**：最後の条件として包括的な条件（`true`）を追加し、一致しないケースを処理してワークフローの実行が停止しないようにする
-- **式をシンプルに保つ**：読みやすさとデバッグを容易にするために、明確で簡潔なブール式を使用する
-- **条件を文書化する**：チームのコラボレーションとメンテナンスを向上させるために、各条件の目的を説明する説明を追加する
-- **エッジケースをテストする**：条件範囲の境界値でテストすることで、条件が境界値を正しく処理することを確認する
+- **条件を正しく順序付ける**: より具体的な条件を一般的な条件の前に配置し、特定のロジックがフォールバックよりも優先されるようにします
+- **デフォルト条件を含める**: 最後の条件として包括的な条件（`true`）を追加し、マッチしないケースを処理してワークフローの実行が停止しないようにします
+- **式をシンプルに保つ**: 読みやすさとデバッグのしやすさのために、明確で簡潔な真偽式を使用します
+- **条件を文書化する**: チームのコラボレーションとメンテナンスを向上させるために、各条件の目的を説明する説明を追加します
+- **エッジケースをテストする**: 条件範囲の境界値でテストすることで、条件が境界値を正しく処理することを確認します

@@ -1,22 +1,23 @@
 import crypto from 'crypto'
 import { db } from '@sim/db'
-import { permissions, type permissionTypeEnum } from '@sim/db/schema'
+import { permissions, workspace } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUsersWithPermissions, hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 
 const logger = createLogger('WorkspacesPermissionsAPI')
 
-type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
-
-interface UpdatePermissionsRequest {
-  updates: Array<{
-    userId: string
-    permissions: PermissionType
-  }>
-}
+const updatePermissionsSchema = z.object({
+  updates: z.array(
+    z.object({
+      userId: z.string(),
+      permissions: z.enum(['admin', 'write', 'read']),
+    })
+  ),
+})
 
 /**
  * GET /api/workspaces/[id]/permissions
@@ -92,12 +93,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       )
     }
 
-    const body: UpdatePermissionsRequest = await request.json()
+    const body = updatePermissionsSchema.parse(await request.json())
+
+    const workspaceRow = await db
+      .select({ billedAccountUserId: workspace.billedAccountUserId })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+      .limit(1)
+
+    if (!workspaceRow.length) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    }
+
+    const billedAccountUserId = workspaceRow[0].billedAccountUserId
 
     const selfUpdate = body.updates.find((update) => update.userId === session.user.id)
     if (selfUpdate && selfUpdate.permissions !== 'admin') {
       return NextResponse.json(
         { error: 'Cannot remove your own admin permissions' },
+        { status: 400 }
+      )
+    }
+
+    if (
+      billedAccountUserId &&
+      body.updates.some(
+        (update) => update.userId === billedAccountUserId && update.permissions !== 'admin'
+      )
+    ) {
+      return NextResponse.json(
+        { error: 'Workspace billing account must retain admin permissions' },
         { status: 400 }
       )
     }

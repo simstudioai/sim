@@ -2,7 +2,7 @@
 
 import { memo, useMemo, useState } from 'react'
 import { Check, Copy, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip } from '@/components/emcn'
 import MarkdownRenderer from './components/markdown-renderer'
 
 export interface ChatAttachment {
@@ -24,11 +24,7 @@ export interface ChatMessage {
 }
 
 function EnhancedMarkdownRenderer({ content }: { content: string }) {
-  return (
-    <TooltipProvider>
-      <MarkdownRenderer content={content} />
-    </TooltipProvider>
-  )
+  return <MarkdownRenderer content={content} />
 }
 
 export const ClientChatMessage = memo(
@@ -43,9 +39,8 @@ export const ClientChatMessage = memo(
     // we can use the content directly without parsing
     const cleanTextContent = message.content
 
-    // For user messages (on the right)
-    if (message.type === 'user') {
-      return (
+    const content =
+      message.type === 'user' ? (
         <div className='px-4 py-5' data-message-id={message.id}>
           <div className='mx-auto max-w-3xl'>
             {/* File attachments displayed above the message */}
@@ -166,33 +161,28 @@ export const ClientChatMessage = memo(
             )}
           </div>
         </div>
-      )
-    }
-
-    // For assistant messages (on the left)
-    return (
-      <div className='px-4 pt-5 pb-2' data-message-id={message.id}>
-        <div className='mx-auto max-w-3xl'>
-          <div className='flex flex-col space-y-3'>
-            {/* Direct content rendering - tool calls are now handled via SSE events */}
-            <div>
-              <div className='break-words text-base'>
-                {isJsonObject ? (
-                  <pre className='text-gray-800 dark:text-gray-100'>
-                    {JSON.stringify(cleanTextContent, null, 2)}
-                  </pre>
-                ) : (
-                  <EnhancedMarkdownRenderer content={cleanTextContent as string} />
-                )}
+      ) : (
+        <div className='px-4 pt-5 pb-2' data-message-id={message.id}>
+          <div className='mx-auto max-w-3xl'>
+            <div className='flex flex-col space-y-3'>
+              {/* Direct content rendering - tool calls are now handled via SSE events */}
+              <div>
+                <div className='break-words text-base'>
+                  {isJsonObject ? (
+                    <pre className='text-gray-800 dark:text-gray-100'>
+                      {JSON.stringify(cleanTextContent, null, 2)}
+                    </pre>
+                  ) : (
+                    <EnhancedMarkdownRenderer content={cleanTextContent as string} />
+                  )}
+                </div>
               </div>
-            </div>
-            {message.type === 'assistant' && !isJsonObject && !message.isInitialMessage && (
-              <div className='flex items-center justify-start space-x-2'>
-                {/* Copy Button - Only show when not streaming */}
-                {!message.isStreaming && (
-                  <TooltipProvider>
-                    <Tooltip delayDuration={300}>
-                      <TooltipTrigger asChild>
+              {message.type === 'assistant' && !isJsonObject && !message.isInitialMessage && (
+                <div className='flex items-center justify-start space-x-2'>
+                  {/* Copy Button - Only show when not streaming */}
+                  {!message.isStreaming && (
+                    <Tooltip.Root delayDuration={300}>
+                      <Tooltip.Trigger asChild>
                         <button
                           className='text-muted-foreground transition-colors hover:bg-muted'
                           onClick={() => {
@@ -211,19 +201,20 @@ export const ClientChatMessage = memo(
                             <Copy className='h-3 w-3' strokeWidth={2} />
                           )}
                         </button>
-                      </TooltipTrigger>
-                      <TooltipContent side='top' align='center' sideOffset={5}>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='top' align='center' sideOffset={5}>
                         {isCopied ? 'Copied!' : 'Copy to clipboard'}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </div>
-            )}
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    )
+      )
+
+    return <Tooltip.Provider>{content}</Tooltip.Provider>
   },
   (prevProps, nextProps) => {
     return (

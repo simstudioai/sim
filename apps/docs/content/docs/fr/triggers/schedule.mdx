@@ -11,7 +11,7 @@ Le bloc Planification déclenche automatiquement des workflows de manière récu
 
 <div className="flex justify-center">
   <Image
-    src="/static/schedule.png"
+    src="/static/blocks/schedule.png"
     alt="Bloc de planification"
     width={500}
     height={400}
@@ -45,20 +45,24 @@ Configurez quand votre workflow s'exécute en utilisant les options du menu dér
 
 ## Configuration des planifications
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="configure-schedule.mp4" width={700} height={450} />
-</div>
-
 Lorsqu'un workflow est planifié :
 - La planification devient **active** et affiche la prochaine heure d'exécution
 - Cliquez sur le bouton **"Planifié"** pour désactiver la planification
 - Les planifications se désactivent automatiquement après **3 échecs consécutifs**
 
-## Planifications désactivées
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-2.png"
+    alt="Bloc de planification actif"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 <div className="flex justify-center">
   <Image
-    src="/static/schedule-disabled.png"
+    src="/static/blocks/schedule-3.png"
     alt="Planification désactivée"
     width={500}
     height={350}
@@ -66,7 +70,17 @@ Lorsqu'un workflow est planifié :
   />
 </div>
 
-Les planifications désactivées indiquent quand elles ont été actives pour la dernière fois et peuvent être réactivées à tout moment.
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
+    alt="Planification désactivée"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+Les planifications désactivées indiquent quand elles ont été actives pour la dernière fois. Cliquez sur le badge **"Désactivé"** pour réactiver la planification.
 
 <Callout>
 Les blocs de planification ne peuvent pas recevoir de connexions entrantes et servent uniquement de déclencheurs de workflow.

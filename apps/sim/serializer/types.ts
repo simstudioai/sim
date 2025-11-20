@@ -46,7 +46,8 @@ export interface SerializedLoop {
   iterations: number
   loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
   forEachItems?: any[] | Record<string, any> | string // Items to iterate over or expression to evaluate
-  whileCondition?: string // JS expression that evaluates to boolean (for while and doWhile loops)
+  whileCondition?: string // JS expression that evaluates to boolean (for while loops)
+  doWhileCondition?: string // JS expression that evaluates to boolean (for do-while loops)
 }
 
 export interface SerializedParallel {

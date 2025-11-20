@@ -2,126 +2,46 @@
 title: Función
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-El bloque Función te permite ejecutar código JavaScript o TypeScript personalizado en tus flujos de trabajo. Úsalo para transformar datos, realizar cálculos o implementar lógica personalizada que no está disponible en otros bloques.
+El bloque de Función ejecuta código JavaScript o TypeScript personalizado en tus flujos de trabajo. Transforma datos, realiza cálculos o implementa lógica personalizada.
 
 <div className="flex justify-center">
   <Image
     src="/static/blocks/function.png"
     alt="Bloque de función con editor de código"
     width={500}
-    height={350}
+    height={400}
     className="my-6"
   />
 </div>
 
-## Descripción general
+## Salidas
 
-El bloque Función te permite:
+- **`<function.result>`**: El valor devuelto por tu función
+- **`<function.stdout>`**: Salida de console.log() de tu código
 
-<Steps>
-  <Step>
-    <strong>Transformar datos</strong>: Convertir formatos, analizar texto, manipular arrays y objetos
-  </Step>
-  <Step>
-    <strong>Realizar cálculos</strong>: Operaciones matemáticas, estadísticas, cálculos financieros
-  </Step>
-  <Step>
-    <strong>Implementar lógica personalizada</strong>: Condicionales complejos, bucles y algoritmos
-  </Step>
-  <Step>
-    <strong>Procesar datos externos</strong>: Analizar respuestas, formatear solicitudes, gestionar autenticación
-  </Step>
-</Steps>
+## Ejemplos de casos de uso
 
-## Cómo funciona
+**Pipeline de procesamiento de datos** - Transforma respuestas de API en datos estructurados
 
-El bloque Función ejecuta tu código en un entorno seguro y aislado:
+```
+API (Fetch) → Function (Process & Validate) → Function (Calculate Metrics) → Response
+```
 
-1. **Recibir entrada**: Accede a los datos de bloques anteriores a través del objeto `input`
-2. **Ejecutar código**: Ejecuta tu código JavaScript/Python 
-3. **Devolver resultados**: Usa `return` para pasar datos al siguiente bloque
-4. **Manejar errores**: Gestión de errores y registro integrados
+**Implementación de lógica de negocio** - Calcula puntuaciones y niveles de fidelización
 
-## Ejecución remota (E2B)
+```
+Agent (Get History) → Function (Calculate Score) → Function (Determine Tier) → Condition (Route)
+```
 
-  - **Lenguajes**: Ejecuta JavaScript y Python en un sandbox E2B aislado.
-  - **Cómo activarlo**: Activa “Ejecución de código remoto” en el bloque Función.
-  - **Cuándo usarlo**: Lógica más pesada, bibliotecas externas o código específico de Python.
-  - **Rendimiento**: Más lento que JS local debido al inicio del sandbox y la sobrecarga de red.
-  - **Notas**: Requiere `E2B_API_KEY` si se ejecuta localmente. Para la menor latencia, usa JS nativo local (Modo rápido).
+**Validación y limpieza de datos** - Valida y limpia la entrada del usuario
 
-## Entradas y salidas
+```
+Input → Function (Validate & Sanitize) → API (Save to Database)
+```
 
-<Tabs items={['Configuration', 'Variables']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Código</strong>: Tu código JavaScript/Python para ejecutar
-      </li>
-      <li>
-        <strong>Tiempo de espera</strong>: Tiempo máximo de ejecución (por defecto 30 segundos)
-      </li>
-      <li>
-        <strong>Datos de entrada</strong>: Todas las salidas de bloques conectados disponibles a través de variables
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>function.result</strong>: El valor devuelto por tu función
-      </li>
-      <li>
-        <strong>function.stdout</strong>: Salida de console.log() de tu código
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
-
-## Casos de uso de ejemplo
-
-### Pipeline de procesamiento de datos
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Transformar respuesta de API en datos estructurados</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>El bloque de API obtiene datos brutos del cliente</li>
-    <li>El bloque de función procesa y valida los datos</li>
-    <li>El bloque de función calcula métricas derivadas</li>
-    <li>El bloque de respuesta devuelve resultados formateados</li>
-  </ol>
-</div>
-
-### Implementación de lógica de negocio
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Calcular puntuaciones y niveles de fidelidad</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>El agente recupera el historial de compras del cliente</li>
-    <li>El bloque de función calcula métricas de fidelidad</li>
-    <li>El bloque de función determina el nivel del cliente</li>
-    <li>El bloque de condición enruta según el nivel</li>
-  </ol>
-</div>
-
-### Validación y limpieza de datos
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Validar y limpiar la entrada del usuario</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Entrada del usuario recibida desde el envío del formulario</li>
-    <li>El bloque de función valida el formato de correo electrónico y números de teléfono</li>
-    <li>El bloque de función limpia y normaliza los datos</li>
-    <li>El bloque de API guarda los datos validados en la base de datos</li>
-  </ol>
-</div>
-
-### Ejemplo: Calculadora de puntuación de fidelidad
+### Ejemplo: Calculadora de puntuación de fidelización
 
 ```javascript title="loyalty-calculator.js"
 // Process customer data and calculate loyalty score

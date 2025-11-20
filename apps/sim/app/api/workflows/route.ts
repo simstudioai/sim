@@ -118,18 +118,18 @@ export async function POST(req: NextRequest) {
 
     logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${session.user.id}`)
 
-    // Track workflow creation
-    try {
-      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
-      trackPlatformEvent('platform.workflow.created', {
-        'workflow.id': workflowId,
-        'workflow.name': name,
-        'workflow.has_workspace': !!workspaceId,
-        'workflow.has_folder': !!folderId,
+    import('@/lib/telemetry/tracer')
+      .then(({ trackPlatformEvent }) => {
+        trackPlatformEvent('platform.workflow.created', {
+          'workflow.id': workflowId,
+          'workflow.name': name,
+          'workflow.has_workspace': !!workspaceId,
+          'workflow.has_folder': !!folderId,
+        })
       })
-    } catch (_e) {
-      // Silently fail
-    }
+      .catch(() => {
+        // Silently fail
+      })
 
     await db.insert(workflow).values({
       id: workflowId,
@@ -143,11 +143,8 @@ export async function POST(req: NextRequest) {
       createdAt: now,
       updatedAt: now,
       isDeployed: false,
-      collaborators: [],
       runCount: 0,
       variables: {},
-      isPublished: false,
-      marketplaceData: null,
     })
 
     logger.info(`[${requestId}] Successfully created empty workflow ${workflowId}`)

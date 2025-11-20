@@ -4,9 +4,7 @@ title: Grundlagen
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
 Das Verständnis der Workflow-Ausführung in Sim ist entscheidend für die Erstellung effizienter und zuverlässiger Automatisierungen. Die Ausführungs-Engine verwaltet automatisch Abhängigkeiten, Parallelität und Datenfluss, um sicherzustellen, dass Ihre Workflows reibungslos und vorhersehbar ablaufen.
 
@@ -77,29 +75,6 @@ Sim bietet verschiedene Arten von Blöcken, die spezifische Zwecke in Ihren Work
 
 Alle Blöcke werden automatisch basierend auf ihren Abhängigkeiten ausgeführt - Sie müssen die Ausführungsreihenfolge oder das Timing nicht manuell verwalten.
 
-## Ausführungsauslöser
-
-Workflows können auf verschiedene Weise ausgelöst werden, abhängig von Ihrem Anwendungsfall:
-
-### Manuelles Testen
-Klicken Sie im Workflow-Editor auf "Ausführen", um Ihren Workflow während der Entwicklung zu testen. Perfekt für Debugging und Validierung.
-
-### Geplante Ausführung  
-Richten Sie wiederkehrende Ausführungen mit Cron-Ausdrücken ein. Ideal für regelmäßige Datenverarbeitung, Berichte oder Wartungsaufgaben.
-
-### API-Bereitstellung
-Stellen Sie Workflows als HTTP-Endpunkte bereit, die programmatisch von Ihren Anwendungen aufgerufen werden können.
-
-### Webhook-Integration
-Reagieren Sie in Echtzeit auf Ereignisse von externen Diensten wie GitHub, Stripe oder benutzerdefinierten Systemen.
-
-### Chat-Schnittstelle
-Erstellen Sie Konversationsschnittstellen, die auf benutzerdefinierten Subdomains für benutzerorientierte KI-Anwendungen gehostet werden.
-
-<Callout type="info">
-  Erfahren Sie mehr über jeden Auslösertyp im [Abschnitt Auslöser](/triggers) der Dokumentation.
-</Callout>
-
 ## Ausführungsüberwachung
 
 Wenn Workflows ausgeführt werden, bietet Sim Echtzeit-Einblick in den Ausführungsprozess:
@@ -118,7 +93,7 @@ Wenn Workflows ausgeführt werden, bietet Sim Echtzeit-Einblick in den Ausführu
 Das Verständnis dieser Grundprinzipien wird Ihnen helfen, bessere Workflows zu erstellen:
 
 1. **Abhängigkeitsbasierte Ausführung**: Blöcke werden nur ausgeführt, wenn alle ihre Abhängigkeiten abgeschlossen sind
-2. **Automatische Parallelisierung**: Unabhängige Blöcke laufen gleichzeitig ohne Konfiguration
+2. **Automatische Parallelisierung**: Unabhängige Blöcke laufen ohne Konfiguration gleichzeitig
 3. **Intelligenter Datenfluss**: Ausgaben fließen automatisch zu verbundenen Blöcken
 4. **Fehlerbehandlung**: Fehlgeschlagene Blöcke stoppen ihren Ausführungspfad, beeinflussen aber keine unabhängigen Pfade
 5. **Zustandspersistenz**: Alle Blockausgaben und Ausführungsdetails werden für die Fehlerbehebung gespeichert
@@ -129,4 +104,4 @@ Nachdem Sie die Grundlagen der Ausführung verstanden haben, erkunden Sie:
 - **[Blocktypen](/blocks)** - Erfahren Sie mehr über spezifische Block-Funktionen
 - **[Protokollierung](/execution/logging)** - Überwachen Sie Workflow-Ausführungen und beheben Sie Probleme
 - **[Kostenberechnung](/execution/costs)** - Verstehen und optimieren Sie Workflow-Kosten
-- **[Auslöser](/triggers)** - Richten Sie verschiedene Möglichkeiten ein, Ihre Workflows auszuführen
+- **[Trigger](/triggers)** - Richten Sie verschiedene Möglichkeiten ein, Ihre Workflows auszuführen

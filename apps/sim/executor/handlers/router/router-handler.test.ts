@@ -1,33 +1,21 @@
 import '@/executor/__test-utils__/mock-dependencies'
 
-import {
-  beforeEach,
-  describe,
-  expect,
-  it,
-  type Mock,
-  type Mocked,
-  type MockedClass,
-  vi,
-} from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import { BlockType } from '@/executor/consts'
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
-import { PathTracker } from '@/executor/path/path'
 import type { ExecutionContext } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const mockGenerateRouterPrompt = generateRouterPrompt as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
-const MockPathTracker = PathTracker as MockedClass<typeof PathTracker>
 const mockFetch = global.fetch as unknown as Mock
 
 describe('RouterBlockHandler', () => {
   let handler: RouterBlockHandler
   let mockBlock: SerializedBlock
   let mockContext: ExecutionContext
-  let mockPathTracker: Mocked<PathTracker>
   let mockWorkflow: Partial<SerializedWorkflow>
   let mockTargetBlock1: SerializedBlock
   let mockTargetBlock2: SerializedBlock
@@ -63,13 +51,12 @@ describe('RouterBlockHandler', () => {
     mockWorkflow = {
       blocks: [mockBlock, mockTargetBlock1, mockTargetBlock2],
       connections: [
-        { source: mockBlock.id, target: mockTargetBlock1.id },
-        { source: mockBlock.id, target: mockTargetBlock2.id },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-then1' },
+        { source: mockBlock.id, target: mockTargetBlock2.id, sourceHandle: 'condition-else1' },
       ],
     }
 
-    mockPathTracker = new MockPathTracker(mockWorkflow as SerializedWorkflow) as Mocked<PathTracker>
-    handler = new RouterBlockHandler(mockPathTracker)
+    handler = new RouterBlockHandler({})
 
     mockContext = {
       workflowId: 'test-workflow-id',
@@ -78,8 +65,7 @@ describe('RouterBlockHandler', () => {
       metadata: { duration: 0 },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
+      loopExecutions: new Map(),
       completedLoops: new Set(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
@@ -147,7 +133,7 @@ describe('RouterBlockHandler', () => {
       },
     ]
 
-    const result = await handler.execute(mockBlock, inputs, mockContext)
+    const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockGenerateRouterPrompt).toHaveBeenCalledWith(inputs.prompt, expectedTargetBlocks)
     expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
@@ -185,6 +171,7 @@ describe('RouterBlockHandler', () => {
         blockType: 'target',
         blockTitle: 'Option A',
       },
+      selectedRoute: 'target-block-1',
     })
   })
 
@@ -193,7 +180,7 @@ describe('RouterBlockHandler', () => {
     mockContext.workflow!.blocks = [mockBlock, mockTargetBlock2]
 
     // Expect execute to throw because getTargetBlocks (called internally) will throw
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       'Target block target-block-1 not found'
     )
     expect(mockFetch).not.toHaveBeenCalled()
@@ -217,7 +204,7 @@ describe('RouterBlockHandler', () => {
       })
     })
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       'Invalid routing decision: invalid-block-id'
     )
   })
@@ -225,7 +212,7 @@ describe('RouterBlockHandler', () => {
   it('should use default model and temperature if not provided', async () => {
     const inputs = { prompt: 'Choose.' }
 
-    await handler.execute(mockBlock, inputs, mockContext)
+    await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
 
@@ -249,6 +236,6 @@ describe('RouterBlockHandler', () => {
       })
     })
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow('Server error')
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow('Server error')
   })
 })

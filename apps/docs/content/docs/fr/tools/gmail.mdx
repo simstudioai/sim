@@ -1,7 +1,7 @@
 ---
 title: Gmail
-description: Envoyez des e-mails Gmail ou déclenchez des flux de travail à
-  partir d'événements Gmail
+description: Envoyer, lire, rechercher et déplacer des messages Gmail ou
+  déclencher des flux de travail à partir d'événements Gmail
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -9,29 +9,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="gmail"
   color="#E0E0E0"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      xmlns='http://www.w3.org/2000/svg'
-      viewBox='0 0 48 48'
-      
-      
-      
-    >
-      <path fill='#4caf50' d='M45,16.2l-5,2.75l-5,4.75L35,40h7c1.657,0,3-1.343,3-3V16.2z' />
-      <path fill='#1e88e5' d='M3,16.2l3.614,1.71L13,23.7V40H6c-1.657,0-3-1.343-3-3V16.2z' />
-      <polygon
-        fill='#e53935'
-        points='35,11.2 24,19.45 13,11.2 12,17 13,23.7 24,31.95 35,23.7 36,17'
-      />
-      <path
-        fill='#c62828'
-        d='M3,12.298V16.2l10,7.5V11.2L9.876,8.859C9.132,8.301,8.228,8,7.298,8h0C4.924,8,3,9.924,3,12.298z'
-      />
-      <path
-        fill='#fbc02d'
-        d='M45,12.298V16.2l-10,7.5V11.2l3.124-2.341C38.868,8.301,39.772,8,40.702,8h0 C43.076,8,45,9.924,45,12.298z'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -46,29 +23,40 @@ Avec Gmail, vous pouvez :
 - **Accéder de n'importe où** : utiliser Gmail sur tous vos appareils avec une synchronisation du contenu et des paramètres
 - **S'intégrer à d'autres services** : se connecter à Google Agenda, Drive et d'autres outils de productivité
 
-Dans Sim, l'intégration Gmail permet à vos agents d'envoyer, de lire et de rechercher des e-mails par programmation. Cela permet des scénarios d'automatisation puissants tels que l'envoi de notifications, le traitement des messages entrants, l'extraction d'informations des e-mails et la gestion des flux de communication. Vos agents peuvent composer et envoyer des e-mails personnalisés, rechercher des messages spécifiques en utilisant la syntaxe de requête de Gmail et extraire du contenu des e-mails pour l'utiliser dans d'autres parties de votre flux de travail. Prochainement, les agents pourront également écouter les nouveaux e-mails en temps réel, permettant des flux de travail réactifs qui peuvent déclencher des actions basées sur les messages entrants. Cette intégration comble le fossé entre vos flux de travail IA et les communications par e-mail, permettant une interaction transparente avec l'une des plateformes de communication les plus utilisées au monde.
+Dans Sim, l'intégration Gmail permet à vos agents de gérer entièrement les e-mails de manière programmatique avec des capacités d'automatisation complètes. Cela permet des scénarios d'automatisation puissants tels que l'envoi de notifications, le traitement des messages entrants, l'extraction d'informations des e-mails et la gestion des flux de communication à grande échelle. Vos agents peuvent :
+
+- **Composer et envoyer** : créer des e-mails personnalisés avec pièces jointes et les envoyer aux destinataires
+- **Lire et rechercher** : trouver des messages spécifiques en utilisant la syntaxe de requête Gmail et extraire du contenu
+- **Organiser intelligemment** : marquer les messages comme lus/non lus, archiver ou désarchiver des e-mails et gérer les libellés
+- **Nettoyer la boîte de réception** : supprimer des messages, déplacer des e-mails entre les libellés et maintenir une boîte de réception vide
+- **Déclencher des flux de travail** : écouter les nouveaux e-mails en temps réel, permettant des flux de travail réactifs qui répondent aux messages entrants
+
+Cette intégration comble le fossé entre vos flux de travail IA et les communications par e-mail, permettant une interaction transparente avec l'une des plateformes de communication les plus utilisées au monde. Que vous automatisiez les réponses du service client, traitiez des reçus, gériez des abonnements ou coordonniez les communications d'équipe, l'intégration Gmail fournit tous les outils nécessaires pour une automatisation complète des e-mails.
 {/* MANUAL-CONTENT-END */}
 
 ## Instructions d'utilisation
 
-Intégrez Gmail dans le flux de travail. Peut envoyer, lire et rechercher des emails. Nécessite OAuth. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un nouvel email est reçu.
+Intégrez Gmail dans le flux de travail. Peut envoyer, lire, rechercher et déplacer des e-mails. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un nouvel e-mail est reçu.
 
 ## Outils
 
 ### `gmail_send`
 
-Envoyer des e-mails via Gmail
+Envoyer des e-mails avec Gmail
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `to` | chaîne | Oui | Adresse e-mail du destinataire |
-| `subject` | chaîne | Oui | Objet de l'e-mail |
+| `subject` | chaîne | Non | Objet de l'e-mail |
 | `body` | chaîne | Oui | Contenu du corps de l'e-mail |
-| `cc` | chaîne | Non | Destinataires en CC \(séparés par des virgules\) |
-| `bcc` | chaîne | Non | Destinataires en BCC \(séparés par des virgules\) |
-| `attachments` | fichier[] | Non | Fichiers à joindre à l'e-mail |
+| `contentType` | chaîne | Non | Type de contenu pour le corps de l'e-mail \(texte ou html\) |
+| `threadId` | chaîne | Non | ID de conversation pour répondre \(pour le fil de discussion\) |
+| `replyToMessageId` | chaîne | Non | ID de message Gmail pour répondre - utilisez le champ "id" des résultats de lecture Gmail \(pas le "messageId" RFC\) |
+| `cc` | chaîne | Non | Destinataires en copie \(séparés par des virgules\) |
+| `bcc` | chaîne | Non | Destinataires en copie cachée \(séparés par des virgules\) |
+| `attachments` | file[] | Non | Fichiers à joindre à l'e-mail |
 
 #### Sortie
 
@@ -84,13 +72,16 @@ Créer des brouillons d'e-mails avec Gmail
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `to` | chaîne | Oui | Adresse e-mail du destinataire |
-| `subject` | chaîne | Oui | Objet de l'e-mail |
+| `subject` | chaîne | Non | Objet de l'e-mail |
 | `body` | chaîne | Oui | Contenu du corps de l'e-mail |
-| `cc` | chaîne | Non | Destinataires en CC \(séparés par des virgules\) |
-| `bcc` | chaîne | Non | Destinataires en BCC \(séparés par des virgules\) |
-| `attachments` | fichier[] | Non | Fichiers à joindre au brouillon d'e-mail |
+| `contentType` | chaîne | Non | Type de contenu pour le corps de l'e-mail \(texte ou html\) |
+| `threadId` | chaîne | Non | ID de conversation pour répondre \(pour le fil de discussion\) |
+| `replyToMessageId` | chaîne | Non | ID de message Gmail pour répondre - utilisez le champ "id" des résultats de lecture Gmail \(pas le "messageId" RFC\) |
+| `cc` | chaîne | Non | Destinataires en copie \(séparés par des virgules\) |
+| `bcc` | chaîne | Non | Destinataires en copie cachée \(séparés par des virgules\) |
+| `attachments` | file[] | Non | Fichiers à joindre au brouillon d'e-mail |
 
 #### Sortie
 
@@ -101,12 +92,12 @@ Créer des brouillons d'e-mails avec Gmail
 
 ### `gmail_read`
 
-Lire les e-mails depuis Gmail
+Lire des e-mails depuis Gmail
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `messageId` | chaîne | Non | ID du message à lire |
 | `folder` | chaîne | Non | Dossier/libellé depuis lequel lire les e-mails |
 | `unreadOnly` | booléen | Non | Récupérer uniquement les messages non lus |
@@ -119,7 +110,7 @@ Lire les e-mails depuis Gmail
 | --------- | ---- | ----------- |
 | `content` | chaîne | Contenu textuel de l'e-mail |
 | `metadata` | json | Métadonnées de l'e-mail |
-| `attachments` | fichier[] | Pièces jointes de l'e-mail |
+| `attachments` | file[] | Pièces jointes de l'e-mail |
 
 ### `gmail_search`
 
@@ -138,6 +129,146 @@ Rechercher des e-mails dans Gmail
 | --------- | ---- | ----------- |
 | `content` | chaîne | Résumé des résultats de recherche |
 | `metadata` | objet | Métadonnées de recherche |
+
+### `gmail_move`
+
+Déplacer des e-mails entre les libellés/dossiers Gmail
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | chaîne | Oui | ID du message à déplacer |
+| `addLabelIds` | chaîne | Oui | IDs de libellés à ajouter, séparés par des virgules (ex. INBOX, Label_123) |
+| `removeLabelIds` | chaîne | Non | IDs de libellés à supprimer, séparés par des virgules (ex. INBOX, SPAM) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées de l'e-mail |
+
+### `gmail_mark_read`
+
+Marquer un message Gmail comme lu
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | chaîne | Oui | ID du message à marquer comme lu |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message de succès |
+| `metadata` | object | Métadonnées de l'e-mail |
+
+### `gmail_mark_unread`
+
+Marquer un message Gmail comme non lu
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Oui | ID du message à marquer comme non lu |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message de succès |
+| `metadata` | object | Métadonnées de l'e-mail |
+
+### `gmail_archive`
+
+Archiver un message Gmail (retirer de la boîte de réception)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Oui | ID du message à archiver |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message de succès |
+| `metadata` | object | Métadonnées de l'e-mail |
+
+### `gmail_unarchive`
+
+Désarchiver un message Gmail (remettre dans la boîte de réception)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Oui | ID du message à désarchiver |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message de succès |
+| `metadata` | object | Métadonnées de l'e-mail |
+
+### `gmail_delete`
+
+Supprimer un message Gmail (déplacer vers la corbeille)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Oui | ID du message à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message de succès |
+| `metadata` | object | Métadonnées de l'e-mail |
+
+### `gmail_add_label`
+
+Ajouter des étiquettes à un message Gmail
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Oui | ID du message auquel ajouter des étiquettes |
+| `labelIds` | string | Oui | IDs d'étiquettes séparés par des virgules à ajouter \(ex., INBOX, Label_123\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message de succès |
+| `metadata` | object | Métadonnées de l'e-mail |
+
+### `gmail_remove_label`
+
+Supprimer des étiquettes d'un message Gmail
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Oui | ID du message duquel supprimer des étiquettes |
+| `labelIds` | string | Oui | IDs d'étiquettes séparés par des virgules à supprimer \(ex., INBOX, Label_123\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message de succès |
+| `metadata` | object | Métadonnées de l'e-mail |
 
 ## Notes
 

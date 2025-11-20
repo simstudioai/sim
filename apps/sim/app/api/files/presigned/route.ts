@@ -2,8 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { CopilotFiles } from '@/lib/uploads'
-import type { StorageContext } from '@/lib/uploads/core/config-resolver'
-import { USE_BLOB_STORAGE } from '@/lib/uploads/core/setup'
+import type { StorageContext } from '@/lib/uploads/config'
+import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
 import { generatePresignedUploadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { createErrorResponse } from '@/app/api/files/utils'
@@ -69,16 +69,16 @@ export async function POST(request: NextRequest) {
     }
 
     const uploadTypeParam = request.nextUrl.searchParams.get('type')
-    const uploadType: StorageContext =
-      uploadTypeParam === 'knowledge-base'
-        ? 'knowledge-base'
-        : uploadTypeParam === 'chat'
-          ? 'chat'
-          : uploadTypeParam === 'copilot'
-            ? 'copilot'
-            : uploadTypeParam === 'profile-pictures'
-              ? 'profile-pictures'
-              : 'general'
+    if (!uploadTypeParam) {
+      throw new ValidationError('type query parameter is required')
+    }
+
+    const validTypes: StorageContext[] = ['knowledge-base', 'chat', 'copilot', 'profile-pictures']
+    if (!validTypes.includes(uploadTypeParam as StorageContext)) {
+      throw new ValidationError(`Invalid type parameter. Must be one of: ${validTypes.join(', ')}`)
+    }
+
+    const uploadType = uploadTypeParam as StorageContext
 
     if (uploadType === 'knowledge-base') {
       const fileValidationError = validateFileType(fileName, contentType)

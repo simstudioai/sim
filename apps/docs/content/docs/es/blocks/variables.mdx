@@ -11,9 +11,9 @@ El bloque Variables actualiza las variables del flujo de trabajo durante la ejec
 <div className="flex justify-center">
   <Image
     src="/static/blocks/variables.png"
-    alt="Bloque de Variables"
+    alt="Bloque de variables"
     width={500}
-    height={350}
+    height={400}
     className="my-6"
   />
 </div>
@@ -22,25 +22,9 @@ El bloque Variables actualiza las variables del flujo de trabajo durante la ejec
   Accede a las variables en cualquier parte de tu flujo de trabajo usando la sintaxis `<variable.variableName>`.
 </Callout>
 
-## Descripción general
+## Cómo usar variables
 
-El bloque Variables te permite:
-
-<Steps>
-  <Step>
-    <strong>Actualizar variables del flujo de trabajo</strong>: Cambiar valores de variables durante la ejecución
-  </Step>
-  <Step>
-    <strong>Almacenar datos dinámicos</strong>: Capturar salidas de bloques en variables
-  </Step>
-  <Step>
-    <strong>Mantener el estado</strong>: Seguir contadores, indicadores y resultados intermedios
-  </Step>
-</Steps>
-
-## Cómo usar Variables
-
-### 1. Inicializar en Variables del flujo de trabajo
+### 1. Inicializar en variables de flujo de trabajo
 
 Primero, crea tus variables en la sección Variables del flujo de trabajo (accesible desde la configuración del flujo de trabajo):
 
@@ -50,7 +34,7 @@ retryCount = 0
 currentStatus = "pending"
 ```
 
-### 2. Actualizar con el bloque Variables
+### 2. Actualizar con el bloque de variables
 
 Usa el bloque Variables para actualizar estos valores durante la ejecución:
 
@@ -72,44 +56,23 @@ API body: {"status": "<variable.currentStatus>"}
 
 ## Ejemplos de casos de uso
 
-### Contador de bucle y estado
+**Contador de bucle y estado** - Seguimiento del progreso a través de iteraciones
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Seguimiento del progreso a través de iteraciones de bucle</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Inicializar en el flujo de trabajo: `itemsProcessed = 0`, `lastResult = ""`</li>
-    <li>El bucle itera sobre elementos</li>
-    <li>Dentro del bucle: El agente procesa el elemento actual</li>
-    <li>Dentro del bucle: Variables actualiza `itemsProcessed = <variable.itemsProcessed> + 1`</li>
-    <li>Dentro del bucle: Variables actualiza `lastResult = <agent.content>`</li>
-    <li>Siguiente iteración: Accede a `<variable.lastResult>` para comparar con el resultado actual</li>
-  </ol>
-</div>
+```
+Loop → Agent (Process) → Variables (itemsProcessed + 1) → Variables (Store lastResult)
+```
 
-### Lógica de reintentos
+**Lógica de reintentos** - Seguimiento de intentos de API
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Seguimiento de intentos de reintento de API</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Inicializar en el flujo de trabajo: `retryCount = 0`</li>
-    <li>El bloque API intenta realizar la solicitud</li>
-    <li>Si falla, Variables incrementa: `retryCount = <variable.retryCount> + 1`</li>
-    <li>La condición verifica si `<variable.retryCount>` \< 3 para reintentar o fallar</li>
-  </ol>
-</div>
+```
+API (Try) → Variables (retryCount + 1) → Condition (retryCount < 3)
+```
 
-### Configuración dinámica
+**Configuración dinámica** - Almacenar contexto de usuario para el flujo de trabajo
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Almacenar contexto de usuario para el flujo de trabajo</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Inicializar en el flujo de trabajo: `userId = ""`, `userTier = ""`</li>
-    <li>La API obtiene el perfil del usuario</li>
-    <li>Variables almacena: `userId = <api.id>`, `userTier = <api.tier>`</li>
-    <li>El agente personaliza la respuesta usando `<variable.userTier>`</li>
-    <li>La API usa `<variable.userId>` para el registro</li>
-  </ol>
-</div>
+```
+API (Fetch Profile) → Variables (userId, userTier) → Agent (Personalize)
+```
 
 ## Salidas
 
@@ -119,5 +82,5 @@ API body: {"status": "<variable.currentStatus>"}
 
 - **Inicializar en la configuración del flujo de trabajo**: Siempre crea variables en la sección Variables del flujo de trabajo antes de usarlas
 - **Actualizar dinámicamente**: Usa bloques de Variables para actualizar valores basados en salidas de bloques o cálculos
-- **Usar en bucles**: Perfecto para rastrear el estado a través de iteraciones
+- **Usar en bucles**: Perfecto para seguir el estado a través de iteraciones
 - **Nombrar descriptivamente**: Usa nombres claros como `currentIndex`, `totalProcessed`, o `lastError`

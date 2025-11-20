@@ -16,7 +16,6 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
   oauth: {
     required: true,
     provider: 'google-calendar',
-    additionalScopes: ['https://www.googleapis.com/auth/calendar'],
   },
 
   params: {

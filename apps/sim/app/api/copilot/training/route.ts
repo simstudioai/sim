@@ -5,18 +5,24 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CopilotTrainingAPI')
 
-// Schema for the request body
+const WorkflowStateSchema = z.record(z.unknown())
+
+const OperationSchema = z.object({
+  operation_type: z.string(),
+  block_id: z.string(),
+  params: z.record(z.unknown()).optional(),
+})
+
 const TrainingDataSchema = z.object({
-  title: z.string().min(1),
-  prompt: z.string().min(1),
-  input: z.any(), // Workflow state (start)
-  output: z.any(), // Workflow state (end)
-  operations: z.any(),
+  title: z.string().min(1, 'Title is required'),
+  prompt: z.string().min(1, 'Prompt is required'),
+  input: WorkflowStateSchema,
+  output: WorkflowStateSchema,
+  operations: z.array(OperationSchema),
 })
 
 export async function POST(request: NextRequest) {
   try {
-    // Check for required environment variables
     const baseUrl = env.AGENT_INDEXER_URL
     if (!baseUrl) {
       logger.error('Missing AGENT_INDEXER_URL environment variable')
@@ -32,7 +38,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Parse and validate request body
     const body = await request.json()
     const validationResult = TrainingDataSchema.safeParse(body)
 
@@ -51,10 +56,9 @@ export async function POST(request: NextRequest) {
 
     logger.info('Sending training data to agent indexer', {
       title,
-      operationsCount: Array.isArray(operations) ? operations.length : 0,
+      operationsCount: operations.length,
     })
 
-    // Forward to agent indexer
     const upstreamUrl = `${baseUrl}/operations/add`
     const upstreamResponse = await fetch(upstreamUrl, {
       method: 'POST',

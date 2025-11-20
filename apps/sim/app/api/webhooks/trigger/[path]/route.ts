@@ -50,6 +50,13 @@ export async function POST(
   const requestId = generateRequestId()
   const { path } = await params
 
+  // Log ALL incoming webhook requests for debugging
+  logger.info(`[${requestId}] Incoming webhook request`, {
+    path,
+    method: request.method,
+    headers: Object.fromEntries(request.headers.entries()),
+  })
+
   // Handle Microsoft Graph subscription validation (some environments send POST with validationToken)
   try {
     const url = new URL(request.url)
@@ -89,7 +96,30 @@ export async function POST(
 
   const { webhook: foundWebhook, workflow: foundWorkflow } = findResult
 
-  const authError = await verifyProviderAuth(foundWebhook, request, rawBody, requestId)
+  // Log HubSpot webhook details for debugging
+  if (foundWebhook.provider === 'hubspot') {
+    const events = Array.isArray(body) ? body : [body]
+    const firstEvent = events[0]
+
+    logger.info(`[${requestId}] HubSpot webhook received`, {
+      path,
+      subscriptionType: firstEvent?.subscriptionType,
+      objectId: firstEvent?.objectId,
+      portalId: firstEvent?.portalId,
+      webhookId: foundWebhook.id,
+      workflowId: foundWorkflow.id,
+      triggerId: foundWebhook.providerConfig?.triggerId,
+      eventCount: events.length,
+    })
+  }
+
+  const authError = await verifyProviderAuth(
+    foundWebhook,
+    foundWorkflow,
+    request,
+    rawBody,
+    requestId
+  )
   if (authError) {
     return authError
   }
@@ -107,10 +137,26 @@ export async function POST(
   if (foundWebhook.blockId) {
     const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
     if (!blockExists) {
-      logger.warn(
+      logger.info(
         `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
       )
-      return new NextResponse('Trigger block not deployed', { status: 404 })
+      return new NextResponse('Trigger block not found in deployment', { status: 404 })
+    }
+  }
+
+  if (foundWebhook.provider === 'stripe') {
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const eventTypes = providerConfig.eventTypes
+
+    if (eventTypes && Array.isArray(eventTypes) && eventTypes.length > 0) {
+      const eventType = body?.type
+
+      if (eventType && !eventTypes.includes(eventType)) {
+        logger.info(
+          `[${requestId}] Stripe event type '${eventType}' not in allowed list, skipping execution`
+        )
+        return new NextResponse('Event type filtered', { status: 200 })
+      }
     }
   }
 

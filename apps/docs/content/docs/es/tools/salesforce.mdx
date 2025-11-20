@@ -1,0 +1,419 @@
+---
+title: Salesforce
+description: Interactúa con Salesforce CRM
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="salesforce"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta [Salesforce](https://www.salesforce.com/) te permite conectarte directamente a tu CRM de Salesforce y realizar una amplia gama de operaciones de gestión de relaciones con clientes dentro de tus flujos de trabajo con agentes. Con una integración fluida y segura, puedes acceder y automatizar eficientemente procesos empresariales clave en tus datos de ventas, soporte y marketing.
+
+Con la herramienta Salesforce, puedes:
+
+- **Recuperar cuentas**: Usa la operación `salesforce_get_accounts` para obtener Cuentas de Salesforce con filtros personalizados, ordenación y selección de campos.
+- **Crear cuentas**: Añade automáticamente nuevas Cuentas a Salesforce usando la operación `salesforce_create_account`, especificando detalles como nombre, industria y dirección de facturación.
+- **Gestionar contactos**: (Si se proporciona, hay herramientas similares disponibles para Contactos—añadir, actualizar o recuperar contactos según sea necesario.)
+- **Manejar leads y oportunidades**: Integra la gestión de leads y oportunidades en tu flujo de trabajo, permitiendo a tus agentes capturar, calificar y actualizar datos del pipeline de ventas.
+- **Seguimiento de casos y tareas**: Automatiza el soporte al cliente y las actividades de seguimiento interactuando con Casos y Tareas dentro de Salesforce.
+
+La herramienta Salesforce es ideal para flujos de trabajo donde tus agentes necesitan agilizar las operaciones de ventas, gestión de cuentas, generación de leads y soporte. Ya sea que tus agentes estén sincronizando datos entre plataformas, proporcionando información de clientes en tiempo real o automatizando actualizaciones rutinarias de CRM, la herramienta Salesforce incorpora todo el poder y la extensibilidad de Salesforce en tus procesos programáticos impulsados por agentes.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Salesforce en tu flujo de trabajo. Gestiona cuentas, contactos, leads, oportunidades, casos y tareas con potentes capacidades de automatización.
+
+## Herramientas
+
+### `salesforce_get_accounts`
+
+Recuperar cuentas del CRM de Salesforce
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | --------- | ----------- |
+| `idToken` | string | No | El token ID de OAuth de Salesforce \(contiene URL de instancia\) |
+| `instanceUrl` | string | No | La URL de instancia de Salesforce |
+| `limit` | string | No | Número de resultados a devolver \(predeterminado: 100, máximo: 2000\) |
+| `fields` | string | No | Lista separada por comas de campos a devolver \(p. ej., "Id,Name,Industry,Phone"\) |
+| `orderBy` | string | No | Campo para ordenar \(p. ej., "Name ASC" o "CreatedDate DESC"\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de las cuentas |
+
+### `salesforce_create_account`
+
+Crear una nueva cuenta en Salesforce CRM
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `name` | string | Sí | Nombre de la cuenta \(obligatorio\) |
+| `type` | string | No | Tipo de cuenta \(p. ej., Cliente, Socio, Prospecto\) |
+| `industry` | string | No | Industria \(p. ej., Tecnología, Salud, Finanzas\) |
+| `phone` | string | No | Número de teléfono |
+| `website` | string | No | URL del sitio web |
+| `billingStreet` | string | No | Dirección de facturación |
+| `billingCity` | string | No | Ciudad de facturación |
+| `billingState` | string | No | Estado/provincia de facturación |
+| `billingPostalCode` | string | No | Código postal de facturación |
+| `billingCountry` | string | No | País de facturación |
+| `description` | string | No | Descripción de la cuenta |
+| `annualRevenue` | string | No | Ingresos anuales \(número\) |
+| `numberOfEmployees` | string | No | Número de empleados \(número\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la cuenta creada |
+
+### `salesforce_update_account`
+
+Actualizar una cuenta existente en Salesforce CRM
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `accountId` | string | Sí | ID de la cuenta a actualizar \(obligatorio\) |
+| `name` | string | No | Nombre de la cuenta |
+| `type` | string | No | Tipo de cuenta |
+| `industry` | string | No | Industria |
+| `phone` | string | No | Número de teléfono |
+| `website` | string | No | URL del sitio web |
+| `billingStreet` | string | No | Dirección de facturación |
+| `billingCity` | string | No | Ciudad de facturación |
+| `billingState` | string | No | Estado/provincia de facturación |
+| `billingPostalCode` | string | No | Código postal de facturación |
+| `billingCountry` | string | No | País de facturación |
+| `description` | string | No | Descripción de la cuenta |
+| `annualRevenue` | string | No | Ingresos anuales \(número\) |
+| `numberOfEmployees` | string | No | Número de empleados \(número\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la cuenta actualizada |
+
+### `salesforce_delete_account`
+
+Eliminar una cuenta de Salesforce CRM
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `accountId` | string | Sí | ID de la cuenta a eliminar \(obligatorio\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la cuenta eliminada |
+
+### `salesforce_get_contacts`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_create_contact`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_update_contact`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_delete_contact`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_get_leads`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_create_lead`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_update_lead`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_delete_lead`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_get_opportunities`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_create_opportunity`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_update_opportunity`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_delete_opportunity`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_get_cases`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_create_case`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_update_case`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_delete_case`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_get_tasks`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_create_task`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_update_task`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+### `salesforce_delete_task`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | json | Datos del resultado de la operación |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `salesforce`

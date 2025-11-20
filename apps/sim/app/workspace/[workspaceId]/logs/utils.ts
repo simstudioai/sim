@@ -95,6 +95,7 @@ export interface ExecutionLog {
   } | null
   workflowName?: string
   workflowColor?: string
+  hasPendingPause?: boolean
 }
 
 /**
@@ -133,6 +134,7 @@ export function mapToExecutionLog(log: any): ExecutionLog {
       : null,
     workflowName: log.workflowName || log.workflow?.name,
     workflowColor: log.workflowColor || log.workflow?.color,
+    hasPendingPause: log.hasPendingPause === true,
   }
 }
 
@@ -164,6 +166,7 @@ export function mapToExecutionLogAlt(log: any): ExecutionLog {
       : null,
     workflowName: log.workflow?.name,
     workflowColor: log.workflow?.color,
+    hasPendingPause: log.hasPendingPause === true,
   }
 }
 

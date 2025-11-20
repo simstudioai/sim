@@ -8,25 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="discord"
   color="#5865F2"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      
-      
-      viewBox='0 -28.5 256 256'
-      version='1.1'
-      xmlns='http://www.w3.org/2000/svg'
-      xmlnsXlink='http://www.w3.org/1999/xlink'
-      preserveAspectRatio='xMidYMid'
-    >
-      <g>
-        <path
-          d='M216.856339,16.5966031 C200.285002,8.84328665 182.566144,3.2084988 164.041564,0 C161.766523,4.11318106 159.108624,9.64549908 157.276099,14.0464379 C137.583995,11.0849896 118.072967,11.0849896 98.7430163,14.0464379 C96.9108417,9.64549908 94.1925838,4.11318106 91.8971895,0 C73.3526068,3.2084988 55.6133949,8.86399117 39.0420583,16.6376612 C5.61752293,67.146514 -3.4433191,116.400813 1.08711069,164.955721 C23.2560196,181.510915 44.7403634,191.567697 65.8621325,198.148576 C71.0772151,190.971126 75.7283628,183.341335 79.7352139,175.300261 C72.104019,172.400575 64.7949724,168.822202 57.8887866,164.667963 C59.7209612,163.310589 61.5131304,161.891452 63.2445898,160.431257 C105.36741,180.133187 151.134928,180.133187 192.754523,160.431257 C194.506336,161.891452 196.298154,163.310589 198.110326,164.667963 C191.183787,168.842556 183.854737,172.420929 176.223542,175.320965 C180.230393,183.341335 184.861538,190.991831 190.096624,198.16893 C211.238746,191.588051 232.743023,181.531619 254.911949,164.955721 C260.227747,108.668201 245.831087,59.8662432 216.856339,16.5966031 Z M85.4738752,135.09489 C72.8290281,135.09489 62.4592217,123.290155 62.4592217,108.914901 C62.4592217,94.5396472 72.607595,82.7145587 85.4738752,82.7145587 C98.3405064,82.7145587 108.709962,94.5189427 108.488529,108.914901 C108.508531,123.290155 98.3405064,135.09489 85.4738752,135.09489 Z M170.525237,135.09489 C157.88039,135.09489 147.510584,123.290155 147.510584,108.914901 C147.510584,94.5396472 157.658606,82.7145587 170.525237,82.7145587 C183.391518,82.7145587 193.761324,94.5189427 193.539891,108.914901 C193.539891,123.290155 183.391518,135.09489 170.525237,135.09489 Z'
-          fill='currentColor'
-          fillRule='nonzero'
-        />
-      </g>
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -56,7 +37,7 @@ Les composants Discord dans Sim utilisent un chargement paresseux efficace, ne r
 
 ## Instructions d'utilisation
 
-Intégrez Discord dans votre flux de travail. Permet d'envoyer et de recevoir des messages, d'obtenir des informations sur le serveur et sur les utilisateurs. Nécessite une clé API de bot.
+Intégration complète de Discord : messages, fils de discussion, canaux, rôles, membres, invitations et webhooks.
 
 ## Outils
 
@@ -98,7 +79,7 @@ Récupérer des messages d'un canal Discord
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | chaîne | Message de succès ou d'erreur |
-| `messages` | tableau | Tableau des messages Discord avec métadonnées complètes |
+| `data` | objet | Conteneur pour les données des messages |
 
 ### `discord_get_server`
 
@@ -135,6 +116,620 @@ Récupérer des informations sur un utilisateur Discord
 | --------- | ---- | ----------- |
 | `message` | string | Message de succès ou d'erreur |
 | `data` | object | Informations de l'utilisateur Discord |
+
+### `discord_edit_message`
+
+Modifier un message existant dans un canal Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord contenant le message |
+| `messageId` | chaîne | Oui | L'ID du message à modifier |
+| `content` | chaîne | Non | Le nouveau contenu textuel du message |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du message Discord mis à jour |
+
+### `discord_delete_message`
+
+Supprimer un message d'un canal Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord contenant le message |
+| `messageId` | chaîne | Oui | L'ID du message à supprimer |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_add_reaction`
+
+Ajouter une réaction emoji à un message Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord contenant le message |
+| `messageId` | chaîne | Oui | L'ID du message auquel réagir |
+| `emoji` | chaîne | Oui | L'emoji à utiliser pour la réaction \(emoji unicode ou emoji personnalisé au format nom:id\) |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_remove_reaction`
+
+Supprimer une réaction d'un message Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord contenant le message |
+| `messageId` | chaîne | Oui | L'ID du message avec la réaction |
+| `emoji` | chaîne | Oui | L'emoji à supprimer \(emoji unicode ou emoji personnalisé au format nom:id\) |
+| `userId` | chaîne | Non | L'ID de l'utilisateur dont la réaction doit être supprimée \(omettre pour supprimer la propre réaction du bot\) |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_pin_message`
+
+Épingler un message dans un canal Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord contenant le message |
+| `messageId` | chaîne | Oui | L'ID du message à épingler |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_unpin_message`
+
+Désépingler un message dans un canal Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord contenant le message |
+| `messageId` | chaîne | Oui | L'ID du message à désépingler |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_create_thread`
+
+Créer un fil de discussion dans un canal Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord où créer le fil de discussion |
+| `name` | chaîne | Oui | Le nom du fil de discussion \(1-100 caractères\) |
+| `messageId` | chaîne | Non | L'ID du message à partir duquel créer un fil de discussion \(si création à partir d'un message existant\) |
+| `autoArchiveDuration` | nombre | Non | Durée en minutes avant l'auto-archivage du fil de discussion \(60, 1440, 4320, 10080\) |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du fil de discussion créé |
+
+### `discord_join_thread`
+
+Rejoindre un fil de discussion dans Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `threadId` | chaîne | Oui | L'ID du fil de discussion à rejoindre |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_leave_thread`
+
+Quitter un fil de discussion Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `threadId` | chaîne | Oui | L'ID du fil de discussion à quitter |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_archive_thread`
+
+Archiver ou désarchiver un fil de discussion dans Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `threadId` | chaîne | Oui | L'ID du fil de discussion à archiver/désarchiver |
+| `archived` | booléen | Oui | Indique s'il faut archiver \(true\) ou désarchiver \(false\) le fil de discussion |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données mises à jour du fil de discussion |
+
+### `discord_create_channel`
+
+Créer un nouveau canal dans un serveur Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+| `name` | chaîne | Oui | Le nom du canal \(1-100 caractères\) |
+| `type` | nombre | Non | Type de canal \(0=texte, 2=vocal, 4=catégorie, 5=annonce, 13=scène\) |
+| `topic` | chaîne | Non | Sujet du canal \(0-1024 caractères\) |
+| `parentId` | chaîne | Non | ID de la catégorie parente pour le canal |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du canal créé |
+
+### `discord_update_channel`
+
+Mettre à jour un canal Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord à mettre à jour |
+| `name` | chaîne | Non | Le nouveau nom pour le canal |
+| `topic` | chaîne | Non | Le nouveau sujet pour le canal |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du canal mis à jour |
+
+### `discord_delete_channel`
+
+Supprimer un canal Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord à supprimer |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_get_channel`
+
+Obtenir des informations sur un canal Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord à récupérer |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du canal |
+
+### `discord_create_role`
+
+Créer un nouveau rôle dans un serveur Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+| `name` | chaîne | Oui | Le nom du rôle |
+| `color` | nombre | Non | Valeur de couleur RGB en entier \(par exemple, 0xFF0000 pour rouge\) |
+| `hoist` | booléen | Non | Indique si les membres du rôle doivent être affichés séparément des membres en ligne |
+| `mentionable` | booléen | Non | Indique si le rôle peut être mentionné |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du rôle créé |
+
+### `discord_update_role`
+
+Mettre à jour un rôle dans un serveur Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+| `roleId` | chaîne | Oui | L'ID du rôle à mettre à jour |
+| `name` | chaîne | Non | Le nouveau nom pour le rôle |
+| `color` | nombre | Non | Valeur de couleur RGB en entier |
+| `hoist` | booléen | Non | Indique si les membres du rôle sont affichés séparément |
+| `mentionable` | booléen | Non | Indique si le rôle peut être mentionné |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du rôle mis à jour |
+
+### `discord_delete_role`
+
+Supprimer un rôle d'un serveur Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+| `roleId` | chaîne | Oui | L'ID du rôle à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_assign_role`
+
+Attribuer un rôle à un membre dans un serveur Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+| `userId` | chaîne | Oui | L'ID de l'utilisateur à qui attribuer le rôle |
+| `roleId` | chaîne | Oui | L'ID du rôle à attribuer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_remove_role`
+
+Retirer un rôle d'un membre dans un serveur Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+| `userId` | chaîne | Oui | L'ID de l'utilisateur à qui retirer le rôle |
+| `roleId` | chaîne | Oui | L'ID du rôle à retirer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_kick_member`
+
+Expulser un membre d'un serveur Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+| `userId` | chaîne | Oui | L'ID de l'utilisateur à expulser |
+| `reason` | chaîne | Non | Raison de l'expulsion du membre |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_ban_member`
+
+Bannir un membre d'un serveur Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+| `userId` | chaîne | Oui | L'ID de l'utilisateur à bannir |
+| `reason` | chaîne | Non | Raison du bannissement du membre |
+| `deleteMessageDays` | nombre | Non | Nombre de jours pour lesquels supprimer les messages \(0-7\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_unban_member`
+
+Débannir un membre d'un serveur Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+| `userId` | chaîne | Oui | L'ID de l'utilisateur à débannir |
+| `reason` | chaîne | Non | Raison du débannissement du membre |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_get_member`
+
+Obtenir des informations sur un membre d'un serveur Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+| `userId` | chaîne | Oui | L'ID de l'utilisateur à récupérer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du membre |
+
+### `discord_update_member`
+
+Mettre à jour un membre dans un serveur Discord (par ex., changer le surnom)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+| `userId` | chaîne | Oui | L'ID de l'utilisateur à mettre à jour |
+| `nick` | chaîne | Non | Nouveau surnom pour le membre \(null pour supprimer\) |
+| `mute` | booléen | Non | Indique s'il faut mettre en sourdine le membre dans les canaux vocaux |
+| `deaf` | booléen | Non | Indique s'il faut rendre sourd le membre dans les canaux vocaux |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du membre mises à jour |
+
+### `discord_create_invite`
+
+Créer un lien d'invitation pour un canal Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord pour lequel créer une invitation |
+| `maxAge` | nombre | Non | Durée de l'invitation en secondes \(0 = n'expire jamais, par défaut 86400\) |
+| `maxUses` | nombre | Non | Nombre maximum d'utilisations \(0 = illimité, par défaut 0\) |
+| `temporary` | booléen | Non | Si l'invitation accorde une adhésion temporaire |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données de l'invitation créée |
+
+### `discord_get_invite`
+
+Obtenir des informations sur une invitation Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `inviteCode` | chaîne | Oui | Le code d'invitation à récupérer |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données de l'invitation |
+
+### `discord_delete_invite`
+
+Supprimer une invitation Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `inviteCode` | chaîne | Oui | Le code d'invitation à supprimer |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `discord_create_webhook`
+
+Créer un webhook dans un canal Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord où créer le webhook |
+| `name` | chaîne | Oui | Nom du webhook \(1-80 caractères\) |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du webhook créé |
+
+### `discord_execute_webhook`
+
+Exécuter un webhook Discord pour envoyer un message
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `webhookId` | chaîne | Oui | L'ID du webhook |
+| `webhookToken` | chaîne | Oui | Le jeton du webhook |
+| `content` | chaîne | Oui | Le contenu du message à envoyer |
+| `username` | chaîne | Non | Remplacer le nom d'utilisateur par défaut du webhook |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Message envoyé via webhook |
+
+### `discord_get_webhook`
+
+Obtenir des informations sur un webhook Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `webhookId` | chaîne | Oui | L'ID du webhook à récupérer |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du webhook |
+
+### `discord_delete_webhook`
+
+Supprimer un webhook Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `webhookId` | chaîne | Oui | L'ID du webhook à supprimer |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
 
 ## Notes
 

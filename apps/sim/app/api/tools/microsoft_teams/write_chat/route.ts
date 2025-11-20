@@ -2,11 +2,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  downloadFileFromStorage,
-  processFilesToUserFiles,
-} from '@/lib/uploads/utils/file-processing'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
+import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { generateRequestId } from '@/lib/utils'
+import { resolveMentionsForChat, type TeamsMention } from '@/tools/microsoft_teams/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -141,23 +140,54 @@ export async function POST(request: NextRequest) {
     }
 
     let messageContent = validatedData.content
+    let contentType: 'text' | 'html' = 'text'
+    const mentionEntities: TeamsMention[] = []
+
+    try {
+      const mentionResult = await resolveMentionsForChat(
+        validatedData.content,
+        validatedData.chatId,
+        validatedData.accessToken
+      )
+
+      if (mentionResult.hasMentions) {
+        contentType = 'html'
+        messageContent = mentionResult.updatedContent
+        mentionEntities.push(...mentionResult.mentions)
+        logger.info(`[${requestId}] Resolved ${mentionResult.mentions.length} mention(s)`)
+      }
+    } catch (error) {
+      logger.warn(`[${requestId}] Failed to resolve mentions, continuing without them:`, error)
+    }
 
     if (attachments.length > 0) {
+      contentType = 'html'
       const attachmentTags = attachments
         .map((att) => `<attachment id="${att.id}"></attachment>`)
         .join(' ')
-      messageContent = `${validatedData.content}<br/>${attachmentTags}`
+      messageContent = `${messageContent}<br/>${attachmentTags}`
     }
 
-    const messageBody = {
+    const messageBody: {
       body: {
-        contentType: attachments.length > 0 ? 'html' : 'text',
+        contentType: 'text' | 'html'
+        content: string
+      }
+      attachments?: any[]
+      mentions?: TeamsMention[]
+    } = {
+      body: {
+        contentType,
         content: messageContent,
       },
     }
 
     if (attachments.length > 0) {
-      ;(messageBody as any).attachments = attachments
+      messageBody.attachments = attachments
+    }
+
+    if (mentionEntities.length > 0) {
+      messageBody.mentions = mentionEntities
     }
 
     logger.info(`[${requestId}] Sending message to Teams chat: ${validatedData.chatId}`)

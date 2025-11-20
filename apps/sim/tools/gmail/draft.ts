@@ -10,7 +10,6 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
   oauth: {
     required: true,
     provider: 'google-email',
-    additionalScopes: [],
   },
 
   params: {
@@ -28,7 +27,7 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
     },
     subject: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'Email subject',
     },
@@ -37,6 +36,25 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
       required: true,
       visibility: 'user-or-llm',
       description: 'Email body content',
+    },
+    contentType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Content type for the email body (text or html)',
+    },
+    threadId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Thread ID to reply to (for threading)',
+    },
+    replyToMessageId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Gmail message ID to reply to - use the "id" field from Gmail Read results (not the RFC "messageId")',
     },
     cc: {
       type: 'string',
@@ -69,6 +87,9 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
       to: params.to,
       subject: params.subject,
       body: params.body,
+      contentType: params.contentType || 'text',
+      threadId: params.threadId,
+      replyToMessageId: params.replyToMessageId,
       cc: params.cc,
       bcc: params.bcc,
       attachments: params.attachments,

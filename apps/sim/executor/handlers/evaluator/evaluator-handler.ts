@@ -1,8 +1,9 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { getBaseUrl } from '@/lib/urls/utils'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType } from '@/executor/consts'
+import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { buildAPIUrl, extractAPIErrorMessage } from '@/executor/utils/http'
+import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -17,58 +18,40 @@ export class EvaluatorBlockHandler implements BlockHandler {
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<BlockOutput> {
-    const model = inputs.model || 'gpt-4o'
-    const providerId = getProviderFromModel(model)
-
-    // Process the content to ensure it's in a suitable format
-    let processedContent = ''
-
-    try {
-      if (typeof inputs.content === 'string') {
-        if (inputs.content.trim().startsWith('[') || inputs.content.trim().startsWith('{')) {
-          try {
-            const parsed = JSON.parse(inputs.content)
-            processedContent = JSON.stringify(parsed, null, 2)
-          } catch (_e) {
-            processedContent = inputs.content
-          }
-        } else {
-          processedContent = inputs.content
-        }
-      } else if (typeof inputs.content === 'object') {
-        processedContent = JSON.stringify(inputs.content, null, 2)
-      } else {
-        processedContent = String(inputs.content || '')
-      }
-    } catch (e) {
-      logger.error('Error processing content:', e)
-      processedContent = String(inputs.content || '')
+    const evaluatorConfig = {
+      model: inputs.model || EVALUATOR.DEFAULT_MODEL,
+      apiKey: inputs.apiKey,
     }
+    const providerId = getProviderFromModel(evaluatorConfig.model)
 
-    // Parse system prompt object with robust error handling
+    const processedContent = this.processContent(inputs.content)
+
     let systemPromptObj: { systemPrompt: string; responseFormat: any } = {
       systemPrompt: '',
       responseFormat: null,
     }
 
     logger.info('Inputs for evaluator:', inputs)
-    const metrics = Array.isArray(inputs.metrics) ? inputs.metrics : []
+    let metrics: any[]
+    if (Array.isArray(inputs.metrics)) {
+      metrics = inputs.metrics
+    } else {
+      metrics = []
+    }
     logger.info('Metrics for evaluator:', metrics)
     const metricDescriptions = metrics
-      .filter((m: any) => m?.name && m.range) // Filter out invalid/incomplete metrics
+      .filter((m: any) => m?.name && m.range)
       .map((m: any) => `"${m.name}" (${m.range.min}-${m.range.max}): ${m.description || ''}`)
       .join('\n')
 
-    // Create a response format structure
     const responseProperties: Record<string, any> = {}
     metrics.forEach((m: any) => {
-      // Ensure metric and name are valid before using them
       if (m?.name) {
-        responseProperties[m.name.toLowerCase()] = { type: 'number' } // Use lowercase for consistency
+        responseProperties[m.name.toLowerCase()] = { type: 'number' }
       } else {
         logger.warn('Skipping invalid metric entry during response format generation:', m)
       }
@@ -85,11 +68,10 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
     Return a JSON object with each metric name as a key and a numeric score as the value. No explanations, only scores.`,
       responseFormat: {
-        name: 'evaluation_response',
+        name: EVALUATOR.RESPONSE_SCHEMA_NAME,
         schema: {
           type: 'object',
           properties: responseProperties,
-          // Filter out invalid names before creating the required array
           required: metrics.filter((m: any) => m?.name).map((m: any) => m.name.toLowerCase()),
           additionalProperties: false,
         },
@@ -97,166 +79,65 @@ export class EvaluatorBlockHandler implements BlockHandler {
       },
     }
 
-    // Ensure we have a system prompt
     if (!systemPromptObj.systemPrompt) {
       systemPromptObj.systemPrompt =
         'Evaluate the content and provide scores for each metric as JSON.'
     }
 
     try {
-      const url = new URL('/api/providers', getBaseUrl())
+      const url = buildAPIUrl('/api/providers')
 
-      // Make sure we force JSON output in the request
       const providerRequest = {
         provider: providerId,
-        model: model,
+        model: evaluatorConfig.model,
         systemPrompt: systemPromptObj.systemPrompt,
         responseFormat: systemPromptObj.responseFormat,
-        context: JSON.stringify([
+        context: stringifyJSON([
           {
             role: 'user',
             content:
               'Please evaluate the content provided in the system prompt. Return ONLY a valid JSON with metric scores.',
           },
         ]),
-        temperature: inputs.temperature || 0,
-        apiKey: inputs.apiKey,
-        workflowId: context.workflowId,
+
+        temperature: EVALUATOR.DEFAULT_TEMPERATURE,
+        apiKey: evaluatorConfig.apiKey,
+        workflowId: ctx.workflowId,
       }
 
       const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': HTTP.CONTENT_TYPE.JSON,
         },
-        body: JSON.stringify(providerRequest),
+        body: stringifyJSON(providerRequest),
       })
 
       if (!response.ok) {
-        // Try to extract a helpful error message
-        let errorMessage = `Provider API request failed with status ${response.status}`
-        try {
-          const errorData = await response.json()
-          if (errorData.error) {
-            errorMessage = errorData.error
-          }
-        } catch (_e) {
-          // If JSON parsing fails, use the original error message
-        }
+        const errorMessage = await extractAPIErrorMessage(response)
         throw new Error(errorMessage)
       }
 
       const result = await response.json()
 
-      // Parse response content with robust error handling
-      let parsedContent: Record<string, any> = {}
-      try {
-        const contentStr = result.content.trim()
-        let jsonStr = ''
+      const parsedContent = this.extractJSONFromResponse(result.content)
 
-        // Method 1: Extract content between first { and last }
-        const fullMatch = contentStr.match(/(\{[\s\S]*\})/) // Regex to find JSON structure
-        if (fullMatch) {
-          jsonStr = fullMatch[0]
-        }
-        // Method 2: Try to find and extract just the JSON part
-        else if (contentStr.includes('{') && contentStr.includes('}')) {
-          const startIdx = contentStr.indexOf('{')
-          const endIdx = contentStr.lastIndexOf('}') + 1
-          jsonStr = contentStr.substring(startIdx, endIdx)
-        }
-        // Method 3: Just use the raw content as a last resort
-        else {
-          jsonStr = contentStr
-        }
+      const metricScores = this.extractMetricScores(parsedContent, inputs.metrics)
 
-        // Try to parse the extracted JSON
-        try {
-          parsedContent = JSON.parse(jsonStr)
-        } catch (parseError) {
-          logger.error('Failed to parse extracted JSON:', parseError)
-          throw new Error('Invalid JSON in response')
-        }
-      } catch (error) {
-        logger.error('Error parsing evaluator response:', error)
-        logger.error('Raw response content:', result.content)
-
-        // Fallback to empty object
-        parsedContent = {}
-      }
-
-      // Extract and process metric scores with proper validation
-      const metricScores: Record<string, any> = {}
-
-      try {
-        // Ensure metrics is an array before processing
-        const validMetrics = Array.isArray(inputs.metrics) ? inputs.metrics : []
-
-        // If we have a successful parse, extract the metrics
-        if (Object.keys(parsedContent).length > 0) {
-          validMetrics.forEach((metric: any) => {
-            // Check if metric and name are valid before proceeding
-            if (!metric || !metric.name) {
-              logger.warn('Skipping invalid metric entry during score extraction:', metric)
-              return // Skip this iteration
-            }
-
-            const metricName = metric.name
-            const lowerCaseMetricName = metricName.toLowerCase()
-
-            // Try multiple possible ways the metric might be represented
-            if (parsedContent[metricName] !== undefined) {
-              metricScores[lowerCaseMetricName] = Number(parsedContent[metricName])
-            } else if (parsedContent[metricName.toLowerCase()] !== undefined) {
-              metricScores[lowerCaseMetricName] = Number(parsedContent[metricName.toLowerCase()])
-            } else if (parsedContent[metricName.toUpperCase()] !== undefined) {
-              metricScores[lowerCaseMetricName] = Number(parsedContent[metricName.toUpperCase()])
-            } else {
-              // Last resort - try to find any key that might contain this metric name
-              const matchingKey = Object.keys(parsedContent).find((key) => {
-                // Add check for key validity before calling toLowerCase()
-                return typeof key === 'string' && key.toLowerCase().includes(lowerCaseMetricName)
-              })
-
-              if (matchingKey) {
-                metricScores[lowerCaseMetricName] = Number(parsedContent[matchingKey])
-              } else {
-                logger.warn(`Metric "${metricName}" not found in LLM response`)
-                metricScores[lowerCaseMetricName] = 0
-              }
-            }
-          })
-        } else {
-          // If we couldn't parse any content, set all metrics to 0
-          validMetrics.forEach((metric: any) => {
-            // Ensure metric and name are valid before setting default score
-            if (metric?.name) {
-              metricScores[metric.name.toLowerCase()] = 0
-            } else {
-              logger.warn('Skipping invalid metric entry when setting default scores:', metric)
-            }
-          })
-        }
-      } catch (e) {
-        logger.error('Error extracting metric scores:', e)
-      }
-
-      // Calculate cost based on token usage, similar to how providers do it
       const costCalculation = calculateCost(
         result.model,
-        result.tokens?.prompt || 0,
-        result.tokens?.completion || 0,
-        false // Evaluator blocks don't typically use cached input
+        result.tokens?.prompt || DEFAULTS.TOKENS.PROMPT,
+        result.tokens?.completion || DEFAULTS.TOKENS.COMPLETION,
+        false
       )
 
-      // Create result with metrics as direct fields for easy access
-      const outputResult = {
+      return {
         content: inputs.content,
         model: result.model,
         tokens: {
-          prompt: result.tokens?.prompt || 0,
-          completion: result.tokens?.completion || 0,
-          total: result.tokens?.total || 0,
+          prompt: result.tokens?.prompt || DEFAULTS.TOKENS.PROMPT,
+          completion: result.tokens?.completion || DEFAULTS.TOKENS.COMPLETION,
+          total: result.tokens?.total || DEFAULTS.TOKENS.TOTAL,
         },
         cost: {
           input: costCalculation.input,
@@ -265,11 +146,109 @@ export class EvaluatorBlockHandler implements BlockHandler {
         },
         ...metricScores,
       }
-
-      return outputResult
     } catch (error) {
       logger.error('Evaluator execution failed:', error)
       throw error
     }
+  }
+
+  private processContent(content: any): string {
+    if (typeof content === 'string') {
+      if (isJSONString(content)) {
+        const parsed = parseJSON(content, null)
+        if (parsed) {
+          return stringifyJSON(parsed)
+        }
+        return content
+      }
+      return content
+    }
+
+    if (typeof content === 'object') {
+      return stringifyJSON(content)
+    }
+
+    return String(content || '')
+  }
+
+  private extractJSONFromResponse(responseContent: string): Record<string, any> {
+    try {
+      const contentStr = responseContent.trim()
+
+      const fullMatch = contentStr.match(/(\{[\s\S]*\})/)
+      if (fullMatch) {
+        return parseJSON(fullMatch[0], {})
+      }
+
+      if (contentStr.includes('{') && contentStr.includes('}')) {
+        const startIdx = contentStr.indexOf('{')
+        const endIdx = contentStr.lastIndexOf('}') + 1
+        const jsonStr = contentStr.substring(startIdx, endIdx)
+        return parseJSON(jsonStr, {})
+      }
+
+      return parseJSON(contentStr, {})
+    } catch (error) {
+      logger.error('Error parsing evaluator response:', error)
+      logger.error('Raw response content:', responseContent)
+      return {}
+    }
+  }
+
+  private extractMetricScores(
+    parsedContent: Record<string, any>,
+    metrics: any
+  ): Record<string, number> {
+    const metricScores: Record<string, number> = {}
+    let validMetrics: any[]
+    if (Array.isArray(metrics)) {
+      validMetrics = metrics
+    } else {
+      validMetrics = []
+    }
+
+    if (Object.keys(parsedContent).length === 0) {
+      validMetrics.forEach((metric: any) => {
+        if (metric?.name) {
+          metricScores[metric.name.toLowerCase()] = DEFAULTS.EXECUTION_TIME
+        }
+      })
+      return metricScores
+    }
+
+    validMetrics.forEach((metric: any) => {
+      if (!metric?.name) {
+        logger.warn('Skipping invalid metric entry:', metric)
+        return
+      }
+
+      const score = this.findMetricScore(parsedContent, metric.name)
+      metricScores[metric.name.toLowerCase()] = score
+    })
+
+    return metricScores
+  }
+
+  private findMetricScore(parsedContent: Record<string, any>, metricName: string): number {
+    const lowerMetricName = metricName.toLowerCase()
+
+    if (parsedContent[metricName] !== undefined) {
+      return Number(parsedContent[metricName])
+    }
+
+    if (parsedContent[lowerMetricName] !== undefined) {
+      return Number(parsedContent[lowerMetricName])
+    }
+
+    const matchingKey = Object.keys(parsedContent).find((key) => {
+      return typeof key === 'string' && key.toLowerCase() === lowerMetricName
+    })
+
+    if (matchingKey) {
+      return Number(parsedContent[matchingKey])
+    }
+
+    logger.warn(`Metric "${metricName}" not found in LLM response`)
+    return DEFAULTS.EXECUTION_TIME
   }
 }

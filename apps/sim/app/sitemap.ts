@@ -1,51 +1,60 @@
 import type { MetadataRoute } from 'next'
+import { getAllPostMeta } from '@/lib/blog/registry'
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://sim.ai'
 
-  // Static pages
-  const staticPages = [
+  const now = new Date()
+
+  const staticPages: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
-      lastModified: new Date(),
-      changeFrequency: 'daily' as const,
-      priority: 1,
+      lastModified: now,
+      priority: 1.0, // Homepage - highest priority
     },
     {
-      url: `${baseUrl}/signup`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly' as const,
-      priority: 0.9,
+      url: `${baseUrl}/studio`,
+      lastModified: now,
+      priority: 0.9, // Blog index - high value content
     },
     {
-      url: `${baseUrl}/login`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly' as const,
-      priority: 0.8,
+      url: `${baseUrl}/studio/tags`,
+      lastModified: now,
+      priority: 0.7, // Tags page - discovery/navigation
+    },
+    {
+      url: `${baseUrl}/templates`,
+      lastModified: now,
+      priority: 0.8, // Templates - important discovery page
+    },
+    {
+      url: `${baseUrl}/changelog`,
+      lastModified: now,
+      priority: 0.8, // Changelog - important for users
+    },
+    {
+      url: `${baseUrl}/careers`,
+      lastModified: new Date('2024-10-06'),
+      priority: 0.6, // Careers - important but not core content
     },
     {
       url: `${baseUrl}/terms`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly' as const,
-      priority: 0.5,
+      lastModified: new Date('2024-10-14'),
+      priority: 0.5, // Terms - utility page
     },
     {
       url: `${baseUrl}/privacy`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly' as const,
-      priority: 0.5,
+      lastModified: new Date('2024-10-14'),
+      priority: 0.5, // Privacy - utility page
     },
   ]
 
-  // Blog posts and content pages
-  const blogPages = [
-    {
-      url: `${baseUrl}/blog/openai-vs-n8n-vs-sim`,
-      lastModified: new Date('2025-10-11'),
-      changeFrequency: 'monthly' as const,
-      priority: 0.9,
-    },
-  ]
+  const posts = await getAllPostMeta()
+  const blogPages: MetadataRoute.Sitemap = posts.map((p) => ({
+    url: p.canonical,
+    lastModified: new Date(p.updated ?? p.date),
+    priority: 0.9, // Blog posts - high value content
+  }))
 
   return [...staticPages, ...blogPages]
 }

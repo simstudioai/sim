@@ -38,8 +38,7 @@ describe('GenericBlockHandler', () => {
       metadata: { duration: 0 },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
+      loopExecutions: new Map(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
       completedLoops: new Set(),
@@ -90,7 +89,7 @@ describe('GenericBlockHandler', () => {
     }
     const expectedOutput: any = { customResult: 'OK' }
 
-    const result = await handler.execute(mockBlock, inputs, mockContext)
+    const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockGetTool).toHaveBeenCalledWith('some_custom_tool')
     expect(mockExecuteTool).toHaveBeenCalledWith(
@@ -109,7 +108,7 @@ describe('GenericBlockHandler', () => {
     // Override mock to return undefined for this test
     mockGetTool.mockImplementation(() => undefined)
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       'Tool not found: some_custom_tool'
     )
     expect(mockExecuteTool).not.toHaveBeenCalled()
@@ -124,13 +123,13 @@ describe('GenericBlockHandler', () => {
     }
     mockExecuteTool.mockResolvedValue(errorResult)
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       'Custom tool failed'
     )
 
     // Re-execute to check error properties after catching
     try {
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
     } catch (e: any) {
       expect(e.toolId).toBe('some_custom_tool')
       expect(e.blockName).toBe('Test Generic Block')
@@ -145,7 +144,7 @@ describe('GenericBlockHandler', () => {
     const errorResult = { success: false, output: {} }
     mockExecuteTool.mockResolvedValue(errorResult)
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       'Block execution of Some Custom Tool failed with no error message'
     )
   })
@@ -203,7 +202,7 @@ describe('GenericBlockHandler', () => {
 
         mockExecuteTool.mockResolvedValue(mockToolResponse)
 
-        const result = await handler.execute(mockBlock, inputs, mockContext)
+        const result = await handler.execute(mockContext, mockBlock, inputs)
 
         // Verify cost information is restructured correctly for enhanced logging
         expect(result).toEqual({
@@ -270,7 +269,7 @@ describe('GenericBlockHandler', () => {
 
       mockExecuteTool.mockResolvedValue(mockToolResponse)
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       // Verify cost information is restructured correctly
       expect(result).toEqual({
@@ -309,7 +308,7 @@ describe('GenericBlockHandler', () => {
 
       mockExecuteTool.mockResolvedValue(mockToolResponse)
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       // Should return original output without cost transformation
       expect(result).toEqual({
@@ -348,7 +347,7 @@ describe('GenericBlockHandler', () => {
 
       mockExecuteTool.mockResolvedValue(mockToolResponse)
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       // Should return original output without cost transformation
       expect(result).toEqual({

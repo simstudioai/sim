@@ -1,7 +1,7 @@
 ---
 title: Slack
-description: Envoyez des messages à Slack ou déclenchez des workflows à partir
-  d'événements Slack
+description: Envoyez, mettez à jour, supprimez des messages, ajoutez des
+  réactions dans Slack ou déclenchez des workflows à partir d'événements Slack
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -9,27 +9,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="slack"
   color="#611f69"
-  icon={true}
-  iconSvg={`<svg className="block-icon" viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg' >
-      <g>
-        <path
-          d='M53.8412698,161.320635 C53.8412698,176.152381 41.8539683,188.139683 27.0222222,188.139683 C12.1904762,188.139683 0.203174603,176.152381 0.203174603,161.320635 C0.203174603,146.488889 12.1904762,134.501587 27.0222222,134.501587 L53.8412698,134.501587 L53.8412698,161.320635 Z M67.2507937,161.320635 C67.2507937,146.488889 79.2380952,134.501587 94.0698413,134.501587 C108.901587,134.501587 120.888889,146.488889 120.888889,161.320635 L120.888889,228.368254 C120.888889,243.2 108.901587,255.187302 94.0698413,255.187302 C79.2380952,255.187302 67.2507937,243.2 67.2507937,228.368254 L67.2507937,161.320635 Z'
-          fill='#E01E5A'
-        />
-        <path
-          d='M94.0698413,53.6380952 C79.2380952,53.6380952 67.2507937,41.6507937 67.2507937,26.8190476 C67.2507937,11.9873016 79.2380952,-7.10542736e-15 94.0698413,-7.10542736e-15 C108.901587,-7.10542736e-15 120.888889,11.9873016 120.888889,26.8190476 L120.888889,53.6380952 L94.0698413,53.6380952 Z M94.0698413,67.2507937 C108.901587,67.2507937 120.888889,79.2380952 120.888889,94.0698413 C120.888889,108.901587 108.901587,120.888889 94.0698413,120.888889 L26.8190476,120.888889 C11.9873016,120.888889 0,108.901587 0,94.0698413 C0,79.2380952 11.9873016,67.2507937 26.8190476,67.2507937 L94.0698413,67.2507937 Z'
-          fill='#36C5F0'
-        />
-        <path
-          d='M201.549206,94.0698413 C201.549206,79.2380952 213.536508,67.2507937 228.368254,67.2507937 C243.2,67.2507937 255.187302,79.2380952 255.187302,94.0698413 C255.187302,108.901587 243.2,120.888889 228.368254,120.888889 L201.549206,120.888889 L201.549206,94.0698413 Z M188.139683,94.0698413 C188.139683,108.901587 176.152381,120.888889 161.320635,120.888889 C146.488889,120.888889 134.501587,108.901587 134.501587,94.0698413 L134.501587,26.8190476 C134.501587,11.9873016 146.488889,-1.42108547e-14 161.320635,-1.42108547e-14 C176.152381,-1.42108547e-14 188.139683,11.9873016 188.139683,26.8190476 L188.139683,94.0698413 Z'
-          fill='#2EB67D'
-        />
-        <path
-          d='M161.320635,201.549206 C176.152381,201.549206 188.139683,213.536508 188.139683,228.368254 C188.139683,243.2 176.152381,255.187302 161.320635,255.187302 C146.488889,255.187302 134.501587,243.2 134.501587,228.368254 L134.501587,201.549206 L161.320635,201.549206 Z M161.320635,188.139683 C146.488889,188.139683 134.501587,176.152381 134.501587,161.320635 C134.501587,146.488889 146.488889,134.501587 161.320635,134.501587 L228.571429,134.501587 C243.403175,134.501587 255.390476,146.488889 255.390476,161.320635 C255.390476,176.152381 243.403175,188.139683 228.571429,188.139683 L161.320635,188.139683 Z'
-          fill='#ECB22E'
-        />
-      </g>
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -47,24 +26,29 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Avec Slack, vous pouvez :
 
-- **Automatiser les notifications des agents** : envoyer des mises à jour en temps réel depuis vos agents Sim vers n'importe quel canal Slack
-- **Créer des points de terminaison webhook** : configurer des bots Slack comme webhooks pour déclencher des workflows Sim à partir d'activités Slack
-- **Améliorer les workflows des agents** : intégrer la messagerie Slack dans vos agents pour livrer des résultats, des alertes et des mises à jour de statut
-- **Créer et partager des canevas Slack** : générer programmatiquement des documents collaboratifs (canevas) dans les canaux Slack
-- **Lire les messages des canaux** : récupérer et traiter les messages récents de n'importe quel canal Slack pour la surveillance ou le déclenchement de workflows
+- **Automatisez les notifications des agents** : Envoyez des mises à jour en temps réel depuis vos agents Sim vers n'importe quel canal Slack
+- **Créez des points de terminaison webhook** : Configurez des bots Slack comme webhooks pour déclencher des workflows Sim à partir des activités Slack
+- **Améliorez les workflows des agents** : Intégrez la messagerie Slack dans vos agents pour livrer des résultats, des alertes et des mises à jour de statut
+- **Créez et partagez des canevas Slack** : Générez programmatiquement des documents collaboratifs (canevas) dans les canaux Slack
+- **Lisez les messages des canaux** : Récupérez et traitez les messages récents de n'importe quel canal Slack pour la surveillance ou les déclencheurs de workflow
+- **Gérez les messages des bots** : Mettez à jour, supprimez et ajoutez des réactions aux messages envoyés par votre bot
 
-Dans Sim, l'intégration Slack permet à vos agents d'interagir de manière programmatique avec Slack de plusieurs façons dans le cadre de leurs flux de travail :
+Dans Sim, l'intégration Slack permet à vos agents d'interagir programmatiquement avec Slack avec des capacités complètes de gestion des messages dans le cadre de leurs workflows :
 
-- **Envoyer des messages** : les agents peuvent envoyer des messages formatés à n'importe quel canal ou utilisateur Slack, prenant en charge la syntaxe mrkdwn de Slack pour un formatage enrichi.
-- **Créer des canevas** : les agents peuvent créer et partager des canevas Slack (documents collaboratifs) directement dans les canaux, permettant un partage de contenu et une documentation plus riches.
-- **Lire des messages** : les agents peuvent lire les messages récents des canaux, permettant la surveillance, la création de rapports ou le déclenchement d'actions supplémentaires basées sur l'activité du canal.
+- **Envoyez des messages** : Les agents peuvent envoyer des messages formatés à n'importe quel canal ou utilisateur Slack, prenant en charge la syntaxe mrkdwn de Slack pour un formatage enrichi
+- **Mettez à jour des messages** : Modifiez les messages de bot précédemment envoyés pour corriger des informations ou fournir des mises à jour de statut
+- **Supprimez des messages** : Supprimez les messages de bot lorsqu'ils ne sont plus nécessaires ou contiennent des erreurs
+- **Ajoutez des réactions** : Exprimez un sentiment ou une reconnaissance en ajoutant des réactions emoji à n'importe quel message
+- **Créez des canevas** : Créez et partagez des canevas Slack (documents collaboratifs) directement dans les canaux, permettant un partage de contenu et une documentation plus riches
+- **Lisez des messages** : Lisez les messages récents des canaux, permettant la surveillance, le reporting ou le déclenchement d'actions supplémentaires basées sur l'activité du canal
+- **Téléchargez des fichiers** : Récupérez les fichiers partagés dans les canaux Slack pour traitement ou archivage
 
-Cela permet des scénarios d'automatisation puissants tels que l'envoi de notifications, d'alertes, de mises à jour et de rapports directement vers le hub de communication de votre équipe, le partage de documents structurés ou la surveillance des conversations pour les déclencheurs de flux de travail. Vos agents peuvent fournir des informations opportunes, partager les résultats des processus qu'ils ont terminés, créer des documents collaboratifs ou alerter les membres de l'équipe lorsqu'une attention est nécessaire. Cette intégration comble le fossé entre vos flux de travail IA et la communication de votre équipe, garantissant que tout le monde reste informé sans intervention manuelle. En connectant Sim avec Slack, vous pouvez créer des agents qui tiennent votre équipe informée avec des informations pertinentes au bon moment, améliorent la collaboration en partageant automatiquement des insights, et réduisent le besoin de mises à jour manuelles de statut - tout en exploitant votre espace de travail Slack existant où votre équipe communique déjà.
+Cela permet des scénarios d'automatisation puissants tels que l'envoi de notifications avec des mises à jour dynamiques, la gestion des flux conversationnels avec des messages de statut modifiables, la reconnaissance de messages importants avec des réactions, et le maintien de canaux propres en supprimant les messages de bot obsolètes. Vos agents peuvent fournir des informations opportunes, mettre à jour des messages au fur et à mesure que les workflows progressent, créer des documents collaboratifs, ou alerter les membres de l'équipe lorsqu'une attention est nécessaire. Cette intégration comble le fossé entre vos workflows d'IA et la communication de votre équipe, garantissant que tout le monde reste informé avec des informations précises et à jour. En connectant Sim avec Slack, vous pouvez créer des agents qui tiennent votre équipe informée avec des informations pertinentes au bon moment, améliorent la collaboration en partageant et en mettant à jour automatiquement des insights, et réduisent le besoin de mises à jour manuelles de statut—tout en tirant parti de votre espace de travail Slack existant où votre équipe communique déjà.
 {/* MANUAL-CONTENT-END */}
 
 ## Instructions d'utilisation
 
-Intégrez Slack dans le flux de travail. Peut envoyer des messages, créer des canevas et lire des messages. Nécessite OAuth. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un message est envoyé à un canal.
+Intégrez Slack dans le flux de travail. Peut envoyer, mettre à jour et supprimer des messages, créer des canevas, lire des messages et ajouter des réactions. Nécessite un jeton de bot au lieu d'OAuth en mode avancé. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un message est envoyé à un canal.
 
 ## Outils
 
@@ -77,17 +61,20 @@ Envoyez des messages aux canaux ou utilisateurs Slack via l'API Slack. Prend en 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
 | `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
-| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
 | `channel` | chaîne | Oui | Canal Slack cible \(par ex., #general\) |
 | `text` | chaîne | Oui | Texte du message à envoyer \(prend en charge le formatage mrkdwn de Slack\) |
+| `thread_ts` | chaîne | Non | Horodatage du fil pour répondre \(crée une réponse dans le fil\) |
 | `files` | fichier[] | Non | Fichiers à joindre au message |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `message` | objet | Objet de message complet avec toutes les propriétés renvoyées par Slack |
 | `ts` | chaîne | Horodatage du message |
 | `channel` | chaîne | ID du canal où le message a été envoyé |
+| `fileCount` | nombre | Nombre de fichiers téléchargés \(lorsque des fichiers sont joints\) |
 
 ### `slack_canvas`
 
@@ -132,6 +119,88 @@ Lisez les derniers messages des canaux Slack. Récupérez l'historique des conve
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `messages` | tableau | Tableau d'objets de messages du canal |
+
+### `slack_download`
+
+Télécharger un fichier depuis Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `fileId` | chaîne | Oui | L'ID du fichier à télécharger |
+| `fileName` | chaîne | Non | Remplacement optionnel du nom de fichier |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | fichier | Fichier téléchargé stocké dans les fichiers d'exécution |
+
+### `slack_update_message`
+
+Mettre à jour un message précédemment envoyé par le bot dans Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal où le message a été publié \(ex. : C1234567890\) |
+| `timestamp` | chaîne | Oui | Horodatage du message à mettre à jour \(ex. : 1405894322.002768\) |
+| `text` | chaîne | Oui | Nouveau texte du message \(prend en charge le formatage mrkdwn de Slack\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | objet | Objet de message mis à jour complet avec toutes les propriétés renvoyées par Slack |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées du message mis à jour |
+
+### `slack_delete_message`
+
+Supprimer un message précédemment envoyé par le bot dans Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal où le message a été publié \(ex. : C1234567890\) |
+| `timestamp` | chaîne | Oui | Horodatage du message à supprimer \(ex. : 1405894322.002768\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées du message supprimé |
+
+### `slack_add_reaction`
+
+Ajouter une réaction emoji à un message Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal où le message a été publié \(ex. : C1234567890\) |
+| `timestamp` | chaîne | Oui | Horodatage du message auquel réagir \(ex. : 1405894322.002768\) |
+| `name` | chaîne | Oui | Nom de la réaction emoji \(sans les deux-points, ex. : thumbsup, heart, eyes\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées de la réaction |
 
 ## Remarques
 

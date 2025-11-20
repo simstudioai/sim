@@ -170,7 +170,7 @@ async function processSecureActions(
   return { modifiedMessage, executedActions }
 }
 
-// New helper function for direct login attempt
+// Helper function for direct login attempt
 async function attemptDirectLogin(
   stagehand: Stagehand,
   variables: Record<string, string> | undefined
@@ -958,7 +958,6 @@ The system will substitute actual values when these placeholders are used, keepi
             try {
               logger.info('Attempting to extract structured data using Stagehand extract')
               const schemaObj = getSchemaObject(outputSchema)
-              // Use ensureZodObject to get a proper ZodObject instance
               const zodSchema = ensureZodObject(logger, schemaObj)
 
               // Use the extract API to get structured data from whatever page we ended up on

@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
 import type { EdgeDiffStatus } from '@/lib/workflows/diff/types'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 
 interface WorkflowEdgeProps extends EdgeProps {
@@ -43,6 +44,7 @@ export const WorkflowEdge = ({
   const diffAnalysis = useWorkflowDiffStore((state) => state.diffAnalysis)
   const isShowingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
   const isDiffReady = useWorkflowDiffStore((state) => state.isDiffReady)
+  const lastRunEdges = useExecutionStore((state) => state.lastRunEdges)
 
   const generateEdgeIdentity = (
     sourceId: string,
@@ -75,19 +77,28 @@ export const WorkflowEdge = ({
     }
   }
 
+  const dataSourceHandle = (data as { sourceHandle?: string } | undefined)?.sourceHandle
+  const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
+
+  // Check if this edge was traversed during last execution
+  const edgeRunStatus = lastRunEdges.get(id)
+
   const getEdgeColor = () => {
-    if (edgeDiffStatus === 'new') return '#22c55e' // Green for new edges
-    if (edgeDiffStatus === 'deleted') return '#ef4444' // Red for deleted edges
-    if (isSelected) return '#475569'
-    return '#94a3b8'
+    if (edgeDiffStatus === 'deleted') return 'var(--text-error)'
+    if (isErrorEdge) return 'var(--text-error)'
+    if (edgeDiffStatus === 'new') return 'var(--brand-tertiary)'
+    // Show run path status if edge was traversed
+    if (edgeRunStatus === 'success') return 'var(--border-success)'
+    if (edgeRunStatus === 'error') return 'var(--text-error)'
+    return 'var(--surface-12)'
   }
 
   const edgeStyle = {
+    ...(style ?? {}),
     strokeWidth: edgeDiffStatus ? 3 : isSelected ? 2.5 : 2,
     stroke: getEdgeColor(),
-    strokeDasharray: edgeDiffStatus === 'deleted' ? '10,5' : '5,5', // Longer dashes for deleted
-    opacity: edgeDiffStatus === 'deleted' ? 0.7 : 1,
-    ...style,
+    strokeDasharray: edgeDiffStatus === 'deleted' ? '10,5' : undefined,
+    opacity: edgeDiffStatus === 'deleted' ? 0.7 : isSelected ? 0.5 : 1,
   }
 
   return (
@@ -114,7 +125,7 @@ export const WorkflowEdge = ({
       {isSelected && (
         <EdgeLabelRenderer>
           <div
-            className='nodrag nopan flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-[#FAFBFC] shadow-sm'
+            className='nodrag nopan group flex h-[22px] w-[22px] cursor-pointer items-center justify-center transition-colors'
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
@@ -130,7 +141,7 @@ export const WorkflowEdge = ({
               }
             }}
           >
-            <X className='h-5 w-5 text-red-500 hover:text-red-600' />
+            <X className='h-4 w-4 text-[var(--text-error)] transition-colors group-hover:text-[var(--text-error)]/80 dark:text-[var(--text-error)] dark:group-hover:text-[var(--text-error)]/80' />
           </div>
         </EdgeLabelRenderer>
       )}

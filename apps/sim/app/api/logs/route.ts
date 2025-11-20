@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { pausedExecutions, permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { and, desc, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -68,6 +68,9 @@ export async function GET(request: NextRequest) {
               workflowWorkspaceId: workflow.workspaceId,
               workflowCreatedAt: workflow.createdAt,
               workflowUpdatedAt: workflow.updatedAt,
+              pausedStatus: pausedExecutions.status,
+              pausedTotalPauseCount: pausedExecutions.totalPauseCount,
+              pausedResumedCount: pausedExecutions.resumedCount,
             }
           : {
               // Basic mode - exclude large fields for better performance
@@ -92,11 +95,18 @@ export async function GET(request: NextRequest) {
               workflowWorkspaceId: workflow.workspaceId,
               workflowCreatedAt: workflow.createdAt,
               workflowUpdatedAt: workflow.updatedAt,
+              pausedStatus: pausedExecutions.status,
+              pausedTotalPauseCount: pausedExecutions.totalPauseCount,
+              pausedResumedCount: pausedExecutions.resumedCount,
             }
 
       const baseQuery = db
         .select(selectColumns)
         .from(workflowExecutionLogs)
+        .leftJoin(
+          pausedExecutions,
+          eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+        )
         .innerJoin(
           workflow,
           and(
@@ -116,9 +126,14 @@ export async function GET(request: NextRequest) {
       // Build additional conditions for the query
       let conditions: SQL | undefined
 
-      // Filter by level
+      // Filter by level (supports comma-separated for OR conditions)
       if (params.level && params.level !== 'all') {
-        conditions = and(conditions, eq(workflowExecutionLogs.level, params.level))
+        const levels = params.level.split(',').filter(Boolean)
+        if (levels.length === 1) {
+          conditions = and(conditions, eq(workflowExecutionLogs.level, levels[0]))
+        } else if (levels.length > 1) {
+          conditions = and(conditions, inArray(workflowExecutionLogs.level, levels))
+        }
       }
 
       // Filter by specific workflow IDs
@@ -186,6 +201,10 @@ export async function GET(request: NextRequest) {
       const countQuery = db
         .select({ count: sql<number>`count(*)` })
         .from(workflowExecutionLogs)
+        .leftJoin(
+          pausedExecutions,
+          eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+        )
         .innerJoin(
           workflow,
           and(
@@ -340,13 +359,18 @@ export async function GET(request: NextRequest) {
         return {
           id: log.id,
           workflowId: log.workflowId,
-          executionId: params.details === 'full' ? log.executionId : undefined,
+          executionId: log.executionId,
           level: log.level,
           duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
           trigger: log.trigger,
           createdAt: log.startedAt.toISOString(),
           files: params.details === 'full' ? log.files || undefined : undefined,
           workflow: workflowSummary,
+          pauseSummary: {
+            status: log.pausedStatus ?? null,
+            total: log.pausedTotalPauseCount ?? 0,
+            resumed: log.pausedResumedCount ?? 0,
+          },
           executionData:
             params.details === 'full'
               ? {
@@ -361,6 +385,10 @@ export async function GET(request: NextRequest) {
             params.details === 'full'
               ? (costSummary as any)
               : { total: (costSummary as any)?.total || 0 },
+          hasPendingPause:
+            (Number(log.pausedTotalPauseCount ?? 0) > 0 &&
+              Number(log.pausedResumedCount ?? 0) < Number(log.pausedTotalPauseCount ?? 0)) ||
+            (log.pausedStatus && log.pausedStatus !== 'fully_resumed'),
         }
       })
       return NextResponse.json(

@@ -8,13 +8,13 @@ import { Image } from '@/components/ui/image'
 
 ## Ce qu'il fait
 
-<div className='flex justify-center my-6'>
+<div className="flex justify-center my-6">
   <Image
-    src='/static/blocks/workflow.png'
-    alt='Configuration du bloc de flux de travail'
-    width={400}
-    height={280}
-    className='rounded-xl border border-border shadow-sm'
+    src="/static/blocks/workflow.png"
+    alt="Configuration du bloc de flux de travail"
+    width={500}
+    height={400}
+    className="rounded-xl border border-border shadow-sm"
   />
 </div>
 
@@ -23,16 +23,39 @@ Déposez un bloc de flux de travail lorsque vous souhaitez appeler un flux de tr
 ## Comment le configurer
 
 1. **Choisissez un flux de travail** dans le menu déroulant (les auto-références sont bloquées pour éviter les boucles).
-2. **Mappez les entrées** : si le flux de travail enfant a un déclencheur de formulaire d'entrée, vous verrez chaque champ et pourrez connecter les variables parentes. Les valeurs mappées sont ce que l'enfant reçoit.
+2. **Mappez les entrées** : si le flux de travail enfant a un déclencheur de formulaire d'entrée, vous verrez chaque champ et pourrez connecter les variables parentes. Les valeurs mappées sont celles que l'enfant reçoit.
+
+<div className="flex justify-center my-6">
+  <Image
+    src="/static/blocks/workflow-2.png"
+    alt="Exemple de mappage d'entrée du bloc de flux de travail"
+    width={700}
+    height={400}
+    className="rounded-xl border border-border shadow-sm"
+  />
+</div>
+
 3. **Sorties** : une fois que l'enfant a terminé, le bloc expose :
    - `result` – la réponse finale du flux de travail enfant
    - `success` – s'il s'est exécuté sans erreurs
    - `error` – message lorsque l'exécution échoue
 
+## Badge de statut de déploiement
+
+Le bloc Workflow affiche un badge de statut de déploiement pour vous aider à suivre si le flux de travail enfant est prêt à être exécuté :
+
+- **Déployé** – Le flux de travail enfant a été déployé et est prêt à être utilisé. Le bloc exécutera la version déployée actuelle.
+- **Non déployé** – Le flux de travail enfant n'a jamais été déployé. Vous devez le déployer avant que le bloc Workflow puisse l'exécuter.
+- **Redéployer** – Des modifications ont été détectées dans le flux de travail enfant depuis le dernier déploiement. Cliquez sur le badge pour redéployer le flux de travail enfant avec les dernières modifications.
+
+<Callout type="warn">
+Le bloc Workflow exécute toujours la version déployée la plus récente du flux de travail enfant, pas la version de l'éditeur. Assurez-vous de redéployer après avoir apporté des modifications pour garantir que le bloc utilise la logique la plus récente.
+</Callout>
+
 ## Notes d'exécution
 
 - Les flux de travail enfants s'exécutent dans le même contexte d'espace de travail, donc les variables d'environnement et les outils sont conservés.
-- Le bloc utilise le versionnement des déploiements : toute exécution API, planifiée, webhook, manuelle ou par chat appelle l'instantané déployé. Redéployez l'enfant lorsque vous le modifiez.
+- Le bloc utilise le versionnement de déploiement : toute exécution par API, planification, webhook, manuelle ou par chat appelle l'instantané déployé. Redéployez l'enfant lorsque vous le modifiez.
 - Si l'enfant échoue, le bloc génère une erreur, sauf si vous la gérez en aval.
 
 <Callout>

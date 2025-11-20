@@ -4,8 +4,12 @@ import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { AlertCircle, Paperclip, Send, Square, X } from 'lucide-react'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip } from '@/components/emcn'
 import { VoiceInput } from '@/app/chat/components/input/voice-input'
+
+const logger = createLogger('ChatInput')
+
+import { createLogger } from '@/lib/logs/console/logger'
 
 const PLACEHOLDER_MOBILE = 'Enter a message'
 const PLACEHOLDER_DESKTOP = 'Enter a message or click the mic to speak'
@@ -105,7 +109,7 @@ export const ChatInput: React.FC<{
 
     const newFiles: AttachedFile[] = []
     const maxSize = 10 * 1024 * 1024 // 10MB limit
-    const maxFiles = 5
+    const maxFiles = 15
 
     for (let i = 0; i < selectedFiles.length; i++) {
       if (attachedFiles.length + newFiles.length >= maxFiles) break
@@ -138,7 +142,7 @@ export const ChatInput: React.FC<{
             reader.readAsDataURL(file)
           })
         } catch (error) {
-          console.error('Error reading file:', error)
+          logger.error('Error reading file:', error)
         }
       }
 
@@ -163,6 +167,7 @@ export const ChatInput: React.FC<{
   }
 
   const handleSubmit = () => {
+    if (isStreaming) return
     if (!inputValue.trim() && attachedFiles.length === 0) return
     onSubmit?.(inputValue.trim(), false, attachedFiles) // false = not voice input
     setInputValue('')
@@ -187,28 +192,28 @@ export const ChatInput: React.FC<{
   // Voice-only mode interface (for voice-first UI)
   if (voiceOnly) {
     return (
-      <div className='flex items-center justify-center'>
-        {/* Voice Input Only */}
-        {isSttAvailable && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
+      <Tooltip.Provider>
+        <div className='flex items-center justify-center'>
+          {/* Voice Input Only */}
+          {isSttAvailable && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
                 <div>
                   <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} large={true} />
                 </div>
-              </TooltipTrigger>
-              <TooltipContent side='top'>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
                 <p>Start voice conversation</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-      </div>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
+        </div>
+      </Tooltip.Provider>
     )
   }
 
   return (
-    <>
+    <Tooltip.Provider>
       <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-white to-transparent px-4 pb-4 text-black md:px-0 md:pb-4'>
         <div ref={wrapperRef} className='w-full max-w-3xl md:max-w-[748px]'>
           {/* Error Messages */}
@@ -334,23 +339,21 @@ export const ChatInput: React.FC<{
 
             <div className='flex items-center gap-2 p-3 md:p-4'>
               {/* Paperclip Button */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type='button'
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isStreaming || attachedFiles.length >= 5}
-                      className='flex items-center justify-center rounded-full p-1.5 text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 md:p-2'
-                    >
-                      <Paperclip size={16} className='md:h-5 md:w-5' />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side='top'>
-                    <p>Attach files</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button
+                    type='button'
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isStreaming || attachedFiles.length >= 15}
+                    className='flex items-center justify-center rounded-full p-1.5 text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 md:p-2'
+                  >
+                    <Paperclip size={16} className='md:h-5 md:w-5' />
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top'>
+                  <p>Attach files</p>
+                </Tooltip.Content>
+              </Tooltip.Root>
 
               {/* Hidden file input */}
               <input
@@ -416,22 +419,16 @@ export const ChatInput: React.FC<{
 
               {/* Voice Input */}
               {isSttAvailable && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        <VoiceInput
-                          onVoiceStart={handleVoiceStart}
-                          disabled={isStreaming}
-                          minimal
-                        />
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>
-                      <p>Start voice conversation</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <div>
+                      <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} minimal />
+                    </div>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>
+                    <p>Start voice conversation</p>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               )}
 
               {/* Send Button */}
@@ -468,6 +465,6 @@ export const ChatInput: React.FC<{
           </motion.div>
         </div>
       </div>
-    </>
+    </Tooltip.Provider>
   )
 }

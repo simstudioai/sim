@@ -11,13 +11,6 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
   oauth: {
     required: true,
     provider: 'slack',
-    additionalScopes: [
-      'channels:read',
-      'groups:read',
-      'chat:write',
-      'chat:write.public',
-      'users:read',
-    ],
   },
 
   params: {
@@ -51,6 +44,12 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       visibility: 'user-or-llm',
       description: 'Message text to send (supports Slack mrkdwn formatting)',
     },
+    thread_ts: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Thread timestamp to reply to (creates thread reply)',
+    },
     files: {
       type: 'file[]',
       required: false,
@@ -70,6 +69,7 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
         accessToken: params.accessToken || params.botToken,
         channel: params.channel,
         text: params.text,
+        thread_ts: params.thread_ts || undefined,
         files: params.files || null,
       }
     },
@@ -87,7 +87,16 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
   },
 
   outputs: {
+    message: {
+      type: 'object',
+      description: 'Complete message object with all properties returned by Slack',
+    },
+    // Legacy properties for backward compatibility
     ts: { type: 'string', description: 'Message timestamp' },
     channel: { type: 'string', description: 'Channel ID where message was sent' },
+    fileCount: {
+      type: 'number',
+      description: 'Number of files uploaded (when files are attached)',
+    },
   },
 }

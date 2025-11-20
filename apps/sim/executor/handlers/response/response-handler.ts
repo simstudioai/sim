@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType } from '@/executor/consts'
-import type { BlockHandler } from '@/executor/types'
+import { BlockType, HTTP } from '@/executor/consts'
+import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('ResponseBlockHandler')
@@ -19,7 +19,11 @@ export class ResponseBlockHandler implements BlockHandler {
     return block.metadata?.id === BlockType.RESPONSE
   }
 
-  async execute(block: SerializedBlock, inputs: Record<string, any>): Promise<BlockOutput> {
+  async execute(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    inputs: Record<string, any>
+  ): Promise<BlockOutput> {
     logger.info(`Executing response block: ${block.id}`)
 
     try {
@@ -48,8 +52,8 @@ export class ResponseBlockHandler implements BlockHandler {
             error: 'Response block execution failed',
             message: error.message || 'Unknown error',
           },
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
+          status: HTTP.STATUS.SERVER_ERROR,
+          headers: { 'Content-Type': HTTP.CONTENT_TYPE.JSON },
         },
       }
     }
@@ -59,7 +63,6 @@ export class ResponseBlockHandler implements BlockHandler {
     const dataMode = inputs.dataMode || 'structured'
 
     if (dataMode === 'json' && inputs.data) {
-      // Handle JSON mode - data comes from code editor
       if (typeof inputs.data === 'string') {
         try {
           return JSON.parse(inputs.data)
@@ -68,19 +71,16 @@ export class ResponseBlockHandler implements BlockHandler {
           return inputs.data
         }
       } else if (typeof inputs.data === 'object' && inputs.data !== null) {
-        // Data is already an object, return as-is
         return inputs.data
       }
       return inputs.data
     }
 
     if (dataMode === 'structured' && inputs.builderData) {
-      // Handle structured mode - convert builderData to JSON
       const convertedData = this.convertBuilderDataToJson(inputs.builderData)
       return this.parseObjectStrings(convertedData)
     }
 
-    // Fallback to inputs.data for backward compatibility
     return inputs.data || {}
   }
 
@@ -103,7 +103,6 @@ export class ResponseBlockHandler implements BlockHandler {
     return result
   }
 
-  // Static method for UI conversion from Builder to Editor mode
   static convertBuilderDataToJsonString(builderData: JSONProperty[]): string {
     if (!Array.isArray(builderData) || builderData.length === 0) {
       return '{\n  \n}'
@@ -116,15 +115,11 @@ export class ResponseBlockHandler implements BlockHandler {
         continue
       }
 
-      // For UI display, keep variable references as-is without processing
       result[prop.name] = prop.value
     }
 
-    // Convert to JSON string, then replace quoted variable references with unquoted ones
     let jsonString = JSON.stringify(result, null, 2)
 
-    // Replace quoted variable references with unquoted ones
-    // Pattern: "<variable.name>" -> <variable.name>
     jsonString = jsonString.replace(/"(<[^>]+>)"/g, '$1')
 
     return jsonString
@@ -141,7 +136,6 @@ export class ResponseBlockHandler implements BlockHandler {
       case 'boolean':
         return this.convertBooleanValue(prop.value)
       case 'files':
-        // File values should be passed through as-is (UserFile objects)
         return prop.value
       default:
         return prop.value
@@ -157,7 +151,6 @@ export class ResponseBlockHandler implements BlockHandler {
       return this.tryParseJson(value, value)
     }
 
-    // Keep variable references or other values as-is (they'll be resolved later)
     return value
   }
 
@@ -168,10 +161,12 @@ export class ResponseBlockHandler implements BlockHandler {
 
     if (typeof value === 'string' && !this.isVariableReference(value)) {
       const parsed = this.tryParseJson(value, value)
-      return Array.isArray(parsed) ? parsed : value
+      if (Array.isArray(parsed)) {
+        return parsed
+      }
+      return value
     }
 
-    // Keep variable references or other values as-is
     return value
   }
 
@@ -185,9 +180,12 @@ export class ResponseBlockHandler implements BlockHandler {
     }
 
     if (item.type === 'array' && Array.isArray(item.value)) {
-      return item.value.map((subItem: any) =>
-        typeof subItem === 'object' && subItem.type ? subItem.value : subItem
-      )
+      return item.value.map((subItem: any) => {
+        if (typeof subItem === 'object' && subItem.type) {
+          return subItem.value
+        }
+        return subItem
+      })
     }
 
     return item.value
@@ -199,7 +197,10 @@ export class ResponseBlockHandler implements BlockHandler {
     }
 
     const numValue = Number(value)
-    return Number.isNaN(numValue) ? value : numValue
+    if (Number.isNaN(numValue)) {
+      return value
+    }
+    return numValue
   }
 
   private convertBooleanValue(value: any): any {
@@ -224,15 +225,14 @@ export class ResponseBlockHandler implements BlockHandler {
 
   private parseObjectStrings(data: any): any {
     if (typeof data === 'string') {
-      // Try to parse strings that might be JSON objects
       try {
         const parsed = JSON.parse(data)
         if (typeof parsed === 'object' && parsed !== null) {
-          return this.parseObjectStrings(parsed) // Recursively parse nested objects
+          return this.parseObjectStrings(parsed)
         }
         return parsed
       } catch {
-        return data // Return as string if not valid JSON
+        return data
       }
     } else if (Array.isArray(data)) {
       return data.map((item) => this.parseObjectStrings(item))
@@ -247,10 +247,10 @@ export class ResponseBlockHandler implements BlockHandler {
   }
 
   private parseStatus(status?: string): number {
-    if (!status) return 200
+    if (!status) return HTTP.STATUS.OK
     const parsed = Number(status)
     if (Number.isNaN(parsed) || parsed < 100 || parsed > 599) {
-      return 200
+      return HTTP.STATUS.OK
     }
     return parsed
   }
@@ -261,7 +261,7 @@ export class ResponseBlockHandler implements BlockHandler {
       cells: { Key: string; Value: string }
     }[]
   ): Record<string, string> {
-    const defaultHeaders = { 'Content-Type': 'application/json' }
+    const defaultHeaders = { 'Content-Type': HTTP.CONTENT_TYPE.JSON }
     if (!headers) return defaultHeaders
 
     const headerObj = headers.reduce((acc: Record<string, string>, header) => {

@@ -3,45 +3,14 @@ title: Loop
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-The Loop block is a container block in Sim that allows you to create iterative workflows by executing a group of blocks repeatedly. Loops enable iterative processing in your workflows.
-
-The Loop block supports four types of iteration:
+The Loop block is a container that executes blocks repeatedly. Iterate over collections, repeat operations a fixed number of times, or continue while a condition is met.
 
 <Callout type="info">
-  Loop blocks are container nodes that can hold other blocks inside them. The blocks inside a loop will execute multiple times based on your configuration.
+  Loop blocks are container nodes that hold other blocks inside them. The contained blocks execute multiple times based on your configuration.
 </Callout>
-
-## Overview
-
-The Loop block enables you to:
-
-<Steps>
-  <Step>
-    <strong>Iterate over collections</strong>: Process arrays or objects one item at a time
-  </Step>
-  <Step>
-    <strong>Repeat operations</strong>: Execute blocks a fixed number of times
-  </Step>
-  <Step>
-    <strong>Loop on conditions</strong>: Continue executing while or until a condition is met
-  </Step>
-  <Step>
-    <strong>Aggregate results</strong>: Collect outputs from all loop iterations
-  </Step>
-</Steps>
-
-## How It Works
-
-The Loop block executes contained blocks through sequential iteration:
-
-1. **Initialize Loop** - Set up iteration parameters (count or collection)
-2. **Execute Iteration** - Run contained blocks for current iteration
-3. **Collect Results** - Store output from each iteration
-4. **Continue or Complete** - Move to next iteration or finish loop
 
 ## Configuration Options
 
@@ -110,12 +79,12 @@ Choose between four types of loops:
     </div>
     
     Use this when you need to loop until a specific condition is met. The condition is checked **before** each iteration.
-    
+
     ```
-    Example: While <variable.i> < 10
+    Example: While {"<variable.i>"} < 10
     - Check condition → Execute if true
-    - Inside loop: Increment <variable.i>
-    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Execute if true
     - Check condition → Exit if false
     ```
@@ -125,7 +94,7 @@ Choose between four types of loops:
     
     <div className="flex justify-center">
       <Image
-        src="/static/blocks/loop-3.png"
+        src="/static/blocks/loop-4.png"
         alt="Do-While Loop with condition"
         width={500}
         height={400}
@@ -134,12 +103,12 @@ Choose between four types of loops:
     </div>
     
     Use this when you need to execute at least once, then loop until a condition is met. The condition is checked **after** each iteration.
-    
+
     ```
-    Example: Do-while <variable.i> < 10
+    Example: Do-while {"<variable.i>"} < 10
     - Execute blocks
-    - Inside loop: Increment <variable.i>
-    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Continue if true
     - Check condition → Exit if false
     ```
@@ -163,42 +132,20 @@ After a loop completes, you can access aggregated results:
 
 ## Example Use Cases
 
-### Processing API Results
+**Processing API Results** - ForEach loop processes customer records from an API
+```
+API (Fetch) → Loop (ForEach) → Agent (Analyze) → Function (Store)
+```
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Process multiple customer records</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>API block fetches customer list</li>
-    <li>ForEach loop iterates over each customer</li>
-    <li>Inside loop: Agent analyzes customer data</li>
-    <li>Inside loop: Function stores analysis results</li>
-  </ol>
-</div>
+**Iterative Content Generation** - For loop generates multiple content variations
+```
+Loop (5x) → Agent (Generate) → Evaluator (Score) → Function (Select Best)
+```
 
-### Iterative Content Generation
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Generate multiple variations</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Set For loop to 5 iterations</li>
-    <li>Inside loop: Agent generates content variation</li>
-    <li>Inside loop: Evaluator scores the content</li>
-    <li>After loop: Function selects best variation</li>
-  </ol>
-</div>
-
-### Counter with While Loop
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Process items with counter-based loop</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Initialize workflow variable: `i = 0`</li>
-    <li>While loop with condition: `<variable.i>` \< 10</li>
-    <li>Inside loop: Agent processes item at index `<variable.i>`</li>
-    <li>Inside loop: Variables increments `i = <variable.i> + 1`</li>
-    <li>Loop continues while i is less than 10</li>
-  </ol>
-</div>
+**Counter with While Loop** - While loop processes items with counter
+```
+Variables (i=0) → Loop (While i<10) → Agent (Process) → Variables (i++)
+```
 
 ## Advanced Features
 

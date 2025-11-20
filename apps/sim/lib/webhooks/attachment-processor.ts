@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
+import { uploadFileFromRawData } from '@/lib/uploads/contexts/execution'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('WebhookAttachmentProcessor')
@@ -7,7 +7,8 @@ const logger = createLogger('WebhookAttachmentProcessor')
 export interface WebhookAttachment {
   name: string
   data: Buffer
-  contentType: string
+  contentType?: string
+  mimeType?: string
   size: number
 }
 
@@ -27,6 +28,7 @@ export class WebhookAttachmentProcessor {
       workflowId: string
       executionId: string
       requestId: string
+      userId?: string
     }
   ): Promise<UserFile[]> {
     if (!attachments || attachments.length === 0) {
@@ -72,47 +74,17 @@ export class WebhookAttachmentProcessor {
       workflowId: string
       executionId: string
       requestId: string
+      userId?: string
     }
   ): Promise<UserFile> {
-    // Convert data to Buffer (handle both raw and serialized formats)
-    let buffer: Buffer
-    const data = attachment.data as any
-
-    if (Buffer.isBuffer(data)) {
-      // Raw Buffer (e.g., Teams in-memory processing)
-      buffer = data
-    } else if (
-      data &&
-      typeof data === 'object' &&
-      data.type === 'Buffer' &&
-      Array.isArray(data.data)
-    ) {
-      // Serialized Buffer (e.g., Gmail/Outlook after JSON roundtrip)
-      buffer = Buffer.from(data.data)
-    } else {
-      throw new Error(`Attachment '${attachment.name}' data must be a Buffer or serialized Buffer`)
-    }
-
-    if (buffer.length === 0) {
-      throw new Error(`Attachment '${attachment.name}' has zero bytes`)
-    }
-
-    logger.info(
-      `[${executionContext.requestId}] Uploading attachment '${attachment.name}' (${attachment.size} bytes, ${attachment.contentType})`
-    )
-
-    // Upload to execution storage
-    const userFile = await uploadExecutionFile(
+    return uploadFileFromRawData(
+      {
+        name: attachment.name,
+        data: attachment.data,
+        mimeType: attachment.contentType || attachment.mimeType,
+      },
       executionContext,
-      buffer,
-      attachment.name,
-      attachment.contentType
+      executionContext.userId
     )
-
-    logger.info(
-      `[${executionContext.requestId}] Successfully stored attachment '${attachment.name}' with key: ${userFile.key}`
-    )
-
-    return userFile
   }
 }

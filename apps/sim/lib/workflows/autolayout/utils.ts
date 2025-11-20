@@ -3,7 +3,6 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { BlockMetrics, BoundingBox, GraphNode } from './types'
 
 export const DEFAULT_BLOCK_WIDTH = 350
-export const DEFAULT_BLOCK_WIDTH_WIDE = 480
 export const DEFAULT_BLOCK_HEIGHT = 100
 export const DEFAULT_CONTAINER_WIDTH = 500
 export const DEFAULT_CONTAINER_HEIGHT = 300
@@ -19,8 +18,26 @@ function resolveNumeric(value: number | undefined, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
+const AUTO_LAYOUT_EXCLUDED_TYPES = new Set(['note'])
+
 export function isContainerType(blockType: string): boolean {
   return blockType === 'loop' || blockType === 'parallel'
+}
+
+export function shouldSkipAutoLayout(block?: BlockState): boolean {
+  if (!block) return true
+  return AUTO_LAYOUT_EXCLUDED_TYPES.has(block.type)
+}
+
+export function filterLayoutEligibleBlockIds(
+  blockIds: string[],
+  blocks: Record<string, BlockState>
+): string[] {
+  return blockIds.filter((id) => {
+    const block = blocks[id]
+    if (!block) return false
+    return !shouldSkipAutoLayout(block)
+  })
 }
 
 function getContainerMetrics(block: BlockState): BlockMetrics {
@@ -49,7 +66,7 @@ function getContainerMetrics(block: BlockState): BlockMetrics {
 }
 
 function getRegularBlockMetrics(block: BlockState): BlockMetrics {
-  const minWidth = block.isWide ? DEFAULT_BLOCK_WIDTH_WIDE : DEFAULT_BLOCK_WIDTH
+  const minWidth = DEFAULT_BLOCK_WIDTH
   const minHeight = DEFAULT_BLOCK_HEIGHT
   const measuredH = block.layout?.measuredHeight ?? block.height
   const measuredW = block.layout?.measuredWidth

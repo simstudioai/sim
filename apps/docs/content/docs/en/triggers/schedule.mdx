@@ -11,7 +11,7 @@ The Schedule block automatically triggers workflows on a recurring schedule at s
 
 <div className="flex justify-center">
   <Image
-    src="/static/schedule.png"
+    src="/static/blocks/schedule.png"
     alt="Schedule Block"
     width={500}
     height={400}
@@ -45,28 +45,34 @@ Configure when your workflow runs using the dropdown options:
 
 ## Configuring Schedules
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="configure-schedule.mp4" width={700} height={450} />
-</div>
-
 When a workflow is scheduled:
 - The schedule becomes **active** and shows the next execution time
 - Click the **"Scheduled"** button to deactivate the schedule
 - Schedules automatically deactivate after **3 consecutive failures**
 
-## Disabled Schedules
-
 <div className="flex justify-center">
   <Image
-    src="/static/schedule-disabled.png"
-    alt="Disabled Schedule"
+    src="/static/blocks/schedule-2.png"
+    alt="Active Schedule Block"
     width={500}
-    height={350}
+    height={400}
     className="my-6"
   />
 </div>
 
-Disabled schedules show when they were last active and can be re-enabled at any time.
+## Disabled Schedules
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
+    alt="Disabled Schedule"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+Disabled schedules show when they were last active. Click the **"Disabled"** badge to reactivate the schedule.
 
 <Callout>
 Schedule blocks cannot receive incoming connections and serve as pure workflow triggers.

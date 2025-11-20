@@ -8,29 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="memory"
   color="#F64F9E"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      xmlns='http://www.w3.org/2000/svg'
-      
-      
-      viewBox='0 0 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='2'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-    >
-      <path d='M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z' />
-      <path d='M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z' />
-      <path d='M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4' />
-      <path d='M17.599 6.5a3 3 0 0 0 .399-1.375' />
-      <path d='M6.003 5.125A3 3 0 0 0 6.401 6.5' />
-      <path d='M3.477 10.896a4 4 0 0 1 .585-.396' />
-      <path d='M19.938 10.5a4 4 0 0 1 .585.396' />
-      <path d='M6 18a4 4 0 0 1-1.967-.516' />
-      <path d='M19.967 17.484A4 4 0 0 1 18 18' />
-    </svg>`}
 />
 
 ## Gebrauchsanweisung
@@ -47,9 +24,11 @@ Füge eine neue Erinnerung zur Datenbank hinzu oder ergänze bestehende Erinneru
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Ja | Kennung für die Erinnerung. Wenn bereits eine Erinnerung mit dieser ID existiert, werden die neuen Daten hinzugefügt. |
-| `role` | string | Ja | Rolle für Agent-Erinnerung \(user, assistant oder system\) |
+| `conversationId` | string | Nein | Konversationskennung (z.B. user-123, session-abc). Wenn bereits eine Erinnerung mit dieser conversationId für diesen Block existiert, wird die neue Nachricht angehängt. |
+| `id` | string | Nein | Legacy-Parameter für die Konversationskennung. Verwenden Sie stattdessen conversationId. Für Abwärtskompatibilität bereitgestellt. |
+| `role` | string | Ja | Rolle für Agent-Erinnerung (user, assistant oder system) |
 | `content` | string | Ja | Inhalt für Agent-Erinnerung |
+| `blockId` | string | Nein | Optionale Block-ID. Wenn nicht angegeben, wird die aktuelle Block-ID aus dem Ausführungskontext verwendet oder standardmäßig "default" gesetzt. |
 
 #### Ausgabe
 
@@ -61,22 +40,25 @@ Füge eine neue Erinnerung zur Datenbank hinzu oder ergänze bestehende Erinneru
 
 ### `memory_get`
 
-Einen bestimmten Speicher anhand seiner ID abrufen
+Erinnerungen nach conversationId, blockId, blockName oder einer Kombination abrufen. Gibt alle übereinstimmenden Erinnerungen zurück.
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Ja | Kennung für den abzurufenden Speicher |
+| `conversationId` | string | Nein | Konversationskennung (z.B. user-123, session-abc). Wenn allein angegeben, werden alle Erinnerungen für diese Konversation über alle Blöcke hinweg zurückgegeben. |
+| `id` | string | Nein | Legacy-Parameter für die Konversationskennung. Verwenden Sie stattdessen conversationId. Für Abwärtskompatibilität bereitgestellt. |
+| `blockId` | string | Nein | Block-Kennung. Wenn allein angegeben, werden alle Erinnerungen für diesen Block über alle Konversationen hinweg zurückgegeben. Wenn mit conversationId angegeben, werden Erinnerungen für diese spezifische Konversation in diesem Block zurückgegeben. |
+| `blockName` | string | Nein | Blockname. Alternative zu blockId. Wenn allein angegeben, werden alle Erinnerungen für Blöcke mit diesem Namen zurückgegeben. Wenn mit conversationId angegeben, werden Erinnerungen für diese Konversation in Blöcken mit diesem Namen zurückgegeben. |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Ob der Speicher erfolgreich abgerufen wurde |
-| `memories` | array | Array von Speicherdaten für die angeforderte ID |
+| `success` | boolean | Ob die Erinnerung erfolgreich abgerufen wurde |
+| `memories` | array | Array von Speicherobjekten mit conversationId, blockId, blockName und data-Feldern |
 | `message` | string | Erfolgs- oder Fehlermeldung |
-| `error` | string | Fehlermeldung, falls der Vorgang fehlgeschlagen ist |
+| `error` | string | Fehlermeldung, wenn der Vorgang fehlgeschlagen ist |
 
 ### `memory_get_all`
 
@@ -91,20 +73,23 @@ Alle Speicher aus der Datenbank abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Ob alle Speicher erfolgreich abgerufen wurden |
-| `memories` | array | Array aller Speicherobjekte mit Schlüsseln, Typen und Daten |
+| `success` | boolean | Ob alle Erinnerungen erfolgreich abgerufen wurden |
+| `memories` | array | Array aller Speicherobjekte mit key, conversationId, blockId, blockName und data-Feldern |
 | `message` | string | Erfolgs- oder Fehlermeldung |
-| `error` | string | Fehlermeldung, falls der Vorgang fehlgeschlagen ist |
+| `error` | string | Fehlermeldung, wenn der Vorgang fehlgeschlagen ist |
 
 ### `memory_delete`
 
-Eine bestimmte Erinnerung anhand ihrer ID löschen
+Löschen von Erinnerungen nach conversationId, blockId, blockName oder einer Kombination davon. Unterstützt Massenlöschung.
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Ja | Kennung für die zu löschende Erinnerung |
+| `conversationId` | string | Nein | Konversationskennung (z.B. user-123, session-abc). Wenn allein angegeben, werden alle Erinnerungen für diese Konversation über alle Blöcke hinweg gelöscht. |
+| `id` | string | Nein | Legacy-Parameter für die Konversationskennung. Verwenden Sie stattdessen conversationId. Für Abwärtskompatibilität bereitgestellt. |
+| `blockId` | string | Nein | Block-Kennung. Wenn allein angegeben, werden alle Erinnerungen für diesen Block über alle Konversationen hinweg gelöscht. Wenn mit conversationId angegeben, werden Erinnerungen für diese spezifische Konversation in diesem Block gelöscht. |
+| `blockName` | string | Nein | Blockname. Alternative zu blockId. Wenn allein angegeben, werden alle Erinnerungen für Blöcke mit diesem Namen gelöscht. Wenn mit conversationId angegeben, werden Erinnerungen für diese Konversation in Blöcken mit diesem Namen gelöscht. |
 
 #### Ausgabe
 

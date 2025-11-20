@@ -4,9 +4,7 @@ title: Basics
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
 Understanding how workflows execute in Sim is key to building efficient and reliable automations. The execution engine automatically handles dependencies, concurrency, and data flow to ensure your workflows run smoothly and predictably.
 
@@ -76,29 +74,6 @@ Sim provides different types of blocks that serve specific purposes in your work
 </Cards>
 
 All blocks execute automatically based on their dependencies - you don't need to manually manage execution order or timing.
-
-## Execution Triggers
-
-Workflows can be triggered in several ways, depending on your use case:
-
-### Manual Testing
-Click "Run" in the workflow editor to test your workflow during development. Perfect for debugging and validation.
-
-### Scheduled Execution  
-Set up recurring executions using cron expressions. Great for regular data processing, reports, or maintenance tasks.
-
-### API Deployment
-Deploy workflows as HTTP endpoints that can be called programmatically from your applications.
-
-### Webhook Integration
-Respond to events from external services like GitHub, Stripe, or custom systems in real-time.
-
-### Chat Interface
-Create conversational interfaces hosted on custom subdomains for user-facing AI applications.
-
-<Callout type="info">
-  Learn more about each trigger type in the [Triggers section](/triggers) of the documentation.
-</Callout>
 
 ## Execution Monitoring
 

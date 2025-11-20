@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { StorageContext } from '@/lib/uploads/core/config-resolver'
-import { USE_BLOB_STORAGE } from '@/lib/uploads/core/setup'
+import type { StorageContext } from '@/lib/uploads/config'
+import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
 import {
   generateBatchPresignedUploadUrls,
   hasCloudStorage,
@@ -53,16 +53,19 @@ export async function POST(request: NextRequest) {
     }
 
     const uploadTypeParam = request.nextUrl.searchParams.get('type')
-    const uploadType: StorageContext =
-      uploadTypeParam === 'knowledge-base'
-        ? 'knowledge-base'
-        : uploadTypeParam === 'chat'
-          ? 'chat'
-          : uploadTypeParam === 'copilot'
-            ? 'copilot'
-            : uploadTypeParam === 'profile-pictures'
-              ? 'profile-pictures'
-              : 'general'
+    if (!uploadTypeParam) {
+      return NextResponse.json({ error: 'type query parameter is required' }, { status: 400 })
+    }
+
+    const validTypes: StorageContext[] = ['knowledge-base', 'chat', 'copilot', 'profile-pictures']
+    if (!validTypes.includes(uploadTypeParam as StorageContext)) {
+      return NextResponse.json(
+        { error: `Invalid type parameter. Must be one of: ${validTypes.join(', ')}` },
+        { status: 400 }
+      )
+    }
+
+    const uploadType = uploadTypeParam as StorageContext
 
     const MAX_FILE_SIZE = 100 * 1024 * 1024
     for (const file of files) {

@@ -1,0 +1,181 @@
+---
+title: Intervention humaine
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Le bloc Intervention humaine met en pause l'exécution du workflow et attend l'intervention humaine avant de continuer. Utilisez-le pour ajouter des points d'approbation, recueillir des commentaires ou obtenir des informations supplémentaires à des points de décision critiques.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-1.png"
+    alt="Configuration du bloc Intervention humaine"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+Lorsque l'exécution atteint ce bloc, le workflow se met en pause indéfiniment jusqu'à ce qu'un humain fournisse une contribution via le portail d'approbation, l'API ou le webhook.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-2.png"
+    alt="Portail d'approbation de l'intervention humaine"
+    width={700}
+    height={500}
+    className="my-6"
+  />
+</div>
+
+## Options de configuration
+
+### Sortie en pause
+
+Définit quelles données sont affichées à l'approbateur. C'est le contexte montré dans le portail d'approbation pour les aider à prendre une décision éclairée.
+
+Utilisez le constructeur visuel ou l'éditeur JSON pour structurer les données. Référencez les variables du workflow en utilisant la syntaxe `<blockName.output>`.
+
+```json
+{
+  "customerName": "<agent1.content.name>",
+  "proposedAction": "<router1.selectedPath>",
+  "confidenceScore": "<evaluator1.score>",
+  "generatedEmail": "<agent2.content>"
+}
+```
+
+### Notification
+
+Configure comment les approbateurs sont alertés lorsqu'une approbation est nécessaire. Les canaux pris en charge incluent :
+
+- **Slack** - Messages vers des canaux ou DMs
+- **Gmail** - Email avec lien d'approbation
+- **Microsoft Teams** - Notifications de canal d'équipe
+- **SMS** - Alertes textuelles via Twilio
+- **Webhooks** - Systèmes de notification personnalisés
+
+Incluez l'URL d'approbation (`<blockId.url>`) dans vos messages de notification pour que les approbateurs puissent accéder au portail.
+
+### Entrée de reprise
+
+Définit les champs que les approbateurs remplissent lors de leur réponse. Ces données deviennent disponibles pour les blocs en aval après la reprise du workflow.
+
+```json
+{
+  "approved": {
+    "type": "boolean",
+    "description": "Approve or reject this request"
+  },
+  "comments": {
+    "type": "string",
+    "description": "Optional feedback or explanation"
+  }
+}
+```
+
+Accédez aux données de reprise dans les blocs en aval en utilisant `<blockId.resumeInput.fieldName>`.
+
+## Méthodes d'approbation
+
+<Tabs items={['Portail d\'approbation', 'API', 'Webhook']}>
+  <Tab>
+    ### Portail d'approbation
+    
+    Chaque bloc génère une URL de portail unique (`<blockId.url>`) avec une interface visuelle affichant toutes les données de sortie en pause et des champs de formulaire pour la saisie de reprise. Responsive pour mobile et sécurisé.
+    
+    Partagez cette URL dans les notifications pour que les approbateurs puissent examiner et répondre.
+  </Tab>
+  <Tab>
+    ### API REST
+    
+    Reprenez les workflows par programmation :
+    
+
+    ```bash
+    POST /api/workflows/{workflowId}/executions/{executionId}/resume/{blockId}
+    
+    {
+      "approved": true,
+      "comments": "Looks good to proceed"
+    }
+    ```
+
+    
+    Créez des interfaces d'approbation personnalisées ou intégrez-les aux systèmes existants.
+  </Tab>
+  <Tab>
+    ### Webhook
+    
+    Ajoutez un outil webhook à la section Notification pour envoyer des demandes d'approbation à des systèmes externes. Intégrez avec des systèmes de tickets comme Jira ou ServiceNow.
+  </Tab>
+</Tabs>
+
+## Cas d'utilisation courants
+
+**Approbation de contenu** - Vérifiez le contenu généré par l'IA avant publication
+
+```
+Agent → Human in the Loop → API (Publish)
+```
+
+**Approbations multi-étapes** - Enchaînez plusieurs étapes d'approbation pour les décisions à enjeux élevés
+
+```
+Agent → Human in the Loop (Manager) → Human in the Loop (Director) → Execute
+```
+
+**Validation des données** - Vérifiez les données extraites avant traitement
+
+```
+Agent (Extract) → Human in the Loop (Validate) → Function (Process)
+```
+
+**Contrôle qualité** - Examinez les sorties de l'IA avant de les envoyer aux clients
+
+```
+Agent (Generate) → Human in the Loop (QA) → Gmail (Send)
+```
+
+## Sorties du bloc
+
+**`url`** - URL unique pour le portail d'approbation  
+**`resumeInput.*`** - Tous les champs définis dans Reprise de saisie deviennent disponibles après la reprise du workflow
+
+Accédez-y en utilisant `<blockId.resumeInput.fieldName>`.
+
+## Exemple
+
+**Sortie en pause :**
+
+```json
+{
+  "title": "<agent1.content.title>",
+  "body": "<agent1.content.body>",
+  "qualityScore": "<evaluator1.score>"
+}
+```
+
+**Reprise de saisie :**
+
+```json
+{
+  "approved": { "type": "boolean" },
+  "feedback": { "type": "string" }
+}
+```
+
+**Utilisation en aval :**
+
+```javascript
+// Condition block
+<approval1.resumeInput.approved> === true
+```
+
+## Blocs associés
+
+- **[Condition](/blocks/condition)** - Créez des branches basées sur les décisions d'approbation
+- **[Variables](/blocks/variables)** - Stockez l'historique d'approbation et les métadonnées
+- **[Réponse](/blocks/response)** - Renvoyez les résultats du workflow aux appelants API

@@ -3,13 +3,10 @@ title: ルーター
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
-ルーターブロックはAIを使用して、ワークフローが次にどのパスを取るべきかをインテリジェントに判断し、特定の条件やロジックに基づいてワークフローの実行をルーティングします。単純なルールを使用する条件ブロックとは異なり、ルーターブロックはコンテキストを理解し、コンテンツ分析に基づいてスマートなルーティング判断を行うことができます。
+ルーターブロックはAIを使用してコンテンツ分析に基づいてワークフローをインテリジェントにルーティングします。単純なルールを使用する条件ブロックとは異なり、ルーターはコンテキストと意図を理解します。
 
 <div className="flex justify-center">
   <Image
@@ -21,70 +18,27 @@ import { Video } from '@/components/ui/video'
   />
 </div>
 
-## 概要
+## ルーターと条件の比較
 
-ルーターブロックでは以下のことが可能です：
+**ルーターを使用する場合：**
+- AIを活用したコンテンツ分析が必要な時
+- 非構造化または多様なコンテンツを扱う時
+- 意図ベースのルーティングが必要な時（例：「サポートチケットを部門にルーティングする」）
 
-<Steps>
-  <Step>
-    <strong>インテリジェントなコンテンツルーティング</strong>：AIを使用して意図とコンテキストを理解
-  </Step>
-  <Step>
-    <strong>動的なパス選択</strong>：非構造化コンテンツ分析に基づいたワークフローのルーティング
-  </Step>
-  <Step>
-    <strong>コンテキストを考慮した判断</strong>：単純なルールを超えたスマートなルーティング選択
-  </Step>
-  <Step>
-    <strong>マルチパス管理</strong>：複数の潜在的な宛先を持つ複雑なワークフローの処理
-  </Step>
-</Steps>
-
-## ルーターと条件ブロックの比較
-
-<Accordions>
-  <Accordion title="ルーターを使用する場合">
-    - AIを活用したコンテンツ分析が必要
-    - 非構造化または様々なコンテンツタイプ
-    - 意図ベースのルーティング（例：「サポートチケットを部門にルーティング」）
-    - コンテキストを考慮した意思決定が必要
-  </Accordion>
-  <Accordion title="条件ブロックを使用する場合">
-    - 単純なルールベースの判断
-    - 構造化データまたは数値比較
-    - 高速で決定論的なルーティングが必要
-    - ブール論理で十分
-  </Accordion>
-</Accordions>
-
-## 仕組み
-
-ルーターブロックは：
-
-<Steps>
-  <Step>
-    <strong>コンテンツを分析</strong>：LLMを使用して入力コンテンツとコンテキストを理解
-  </Step>
-  <Step>
-    <strong>ターゲットを評価</strong>：利用可能な宛先ブロックとコンテンツを比較
-  </Step>
-  <Step>
-    <strong>宛先を選択</strong>：意図に基づいて最適なパスを特定
-  </Step>
-  <Step>
-    <strong>実行をルーティング</strong>：選択されたブロックにワークフローを誘導
-  </Step>
-</Steps>
+**条件を使用する場合：**
+- 単純なルールベースの判断で十分な時
+- 構造化データや数値比較を扱う時
+- 高速で決定論的なルーティングが必要な時
 
 ## 設定オプション
 
 ### コンテンツ/プロンプト
 
-ルーターがルーティング決定を行うために分析するコンテンツまたはプロンプト。これには以下が含まれます：
+ルーターがルーティング判断を行うために分析するコンテンツまたはプロンプト。これには以下が含まれます：
 
 - ユーザーからの直接的な質問や入力
 - 前のブロックからの出力
-- システムが生成したメッセージ
+- システム生成メッセージ
 
 ### ターゲットブロック
 
@@ -96,130 +50,53 @@ import { Video } from '@/components/ui/video'
 
 ### モデル選択
 
-ルーティング決定を行うAIモデルを選択します：
+ルーティング判断を行うAIモデルを選択します：
 
-**OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1  \
-**Anthropic**: Claude 3.7 Sonnet \
-**Google**: Gemini 2.5 Pro, Gemini 2.0 Flash \
-**その他のプロバイダー**: Groq, Cerebras, xAI, DeepSeek \
-**ローカルモデル**: Ollamaで実行されているすべてのモデル 
+- **OpenAI**：GPT-4o、o1、o3、o4-mini、gpt-4.1
+- **Anthropic**：Claude 3.7 Sonnet
+- **Google**：Gemini 2.5 Pro、Gemini 2.0 Flash
+- **その他のプロバイダー**：Groq、Cerebras、xAI、DeepSeek
+- **ローカルモデル**：Ollama互換モデル
 
-<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
-  <Video src="router-model-dropdown.mp4" width={500} height={350} />
-</div>
-
-**推奨**: より正確なルーティング決定のために、GPT-4oやClaude 3.7 Sonnetなどの強力な推論能力を持つモデルを使用してください。
+最良の結果を得るには、GPT-4oやClaude 3.7 Sonnetなど、強力な推論能力を持つモデルを使用してください。
 
 ### APIキー
 
 選択したLLMプロバイダーのAPIキー。これは安全に保存され、認証に使用されます。
 
-### 結果へのアクセス
+## 出力
 
-ルーターが決定を下した後、以下の出力にアクセスできます：
-
-- **`<router.prompt>`**: 使用されたルーティングプロンプトの要約
-- **`<router.selected_path>`**: 選択された宛先ブロックの詳細
-- **`<router.tokens>`**: LLMからのトークン使用統計
-- **`<router.cost>`**: ルーティングコールのコスト概要（入力、出力、合計）
-- **`<router.model>`**: 意思決定に使用されたモデル
-
-## 高度な機能
-
-### カスタムルーティング基準
-
-各ターゲットブロックの特定の基準を定義します：
-
-```javascript
-// Example routing descriptions
-Target Block 1: "Technical support issues, API problems, integration questions"
-Target Block 2: "Billing inquiries, subscription changes, payment issues"
-Target Block 3: "General questions, feedback, feature requests"
-```
-
-## 入力と出力
-
-<Tabs items={['設定', '変数']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>コンテンツ/プロンプト</strong>: ルーティング判断のために分析するテキスト
-      </li>
-      <li>
-        <strong>ターゲットブロック</strong>: 潜在的な送信先として接続されたブロック
-      </li>
-      <li>
-        <strong>モデル</strong>: ルーティング分析用のAIモデル
-      </li>
-      <li>
-        <strong>APIキー</strong>: 選択したLLMプロバイダーの認証
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>router.prompt</strong>: 使用されたルーティングプロンプトの要約
-      </li>
-      <li>
-        <strong>router.selected_path</strong>: 選択された送信先の詳細
-      </li>
-      <li>
-        <strong>router.tokens</strong>: トークン使用統計
-      </li>
-      <li>
-        <strong>router.cost</strong>: ルーティングコールのコスト概要（入力、出力、合計）
-      </li>
-      <li>
-        <strong>router.model</strong>: 意思決定に使用されたモデル
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<router.prompt>`**: ルーティングプロンプトの要約
+- **`<router.selected_path>`**: 選択された宛先ブロック
+- **`<router.tokens>`**: トークン使用統計
+- **`<router.cost>`**: 推定ルーティングコスト
+- **`<router.model>`**: 意思決定に使用されるモデル
 
 ## 使用例
 
-### カスタマーサポートの振り分け
+**カスタマーサポートの振り分け** - チケットを専門部署にルーティング
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ: サポートチケットを専門部署に振り分ける</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>ユーザーがフォームからサポートリクエストを送信</li>
-    <li>ルーターがチケットの内容とコンテキストを分析</li>
-    <li>技術的な問題 → エンジニアリングサポート担当者</li>
-    <li>請求に関する質問 → 財務サポート担当者</li>
-  </ol>
-</div>
+```
+Input (Ticket) → Router → Agent (Engineering) or Agent (Finance)
+```
 
-### コンテンツ分類
+**コンテンツ分類** - ユーザー生成コンテンツを分類しルーティング
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ: ユーザー生成コンテンツを分類して振り分ける</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>ユーザーがコンテンツやフィードバックを送信</li>
-    <li>ルーターがコンテンツの種類と感情を分析</li>
-    <li>機能リクエスト → プロダクトチームのワークフロー</li>
-    <li>バグ報告 → 技術サポートワークフロー</li>
-  </ol>
-</div>
+```
+Input (Feedback) → Router → Workflow (Product) or Workflow (Technical)
+```
 
-### リード評価
+**リード資格評価** - 資格基準に基づいてリードをルーティング
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ: 評価基準に基づいてリードを振り分ける</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>フォームからリード情報を取得</li>
-    <li>ルーターが企業規模、業界、ニーズを分析</li>
-    <li>エンタープライズリード → カスタム価格設定を提供する営業チーム</li>
-    <li>中小企業リード → セルフサービスのオンボーディングフロー</li>
-  </ol>
-</div>
+```
+Input (Lead) → Router → Agent (Enterprise Sales) or Workflow (Self-serve)
+```
 
 ## ベストプラクティス
 
-- **明確なターゲット説明を提供する**: 具体的で詳細な説明でルーターが各送信先を選択するタイミングを理解できるようにする
-- **特定のルーティング基準を使用する**: 各経路に明確な条件と例を定義して精度を向上させる
-- **フォールバックパスを実装する**: 特定の経路が適切でない場合のデフォルト送信先を接続する
+- **明確な対象の説明を提供する**: 具体的で詳細な説明で、各宛先をいつ選択すべきかをルーターが理解できるようにする
+- **具体的なルーティング基準を使用する**: 各経路に明確な条件と例を定義して精度を向上させる
+- **フォールバックパスを実装する**: 特定の経路が適切でない場合のデフォルトの宛先を接続する
 - **多様な入力でテストする**: ルーターが様々な入力タイプ、エッジケース、予期しないコンテンツを処理できることを確認する
-- **ルーティングパフォーマンスを監視する**: ルーティング判断を定期的に確認し、実際の使用パターンに基づいて基準を改善する
-- **適切なモデルを選択する**: 複雑なルーティング判断には強力な推論能力を持つモデルを使用する
+- **ルーティングパフォーマンスを監視する**: ルーティングの決定を定期的に確認し、実際の使用パターンに基づいて基準を改善する
+- **適切なモデルを選択する**: 複雑なルーティング決定には強力な推論能力を持つモデルを使用する

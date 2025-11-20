@@ -59,7 +59,7 @@ export function WorkflowsList({
   }
   return (
     <div
-      className='overflow-hidden rounded-lg border bg-card shadow-sm'
+      className='overflow-hidden rounded-[11px] border bg-card shadow-sm'
       style={{ height: '380px', display: 'flex', flexDirection: 'column' }}
     >
       <div className='flex-shrink-0 border-b bg-muted/30 px-4 py-2'>
@@ -89,7 +89,7 @@ export function WorkflowsList({
               return (
                 <div
                   key={workflow.workflowId}
-                  className={`flex cursor-pointer items-center gap-4 rounded-lg px-2 py-1.5 transition-colors ${
+                  className={`flex cursor-pointer items-center gap-4 px-2 py-1.5 transition-colors ${
                     isSelected ? 'bg-accent/40' : 'hover:bg-accent/20'
                   }`}
                   onClick={() => onToggleWorkflow(workflow.workflowId)}

@@ -3,54 +3,20 @@ title: 条件
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { Image } from '@/components/ui/image'
 
-条件模块允许您根据布尔表达式分支工作流的执行路径，从而创建具有不同执行路径的动态、响应式工作流。它会评估条件并相应地引导工作流，让您无需依赖 LLM 即可根据数据或逻辑控制执行流程。
+条件模块根据布尔表达式分支工作流执行。使用前一个模块的输出评估条件，并路由到不同的路径，无需使用 LLM。
 
 <div className="flex justify-center">
   <Image
     src="/static/blocks/condition.png"
-    alt="条件模块"
+    alt="条件块"
     width={500}
-    height={350}
+    height={400}
     className="my-6"
   />
 </div>
-
-<Callout>
-  条件模块支持确定性决策，无需依赖 LLM，非常适合简单的分支逻辑。
-</Callout>
-
-## 概述
-
-条件模块可以让您：
-
-<Steps>
-  <Step>
-    <strong>创建分支逻辑</strong>：基于布尔表达式引导工作流
-  </Step>
-  <Step>
-    <strong>做出数据驱动的决策</strong>：使用前一个模块的输出评估条件
-  </Step>
-  <Step>
-    <strong>处理多种场景</strong>：定义多个条件并设置不同路径
-  </Step>
-  <Step>
-    <strong>提供确定性路由</strong>：无需依赖 LLM 即可做出决策
-  </Step>
-</Steps>
-
-## 工作原理
-
-条件模块通过以下顺序评估过程运行：
-
-1. **评估表达式** - 使用当前工作流数据处理 JavaScript/TypeScript 布尔表达式
-2. **确定结果** - 根据表达式评估返回 true 或 false
-3. **引导工作流** - 根据结果将执行引导到相应的目标模块  
-4. **提供上下文** - 生成关于决策的元数据以便调试和监控
 
 ## 配置选项
 
@@ -58,15 +24,15 @@ import { Image } from '@/components/ui/image'
 
 定义一个或多个需要评估的条件。每个条件包括：
 
-- **表达式**：一个 JavaScript/TypeScript 表达式，评估结果为 true 或 false
-- **路径**：如果条件为 true，则引导到的目标模块
-- **描述**：可选，说明条件检查的内容
+- **表达式**：一个 JavaScript/TypeScript 表达式，结果为 true 或 false
+- **路径**：如果条件为 true，则路由到的目标模块
+- **描述**：可选，解释条件检查的内容
 
-您可以创建多个条件，这些条件按顺序进行评估，第一个匹配的条件将决定执行路径。
+您可以创建多个条件，这些条件按顺序评估，第一个匹配的条件决定执行路径。
 
 ### 条件表达式格式
 
-条件使用 JavaScript 语法，并可以引用前面模块的输入值。
+条件使用 JavaScript 语法，并可以引用前一个模块的输入值。
 
 <Tabs items={['分数阈值', '文本分析', '多个条件']}>
   <Tab>
@@ -126,7 +92,7 @@ new Date(<api.created_at>) > new Date('2024-01-01')
 
 ### 多条件评估
 
-条件按顺序评估，直到匹配一个为止：
+条件按顺序评估，直到一个条件匹配为止：
 
 ```javascript
 // Condition 1: Check for high priority
@@ -142,100 +108,42 @@ true
 ### 错误处理
 
 条件会自动处理：
-- 未定义或空值的安全评估
-- 类型不匹配的适当回退
-- 无效表达式的错误日志记录
-- 缺少变量的默认值
+- 使用安全评估处理未定义或空值
+- 使用适当的回退处理类型不匹配
+- 记录错误日志处理无效表达式
+- 使用默认值处理缺失变量
 
-## 输入和输出
+## 输出
 
-<Tabs items={['配置', '变量', '结果']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>条件</strong>：要评估的布尔表达式数组
-      </li>
-      <li>
-        <strong>表达式</strong>：使用模块输出的 JavaScript/TypeScript 条件
-      </li>
-      <li>
-        <strong>路由路径</strong>：每个条件结果的目标模块
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>condition.result</strong>：条件评估的布尔结果
-      </li>
-      <li>
-        <strong>condition.matched_condition</strong>：匹配条件的 ID
-      </li>
-      <li>
-        <strong>condition.content</strong>：评估结果的描述
-      </li>
-      <li>
-        <strong>condition.path</strong>：所选路由目标的详细信息
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>布尔结果</strong>：主要的条件评估结果
-      </li>
-      <li>
-        <strong>路由信息</strong>：路径选择和条件详细信息
-      </li>
-      <li>
-        <strong>访问</strong>：在条件之后的模块中可用
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<condition.result>`**：评估的布尔结果
+- **`<condition.matched_condition>`**：匹配条件的 ID
+- **`<condition.content>`**：评估结果的描述
+- **`<condition.path>`**：所选路由目标的详细信息
 
 ## 示例用例
 
-### 客户支持分配
+**客户支持路由** - 根据优先级路由工单
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：根据优先级分配支持工单</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>API 模块获取支持工单数据</li>
-    <li>条件检查 `<api.priority>` 是否等于“高”</li>
-    <li>高优先级工单 → 分配给拥有升级工具的代理</li>
-    <li>普通优先级工单 → 分配给标准支持代理</li>
-  </ol>
-</div>
+```
+API (Ticket) → Condition (priority === 'high') → Agent (Escalation) or Agent (Standard)
+```
 
-### 内容审核
+**内容审核** - 基于分析过滤内容
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：根据分析结果过滤内容</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>代理分析用户生成的内容</li>
-    <li>条件检查 `<agent.toxicity_score>` 是否大于 0.7</li>
-    <li>有害内容 → 进入审核流程</li>
-    <li>干净内容 → 进入发布流程</li>
-  </ol>
-</div>
+```
+Agent (Analyze) → Condition (toxicity > 0.7) → Moderation or Publish
+```
 
-### 用户引导流程
+**用户引导流程** - 根据用户类型个性化引导
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：根据用户类型个性化引导流程</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>功能模块处理用户注册数据</li>
-    <li>条件检查 `<user.account_type>` 是否等于“企业”</li>
-    <li>企业用户 → 进入高级设置流程</li>
-    <li>个人用户 → 进入简单引导流程</li>
-  </ol>
-</div>
+```
+Function (Process) → Condition (account_type === 'enterprise') → Advanced or Simple
+```
 
 ## 最佳实践
 
 - **正确排序条件**：将更具体的条件放在一般条件之前，以确保特定逻辑优先于回退逻辑
-- **包含默认条件**：添加一个兜底条件（`true`）作为最后的条件，以处理未匹配的情况，防止工作流执行卡住
-- **保持表达式简单**：使用清晰、直接的布尔表达式，以提高可读性和调试的便利性
+- **包含默认条件**：添加一个兜底条件（`true`）作为最后一个条件，以处理未匹配的情况并防止工作流执行卡住
+- **保持表达式简单**：使用清晰、直观的布尔表达式以提高可读性并简化调试
 - **记录条件**：添加描述以解释每个条件的目的，从而提高团队协作和维护效率
-- **测试边界情况**：通过测试条件范围边界值，验证条件是否正确处理边界情况
+- **测试边界情况**：通过测试条件范围边界值，验证条件是否正确处理边界值

@@ -9,8 +9,8 @@ import { extractAndPersistCustomTools } from '@/lib/workflows/custom-tools-persi
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { validateWorkflowState } from '@/lib/workflows/validation'
 import { getAllBlocks } from '@/blocks/registry'
-import { resolveOutputType } from '@/blocks/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/consts'
 
 interface EditWorkflowOperation {
   operation_type: 'add' | 'edit' | 'delete' | 'insert_into_subflow' | 'extract_from_subflow'
@@ -131,12 +131,14 @@ function createBlockFromParams(blockId: string, params: any, parentId?: string):
     const subBlocks: Record<string, any> = {}
     if (params.inputs) {
       Object.entries(params.inputs).forEach(([key, value]) => {
+        // Skip runtime subblock IDs when computing outputs
+        if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+          return
+        }
         subBlocks[key] = { id: key, type: 'short-input', value: value }
       })
     }
-    outputs = triggerMode
-      ? getBlockOutputs(params.type, subBlocks, triggerMode)
-      : resolveOutputType(blockConfig.outputs)
+    outputs = getBlockOutputs(params.type, subBlocks, triggerMode)
   } else {
     outputs = {}
   }
@@ -148,7 +150,6 @@ function createBlockFromParams(blockId: string, params: any, parentId?: string):
     position: { x: 0, y: 0 },
     enabled: params.enabled !== undefined ? params.enabled : true,
     horizontalHandles: true,
-    isWide: false,
     advancedMode: params.advancedMode || false,
     height: 0,
     triggerMode: triggerMode,
@@ -160,6 +161,10 @@ function createBlockFromParams(blockId: string, params: any, parentId?: string):
   // Add inputs as subBlocks
   if (params.inputs) {
     Object.entries(params.inputs).forEach(([key, value]) => {
+      if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+        return
+      }
+
       let sanitizedValue = value
 
       // Special handling for inputFormat - ensure it's an array
@@ -311,6 +316,38 @@ function addConnectionsAsEdges(
   })
 }
 
+function applyTriggerConfigToBlockSubblocks(block: any, triggerConfig: Record<string, any>) {
+  if (!block?.subBlocks || !triggerConfig || typeof triggerConfig !== 'object') {
+    return
+  }
+
+  Object.entries(triggerConfig).forEach(([configKey, configValue]) => {
+    const existingSubblock = block.subBlocks[configKey]
+    if (existingSubblock) {
+      const existingValue = existingSubblock.value
+      const valuesEqual =
+        typeof existingValue === 'object' || typeof configValue === 'object'
+          ? JSON.stringify(existingValue) === JSON.stringify(configValue)
+          : existingValue === configValue
+
+      if (valuesEqual) {
+        return
+      }
+
+      block.subBlocks[configKey] = {
+        ...existingSubblock,
+        value: configValue,
+      }
+    } else {
+      block.subBlocks[configKey] = {
+        id: configKey,
+        type: 'short-input',
+        value: configValue,
+      }
+    }
+  })
+}
+
 /**
  * Apply operations directly to the workflow JSON state
  */
@@ -409,6 +446,9 @@ function applyOperationsToWorkflowState(
           if (params?.inputs) {
             if (!block.subBlocks) block.subBlocks = {}
             Object.entries(params.inputs).forEach(([key, value]) => {
+              if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+                return
+              }
               let sanitizedValue = value
 
               // Special handling for inputFormat - ensure it's an array
@@ -436,9 +476,25 @@ function applyOperationsToWorkflowState(
                   value: sanitizedValue,
                 }
               } else {
-                block.subBlocks[key].value = sanitizedValue
+                const existingValue = block.subBlocks[key].value
+                const valuesEqual =
+                  typeof existingValue === 'object' || typeof sanitizedValue === 'object'
+                    ? JSON.stringify(existingValue) === JSON.stringify(sanitizedValue)
+                    : existingValue === sanitizedValue
+
+                if (!valuesEqual) {
+                  block.subBlocks[key].value = sanitizedValue
+                }
               }
             })
+
+            if (
+              Object.hasOwn(params.inputs, 'triggerConfig') &&
+              block.subBlocks.triggerConfig &&
+              typeof block.subBlocks.triggerConfig.value === 'object'
+            ) {
+              applyTriggerConfigToBlockSubblocks(block, block.subBlocks.triggerConfig.value)
+            }
 
             // Update loop/parallel configuration in block.data
             if (block.type === 'loop') {
@@ -681,6 +737,11 @@ function applyOperationsToWorkflowState(
           // Update inputs if provided
           if (params.inputs) {
             Object.entries(params.inputs).forEach(([key, value]) => {
+              // Skip runtime subblock IDs (webhookId, triggerPath, testUrl, testUrlExpiresAt, scheduleId)
+              if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+                return
+              }
+
               let sanitizedValue = value
 
               if (key === 'inputFormat' && value !== null && value !== undefined) {
@@ -898,18 +959,32 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
     // Extract and persist custom tools to database
     if (context?.userId) {
       try {
-        const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
-        const { saved, errors } = await extractAndPersistCustomTools(
-          finalWorkflowState,
-          context.userId
-        )
+        // Get workspaceId from the workflow
+        const [workflowRecord] = await db
+          .select({ workspaceId: workflowTable.workspaceId })
+          .from(workflowTable)
+          .where(eq(workflowTable.id, workflowId))
+          .limit(1)
 
-        if (saved > 0) {
-          logger.info(`Persisted ${saved} custom tool(s) to database`, { workflowId })
-        }
+        if (workflowRecord?.workspaceId) {
+          const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
+          const { saved, errors } = await extractAndPersistCustomTools(
+            finalWorkflowState,
+            workflowRecord.workspaceId,
+            context.userId
+          )
 
-        if (errors.length > 0) {
-          logger.warn('Some custom tools failed to persist', { errors, workflowId })
+          if (saved > 0) {
+            logger.info(`Persisted ${saved} custom tool(s) to database`, { workflowId })
+          }
+
+          if (errors.length > 0) {
+            logger.warn('Some custom tools failed to persist', { errors, workflowId })
+          }
+        } else {
+          logger.warn('Workflow has no workspaceId, skipping custom tools persistence', {
+            workflowId,
+          })
         }
       } catch (error) {
         logger.error('Failed to persist custom tools', { error, workflowId })

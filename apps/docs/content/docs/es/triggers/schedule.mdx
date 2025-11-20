@@ -11,7 +11,7 @@ El bloque de Programación activa automáticamente flujos de trabajo de forma re
 
 <div className="flex justify-center">
   <Image
-    src="/static/schedule.png"
+    src="/static/blocks/schedule.png"
     alt="Bloque de programación"
     width={500}
     height={400}
@@ -45,20 +45,24 @@ Configura cuándo se ejecuta tu flujo de trabajo utilizando las opciones despleg
 
 ## Configuración de programaciones
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="configure-schedule.mp4" width={700} height={450} />
-</div>
-
 Cuando un flujo de trabajo está programado:
 - La programación se vuelve **activa** y muestra el próximo tiempo de ejecución
 - Haz clic en el botón **"Programado"** para desactivar la programación
 - Las programaciones se desactivan automáticamente después de **3 fallos consecutivos**
 
-## Programaciones desactivadas
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-2.png"
+    alt="Bloque de programación activo"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 <div className="flex justify-center">
   <Image
-    src="/static/schedule-disabled.png"
+    src="/static/blocks/schedule-3.png"
     alt="Programación desactivada"
     width={500}
     height={350}
@@ -66,7 +70,17 @@ Cuando un flujo de trabajo está programado:
   />
 </div>
 
-Las programaciones desactivadas muestran cuándo estuvieron activas por última vez y pueden ser reactivadas en cualquier momento.
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
+    alt="Programación desactivada"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+Las programaciones desactivadas muestran cuándo estuvieron activas por última vez. Haz clic en la insignia **"Desactivado"** para reactivar la programación.
 
 <Callout>
 Los bloques de programación no pueden recibir conexiones entrantes y funcionan exclusivamente como disparadores de flujos de trabajo.

@@ -3,7 +3,6 @@ import { webhook, workflow as workflowTable } from '@sim/db/schema'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { processExecutionFiles } from '@/lib/execution/files'
 import { IdempotencyService, webhookIdempotency } from '@/lib/idempotency'
@@ -12,17 +11,19 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
-import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils'
+import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils.server'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/db-helpers'
-import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
-import { Executor } from '@/executor'
+import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { getWorkflowById } from '@/lib/workflows/utils'
+import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
-import { getTrigger } from '@/triggers'
+import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('TriggerWebhookExecution')
 
@@ -38,6 +39,7 @@ async function processTriggerFileOutputs(
     workflowId: string
     executionId: string
     requestId: string
+    userId?: string
   },
   path = ''
 ): Promise<any> {
@@ -110,7 +112,9 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
 
   const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
     payload.webhookId,
-    payload.headers
+    payload.headers,
+    payload.body,
+    payload.provider
   )
 
   const runOperation = async () => {
@@ -132,39 +136,25 @@ async function executeWebhookJobInternal(
   const loggingSession = new LoggingSession(payload.workflowId, executionId, 'webhook', requestId)
 
   try {
-    const usageCheck = await checkServerSideUsageLimits(payload.userId)
-    if (usageCheck.isExceeded) {
-      logger.warn(
-        `[${requestId}] User ${payload.userId} has exceeded usage limits. Skipping webhook execution.`,
-        {
-          currentUsage: usageCheck.currentUsage,
-          limit: usageCheck.limit,
-          workflowId: payload.workflowId,
-        }
-      )
-      throw new Error(
-        usageCheck.message ||
-          'Usage limit exceeded. Please upgrade your plan to continue using webhooks.'
-      )
-    }
-
-    // Load workflow state based on execution target
     const workflowData =
       payload.executionTarget === 'live'
         ? await loadWorkflowFromNormalizedTables(payload.workflowId)
         : await loadDeployedWorkflowState(payload.workflowId)
     if (!workflowData) {
-      throw new Error(`Workflow ${payload.workflowId} has no live normalized state`)
+      throw new Error(
+        `Workflow state not found. The workflow may not be ${payload.executionTarget === 'live' ? 'saved' : 'deployed'} or the deployment data may be corrupted.`
+      )
     }
 
     const { blocks, edges, loops, parallels } = workflowData
 
     const wfRows = await db
-      .select({ workspaceId: workflowTable.workspaceId })
+      .select({ workspaceId: workflowTable.workspaceId, variables: workflowTable.variables })
       .from(workflowTable)
       .where(eq(workflowTable.id, payload.workflowId))
       .limit(1)
     const workspaceId = wfRows[0]?.workspaceId || undefined
+    const workflowVariables = (wfRows[0]?.variables as Record<string, any>) || {}
 
     const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
       payload.userId,
@@ -179,37 +169,8 @@ async function executeWebhookJobInternal(
     )
     const decryptedEnvVars: Record<string, string> = Object.fromEntries(decryptedPairs)
 
-    // Start logging session
-    await loggingSession.safeStart({
-      userId: payload.userId,
-      workspaceId: workspaceId || '',
-      variables: decryptedEnvVars,
-      triggerData: {
-        isTest: payload.testMode === true,
-        executionTarget: payload.executionTarget || 'deployed',
-      },
-    })
-
     // Merge subblock states (matching workflow-execution pattern)
     const mergedStates = mergeSubblockState(blocks, {})
-
-    // Process block states for execution
-    const processedBlockStates = Object.entries(mergedStates).reduce(
-      (acc, [blockId, blockState]) => {
-        acc[blockId] = Object.entries(blockState.subBlocks).reduce(
-          (subAcc, [key, subBlock]) => {
-            subAcc[key] = subBlock.value
-            return subAcc
-          },
-          {} as Record<string, any>
-        )
-        return acc
-      },
-      {} as Record<string, Record<string, any>>
-    )
-
-    // Handle workflow variables (for now, use empty object since we don't have workflow metadata)
-    const workflowVariables = {}
 
     // Create serialized workflow
     const serializer = new Serializer()
@@ -259,49 +220,60 @@ async function executeWebhookJobInternal(
       if (airtableInput) {
         logger.info(`[${requestId}] Executing workflow with Airtable changes`)
 
-        // Create executor and execute (same as standard webhook flow)
-        const executor = new Executor({
-          workflow: serializedWorkflow,
-          currentBlockStates: processedBlockStates,
-          envVarValues: decryptedEnvVars,
-          workflowInput: airtableInput,
+        // Get workflow for core execution
+        const workflow = await getWorkflowById(payload.workflowId)
+        if (!workflow) {
+          throw new Error(`Workflow ${payload.workflowId} not found`)
+        }
+
+        const metadata: ExecutionMetadata = {
+          requestId,
+          executionId,
+          workflowId: payload.workflowId,
+          workspaceId,
+          userId: payload.userId,
+          triggerType: 'webhook',
+          triggerBlockId: payload.blockId,
+          useDraftState: false,
+          startTime: new Date().toISOString(),
+        }
+
+        const snapshot = new ExecutionSnapshot(
+          metadata,
+          workflow,
+          airtableInput,
+          {},
           workflowVariables,
-          contextExtensions: {
-            executionId,
-            workspaceId: workspaceId || '',
-            isDeployedContext: !payload.testMode,
-          },
+          []
+        )
+
+        const executionResult = await executeWorkflowCore({
+          snapshot,
+          callbacks: {},
+          loggingSession,
         })
 
-        // Set up logging on the executor
-        loggingSession.setupExecutor(executor)
-
-        // Execute the workflow
-        const result = await executor.execute(payload.workflowId, payload.blockId)
-
-        // Check if we got a StreamingExecution result
-        const executionResult =
-          'stream' in result && 'execution' in result ? result.execution : result
+        if (executionResult.status === 'paused') {
+          if (!executionResult.snapshotSeed) {
+            logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+              executionId,
+            })
+          } else {
+            await PauseResumeManager.persistPauseResult({
+              workflowId: payload.workflowId,
+              executionId,
+              pausePoints: executionResult.pausePoints || [],
+              snapshotSeed: executionResult.snapshotSeed,
+              executorUserId: executionResult.metadata?.userId,
+            })
+          }
+        } else {
+          await PauseResumeManager.processQueuedResumes(executionId)
+        }
 
         logger.info(`[${requestId}] Airtable webhook execution completed`, {
           success: executionResult.success,
           workflowId: payload.workflowId,
-        })
-
-        // Update workflow run counts on success
-        if (executionResult.success) {
-          await updateWorkflowRunCounts(payload.workflowId)
-        }
-
-        // Build trace spans and complete logging session
-        const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
-
-        await loggingSession.safeComplete({
-          endedAt: new Date().toISOString(),
-          totalDurationMs: totalDuration || 0,
-          finalOutput: executionResult.output || {},
-          traceSpans: traceSpans as any,
-          workflowInput: airtableInput,
         })
 
         return {
@@ -380,21 +352,30 @@ async function executeWebhookJobInternal(
     if (input && payload.blockId && blocks[payload.blockId]) {
       try {
         const triggerBlock = blocks[payload.blockId]
-        const triggerId = triggerBlock?.subBlocks?.triggerId?.value
+        const rawSelectedTriggerId = triggerBlock?.subBlocks?.selectedTriggerId?.value
+        const rawTriggerId = triggerBlock?.subBlocks?.triggerId?.value
 
-        if (triggerId && typeof triggerId === 'string') {
-          const triggerConfig = getTrigger(triggerId)
+        const resolvedTriggerId = [rawSelectedTriggerId, rawTriggerId].find(
+          (candidate): candidate is string =>
+            typeof candidate === 'string' && isTriggerValid(candidate)
+        )
 
-          if (triggerConfig?.outputs) {
-            logger.debug(`[${requestId}] Processing trigger ${triggerId} file outputs`)
+        if (resolvedTriggerId) {
+          const triggerConfig = getTrigger(resolvedTriggerId)
+
+          if (triggerConfig.outputs) {
+            logger.debug(`[${requestId}] Processing trigger ${resolvedTriggerId} file outputs`)
             const processedInput = await processTriggerFileOutputs(input, triggerConfig.outputs, {
               workspaceId: workspaceId || '',
               workflowId: payload.workflowId,
               executionId,
               requestId,
+              userId: payload.userId,
             })
             Object.assign(input, processedInput)
           }
+        } else {
+          logger.debug(`[${requestId}] No valid triggerId found for block ${payload.blockId}`)
         }
       } catch (error) {
         logger.error(`[${requestId}] Error processing trigger file outputs:`, error)
@@ -430,7 +411,8 @@ async function executeWebhookJobInternal(
                 const uploadedFiles = await processExecutionFiles(
                   fieldValue,
                   executionContext,
-                  requestId
+                  requestId,
+                  payload.userId
                 )
 
                 if (uploadedFiles.length > 0) {
@@ -449,51 +431,63 @@ async function executeWebhookJobInternal(
       }
     }
 
-    // Create executor and execute
-    const executor = new Executor({
-      workflow: serializedWorkflow,
-      currentBlockStates: processedBlockStates,
-      envVarValues: decryptedEnvVars,
-      workflowInput: input || {},
-      workflowVariables,
-      contextExtensions: {
-        executionId,
-        workspaceId: workspaceId || '',
-        isDeployedContext: !payload.testMode,
-      },
-    })
-
-    // Set up logging on the executor
-    loggingSession.setupExecutor(executor)
-
     logger.info(`[${requestId}] Executing workflow for ${payload.provider} webhook`)
 
-    // Execute the workflow
-    const result = await executor.execute(payload.workflowId, payload.blockId)
+    // Get workflow for core execution
+    const workflow = await getWorkflowById(payload.workflowId)
+    if (!workflow) {
+      throw new Error(`Workflow ${payload.workflowId} not found`)
+    }
 
-    // Check if we got a StreamingExecution result
-    const executionResult = 'stream' in result && 'execution' in result ? result.execution : result
+    const metadata: ExecutionMetadata = {
+      requestId,
+      executionId,
+      workflowId: payload.workflowId,
+      workspaceId,
+      userId: payload.userId,
+      triggerType: 'webhook',
+      triggerBlockId: payload.blockId,
+      useDraftState: false,
+      startTime: new Date().toISOString(),
+    }
+
+    const snapshot = new ExecutionSnapshot(
+      metadata,
+      workflow,
+      input || {},
+      {},
+      workflowVariables,
+      []
+    )
+
+    const executionResult = await executeWorkflowCore({
+      snapshot,
+      callbacks: {},
+      loggingSession,
+    })
+
+    if (executionResult.status === 'paused') {
+      if (!executionResult.snapshotSeed) {
+        logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+          executionId,
+        })
+      } else {
+        await PauseResumeManager.persistPauseResult({
+          workflowId: payload.workflowId,
+          executionId,
+          pausePoints: executionResult.pausePoints || [],
+          snapshotSeed: executionResult.snapshotSeed,
+          executorUserId: executionResult.metadata?.userId,
+        })
+      }
+    } else {
+      await PauseResumeManager.processQueuedResumes(executionId)
+    }
 
     logger.info(`[${requestId}] Webhook execution completed`, {
       success: executionResult.success,
       workflowId: payload.workflowId,
       provider: payload.provider,
-    })
-
-    // Update workflow run counts on success
-    if (executionResult.success) {
-      await updateWorkflowRunCounts(payload.workflowId)
-    }
-
-    // Build trace spans and complete logging session
-    const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
-
-    await loggingSession.safeComplete({
-      endedAt: new Date().toISOString(),
-      totalDurationMs: totalDuration || 0,
-      finalOutput: executionResult.output || {},
-      traceSpans: traceSpans as any,
-      workflowInput: input,
     })
 
     return {
@@ -512,8 +506,18 @@ async function executeWebhookJobInternal(
       provider: payload.provider,
     })
 
-    // Complete logging session with error (matching workflow-execution pattern)
     try {
+      // Ensure logging session is started (safe to call multiple times)
+      await loggingSession.safeStart({
+        userId: payload.userId,
+        workspaceId: '', // May not be available for early errors
+        variables: {},
+        triggerData: {
+          isTest: payload.testMode === true,
+          executionTarget: payload.executionTarget || 'deployed',
+        },
+      })
+
       const executionResult = (error?.executionResult as ExecutionResult | undefined) || {
         success: false,
         output: {},

@@ -4,16 +4,23 @@ title: Webhooks
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
-Webhooks allow external services to trigger workflow execution from external webhooks by sending HTTP requests to your workflow. Sim supports two approaches for webhook-based triggers.
+Webhooks allow external services to trigger workflow execution by sending HTTP requests to your workflow. Sim supports two approaches for webhook-based triggers.
 
 ## Generic Webhook Trigger
 
 The Generic Webhook block creates a flexible endpoint that can receive any payload and trigger your workflow:
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="webhooks-1.mp4" width={700} height={450} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Generic Webhook Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
 </div>
 
 ### How It Works
@@ -68,17 +75,33 @@ Alternatively, you can use specific service blocks (like Slack, GitHub, etc.) in
 
 ## Supported Services for Trigger Mode
 
-The following service blocks support trigger mode:
+**Development & Project Management**
+- GitHub - Issues, PRs, pushes, releases, workflow runs
+- Jira - Issue events, worklogs
+- Linear - Issues, comments, projects, cycles, labels
 
-- **Slack** - Messages, mentions, reactions
-- **GitHub** - Push, PR, issue events  
-- **Airtable** - Record changes
-- **Telegram** - Bot messages and commands
-- **Gmail** - Email notifications
-- **WhatsApp** - Messaging events
-- **Jira** - Issue updates, comments
-- **Linear** - Issue state changes
-- **Notion** - Page updates
+**Communication**
+- Slack - Messages, mentions, reactions
+- Microsoft Teams - Chat messages, channel notifications
+- Telegram - Bot messages, commands
+- WhatsApp - Messaging events
+
+**Email**
+- Gmail - New emails (polling), label changes
+- Outlook - New emails (polling), folder events
+
+**CRM & Sales**
+- HubSpot - Contacts, companies, deals, tickets, conversations
+- Stripe - Payments, subscriptions, customers
+
+**Forms & Surveys**
+- Typeform - Form submissions
+- Google Forms - Form responses
+- Webflow - Collection items, form submissions
+
+**Other**
+- Airtable - Record changes
+- Twilio Voice - Incoming calls, call status
 
 ## Security and Best Practices
 

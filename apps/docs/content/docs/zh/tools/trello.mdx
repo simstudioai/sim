@@ -1,0 +1,165 @@
+---
+title: Trello
+description: 管理 Trello 看板和卡片
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="trello"
+  color="#0052CC"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Trello](https://trello.com) 是一个可视化协作工具，帮助您使用看板、列表和卡片来组织项目、任务和工作流程。
+
+在 Sim 中使用 Trello，您可以：
+
+- **列出看板和列表**：查看您有权限访问的看板及其关联的列表。
+- **列出和搜索卡片**：检索看板上的所有卡片，或按列表筛选以查看其内容和状态。
+- **创建卡片**：向 Trello 列表中添加新卡片，包括描述、标签和到期日期。
+- **更新和移动卡片**：编辑卡片属性，将卡片移动到不同的列表，并设置到期日期或标签。
+- **获取最近活动**：检索看板和卡片的操作和活动历史记录。
+- **评论卡片**：向卡片添加评论以便协作和跟踪。
+
+将 Trello 与 Sim 集成，可以让您的代理以编程方式管理团队的任务、看板和项目。通过您的 AI 代理，自动化项目管理工作流程，保持任务列表的最新状态，与其他工具同步，或响应 Trello 事件触发智能工作流程。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+集成 Trello 以管理看板和卡片。列出看板、列出卡片、创建卡片、更新卡片、获取操作记录以及添加评论。
+
+## 工具
+
+### `trello_list_lists`
+
+列出 Trello 看板上的所有列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | 是 | 要列出列表的看板 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作是否成功 |
+| `lists` | array | 包含 id、name、closed、pos 和 idBoard 的列表对象数组 |
+| `count` | number | 返回的列表数量 |
+| `error` | string | 如果操作失败的错误信息 |
+
+### `trello_list_cards`
+
+列出 Trello 看板上的所有卡片
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | 是 | 要列出卡片的看板 ID |
+| `listId` | string | 否 | 可选：按列表 ID 筛选卡片 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作是否成功 |
+| `cards` | array | 包含 id、name、desc、url、board/list IDs、labels 和到期日期的卡片对象数组 |
+| `count` | number | 返回的卡片数量 |
+| `error` | string | 如果操作失败的错误信息 |
+
+### `trello_create_card`
+
+在 Trello 看板上创建新卡片
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | 是 | 要创建卡片的看板 ID |
+| `listId` | string | 是 | 要创建卡片的列表 ID |
+| `name` | string | 是 | 卡片的名称/标题 |
+| `desc` | string | 否 | 卡片的描述 |
+| `pos` | string | 否 | 卡片的位置（top、bottom 或正浮点数） |
+| `due` | string | 否 | 到期日期（ISO 8601 格式） |
+| `labels` | string | 否 | 逗号分隔的标签 ID 列表 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 卡片是否创建成功 |
+| `card` | object | 创建的卡片对象，包含 id、name、desc、url 和其他属性 |
+| `error` | string | 如果操作失败，返回错误信息 |
+
+### `trello_update_card`
+
+更新 Trello 上的现有卡片
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | 是 | 要更新的卡片 ID |
+| `name` | string | 否 | 卡片的新名称/标题 |
+| `desc` | string | 否 | 卡片的新描述 |
+| `closed` | boolean | 否 | 归档/关闭卡片（true）或重新打开卡片（false） |
+| `idList` | string | 否 | 将卡片移动到其他列表 |
+| `due` | string | 否 | 到期日期（ISO 8601 格式） |
+| `dueComplete` | boolean | 否 | 将到期日期标记为已完成 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 卡片是否更新成功 |
+| `card` | object | 更新的卡片对象，包含 id、name、desc、url 和其他属性 |
+| `error` | string | 如果操作失败，返回错误信息 |
+
+### `trello_get_actions`
+
+获取看板或卡片的活动/操作
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | 否 | 要获取操作的看板 ID（boardId 或 cardId 必填其一） |
+| `cardId` | string | 否 | 要获取操作的卡片 ID（boardId 或 cardId 必填其一） |
+| `filter` | string | 否 | 按类型筛选操作（例如 "commentCard,updateCard,createCard" 或 "all"） |
+| `limit` | number | 否 | 返回的最大操作数（默认：50，最大：1000） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作是否成功 |
+| `actions` | array | 包含类型、日期、成员和数据的操作对象数组 |
+| `count` | number | 返回的操作数量 |
+| `error` | string | 如果操作失败，返回的错误信息 |
+
+### `trello_add_comment`
+
+向 Trello 卡片添加评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | 是 | 要评论的卡片 ID |
+| `text` | string | 是 | 评论内容 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 评论是否成功添加 |
+| `comment` | object | 创建的评论对象，包含 id、text、date 和 member creator |
+| `error` | string | 如果操作失败，返回的错误信息 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`trello`

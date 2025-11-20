@@ -3,11 +3,10 @@ title: Antwort
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-Der Antwort-Block ist der letzte Schritt in deinem Workflow, der eine strukturierte Antwort formatiert und an API-Aufrufe zurücksendet. Er funktioniert wie eine "return"-Anweisung für deinen gesamten Workflow – er verpackt Ergebnisse und sendet sie zurück.
+Der Response-Block formatiert und sendet strukturierte HTTP-Antworten zurück an API-Aufrufer. Verwenden Sie ihn, um Workflow-Ergebnisse mit korrekten Statuscodes und Headern zurückzugeben.
 
 <div className="flex justify-center">
   <Image
@@ -20,56 +19,8 @@ Der Antwort-Block ist der letzte Schritt in deinem Workflow, der eine strukturie
 </div>
 
 <Callout type="info">
-  Antwort-Blöcke sind terminale Blöcke - sie beenden die Workflow-Ausführung und können nicht mit anderen Blöcken verbunden werden.
+  Response-Blöcke sind terminale Blöcke - sie beenden die Workflow-Ausführung und können nicht mit anderen Blöcken verbunden werden.
 </Callout>
-
-## Überblick
-
-Der Antwort-Block ermöglicht dir:
-
-<Steps>
-  <Step>
-    <strong>API-Antworten formatieren</strong>: Strukturierung von Workflow-Ergebnissen in korrekte HTTP-Antworten
-  </Step>
-  <Step>
-    <strong>Statuscodes festlegen</strong>: Konfiguration passender HTTP-Statuscodes basierend auf Workflow-Ergebnissen
-  </Step>
-  <Step>
-    <strong>Header kontrollieren</strong>: Hinzufügen benutzerdefinierter Header für API-Antworten und Webhooks
-  </Step>
-  <Step>
-    <strong>Daten transformieren</strong>: Umwandlung von Workflow-Variablen in client-freundliche Antwortformate
-  </Step>
-</Steps>
-
-## Wie es funktioniert
-
-Der Antwort-Block schließt die Workflow-Ausführung ab:
-
-1. **Daten sammeln** - Sammelt Variablen und Ausgaben von vorherigen Blöcken
-2. **Antwort formatieren** - Strukturiert Daten gemäß deiner Konfiguration
-3. **HTTP-Details festlegen** - Wendet Statuscodes und Header an
-4. **Antwort senden** - Gibt die formatierte Antwort an den API-Aufrufer zurück
-
-## Wann du Antwort-Blöcke benötigst
-
-- **API-Endpunkte**: Wenn dein Workflow über eine API aufgerufen wird, formatieren Antwort-Blöcke die Rückgabedaten
-- **Webhooks**: Rückgabe von Bestätigungen oder Daten an das aufrufende System
-- **Testen**: Anzeige formatierter Ergebnisse beim Testen deines Workflows
-
-## Zwei Möglichkeiten zum Erstellen von Antworten
-
-### Builder-Modus (Empfohlen)
-Visuelle Oberfläche zum Erstellen der Antwortstruktur:
-- Felder per Drag-and-Drop einfügen
-- Einfache Referenzierung von Workflow-Variablen
-- Visuelle Vorschau der Antwortstruktur
-
-### Editor-Modus (Fortgeschritten)
-JSON direkt schreiben:
-- Volle Kontrolle über das Antwortformat
-- Unterstützung für komplexe verschachtelte Strukturen
-- Verwendung der `<variable.name>`Syntax für dynamische Werte
 
 ## Konfigurationsoptionen
 
@@ -78,42 +29,29 @@ JSON direkt schreiben:
 Die Antwortdaten sind der Hauptinhalt, der an den API-Aufrufer zurückgesendet wird. Diese sollten als JSON formatiert sein und können Folgendes enthalten:
 
 - Statische Werte
-- Dynamische Verweise auf Workflow-Variablen mit der `<variable.name>`Syntax
+- Dynamische Verweise auf Workflow-Variablen mit der `<variable.name>` Syntax
 - Verschachtelte Objekte und Arrays
 - Jede gültige JSON-Struktur
 
 ### Statuscode
 
-Legen Sie den HTTP-Statuscode für die Antwort fest. Häufige Statuscodes sind:
+Legen Sie den HTTP-Statuscode für die Antwort fest (standardmäßig 200):
 
-<Tabs items={['Erfolg (2xx)', 'Client-Fehler (4xx)', 'Server-Fehler (5xx)']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>200</strong>: OK - Standard-Erfolgsantwort</li>
-      <li><strong>201</strong>: Erstellt - Ressource erfolgreich erstellt</li>
-      <li><strong>204</strong>: Kein Inhalt - Erfolg ohne Antworttext</li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>400</strong>: Ungültige Anfrage - Ungültige Anfrageparameter</li>
-      <li><strong>401</strong>: Nicht autorisiert - Authentifizierung erforderlich</li>
-      <li><strong>404</strong>: Nicht gefunden - Ressource existiert nicht</li>
-      <li><strong>422</strong>: Nicht verarbeitbare Entität - Validierungsfehler</li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>500</strong>: Interner Serverfehler - Serverseitiger Fehler</li>
-      <li><strong>502</strong>: Bad Gateway - Fehler eines externen Dienstes</li>
-      <li><strong>503</strong>: Dienst nicht verfügbar - Dienst vorübergehend nicht erreichbar</li>
-    </ul>
-  </Tab>
-</Tabs>
+**Erfolg (2xx):**
+- **200**: OK - Standard-Erfolgsantwort
+- **201**: Erstellt - Ressource erfolgreich erstellt
+- **204**: Kein Inhalt - Erfolg ohne Antworttext
 
-<div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-  Der Standard-Statuscode ist 200, wenn nicht anders angegeben.
-</div>
+**Client-Fehler (4xx):**
+- **400**: Ungültige Anfrage - Ungültige Anfrageparameter
+- **401**: Nicht autorisiert - Authentifizierung erforderlich
+- **404**: Nicht gefunden - Ressource existiert nicht
+- **422**: Nicht verarbeitbare Entität - Validierungsfehler
+
+**Server-Fehler (5xx):**
+- **500**: Interner Serverfehler - Serverseitiger Fehler
+- **502**: Bad Gateway - Fehler eines externen Dienstes
+- **503**: Dienst nicht verfügbar - Dienst vorübergehend nicht erreichbar
 
 ### Antwort-Header
 
@@ -129,91 +67,27 @@ Header werden als Schlüssel-Wert-Paare konfiguriert:
 
 ## Beispielanwendungsfälle
 
-### API-Endpunkt-Antwort
+**API-Endpunkt-Antwort** - Strukturierte Daten von einer Such-API zurückgeben
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Strukturierte Daten von einer Such-API zurückgeben</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Workflow verarbeitet Suchanfrage und ruft Ergebnisse ab</li>
-    <li>Funktionsblock formatiert und paginiert Ergebnisse</li>
-    <li>Antwortblock gibt JSON mit Daten, Paginierung und Metadaten zurück</li>
-    <li>Client erhält strukturierte Antwort mit Status 200</li>
-  </ol>
-</div>
+```
+Agent (Search) → Function (Format & Paginate) → Response (200, JSON)
+```
 
-### Webhook-Bestätigung
+**Webhook-Bestätigung** - Bestätigung des Webhook-Empfangs und der Verarbeitung
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Bestätigung des Webhook-Empfangs und der Verarbeitung</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Webhook-Trigger empfängt Daten vom externen System</li>
-    <li>Workflow verarbeitet die eingehenden Daten</li>
-    <li>Antwortblock gibt Bestätigung mit Verarbeitungsstatus zurück</li>
-    <li>Externes System erhält Bestätigung</li>
-  </ol>
-</div>
+```
+Webhook Trigger → Function (Process) → Response (200, Confirmation)
+```
 
-### Fehlerantwort-Behandlung
+**Fehlerantwort-Behandlung** - Angemessene Fehlerantworten zurückgeben
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Angemessene Fehlerantworten zurückgeben</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Bedingungsblock erkennt Validierungsfehler oder Systemfehler</li>
-    <li>Router leitet zum Fehlerbehandlungspfad weiter</li>
-    <li>Antwortblock gibt Status 400/500 mit Fehlerdetails zurück</li>
-    <li>Client erhält strukturierte Fehlerinformationen</li>
-  </ol>
-</div>
+```
+Condition (Error Detected) → Router → Response (400/500, Error Details)
+```
 
-## Eingaben und Ausgaben
+## Ausgaben
 
-<Tabs items={['Konfiguration', 'Variablen', 'Ergebnisse']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Antwortdaten</strong>: JSON-Struktur für den Antworttext
-      </li>
-      <li>
-        <strong>Statuscode</strong>: HTTP-Statuscode (Standard: 200)
-      </li>
-      <li>
-        <strong>Header</strong>: Benutzerdefinierte HTTP-Header als Schlüssel-Wert-Paare
-      </li>
-      <li>
-        <strong>Modus</strong>: Builder- oder Editor-Modus für die Antworterstellung
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>response.data</strong>: Der strukturierte Antworttext
-      </li>
-      <li>
-        <strong>response.status</strong>: Gesendeter HTTP-Statuscode
-      </li>
-      <li>
-        <strong>response.headers</strong>: In der Antwort enthaltene Header
-      </li>
-      <li>
-        <strong>response.success</strong>: Boolescher Wert, der erfolgreichen Abschluss anzeigt
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>HTTP-Antwort</strong>: Vollständige Antwort an den API-Aufrufer
-      </li>
-      <li>
-        <strong>Workflow-Beendigung</strong>: Beendet die Workflow-Ausführung
-      </li>
-      <li>
-        <strong>Zugriff</strong>: Antwortblöcke sind terminal - keine nachfolgenden Blöcke
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+Antwortblöcke sind endgültig - sie beenden die Workflow-Ausführung und senden die HTTP-Antwort an den API-Aufrufer. Es stehen keine Ausgaben für nachgelagerte Blöcke zur Verfügung.
 
 ## Variablenreferenzen
 
@@ -240,7 +114,7 @@ Verwenden Sie die `<variable.name>` Syntax, um Workflow-Variablen dynamisch in I
 ## Best Practices
 
 - **Verwenden Sie aussagekräftige Statuscodes**: Wählen Sie passende HTTP-Statuscodes, die das Ergebnis des Workflows genau widerspiegeln
-- **Strukturieren Sie Ihre Antworten einheitlich**: Behalten Sie eine konsistente JSON-Struktur über alle API-Endpunkte hinweg für eine bessere Entwicklererfahrung bei
-- **Fügen Sie relevante Metadaten hinzu**: Ergänzen Sie Zeitstempel und Versionsinformationen, um bei der Fehlersuche und Überwachung zu helfen
+- **Strukturieren Sie Ihre Antworten einheitlich**: Behalten Sie eine konsistente JSON-Struktur über alle Ihre API-Endpunkte bei, um eine bessere Entwicklererfahrung zu gewährleisten
+- **Fügen Sie relevante Metadaten hinzu**: Fügen Sie Zeitstempel und Versionsinformationen hinzu, um bei der Fehlerbehebung und Überwachung zu helfen
 - **Behandeln Sie Fehler elegant**: Verwenden Sie bedingte Logik in Ihrem Workflow, um angemessene Fehlerantworten mit aussagekräftigen Meldungen zu setzen
-- **Validieren Sie Variablenreferenzen**: Stellen Sie sicher, dass alle referenzierten Variablen existieren und die erwarteten Datentypen enthalten, bevor der Response-Block ausgeführt wird
+- **Validieren Sie Variablenreferenzen**: Stellen Sie sicher, dass alle referenzierten Variablen existieren und die erwarteten Datentypen enthalten, bevor der Antwortblock ausgeführt wird

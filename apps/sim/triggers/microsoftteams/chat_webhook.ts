@@ -4,42 +4,110 @@ import type { TriggerConfig } from '@/triggers/types'
 export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
   id: 'microsoftteams_chat_subscription',
   name: 'Microsoft Teams Chat',
-  provider: 'microsoftteams',
+  provider: 'microsoft-teams',
   description:
     'Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions',
   version: '1.0.0',
   icon: MicrosoftTeamsIcon,
 
-  // Credentials are handled by requiresCredentials below, not in configFields
-  configFields: {
-    chatId: {
-      type: 'string',
-      label: 'Chat ID',
+  subBlocks: [
+    {
+      id: 'triggerCredentials',
+      title: 'Credentials',
+      type: 'oauth-input',
+      description: 'This trigger requires microsoft teams credentials to access your account.',
+      provider: 'microsoft-teams',
+      requiredScopes: [
+        'openid',
+        'profile',
+        'email',
+        'User.Read',
+        'Chat.Read',
+        'Chat.ReadWrite',
+        'Chat.ReadBasic',
+        'ChatMessage.Send',
+        'Channel.ReadBasic.All',
+        'ChannelMessage.Send',
+        'ChannelMessage.Read.All',
+        'ChannelMessage.ReadWrite',
+        'ChannelMember.Read.All',
+        'Group.Read.All',
+        'Group.ReadWrite.All',
+        'Team.ReadBasic.All',
+        'TeamMember.Read.All',
+        'offline_access',
+        'Files.Read',
+        'Sites.Read.All',
+      ],
+      required: true,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_chat_subscription',
+      },
+    },
+    {
+      id: 'chatId',
+      title: 'Chat ID',
+      type: 'short-input',
       placeholder: 'Enter chat ID',
       description: 'The ID of the Teams chat to monitor',
       required: true,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_chat_subscription',
+      },
     },
-    includeAttachments: {
-      type: 'boolean',
-      label: 'Include Attachments',
+    {
+      id: 'includeAttachments',
+      title: 'Include Attachments',
+      type: 'switch',
       defaultValue: true,
       description: 'Fetch hosted contents and upload to storage',
       required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_chat_subscription',
+      },
     },
-  },
-
-  // Require Microsoft Teams OAuth credentials
-  requiresCredentials: true,
-  credentialProvider: 'microsoft-teams',
-  webhook: {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: [
+        'Connect your Microsoft Teams account and grant the required permissions.',
+        'Enter the Chat ID of the Teams chat you want to monitor.',
+        'We will create a Microsoft Graph change notification subscription that delivers chat message events to your Sim webhook URL.',
+      ]
+        .map(
+          (instruction, index) =>
+            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+        )
+        .join(''),
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_chat_subscription',
+      },
     },
-  },
+    {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'microsoftteams_chat_subscription',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_chat_subscription',
+      },
+    },
+  ],
 
   outputs: {
-    // Core message fields
     message_id: { type: 'string', description: 'Message ID' },
     chat_id: { type: 'string', description: 'Chat ID' },
     from_name: { type: 'string', description: 'Sender display name' },
@@ -48,18 +116,10 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
     attachments: { type: 'file[]', description: 'Uploaded attachments as files' },
   },
 
-  instructions: [
-    'Connect your Microsoft Teams account and grant the required permissions.',
-    'Enter the Chat ID of the Teams chat you want to monitor.',
-    'We will create a Microsoft Graph change notification subscription that delivers chat message events to your Sim webhook URL.',
-  ],
-
-  samplePayload: {
-    message_id: '1708709741557',
-    chat_id: '19:abcxyz@unq.gbl.spaces',
-    from_name: 'Adele Vance',
-    text: 'Hello from Teams!',
-    created_at: '2025-01-01T10:00:00Z',
-    attachments: [],
+  webhook: {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
   },
 }

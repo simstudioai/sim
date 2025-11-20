@@ -15,7 +15,6 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
   oauth: {
     required: true,
     provider: 'google-forms',
-    additionalScopes: [],
   },
 
   params: {
@@ -50,7 +49,10 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
     url: (params: GoogleFormsGetResponsesParams) =>
       params.responseId
         ? buildGetResponseUrl({ formId: params.formId, responseId: params.responseId })
-        : buildListResponsesUrl({ formId: params.formId, pageSize: params.pageSize }),
+        : buildListResponsesUrl({
+            formId: params.formId,
+            pageSize: params.pageSize ? Number(params.pageSize) : undefined,
+          }),
     method: 'GET',
     headers: (params: GoogleFormsGetResponsesParams) => ({
       Authorization: `Bearer ${params.accessToken}`,

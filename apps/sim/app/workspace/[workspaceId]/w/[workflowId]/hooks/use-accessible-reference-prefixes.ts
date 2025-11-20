@@ -27,8 +27,10 @@ export function useAccessibleReferencePrefixes(blockId?: string | null): Set<str
     const accessibleIds = new Set<string>(ancestorIds)
     accessibleIds.add(blockId)
 
-    const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
-    if (starterBlock) {
+    const starterBlock = Object.values(blocks).find(
+      (block) => block.type === 'starter' || block.type === 'start_trigger'
+    )
+    if (starterBlock && ancestorIds.includes(starterBlock.id)) {
       accessibleIds.add(starterBlock.id)
     }
 
@@ -36,6 +38,7 @@ export function useAccessibleReferencePrefixes(blockId?: string | null): Set<str
     loopValues.forEach((loop) => {
       if (!loop?.nodes) return
       if (loop.nodes.includes(blockId)) {
+        accessibleIds.add(loop.id) // Add the loop block itself
         loop.nodes.forEach((nodeId) => accessibleIds.add(nodeId))
       }
     })
@@ -44,6 +47,7 @@ export function useAccessibleReferencePrefixes(blockId?: string | null): Set<str
     parallelValues.forEach((parallel) => {
       if (!parallel?.nodes) return
       if (parallel.nodes.includes(blockId)) {
+        accessibleIds.add(parallel.id) // Add the parallel block itself
         parallel.nodes.forEach((nodeId) => accessibleIds.add(nodeId))
       }
     })

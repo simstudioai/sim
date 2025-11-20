@@ -1,5 +1,8 @@
 import type { Edge } from 'reactflow'
+import { sanitizeWorkflowForSharing } from '@/lib/workflows/credential-extractor'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { TRIGGER_PERSISTED_SUBBLOCK_IDS } from '@/triggers/consts'
 
 /**
  * Sanitized workflow state for copilot (removes all UI-specific data)
@@ -49,6 +52,17 @@ export interface ExportWorkflowState {
     edges: Edge[]
     loops: Record<string, Loop>
     parallels: Record<string, Parallel>
+    metadata?: {
+      name?: string
+      description?: string
+      exportedAt?: string
+    }
+    variables?: Array<{
+      id: string
+      name: string
+      type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+      value: any
+    }>
   }
 }
 
@@ -56,6 +70,10 @@ export interface ExportWorkflowState {
  * Check if a subblock contains sensitive/secret data
  */
 function isSensitiveSubBlock(key: string, subBlock: BlockState['subBlocks'][string]): boolean {
+  if (TRIGGER_PERSISTED_SUBBLOCK_IDS.includes(key)) {
+    return false
+  }
+
   // Check if it's an OAuth input type
   if (subBlock.type === 'oauth-input') {
     return true
@@ -369,47 +387,27 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
  * Users need positions to restore the visual layout when importing
  */
 export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
-  // Deep clone to avoid mutating original state
-  const clonedState = JSON.parse(
-    JSON.stringify({
-      blocks: state.blocks,
-      edges: state.edges,
-      loops: state.loops || {},
-      parallels: state.parallels || {},
-    })
-  )
+  const canonicalLoops = generateLoopBlocks(state.blocks || {})
+  const canonicalParallels = generateParallelBlocks(state.blocks || {})
 
-  // Remove sensitive data from subblocks
-  Object.values(clonedState.blocks).forEach((block: any) => {
-    if (block.subBlocks) {
-      Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
-        // Clear OAuth credentials and API keys based on field name only
-        if (
-          /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key) ||
-          subBlock.type === 'oauth-input'
-        ) {
-          subBlock.value = ''
-        }
-        // Remove knowledge base tag filters and document tags (workspace-specific data)
-        if (key === 'tagFilters' || key === 'documentTags') {
-          subBlock.value = ''
-        }
-      })
-    }
+  // Preserve edges, loops, parallels, metadata, and variables
+  const fullState = {
+    blocks: state.blocks,
+    edges: state.edges,
+    loops: canonicalLoops,
+    parallels: canonicalParallels,
+    metadata: state.metadata,
+    variables: state.variables,
+  }
 
-    // Also clear from data field if present
-    if (block.data) {
-      Object.entries(block.data).forEach(([key, value]: [string, any]) => {
-        if (/credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key)) {
-          block.data[key] = ''
-        }
-      })
-    }
+  // Use unified sanitization with env var preservation for export
+  const sanitizedState = sanitizeWorkflowForSharing(fullState, {
+    preserveEnvVars: true, // Keep {{ENV_VAR}} references in exported workflows
   })
 
   return {
     version: '1.0',
     exportedAt: new Date().toISOString(),
-    state: clonedState,
+    state: sanitizedState,
   }
 }

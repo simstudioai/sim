@@ -10,7 +10,6 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['read'],
   },
 
   params: {
@@ -45,6 +44,36 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       description:
         'Time filter for "top" sorted posts: "day", "week", "month", "year", or "all" (default: "day")',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Fullname of a thing to fetch items after (for pagination)',
+    },
+    before: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Fullname of a thing to fetch items before (for pagination)',
+    },
+    count: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'A count of items already seen in the listing (used for numbering)',
+    },
+    show: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Show items that would normally be filtered (e.g., "all")',
+    },
+    sr_detail: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Expand subreddit details in the response',
+    },
   },
 
   request: {
@@ -55,14 +84,29 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       const limit = Math.min(Math.max(1, params.limit || 10), 100)
 
       // Build URL with appropriate parameters using OAuth endpoint
-      let url = `https://oauth.reddit.com/r/${subreddit}/${sort}?limit=${limit}&raw_json=1`
+      const urlParams = new URLSearchParams({
+        limit: limit.toString(),
+        raw_json: '1',
+      })
 
       // Add time parameter only for 'top' sorting
-      if (sort === 'top' && params.time) {
-        url += `&t=${params.time}`
+      if (sort === 'top' && params.time !== undefined && params.time !== null) {
+        urlParams.append('t', params.time)
       }
 
-      return url
+      // Add pagination parameters if provided
+      if (params.after !== undefined && params.after !== null && params.after !== '')
+        urlParams.append('after', params.after)
+      if (params.before !== undefined && params.before !== null && params.before !== '')
+        urlParams.append('before', params.before)
+      if (params.count !== undefined && params.count !== null)
+        urlParams.append('count', params.count.toString())
+      if (params.show !== undefined && params.show !== null && params.show !== '')
+        urlParams.append('show', params.show)
+      if (params.sr_detail !== undefined && params.sr_detail !== null)
+        urlParams.append('sr_detail', params.sr_detail.toString())
+
+      return `https://oauth.reddit.com/r/${subreddit}/${sort}?${urlParams.toString()}`
     },
     method: 'GET',
     headers: (params: RedditPostsParams) => {

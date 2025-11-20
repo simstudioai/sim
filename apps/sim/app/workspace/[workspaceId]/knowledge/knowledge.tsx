@@ -1,29 +1,25 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Check, ChevronDown, LibraryBig, Plus } from 'lucide-react'
+import { ChevronDown, LibraryBig, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+  Tooltip,
+} from '@/components/emcn'
 import {
   BaseOverview,
   CreateModal,
   EmptyStateCard,
   KnowledgeBaseCardSkeletonGrid,
   KnowledgeHeader,
-  PrimaryButton,
   SearchInput,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
-  commandListClass,
-  dropdownContentClass,
   filterButtonClass,
   SORT_OPTIONS,
   type SortOption,
@@ -51,6 +47,7 @@ export function Knowledge() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isSortPopoverOpen, setIsSortPopoverOpen] = useState(false)
   const [sortBy, setSortBy] = useState<SortOption>('updatedAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
@@ -62,6 +59,7 @@ export function Knowledge() {
     const [field, order] = value.split('-') as [SortOption, SortOrder]
     setSortBy(field)
     setSortOrder(order)
+    setIsSortPopoverOpen(false)
   }
 
   const handleKnowledgeBaseCreated = (newKnowledgeBase: KnowledgeBaseData) => {
@@ -109,56 +107,46 @@ export function Knowledge() {
 
                   <div className='flex items-center gap-2'>
                     {/* Sort Dropdown */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant='outline' size='sm' className={filterButtonClass}>
+                    <Popover open={isSortPopoverOpen} onOpenChange={setIsSortPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant='outline' className={filterButtonClass}>
                           {currentSortLabel}
                           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align='end'
-                        side='bottom'
-                        avoidCollisions={false}
-                        sideOffset={4}
-                        className={dropdownContentClass}
-                      >
-                        <div className={`${commandListClass} py-1`}>
-                          {SORT_OPTIONS.map((option, index) => (
-                            <div key={option.value}>
-                              <DropdownMenuItem
-                                onSelect={() => handleSortChange(option.value)}
-                                className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-                              >
-                                <span>{option.label}</span>
-                                {currentSortValue === option.value && (
-                                  <Check className='h-4 w-4 text-muted-foreground' />
-                                )}
-                              </DropdownMenuItem>
-                              {index === 0 && <DropdownMenuSeparator />}
-                            </div>
-                          ))}
-                        </div>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      </PopoverTrigger>
+                      <PopoverContent align='end' side='bottom' sideOffset={4}>
+                        {SORT_OPTIONS.map((option) => (
+                          <PopoverItem
+                            key={option.value}
+                            active={currentSortValue === option.value}
+                            showCheck
+                            onClick={() => handleSortChange(option.value)}
+                          >
+                            {option.label}
+                          </PopoverItem>
+                        ))}
+                      </PopoverContent>
+                    </Popover>
 
                     {/* Create Button */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <PrimaryButton
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
                           onClick={() => setIsCreateModalOpen(true)}
                           disabled={userPermissions.canEdit !== true}
+                          variant='primary'
+                          className='flex items-center gap-1'
                         >
                           <Plus className='h-3.5 w-3.5' />
                           <span>Create</span>
-                        </PrimaryButton>
-                      </TooltipTrigger>
+                        </Button>
+                      </Tooltip.Trigger>
                       {userPermissions.canEdit !== true && (
-                        <TooltipContent>
+                        <Tooltip.Content>
                           Write permission required to create knowledge bases
-                        </TooltipContent>
+                        </Tooltip.Content>
                       )}
-                    </Tooltip>
+                    </Tooltip.Root>
                   </div>
                 </div>
 

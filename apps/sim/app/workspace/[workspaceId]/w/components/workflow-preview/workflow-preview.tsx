@@ -3,7 +3,6 @@
 import { useMemo } from 'react'
 import { cloneDeep } from 'lodash'
 import ReactFlow, {
-  Background,
   ConnectionLineType,
   type Edge,
   type EdgeTypes,
@@ -15,6 +14,7 @@ import 'reactflow/dist/style.css'
 
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
@@ -39,6 +39,7 @@ interface WorkflowPreviewProps {
 // Define node types - the components now handle preview mode internally
 const nodeTypes: NodeTypes = {
   workflowBlock: WorkflowBlock,
+  noteBlock: NoteBlock,
   subflowNode: SubflowNodeComponent,
 }
 
@@ -139,6 +140,7 @@ export function WorkflowPreview({
           draggable: false,
           data: {
             ...block.data,
+            name: block.name,
             width: block.data?.width || 500,
             height: block.data?.height || 300,
             state: 'valid',
@@ -159,6 +161,7 @@ export function WorkflowPreview({
           draggable: false,
           data: {
             ...block.data,
+            name: block.name,
             width: block.data?.width || 500,
             height: block.data?.height || 300,
             state: 'valid',
@@ -177,9 +180,11 @@ export function WorkflowPreview({
 
       const subBlocksClone = block.subBlocks ? cloneDeep(block.subBlocks) : {}
 
+      const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
+
       nodeArray.push({
         id: blockId,
-        type: 'workflowBlock',
+        type: nodeType,
         position: absolutePosition,
         draggable: false,
         data: {
@@ -202,9 +207,11 @@ export function WorkflowPreview({
           const childConfig = getBlock(childBlock.type)
 
           if (childConfig) {
+            const childNodeType = childBlock.type === 'note' ? 'noteBlock' : 'workflowBlock'
+
             nodeArray.push({
               id: childId,
-              type: 'workflowBlock',
+              type: childNodeType,
               position: {
                 x: block.position.x + 50,
                 y: block.position.y + (childBlock.position?.y || 100),
@@ -268,7 +275,7 @@ export function WorkflowPreview({
 
   return (
     <ReactFlowProvider>
-      <div style={{ height, width }} className={cn('preview-mode')}>
+      <div style={{ height, width, backgroundColor: '#1B1B1B' }} className={cn('preview-mode')}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -300,14 +307,7 @@ export function WorkflowPreview({
                 }
               : undefined
           }
-        >
-          <Background
-            color='hsl(var(--workflow-dots))'
-            size={4}
-            gap={40}
-            style={{ backgroundColor: 'hsl(var(--workflow-background))' }}
-          />
-        </ReactFlow>
+        />
       </div>
     </ReactFlowProvider>
   )

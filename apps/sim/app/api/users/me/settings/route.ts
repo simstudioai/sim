@@ -13,7 +13,6 @@ const logger = createLogger('UserSettingsAPI')
 const SettingsSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']).optional(),
   autoConnect: z.boolean().optional(),
-  autoFillEnvVars: z.boolean().optional(), // DEPRECATED: kept for backwards compatibility
   autoPan: z.boolean().optional(),
   consoleExpandedByDefault: z.boolean().optional(),
   telemetryEnabled: z.boolean().optional(),
@@ -28,13 +27,14 @@ const SettingsSchema = z.object({
   billingUsageNotificationsEnabled: z.boolean().optional(),
   showFloatingControls: z.boolean().optional(),
   showTrainingControls: z.boolean().optional(),
+  superUserModeEnabled: z.boolean().optional(),
+  errorNotificationsEnabled: z.boolean().optional(),
 })
 
 // Default settings values
 const defaultSettings = {
   theme: 'system',
   autoConnect: true,
-  autoFillEnvVars: true, // DEPRECATED: kept for backwards compatibility, always true
   autoPan: true,
   consoleExpandedByDefault: true,
   telemetryEnabled: true,
@@ -42,6 +42,8 @@ const defaultSettings = {
   billingUsageNotificationsEnabled: true,
   showFloatingControls: true,
   showTrainingControls: false,
+  superUserModeEnabled: false,
+  errorNotificationsEnabled: true,
 }
 
 export async function GET() {
@@ -70,7 +72,6 @@ export async function GET() {
         data: {
           theme: userSettings.theme,
           autoConnect: userSettings.autoConnect,
-          autoFillEnvVars: userSettings.autoFillEnvVars, // DEPRECATED: kept for backwards compatibility
           autoPan: userSettings.autoPan,
           consoleExpandedByDefault: userSettings.consoleExpandedByDefault,
           telemetryEnabled: userSettings.telemetryEnabled,
@@ -78,6 +79,8 @@ export async function GET() {
           billingUsageNotificationsEnabled: userSettings.billingUsageNotificationsEnabled ?? true,
           showFloatingControls: userSettings.showFloatingControls ?? true,
           showTrainingControls: userSettings.showTrainingControls ?? false,
+          superUserModeEnabled: userSettings.superUserModeEnabled ?? true,
+          errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
         },
       },
       { status: 200 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { redactApiKeys } from '@/lib/utils'
+import { filterForDisplay, redactApiKeys } from '@/lib/utils'
 
 interface JSONViewProps {
   data: any
@@ -155,8 +155,8 @@ export const JSONView = ({ data }: JSONViewProps) => {
     y: number
   } | null>(null)
 
-  // Apply redaction to the data before displaying
-  const redactedData = redactApiKeys(data)
+  const filteredData = filterForDisplay(data)
+  const redactedData = redactApiKeys(filteredData)
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()

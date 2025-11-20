@@ -8,13 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="github"
   color="#181C1E"
-  icon={true}
-  iconSvg={`<svg className="block-icon"    viewBox='0 0 26 26' xmlns='http://www.w3.org/2000/svg'>
-      <path
-        d='M13 0C11.2928 0 9.60235 0.336255 8.02511 0.989566C6.44788 1.64288 5.01477 2.60045 3.80761 3.80761C1.36964 6.24558 0 9.55219 0 13C0 18.746 3.731 23.621 8.892 25.35C9.542 25.454 9.75 25.051 9.75 24.7V22.503C6.149 23.283 5.382 20.761 5.382 20.761C4.784 19.253 3.939 18.85 3.939 18.85C2.756 18.044 4.03 18.07 4.03 18.07C5.33 18.161 6.019 19.409 6.019 19.409C7.15 21.385 9.061 20.8 9.802 20.488C9.919 19.643 10.257 19.071 10.621 18.746C7.735 18.421 4.706 17.303 4.706 12.35C4.706 10.907 5.2 9.75 6.045 8.827C5.915 8.502 5.46 7.15 6.175 5.395C6.175 5.395 7.267 5.044 9.75 6.721C10.777 6.435 11.895 6.292 13 6.292C14.105 6.292 15.223 6.435 16.25 6.721C18.733 5.044 19.825 5.395 19.825 5.395C20.54 7.15 20.085 8.502 19.955 8.827C20.8 9.75 21.294 10.907 21.294 12.35C21.294 17.316 18.252 18.408 15.353 18.733C15.821 19.136 16.25 19.929 16.25 21.138V24.7C16.25 25.051 16.458 25.467 17.121 25.35C22.282 23.608 26 18.746 26 13C26 11.2928 25.6637 9.60235 25.0104 8.02511C24.3571 6.44788 23.3995 5.01477 22.1924 3.80761C20.9852 2.60045 19.5521 1.64288 17.9749 0.989566C16.3977 0.336255 14.7072 0 13 0Z'
-        fill='currentColor'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -123,6 +116,1055 @@ Recupera el último commit de un repositorio de GitHub
 | --------- | ---- | ----------- |
 | `content` | string | Resumen del commit legible para humanos |
 | `metadata` | object | Metadatos del commit |
+
+### `github_issue_comment`
+
+Crear un comentario en una incidencia de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `issue_number` | number | Sí | Número de la incidencia |
+| `body` | string | Sí | Contenido del comentario |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de comentario legible para humanos |
+| `metadata` | object | Metadatos del comentario |
+
+### `github_list_issue_comments`
+
+Listar todos los comentarios en una incidencia de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `issue_number` | number | Sí | Número de la incidencia |
+| `since` | string | No | Mostrar solo comentarios actualizados después de esta marca de tiempo ISO 8601 |
+| `per_page` | number | No | Número de resultados por página \(máximo 100\) |
+| `page` | number | No | Número de página |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Resumen de comentarios legible para humanos |
+| `metadata` | object | Metadatos de la lista de comentarios |
+
+### `github_update_comment`
+
+Actualizar un comentario existente en un issue o solicitud de extracción de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `comment_id` | number | Sí | ID del comentario |
+| `body` | string | Sí | Contenido actualizado del comentario |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de actualización legible para humanos |
+| `metadata` | object | Metadatos del comentario actualizado |
+
+### `github_delete_comment`
+
+Eliminar un comentario en un issue o solicitud de extracción de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `comment_id` | number | Sí | ID del comentario |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de eliminación legible para humanos |
+| `metadata` | object | Metadatos del resultado de la eliminación |
+
+### `github_list_pr_comments`
+
+Listar todos los comentarios de revisión en una solicitud de extracción de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `pullNumber` | number | Sí | Número de la solicitud de extracción |
+| `sort` | string | No | Ordenar por creación o actualización |
+| `direction` | string | No | Dirección de ordenación \(asc o desc\) |
+| `since` | string | No | Mostrar solo comentarios actualizados después de esta marca de tiempo ISO 8601 |
+| `per_page` | number | No | Número de resultados por página \(máx. 100\) |
+| `page` | number | No | Número de página |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Resumen de comentarios de revisión legible para humanos |
+| `metadata` | object | Metadatos de la lista de comentarios de revisión |
+
+### `github_create_pr`
+
+Crear una nueva solicitud de extracción en un repositorio de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `title` | string | Sí | Título de la solicitud de extracción |
+| `head` | string | Sí | El nombre de la rama donde se implementan tus cambios |
+| `base` | string | Sí | El nombre de la rama a la que quieres incorporar los cambios |
+| `body` | string | No | Descripción de la solicitud de extracción \(Markdown\) |
+| `draft` | boolean | No | Crear como borrador de solicitud de extracción |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de creación de PR legible para humanos |
+| `metadata` | object | Metadatos de la solicitud de extracción |
+
+### `github_update_pr`
+
+Actualizar una solicitud de extracción existente en un repositorio de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `pullNumber` | number | Sí | Número de la solicitud de extracción |
+| `title` | string | No | Nuevo título de la solicitud de extracción |
+| `body` | string | No | Nueva descripción de la solicitud de extracción \(Markdown\) |
+| `state` | string | No | Nuevo estado \(open o closed\) |
+| `base` | string | No | Nuevo nombre de la rama base |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de actualización de PR legible para humanos |
+| `metadata` | object | Metadatos actualizados de la solicitud de extracción |
+
+### `github_merge_pr`
+
+Fusionar una solicitud de extracción en un repositorio de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `pullNumber` | number | Sí | Número de la solicitud de extracción |
+| `commit_title` | string | No | Título para el commit de fusión |
+| `commit_message` | string | No | Detalle adicional para añadir al mensaje del commit de fusión |
+| `merge_method` | string | No | Método de fusión: merge, squash o rebase |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de fusión legible para humanos |
+| `metadata` | object | Metadatos del resultado de la fusión |
+
+### `github_list_prs`
+
+Listar solicitudes de extracción en un repositorio de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `state` | string | No | Filtrar por estado: open, closed o all |
+| `head` | string | No | Filtrar por usuario head o nombre de rama \(formato: usuario:nombre-ref o organización:nombre-ref\) |
+| `base` | string | No | Filtrar por nombre de rama base |
+| `sort` | string | No | Ordenar por: created, updated, popularity o long-running |
+| `direction` | string | No | Dirección de ordenación: asc o desc |
+| `per_page` | number | No | Resultados por página \(máx 100\) |
+| `page` | number | No | Número de página |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Lista de solicitudes de extracción legible para humanos |
+| `metadata` | object | Metadatos de la lista de solicitudes de extracción |
+
+### `github_get_pr_files`
+
+Obtener la lista de archivos modificados en una solicitud de extracción
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `pullNumber` | number | Sí | Número de la solicitud de extracción |
+| `per_page` | number | No | Resultados por página \(máximo 100\) |
+| `page` | number | No | Número de página |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Lista legible para humanos de archivos modificados en la PR |
+| `metadata` | object | Metadatos de los archivos de la PR |
+
+### `github_close_pr`
+
+Cerrar una solicitud de extracción en un repositorio de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `pullNumber` | number | Sí | Número de la solicitud de extracción |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de cierre de PR legible para humanos |
+| `metadata` | object | Metadatos de la solicitud de extracción cerrada |
+
+### `github_request_reviewers`
+
+Solicitar revisores para una solicitud de extracción
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `pullNumber` | number | Sí | Número de la solicitud de extracción |
+| `reviewers` | string | Sí | Lista separada por comas de nombres de usuario a los que solicitar revisiones |
+| `team_reviewers` | string | No | Lista separada por comas de slugs de equipos a los que solicitar revisiones |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de solicitud de revisores legible para humanos |
+| `metadata` | object | Metadatos de los revisores solicitados |
+
+### `github_get_file_content`
+
+Obtener el contenido de un archivo de un repositorio de GitHub. Compatible con archivos de hasta 1MB. El contenido se devuelve decodificado y legible para humanos.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `path` | string | Sí | Ruta al archivo en el repositorio \(p. ej., "src/index.ts"\) |
+| `ref` | string | No | Nombre de la rama, etiqueta o SHA del commit \(por defecto, la rama predeterminada del repositorio\) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Información del archivo legible para humanos con vista previa del contenido |
+| `metadata` | object | Metadatos del archivo incluyendo nombre, ruta, SHA, tamaño y URLs |
+
+### `github_create_file`
+
+Crear un nuevo archivo en un repositorio de GitHub. El contenido del archivo se codificará automáticamente en Base64. Admite archivos de hasta 1MB.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `path` | string | Sí | Ruta donde se creará el archivo \(p. ej., "src/nuevoarchivo.ts"\) |
+| `message` | string | Sí | Mensaje del commit para esta creación de archivo |
+| `content` | string | Sí | Contenido del archivo \(texto plano, se codificará automáticamente en Base64\) |
+| `branch` | string | No | Rama en la que crear el archivo \(por defecto, la rama predeterminada del repositorio\) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de creación de archivo legible para humanos |
+| `metadata` | object | Metadatos del archivo y del commit |
+
+### `github_update_file`
+
+Actualizar un archivo existente en un repositorio de GitHub. Requiere el SHA del archivo. El contenido se codificará automáticamente en Base64. Admite archivos de hasta 1MB.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `path` | string | Sí | Ruta al archivo a actualizar \(p. ej., "src/index.ts"\) |
+| `message` | string | Sí | Mensaje de commit para esta actualización de archivo |
+| `content` | string | Sí | Nuevo contenido del archivo \(texto plano, será codificado en Base64 automáticamente\) |
+| `sha` | string | Sí | El SHA del blob del archivo que se está reemplazando \(obtener de github_get_file_content\) |
+| `branch` | string | No | Rama en la que actualizar el archivo \(por defecto, la rama predeterminada del repositorio\) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de actualización de archivo legible para humanos |
+| `metadata` | object | Metadatos del archivo actualizado y del commit |
+
+### `github_delete_file`
+
+Elimina un archivo de un repositorio de GitHub. Requiere el SHA del archivo. Esta operación no se puede deshacer a través de la API.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `path` | string | Sí | Ruta al archivo a eliminar \(p. ej., "src/oldfile.ts"\) |
+| `message` | string | Sí | Mensaje de commit para esta eliminación de archivo |
+| `sha` | string | Sí | El SHA del blob del archivo que se está eliminando \(obtener de github_get_file_content\) |
+| `branch` | string | No | Rama de la que eliminar el archivo \(por defecto, la rama predeterminada del repositorio\) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de eliminación de archivo legible para humanos |
+| `metadata` | object | Confirmación de eliminación y metadatos del commit |
+
+### `github_get_tree`
+
+Obtiene el contenido de un directorio en un repositorio de GitHub. Devuelve una lista de archivos y subdirectorios. Usa una ruta vacía u omítela para obtener el contenido del directorio raíz.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `path` | string | No | Ruta del directorio \(p. ej., "src/components"\). Dejar vacío para el directorio raíz. |
+| `ref` | string | No | Nombre de la rama, etiqueta o SHA del commit \(por defecto, la rama predeterminada del repositorio\) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Listado del árbol de directorios legible para humanos |
+| `metadata` | object | Metadatos del contenido del directorio |
+
+### `github_list_branches`
+
+Lista todas las ramas en un repositorio de GitHub. Opcionalmente filtra por estado de protección y controla la paginación.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `protected` | boolean | No | Filtrar ramas por estado de protección |
+| `per_page` | number | No | Número de resultados por página \(máx. 100, predeterminado 30\) |
+| `page` | number | No | Número de página para paginación \(predeterminado 1\) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Lista de ramas legible para humanos |
+| `metadata` | object | Metadatos de la lista de ramas |
+
+### `github_get_branch`
+
+Obtener información detallada sobre una rama específica en un repositorio de GitHub, incluyendo detalles del commit y estado de protección.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `branch` | string | Sí | Nombre de la rama |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Detalles de la rama legibles para humanos |
+| `metadata` | object | Metadatos de la rama |
+
+### `github_create_branch`
+
+Crear una nueva rama en un repositorio de GitHub mediante la creación de una referencia git que apunte a un SHA de commit específico.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `branch` | string | Sí | Nombre de la rama a crear |
+| `sha` | string | Sí | SHA del commit al que apuntará la rama |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de creación de rama legible para humanos |
+| `metadata` | object | Metadatos de referencia Git |
+
+### `github_delete_branch`
+
+Elimina una rama de un repositorio GitHub eliminando su referencia git. Las ramas protegidas no pueden ser eliminadas.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `branch` | string | Sí | Nombre de la rama a eliminar |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de eliminación legible para humanos |
+| `metadata` | object | Metadatos de eliminación |
+
+### `github_get_branch_protection`
+
+Obtiene las reglas de protección de una rama específica, incluyendo verificaciones de estado, requisitos de revisión y restricciones.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `branch` | string | Sí | Nombre de la rama |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Resumen de protección de rama legible para humanos |
+| `metadata` | object | Configuración de protección de rama |
+
+### `github_update_branch_protection`
+
+Actualiza las reglas de protección de rama para una rama específica, incluyendo verificaciones de estado, requisitos de revisión, aplicación para administradores y restricciones de push.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `branch` | string | Sí | Nombre de la rama |
+| `required_status_checks` | object | Sí | Configuración de verificación de estado requerida \(null para desactivar\). Objeto con strict \(booleano\) y contexts \(array de strings\) |
+| `enforce_admins` | boolean | Sí | Si se deben aplicar restricciones para administradores |
+| `required_pull_request_reviews` | object | Sí | Requisitos de revisión de PR \(null para desactivar\). Objeto con opcionales required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews |
+| `restrictions` | object | Sí | Restricciones de push \(null para desactivar\). Objeto con users \(array de strings\) y teams \(array de strings\) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Resumen legible para humanos de la actualización de protección de rama |
+| `metadata` | object | Configuración actualizada de protección de rama |
+
+### `github_create_issue`
+
+Crear un nuevo issue en un repositorio de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `title` | string | Sí | Título del issue |
+| `body` | string | No | Descripción/cuerpo del issue |
+| `assignees` | string | No | Lista separada por comas de nombres de usuario para asignar a este issue |
+| `labels` | string | No | Lista separada por comas de nombres de etiquetas para añadir a este issue |
+| `milestone` | number | No | Número de hito para asociar con este issue |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de creación de issue legible para humanos |
+| `metadata` | object | Metadatos del issue |
+
+### `github_update_issue`
+
+Actualizar un issue existente en un repositorio de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `issue_number` | number | Sí | Número del issue |
+| `title` | string | No | Nuevo título del issue |
+| `body` | string | No | Nueva descripción/cuerpo del issue |
+| `state` | string | No | Estado del issue \(open o closed\) |
+| `labels` | array | No | Array de nombres de etiquetas \(reemplaza todas las etiquetas existentes\) |
+| `assignees` | array | No | Array de nombres de usuario \(reemplaza todos los asignados existentes\) |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de actualización de issue legible para humanos |
+| `metadata` | object | Metadatos del issue actualizado |
+
+### `github_list_issues`
+
+Listar issues en un repositorio de GitHub. Nota: Esto incluye pull requests ya que los PR son considerados issues en GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `state` | string | No | Filtrar por estado: open, closed, o all \(predeterminado: open\) |
+| `assignee` | string | No | Filtrar por nombre de usuario asignado |
+| `creator` | string | No | Filtrar por nombre de usuario del creador |
+| `labels` | string | No | Lista separada por comas de nombres de etiquetas para filtrar |
+| `sort` | string | No | Ordenar por: created, updated, o comments \(predeterminado: created\) |
+| `direction` | string | No | Dirección de ordenamiento: asc o desc \(predeterminado: desc\) |
+| `per_page` | number | No | Resultados por página \(máximo 100, predeterminado: 30\) |
+| `page` | number | No | Número de página \(predeterminado: 1\) |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Lista de issues legible para humanos |
+| `metadata` | object | Metadatos de la lista de issues |
+
+### `github_get_issue`
+
+Obtener información detallada sobre un issue específico en un repositorio de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `issue_number` | number | Sí | Número del issue |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Detalles del issue legibles para humanos |
+| `metadata` | object | Metadatos detallados del issue |
+
+### `github_close_issue`
+
+Cerrar un issue en un repositorio de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `issue_number` | number | Sí | Número del issue |
+| `state_reason` | string | No | Razón para cerrar: completed o not_planned |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de cierre del issue legible para humanos |
+| `metadata` | object | Metadatos del issue cerrado |
+
+### `github_add_labels`
+
+Añadir etiquetas a un issue en un repositorio de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `issue_number` | number | Sí | Número del issue |
+| `labels` | string | Sí | Lista separada por comas de nombres de etiquetas para añadir al issue |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de etiquetas legible para humanos |
+| `metadata` | object | Metadatos de las etiquetas |
+
+### `github_remove_label`
+
+Eliminar una etiqueta de un issue en un repositorio de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `issue_number` | number | Sí | Número del issue |
+| `name` | string | Sí | Nombre de la etiqueta a eliminar |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de eliminación de etiqueta legible para humanos |
+| `metadata` | object | Metadatos de las etiquetas restantes |
+
+### `github_add_assignees`
+
+Añadir asignados a un issue en un repositorio de GitHub
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio |
+| `repo` | string | Sí | Nombre del repositorio |
+| `issue_number` | number | Sí | Número de incidencia |
+| `assignees` | string | Sí | Lista de nombres de usuario separados por comas para asignar a la incidencia |
+| `apiKey` | string | Sí | Token de API de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de asignaciones legible para humanos |
+| `metadata` | object | Metadatos actualizados de la incidencia con los asignados |
+
+### `github_create_release`
+
+Crear una nueva versión para un repositorio de GitHub. Especifica el nombre de la etiqueta, el commit objetivo, el título, la descripción y si debe ser un borrador o una versión preliminar.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `tag_name` | string | Sí | El nombre de la etiqueta para esta versión |
+| `target_commitish` | string | No | Especifica el valor commitish que determina desde dónde se crea la etiqueta Git. Puede ser cualquier rama o SHA de commit. Por defecto es la rama predeterminada del repositorio. |
+| `name` | string | No | El nombre de la versión |
+| `body` | string | No | Texto que describe el contenido de la versión \(admite markdown\) |
+| `draft` | boolean | No | true para crear una versión en borrador \(no publicada\), false para crear una publicada |
+| `prerelease` | boolean | No | true para identificar la versión como preliminar, false para identificarla como versión completa |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Resumen de creación de versión legible para humanos |
+| `metadata` | object | Metadatos de la versión incluyendo URLs de descarga |
+
+### `github_update_release`
+
+Actualiza una versión existente de GitHub. Modifica el nombre de la etiqueta, el commit objetivo, el título, la descripción, el estado de borrador o el estado de prelanzamiento.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `release_id` | number | Sí | El identificador único de la versión |
+| `tag_name` | string | No | El nombre de la etiqueta |
+| `target_commitish` | string | No | Especifica el valor commitish desde donde se crea la etiqueta |
+| `name` | string | No | El nombre de la versión |
+| `body` | string | No | Texto que describe el contenido de la versión \(admite markdown\) |
+| `draft` | boolean | No | true para establecer como borrador, false para publicar |
+| `prerelease` | boolean | No | true para identificar como prelanzamiento, false para una versión completa |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Resumen de actualización de versión legible para humanos |
+| `metadata` | object | Metadatos actualizados de la versión incluyendo URLs de descarga |
+
+### `github_list_releases`
+
+Lista todas las versiones de un repositorio de GitHub. Devuelve información de las versiones incluyendo etiquetas, nombres y URLs de descarga.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `per_page` | number | No | Número de resultados por página \(máximo 100\) |
+| `page` | number | No | Número de página de los resultados a obtener |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Lista legible para humanos de versiones con resumen |
+| `metadata` | object | Metadatos de las versiones |
+
+### `github_get_release`
+
+Obtiene información detallada sobre una versión específica de GitHub por ID. Devuelve metadatos de la versión incluyendo activos y URLs de descarga.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `release_id` | number | Sí | El identificador único de la versión |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Detalles de la versión legibles para humanos |
+| `metadata` | object | Metadatos de la versión incluyendo URLs de descarga |
+
+### `github_delete_release`
+
+Elimina una versión de GitHub por ID. Esto elimina permanentemente la versión pero no borra la etiqueta Git asociada.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `release_id` | number | Sí | El identificador único de la versión a eliminar |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmación de eliminación legible para humanos |
+| `metadata` | object | Metadatos del resultado de la eliminación |
+
+### `github_list_workflows`
+
+Lista todos los flujos de trabajo en un repositorio de GitHub. Devuelve detalles del flujo de trabajo incluyendo ID, nombre, ruta, estado y URL de la insignia.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `per_page` | number | No | Número de resultados por página \(predeterminado: 30, máximo: 100\) |
+| `page` | number | No | Número de página de resultados a obtener \(predeterminado: 1\) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Resumen de flujos de trabajo legible para humanos |
+| `metadata` | object | Metadatos de flujos de trabajo |
+
+### `github_get_workflow`
+
+Obtén detalles de un flujo de trabajo específico de GitHub Actions por ID o nombre de archivo. Devuelve información del flujo de trabajo incluyendo nombre, ruta, estado y URL de la insignia.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `workflow_id` | string | Sí | ID del flujo de trabajo \(número\) o nombre del archivo del flujo de trabajo \(p. ej., "main.yaml"\) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Detalles del flujo de trabajo legibles para humanos |
+| `metadata` | object | Metadatos del flujo de trabajo |
+
+### `github_trigger_workflow`
+
+Activa un evento de dispatch para un flujo de trabajo de GitHub Actions. El flujo de trabajo debe tener configurado un disparador workflow_dispatch. Devuelve 204 No Content en caso de éxito.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `workflow_id` | string | Sí | ID del flujo de trabajo \(número\) o nombre del archivo del flujo de trabajo \(p. ej., "main.yaml"\) |
+| `ref` | string | Sí | Referencia Git \(rama o nombre de etiqueta\) donde ejecutar el flujo de trabajo |
+| `inputs` | object | No | Claves de entrada y valores configurados en el archivo del flujo de trabajo |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de confirmación |
+| `metadata` | object | Objeto de metadatos vacío \(respuesta 204 Sin Contenido\) |
+
+### `github_list_workflow_runs`
+
+Lista las ejecuciones de flujos de trabajo para un repositorio. Admite filtrado por actor, rama, evento y estado. Devuelve detalles de la ejecución incluyendo estado, conclusión y enlaces.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `actor` | string | No | Filtrar por usuario que activó el flujo de trabajo |
+| `branch` | string | No | Filtrar por nombre de rama |
+| `event` | string | No | Filtrar por tipo de evento \(p. ej., push, pull_request, workflow_dispatch\) |
+| `status` | string | No | Filtrar por estado \(queued, in_progress, completed, waiting, requested, pending\) |
+| `per_page` | number | No | Número de resultados por página \(predeterminado: 30, máximo: 100\) |
+| `page` | number | No | Número de página de resultados a obtener \(predeterminado: 1\) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Resumen de ejecuciones de flujo de trabajo legible para humanos |
+| `metadata` | object | Metadatos de ejecuciones de flujo de trabajo |
+
+### `github_get_workflow_run`
+
+Obtiene información detallada sobre una ejecución específica de flujo de trabajo por ID. Devuelve estado, conclusión, tiempos y enlaces a la ejecución.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `run_id` | number | Sí | ID de la ejecución del flujo de trabajo |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Detalles de la ejecución del flujo de trabajo legibles para humanos |
+| `metadata` | object | Metadatos de la ejecución del flujo de trabajo |
+
+### `github_cancel_workflow_run`
+
+Cancela una ejecución de flujo de trabajo. Devuelve 202 Accepted si se inicia la cancelación, o 409 Conflict si la ejecución no puede ser cancelada (ya completada).
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `run_id` | number | Sí | ID de la ejecución del flujo de trabajo a cancelar |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de estado de cancelación |
+| `metadata` | object | Metadatos de cancelación |
+
+### `github_rerun_workflow`
+
+Vuelve a ejecutar un flujo de trabajo. Opcionalmente habilita el registro de depuración para la nueva ejecución. Devuelve 201 Created en caso de éxito.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Sí | Propietario del repositorio \(usuario u organización\) |
+| `repo` | string | Sí | Nombre del repositorio |
+| `run_id` | number | Sí | ID de la ejecución del flujo de trabajo a volver a ejecutar |
+| `enable_debug_logging` | boolean | No | Habilitar registro de depuración para la nueva ejecución \(predeterminado: false\) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de confirmación de reejecución |
+| `metadata` | object | Metadatos de la reejecución |
+
+### `github_list_projects`
+
+Lista los Proyectos V2 de GitHub para una organización o usuario. Devuelve hasta 20 proyectos con sus detalles, incluyendo ID, título, número, URL y estado.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner_type` | string | Sí | Tipo de propietario: "org" para organización o "user" para usuario |
+| `owner_login` | string | Sí | Nombre de inicio de sesión de la organización o usuario |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub con permisos de lectura de proyectos |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Lista de proyectos legible para humanos |
+| `metadata` | object | Metadatos de los proyectos |
+
+### `github_get_project`
+
+Obtiene información detallada sobre un Proyecto V2 específico de GitHub por su número. Devuelve detalles del proyecto incluyendo ID, título, descripción, URL y estado.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner_type` | string | Sí | Tipo de propietario: "org" para organización o "user" para usuario |
+| `owner_login` | string | Sí | Nombre de inicio de sesión de la organización o usuario |
+| `project_number` | number | Sí | Número del proyecto |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub con permisos de lectura de proyectos |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Detalles del proyecto legibles para humanos |
+| `metadata` | object | Metadatos del proyecto |
+
+### `github_create_project`
+
+Crea un nuevo Proyecto GitHub V2. Requiere el ID de nodo del propietario (no el nombre de inicio de sesión). Devuelve el proyecto creado con ID, título y URL.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `owner_id` | string | Sí | ID de nodo del propietario \(formato: PVT_... o MDQ6...\). Usa la API GraphQL de GitHub para obtener este ID a partir del inicio de sesión de la organización o usuario. |
+| `title` | string | Sí | Título del proyecto |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub con permisos de escritura para proyectos |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de confirmación legible para humanos |
+| `metadata` | object | Metadatos del proyecto creado |
+
+### `github_update_project`
+
+Actualiza un Proyecto GitHub V2 existente. Puede actualizar el título, la descripción, la visibilidad (pública) o el estado (cerrado). Requiere el ID de nodo del proyecto.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `project_id` | string | Sí | ID de nodo del proyecto \(formato: PVT_...\) |
+| `title` | string | No | Nuevo título del proyecto |
+| `shortDescription` | string | No | Nueva descripción breve del proyecto |
+| `project_public` | boolean | No | Establecer visibilidad del proyecto \(true = público, false = privado\) |
+| `closed` | boolean | No | Establecer estado del proyecto \(true = cerrado, false = abierto\) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub con permisos de escritura para proyectos |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de confirmación legible para humanos |
+| `metadata` | object | Metadatos actualizados del proyecto |
+
+### `github_delete_project`
+
+Elimina un Proyecto GitHub V2. Esta acción es permanente y no se puede deshacer. Requiere el ID de nodo del proyecto.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `project_id` | string | Sí | ID de nodo del proyecto (formato: PVT_...) |
+| `apiKey` | string | Sí | Token de acceso personal de GitHub con permisos de administrador de proyecto |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de confirmación legible para humanos |
+| `metadata` | object | Metadatos del proyecto eliminado |
 
 ## Notas
 

@@ -8,27 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="typeform"
   color="#262627"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      version='1.1'
-      id='Layer_1'
-      xmlns='http://www.w3.org/2000/svg'
-      xmlnsXlink='http://www.w3.org/1999/xlink'
-      x='0px'
-      y='0px'
-      viewBox='0 0 122.3 80.3'
-      xmlSpace='preserve'
-    >
-      <g>
-        <path
-          fill='currentColor'
-          d='M94.3,0H65.4c-26,0-28,11.2-28,26.2l0,27.9c0,15.6,2,26.2,28.1,26.2h28.8c26,0,28-11.2,28-26.1V26.2
-		C122.3,11.2,120.3,0,94.3,0z M0,20.1C0,6.9,5.2,0,14,0c8.8,0,14,6.9,14,20.1v40.1c0,13.2-5.2,20.1-14,20.1c-8.8,0-14-6.9-14-20.1
-		V20.1z'
-        />
-      </g>
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -46,7 +25,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 Typeform 集成到工作流程中。可以检索回复、下载文件并获取表单洞察。需要 API 密钥。
+将 Typeform 集成到工作流程中。可以检索响应、下载文件并获取表单洞察。可以在触发模式下使用，当提交表单时触发工作流程。需要 API 密钥。
 
 ## 工具
 
@@ -69,9 +48,25 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `total_items` | number | 响应总数 |
+| `total_items` | number | 响应/表单总数 |
 | `page_count` | number | 总页数 |
-| `items` | json | 响应项 |
+| `items` | json | 响应/表单项目数组 |
+| `id` | string | 表单唯一标识符 |
+| `title` | string | 表单标题 |
+| `type` | string | 表单类型 |
+| `created_at` | string | 表单创建的 ISO 时间戳 |
+| `last_updated_at` | string | 上次更新的 ISO 时间戳 |
+| `settings` | json | 表单设置对象 |
+| `theme` | json | 主题配置对象 |
+| `workspace` | json | 工作区信息 |
+| `fields` | json | 表单字段/问题数组 |
+| `thankyou_screens` | json | 感谢页面数组 |
+| `_links` | json | 相关资源链接 |
+| `deleted` | boolean | 表单是否成功删除 |
+| `message` | string | 删除确认消息 |
+| `fileUrl` | string | 下载文件的 URL |
+| `contentType` | string | 文件内容类型 |
+| `filename` | string | 文件名 |
 
 ### `typeform_files`
 
@@ -112,6 +107,129 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `fields` | 数组 | 在此字段中流失的用户数量 |
+
+### `typeform_list_forms`
+
+检索 Typeform 帐户中所有表单的列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Typeform 个人访问令牌 |
+| `search` | string | 否 | 按标题过滤表单的搜索查询 |
+| `page` | number | 否 | 页码 \(默认值：1\) |
+| `pageSize` | number | 否 | 每页表单数量 \(默认值：10，最大值：200\) |
+| `workspaceId` | string | 否 | 按工作区 ID 过滤表单 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `total_items` | number | 帐户中表单的总数 |
+| `page_count` | number | 可用页面的总数 |
+| `items` | array | 表单对象的数组 |
+
+### `typeform_get_form`
+
+检索特定表单的完整详细信息和结构
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Typeform 个人访问令牌 |
+| `formId` | string | 是 | 表单唯一标识符 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 表单唯一标识符 |
+| `title` | string | 表单标题 |
+| `type` | string | 表单类型 \(表单、测验等\) |
+| `created_at` | string | 表单创建的 ISO 时间戳 |
+| `last_updated_at` | string | 上次更新的 ISO 时间戳 |
+| `settings` | object | 表单设置，包括语言、进度条等 |
+| `theme` | object | 主题配置，包括颜色、字体和设计设置 |
+| `workspace` | object | 工作区信息 |
+
+### `typeform_create_form`
+
+创建一个包含字段和设置的新表单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Typeform 个人访问令牌 |
+| `title` | string | 是 | 表单标题 |
+| `type` | string | 否 | 表单类型 \(默认值："form"\)。选项："form"，"quiz" |
+| `workspaceId` | string | 否 | 创建表单的工作区 ID |
+| `fields` | json | 否 | 定义表单结构的字段对象数组。每个字段需要：类型、标题和可选属性/验证 |
+| `settings` | json | 否 | 表单设置对象 \(语言、进度条等\) |
+| `themeId` | string | 否 | 应用于表单的主题 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 创建的表单唯一标识符 |
+| `title` | string | 表单标题 |
+| `type` | string | 表单类型 |
+| `created_at` | string | 表单创建的 ISO 时间戳 |
+| `last_updated_at` | string | 最后更新的 ISO 时间戳 |
+| `settings` | object | 表单设置 |
+| `theme` | object | 应用的主题配置 |
+| `workspace` | object | 工作区信息 |
+| `fields` | array | 创建的表单字段数组 |
+| `_links` | object | 相关资源链接 |
+
+### `typeform_update_form`
+
+使用 JSON Patch 操作更新现有表单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Typeform 个人访问令牌 |
+| `formId` | string | 是 | 要更新的表单唯一标识符 |
+| `operations` | json | 是 | JSON Patch 操作数组 \(RFC 6902\)。每个操作需要：op \(add/remove/replace\)、path 和 value \(用于 add/replace\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 更新的表单唯一标识符 |
+| `title` | string | 表单标题 |
+| `type` | string | 表单类型 |
+| `created_at` | string | 表单创建的 ISO 时间戳 |
+| `last_updated_at` | string | 最后更新的 ISO 时间戳 |
+| `settings` | object | 表单设置 |
+| `theme` | object | 主题配置 |
+| `workspace` | object | 工作区信息 |
+| `fields` | array | 表单字段数组 |
+| `thankyou_screens` | array | 感谢页面数组 |
+| `_links` | object | 相关资源链接 |
+
+### `typeform_delete_form`
+
+永久删除表单及其所有响应
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Typeform 个人访问令牌 |
+| `formId` | string | 是 | 要删除的表单唯一标识符 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 表单是否成功删除 |
+| `message` | string | 删除确认消息 |
 
 ## 注意事项
 

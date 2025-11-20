@@ -13,7 +13,7 @@ Der Variablen-Block aktualisiert Workflow-Variablen während der Ausführung. Va
     src="/static/blocks/variables.png"
     alt="Variablen-Block"
     width={500}
-    height={350}
+    height={400}
     className="my-6"
   />
 </div>
@@ -22,27 +22,11 @@ Der Variablen-Block aktualisiert Workflow-Variablen während der Ausführung. Va
   Greife überall in deinem Workflow auf Variablen zu, indem du die `<variable.variableName>` Syntax verwendest.
 </Callout>
 
-## Überblick
-
-Der Variablen-Block ermöglicht dir:
-
-<Steps>
-  <Step>
-    <strong>Workflow-Variablen aktualisieren</strong>: Ändere Variablenwerte während der Ausführung
-  </Step>
-  <Step>
-    <strong>Dynamische Daten speichern</strong>: Erfasse Block-Ausgaben in Variablen
-  </Step>
-  <Step>
-    <strong>Zustand beibehalten</strong>: Verfolge Zähler, Flags und Zwischenergebnisse
-  </Step>
-</Steps>
-
 ## Wie man Variablen verwendet
 
-### 1. Im Workflow-Variablenbereich initialisieren
+### 1. Initialisierung in Workflow-Variablen
 
-Erstelle zunächst deine Variablen im Variablen-Bereich des Workflows (zugänglich über die Workflow-Einstellungen):
+Erstellen Sie zunächst Ihre Variablen im Variablenbereich des Workflows (zugänglich über die Workflow-Einstellungen):
 
 ```
 customerEmail = ""
@@ -50,9 +34,9 @@ retryCount = 0
 currentStatus = "pending"
 ```
 
-### 2. Mit dem Variablen-Block aktualisieren
+### 2. Aktualisierung mit dem Variablen-Block
 
-Verwende den Variablen-Block, um diese Werte während der Ausführung zu aktualisieren:
+Verwenden Sie den Variablen-Block, um diese Werte während der Ausführung zu aktualisieren:
 
 ```
 customerEmail = <api.email>
@@ -62,7 +46,7 @@ currentStatus = "processing"
 
 ### 3. Überall zugreifen
 
-Referenziere Variablen in jedem Block:
+Referenzieren Sie Variablen in jedem Block:
 
 ```
 Agent prompt: "Send email to <variable.customerEmail>"
@@ -72,44 +56,23 @@ API body: {"status": "<variable.currentStatus>"}
 
 ## Beispielanwendungsfälle
 
-### Schleifenzähler und Zustand
+**Schleifenzähler und Status** - Fortschritt durch Iterationen verfolgen
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Fortschritt durch Schleifeniterationen verfolgen</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Im Workflow initialisieren: `itemsProcessed = 0`, `lastResult = ""`</li>
-    <li>Schleife iteriert über Elemente</li>
-    <li>Innerhalb der Schleife: Agent verarbeitet aktuelles Element</li>
-    <li>Innerhalb der Schleife: Variablen aktualisieren `itemsProcessed = <variable.itemsProcessed> + 1`</li>
-    <li>Innerhalb der Schleife: Variablen aktualisieren `lastResult = <agent.content>`</li>
-    <li>Nächste Iteration: Auf `<variable.lastResult>` zugreifen, um mit aktuellem Ergebnis zu vergleichen</li>
-  </ol>
-</div>
+```
+Loop → Agent (Process) → Variables (itemsProcessed + 1) → Variables (Store lastResult)
+```
 
-### Wiederholungslogik
+**Wiederholungslogik** - API-Wiederholungsversuche verfolgen
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: API-Wiederholungsversuche verfolgen</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Im Workflow initialisieren: `retryCount = 0`</li>
-    <li>API-Block versucht Anfrage</li>
-    <li>Bei Fehlschlag erhöht Variablen: `retryCount = <variable.retryCount> + 1`</li>
-    <li>Bedingung prüft, ob `<variable.retryCount>` \< 3 ist, um zu wiederholen oder abzubrechen</li>
-  </ol>
-</div>
+```
+API (Try) → Variables (retryCount + 1) → Condition (retryCount < 3)
+```
 
-### Dynamische Konfiguration
+**Dynamische Konfiguration** - Benutzerkontext für Workflow speichern
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Benutzerkontext für Workflow speichern</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Im Workflow initialisieren: `userId = ""`, `userTier = ""`</li>
-    <li>API ruft Benutzerprofil ab</li>
-    <li>Variablen speichern: `userId = <api.id>`, `userTier = <api.tier>`</li>
-    <li>Agent personalisiert Antwort mit `<variable.userTier>`</li>
-    <li>API verwendet `<variable.userId>` für Logging</li>
-  </ol>
-</div>
+```
+API (Fetch Profile) → Variables (userId, userTier) → Agent (Personalize)
+```
 
 ## Ausgaben
 
@@ -117,7 +80,7 @@ API body: {"status": "<variable.currentStatus>"}
 
 ## Bewährte Praktiken
 
-- **Im Workflow-Einstellungen initialisieren**: Erstellen Sie Variablen immer im Workflow-Variablenbereich, bevor Sie sie verwenden
-- **Dynamisch aktualisieren**: Verwenden Sie Variablenblöcke, um Werte basierend auf Blockausgaben oder Berechnungen zu aktualisieren
-- **In Schleifen verwenden**: Perfekt für die Zustandsverfolgung über Iterationen hinweg
+- **In Workflow-Einstellungen initialisieren**: Erstellen Sie Variablen immer im Variablenbereich des Workflows, bevor Sie sie verwenden
+- **Dynamisch aktualisieren**: Verwenden Sie Variablen-Blöcke, um Werte basierend auf Block-Ausgaben oder Berechnungen zu aktualisieren
+- **In Schleifen verwenden**: Perfekt für die Verfolgung des Status über Iterationen hinweg
 - **Beschreibend benennen**: Verwenden Sie klare Namen wie `currentIndex`, `totalProcessed` oder `lastError`

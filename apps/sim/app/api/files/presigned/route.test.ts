@@ -33,7 +33,7 @@ describe('/api/files/presigned', () => {
 
       const { POST } = await import('@/app/api/files/presigned/route')
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned', {
+      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
         method: 'POST',
         body: JSON.stringify({
           fileName: 'test.txt',
@@ -162,7 +162,7 @@ describe('/api/files/presigned', () => {
 
       const { POST } = await import('@/app/api/files/presigned/route')
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned', {
+      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
         method: 'POST',
         body: JSON.stringify({
           fileName: 'test document.txt',
@@ -177,7 +177,7 @@ describe('/api/files/presigned', () => {
       expect(response.status).toBe(200)
       expect(data.presignedUrl).toBe('https://example.com/presigned-url')
       expect(data.fileInfo).toMatchObject({
-        path: expect.stringMatching(/\/api\/files\/serve\/s3\/.+\?context=general$/), // general uploads use serve path
+        path: expect.stringMatching(/\/api\/files\/serve\/s3\/.+\?context=chat$/),
         key: expect.stringMatching(/.*test.document\.txt$/),
         name: 'test document.txt',
         size: 1024,
@@ -249,7 +249,7 @@ describe('/api/files/presigned', () => {
 
       const { POST } = await import('@/app/api/files/presigned/route')
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned', {
+      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
         method: 'POST',
         body: JSON.stringify({
           fileName: 'test document.txt',
@@ -315,7 +315,7 @@ describe('/api/files/presigned', () => {
 
       const { POST } = await import('@/app/api/files/presigned/route')
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned', {
+      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
         method: 'POST',
         body: JSON.stringify({
           fileName: 'test.txt',
@@ -345,7 +345,7 @@ describe('/api/files/presigned', () => {
 
       const { POST } = await import('@/app/api/files/presigned/route')
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned', {
+      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
         method: 'POST',
         body: JSON.stringify({
           fileName: 'test.txt',
@@ -377,7 +377,7 @@ describe('/api/files/presigned', () => {
 
       const { POST } = await import('@/app/api/files/presigned/route')
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned', {
+      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
         method: 'POST',
         body: JSON.stringify({
           fileName: 'test.txt',

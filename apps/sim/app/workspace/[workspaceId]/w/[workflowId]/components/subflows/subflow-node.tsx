@@ -1,77 +1,63 @@
-import type React from 'react'
 import { memo, useMemo, useRef } from 'react'
-import { Trash2 } from 'lucide-react'
+import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position, useReactFlow } from 'reactflow'
-import { StartIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Button, Trash } from '@/components/emcn'
 import { cn } from '@/lib/utils'
 import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
-import { IterationBadges } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/components/iteration-badges/iteration-badges'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 
+/**
+ * Global styles for subflow nodes (loop and parallel containers).
+ * Includes animations for drag-over states and hover effects.
+ *
+ * @returns Style component with global CSS
+ */
 const SubflowNodeStyles: React.FC = () => {
   return (
     <style jsx global>{`
-      @keyframes loop-node-pulse {
-        0% { box-shadow: 0 0 0 0 rgba(47, 179, 255, 0.3); }
-        70% { box-shadow: 0 0 0 6px rgba(47, 179, 255, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(47, 179, 255, 0); }
+      /* Z-index management for subflow nodes */
+      .workflow-container .react-flow__node-subflowNode {
+        z-index: -1 !important;
       }
 
-      @keyframes parallel-node-pulse {
-        0% { box-shadow: 0 0 0 0 rgba(139, 195, 74, 0.3); }
-        70% { box-shadow: 0 0 0 6px rgba(139, 195, 74, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(139, 195, 74, 0); }
-      }
-
-      .loop-node-drag-over {
-        animation: loop-node-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        border-style: solid !important;
-        background-color: rgba(47, 179, 255, 0.08) !important;
-        box-shadow: 0 0 0 8px rgba(47, 179, 255, 0.1);
-      }
-
+      /* Drag-over states */
+      .loop-node-drag-over,
       .parallel-node-drag-over {
-        animation: parallel-node-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        border-style: solid !important;
-        background-color: rgba(139, 195, 74, 0.08) !important;
-        box-shadow: 0 0 0 8px rgba(139, 195, 74, 0.1);
+        box-shadow: 0 0 0 1.75px #33B4FF !important;
+        border-radius: 8px !important;
       }
 
-      .react-flow__node-group:hover,
-      .hover-highlight {
-        border-color: #1e293b !important;
-      }
-
-      .group-node-container:hover .react-flow__resize-control.bottom-right {
-        opacity: 1 !important;
-        visibility: visible !important;
-      }
-
+      /* Handle z-index for nested nodes */
       .react-flow__node[data-parent-node-id] .react-flow__handle {
         z-index: 30;
-      }
-
-      .react-flow__node-group.dragging-over {
-        background-color: rgba(34,197,94,0.05);
-        transition: all 0.2s ease-in-out;
       }
     `}</style>
   )
 }
 
+/**
+ * Data structure for subflow nodes (loop and parallel containers)
+ */
 export interface SubflowNodeData {
   width?: number
   height?: number
   parentId?: string
   extent?: 'parent'
-  hasNestedError?: boolean
   isPreview?: boolean
   kind: 'loop' | 'parallel'
+  name?: string
 }
 
+/**
+ * Subflow node component for loop and parallel execution containers.
+ * Renders a resizable container with a header displaying the block name and icon,
+ * handles for connections, and supports nested execution contexts.
+ *
+ * @param props - Node properties containing data and id
+ * @returns Rendered subflow node component
+ */
 export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeData>) => {
   const { getNodes } = useReactFlow()
   const { collaborativeRemoveBlock } = useCollaborativeWorkflow()
@@ -86,6 +72,15 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
 
   const isPreview = data?.isPreview || false
 
+  // Focus state
+  const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
+  const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
+  const isFocused = currentBlockId === id
+
+  /**
+   * Calculate the nesting level of this subflow node based on its parent hierarchy.
+   * Used to apply appropriate styling for nested containers.
+   */
   const nestingLevel = useMemo(() => {
     let level = 0
     let currentParentId = data?.parentId
@@ -100,69 +95,112 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
     return level
   }, [id, data?.parentId, getNodes])
 
-  const getNestedStyles = () => {
-    const styles: Record<string, string> = {
-      backgroundColor: 'rgba(0, 0, 0, 0.02)',
-    }
-    if (nestingLevel > 0) {
-      const colors = ['#e2e8f0', '#cbd5e1', '#94a3b8', '#64748b', '#475569']
-      const colorIndex = (nestingLevel - 1) % colors.length
-      styles.backgroundColor = `${colors[colorIndex]}30`
-    }
-    return styles
-  }
-
-  const nestedStyles = getNestedStyles()
-
   const startHandleId = data.kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
   const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
-  const startBg = data.kind === 'loop' ? '#2FB3FF' : '#FEE12B'
+  const BlockIcon = data.kind === 'loop' ? RepeatIcon : SplitIcon
+  const blockIconBg = data.kind === 'loop' ? '#2FB3FF' : '#FEE12B'
+  const blockName = data.name || (data.kind === 'loop' ? 'Loop' : 'Parallel')
+
+  /**
+   * Reusable styles and positioning for Handle components.
+   * Matches the styling pattern from workflow-block.tsx.
+   */
+  const getHandleClasses = (position: 'left' | 'right') => {
+    const baseClasses = '!z-[10] !cursor-crosshair !border-none !transition-[colors] !duration-150'
+    const colorClasses = '!bg-[var(--surface-12)]'
+
+    const positionClasses = {
+      left: '!left-[-7px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover:!left-[-10px] hover:!w-[10px] hover:!rounded-l-full',
+      right:
+        '!right-[-7px] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none hover:!right-[-10px] hover:!w-[10px] hover:!rounded-r-full',
+    }
+
+    return cn(baseClasses, colorClasses, positionClasses[position])
+  }
+
+  const getHandleStyle = () => {
+    return { top: '20px', transform: 'translateY(-50%)' }
+  }
+
+  /**
+   * Determine the ring styling based on subflow state priority:
+   * 1. Focused (selected in editor) - blue ring
+   * 2. Diff status (version comparison) - green/orange ring
+   */
+  const hasRing = isFocused || diffStatus === 'new' || diffStatus === 'edited'
+  const ringStyles = cn(
+    hasRing && 'ring-[1.75px]',
+    isFocused && 'ring-[var(--brand-secondary)]',
+    diffStatus === 'new' && 'ring-[#22C55F]',
+    diffStatus === 'edited' && 'ring-[var(--warning)]'
+  )
 
   return (
     <>
       <SubflowNodeStyles />
       <div className='group relative'>
-        <Card
+        <div
           ref={blockRef}
+          onClick={() => setCurrentBlockId(id)}
           className={cn(
-            'relative cursor-default select-none',
+            'relative cursor-pointer select-none rounded-[8px] border border-[var(--divider)]',
             'transition-block-bg transition-ring',
-            'z-[20]',
-            nestingLevel > 0 &&
-              `border border-[0.5px] ${nestingLevel % 2 === 0 ? 'border-slate-300/60' : 'border-slate-400/60'}`,
-            data?.hasNestedError && 'border-2 border-red-500 bg-red-50/50',
-            diffStatus === 'new' && 'bg-green-50/50 ring-2 ring-green-500 dark:bg-green-900/10',
-            diffStatus === 'edited' &&
-              'bg-orange-50/50 ring-2 ring-orange-500 dark:bg-orange-900/10'
+            'z-[20]'
           )}
           style={{
             width: data.width || 500,
             height: data.height || 300,
             position: 'relative',
             overflow: 'visible',
-            ...nestedStyles,
             pointerEvents: isPreview ? 'none' : 'all',
           }}
           data-node-id={id}
           data-type='subflowNode'
           data-nesting-level={nestingLevel}
         >
-          {!isPreview && (
-            <div
-              className='workflow-drag-handle absolute top-0 right-0 left-0 z-10 h-10 cursor-move'
-              style={{ pointerEvents: 'auto' }}
-            />
-          )}
+          {/* Header Section */}
+          <div
+            className={cn(
+              'workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--divider)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px] dark:bg-[var(--surface-2)] [&:active]:cursor-grabbing'
+            )}
+            onMouseDown={(e) => {
+              e.stopPropagation()
+            }}
+          >
+            <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
+              <div
+                className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+                style={{ backgroundColor: blockIconBg }}
+              >
+                <BlockIcon className='h-[16px] w-[16px] text-white' />
+              </div>
+              <span className='font-medium text-[16px]' title={blockName}>
+                {blockName}
+              </span>
+            </div>
+            {!isPreview && (
+              <Button
+                variant='ghost'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  collaborativeRemoveBlock(id)
+                }}
+                className='h-[14px] w-[14px] p-0 opacity-0 transition-opacity duration-100 group-hover:opacity-100'
+              >
+                <Trash className='h-[14px] w-[14px]' />
+              </Button>
+            )}
+          </div>
 
           {!isPreview && (
             <div
-              className='absolute right-2 bottom-2 z-20 flex h-8 w-8 cursor-se-resize items-center justify-center text-muted-foreground'
+              className='absolute right-[8px] bottom-[8px] z-20 flex h-[32px] w-[32px] cursor-se-resize items-center justify-center text-muted-foreground'
               style={{ pointerEvents: 'auto' }}
             />
           )}
 
           <div
-            className='h-[calc(100%-10px)] p-4'
+            className='h-[calc(100%-50px)] pt-[16px] pr-[80px] pb-[16px] pl-[16px]'
             data-dragarea='true'
             style={{
               position: 'relative',
@@ -170,38 +208,22 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
               pointerEvents: isPreview ? 'none' : 'auto',
             }}
           >
-            {!isPreview && (
-              <Button
-                variant='ghost'
-                size='sm'
-                onClick={(e) => {
-                  e.stopPropagation()
-                  collaborativeRemoveBlock(id)
-                }}
-                className='absolute top-2 right-2 z-20 text-gray-500 opacity-0 transition-opacity duration-200 hover:text-red-600 group-hover:opacity-100'
-                style={{ pointerEvents: 'auto' }}
-              >
-                <Trash2 className='h-4 w-4' />
-              </Button>
-            )}
-
             {/* Subflow Start */}
             <div
-              className='-translate-y-1/2 absolute top-1/2 left-8 flex h-10 w-10 transform items-center justify-center rounded-md p-2'
-              style={{ pointerEvents: isPreview ? 'none' : 'auto', backgroundColor: startBg }}
+              className='absolute top-[16px] left-[16px] flex items-center justify-center rounded-[8px] bg-[var(--surface-2)] px-[12px] py-[6px]'
+              style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
               data-parent-id={id}
               data-node-role={`${data.kind}-start`}
               data-extent='parent'
             >
-              <StartIcon className='h-6 w-6 text-white' />
+              <span className='font-medium text-[14px] text-white'>Start</span>
 
               <Handle
                 type='source'
                 position={Position.Right}
                 id={startHandleId}
-                className='!w-[6px] !h-4 !bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none !z-[30] hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none !cursor-crosshair transition-[colors] duration-150'
+                className={getHandleClasses('right')}
                 style={{
-                  right: '-6px',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   pointerEvents: 'auto',
@@ -215,11 +237,9 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
           <Handle
             type='target'
             position={Position.Left}
-            className='!w-[7px] !h-5 !bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none !z-[30] hover:!w-[10px] hover:!left-[-10px] hover:!rounded-l-full hover:!rounded-r-none !cursor-crosshair transition-[colors] duration-150'
+            className={getHandleClasses('left')}
             style={{
-              left: '-7px',
-              top: '50%',
-              transform: 'translateY(-50%)',
+              ...getHandleStyle(),
               pointerEvents: 'auto',
             }}
           />
@@ -228,18 +248,20 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
           <Handle
             type='source'
             position={Position.Right}
-            className='!w-[7px] !h-5 !bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none !z-[30] hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none !cursor-crosshair transition-[colors] duration-150'
+            className={getHandleClasses('right')}
             style={{
-              right: '-7px',
-              top: '50%',
-              transform: 'translateY(-50%)',
+              ...getHandleStyle(),
               pointerEvents: 'auto',
             }}
             id={endHandleId}
           />
 
-          <IterationBadges nodeId={id} data={data} iterationType={data.kind} />
-        </Card>
+          {hasRing && (
+            <div
+              className={cn('pointer-events-none absolute inset-0 z-40 rounded-[8px]', ringStyles)}
+            />
+          )}
+        </div>
       </div>
     </>
   )

@@ -14,6 +14,7 @@ const MailSendSchema = z.object({
   to: z.string().email('Invalid email address').min(1, 'To email is required'),
   subject: z.string().min(1, 'Subject is required'),
   body: z.string().min(1, 'Email body is required'),
+  contentType: z.enum(['text', 'html']).optional().nullable(),
   resendApiKey: z.string().min(1, 'Resend API key is required'),
 })
 
@@ -50,13 +51,22 @@ export async function POST(request: NextRequest) {
 
     const resend = new Resend(validatedData.resendApiKey)
 
-    const emailData = {
-      from: validatedData.fromAddress,
-      to: validatedData.to,
-      subject: validatedData.subject,
-      html: validatedData.body,
-      text: validatedData.body.replace(/<[^>]*>/g, ''), // Strip HTML for text version
-    }
+    const contentType = validatedData.contentType || 'text'
+    const emailData =
+      contentType === 'html'
+        ? {
+            from: validatedData.fromAddress,
+            to: validatedData.to,
+            subject: validatedData.subject,
+            html: validatedData.body,
+            text: validatedData.body.replace(/<[^>]*>/g, ''), // Strip HTML for text version
+          }
+        : {
+            from: validatedData.fromAddress,
+            to: validatedData.to,
+            subject: validatedData.subject,
+            text: validatedData.body,
+          }
 
     const { data, error } = await resend.emails.send(emailData)
 

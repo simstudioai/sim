@@ -1,4 +1,4 @@
-export { Chat } from './chat/chat'
+export { Chat } from '../../chat/chat'
+export { Copilot } from '../../panel-new/components/copilot/copilot'
 export { Console } from './console/console'
-export { Copilot } from './copilot/copilot'
 export { Variables } from './variables/variables'

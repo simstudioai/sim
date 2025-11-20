@@ -1,6 +1,7 @@
 import { workflow } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -9,6 +10,16 @@ const logger = createLogger('WorkspaceByIdAPI')
 import { db } from '@sim/db'
 import { knowledgeBase, permissions, templates, workspace } from '@sim/db/schema'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
+
+const patchWorkspaceSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  billedAccountUserId: z.string().optional(),
+  allowPersonalApiKeys: z.boolean().optional(),
+})
+
+const deleteWorkspaceSchema = z.object({
+  deleteTemplates: z.boolean().default(false),
+})
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -100,22 +111,79 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   try {
-    const { name } = await request.json()
+    const body = patchWorkspaceSchema.parse(await request.json())
+    const { name, billedAccountUserId, allowPersonalApiKeys } = body
 
-    if (!name) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+    if (
+      name === undefined &&
+      billedAccountUserId === undefined &&
+      allowPersonalApiKeys === undefined
+    ) {
+      return NextResponse.json({ error: 'No updates provided' }, { status: 400 })
     }
 
-    // Update workspace
-    await db
-      .update(workspace)
-      .set({
-        name,
-        updatedAt: new Date(),
-      })
+    const existingWorkspace = await db
+      .select()
+      .from(workspace)
       .where(eq(workspace.id, workspaceId))
+      .then((rows) => rows[0])
 
-    // Get updated workspace
+    if (!existingWorkspace) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    }
+
+    const updateData: Record<string, unknown> = {}
+
+    if (name !== undefined) {
+      updateData.name = name
+    }
+
+    if (allowPersonalApiKeys !== undefined) {
+      updateData.allowPersonalApiKeys = Boolean(allowPersonalApiKeys)
+    }
+
+    if (billedAccountUserId !== undefined) {
+      const candidateId = billedAccountUserId
+
+      const isOwner = candidateId === existingWorkspace.ownerId
+
+      let hasAdminAccess = isOwner
+
+      if (!hasAdminAccess) {
+        const adminPermission = await db
+          .select({ id: permissions.id })
+          .from(permissions)
+          .where(
+            and(
+              eq(permissions.entityType, 'workspace'),
+              eq(permissions.entityId, workspaceId),
+              eq(permissions.userId, candidateId),
+              eq(permissions.permissionType, 'admin')
+            )
+          )
+          .limit(1)
+
+        hasAdminAccess = adminPermission.length > 0
+      }
+
+      if (!hasAdminAccess) {
+        return NextResponse.json(
+          { error: 'Billed account must be a workspace admin' },
+          { status: 400 }
+        )
+      }
+
+      updateData.billedAccountUserId = candidateId
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No valid updates provided' }, { status: 400 })
+    }
+
+    updateData.updatedAt = new Date()
+
+    await db.update(workspace).set(updateData).where(eq(workspace.id, workspaceId))
+
     const updatedWorkspace = await db
       .select()
       .from(workspace)
@@ -129,7 +197,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       },
     })
   } catch (error) {
-    console.error('Error updating workspace:', error)
+    logger.error('Error updating workspace:', error)
     return NextResponse.json({ error: 'Failed to update workspace' }, { status: 500 })
   }
 }
@@ -146,8 +214,8 @@ export async function DELETE(
   }
 
   const workspaceId = id
-  const body = await request.json().catch(() => ({}))
-  const { deleteTemplates = false } = body // User's choice: false = keep templates (recommended), true = delete templates
+  const body = deleteWorkspaceSchema.parse(await request.json().catch(() => ({})))
+  const { deleteTemplates } = body // User's choice: false = keep templates (recommended), true = delete templates
 
   // Check if user has admin permissions to delete workspace
   const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)

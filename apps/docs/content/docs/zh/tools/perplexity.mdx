@@ -1,6 +1,6 @@
 ---
 title: Perplexity
-description: 使用 Perplexity AI 聊天模型
+description: 使用 Perplexity AI 进行聊天和搜索
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -8,14 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="perplexity"
   color="#20808D"
-  icon={true}
-  iconSvg={`<svg className="block-icon"   viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' >
-      <path
-        d='M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z'
-        fill='currentColor'
-        fillRule='nonzero'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -36,7 +28,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 Perplexity 集成到工作流程中。可以使用 Perplexity AI 聊天模型生成补全内容。需要 API 密钥。
+将 Perplexity 集成到工作流程中。可以使用 Perplexity AI 聊天模型生成补全，或通过高级过滤执行网页搜索。
 
 ## 工具
 
@@ -61,6 +53,31 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `success` | boolean | 操作成功状态 |
 | `output` | object | 聊天补全结果 |
+
+### `perplexity_search`
+
+从 Perplexity 获取排名搜索结果
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 搜索查询或查询数组（多查询搜索最多 5 个） |
+| `max_results` | number | 否 | 返回的最大搜索结果数量（1-20，默认值：10） |
+| `search_domain_filter` | array | 否 | 限制搜索结果的域名/URL 列表（最多 20 个） |
+| `max_tokens_per_page` | number | 否 | 从每个网页检索的最大令牌数（默认值：1024） |
+| `country` | string | 否 | 用于过滤搜索结果的国家代码（例如：US、GB、DE） |
+| `search_recency_filter` | string | 否 | 按最近时间过滤结果：小时、天、周、月或年 |
+| `search_after_date` | string | 否 | 仅包含此日期之后发布的内容（格式：MM/DD/YYYY） |
+| `search_before_date` | string | 否 | 仅包含此日期之前发布的内容（格式：MM/DD/YYYY） |
+| `apiKey` | string | 是 | Perplexity API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 搜索结果 |
 
 ## 注意事项
 

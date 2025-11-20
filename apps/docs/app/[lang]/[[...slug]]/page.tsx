@@ -4,6 +4,8 @@ import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/page
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { PageNavigationArrows } from '@/components/docs-layout/page-navigation-arrows'
+import { TOCFooter } from '@/components/docs-layout/toc-footer'
 import { StructuredData } from '@/components/structured-data'
 import { CodeBlock } from '@/components/ui/code-block'
 import { CopyPageButton } from '@/components/ui/copy-page-button'
@@ -174,10 +176,14 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
       <DocsPage
         toc={page.data.toc}
         full={page.data.full}
+        breadcrumb={{
+          enabled: false,
+        }}
         tableOfContent={{
           style: 'clerk',
           enabled: true,
           header: <div className='mb-2 font-medium text-sm'>On this page</div>,
+          footer: <TOCFooter />,
           single: false,
         }}
         article={{
@@ -192,15 +198,18 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
           component: <CustomFooter />,
         }}
       >
-        <div className='relative'>
-          <div className='absolute top-1 right-0'>
-            <CopyPageButton
-              content={`# ${page.data.title}
+        <div className='relative mt-6 sm:mt-0'>
+          <div className='absolute top-1 right-0 flex items-center gap-2'>
+            <div className='hidden sm:flex'>
+              <CopyPageButton
+                content={`# ${page.data.title}
 
 ${page.data.description || ''}
 
 ${page.data.content || ''}`}
-            />
+              />
+            </div>
+            <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
           </div>
           <DocsTitle>{page.data.title}</DocsTitle>
           <DocsDescription>{page.data.description}</DocsDescription>

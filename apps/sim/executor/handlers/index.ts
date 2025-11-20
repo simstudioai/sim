@@ -4,8 +4,7 @@ import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-h
 import { EvaluatorBlockHandler } from '@/executor/handlers/evaluator/evaluator-handler'
 import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
 import { GenericBlockHandler } from '@/executor/handlers/generic/generic-handler'
-import { LoopBlockHandler } from '@/executor/handlers/loop/loop-handler'
-import { ParallelBlockHandler } from '@/executor/handlers/parallel/parallel-handler'
+import { HumanInTheLoopBlockHandler } from '@/executor/handlers/human-in-the-loop/human-in-the-loop-handler'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
 import { TriggerBlockHandler } from '@/executor/handlers/trigger/trigger-handler'
@@ -20,9 +19,8 @@ export {
   EvaluatorBlockHandler,
   FunctionBlockHandler,
   GenericBlockHandler,
-  LoopBlockHandler,
-  ParallelBlockHandler,
   ResponseBlockHandler,
+  HumanInTheLoopBlockHandler,
   RouterBlockHandler,
   TriggerBlockHandler,
   VariablesBlockHandler,

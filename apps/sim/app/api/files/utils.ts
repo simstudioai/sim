@@ -2,7 +2,8 @@ import { existsSync } from 'fs'
 import { join, resolve, sep } from 'path'
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { UPLOAD_DIR } from '@/lib/uploads/core/setup'
+import { UPLOAD_DIR } from '@/lib/uploads/config'
+import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
 
@@ -37,7 +38,6 @@ export class InvalidRequestError extends Error {
 }
 
 export const contentTypeMap: Record<string, string> = {
-  // Text formats
   txt: 'text/plain',
   csv: 'text/csv',
   json: 'application/json',
@@ -47,26 +47,20 @@ export const contentTypeMap: Record<string, string> = {
   css: 'text/css',
   js: 'application/javascript',
   ts: 'application/typescript',
-  // Document formats
   pdf: 'application/pdf',
   googleDoc: 'application/vnd.google-apps.document',
   doc: 'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  // Spreadsheet formats
   xls: 'application/vnd.ms-excel',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   googleSheet: 'application/vnd.google-apps.spreadsheet',
-  // Presentation formats
   ppt: 'application/vnd.ms-powerpoint',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  // Image formats
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   gif: 'image/gif',
-  // Archive formats
   zip: 'application/zip',
-  // Folder format
   googleFolder: 'application/vnd.google-apps.folder',
 }
 
@@ -88,34 +82,6 @@ export const binaryExtensions = [
 export function getContentType(filename: string): string {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
   return contentTypeMap[extension] || 'application/octet-stream'
-}
-
-export function isS3Path(path: string): boolean {
-  return path.includes('/api/files/serve/s3/')
-}
-
-export function isBlobPath(path: string): boolean {
-  return path.includes('/api/files/serve/blob/')
-}
-
-export function isCloudPath(path: string): boolean {
-  return isS3Path(path) || isBlobPath(path)
-}
-
-export function extractStorageKey(path: string, storageType: 's3' | 'blob'): string {
-  const prefix = `/api/files/serve/${storageType}/`
-  if (path.includes(prefix)) {
-    return decodeURIComponent(path.split(prefix)[1])
-  }
-  return path
-}
-
-export function extractS3Key(path: string): string {
-  return extractStorageKey(path, 's3')
-}
-
-export function extractBlobKey(path: string): string {
-  return extractStorageKey(path, 'blob')
 }
 
 export function extractFilename(path: string): string {
@@ -158,29 +124,48 @@ function sanitizeFilename(filename: string): string {
     throw new Error('Invalid filename provided')
   }
 
-  const sanitized = filename.replace(/\.\./g, '').replace(/[/\\]/g, '').replace(/^\./g, '').trim()
-
-  if (!sanitized || sanitized.length === 0) {
-    throw new Error('Invalid or empty filename after sanitization')
+  if (!filename.includes('/')) {
+    throw new Error('File key must include a context prefix (e.g., kb/, workspace/, execution/)')
   }
 
-  if (
-    sanitized.includes(':') ||
-    sanitized.includes('|') ||
-    sanitized.includes('?') ||
-    sanitized.includes('*') ||
-    sanitized.includes('\x00') ||
-    /[\x00-\x1F\x7F]/.test(sanitized)
-  ) {
-    throw new Error('Filename contains invalid characters')
-  }
+  const segments = filename.split('/')
 
-  return sanitized
+  const sanitizedSegments = segments.map((segment) => {
+    if (segment === '..' || segment === '.') {
+      throw new Error('Path traversal detected')
+    }
+
+    const sanitized = segment.replace(/\.\./g, '').replace(/[\\]/g, '').replace(/^\./g, '').trim()
+
+    if (!sanitized) {
+      throw new Error('Invalid or empty path segment after sanitization')
+    }
+
+    if (
+      sanitized.includes(':') ||
+      sanitized.includes('|') ||
+      sanitized.includes('?') ||
+      sanitized.includes('*') ||
+      sanitized.includes('\x00') ||
+      /[\x00-\x1F\x7F]/.test(sanitized)
+    ) {
+      throw new Error('Path segment contains invalid characters')
+    }
+
+    return sanitized
+  })
+
+  return sanitizedSegments.join(sep)
 }
 
 export function findLocalFile(filename: string): string | null {
   try {
-    const sanitizedFilename = sanitizeFilename(filename)
+    const sanitizedFilename = sanitizeFileKey(filename)
+
+    // Reject if sanitized filename is empty or only contains path separators/dots
+    if (!sanitizedFilename || !sanitizedFilename.trim() || /^[/\\.\s]+$/.test(sanitizedFilename)) {
+      return null
+    }
 
     const possiblePaths = [
       join(UPLOAD_DIR, sanitizedFilename),
@@ -191,8 +176,9 @@ export function findLocalFile(filename: string): string | null {
       const resolvedPath = resolve(path)
       const allowedDirs = [resolve(UPLOAD_DIR), resolve(process.cwd(), 'uploads')]
 
+      // Must be within allowed directory but NOT the directory itself
       const isWithinAllowedDir = allowedDirs.some(
-        (allowedDir) => resolvedPath.startsWith(allowedDir + sep) || resolvedPath === allowedDir
+        (allowedDir) => resolvedPath.startsWith(allowedDir + sep) && resolvedPath !== allowedDir
       )
 
       if (!isWithinAllowedDir) {
@@ -248,7 +234,9 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
   }
 }
 
-function encodeFilenameForHeader(filename: string): string {
+function encodeFilenameForHeader(storageKey: string): string {
+  const filename = storageKey.split('/').pop() || storageKey
+
   const hasNonAscii = /[^\x00-\x7F]/.test(filename)
 
   if (!hasNonAscii) {

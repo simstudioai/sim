@@ -34,7 +34,6 @@ export interface ToolResponse {
 export interface OAuthConfig {
   required: boolean // Whether this tool requires OAuth authentication
   provider: OAuthService // The service that needs to be authorized
-  additionalScopes?: string[] // Additional scopes required for the tool
 }
 
 export interface ToolConfig<P = any, R = any> {

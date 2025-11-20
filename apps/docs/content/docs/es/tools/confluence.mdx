@@ -8,22 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="confluence"
   color="#E0E0E0"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      
-      
-      viewBox='0 3 21 24'
-      focusable='false'
-      fill='none'
-      aria-hidden='true'
-      xmlns='http://www.w3.org/2000/svg'
-    >
-      <path
-        fill='#1868DB'
-        d='M20.602 20.234c-6.584-3.183-8.507-3.66-11.281-3.66-3.255 0-6.03 1.355-8.507 5.16l-.407.622c-.333.513-.407.696-.407.915s.111.403.518.659l4.18 2.598c.221.146.406.22.591.22.222 0 .37-.11.592-.44l.666-1.024c1.035-1.574 1.96-2.086 3.144-2.086 1.035 0 2.256.293 3.772 1.025l4.365 2.049c.444.22.925.11 1.146-.403l2.072-4.537c.222-.512.074-.842-.444-1.098M1.406 12.22c6.583 3.184 8.507 3.66 11.28 3.66 3.256 0 6.03-1.354 8.508-5.16l.407-.622c.332-.512.406-.695.406-.915s-.11-.402-.518-.658L17.31 5.927c-.222-.147-.407-.22-.592-.22-.222 0-.37.11-.592.44l-.665 1.024c-1.036 1.573-1.96 2.086-3.144 2.086-1.036 0-2.257-.293-3.773-1.025L4.18 6.183c-.444-.22-.925-.11-1.147.402L.962 11.123c-.222.512-.074.841.444 1.098'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -42,7 +26,7 @@ En Sim, la integración con Confluence permite a tus agentes acceder y aprovecha
 
 ## Instrucciones de uso
 
-Integra Confluence en el flujo de trabajo. Puede leer y actualizar una página. Requiere OAuth.
+Integra Confluence en el flujo de trabajo. Puede leer, crear, actualizar, eliminar páginas, gestionar comentarios, adjuntos, etiquetas y buscar contenido.
 
 ## Herramientas
 
@@ -90,6 +74,254 @@ Actualiza una página de Confluence utilizando la API de Confluence.
 | `pageId` | string | ID de página de Confluence |
 | `title` | string | Título de página actualizado |
 | `success` | boolean | Estado de éxito de la operación de actualización |
+
+### `confluence_create_page`
+
+Crear una nueva página en un espacio de Confluence.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `spaceId` | string | Sí | ID del espacio de Confluence donde se creará la página |
+| `title` | string | Sí | Título de la nueva página |
+| `content` | string | Sí | Contenido de la página en formato de almacenamiento de Confluence \(HTML\) |
+| `parentId` | string | No | ID de la página padre si se está creando una página hija |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de creación |
+| `pageId` | string | ID de la página creada |
+| `title` | string | Título de la página |
+| `url` | string | URL de la página |
+
+### `confluence_delete_page`
+
+Eliminar una página de Confluence (la mueve a la papelera donde puede ser restaurada).
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `pageId` | string | Sí | ID de la página de Confluence a eliminar |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de eliminación |
+| `pageId` | string | ID de página eliminada |
+| `deleted` | boolean | Estado de eliminación |
+
+### `confluence_search`
+
+Buscar contenido en páginas de Confluence, publicaciones de blog y otro contenido.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `query` | string | Sí | Cadena de consulta de búsqueda |
+| `limit` | number | No | Número máximo de resultados a devolver \(predeterminado: 25\) |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de búsqueda |
+| `results` | array | Resultados de búsqueda |
+
+### `confluence_create_comment`
+
+Añadir un comentario a una página de Confluence.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `pageId` | string | Sí | ID de la página de Confluence donde comentar |
+| `comment` | string | Sí | Texto del comentario en formato de almacenamiento de Confluence |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de creación |
+| `commentId` | string | ID del comentario creado |
+| `pageId` | string | ID de la página |
+
+### `confluence_list_comments`
+
+Listar todos los comentarios en una página de Confluence.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `pageId` | string | Sí | ID de la página de Confluence de la que listar comentarios |
+| `limit` | number | No | Número máximo de comentarios a devolver \(predeterminado: 25\) |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de la recuperación |
+| `comments` | array | Lista de comentarios |
+
+### `confluence_update_comment`
+
+Actualizar un comentario existente en una página de Confluence.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `commentId` | string | Sí | ID del comentario de Confluence a actualizar |
+| `comment` | string | Sí | Texto del comentario actualizado en formato de almacenamiento de Confluence |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de actualización |
+| `commentId` | string | ID del comentario actualizado |
+| `updated` | boolean | Estado de actualización |
+
+### `confluence_delete_comment`
+
+Eliminar un comentario de una página de Confluence.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `commentId` | string | Sí | ID del comentario de Confluence a eliminar |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de eliminación |
+| `commentId` | string | ID del comentario eliminado |
+| `deleted` | boolean | Estado de eliminación |
+
+### `confluence_list_attachments`
+
+Listar todos los archivos adjuntos en una página de Confluence.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `pageId` | string | Sí | ID de la página de Confluence de la que listar los archivos adjuntos |
+| `limit` | number | No | Número máximo de archivos adjuntos a devolver \(predeterminado: 25\) |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de la recuperación |
+| `attachments` | array | Lista de adjuntos |
+
+### `confluence_delete_attachment`
+
+Eliminar un adjunto de una página de Confluence (se mueve a la papelera).
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `attachmentId` | string | Sí | ID del adjunto de Confluence a eliminar |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de la eliminación |
+| `attachmentId` | string | ID del adjunto eliminado |
+| `deleted` | boolean | Estado de la eliminación |
+
+### `confluence_list_labels`
+
+Listar todas las etiquetas en una página de Confluence.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `pageId` | string | Sí | ID de la página de Confluence de la que listar etiquetas |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de la recuperación |
+| `labels` | array | Lista de etiquetas |
+
+### `confluence_get_space`
+
+Obtener detalles sobre un espacio específico de Confluence.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `spaceId` | string | Sí | ID del espacio de Confluence a recuperar |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de la recuperación |
+| `spaceId` | string | ID del espacio |
+| `name` | string | Nombre del espacio |
+| `key` | string | Clave del espacio |
+| `type` | string | Tipo de espacio |
+| `status` | string | Estado del espacio |
+| `url` | string | URL del espacio |
+
+### `confluence_list_spaces`
+
+Listar todos los espacios de Confluence accesibles para el usuario.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `limit` | number | No | Número máximo de espacios a devolver \(predeterminado: 25\) |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de la recuperación |
+| `spaces` | array | Lista de espacios |
 
 ## Notas
 

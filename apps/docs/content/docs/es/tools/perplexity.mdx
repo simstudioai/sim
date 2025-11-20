@@ -1,6 +1,6 @@
 ---
 title: Perplexity
-description: Usa los modelos de chat de Perplexity AI
+description: Usa Perplexity AI para chat y búsqueda
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -8,14 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="perplexity"
   color="#20808D"
-  icon={true}
-  iconSvg={`<svg className="block-icon"   viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' >
-      <path
-        d='M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z'
-        fill='currentColor'
-        fillRule='nonzero'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -36,7 +28,7 @@ En Sim, la integración de Perplexity permite a tus agentes aprovechar estas pot
 
 ## Instrucciones de uso
 
-Integra Perplexity en el flujo de trabajo. Puede generar completados utilizando los modelos de chat de Perplexity AI. Requiere clave API.
+Integra Perplexity en el flujo de trabajo. Puede generar completados utilizando modelos de chat de Perplexity AI o realizar búsquedas web con filtrado avanzado.
 
 ## Herramientas
 
@@ -61,6 +53,31 @@ Genera completados utilizando los modelos de chat de Perplexity AI
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
 | `output` | object | Resultados del completado de chat |
+
+### `perplexity_search`
+
+Obtén resultados de búsqueda clasificados de Perplexity
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | Una consulta de búsqueda o array de consultas \(máximo 5 para búsqueda multi-consulta\) |
+| `max_results` | number | No | Número máximo de resultados de búsqueda a devolver \(1-20, predeterminado: 10\) |
+| `search_domain_filter` | array | No | Lista de dominios/URLs para limitar los resultados de búsqueda \(máximo 20\) |
+| `max_tokens_per_page` | number | No | Número máximo de tokens recuperados de cada página web \(predeterminado: 1024\) |
+| `country` | string | No | Código de país para filtrar resultados de búsqueda \(ej., US, GB, DE\) |
+| `search_recency_filter` | string | No | Filtrar resultados por actualidad: hora, día, semana, mes o año |
+| `search_after_date` | string | No | Incluir solo contenido publicado después de esta fecha \(formato: MM/DD/AAAA\) |
+| `search_before_date` | string | No | Incluir solo contenido publicado antes de esta fecha \(formato: MM/DD/AAAA\) |
+| `apiKey` | string | Sí | Clave API de Perplexity |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de búsqueda |
 
 ## Notas
 

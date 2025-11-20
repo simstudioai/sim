@@ -13,11 +13,11 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
   description:
     'Read tasks from Microsoft Planner - get all user tasks or all tasks from a specific plan',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
 
   oauth: {
     required: true,
     provider: 'microsoft-planner',
-    additionalScopes: [],
   },
 
   params: {
@@ -47,14 +47,31 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
 
       // If taskId is provided, get specific task
       if (params.taskId) {
-        finalUrl = `https://graph.microsoft.com/v1.0/planner/tasks/${params.taskId}`
+        // Validate and clean task ID
+        const cleanTaskId = params.taskId.trim()
+        if (!cleanTaskId) {
+          throw new Error('Task ID cannot be empty')
+        }
+
+        // Log the task ID for debugging
+        logger.info('Fetching task with ID:', cleanTaskId)
+        logger.info('Task ID length:', cleanTaskId.length)
+        logger.info('Task ID has special chars:', /[^a-zA-Z0-9_-]/.test(cleanTaskId))
+
+        finalUrl = `https://graph.microsoft.com/v1.0/planner/tasks/${cleanTaskId}`
       }
       // Else if planId is provided, get tasks from plan
       else if (params.planId) {
-        finalUrl = `https://graph.microsoft.com/v1.0/planner/plans/${params.planId}/tasks`
+        const cleanPlanId = params.planId.trim()
+        if (!cleanPlanId) {
+          throw new Error('Plan ID cannot be empty')
+        }
+        logger.info('Fetching tasks for plan:', cleanPlanId)
+        finalUrl = `https://graph.microsoft.com/v1.0/planner/plans/${cleanPlanId}/tasks`
       }
       // Else get all user tasks
       else {
+        logger.info('Fetching all user tasks')
         finalUrl = 'https://graph.microsoft.com/v1.0/me/planner/tasks'
       }
 
@@ -68,8 +85,11 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
       }
 
       logger.info('Access token present:', !!params.accessToken)
+      logger.info('Access token length:', params.accessToken.length)
+
       return {
         Authorization: `Bearer ${params.accessToken}`,
+        'Content-Type': 'application/json',
       }
     },
   },
@@ -78,24 +98,38 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
     const data = await response.json()
     logger.info('Raw response data:', data)
 
-    // Handle single task vs multiple tasks response format
-    // Check if data is a single task object or has a 'value' property for multiple tasks
     const rawTasks = data.value ? data.value : Array.isArray(data) ? data : [data]
 
-    // Filter tasks to only include useful fields
-    const tasks = rawTasks.map((task: any) => ({
-      id: task.id,
-      title: task.title,
-      planId: task.planId,
-      bucketId: task.bucketId,
-      percentComplete: task.percentComplete,
-      priority: task.priority,
-      dueDateTime: task.dueDateTime,
-      createdDateTime: task.createdDateTime,
-      completedDateTime: task.completedDateTime,
-      hasDescription: task.hasDescription,
-      assignments: task.assignments ? Object.keys(task.assignments) : [],
-    }))
+    const tasks = rawTasks.map((task: any) => {
+      let etagValue = task['@odata.etag']
+      logger.info('ETag value extracted (raw):', {
+        raw: etagValue,
+        type: typeof etagValue,
+        length: etagValue?.length,
+      })
+
+      if (etagValue && typeof etagValue === 'string') {
+        if (etagValue.includes('\\"')) {
+          etagValue = etagValue.replace(/\\"/g, '"')
+          logger.info('Unescaped etag quotes:', { cleaned: etagValue })
+        }
+      }
+
+      return {
+        id: task.id,
+        title: task.title,
+        planId: task.planId,
+        bucketId: task.bucketId,
+        percentComplete: task.percentComplete,
+        priority: task.priority,
+        dueDateTime: task.dueDateTime,
+        createdDateTime: task.createdDateTime,
+        completedDateTime: task.completedDateTime,
+        hasDescription: task.hasDescription,
+        assignments: task.assignments ? Object.keys(task.assignments) : [],
+        etag: etagValue,
+      }
+    })
 
     const result: MicrosoftPlannerReadResponse = {
       success: true,
@@ -112,6 +146,7 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
       },
     }
 
+    logger.info('Successfully transformed response with', tasks.length, 'tasks')
     return result
   },
 

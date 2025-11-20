@@ -1,0 +1,134 @@
+---
+title: Twilio Voice
+description: Realiza y gestiona llamadas telefónicas
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="twilio_voice"
+  color="#F22F46"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Twilio Voice](https://www.twilio.com/en-us/voice) es una potente plataforma de comunicaciones en la nube que permite a las empresas realizar, recibir y gestionar llamadas telefónicas de forma programática a través de una API sencilla.
+
+Twilio Voice proporciona una API robusta para crear aplicaciones de voz sofisticadas con alcance global. Con cobertura en más de 100 países, fiabilidad de nivel operador y un SLA de disponibilidad del 99,95%, Twilio se ha establecido como líder de la industria en comunicaciones de voz programables.
+
+Las características principales de Twilio Voice incluyen:
+
+- **Red de voz global**: Realiza y recibe llamadas en todo el mundo con números de teléfono locales en múltiples países
+- **Control de llamadas programable**: Utiliza TwiML para controlar el flujo de llamadas, grabar conversaciones, recopilar entradas DTMF e implementar sistemas IVR
+- **Capacidades avanzadas**: Reconocimiento de voz, texto a voz, desvío de llamadas, conferencias y detección de contestadores automáticos
+- **Análisis en tiempo real**: Seguimiento de la calidad de las llamadas, duración, costes y optimización de tus aplicaciones de voz
+
+En Sim, la integración de Twilio Voice permite a tus agentes aprovechar estas potentes capacidades de voz como parte de sus flujos de trabajo. Esto crea oportunidades para escenarios sofisticados de interacción con clientes como recordatorios de citas, llamadas de verificación, líneas de soporte automatizadas y sistemas de respuesta de voz interactiva. La integración conecta tus flujos de trabajo de IA con canales de comunicación por voz, permitiendo a tus agentes entregar información oportuna y relevante directamente a través de llamadas telefónicas. Al conectar Sim con Twilio Voice, puedes crear agentes inteligentes que interactúen con los clientes a través de su canal de comunicación preferido, mejorando la experiencia del usuario mientras automatizas tareas rutinarias de llamadas.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Twilio Voice en el flujo de trabajo. Realiza llamadas salientes y recupera grabaciones de llamadas.
+
+## Herramientas
+
+### `twilio_voice_make_call`
+
+Realiza una llamada telefónica saliente utilizando la API de Twilio Voice.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | Sí | Número de teléfono a llamar \(formato E.164, p. ej., +14155551234\) |
+| `from` | string | Sí | Tu número de teléfono de Twilio desde el que llamar \(formato E.164\) |
+| `url` | string | No | URL que devuelve instrucciones TwiML para la llamada |
+| `twiml` | string | No | Instrucciones TwiML para ejecutar \(alternativa a URL\). Usa corchetes en lugar de paréntesis angulares, p. ej., \[Response\]\[Say\]Hello\[/Say\]\[/Response\] |
+| `statusCallback` | string | No | URL del webhook para actualizaciones del estado de la llamada |
+| `statusCallbackMethod` | string | No | Método HTTP para la devolución de llamada de estado \(GET o POST\) |
+| `accountSid` | string | Sí | SID de la cuenta de Twilio |
+| `authToken` | string | Sí | Token de autenticación de Twilio |
+| `record` | boolean | No | Si se debe grabar la llamada |
+| `recordingStatusCallback` | string | No | URL del webhook para actualizaciones del estado de la grabación |
+| `timeout` | number | No | Tiempo de espera para respuesta antes de rendirse \(segundos, predeterminado: 60\) |
+| `machineDetection` | string | No | Detección de contestador automático: Enable o DetectMessageEnd |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la llamada se inició correctamente |
+| `callSid` | string | Identificador único para la llamada |
+| `status` | string | Estado de la llamada \(en cola, sonando, en progreso, completada, etc.\) |
+| `direction` | string | Dirección de la llamada \(outbound-api\) |
+| `from` | string | Número de teléfono desde el que se realiza la llamada |
+| `to` | string | Número de teléfono al que se realiza la llamada |
+| `duration` | number | Duración de la llamada en segundos |
+| `price` | string | Costo de la llamada |
+| `priceUnit` | string | Moneda del precio |
+| `error` | string | Mensaje de error si la llamada falló |
+
+### `twilio_voice_list_calls`
+
+Recupera una lista de llamadas realizadas hacia y desde una cuenta.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `accountSid` | string | Sí | SID de la cuenta de Twilio |
+| `authToken` | string | Sí | Token de autenticación de Twilio |
+| `to` | string | No | Filtrar por llamadas a este número de teléfono |
+| `from` | string | No | Filtrar por llamadas desde este número de teléfono |
+| `status` | string | No | Filtrar por estado de llamada \(en cola, sonando, en progreso, completada, etc.\) |
+| `startTimeAfter` | string | No | Filtrar llamadas que comenzaron en o después de esta fecha \(AAAA-MM-DD\) |
+| `startTimeBefore` | string | No | Filtrar llamadas que comenzaron en o antes de esta fecha \(AAAA-MM-DD\) |
+| `pageSize` | number | No | Número de registros a devolver \(máximo 1000, predeterminado 50\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si las llamadas se recuperaron correctamente |
+| `calls` | array | Array de objetos de llamada |
+| `total` | number | Número total de llamadas devueltas |
+| `page` | number | Número de página actual |
+| `pageSize` | number | Número de llamadas por página |
+| `error` | string | Mensaje de error si la recuperación falló |
+
+### `twilio_voice_get_recording`
+
+Recupera información de grabación de llamadas y transcripción (si está habilitada a través de TwiML).
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `recordingSid` | string | Sí | SID de grabación a recuperar |
+| `accountSid` | string | Sí | SID de la cuenta de Twilio |
+| `authToken` | string | Sí | Token de autenticación de Twilio |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la grabación se recuperó correctamente |
+| `recordingSid` | string | Identificador único para la grabación |
+| `callSid` | string | SID de llamada al que pertenece esta grabación |
+| `duration` | number | Duración de la grabación en segundos |
+| `status` | string | Estado de la grabación \(completada, procesando, etc.\) |
+| `channels` | number | Número de canales \(1 para mono, 2 para dual\) |
+| `source` | string | Cómo se creó la grabación |
+| `mediaUrl` | string | URL para descargar el archivo multimedia de la grabación |
+| `price` | string | Costo de la grabación |
+| `priceUnit` | string | Moneda del precio |
+| `uri` | string | URI relativa del recurso de grabación |
+| `transcriptionText` | string | Texto transcrito de la grabación \(si está disponible\) |
+| `transcriptionStatus` | string | Estado de la transcripción \(completada, en progreso, fallida\) |
+| `transcriptionPrice` | string | Costo de la transcripción |
+| `transcriptionPriceUnit` | string | Moneda del precio de la transcripción |
+| `error` | string | Mensaje de error si la recuperación falló |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `twilio_voice`

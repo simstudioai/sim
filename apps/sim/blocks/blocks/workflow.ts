@@ -38,13 +38,14 @@ export const WorkflowBlock: BlockConfig = {
     {
       id: 'workflowId',
       title: 'Select Workflow',
-      type: 'dropdown',
+      type: 'combobox',
       options: getAvailableWorkflows,
+      placeholder: 'Search workflows...',
       required: true,
     },
     {
       id: 'input',
-      title: 'Input Variable (Optional)',
+      title: 'Input Variable',
       type: 'short-input',
       placeholder: 'Select a variable to pass to the child workflow',
       description: 'This variable will be available as start.input in the child workflow',

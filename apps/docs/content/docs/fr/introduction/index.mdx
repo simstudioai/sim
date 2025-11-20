@@ -6,7 +6,7 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
 
-Sim est un constructeur visuel de flux de travail pour les applications d'IA qui vous permet de créer des flux d'agents IA visuellement. Créez des agents IA puissants, des flux d'automatisation et des pipelines de traitement de données en connectant des blocs sur un canevas — sans programmation requise.
+Sim est un constructeur de flux de travail visuel open-source pour créer et déployer des flux de travail d'agents IA. Concevez des systèmes d'automatisation intelligents à l'aide d'une interface sans code—connectez des modèles d'IA, des bases de données, des API et des outils professionnels via un canevas intuitif par glisser-déposer. Que vous construisiez des chatbots, automatisiez des processus métier ou orchestriez des pipelines de données complexes, Sim fournit les outils nécessaires pour donner vie à vos flux de travail IA.
 
 <div className="flex justify-center">
   <Image
@@ -20,50 +20,52 @@ Sim est un constructeur visuel de flux de travail pour les applications d'IA qui
 
 ## Ce que vous pouvez construire
 
-**Assistants IA et chatbots**
-Créez des agents intelligents capables de rechercher sur le web, d'accéder à votre calendrier, d'envoyer des e-mails et d'interagir avec vos outils professionnels.
+**Assistants IA & Chatbots**  
+Construisez des agents conversationnels intelligents qui s'intègrent à vos outils et données. Activez des fonctionnalités comme la recherche web, la gestion de calendrier, l'automatisation des emails et l'interaction fluide avec les systèmes d'entreprise.
 
-**Automatisation des processus métier**
-Automatisez les tâches répétitives comme la saisie de données, la génération de rapports, les réponses au support client et la création de contenu.
+**Automatisation des processus métier**  
+Éliminez les tâches manuelles dans toute votre organisation. Automatisez la saisie de données, générez des rapports, répondez aux demandes des clients et simplifiez les flux de création de contenu.
 
-**Traitement et analyse de données**
-Extrayez des informations de documents, analysez des ensembles de données, générez des rapports et synchronisez des données entre systèmes.
+**Traitement & analyse de données**  
+Transformez les données brutes en informations exploitables. Extrayez des informations de documents, effectuez des analyses de jeux de données, générez des rapports automatisés et synchronisez les données entre plateformes.
 
-**Flux d'intégration d'API**
-Connectez plusieurs services en points de terminaison unifiés, orchestrez une logique métier complexe et gérez l'automatisation basée sur les événements.
+**Flux de travail d'intégration API**  
+Orchestrez des interactions complexes entre plusieurs services. Créez des points de terminaison API unifiés, implémentez une logique métier sophistiquée et construisez des systèmes d'automatisation pilotés par événements.
 
 ## Comment ça fonctionne
 
-**Canevas visuel**
-Glissez-déposez des blocs pour construire des flux de travail. Connectez des modèles d'IA, des bases de données, des API et des outils professionnels avec de simples connexions point-and-click.
+**Éditeur de flux de travail visuel**  
+Concevez des flux de travail à l'aide d'un canevas intuitif par glisser-déposer. Connectez des modèles d'IA, des bases de données, des API et des services tiers via une interface visuelle sans code qui rend la logique d'automatisation complexe facile à comprendre et à maintenir.
 
-**Blocs intelligents**
-Choisissez parmi des blocs de traitement (agents IA, API, fonctions), des blocs logiques (conditions, boucles, routeurs) et des blocs de sortie (réponses, évaluateurs).
+**Système de blocs modulaires**  
+Construisez avec des composants spécialisés : blocs de traitement (agents IA, appels API, fonctions personnalisées), blocs logiques (branchements conditionnels, boucles, routeurs) et blocs de sortie (réponses, évaluateurs). Chaque bloc gère une tâche spécifique dans votre flux de travail.
 
-**Déclencheurs multiples**
-Démarrez des flux de travail via une interface de chat, une API REST, des webhooks, des tâches planifiées ou des événements externes provenant de services comme Slack et GitHub.
+**Déclencheurs d'exécution flexibles**  
+Lancez des flux de travail via plusieurs canaux, notamment des interfaces de chat, des API REST, des webhooks, des tâches cron planifiées ou des événements externes provenant de plateformes comme Slack et GitHub.
 
-**Collaboration d'équipe**
-Travaillez simultanément avec les membres de l'équipe sur le même flux de travail avec édition en temps réel et gestion des permissions.
+**Collaboration en temps réel**  
+Permettez à votre équipe de construire ensemble. Plusieurs utilisateurs peuvent modifier les flux de travail simultanément avec des mises à jour en direct et des contrôles d'autorisation granulaires.
 
-## Intégrations intégrées
+## Intégrations
 
-Sim se connecte à plus de 80 services prêts à l'emploi :
+Sim fournit des intégrations natives avec plus de 80 services dans plusieurs catégories :
 
-- **Modèles d'IA** : OpenAI, Anthropic, Google, Groq, Cerebras, modèles Ollama locaux
-- **Communication** : Gmail, Slack, Teams, Telegram, WhatsApp  
-- **Productivité** : Notion, Google Sheets, Airtable, Monday.com
-- **Développement** : GitHub, Jira, Linear, automatisation de navigateur
-- **Recherche et Web** : Google Search, Perplexity, Firecrawl, Exa AI
+- **Modèles d'IA** : OpenAI, Anthropic, Google Gemini, Groq, Cerebras, modèles locaux via Ollama
+- **Communication** : Gmail, Slack, Microsoft Teams, Telegram, WhatsApp  
+- **Productivité** : Notion, Google Workspace, Airtable, Monday.com
+- **Développement** : GitHub, Jira, Linear, tests automatisés de navigateur
+- **Recherche et données** : Google Search, Perplexity, Firecrawl, Exa AI
 - **Bases de données** : PostgreSQL, MySQL, Supabase, Pinecone, Qdrant
 
-Besoin de quelque chose sur mesure ? Utilisez notre [intégration MCP](/mcp) pour connecter n'importe quel service externe.
+Pour des intégrations personnalisées, utilisez notre [support MCP (Model Context Protocol)](/mcp) pour connecter n'importe quel service ou outil externe.
 
 ## Options de déploiement
 
-**Hébergé dans le cloud** : Commencez instantanément sur [sim.ai](https://sim.ai) avec une infrastructure gérée, une mise à l'échelle automatique et une surveillance intégrée.
+**Hébergé dans le cloud**  
+Lancez immédiatement sur [sim.ai](https://sim.ai) avec une infrastructure entièrement gérée, une mise à l'échelle automatique et une observabilité intégrée. Concentrez-vous sur la création de workflows pendant que nous gérons les opérations.
 
-**Auto-hébergé** : Déployez sur votre propre infrastructure en utilisant Docker, avec prise en charge des modèles d'IA locaux via Ollama pour une confidentialité complète des données.
+**Auto-hébergé**  
+Déployez sur votre propre infrastructure en utilisant Docker Compose ou Kubernetes. Gardez un contrôle total sur vos données avec la prise en charge des modèles d'IA locaux grâce à l'intégration d'Ollama.
 
 ## Prochaines étapes
 
@@ -71,13 +73,13 @@ Prêt à construire votre premier flux de travail IA ?
 
 <Cards>
   <Card title="Premiers pas" href="/getting-started">
-    Créez votre premier flux de travail en 10 minutes
+    Créez votre premier workflow en 10 minutes
   </Card>
-  <Card title="Blocs de flux de travail" href="/blocks">
+  <Card title="Blocs de workflow" href="/blocks">
     Découvrez les éléments constitutifs
   </Card>
   <Card title="Outils et intégrations" href="/tools">
-    Explorez plus de 60 intégrations intégrées
+    Explorez plus de 80 intégrations intégrées
   </Card>
   <Card title="Permissions d'équipe" href="/permissions/roles-and-permissions">
     Configurez les rôles et permissions de l'espace de travail

@@ -52,42 +52,6 @@ Each workflow maintains a rich context during execution containing:
 - Environment variables
 - Routing decisions
 
-## Execution Triggers
-
-Workflows can be executed through multiple channels:
-
-- **Manual**: Test and debug directly in the editor
-- **Deploy as API**: Create an HTTP endpoint secured with API keys
-- **Deploy as Chat**: Create a conversational interface on a custom subdomain
-- **Webhooks**: Respond to external events from third-party services
-- **Scheduled**: Run on a recurring schedule using cron expressions
-
-### Deploy as API
-
-When you deploy a workflow as an API, Sim:
-- Creates a unique HTTP endpoint: `https://sim.ai/api/workflows/{workflowId}/execute`
-- Generates an API key for authentication
-- Accepts POST requests with JSON payloads
-- Returns workflow execution results as JSON
-
-Example API call:
-```bash
-curl -X POST https://sim.ai/api/workflows/your-workflow-id/execute \
-  -H "X-API-Key: your-api-key" \
-  -H "Content-Type: application/json" \
-  -d '{"input": "your data here"}'
-```
-
-### Deploy as Chat
-
-Chat deployment creates a conversational interface for your workflow:
-- Hosted on a custom subdomain: `https://your-name.sim.ai`
-- Optional authentication (public, password, or email-based)
-- Customizable UI with your branding
-- Streaming responses for real-time interaction
-- Perfect for AI assistants, support bots, or interactive tools
-
-Each deployment method passes data to your workflow's starter block, beginning the execution flow.
 
 ## Deployment Snapshots
 
@@ -95,7 +59,7 @@ All public entry points—API, Chat, Schedule, Webhook, and Manual runs—execut
 
 <div className='flex justify-center my-6'>
   <Image
-    src='/static/execution/deployment-versions-light.png'
+    src='/static/execution/deployment-versions.png'
     alt='Deployment versions table'
     width={500}
     height={280}

@@ -5,7 +5,7 @@ import {
   generateEncryptedApiKey,
   isEncryptedApiKeyFormat,
   isLegacyApiKeyFormat,
-} from '@/lib/api-key/service'
+} from '@/lib/api-key/crypto'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 

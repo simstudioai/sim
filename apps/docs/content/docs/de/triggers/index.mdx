@@ -1,32 +1,23 @@
 ---
 title: Übersicht
-description: Grundlegende Möglichkeiten, Sim-Workflows zu starten
+description: Trigger sind die grundlegenden Möglichkeiten, um Sim-Workflows zu starten
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
 
 ## Kern-Auslöser
 
-Wähle einen Auslöser pro Workflow, um zu definieren, wie er startet:
+Verwende den Start-Block für alles, was vom Editor, von Deploy-to-API oder von Deploy-to-Chat-Erfahrungen ausgeht. Andere Trigger bleiben für ereignisgesteuerte Workflows verfügbar:
 
 <Cards>
-  <Card title="API" href="/triggers/api">
-    HTTP-Endpunkt, der JSON-Bodies in Workflow-Eingaben umwandelt
-  </Card>
-  <Card title="Chat" href="/triggers/chat">
-    Bereitgestellte Chat-Oberfläche mit Streaming-Antworten
-  </Card>
-  <Card title="Eingabeformular" href="/triggers/input-form">
-    Typisierte manuelle Eingabe für Editor-Ausführungen und Unterworkflows
-  </Card>
-  <Card title="Manuell" href="/triggers/manual">
-    Bedarfsgesteuerte Ausführungen ohne zusätzliche Daten
-  </Card>
-  <Card title="Zeitplan" href="/triggers/schedule">
-    Cron- oder intervallbasierte Ausführung
+  <Card title="Start" href="/triggers/start">
+    Einheitlicher Einstiegspunkt, der Editor-Ausführungen, API-Bereitstellungen und Chat-Bereitstellungen unterstützt
   </Card>
   <Card title="Webhook" href="/triggers/webhook">
     Externe Webhook-Payloads empfangen
+  </Card>
+  <Card title="Schedule" href="/triggers/schedule">
+    Cron- oder intervallbasierte Ausführung
   </Card>
 </Cards>
 
@@ -34,19 +25,28 @@ Wähle einen Auslöser pro Workflow, um zu definieren, wie er startet:
 
 | Auslöser | Startbedingung |
 |---------|-----------------|
-| **API** | Authentifizierter HTTP POST |
-| **Chat** | Chat-Deployment-Nachricht |
-| **Eingabeformular** | Bei manueller Übermittlung im Editor oder übergeordneten Workflow |
-| **Manuell** | Ausführen-Schaltfläche im Editor |
-| **Zeitplan** | Timer, der im Zeitplan-Modal verwaltet wird |
-| **Webhook** | Bei eingehendem HTTP-Request |
+| **Start** | Editor läuft, Deploy-to-API-Anfragen oder Chat-Nachrichten |
+| **Schedule** | Timer, der im Zeitplanblock verwaltet wird |
+| **Webhook** | Bei eingehender HTTP-Anfrage |
 
-## Verwendung von Auslösern
+> Der Start-Block stellt immer `input`, `conversationId` und `files`Felder bereit. Füge benutzerdefinierte Felder zum Eingabeformat für zusätzliche strukturierte Daten hinzu.
 
-1. Platziere den Auslöser-Block im Startslot.
-2. Konfiguriere alle erforderlichen Schemas oder Authentifizierungen.
+## Verwendung von Triggern
+
+1. Platziere den Start-Block im Startslot (oder einen alternativen Trigger wie Webhook/Schedule).
+2. Konfiguriere alle erforderlichen Schema- oder Authentifizierungseinstellungen.
 3. Verbinde den Block mit dem Rest des Workflows.
 
-> Deployments unterstützen jeden Auslöser. Aktualisiere den Workflow, stelle ihn neu bereit, und alle Auslöser-Einstiegspunkte übernehmen den neuen Snapshot. Erfahre mehr unter [Ausführung → Deployment-Snapshots](/execution).
+> Bereitstellungen unterstützen jeden Trigger. Aktualisiere den Workflow, stelle ihn erneut bereit, und alle Trigger-Einstiegspunkte übernehmen den neuen Snapshot. Erfahre mehr unter [Ausführung → Bereitstellungs-Snapshots](/execution).
 
-Legacy-Starter-Blöcke bleiben für bestehende Flows erhalten, erscheinen aber nicht mehr in neuen Builds.
+## Manuelle Ausführungspriorität
+
+Wenn Sie im Editor auf **Ausführen** klicken, wählt Sim automatisch aus, welcher Auslöser basierend auf der folgenden Prioritätsreihenfolge ausgeführt wird:
+
+1. **Start-Block** (höchste Priorität)
+2. **Zeitplan-Auslöser**
+3. **Externe Auslöser** (Webhooks, Integrationen wie Slack, Gmail, Airtable usw.)
+
+Wenn Ihr Workflow mehrere Auslöser hat, wird der Auslöser mit der höchsten Priorität ausgeführt. Wenn Sie beispielsweise sowohl einen Start-Block als auch einen Webhook-Auslöser haben, wird durch Klicken auf Ausführen der Start-Block ausgeführt.
+
+**Externe Auslöser mit Mock-Payloads**: Wenn externe Auslöser (Webhooks und Integrationen) manuell ausgeführt werden, generiert Sim automatisch Mock-Payloads basierend auf der erwarteten Datenstruktur des Auslösers. Dies stellt sicher, dass nachgelagerte Blöcke während des Tests Variablen korrekt auflösen können.

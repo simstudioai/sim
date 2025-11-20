@@ -9,6 +9,7 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
   name: 'Write to Microsoft Teams Channel',
   description: 'Write or send a message to a Microsoft Teams channel',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
   oauth: {
     required: true,
     provider: 'microsoft-teams',
@@ -73,6 +74,12 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
         return '/api/tools/microsoft_teams/write_channel'
       }
 
+      // If content contains mentions, use custom API route for mention resolution
+      const hasMentions = /<at>[^<]+<\/at>/i.test(params.content || '')
+      if (hasMentions) {
+        return '/api/tools/microsoft_teams/write_channel'
+      }
+
       const encodedTeamId = encodeURIComponent(teamId)
       const encodedChannelId = encodeURIComponent(channelId)
 
@@ -98,7 +105,8 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
         throw new Error('Content is required')
       }
 
-      // If using custom API route (with files), pass all params
+      // If using custom API route (with files or mentions), pass all params
+      const hasMentions = /<at>[^<]+<\/at>/i.test(params.content || '')
       if (params.files && params.files.length > 0) {
         return {
           accessToken: params.accessToken,
@@ -106,6 +114,15 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
           channelId: params.channelId,
           content: params.content,
           files: params.files,
+        }
+      }
+
+      if (hasMentions) {
+        return {
+          accessToken: params.accessToken,
+          teamId: params.teamId,
+          channelId: params.channelId,
+          content: params.content,
         }
       }
 

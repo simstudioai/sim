@@ -1,0 +1,642 @@
+'use client'
+
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Check, Copy, Info, Plus, Search } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import {
+  Button,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/emcn'
+import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
+import { Input, Label, Skeleton, Switch } from '@/components/ui'
+import { useSession } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console/logger'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import {
+  type ApiKey,
+  useApiKeys,
+  useCreateApiKey,
+  useDeleteApiKey,
+  useUpdateWorkspaceApiKeySettings,
+} from '@/hooks/queries/api-keys'
+import { useWorkspaceSettings } from '@/hooks/queries/workspace'
+
+const logger = createLogger('ApiKeys')
+
+interface ApiKeysProps {
+  onOpenChange?: (open: boolean) => void
+  registerCloseHandler?: (handler: (open: boolean) => void) => void
+}
+
+interface ApiKeyDisplayProps {
+  apiKey: ApiKey
+}
+
+function ApiKeyDisplay({ apiKey }: ApiKeyDisplayProps) {
+  const displayValue = apiKey.displayKey || apiKey.key
+  return (
+    <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
+      <code className='font-mono text-foreground text-xs'>{displayValue}</code>
+    </div>
+  )
+}
+
+export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
+  const { data: session } = useSession()
+  const userId = session?.user?.id
+  const params = useParams()
+  const workspaceId = (params?.workspaceId as string) || ''
+  const userPermissions = useUserPermissionsContext()
+  const canManageWorkspaceKeys = userPermissions.canAdmin
+
+  // React Query hooks
+  const {
+    data: apiKeysData,
+    isLoading: isLoadingKeys,
+    refetch: refetchApiKeys,
+  } = useApiKeys(workspaceId)
+  const { data: workspaceSettingsData, isLoading: isLoadingSettings } =
+    useWorkspaceSettings(workspaceId)
+  const createApiKeyMutation = useCreateApiKey()
+  const deleteApiKeyMutation = useDeleteApiKey()
+  const updateSettingsMutation = useUpdateWorkspaceApiKeySettings()
+
+  // Extract data from queries
+  const workspaceKeys = apiKeysData?.workspaceKeys || []
+  const personalKeys = apiKeysData?.personalKeys || []
+  const conflicts = apiKeysData?.conflicts || []
+  const isLoading = isLoadingKeys || isLoadingSettings
+
+  const allowPersonalApiKeys =
+    workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
+
+  // Local UI state
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [newKeyName, setNewKeyName] = useState('')
+  const [newKey, setNewKey] = useState<ApiKey | null>(null)
+  const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
+  const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [copySuccess, setCopySuccess] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [keyType, setKeyType] = useState<'personal' | 'workspace'>('personal')
+  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  const defaultKeyType = allowPersonalApiKeys ? 'personal' : 'workspace'
+  const createButtonDisabled = isLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  const filteredWorkspaceKeys = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return workspaceKeys.map((key, index) => ({ key, originalIndex: index }))
+    }
+    return workspaceKeys
+      .map((key, index) => ({ key, originalIndex: index }))
+      .filter(({ key }) => key.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  }, [workspaceKeys, searchTerm])
+
+  const filteredPersonalKeys = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return personalKeys.map((key, index) => ({ key, originalIndex: index }))
+    }
+    return personalKeys
+      .map((key, index) => ({ key, originalIndex: index }))
+      .filter(({ key }) => key.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  }, [personalKeys, searchTerm])
+
+  const personalHeaderMarginClass = useMemo(() => {
+    if (!searchTerm.trim()) return 'mt-8'
+    return filteredWorkspaceKeys.length > 0 ? 'mt-8' : 'mt-0'
+  }, [searchTerm, filteredWorkspaceKeys])
+
+  const handleCreateKey = async () => {
+    if (!userId || !newKeyName.trim()) return
+
+    const trimmedName = newKeyName.trim()
+    const isDuplicate =
+      keyType === 'workspace'
+        ? workspaceKeys.some((k) => k.name === trimmedName)
+        : personalKeys.some((k) => k.name === trimmedName)
+    if (isDuplicate) {
+      setCreateError(
+        keyType === 'workspace'
+          ? `A workspace API key named "${trimmedName}" already exists. Please choose a different name.`
+          : `A personal API key named "${trimmedName}" already exists. Please choose a different name.`
+      )
+      return
+    }
+
+    setCreateError(null)
+    try {
+      const data = await createApiKeyMutation.mutateAsync({
+        workspaceId,
+        name: trimmedName,
+        keyType,
+      })
+
+      setNewKey(data.key)
+      setShowNewKeyDialog(true)
+      setNewKeyName('')
+      setKeyType('personal')
+      setCreateError(null)
+      setIsCreateDialogOpen(false)
+    } catch (error: any) {
+      logger.error('API key creation failed:', { error })
+      const errorMessage = error.message || 'Failed to create API key. Please try again.'
+      if (errorMessage.toLowerCase().includes('already exists')) {
+        setCreateError(errorMessage)
+      } else {
+        setCreateError('Failed to create API key. Please check your connection and try again.')
+      }
+    }
+  }
+
+  const handleDeleteKey = async () => {
+    if (!userId || !deleteKey) return
+
+    try {
+      const isWorkspaceKey = workspaceKeys.some((k) => k.id === deleteKey.id)
+      const keyTypeToDelete = isWorkspaceKey ? 'workspace' : 'personal'
+
+      setShowDeleteDialog(false)
+      setDeleteKey(null)
+
+      await deleteApiKeyMutation.mutateAsync({
+        workspaceId,
+        keyId: deleteKey.id,
+        keyType: keyTypeToDelete,
+      })
+    } catch (error) {
+      logger.error('Error deleting API key:', { error })
+      // Refetch to restore correct state in case of error
+      refetchApiKeys()
+    }
+  }
+
+  const copyToClipboard = (key: string) => {
+    navigator.clipboard.writeText(key)
+    setCopySuccess(true)
+    setTimeout(() => setCopySuccess(false), 2000)
+  }
+
+  const handleModalClose = (open: boolean) => {
+    onOpenChange?.(open)
+  }
+
+  useEffect(() => {
+    if (registerCloseHandler) {
+      registerCloseHandler(handleModalClose)
+    }
+  }, [registerCloseHandler])
+
+  useEffect(() => {
+    if (!allowPersonalApiKeys && keyType === 'personal') {
+      setKeyType('workspace')
+    }
+  }, [allowPersonalApiKeys, keyType])
+
+  useEffect(() => {
+    if (shouldScrollToBottom && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      })
+      setShouldScrollToBottom(false)
+    }
+  }, [shouldScrollToBottom])
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'Never'
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
+  return (
+    <div className='relative flex h-full flex-col'>
+      {/* Fixed Header */}
+      <div className='px-6 pt-4 pb-2'>
+        {/* Search Input */}
+        {isLoading ? (
+          <Skeleton className='h-9 w-56 rounded-lg' />
+        ) : (
+          <div className='flex h-9 w-56 items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
+            <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
+            <Input
+              placeholder='Search API keys...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Scrollable Content */}
+      <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto px-6'>
+        <div className='space-y-2 pt-2 pb-6'>
+          {isLoading ? (
+            <div className='space-y-2'>
+              <ApiKeySkeleton />
+              <ApiKeySkeleton />
+              <ApiKeySkeleton />
+            </div>
+          ) : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
+            <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
+              Click "Create Key" below to get started
+            </div>
+          ) : (
+            <>
+              {/* Allow Personal API Keys Toggle */}
+              {!searchTerm.trim() && (
+                <Tooltip.Provider delayDuration={150}>
+                  <div className='mb-6 flex items-center justify-between'>
+                    <div className='flex items-center gap-2'>
+                      <span className='font-medium text-[12px] text-foreground'>
+                        Allow personal API keys
+                      </span>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <button
+                            type='button'
+                            className='rounded-full p-1 text-muted-foreground transition hover:text-foreground'
+                          >
+                            <Info className='h-3 w-3' strokeWidth={2} />
+                          </button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top' className='max-w-xs text-xs'>
+                          Allow collaborators to create and use their own keys with billing charged
+                          to them.
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    </div>
+                    {isLoadingSettings ? (
+                      <Skeleton className='h-5 w-16 rounded-full' />
+                    ) : (
+                      <Switch
+                        checked={allowPersonalApiKeys}
+                        disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
+                        onCheckedChange={async (checked) => {
+                          try {
+                            await updateSettingsMutation.mutateAsync({
+                              workspaceId,
+                              allowPersonalApiKeys: checked,
+                            })
+                          } catch (error) {
+                            logger.error('Error updating workspace settings:', { error })
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                </Tooltip.Provider>
+              )}
+
+              {/* Workspace section */}
+              {!searchTerm.trim() ? (
+                <div className='mb-6 space-y-2'>
+                  <div className='font-medium text-[13px] text-foreground'>Workspace</div>
+                  {workspaceKeys.length === 0 ? (
+                    <div className='text-muted-foreground text-sm'>No workspace API keys yet.</div>
+                  ) : (
+                    workspaceKeys.map((key) => (
+                      <div key={key.id} className='flex flex-col gap-2'>
+                        <Label className='font-normal text-muted-foreground text-xs uppercase'>
+                          {key.name}
+                        </Label>
+                        <div className='flex items-center justify-between gap-4'>
+                          <div className='flex items-center gap-3'>
+                            <ApiKeyDisplay apiKey={key} />
+                            <p className='text-muted-foreground text-xs'>
+                              Last used: {formatDate(key.lastUsed)}
+                            </p>
+                          </div>
+                          <div className='flex items-center gap-2'>
+                            <Button
+                              variant='ghost'
+                              onClick={() => {
+                                setDeleteKey(key)
+                                setShowDeleteDialog(true)
+                              }}
+                              className='h-8 text-muted-foreground hover:text-foreground'
+                              disabled={!canManageWorkspaceKeys}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : filteredWorkspaceKeys.length > 0 ? (
+                <div className='mb-6 space-y-2'>
+                  <div className='font-medium text-[13px] text-foreground'>Workspace</div>
+                  {filteredWorkspaceKeys.map(({ key }) => (
+                    <div key={key.id} className='flex flex-col gap-2'>
+                      <Label className='font-normal text-muted-foreground text-xs uppercase'>
+                        {key.name}
+                      </Label>
+                      <div className='flex items-center justify-between gap-4'>
+                        <div className='flex items-center gap-3'>
+                          <ApiKeyDisplay apiKey={key} />
+                          <p className='text-muted-foreground text-xs'>
+                            Last used: {formatDate(key.lastUsed)}
+                          </p>
+                        </div>
+                        <Button
+                          variant='ghost'
+                          onClick={() => {
+                            setDeleteKey(key)
+                            setShowDeleteDialog(true)
+                          }}
+                          className='h-8 text-muted-foreground hover:text-foreground'
+                          disabled={!canManageWorkspaceKeys}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {/* Personal section */}
+              <div
+                className={`${personalHeaderMarginClass} mb-2 font-medium text-[13px] text-foreground`}
+              >
+                Personal
+              </div>
+              {filteredPersonalKeys.map(({ key }) => {
+                const isConflict = conflicts.includes(key.name)
+                return (
+                  <div key={key.id} className='flex flex-col gap-2'>
+                    <Label className='font-normal text-muted-foreground text-xs uppercase'>
+                      {key.name}
+                    </Label>
+                    <div className='flex items-center justify-between gap-4'>
+                      <div className='flex items-center gap-3'>
+                        <ApiKeyDisplay apiKey={key} />
+                        <p className='text-muted-foreground text-xs'>
+                          Last used: {formatDate(key.lastUsed)}
+                        </p>
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <Button
+                          variant='ghost'
+                          onClick={() => {
+                            setDeleteKey(key)
+                            setShowDeleteDialog(true)
+                          }}
+                          className='h-8 text-muted-foreground hover:text-foreground'
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                    {isConflict && (
+                      <div className='col-span-3 mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                        Workspace API key with the same name overrides this. Rename your personal
+                        key to use it.
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {/* Show message when search has no results across both sections */}
+              {searchTerm.trim() &&
+                filteredPersonalKeys.length === 0 &&
+                filteredWorkspaceKeys.length === 0 &&
+                (personalKeys.length > 0 || workspaceKeys.length > 0) && (
+                  <div className='py-8 text-center text-muted-foreground text-sm'>
+                    No API keys found matching "{searchTerm}"
+                  </div>
+                )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className='bg-background'>
+        <div className='flex w-full items-center px-6 py-4'>
+          {isLoading ? (
+            <Skeleton className='h-9 w-[117px] rounded-[8px]' />
+          ) : (
+            <Button
+              onClick={(e) => {
+                if (createButtonDisabled) {
+                  return
+                }
+                // Remove focus from button before opening dialog to prevent focus trap
+                e.currentTarget.blur()
+                setIsCreateDialogOpen(true)
+                setKeyType(defaultKeyType)
+                setCreateError(null)
+              }}
+              variant='ghost'
+              disabled={createButtonDisabled}
+              className='h-9 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-60'
+            >
+              <Plus className='h-4 w-4 stroke-[2px]' />
+              Create Key
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Create API Key Dialog */}
+      <Modal open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <ModalContent className='sm:max-w-md'>
+          <ModalHeader>
+            <ModalTitle>Create new API key</ModalTitle>
+            <ModalDescription>
+              {keyType === 'workspace'
+                ? "This key will have access to all workflows in this workspace. Make sure to copy it after creation as you won't be able to see it again."
+                : "This key will have access to your personal workflows. Make sure to copy it after creation as you won't be able to see it again."}
+            </ModalDescription>
+          </ModalHeader>
+
+          <div className='space-y-4 py-2'>
+            {canManageWorkspaceKeys && (
+              <div className='space-y-2'>
+                <p className='font-[360] text-sm'>API Key Type</p>
+                <div className='flex gap-2'>
+                  <Button
+                    type='button'
+                    variant={keyType === 'personal' ? 'outline' : 'default'}
+                    onClick={() => {
+                      setKeyType('personal')
+                      if (createError) setCreateError(null)
+                    }}
+                    disabled={!allowPersonalApiKeys}
+                    className='h-8 disabled:cursor-not-allowed disabled:opacity-60'
+                  >
+                    Personal
+                  </Button>
+                  <Button
+                    type='button'
+                    variant={keyType === 'workspace' ? 'outline' : 'default'}
+                    onClick={() => {
+                      setKeyType('workspace')
+                      if (createError) setCreateError(null)
+                    }}
+                    className='h-8'
+                  >
+                    Workspace
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className='space-y-2'>
+              <p className='font-[360] text-sm'>
+                Enter a name for your API key to help you identify it later.
+              </p>
+              <Input
+                value={newKeyName}
+                onChange={(e) => {
+                  setNewKeyName(e.target.value)
+                  if (createError) setCreateError(null) // Clear error when user types
+                }}
+                placeholder='e.g., Development, Production'
+                className='h-9 rounded-[8px]'
+                autoFocus
+              />
+              {createError && (
+                <div className='text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                  {createError}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <ModalFooter>
+            <Button
+              variant='outline'
+              className='h-[32px] px-[12px]'
+              onClick={() => {
+                setIsCreateDialogOpen(false)
+                setNewKeyName('')
+                setKeyType(defaultKeyType)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type='button'
+              variant='primary'
+              className='h-[32px] px-[12px]'
+              onClick={handleCreateKey}
+              disabled={
+                !newKeyName.trim() ||
+                createApiKeyMutation.isPending ||
+                (keyType === 'workspace' && !canManageWorkspaceKeys)
+              }
+            >
+              {createApiKeyMutation.isPending ? 'Creating...' : 'Create'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* New API Key Dialog */}
+      <Modal
+        open={showNewKeyDialog}
+        onOpenChange={(open: boolean) => {
+          setShowNewKeyDialog(open)
+          if (!open) {
+            setNewKey(null)
+            setCopySuccess(false)
+          }
+        }}
+      >
+        <ModalContent className='sm:max-w-md'>
+          <ModalHeader>
+            <ModalTitle>Your API key has been created</ModalTitle>
+            <ModalDescription>
+              This is the only time you will see your API key.{' '}
+              <span className='font-semibold'>Copy it now and store it securely.</span>
+            </ModalDescription>
+          </ModalHeader>
+
+          {newKey && (
+            <div className='relative'>
+              <div className='flex h-9 items-center rounded-[6px] border-none bg-muted px-3 pr-10'>
+                <code className='flex-1 truncate font-mono text-foreground text-sm'>
+                  {newKey.key}
+                </code>
+              </div>
+              <Button
+                variant='ghost'
+                className='-translate-y-1/2 absolute top-1/2 right-1 h-7 w-7 rounded-[4px] text-muted-foreground hover:bg-muted hover:text-foreground'
+                onClick={() => copyToClipboard(newKey.key)}
+              >
+                {copySuccess ? <Check className='h-3.5 w-3.5' /> : <Copy className='h-3.5 w-3.5' />}
+                <span className='sr-only'>Copy to clipboard</span>
+              </Button>
+            </div>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <ModalContent className='sm:max-w-md'>
+          <ModalHeader>
+            <ModalTitle>Delete API key?</ModalTitle>
+            <ModalDescription>
+              Deleting this API key will immediately revoke access for any integrations using it.{' '}
+              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                This action cannot be undone.
+              </span>
+            </ModalDescription>
+          </ModalHeader>
+          <ModalFooter>
+            <Button
+              className='h-[32px] px-[12px]'
+              variant='outline'
+              onClick={() => {
+                setShowDeleteDialog(false)
+                setDeleteKey(null)
+              }}
+              disabled={deleteApiKeyMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              onClick={handleDeleteKey}
+              disabled={deleteApiKeyMutation.isPending}
+            >
+              {deleteApiKeyMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </div>
+  )
+}
+
+function ApiKeySkeleton() {
+  return (
+    <div className='flex flex-col gap-2'>
+      <Skeleton className='h-4 w-32' /> {/* API key name */}
+      <div className='flex items-center justify-between gap-4'>
+        <div className='flex items-center gap-3'>
+          <Skeleton className='h-8 w-20 rounded-[8px]' /> {/* Key preview */}
+          <Skeleton className='h-4 w-24' /> {/* Last used */}
+        </div>
+        <Skeleton className='h-8 w-16' /> {/* Delete button */}
+      </div>
+    </div>
+  )
+}

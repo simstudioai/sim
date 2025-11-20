@@ -1,0 +1,177 @@
+---
+title: Calendly
+description: Manage Calendly scheduling and events
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="calendly"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Calendly](https://calendly.com/) is a popular scheduling automation platform that helps you book meetings, events, and appointments with ease. With Calendly, teams and individuals can streamline scheduling, reduce back-and-forth emails, and automate tasks around events.
+
+With the Sim Calendly integration, your agents can:
+
+- **Retrieve information about your account and scheduled events**: Use tools to fetch user info, event types, and scheduled events for analysis or automation.
+- **Manage event types and scheduling**: Access and list available event types for users or organizations, retrieve details about specific event types, and monitor scheduled meetings and invitee data.
+- **Automate follow-ups and workflows**: When users schedule, reschedule, or cancel meetings, Sim agents can automatically trigger corresponding workflows—such as sending reminders, updating CRMs, or notifying participants.
+- **Integrate easily using webhooks**: Set up Sim workflows to respond to real-time Calendly webhook events, including when invitees schedule, cancel, or interact with routing forms.
+
+Whether you want to automate meeting prep, manage invites, or run custom workflows in response to scheduling activity, the Calendly tools in Sim give you flexible and secure access. Unlock new automation by reacting instantly to scheduling changes—streamlining your team's operations and communications.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Calendly into your workflow. Manage event types, scheduled events, invitees, and webhooks. Can also trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.
+
+
+
+## Tools
+
+### `calendly_get_current_user`
+
+Get information about the currently authenticated Calendly user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | Current user information |
+
+### `calendly_list_event_types`
+
+Retrieve a list of all event types for a user or organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `user` | string | No | Return only event types that belong to this user \(URI format\) |
+| `organization` | string | No | Return only event types that belong to this organization \(URI format\) |
+| `count` | number | No | Number of results per page \(default: 20, max: 100\) |
+| `pageToken` | string | No | Page token for pagination |
+| `sort` | string | No | Sort order for results \(e.g., "name:asc", "name:desc"\) |
+| `active` | boolean | No | When true, show only active event types. When false or unchecked, show all event types \(both active and inactive\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of event type objects |
+
+### `calendly_get_event_type`
+
+Get detailed information about a specific event type
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `eventTypeUuid` | string | Yes | Event type UUID \(can be full URI or just the UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | Event type details |
+
+### `calendly_list_scheduled_events`
+
+Retrieve a list of scheduled events for a user or organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `user` | string | No | Return events that belong to this user \(URI format\). Either "user" or "organization" must be provided. |
+| `organization` | string | No | Return events that belong to this organization \(URI format\). Either "user" or "organization" must be provided. |
+| `invitee_email` | string | No | Return events where invitee has this email |
+| `count` | number | No | Number of results per page \(default: 20, max: 100\) |
+| `max_start_time` | string | No | Return events with start time before this time \(ISO 8601 format\) |
+| `min_start_time` | string | No | Return events with start time after this time \(ISO 8601 format\) |
+| `pageToken` | string | No | Page token for pagination |
+| `sort` | string | No | Sort order for results \(e.g., "start_time:asc", "start_time:desc"\) |
+| `status` | string | No | Filter by status \("active" or "canceled"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of scheduled event objects |
+
+### `calendly_get_scheduled_event`
+
+Get detailed information about a specific scheduled event
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `eventUuid` | string | Yes | Scheduled event UUID \(can be full URI or just the UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | Scheduled event details |
+
+### `calendly_list_event_invitees`
+
+Retrieve a list of invitees for a scheduled event
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `eventUuid` | string | Yes | Scheduled event UUID \(can be full URI or just the UUID\) |
+| `count` | number | No | Number of results per page \(default: 20, max: 100\) |
+| `email` | string | No | Filter invitees by email address |
+| `pageToken` | string | No | Page token for pagination |
+| `sort` | string | No | Sort order for results \(e.g., "created_at:asc", "created_at:desc"\) |
+| `status` | string | No | Filter by status \("active" or "canceled"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of invitee objects |
+
+### `calendly_cancel_event`
+
+Cancel a scheduled event
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `eventUuid` | string | Yes | Scheduled event UUID to cancel \(can be full URI or just the UUID\) |
+| `reason` | string | No | Reason for cancellation \(will be sent to invitees\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | Cancellation details |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `calendly`

@@ -2,6 +2,7 @@ import { TelegramIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { TelegramResponse } from '@/tools/telegram/types'
+import { getTrigger } from '@/triggers'
 
 export const TelegramBlock: BlockConfig<TelegramResponse> = {
   type: 'telegram',
@@ -20,7 +21,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Send Message', id: 'telegram_message' },
         { label: 'Send Photo', id: 'telegram_send_photo' },
@@ -36,7 +36,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'botToken',
       title: 'Bot Token',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your Telegram Bot Token',
       password: true,
       connectionDroppable: false,
@@ -50,7 +49,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'chatId',
       title: 'Chat ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Telegram Chat ID',
       description: `Getting Chat ID:
 1. Add your bot as a member to desired Telegram channel
@@ -63,7 +61,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'text',
       title: 'Message',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter the message to send',
       required: true,
       condition: { field: 'operation', value: 'telegram_message' },
@@ -72,7 +69,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'photo',
       title: 'Photo',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter photo URL or file_id',
       description: 'Photo to send. Pass a file_id or HTTP URL',
       required: true,
@@ -82,7 +78,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'video',
       title: 'Video',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter video URL or file_id',
       description: 'Video to send. Pass a file_id or HTTP URL',
       required: true,
@@ -92,7 +87,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'audio',
       title: 'Audio',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter audio URL or file_id',
       description: 'Audio file to send. Pass a file_id or HTTP URL',
       required: true,
@@ -102,7 +96,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'animation',
       title: 'Animation',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter animation URL or file_id',
       description: 'Animation (GIF) to send. Pass a file_id or HTTP URL',
       required: true,
@@ -113,7 +106,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'attachmentFiles',
       title: 'Document',
       type: 'file-upload',
-      layout: 'full',
       canonicalParamId: 'files',
       placeholder: 'Upload document file',
       condition: { field: 'operation', value: 'telegram_send_document' },
@@ -127,7 +119,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'files',
       title: 'Document',
       type: 'short-input',
-      layout: 'full',
       canonicalParamId: 'files',
       placeholder: 'Reference document from previous blocks',
       condition: { field: 'operation', value: 'telegram_send_document' },
@@ -139,7 +130,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'caption',
       title: 'Caption',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter optional caption',
       description: 'Media caption (optional)',
       condition: {
@@ -157,21 +147,12 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'messageId',
       title: 'Message ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the message ID to delete',
       description: 'The unique identifier of the message you want to delete',
       required: true,
       condition: { field: 'operation', value: 'telegram_delete_message' },
     },
-    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
-    {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'telegram',
-      availableTriggers: ['telegram_webhook'],
-    },
+    ...getTrigger('telegram_webhook').subBlocks,
   ],
   tools: {
     access: [
@@ -301,7 +282,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       type: 'json',
       description: 'Files to attach (UI upload)',
     },
-    files: { type: 'json', description: 'Files to attach (UserFile array)' },
+    files: { type: 'array', description: 'Files to attach (UserFile array)' },
     caption: { type: 'string', description: 'Caption for media' },
     messageId: { type: 'string', description: 'Message ID to delete' },
   },

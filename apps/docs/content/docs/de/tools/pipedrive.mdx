@@ -1,0 +1,416 @@
+---
+title: Pipedrive
+description: Interagiere mit Pipedrive CRM
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pipedrive"
+  color="#2E6936"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Pipedrive](https://www.pipedrive.com) ist eine leistungsstarke, vertriebsorientierte CRM-Plattform, die Vertriebsteams dabei hilft, Leads zu verwalten, Deals zu verfolgen und ihre Vertriebspipeline zu optimieren. Mit Fokus auf Einfachheit und Effektivität entwickelt, ist Pipedrive bei Vertriebsprofis und wachsenden Unternehmen weltweit aufgrund seines intuitiven visuellen Pipeline-Managements und handlungsrelevanter Vertriebseinblicke sehr beliebt.
+
+Pipedrive bietet eine umfassende Suite von Tools zur Verwaltung des gesamten Vertriebsprozesses von der Lead-Erfassung bis zum Abschluss. Mit seiner robusten API und umfangreichen Integrationsmöglichkeiten ermöglicht Pipedrive Vertriebsteams, wiederkehrende Aufgaben zu automatisieren, Datenkonsistenz zu gewährleisten und sich auf das Wesentliche zu konzentrieren – Deals abzuschließen.
+
+Zu den Hauptfunktionen von Pipedrive gehören:
+
+- Visuelle Vertriebspipeline: Intuitive Drag-and-Drop-Oberfläche zur Verwaltung von Deals durch anpassbare Vertriebsphasen
+- Lead-Management: Umfassender Lead-Posteingang zum Erfassen, Qualifizieren und Konvertieren potenzieller Chancen
+- Aktivitätsverfolgung: Ausgeklügeltes System zur Planung und Verfolgung von Anrufen, Meetings, E-Mails und Aufgaben
+- Projektmanagement: Integrierte Projektverfolgungsfunktionen für Kundenerfolg und Lieferung nach dem Verkauf
+- E-Mail-Integration: Native Postfach-Integration für nahtlose Kommunikationsverfolgung innerhalb des CRM
+
+In Sim ermöglicht die Pipedrive-Integration Ihren KI-Agenten eine nahtlose Interaktion mit Ihrem Verkaufsprozess. Dies schafft Möglichkeiten für automatisierte Lead-Qualifizierung, Erstellung und Aktualisierung von Deals, Aktivitätsplanung und Pipeline-Management als Teil Ihrer KI-gestützten Verkaufsprozesse. Die Integration ermöglicht Agenten, Deals, Leads, Aktivitäten und Projekte programmatisch zu erstellen, abzurufen, zu aktualisieren und zu verwalten, was intelligente Verkaufsautomatisierung erleichtert und sicherstellt, dass wichtige Kundeninformationen ordnungsgemäß verfolgt und bearbeitet werden. Durch die Verbindung von Sim mit Pipedrive können Sie KI-Agenten erstellen, die die Sichtbarkeit der Verkaufspipeline aufrechterhalten, Routine-CRM-Aufgaben automatisieren, Leads intelligent qualifizieren und sicherstellen, dass keine Chancen verloren gehen – was die Produktivität des Verkaufsteams steigert und ein konstantes Umsatzwachstum fördert.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie Pipedrive in Ihren Workflow. Verwalten Sie Deals, Kontakte, Verkaufspipeline, Projekte, Aktivitäten, Dateien und Kommunikation mit leistungsstarken CRM-Funktionen.
+
+## Tools
+
+### `pipedrive_get_all_deals`
+
+Alle Deals von Pipedrive mit optionalen Filtern abrufen
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | Nein | Ruft nur Deals mit einem bestimmten Status ab. Werte: open, won, lost. Wenn nicht angegeben, werden alle nicht gelöschten Deals zurückgegeben |
+| `person_id` | string | Nein | Wenn angegeben, werden nur Deals zurückgegeben, die mit der angegebenen Person verknüpft sind |
+| `org_id` | string | Nein | Wenn angegeben, werden nur Deals zurückgegeben, die mit der angegebenen Organisation verknüpft sind |
+| `pipeline_id` | string | Nein | Wenn angegeben, werden nur Deals in der angegebenen Pipeline zurückgegeben |
+| `updated_since` | string | Nein | Wenn gesetzt, werden nur Deals zurückgegeben, die nach diesem Zeitpunkt aktualisiert wurden. Format: 2025-01-01T10:20:00Z |
+| `limit` | string | Nein | Anzahl der zurückzugebenden Ergebnisse \(Standard: 100, max: 500\) |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Deals-Daten und Metadaten |
+
+### `pipedrive_get_deal`
+
+Detaillierte Informationen über einen bestimmten Deal abrufen
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | Ja | Die ID des abzurufenden Deals |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Deal-Details |
+
+### `pipedrive_create_deal`
+
+Einen neuen Deal in Pipedrive erstellen
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Ja | Der Titel des Deals |
+| `value` | string | Nein | Der Geldwert des Deals |
+| `currency` | string | Nein | Währungscode (z.B. USD, EUR) |
+| `person_id` | string | Nein | ID der Person, mit der dieser Deal verbunden ist |
+| `org_id` | string | Nein | ID der Organisation, mit der dieser Deal verbunden ist |
+| `pipeline_id` | string | Nein | ID der Pipeline, in der dieser Deal platziert werden soll |
+| `stage_id` | string | Nein | ID der Phase, in der dieser Deal platziert werden soll |
+| `status` | string | Nein | Status des Deals: open, won, lost |
+| `expected_close_date` | string | Nein | Erwartetes Abschlussdatum im Format JJJJ-MM-TT |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Details des erstellten Deals |
+
+### `pipedrive_update_deal`
+
+Aktualisieren eines bestehenden Deals in Pipedrive
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | Ja | Die ID des zu aktualisierenden Deals |
+| `title` | string | Nein | Neuer Titel für den Deal |
+| `value` | string | Nein | Neuer Geldwert für den Deal |
+| `status` | string | Nein | Neuer Status: open, won, lost |
+| `stage_id` | string | Nein | Neue Phase-ID für den Deal |
+| `expected_close_date` | string | Nein | Neues erwartetes Abschlussdatum im Format JJJJ-MM-TT |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Details des aktualisierten Deals |
+
+### `pipedrive_get_files`
+
+Dateien von Pipedrive mit optionalen Filtern abrufen
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | Nein | Dateien nach Deal-ID filtern |
+| `person_id` | string | Nein | Dateien nach Personen-ID filtern |
+| `org_id` | string | Nein | Dateien nach Organisations-ID filtern |
+| `limit` | string | Nein | Anzahl der zurückzugebenden Ergebnisse (Standard: 100, max: 500) |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Dateidaten |
+
+### `pipedrive_get_mail_messages`
+
+E-Mail-Threads aus dem Pipedrive-Postfach abrufen
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `folder` | string | Nein | Nach Ordner filtern: inbox, drafts, sent, archive \(Standard: inbox\) |
+| `limit` | string | Nein | Anzahl der zurückzugebenden Ergebnisse \(Standard: 50\) |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | E-Mail-Thread-Daten |
+
+### `pipedrive_get_mail_thread`
+
+Alle Nachrichten aus einem bestimmten E-Mail-Thread abrufen
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `thread_id` | string | Ja | Die ID des E-Mail-Threads |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Nachrichtendaten des E-Mail-Threads |
+
+### `pipedrive_get_pipelines`
+
+Alle Pipelines aus Pipedrive abrufen
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `sort_by` | string | Nein | Feld für die Sortierung: id, update_time, add_time \(Standard: id\) |
+| `sort_direction` | string | Nein | Sortierrichtung: asc, desc \(Standard: asc\) |
+| `limit` | string | Nein | Anzahl der zurückzugebenden Ergebnisse \(Standard: 100, max: 500\) |
+| `cursor` | string | Nein | Für Paginierung, der Marker, der das erste Element auf der nächsten Seite darstellt |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Pipeline-Daten |
+
+### `pipedrive_get_pipeline_deals`
+
+Alle Deals in einer bestimmten Pipeline abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `pipeline_id` | string | Ja | Die ID der Pipeline |
+| `stage_id` | string | Nein | Nach bestimmter Phase innerhalb der Pipeline filtern |
+| `status` | string | Nein | Nach Deal-Status filtern: open, won, lost |
+| `limit` | string | Nein | Anzahl der zurückzugebenden Ergebnisse \(Standard: 100, max: 500\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Pipeline-Deals-Daten |
+
+### `pipedrive_get_projects`
+
+Alle Projekte oder ein bestimmtes Projekt von Pipedrive abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `project_id` | string | Nein | Optional: ID eines bestimmten abzurufenden Projekts |
+| `status` | string | Nein | Nach Projektstatus filtern: open, completed, deleted \(nur für die Auflistung aller\) |
+| `limit` | string | Nein | Anzahl der zurückzugebenden Ergebnisse \(Standard: 100, max: 500, nur für die Auflistung aller\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Projektdaten oder Details eines einzelnen Projekts |
+
+### `pipedrive_create_project`
+
+Erstelle ein neues Projekt in Pipedrive
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Ja | Der Titel des Projekts |
+| `description` | string | Nein | Beschreibung des Projekts |
+| `start_date` | string | Nein | Projektstartdatum im Format JJJJ-MM-TT |
+| `end_date` | string | Nein | Projektendedatum im Format JJJJ-MM-TT |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Details des erstellten Projekts |
+
+### `pipedrive_get_activities`
+
+Aktivitäten (Aufgaben) von Pipedrive mit optionalen Filtern abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | Nein | Aktivitäten nach Deal-ID filtern |
+| `person_id` | string | Nein | Aktivitäten nach Personen-ID filtern |
+| `org_id` | string | Nein | Aktivitäten nach Organisations-ID filtern |
+| `type` | string | Nein | Nach Aktivitätstyp filtern \(Anruf, Meeting, Aufgabe, Frist, E-Mail, Mittagessen\) |
+| `done` | string | Nein | Nach Abschlussstatus filtern: 0 für nicht erledigt, 1 für erledigt |
+| `limit` | string | Nein | Anzahl der zurückzugebenden Ergebnisse \(Standard: 100, max: 500\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Aktivitätsdaten |
+
+### `pipedrive_create_activity`
+
+Eine neue Aktivität (Aufgabe) in Pipedrive erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `subject` | string | Ja | Der Betreff/Titel der Aktivität |
+| `type` | string | Ja | Aktivitätstyp: call, meeting, task, deadline, email, lunch |
+| `due_date` | string | Ja | Fälligkeitsdatum im Format JJJJ-MM-TT |
+| `due_time` | string | Nein | Fälligkeitszeit im Format HH:MM |
+| `duration` | string | Nein | Dauer im Format HH:MM |
+| `deal_id` | string | Nein | ID des zu verknüpfenden Deals |
+| `person_id` | string | Nein | ID der zu verknüpfenden Person |
+| `org_id` | string | Nein | ID der zu verknüpfenden Organisation |
+| `note` | string | Nein | Notizen für die Aktivität |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Details der erstellten Aktivität |
+
+### `pipedrive_update_activity`
+
+Eine bestehende Aktivität (Aufgabe) in Pipedrive aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `activity_id` | string | Ja | Die ID der zu aktualisierenden Aktivität |
+| `subject` | string | Nein | Neuer Betreff/Titel für die Aktivität |
+| `due_date` | string | Nein | Neues Fälligkeitsdatum im Format JJJJ-MM-TT |
+| `due_time` | string | Nein | Neue Fälligkeitszeit im Format HH:MM |
+| `duration` | string | Nein | Neue Dauer im Format HH:MM |
+| `done` | string | Nein | Als erledigt markieren: 0 für nicht erledigt, 1 für erledigt |
+| `note` | string | Nein | Neue Notizen für die Aktivität |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Aktualisierte Aktivitätsdetails |
+
+### `pipedrive_get_leads`
+
+Alle Leads oder einen bestimmten Lead von Pipedrive abrufen
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | Nein | Optional: ID eines bestimmten abzurufenden Leads |
+| `archived` | string | Nein | Archivierte Leads anstelle von aktiven abrufen |
+| `owner_id` | string | Nein | Nach Besitzer-Benutzer-ID filtern |
+| `person_id` | string | Nein | Nach Personen-ID filtern |
+| `organization_id` | string | Nein | Nach Organisations-ID filtern |
+| `limit` | string | Nein | Anzahl der zurückzugebenden Ergebnisse \(Standard: 100, max: 500\) |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Lead-Daten oder Details eines einzelnen Leads |
+
+### `pipedrive_create_lead`
+
+Einen neuen Lead in Pipedrive erstellen
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Ja | Der Name des Leads |
+| `person_id` | string | Nein | ID der Person \(ERFORDERLICH, es sei denn, organization_id wird angegeben\) |
+| `organization_id` | string | Nein | ID der Organisation \(ERFORDERLICH, es sei denn, person_id wird angegeben\) |
+| `owner_id` | string | Nein | ID des Benutzers, der den Lead besitzen wird |
+| `value_amount` | string | Nein | Potenzieller Wertbetrag |
+| `value_currency` | string | Nein | Währungscode \(z.B. USD, EUR\) |
+| `expected_close_date` | string | Nein | Erwartetes Abschlussdatum im Format JJJJ-MM-TT |
+| `visible_to` | string | Nein | Sichtbarkeit: 1 \(Besitzer & Follower\), 3 \(Gesamtes Unternehmen\) |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Details des erstellten Leads |
+
+### `pipedrive_update_lead`
+
+Einen vorhandenen Lead in Pipedrive aktualisieren
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | Ja | Die ID des zu aktualisierenden Leads |
+| `title` | string | Nein | Neuer Name für den Lead |
+| `person_id` | string | Nein | Neue Personen-ID |
+| `organization_id` | string | Nein | Neue Organisations-ID |
+| `owner_id` | string | Nein | Neue Besitzer-Benutzer-ID |
+| `value_amount` | string | Nein | Neuer Wertbetrag |
+| `value_currency` | string | Nein | Neuer Währungscode (z.B. USD, EUR) |
+| `expected_close_date` | string | Nein | Neues erwartetes Abschlussdatum im Format JJJJ-MM-TT |
+| `is_archived` | string | Nein | Lead archivieren: true oder false |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Details des aktualisierten Leads |
+
+### `pipedrive_delete_lead`
+
+Einen bestimmten Lead aus Pipedrive löschen
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | Ja | Die ID des zu löschenden Leads |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Löschergebnis |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `pipedrive`

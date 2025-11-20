@@ -18,7 +18,6 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
   oauth: {
     required: true,
     provider: 'google-email',
-    additionalScopes: ['https://www.googleapis.com/auth/gmail.labels'],
   },
 
   params: {
@@ -47,7 +46,7 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
       const searchParams = new URLSearchParams()
       searchParams.append('q', params.query)
       if (params.maxResults) {
-        searchParams.append('maxResults', params.maxResults.toString())
+        searchParams.append('maxResults', Number(params.maxResults).toString())
       }
       return `${GMAIL_API_BASE}/messages?${searchParams.toString()}`
     },

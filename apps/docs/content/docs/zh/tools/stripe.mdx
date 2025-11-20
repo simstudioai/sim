@@ -1,0 +1,1037 @@
+---
+title: Stripe
+description: 处理支付并管理 Stripe 数据
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="stripe"
+  color="#635BFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Stripe](https://stripe.com/) 是一个强大的支付平台，可以让您轻松管理支付、客户、订阅、发票、产品等。
+
+将 Stripe 集成到 Sim 中后，您的代理可以：
+
+- **创建和管理支付意图**：通过灵活的配置选项处理支付。
+- **管理客户**：创建、检索和更新您的业务客户记录。
+- **处理订阅**：管理循环计费和订阅生命周期。
+- **创建和发送发票**：为一次性或循环支付生成发票。
+- **跟踪和管理收费**：检索和更新收费对象以监控支付。
+- **配置产品和价格**：设置您的产品目录、定价模型和优惠。
+- **监听和响应 Stripe 事件**：在支付更新、成功收费和其他 Stripe 事件发生时触发工作流。
+
+通过将 Sim 与 Stripe 连接，您可以在代理工作流中实现无缝的自动化和财务操作。自动化客户入驻、订阅管理、支付收款、发票生成，甚至在支付事件发生时执行自定义操作——所有这些都由您的代理通过 Stripe 安全地直接处理。
+
+无论您是在构建电子商务自动化、订阅服务，还是运行报告和对账，Stripe 工具都能让您轻松地在智能 Sim 工作流中协调支付和财务数据。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Stripe 集成到工作流中。管理支付意图、客户、订阅、发票、收费、产品、价格和事件。可以在触发模式下使用，当发生 Stripe 事件时触发工作流。
+
+## 工具
+
+### `stripe_create_payment_intent`
+
+创建一个新的支付意图以处理支付
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥 \(secret key\) |
+| `amount` | number | 是 | 金额（以分为单位）\(例如，2000 表示 $20.00\) |
+| `currency` | string | 是 | 三字母 ISO 货币代码 \(例如，usd, eur\) |
+| `customer` | string | 否 | 与此支付关联的客户 ID |
+| `payment_method` | string | 否 | 支付方式 ID |
+| `description` | string | 否 | 支付描述 |
+| `receipt_email` | string | 否 | 用于发送收据的电子邮件地址 |
+| `metadata` | json | 否 | 用于存储附加信息的键值对集合 |
+| `automatic_payment_methods` | json | 否 | 启用自动支付方式 \(例如，\{"enabled": true\}\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | 创建的 Payment Intent 对象 |
+| `metadata` | json | 包含 ID、状态、金额和货币的 Payment Intent 元数据 |
+
+### `stripe_retrieve_payment_intent`
+
+通过 ID 检索现有的 Payment Intent
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | Payment Intent ID（例如，pi_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | 检索到的 Payment Intent 对象 |
+| `metadata` | json | 包含 ID、状态、金额和货币的 Payment Intent 元数据 |
+
+### `stripe_update_payment_intent`
+
+更新现有的 Payment Intent
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | Payment Intent ID（例如，pi_1234567890） |
+| `amount` | number | 否 | 更新后的金额（以分为单位） |
+| `currency` | string | 否 | 三字母 ISO 货币代码 |
+| `customer` | string | 否 | 客户 ID |
+| `description` | string | 否 | 更新后的描述 |
+| `metadata` | json | 否 | 更新后的元数据 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | 更新后的 Payment Intent 对象 |
+| `metadata` | json | 包含 ID、状态、金额和货币的 Payment Intent 元数据 |
+
+### `stripe_confirm_payment_intent`
+
+确认 Payment Intent 以完成支付
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | Payment Intent ID（例如，pi_1234567890） |
+| `payment_method` | string | 否 | 用于确认的支付方式 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | 确认的 Payment Intent 对象 |
+| `metadata` | json | 包括 ID、状态、金额和货币的 Payment Intent 元数据 |
+
+### `stripe_capture_payment_intent`
+
+捕获已授权的 Payment Intent
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | Payment Intent ID（例如，pi_1234567890） |
+| `amount_to_capture` | number | 否 | 捕获的金额（以分为单位，默认为全额） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | 捕获的 Payment Intent 对象 |
+| `metadata` | json | 包括 ID、状态、金额和货币的 Payment Intent 元数据 |
+
+### `stripe_cancel_payment_intent`
+
+取消 Payment Intent
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | Payment Intent ID（例如，pi_1234567890） |
+| `cancellation_reason` | string | 否 | 取消原因（duplicate, fraudulent, requested_by_customer, abandoned） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | 已取消的 Payment Intent 对象 |
+| `metadata` | json | 包含 ID、状态、金额和货币的 Payment Intent 元数据 |
+
+### `stripe_list_payment_intents`
+
+列出所有 Payment Intent
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+| `customer` | string | 否 | 按客户 ID 过滤 |
+| `created` | json | 否 | 按创建日期过滤（例如，`{"gt": 1633024800}`) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `payment_intents` | json | Payment Intent 对象的数组 |
+| `metadata` | json | 列表元数据，包括计数和 has_more |
+
+### `stripe_search_payment_intents`
+
+使用查询语法搜索 Payment Intent
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `query` | string | 是 | 搜索查询（例如，"status:'succeeded' AND currency:'usd'"） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `payment_intents` | json | 匹配的 Payment Intent 对象的数组 |
+| `metadata` | json | 搜索元数据，包括计数和 has_more |
+
+### `stripe_create_customer`
+
+创建一个新的客户对象
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `email` | string | 否 | 客户的电子邮件地址 |
+| `name` | string | 否 | 客户的全名 |
+| `phone` | string | 否 | 客户的电话号码 |
+| `description` | string | 否 | 客户的描述 |
+| `address` | json | 否 | 客户地址对象 |
+| `metadata` | json | 否 | 键值对集合 |
+| `payment_method` | string | 否 | 要附加的支付方式 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customer` | json | 创建的客户对象 |
+| `metadata` | json | 客户元数据 |
+
+### `stripe_retrieve_customer`
+
+通过 ID 检索现有客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 客户 ID（例如，cus_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customer` | json | 检索到的客户对象 |
+| `metadata` | json | 客户元数据 |
+
+### `stripe_update_customer`
+
+更新现有客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 客户 ID（例如，cus_1234567890） |
+| `email` | string | 否 | 更新后的电子邮件地址 |
+| `name` | string | 否 | 更新后的姓名 |
+| `phone` | string | 否 | 更新后的电话号码 |
+| `description` | string | 否 | 更新后的描述 |
+| `address` | json | 否 | 更新后的地址对象 |
+| `metadata` | json | 否 | 更新后的元数据 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customer` | json | 更新的客户对象 |
+| `metadata` | json | 客户元数据 |
+
+### `stripe_delete_customer`
+
+永久删除客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 客户 ID（例如，cus_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 客户是否已删除 |
+| `id` | string | 已删除客户的 ID |
+| `metadata` | json | 删除元数据 |
+
+### `stripe_list_customers`
+
+列出所有客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+| `email` | string | 否 | 按电子邮件地址筛选 |
+| `created` | json | 否 | 按创建日期筛选 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customers` | json | 客户对象数组 |
+| `metadata` | json | 列表元数据 |
+
+### `stripe_search_customers`
+
+使用查询语法搜索客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `query` | string | 是 | 搜索查询（例如，"email:\'customer@example.com\'"） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `customers` | json | 匹配的客户对象数组 |
+| `metadata` | json | 搜索元数据 |
+
+### `stripe_create_subscription`
+
+为客户创建一个新订阅
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `customer` | string | 是 | 要订阅的客户 ID |
+| `items` | json | 是 | 包含价格 ID 的项目数组（例如，\[\{"price": "price_xxx", "quantity": 1\}\]） |
+| `trial_period_days` | number | 否 | 试用天数 |
+| `default_payment_method` | string | 否 | 支付方式 ID |
+| `cancel_at_period_end` | boolean | 否 | 在周期结束时取消订阅 |
+| `metadata` | json | 否 | 用于存储附加信息的键值对集合 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `subscription` | json | 创建的订阅对象 |
+| `metadata` | json | 包括 ID、状态和客户的订阅元数据 |
+
+### `stripe_retrieve_subscription`
+
+通过 ID 检索现有的订阅
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 订阅 ID（例如，sub_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `subscription` | json | 检索到的订阅对象 |
+| `metadata` | json | 包括 ID、状态和客户的订阅元数据 |
+
+### `stripe_update_subscription`
+
+更新现有的订阅
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 订阅 ID（例如，sub_1234567890） |
+| `items` | json | 否 | 更新后的包含价格 ID 的项目数组 |
+| `cancel_at_period_end` | boolean | 否 | 是否在周期结束时取消订阅 |
+| `metadata` | json | 否 | 更新的元数据 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `subscription` | json | 更新后的订阅对象 |
+| `metadata` | json | 包括 ID、状态和客户的订阅元数据 |
+
+### `stripe_cancel_subscription`
+
+取消订阅
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 订阅 ID（例如，sub_1234567890） |
+| `prorate` | boolean | 否 | 是否按比例分配取消 |
+| `invoice_now` | boolean | 否 | 是否立即开具发票 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `subscription` | json | 已取消的订阅对象 |
+| `metadata` | json | 包括 ID、状态和客户的订阅元数据 |
+
+### `stripe_resume_subscription`
+
+恢复计划取消的订阅
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 订阅 ID（例如，sub_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `subscription` | json | 恢复的订阅对象 |
+| `metadata` | json | 包括 ID、状态和客户的订阅元数据 |
+
+### `stripe_list_subscriptions`
+
+列出所有订阅
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+| `customer` | string | 否 | 按客户 ID 过滤 |
+| `status` | string | 否 | 按状态过滤（active, past_due, unpaid, canceled, incomplete, incomplete_expired, trialing, all） |
+| `price` | string | 否 | 按价格 ID 过滤 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `subscriptions` | json | 订阅对象数组 |
+| `metadata` | json | 列表元数据 |
+
+### `stripe_search_subscriptions`
+
+使用查询语法搜索订阅
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `query` | string | 是 | 搜索查询（例如，\"status:'active' AND customer:'cus_xxx'\"） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `subscriptions` | json | 匹配的订阅对象数组 |
+| `metadata` | json | 搜索元数据 |
+
+### `stripe_create_invoice`
+
+创建新发票
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `customer` | string | 是 | 客户 ID（例如，cus_1234567890） |
+| `description` | string | 否 | 发票描述 |
+| `metadata` | json | 否 | 键值对集合 |
+| `auto_advance` | boolean | 否 | 自动完成发票 |
+| `collection_method` | string | 否 | 收款方式：charge_automatically 或 send_invoice |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 创建的发票对象 |
+| `metadata` | json | 发票元数据 |
+
+### `stripe_retrieve_invoice`
+
+通过 ID 检索现有发票
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 发票 ID（例如，in_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 检索到的发票对象 |
+| `metadata` | json | 发票元数据 |
+
+### `stripe_update_invoice`
+
+更新现有发票
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 发票 ID（例如，in_1234567890） |
+| `description` | string | 否 | 发票的描述 |
+| `metadata` | json | 否 | 键值对集合 |
+| `auto_advance` | boolean | 否 | 自动完成发票 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 更新后的发票对象 |
+| `metadata` | json | 发票元数据 |
+
+### `stripe_delete_invoice`
+
+永久删除草稿发票
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 发票 ID（例如，in_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 发票是否已被删除 |
+| `id` | string | 已删除发票的 ID |
+| `metadata` | json | 删除的元数据 |
+
+### `stripe_finalize_invoice`
+
+完成草稿发票
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 发票 ID（例如，in_1234567890） |
+| `auto_advance` | boolean | 否 | 自动推进发票 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 完成的发票对象 |
+| `metadata` | json | 发票元数据 |
+
+### `stripe_pay_invoice`
+
+支付发票
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 发票 ID（例如，in_1234567890） |
+| `paid_out_of_band` | boolean | 否 | 将发票标记为带外支付 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 已支付的发票对象 |
+| `metadata` | json | 发票元数据 |
+
+### `stripe_void_invoice`
+
+作废发票
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 发票 ID（例如，in_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 已作废的发票对象 |
+| `metadata` | json | 发票元数据 |
+
+### `stripe_send_invoice`
+
+向客户发送发票
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 发票 ID（例如，in_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 已发送的发票对象 |
+| `metadata` | json | 发票元数据 |
+
+### `stripe_list_invoices`
+
+列出所有发票
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+| `customer` | string | 否 | 按客户 ID 过滤 |
+| `status` | string | 否 | 按发票状态过滤 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `invoices` | json | 发票对象数组 |
+| `metadata` | json | 列表元数据 |
+
+### `stripe_search_invoices`
+
+使用查询语法搜索发票
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `query` | string | 是 | 搜索查询（例如，"customer:\'cus_1234567890\'"） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `invoices` | json | 匹配的发票对象数组 |
+| `metadata` | json | 搜索元数据 |
+
+### `stripe_create_charge`
+
+创建一个新的收费以处理付款
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `amount` | number | 是 | 金额（以分为单位，例如 2000 表示 $20.00） |
+| `currency` | string | 是 | 三字母 ISO 货币代码（例如，usd、eur） |
+| `customer` | string | 否 | 要与此收费关联的客户 ID |
+| `source` | string | 否 | 支付来源 ID（例如，卡片令牌或已保存的卡片 ID） |
+| `description` | string | 否 | 收费的描述 |
+| `metadata` | json | 否 | 用于存储附加信息的键值对集合 |
+| `capture` | boolean | 否 | 是否立即捕获收费（默认为 true） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `charge` | json | 创建的收费对象 |
+| `metadata` | json | 收费元数据，包括 ID、状态、金额、货币和支付状态 |
+
+### `stripe_retrieve_charge`
+
+通过 ID 检索现有的收费
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 收费 ID（例如，ch_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `charge` | json | 检索到的 Charge 对象 |
+| `metadata` | json | Charge 元数据，包括 ID、状态、金额、货币和支付状态 |
+
+### `stripe_update_charge`
+
+更新现有的收费
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | Charge ID（例如，ch_1234567890） |
+| `description` | string | 否 | 更新的描述 |
+| `metadata` | json | 否 | 更新的元数据 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `charge` | json | 更新后的 Charge 对象 |
+| `metadata` | json | Charge 元数据，包括 ID、状态、金额、货币和支付状态 |
+
+### `stripe_capture_charge`
+
+捕获未捕获的收费
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | Charge ID（例如，ch_1234567890） |
+| `amount` | number | 否 | 捕获的金额（以分为单位，默认为全额） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `charge` | json | 捕获的 Charge 对象 |
+| `metadata` | json | Charge 元数据，包括 ID、状态、金额、货币和支付状态 |
+
+### `stripe_list_charges`
+
+列出所有收费
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+| `customer` | string | 否 | 按客户 ID 过滤 |
+| `created` | json | 否 | 按创建日期过滤（例如，`{"gt": 1633024800}`) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `charges` | json | 收费对象数组 |
+| `metadata` | json | 列表元数据，包括计数和 has_more |
+
+### `stripe_search_charges`
+
+使用查询语法搜索收费
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `query` | string | 是 | 搜索查询（例如，"status:'succeeded' AND currency:'usd'"） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `charges` | json | 匹配的收费对象数组 |
+| `metadata` | json | 搜索元数据，包括计数和 has_more |
+
+### `stripe_create_product`
+
+创建一个新的产品对象
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `name` | string | 是 | 产品名称 |
+| `description` | string | 否 | 产品描述 |
+| `active` | boolean | 否 | 产品是否处于激活状态 |
+| `images` | json | 否 | 产品的图片 URL 数组 |
+| `metadata` | json | 否 | 键值对集合 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `product` | json | 创建的产品对象 |
+| `metadata` | json | 产品元数据 |
+
+### `stripe_retrieve_product`
+
+通过 ID 检索现有的产品
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 产品 ID（例如，prod_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `product` | json | 检索到的产品对象 |
+| `metadata` | json | 产品元数据 |
+
+### `stripe_update_product`
+
+更新现有的产品
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 产品 ID（例如，prod_1234567890） |
+| `name` | string | 否 | 更新的产品名称 |
+| `description` | string | 否 | 更新的产品描述 |
+| `active` | boolean | 否 | 更新的激活状态 |
+| `images` | json | 否 | 更新的图片 URL 数组 |
+| `metadata` | json | 否 | 更新的元数据 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `product` | json | 更新的产品对象 |
+| `metadata` | json | 产品元数据 |
+
+### `stripe_delete_product`
+
+永久删除产品
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 产品 ID（例如，prod_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 产品是否已被删除 |
+| `id` | string | 已删除产品的 ID |
+| `metadata` | json | 删除元数据 |
+
+### `stripe_list_products`
+
+列出所有产品
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+| `active` | boolean | 否 | 按活动状态筛选 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `products` | json | 产品对象数组 |
+| `metadata` | json | 列表元数据 |
+
+### `stripe_search_products`
+
+使用查询语法搜索产品
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `query` | string | 是 | 搜索查询（例如，"name:\'shirt\'"） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `products` | json | 匹配的产品对象数组 |
+| `metadata` | json | 搜索元数据 |
+
+### `stripe_create_price`
+
+为产品创建一个新的价格
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `product` | string | 是 | 产品 ID（例如，prod_1234567890） |
+| `currency` | string | 是 | 三字母 ISO 货币代码（例如，usd，eur） |
+| `unit_amount` | number | 否 | 金额（以分为单位，例如，1000 表示 $10.00） |
+| `recurring` | json | 否 | 循环计费配置（间隔：天/周/月/年） |
+| `metadata` | json | 否 | 键值对集合 |
+| `billing_scheme` | string | 否 | 计费方案（per_unit 或 tiered） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `price` | json | 创建的价格对象 |
+| `metadata` | json | 价格元数据 |
+
+### `stripe_retrieve_price`
+
+通过 ID 检索现有的价格
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 价格 ID（例如，price_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `price` | json | 检索到的价格对象 |
+| `metadata` | json | 价格元数据 |
+
+### `stripe_update_price`
+
+更新现有价格
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 价格 ID（例如，price_1234567890） |
+| `active` | boolean | 否 | 价格是否为激活状态 |
+| `metadata` | json | 否 | 更新的元数据 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `price` | json | 更新的价格对象 |
+| `metadata` | json | 价格元数据 |
+
+### `stripe_list_prices`
+
+列出所有价格
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+| `product` | string | 否 | 按产品 ID 过滤 |
+| `active` | boolean | 否 | 按激活状态过滤 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `prices` | json | 价格对象数组 |
+| `metadata` | json | 列表元数据 |
+
+### `stripe_search_prices`
+
+使用查询语法搜索价格
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `query` | string | 是 | 搜索查询（例如，"active:'true' AND currency:'usd'"） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `prices` | json | 匹配价格对象的数组 |
+| `metadata` | json | 搜索元数据 |
+
+### `stripe_retrieve_event`
+
+通过 ID 检索现有的事件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `id` | string | 是 | 事件 ID（例如，evt_1234567890） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `event` | json | 检索到的事件对象 |
+| `metadata` | json | 事件元数据，包括 ID、类型和创建时间戳 |
+
+### `stripe_list_events`
+
+列出所有事件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Stripe API 密钥（secret key） |
+| `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
+| `type` | string | 否 | 按事件类型过滤（例如，payment_intent.created） |
+| `created` | json | 否 | 按创建日期过滤（例如，`{"gt": 1633024800}`) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `events` | json | 事件对象的数组 |
+| `metadata` | json | 列表元数据，包括计数和 has_more |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`stripe`

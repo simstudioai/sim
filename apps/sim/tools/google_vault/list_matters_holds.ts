@@ -10,7 +10,6 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
   oauth: {
     required: true,
     provider: 'google-vault',
-    additionalScopes: ['https://www.googleapis.com/auth/ediscovery'],
   },
 
   params: {

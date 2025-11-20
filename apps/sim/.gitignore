@@ -42,9 +42,6 @@ sim-standalone.tar.gz
 *.tsbuildinfo
 next-env.d.ts
 
-# cursorrules
-.cursorrules
-
 # Uploads
 /uploads
 

@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { Check, Copy, Eye, EyeOff, Plus, RefreshCw, Trash2 } from 'lucide-react'
-import { Button, Card, CardContent, Input, Label } from '@/components/ui'
+import { Check, Copy, Eye, EyeOff, Plus, RefreshCw } from 'lucide-react'
+import { Button, Input, Label } from '@/components/emcn'
+import { Trash } from '@/components/emcn/icons/trash'
+import { Card, CardContent } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/env'
 import { cn, generatePassword } from '@/lib/utils'
 import type { AuthType } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/hooks/use-chat-form'
@@ -81,13 +83,13 @@ export function AuthSelector({
           <Card
             key={type}
             className={cn(
-              'cursor-pointer overflow-hidden rounded-[8px] shadow-none transition-all duration-200 hover:bg-accent/30',
+              'cursor-pointer overflow-hidden rounded-[4px] shadow-none transition-all duration-200',
               authType === type
-                ? 'border border-muted-foreground hover:bg-accent/50'
-                : 'border border-input'
+                ? 'border border-[#727272] bg-[var(--border-strong)] dark:border-[#727272] dark:bg-[var(--border-strong)]'
+                : 'border border-[var(--surface-11)] bg-[var(--surface-6)] hover:bg-[var(--surface-9)] dark:bg-[var(--surface-9)] dark:hover:bg-[var(--surface-11)]'
             )}
           >
-            <CardContent className='relative flex flex-col items-center justify-center p-4 text-center'>
+            <CardContent className='relative flex flex-col items-center justify-center p-3 text-center'>
               <button
                 type='button'
                 className='absolute inset-0 z-10 h-full w-full cursor-pointer'
@@ -96,13 +98,18 @@ export function AuthSelector({
                 disabled={disabled}
               />
               <div className='justify-center text-center align-middle'>
-                <h3 className='font-medium text-sm'>
+                <h3
+                  className={cn(
+                    'font-medium text-xs',
+                    authType === type && 'text-[var(--text-primary)]'
+                  )}
+                >
                   {type === 'public' && 'Public Access'}
                   {type === 'password' && 'Password Protected'}
                   {type === 'email' && 'Email Access'}
                   {type === 'sso' && 'SSO Access'}
                 </h3>
-                <p className='text-muted-foreground text-xs'>
+                <p className='text-[11px] text-[var(--text-tertiary)]'>
                   {type === 'public' && 'Anyone can access your chat'}
                   {type === 'password' && 'Secure with a single password'}
                   {type === 'email' && 'Restrict to specific emails'}
@@ -116,13 +123,15 @@ export function AuthSelector({
 
       {/* Auth Settings */}
       {authType === 'password' && (
-        <Card className='rounded-[8px] shadow-none'>
+        <Card className='rounded-[4px] border-[var(--surface-11)] bg-[var(--surface-6)] shadow-none dark:bg-[var(--surface-9)]'>
           <CardContent className='p-4'>
-            <h3 className='mb-2 font-medium text-sm'>Password Settings</h3>
+            <h3 className='mb-2 font-medium text-[var(--text-primary)] text-xs'>
+              Password Settings
+            </h3>
 
             {isExistingChat && !password && (
-              <div className='mb-2 flex items-center text-muted-foreground text-xs'>
-                <div className='mr-2 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-muted-foreground'>
+              <div className='mb-2 flex items-center text-[11px] text-[var(--text-secondary)]'>
+                <div className='mr-2 rounded-full bg-[var(--surface-9)] px-2 py-0.5 font-medium text-[var(--text-secondary)] dark:bg-[var(--surface-11)]'>
                   Password set
                 </div>
                 <span>Current password is securely stored</span>
@@ -140,66 +149,46 @@ export function AuthSelector({
                 value={password}
                 onChange={(e) => onPasswordChange(e.target.value)}
                 disabled={disabled}
-                className='h-10 rounded-[8px] pr-32'
+                className='pr-28'
                 required={!isExistingChat}
                 autoComplete='new-password'
               />
-              <div className='absolute top-0.5 right-0.5 flex h-9 items-center gap-1 pr-1'>
+              <div className='-translate-y-1/2 absolute top-1/2 right-1 flex items-center gap-1'>
                 <Button
                   type='button'
                   variant='ghost'
-                  size='sm'
                   onClick={handleGeneratePassword}
                   disabled={disabled}
-                  className={cn(
-                    'group h-7 w-7 rounded-md p-0',
-                    'text-muted-foreground/60 transition-all duration-200',
-                    'hover:bg-muted/50 hover:text-foreground',
-                    'disabled:cursor-not-allowed disabled:opacity-50',
-                    'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
-                  )}
+                  className='h-6 w-6 p-0'
                 >
-                  <RefreshCw className='h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-90' />
+                  <RefreshCw className='h-3.5 w-3.5 transition-transform duration-200 hover:rotate-90' />
                   <span className='sr-only'>Generate password</span>
                 </Button>
                 <Button
                   type='button'
                   variant='ghost'
-                  size='sm'
                   onClick={() => copyToClipboard(password)}
                   disabled={!password || disabled}
-                  className={cn(
-                    'group h-7 w-7 rounded-md p-0',
-                    'text-muted-foreground/60 transition-all duration-200',
-                    'hover:bg-muted/50 hover:text-foreground',
-                    'disabled:cursor-not-allowed disabled:opacity-30',
-                    'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
-                  )}
+                  className='h-6 w-6 p-0'
                 >
                   {copySuccess ? (
-                    <Check className='h-3.5 w-3.5 text-foreground' />
+                    <Check className='h-3.5 w-3.5' />
                   ) : (
-                    <Copy className='h-3.5 w-3.5 ' />
+                    <Copy className='h-3.5 w-3.5' />
                   )}
                   <span className='sr-only'>Copy password</span>
                 </Button>
                 <Button
                   type='button'
                   variant='ghost'
-                  size='sm'
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={disabled}
-                  className={cn(
-                    'group h-7 w-7 rounded-md p-0',
-                    'text-muted-foreground/60 transition-all duration-200',
-                    'hover:bg-muted/50 hover:text-foreground',
-                    'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
-                  )}
+                  className='h-6 w-6 p-0'
                 >
                   {showPassword ? (
-                    <EyeOff className='h-3.5 w-3.5 ' />
+                    <EyeOff className='h-3.5 w-3.5' />
                   ) : (
-                    <Eye className='h-3.5 w-3.5 ' />
+                    <Eye className='h-3.5 w-3.5' />
                   )}
                   <span className='sr-only'>
                     {showPassword ? 'Hide password' : 'Show password'}
@@ -208,7 +197,7 @@ export function AuthSelector({
               </div>
             </div>
 
-            <p className='mt-2 text-muted-foreground text-xs'>
+            <p className='mt-2 text-[11px] text-[var(--text-secondary)]'>
               {isExistingChat
                 ? 'Leaving this empty will keep the current password. Enter a new password to change it.'
                 : 'This password will be required to access your chat.'}
@@ -218,9 +207,9 @@ export function AuthSelector({
       )}
 
       {(authType === 'email' || authType === 'sso') && (
-        <Card className='rounded-[8px] shadow-none'>
+        <Card className='rounded-[4px] border-[var(--surface-11)] bg-[var(--surface-6)] shadow-none dark:bg-[var(--surface-9)]'>
           <CardContent className='p-4'>
-            <h3 className='mb-2 font-medium text-sm'>
+            <h3 className='mb-2 font-medium text-[var(--text-primary)] text-xs'>
               {authType === 'email' ? 'Email Access Settings' : 'SSO Access Settings'}
             </h3>
 
@@ -230,7 +219,7 @@ export function AuthSelector({
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
                 disabled={disabled}
-                className='h-10 flex-1 rounded-[8px]'
+                className='flex-1'
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
@@ -240,9 +229,10 @@ export function AuthSelector({
               />
               <Button
                 type='button'
+                variant='default'
                 onClick={handleAddEmail}
                 disabled={!newEmail.trim() || disabled}
-                className='h-10 shrink-0 rounded-[8px]'
+                className='shrink-0 gap-[4px]'
               >
                 <Plus className='h-4 w-4' />
                 Add
@@ -261,12 +251,11 @@ export function AuthSelector({
                         <Button
                           type='button'
                           variant='ghost'
-                          size='icon'
                           onClick={() => handleRemoveEmail(email)}
                           disabled={disabled}
-                          className='h-7 w-7 opacity-70'
+                          className='h-7 w-7 p-0 opacity-70'
                         >
-                          <Trash2 className='h-4 w-4' />
+                          <Trash className='h-4 w-4' />
                         </Button>
                       </div>
                     </li>
@@ -275,7 +264,7 @@ export function AuthSelector({
               </div>
             )}
 
-            <p className='mt-2 text-muted-foreground text-xs'>
+            <p className='mt-2 text-[11px] text-[var(--text-secondary)]'>
               {authType === 'email'
                 ? 'Add specific emails or entire domains (@example.com)'
                 : 'Add specific emails or entire domains (@example.com) that can access via SSO'}
@@ -285,10 +274,12 @@ export function AuthSelector({
       )}
 
       {authType === 'public' && (
-        <Card className='rounded-[8px] shadow-none'>
+        <Card className='rounded-[4px] border-[var(--surface-11)] bg-[var(--surface-6)] shadow-none dark:bg-[var(--surface-9)]'>
           <CardContent className='p-4'>
-            <h3 className='mb-2 font-medium text-sm'>Public Access Settings</h3>
-            <p className='text-muted-foreground text-xs'>
+            <h3 className='mb-2 font-medium text-[var(--text-primary)] text-xs'>
+              Public Access Settings
+            </h3>
+            <p className='text-[11px] text-[var(--text-secondary)]'>
               This chat will be publicly accessible to anyone with the link.
             </p>
           </CardContent>

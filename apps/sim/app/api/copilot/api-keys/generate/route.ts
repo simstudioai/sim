@@ -1,7 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent/constants'
+
+const GenerateApiKeySchema = z.object({}).optional()
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +18,18 @@ export async function POST(req: NextRequest) {
     // Move environment variable access inside the function
     const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
-    await req.json().catch(() => ({}))
+    const body = await req.json().catch(() => ({}))
+    const validationResult = GenerateApiKeySchema.safeParse(body)
+
+    if (!validationResult.success) {
+      return NextResponse.json(
+        {
+          error: 'Invalid request body',
+          details: validationResult.error.errors,
+        },
+        { status: 400 }
+      )
+    }
 
     const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key/generate`, {
       method: 'POST',

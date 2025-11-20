@@ -20,7 +20,6 @@ export const createTaskTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'microsoft-planner',
-    additionalScopes: [],
   },
 
   params: {
@@ -94,15 +93,23 @@ export const createTaskTool: ToolConfig<
         title: params.title,
       }
 
-      if (params.bucketId) {
+      if (params.bucketId !== undefined && params.bucketId !== null && params.bucketId !== '') {
         body.bucketId = params.bucketId
       }
 
-      if (params.dueDateTime) {
+      if (
+        params.dueDateTime !== undefined &&
+        params.dueDateTime !== null &&
+        params.dueDateTime !== ''
+      ) {
         body.dueDateTime = params.dueDateTime
       }
 
-      if (params.assigneeUserId) {
+      if (
+        params.assigneeUserId !== undefined &&
+        params.assigneeUserId !== null &&
+        params.assigneeUserId !== ''
+      ) {
         body.assignments = {
           [params.assigneeUserId]: {
             '@odata.type': 'microsoft.graph.plannerAssignment',

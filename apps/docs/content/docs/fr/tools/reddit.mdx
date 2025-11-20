@@ -8,21 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="reddit"
   color="#FF5700"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      
-      
-      viewBox='0 0 50 50'
-      fill='#FFFFFF'
-      role='img'
-      xmlns='http://www.w3.org/2000/svg'
-    >
-      <path
-        d='M 29 3 C 26.894531 3 24.433594 4.652344 24.0625 12.03125 C 24.375 12.023438 24.683594 12 25 12 C 25.351563 12 25.714844 12.019531 26.0625 12.03125 C 26.300781 7.597656 27.355469 5 29 5 C 29.703125 5 30.101563 5.382813 30.84375 6.1875 C 31.710938 7.128906 32.84375 8.351563 35.0625 8.8125 C 35.027344 8.550781 35 8.269531 35 8 C 35 7.578125 35.042969 7.179688 35.125 6.78125 C 33.75 6.40625 33.023438 5.613281 32.3125 4.84375 C 31.519531 3.984375 30.609375 3 29 3 Z M 41 4 C 38.792969 4 37 5.796875 37 8 C 37 10.203125 38.792969 12 41 12 C 43.207031 12 45 10.203125 45 8 C 45 5.796875 43.207031 4 41 4 Z M 25 14 C 12.867188 14 3 20.179688 3 29 C 3 37.820313 12.867188 45 25 45 C 37.132813 45 47 37.820313 47 29 C 47 20.179688 37.132813 14 25 14 Z M 7.5 14.9375 C 6.039063 14.9375 4.652344 15.535156 3.59375 16.59375 C 1.871094 18.316406 1.515625 20.792969 2.5 22.84375 C 4.011719 19.917969 6.613281 17.421875 9.96875 15.5625 C 9.207031 15.175781 8.363281 14.9375 7.5 14.9375 Z M 42.5 14.9375 C 41.636719 14.9375 40.792969 15.175781 40.03125 15.5625 C 43.386719 17.421875 45.988281 19.917969 47.5 22.84375 C 48.484375 20.792969 48.128906 18.316406 46.40625 16.59375 C 45.347656 15.535156 43.960938 14.9375 42.5 14.9375 Z M 17 23 C 18.65625 23 20 24.34375 20 26 C 20 27.65625 18.65625 29 17 29 C 15.34375 29 14 27.65625 14 26 C 14 24.34375 15.34375 23 17 23 Z M 33 23 C 34.65625 23 36 24.34375 36 26 C 36 27.65625 34.65625 29 33 29 C 31.34375 29 30 27.65625 30 26 C 30 24.34375 31.34375 23 33 23 Z M 16.0625 34 C 16.3125 34.042969 16.558594 34.183594 16.71875 34.40625 C 16.824219 34.554688 19.167969 37.6875 25 37.6875 C 30.910156 37.6875 33.257813 34.46875 33.28125 34.4375 C 33.597656 33.988281 34.234375 33.867188 34.6875 34.1875 C 35.136719 34.503906 35.222656 35.109375 34.90625 35.5625 C 34.789063 35.730469 31.9375 39.6875 25 39.6875 C 18.058594 39.6875 15.210938 35.730469 15.09375 35.5625 C 14.777344 35.109375 14.859375 34.503906 15.3125 34.1875 C 15.539063 34.027344 15.8125 33.957031 16.0625 34 Z'
-        fill='currentColor'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -38,7 +23,7 @@ Ces opérations permettent à vos agents d'accéder et d'analyser le contenu Red
 
 ## Instructions d'utilisation
 
-Intégrez Reddit dans le flux de travail. Peut obtenir des publications et des commentaires d'un subreddit. Nécessite OAuth.
+Intégrez Reddit dans vos flux de travail. Lisez des publications, des commentaires et recherchez du contenu. Soumettez des publications, votez, répondez, modifiez et gérez votre compte Reddit.
 
 ## Outils
 
@@ -49,11 +34,16 @@ Récupérer des publications d'un subreddit avec différentes options de tri
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `subreddit` | chaîne | Oui | Le nom du subreddit d'où récupérer les publications \(sans le préfixe r/\) |
-| `sort` | chaîne | Non | Méthode de tri pour les publications : "hot", "new", "top", ou "rising" \(par défaut : "hot"\) |
+| `sort` | chaîne | Non | Méthode de tri des publications : "hot", "new", "top", ou "rising" \(par défaut : "hot"\) |
 | `limit` | nombre | Non | Nombre maximum de publications à retourner \(par défaut : 10, max : 100\) |
 | `time` | chaîne | Non | Filtre temporel pour les publications triées par "top" : "day", "week", "month", "year", ou "all" \(par défaut : "day"\) |
+| `after` | chaîne | Non | Nom complet d'un élément après lequel récupérer des éléments \(pour la pagination\) |
+| `before` | chaîne | Non | Nom complet d'un élément avant lequel récupérer des éléments \(pour la pagination\) |
+| `count` | nombre | Non | Nombre d'éléments déjà vus dans la liste \(utilisé pour la numérotation\) |
+| `show` | chaîne | Non | Afficher les éléments qui seraient normalement filtrés \(par exemple, "all"\) |
+| `sr_detail` | booléen | Non | Développer les détails du subreddit dans la réponse |
 
 #### Sortie
 
@@ -70,10 +60,20 @@ Récupérer les commentaires d'une publication Reddit spécifique
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
-| `postId` | chaîne | Oui | L'identifiant de la publication Reddit dont il faut récupérer les commentaires |
+| `postId` | chaîne | Oui | L'ID de la publication Reddit dont récupérer les commentaires |
 | `subreddit` | chaîne | Oui | Le subreddit où se trouve la publication \(sans le préfixe r/\) |
 | `sort` | chaîne | Non | Méthode de tri des commentaires : "confidence", "top", "new", "controversial", "old", "random", "qa" \(par défaut : "confidence"\) |
-| `limit` | nombre | Non | Nombre maximum de commentaires à renvoyer \(par défaut : 50, max : 100\) |
+| `limit` | nombre | Non | Nombre maximum de commentaires à retourner \(par défaut : 50, max : 100\) |
+| `depth` | nombre | Non | Profondeur maximale des sous-arbres dans le fil \(contrôle les niveaux de commentaires imbriqués\) |
+| `context` | nombre | Non | Nombre de commentaires parents à inclure |
+| `showedits` | booléen | Non | Afficher les informations de modification pour les commentaires |
+| `showmore` | booléen | Non | Inclure les éléments "charger plus de commentaires" dans la réponse |
+| `showtitle` | booléen | Non | Inclure le titre de la soumission dans la réponse |
+| `threaded` | booléen | Non | Retourner les commentaires au format imbriqué/hiérarchisé |
+| `truncate` | nombre | Non | Entier pour tronquer la profondeur des commentaires |
+| `after` | chaîne | Non | Nom complet d'un élément après lequel récupérer des éléments \(pour la pagination\) |
+| `before` | chaîne | Non | Nom complet d'un élément avant lequel récupérer des éléments \(pour la pagination\) |
+| `count` | nombre | Non | Nombre d'éléments déjà vus dans la liste \(utilisé pour la numérotation\) |
 
 #### Sortie
 
@@ -81,7 +81,206 @@ Récupérer les commentaires d'une publication Reddit spécifique
 | --------- | ---- | ----------- |
 | `post` | objet | Informations sur la publication incluant l'ID, le titre, l'auteur, le contenu et les métadonnées |
 
-## Remarques
+### `reddit_get_controversial`
+
+Récupérer les publications controversées d'un subreddit
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `subreddit` | chaîne | Oui | Le nom du subreddit d'où récupérer les publications \(sans le préfixe r/\) |
+| `time` | chaîne | Non | Filtre temporel pour les publications controversées : "hour", "day", "week", "month", "year", ou "all" \(par défaut : "all"\) |
+| `limit` | nombre | Non | Nombre maximum de publications à retourner \(par défaut : 10, max : 100\) |
+| `after` | chaîne | Non | Nom complet d'un élément pour récupérer les éléments suivants \(pour la pagination\) |
+| `before` | chaîne | Non | Nom complet d'un élément pour récupérer les éléments précédents \(pour la pagination\) |
+| `count` | nombre | Non | Nombre d'éléments déjà vus dans la liste \(utilisé pour la numérotation\) |
+| `show` | chaîne | Non | Afficher les éléments qui seraient normalement filtrés \(par exemple, "all"\) |
+| `sr_detail` | booléen | Non | Développer les détails du subreddit dans la réponse |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | chaîne | Nom du subreddit d'où les publications ont été récupérées |
+| `posts` | tableau | Tableau de publications controversées avec titre, auteur, URL, score, nombre de commentaires et métadonnées |
+
+### `reddit_search`
+
+Rechercher des publications dans un subreddit
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `subreddit` | chaîne | Oui | Le nom du subreddit dans lequel effectuer la recherche \(sans le préfixe r/\) |
+| `query` | chaîne | Oui | Texte de la requête de recherche |
+| `sort` | chaîne | Non | Méthode de tri pour les résultats de recherche : "relevance", "hot", "top", "new", ou "comments" \(par défaut : "relevance"\) |
+| `time` | chaîne | Non | Filtre temporel pour les résultats de recherche : "hour", "day", "week", "month", "year", ou "all" \(par défaut : "all"\) |
+| `limit` | nombre | Non | Nombre maximum de publications à retourner \(par défaut : 10, max : 100\) |
+| `restrict_sr` | booléen | Non | Restreindre la recherche uniquement au subreddit spécifié \(par défaut : true\) |
+| `after` | chaîne | Non | Nom complet d'un élément à partir duquel récupérer les éléments suivants \(pour la pagination\) |
+| `before` | chaîne | Non | Nom complet d'un élément avant lequel récupérer les éléments \(pour la pagination\) |
+| `count` | nombre | Non | Nombre d'éléments déjà vus dans la liste \(utilisé pour la numérotation\) |
+| `show` | chaîne | Non | Afficher les éléments qui seraient normalement filtrés \(par exemple, "all"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | chaîne | Nom du subreddit où la recherche a été effectuée |
+| `posts` | tableau | Tableau des publications résultant de la recherche avec titre, auteur, URL, score, nombre de commentaires et métadonnées |
+
+### `reddit_submit_post`
+
+Soumettre une nouvelle publication à un subreddit (texte ou lien)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `subreddit` | chaîne | Oui | Le nom du subreddit où publier \(sans le préfixe r/\) |
+| `title` | chaîne | Oui | Titre de la soumission \(max 300 caractères\) |
+| `text` | chaîne | Non | Contenu textuel pour une publication personnelle \(markdown supporté\) |
+| `url` | chaîne | Non | URL pour une publication de lien \(ne peut pas être utilisé avec du texte\) |
+| `nsfw` | booléen | Non | Marquer la publication comme NSFW |
+| `spoiler` | booléen | Non | Marquer la publication comme spoiler |
+| `send_replies` | booléen | Non | Envoyer les notifications de réponse dans la boîte de réception \(par défaut : true\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si la publication a été soumise avec succès |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données de la publication incluant ID, nom, URL et lien permanent |
+
+### `reddit_vote`
+
+Voter positivement, négativement ou annuler un vote sur une publication ou un commentaire Reddit
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `id` | chaîne | Oui | Nom complet de l'élément sur lequel voter \(par ex., t3_xxxxx pour une publication, t1_xxxxx pour un commentaire\) |
+| `dir` | nombre | Oui | Direction du vote : 1 \(vote positif\), 0 \(annuler le vote\), ou -1 \(vote négatif\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si le vote a réussi |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `reddit_save`
+
+Enregistrer une publication ou un commentaire Reddit dans vos éléments sauvegardés
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | chaîne | Oui | Nom complet de l'élément à sauvegarder \(par ex., t3_xxxxx pour une publication, t1_xxxxx pour un commentaire\) |
+| `category` | chaîne | Non | Catégorie sous laquelle sauvegarder \(fonctionnalité Reddit Gold\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si la sauvegarde a réussi |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `reddit_unsave`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | chaîne | Nom du subreddit |
+| `posts` | json | Données des publications |
+| `post` | json | Données d'une publication unique |
+| `comments` | json | Données des commentaires |
+
+### `reddit_reply`
+
+Ajouter une réponse en commentaire à une publication ou un commentaire Reddit
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `parent_id` | chaîne | Oui | Nom complet de l'élément auquel répondre \(par ex., t3_xxxxx pour une publication, t1_xxxxx pour un commentaire\) |
+| `text` | chaîne | Oui | Texte du commentaire au format markdown |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si la réponse a été publiée avec succès |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du commentaire incluant ID, nom, permalien et contenu |
+
+### `reddit_edit`
+
+Modifier le texte de votre propre publication ou commentaire Reddit
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `thing_id` | chaîne | Oui | Nom complet de l'élément à modifier \(ex. t3_xxxxx pour une publication, t1_xxxxx pour un commentaire\) |
+| `text` | chaîne | Oui | Nouveau contenu textuel au format markdown |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si la modification a réussi |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du contenu mis à jour |
+
+### `reddit_delete`
+
+Supprimer votre propre publication ou commentaire Reddit
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | chaîne | Oui | Nom complet de l'élément à supprimer \(ex. t3_xxxxx pour une publication, t1_xxxxx pour un commentaire\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si la suppression a réussi |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+### `reddit_subscribe`
+
+S'abonner ou se désabonner d'un subreddit
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | chaîne | Oui | Le nom du subreddit \(sans le préfixe r/\) |
+| `action` | chaîne | Oui | Action à effectuer : "sub" pour s'abonner ou "unsub" pour se désabonner |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'action d'abonnement a réussi |
+| `message` | chaîne | Message de succès ou d'erreur |
+
+## Notes
 
 - Catégorie : `tools`
 - Type : `reddit`

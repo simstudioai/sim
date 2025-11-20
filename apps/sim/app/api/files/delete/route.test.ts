@@ -18,7 +18,7 @@ describe('File Delete API Route', () => {
     })
 
     const req = createMockRequest('POST', {
-      filePath: '/api/files/serve/test-file.txt',
+      filePath: '/api/files/serve/workspace/test-workspace-id/test-file.txt',
     })
 
     const { POST } = await import('@/app/api/files/delete/route')
@@ -39,7 +39,7 @@ describe('File Delete API Route', () => {
     })
 
     const req = createMockRequest('POST', {
-      filePath: '/api/files/serve/nonexistent.txt',
+      filePath: '/api/files/serve/workspace/test-workspace-id/nonexistent.txt',
     })
 
     const { POST } = await import('@/app/api/files/delete/route')
@@ -59,7 +59,7 @@ describe('File Delete API Route', () => {
     })
 
     const req = createMockRequest('POST', {
-      filePath: '/api/files/serve/s3/1234567890-test-file.txt',
+      filePath: '/api/files/serve/workspace/test-workspace-id/1234567890-test-file.txt',
     })
 
     const { POST } = await import('@/app/api/files/delete/route')
@@ -73,8 +73,8 @@ describe('File Delete API Route', () => {
 
     const storageService = await import('@/lib/uploads/core/storage-service')
     expect(storageService.deleteFile).toHaveBeenCalledWith({
-      key: '1234567890-test-file.txt',
-      context: 'general',
+      key: 'workspace/test-workspace-id/1234567890-test-file.txt',
+      context: 'workspace',
     })
   })
 
@@ -85,7 +85,7 @@ describe('File Delete API Route', () => {
     })
 
     const req = createMockRequest('POST', {
-      filePath: '/api/files/serve/blob/1234567890-test-document.pdf',
+      filePath: '/api/files/serve/workspace/test-workspace-id/1234567890-test-document.pdf',
     })
 
     const { POST } = await import('@/app/api/files/delete/route')
@@ -99,8 +99,8 @@ describe('File Delete API Route', () => {
 
     const storageService = await import('@/lib/uploads/core/storage-service')
     expect(storageService.deleteFile).toHaveBeenCalledWith({
-      key: '1234567890-test-document.pdf',
-      context: 'general',
+      key: 'workspace/test-workspace-id/1234567890-test-document.pdf',
+      context: 'workspace',
     })
   })
 

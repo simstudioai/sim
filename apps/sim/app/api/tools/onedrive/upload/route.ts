@@ -3,17 +3,24 @@ import * as XLSX from 'xlsx'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  downloadFileFromStorage,
-  processSingleFileToUserFile,
-} from '@/lib/uploads/utils/file-processing'
+import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
+import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { generateRequestId } from '@/lib/utils'
+import { normalizeExcelValues } from '@/tools/onedrive/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OneDriveUploadAPI')
 
 const MICROSOFT_GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
+
+const ExcelCellSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
+const ExcelRowSchema = z.array(ExcelCellSchema)
+const ExcelValuesSchema = z.union([
+  z.string(),
+  z.array(ExcelRowSchema),
+  z.array(z.record(ExcelCellSchema)),
+])
 
 const OneDriveUploadSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
@@ -22,7 +29,7 @@ const OneDriveUploadSchema = z.object({
   folderId: z.string().optional().nullable(),
   mimeType: z.string().optional(),
   // Optional Excel write-after-create inputs
-  values: z.array(z.array(z.union([z.string(), z.number(), z.boolean(), z.null()]))).optional(),
+  values: ExcelValuesSchema.optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -48,6 +55,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const validatedData = OneDriveUploadSchema.parse(body)
+    const excelValues = normalizeExcelValues(validatedData.values)
 
     let fileBuffer: Buffer
     let mimeType: string
@@ -182,7 +190,7 @@ export async function POST(request: NextRequest) {
     // If this is an Excel creation and values were provided, write them using the Excel API
     let excelWriteResult: any | undefined
     const shouldWriteExcelContent =
-      isExcelCreation && Array.isArray(validatedData.values) && validatedData.values.length > 0
+      isExcelCreation && Array.isArray(excelValues) && excelValues.length > 0
 
     if (shouldWriteExcelContent) {
       try {
@@ -234,7 +242,7 @@ export async function POST(request: NextRequest) {
           logger.warn(`[${requestId}] Error listing worksheets, using default Sheet1`, listError)
         }
 
-        let processedValues: any = validatedData.values || []
+        let processedValues: any = excelValues || []
 
         if (
           Array.isArray(processedValues) &&

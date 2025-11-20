@@ -1,0 +1,107 @@
+---
+title: Inicio
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+El bloque Inicio es el disparador predeterminado para los flujos de trabajo creados en Sim. Recopila entradas estructuradas y se distribuye al resto de tu gráfico para pruebas de editor, implementaciones de API y experiencias de chat.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/start.png"
+    alt="Bloque de inicio con campos de formato de entrada"
+    width={360}
+    height={380}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+El bloque Inicio se sitúa en la posición inicial cuando creas un flujo de trabajo. Mantenlo allí cuando quieras que el mismo punto de entrada sirva para ejecuciones del editor, solicitudes de implementación de API y sesiones de chat. Cámbialo por disparadores de Webhook o Programación cuando solo necesites ejecución basada en eventos.
+</Callout>
+
+## Campos expuestos por Inicio
+
+El bloque Inicio emite diferentes datos dependiendo de la superficie de ejecución:
+
+- **Campos de formato de entrada** — Cada campo que añadas estará disponible como <code>&lt;start.fieldName&gt;</code>. Por ejemplo, un campo `customerId` aparecerá como <code>&lt;start.customerId&gt;</code> en bloques y plantillas posteriores.
+- **Campos exclusivos de chat** — Cuando el flujo de trabajo se ejecuta desde el panel lateral de chat o una experiencia de chat implementada, Sim también proporciona <code>&lt;start.input&gt;</code> (último mensaje del usuario), <code>&lt;start.conversationId&gt;</code> (id de sesión activa), y <code>&lt;start.files&gt;</code> (archivos adjuntos del chat).
+
+Mantén los campos de formato de entrada limitados a los nombres que esperas referenciar más tarde—esos valores son los únicos campos estructurados compartidos entre ejecuciones de editor, API y chat.
+
+## Configurar el formato de entrada
+
+Usa el sub-bloque de formato de entrada para definir el esquema que se aplica en todos los modos de ejecución:
+
+1. Añade un campo para cada valor que quieras recopilar.
+2. Elige un tipo (`string`, `number`, `boolean`, `object`, `array`, o `files`). Los campos de archivo aceptan cargas desde chat y llamadas a la API.
+3. Proporciona valores predeterminados cuando quieras que el modal de ejecución manual complete automáticamente datos de prueba. Estos valores predeterminados se ignoran para ejecuciones implementadas.
+4. Reordena los campos para controlar cómo aparecen en el formulario del editor.
+
+Haz referencia a valores estructurados posteriores con expresiones como <code>&lt;start.customerId&gt;</code> dependiendo del bloque que conectes.
+
+## Cómo se comporta por punto de entrada
+
+<Tabs items={['Ejecución en el editor', 'Despliegue a API', 'Despliegue a chat']}>
+  <Tab>
+    <div className="space-y-3">
+      <p>
+        Cuando haces clic en <strong>Ejecutar</strong> en el editor, el bloque Inicio muestra el Formato de Entrada como un formulario. Los valores predeterminados facilitan volver a probar sin tener que volver a escribir datos. Al enviar el formulario se activa el flujo de trabajo inmediatamente y los valores quedan disponibles en <code>&lt;start.fieldName&gt;</code> (por ejemplo <code>&lt;start.sampleField&gt;</code>).
+      </p>
+      <p>
+        Los campos de archivo en el formulario se cargan directamente en el
+        correspondiente <code>&lt;start.fieldName&gt;</code>; usa esos valores para
+        alimentar herramientas posteriores o pasos de almacenamiento.
+      </p>
+    </div>
+  </Tab>
+  <Tab>
+    <div className="space-y-3">
+      <p>
+        Desplegar a API convierte el Formato de Entrada en un contrato JSON para los clientes. Cada campo se convierte en parte del cuerpo de la solicitud, y Sim fuerza los tipos primitivos durante la ingesta. Los campos de archivo esperan objetos que hagan referencia a archivos cargados; utiliza el punto de conexión de carga de archivos de ejecución antes de invocar el flujo de trabajo.
+      </p>
+      <p>
+        Los que llaman a la API pueden incluir propiedades opcionales adicionales.
+        Estas se conservan dentro de las salidas <code>&lt;start.fieldName&gt;</code>
+        para que puedas experimentar sin tener que redesplegar inmediatamente.
+      </p>
+    </div>
+  </Tab>
+  <Tab>
+    <div className="space-y-3">
+      <p>
+        En los despliegues de chat, el bloque Inicio se vincula a la conversación activa. El último mensaje rellena <code>&lt;start.input&gt;</code>, el identificador de sesión está disponible en <code>&lt;start.conversationId&gt;</code>, y los archivos adjuntos del usuario aparecen en <code>&lt;start.files&gt;</code>, junto con cualquier campo del Formato de Entrada definido como <code>&lt;start.fieldName&gt;</code>.
+      </p>
+      <p>
+        Si inicias el chat con contexto estructurado adicional (por ejemplo, desde una
+        incrustación), este se fusiona con las salidas{' '}
+        <code>&lt;start.fieldName&gt;</code> correspondientes, manteniendo los bloques
+        posteriores consistentes con la API y las ejecuciones manuales.
+      </p>
+    </div>
+  </Tab>
+</Tabs>
+
+## Referenciando datos de Start en nodos posteriores
+
+- Conecta <code>&lt;start.fieldName&gt;</code> directamente a agentes, herramientas o funciones que esperan cargas estructuradas.
+- Usa sintaxis de plantillas como <code>&lt;start.sampleField&gt;</code> o <code>&lt;start.files[0].url&gt;</code> (solo en chat) en campos de prompt.
+- Mantén <code>&lt;start.conversationId&gt;</code> a mano cuando necesites agrupar salidas, actualizar el historial de conversación o llamar de nuevo a la API de chat.
+
+## Mejores prácticas
+
+- Trata el bloque Start como el único punto de entrada cuando quieras dar soporte tanto a llamadas de API como de chat.
+- Prefiere campos con formato de entrada nombrados en lugar de analizar JSON sin procesar en nodos posteriores; la conversión de tipos ocurre automáticamente.
+- Añade validación o enrutamiento inmediatamente después de Start si ciertos campos son necesarios para que tu flujo de trabajo tenga éxito.
+
+- Conecta <code>&lt;start.fieldName&gt;</code> directamente a agentes, herramientas o funciones que esperan cargas estructuradas.
+- Usa sintaxis de plantillas como <code>&lt;start.sampleField&gt;</code> o <code>&lt;start.files[0].url&gt;</code> (solo en chat) en campos de prompt.
+- Mantén <code>&lt;start.conversationId&gt;</code> a mano cuando necesites agrupar salidas, actualizar el historial de conversación o llamar de nuevo a la API de chat.
+
+## Mejores prácticas
+
+- Trata el bloque Start como el único punto de entrada cuando quieras admitir tanto llamadas de API como de chat.
+- Prefiere campos de Formato de Entrada con nombre en lugar de analizar JSON sin procesar en nodos posteriores; la conversión de tipos ocurre automáticamente.
+- Añade validación o enrutamiento inmediatamente después de Start si ciertos campos son necesarios para que tu flujo de trabajo tenga éxito.

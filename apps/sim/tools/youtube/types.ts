@@ -5,6 +5,17 @@ export interface YouTubeSearchParams {
   query: string
   maxResults?: number
   pageToken?: string
+  channelId?: string
+  publishedAfter?: string
+  publishedBefore?: string
+  videoDuration?: 'any' | 'short' | 'medium' | 'long'
+  order?: 'date' | 'rating' | 'relevance' | 'title' | 'videoCount' | 'viewCount'
+  videoCategoryId?: string
+  videoDefinition?: 'any' | 'high' | 'standard'
+  videoCaption?: 'any' | 'closedCaption' | 'none'
+  regionCode?: string
+  relevanceLanguage?: string
+  safeSearch?: 'moderate' | 'none' | 'strict'
 }
 
 export interface YouTubeSearchResponse extends ToolResponse {
@@ -111,9 +122,77 @@ export interface YouTubeCommentsResponse extends ToolResponse {
   }
 }
 
+export interface YouTubeChannelVideosParams {
+  apiKey: string
+  channelId: string
+  maxResults?: number
+  order?: 'date' | 'rating' | 'relevance' | 'title' | 'viewCount'
+  pageToken?: string
+}
+
+export interface YouTubeChannelVideosResponse extends ToolResponse {
+  output: {
+    items: Array<{
+      videoId: string
+      title: string
+      description: string
+      thumbnail: string
+      publishedAt: string
+    }>
+    totalResults: number
+    nextPageToken?: string
+  }
+}
+
+export interface YouTubeChannelPlaylistsParams {
+  apiKey: string
+  channelId: string
+  maxResults?: number
+  pageToken?: string
+}
+
+export interface YouTubeChannelPlaylistsResponse extends ToolResponse {
+  output: {
+    items: Array<{
+      playlistId: string
+      title: string
+      description: string
+      thumbnail: string
+      itemCount: number
+      publishedAt: string
+    }>
+    totalResults: number
+    nextPageToken?: string
+  }
+}
+
+export interface YouTubeRelatedVideosParams {
+  apiKey: string
+  videoId: string
+  maxResults?: number
+  pageToken?: string
+}
+
+export interface YouTubeRelatedVideosResponse extends ToolResponse {
+  output: {
+    items: Array<{
+      videoId: string
+      title: string
+      description: string
+      thumbnail: string
+      channelTitle: string
+    }>
+    totalResults: number
+    nextPageToken?: string
+  }
+}
+
 export type YouTubeResponse =
   | YouTubeSearchResponse
   | YouTubeVideoDetailsResponse
   | YouTubeChannelInfoResponse
   | YouTubePlaylistItemsResponse
   | YouTubeCommentsResponse
+  | YouTubeChannelVideosResponse
+  | YouTubeChannelPlaylistsResponse
+  | YouTubeRelatedVideosResponse

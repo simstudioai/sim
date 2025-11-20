@@ -63,7 +63,7 @@ export const s3ListObjectsTool: ToolConfig = {
       region: params.region,
       bucketName: params.bucketName,
       prefix: params.prefix,
-      maxKeys: params.maxKeys,
+      maxKeys: params.maxKeys !== undefined ? Number(params.maxKeys) : undefined,
       continuationToken: params.continuationToken,
     }),
   },

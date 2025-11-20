@@ -8,13 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="github"
   color="#181C1E"
-  icon={true}
-  iconSvg={`<svg className="block-icon"    viewBox='0 0 26 26' xmlns='http://www.w3.org/2000/svg'>
-      <path
-        d='M13 0C11.2928 0 9.60235 0.336255 8.02511 0.989566C6.44788 1.64288 5.01477 2.60045 3.80761 3.80761C1.36964 6.24558 0 9.55219 0 13C0 18.746 3.731 23.621 8.892 25.35C9.542 25.454 9.75 25.051 9.75 24.7V22.503C6.149 23.283 5.382 20.761 5.382 20.761C4.784 19.253 3.939 18.85 3.939 18.85C2.756 18.044 4.03 18.07 4.03 18.07C5.33 18.161 6.019 19.409 6.019 19.409C7.15 21.385 9.061 20.8 9.802 20.488C9.919 19.643 10.257 19.071 10.621 18.746C7.735 18.421 4.706 17.303 4.706 12.35C4.706 10.907 5.2 9.75 6.045 8.827C5.915 8.502 5.46 7.15 6.175 5.395C6.175 5.395 7.267 5.044 9.75 6.721C10.777 6.435 11.895 6.292 13 6.292C14.105 6.292 15.223 6.435 16.25 6.721C18.733 5.044 19.825 5.395 19.825 5.395C20.54 7.15 20.085 8.502 19.955 8.827C20.8 9.75 21.294 10.907 21.294 12.35C21.294 17.316 18.252 18.408 15.353 18.733C15.821 19.136 16.25 19.929 16.25 21.138V24.7C16.25 25.051 16.458 25.467 17.121 25.35C22.282 23.608 26 18.746 26 13C26 11.2928 25.6637 9.60235 25.0104 8.02511C24.3571 6.44788 23.3995 5.01477 22.1924 3.80761C20.9852 2.60045 19.5521 1.64288 17.9749 0.989566C16.3977 0.336255 14.7072 0 13 0Z'
-        fill='currentColor'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -123,6 +116,1055 @@ Ruft den neuesten Commit aus einem GitHub-Repository ab
 | --------- | ---- | ----------- |
 | `content` | string | Menschenlesbare Commit-Zusammenfassung |
 | `metadata` | object | Commit-Metadaten |
+
+### `github_issue_comment`
+
+Einen Kommentar zu einem GitHub-Issue erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `issue_number` | number | Ja | Issue-Nummer |
+| `body` | string | Ja | Kommentarinhalt |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Kommentarbestätigung |
+| `metadata` | object | Kommentar-Metadaten |
+
+### `github_list_issue_comments`
+
+Alle Kommentare zu einem GitHub-Issue auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `issue_number` | number | Ja | Issue-Nummer |
+| `since` | string | Nein | Nur Kommentare anzeigen, die nach diesem ISO 8601-Zeitstempel aktualisiert wurden |
+| `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite \(max. 100\) |
+| `page` | number | Nein | Seitennummer |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Kommentarzusammenfassung |
+| `metadata` | object | Metadaten der Kommentarliste |
+
+### `github_update_comment`
+
+Aktualisieren eines vorhandenen Kommentars zu einem GitHub Issue oder Pull Request
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `comment_id` | number | Ja | Kommentar-ID |
+| `body` | string | Ja | Aktualisierter Kommentarinhalt |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Aktualisierungsbestätigung |
+| `metadata` | object | Metadaten des aktualisierten Kommentars |
+
+### `github_delete_comment`
+
+Löschen eines Kommentars zu einem GitHub Issue oder Pull Request
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `comment_id` | number | Ja | Kommentar-ID |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Löschbestätigung |
+| `metadata` | object | Metadaten zum Löschergebnis |
+
+### `github_list_pr_comments`
+
+Alle Review-Kommentare zu einem GitHub Pull Request auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `pullNumber` | number | Ja | Pull-Request-Nummer |
+| `sort` | string | Nein | Sortieren nach Erstellung oder Aktualisierung |
+| `direction` | string | Nein | Sortierrichtung \(asc oder desc\) |
+| `since` | string | Nein | Nur Kommentare anzeigen, die nach diesem ISO 8601-Zeitstempel aktualisiert wurden |
+| `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite \(max. 100\) |
+| `page` | number | Nein | Seitennummer |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Zusammenfassung der Review-Kommentare |
+| `metadata` | object | Metadaten der Review-Kommentarliste |
+
+### `github_create_pr`
+
+Einen neuen Pull Request in einem GitHub-Repository erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `title` | string | Ja | Pull-Request-Titel |
+| `head` | string | Ja | Der Name des Branches, in dem Ihre Änderungen implementiert sind |
+| `base` | string | Ja | Der Name des Branches, in den die Änderungen übernommen werden sollen |
+| `body` | string | Nein | Pull-Request-Beschreibung (Markdown) |
+| `draft` | boolean | Nein | Als Entwurf-Pull-Request erstellen |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare PR-Erstellungsbestätigung |
+| `metadata` | object | Pull-Request-Metadaten |
+
+### `github_update_pr`
+
+Einen bestehenden Pull Request in einem GitHub-Repository aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `pullNumber` | number | Ja | Pull-Request-Nummer |
+| `title` | string | Nein | Neuer Pull-Request-Titel |
+| `body` | string | Nein | Neue Pull-Request-Beschreibung (Markdown) |
+| `state` | string | Nein | Neuer Status (open oder closed) |
+| `base` | string | Nein | Neuer Base-Branch-Name |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare PR-Aktualisierungsbestätigung |
+| `metadata` | object | Aktualisierte Pull-Request-Metadaten |
+
+### `github_merge_pr`
+
+Einen Pull-Request in einem GitHub-Repository zusammenführen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `pullNumber` | number | Ja | Pull-Request-Nummer |
+| `commit_title` | string | Nein | Titel für den Merge-Commit |
+| `commit_message` | string | Nein | Zusätzliche Details, die an die Merge-Commit-Nachricht angehängt werden |
+| `merge_method` | string | Nein | Merge-Methode: merge, squash oder rebase |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Merge-Bestätigung |
+| `metadata` | object | Merge-Ergebnis-Metadaten |
+
+### `github_list_prs`
+
+Pull-Requests in einem GitHub-Repository auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `state` | string | Nein | Nach Status filtern: open, closed oder all |
+| `head` | string | Nein | Nach Head-Benutzer oder Branch-Namen filtern \(Format: user:ref-name oder organization:ref-name\) |
+| `base` | string | Nein | Nach Base-Branch-Namen filtern |
+| `sort` | string | Nein | Sortieren nach: created, updated, popularity oder long-running |
+| `direction` | string | Nein | Sortierrichtung: asc oder desc |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100\) |
+| `page` | number | Nein | Seitennummer |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Liste von Pull-Requests |
+| `metadata` | object | Metadaten der Pull-Requests-Liste |
+
+### `github_get_pr_files`
+
+Liste der in einem Pull-Request geänderten Dateien abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `pullNumber` | number | Ja | Pull-Request-Nummer |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100\) |
+| `page` | number | Nein | Seitennummer |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Liste der im PR geänderten Dateien |
+| `metadata` | object | Metadaten der PR-Dateien |
+
+### `github_close_pr`
+
+Einen Pull-Request in einem GitHub-Repository schließen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `pullNumber` | number | Ja | Pull-Request-Nummer |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare PR-Schließungsbestätigung |
+| `metadata` | object | Metadaten des geschlossenen Pull-Requests |
+
+### `github_request_reviewers`
+
+Reviewer für einen Pull-Request anfordern
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `pullNumber` | number | Ja | Pull-Request-Nummer |
+| `reviewers` | string | Ja | Kommagetrennte Liste von Benutzer-Logins, von denen Reviews angefordert werden sollen |
+| `team_reviewers` | string | Nein | Kommagetrennte Liste von Team-Slugs, von denen Reviews angefordert werden sollen |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigung der Reviewer-Anfrage |
+| `metadata` | object | Metadaten der angeforderten Reviewer |
+
+### `github_get_file_content`
+
+Ruft den Inhalt einer Datei aus einem GitHub-Repository ab. Unterstützt Dateien bis zu 1MB. Der Inhalt wird dekodiert und menschenlesbar zurückgegeben.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `path` | string | Ja | Pfad zur Datei im Repository \(z.B. "src/index.ts"\) |
+| `ref` | string | Nein | Branch-Name, Tag oder Commit-SHA \(standardmäßig der Standard-Branch des Repositories\) |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Dateiinformationen mit Inhaltsvorschau |
+| `metadata` | object | Datei-Metadaten einschließlich Name, Pfad, SHA, Größe und URLs |
+
+### `github_create_file`
+
+Erstellt eine neue Datei in einem GitHub-Repository. Der Dateiinhalt wird automatisch Base64-kodiert. Unterstützt Dateien bis zu 1MB.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `path` | string | Ja | Pfad, unter dem die Datei erstellt wird \(z.B. "src/newfile.ts"\) |
+| `message` | string | Ja | Commit-Nachricht für diese Dateierstellung |
+| `content` | string | Ja | Dateiinhalt \(Klartext, wird automatisch Base64-kodiert\) |
+| `branch` | string | Nein | Branch, in dem die Datei erstellt werden soll \(standardmäßig der Standard-Branch des Repositories\) |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigung der Dateierstellung |
+| `metadata` | object | Datei- und Commit-Metadaten |
+
+### `github_update_file`
+
+Aktualisiert eine bestehende Datei in einem GitHub-Repository. Erfordert den SHA-Wert der Datei. Der Inhalt wird automatisch Base64-kodiert. Unterstützt Dateien bis zu 1MB.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `path` | string | Ja | Pfad zur zu aktualisierenden Datei \(z.B. "src/index.ts"\) |
+| `message` | string | Ja | Commit-Nachricht für diese Dateiaktualisierung |
+| `content` | string | Ja | Neuer Dateiinhalt \(Klartext, wird automatisch Base64-kodiert\) |
+| `sha` | string | Ja | Der Blob-SHA der zu ersetzenden Datei \(von github_get_file_content abrufen\) |
+| `branch` | string | Nein | Branch, in dem die Datei aktualisiert werden soll \(standardmäßig der Standard-Branch des Repositories\) |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigung der Dateiaktualisierung |
+| `metadata` | object | Metadaten der aktualisierten Datei und des Commits |
+
+### `github_delete_file`
+
+Löscht eine Datei aus einem GitHub-Repository. Erfordert den Datei-SHA. Dieser Vorgang kann über die API nicht rückgängig gemacht werden.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `path` | string | Ja | Pfad zur zu löschenden Datei \(z.B. "src/oldfile.ts"\) |
+| `message` | string | Ja | Commit-Nachricht für diese Dateilöschung |
+| `sha` | string | Ja | Der Blob-SHA der zu löschenden Datei \(von github_get_file_content abrufen\) |
+| `branch` | string | Nein | Branch, aus dem die Datei gelöscht werden soll \(standardmäßig der Standard-Branch des Repositories\) |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigung der Dateilöschung |
+| `metadata` | object | Löschbestätigung und Commit-Metadaten |
+
+### `github_get_tree`
+
+Ruft den Inhalt eines Verzeichnisses in einem GitHub-Repository ab. Gibt eine Liste von Dateien und Unterverzeichnissen zurück. Verwenden Sie einen leeren Pfad oder lassen Sie ihn weg, um den Inhalt des Stammverzeichnisses zu erhalten.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `path` | string | Nein | Verzeichnispfad \(z.B. "src/components"\). Leer lassen für das Stammverzeichnis. |
+| `ref` | string | Nein | Branch-Name, Tag oder Commit-SHA \(standardmäßig der Standard-Branch des Repositories\) |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Verzeichnisstrukturliste |
+| `metadata` | object | Metadaten zum Verzeichnisinhalt |
+
+### `github_list_branches`
+
+Listet alle Branches in einem GitHub-Repository auf. Optional nach Schutzstatus filtern und Paginierung steuern.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `protected` | boolean | Nein | Branches nach Schutzstatus filtern |
+| `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite \(max. 100, Standard 30\) |
+| `page` | number | Nein | Seitennummer für Paginierung \(Standard 1\) |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Liste der Branches |
+| `metadata` | object | Branch-Listen-Metadaten |
+
+### `github_get_branch`
+
+Erhalte detaillierte Informationen über einen bestimmten Branch in einem GitHub-Repository, einschließlich Commit-Details und Schutzstatus.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `branch` | string | Ja | Branch-Name |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Branch-Details |
+| `metadata` | object | Branch-Metadaten |
+
+### `github_create_branch`
+
+Erstelle einen neuen Branch in einem GitHub-Repository, indem du eine Git-Referenz erstellst, die auf einen bestimmten Commit-SHA zeigt.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `branch` | string | Ja | Name des zu erstellenden Branches |
+| `sha` | string | Ja | Commit-SHA, auf den der Branch zeigen soll |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigung der Branch-Erstellung |
+| `metadata` | object | Git-Referenz-Metadaten |
+
+### `github_delete_branch`
+
+Löscht einen Branch aus einem GitHub-Repository durch Entfernen seiner Git-Referenz. Geschützte Branches können nicht gelöscht werden.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `branch` | string | Ja | Name des zu löschenden Branches |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Löschbestätigung |
+| `metadata` | object | Lösch-Metadaten |
+
+### `github_get_branch_protection`
+
+Ruft die Branch-Schutzregeln für einen bestimmten Branch ab, einschließlich Statusprüfungen, Review-Anforderungen und Einschränkungen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `branch` | string | Ja | Branch-Name |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Zusammenfassung des Branch-Schutzes |
+| `metadata` | object | Branch-Schutz-Konfiguration |
+
+### `github_update_branch_protection`
+
+Aktualisieren Sie Branch-Schutzregeln für einen bestimmten Branch, einschließlich Status-Checks, Review-Anforderungen, Administrator-Durchsetzung und Push-Einschränkungen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `branch` | string | Ja | Branch-Name |
+| `required_status_checks` | object | Ja | Konfiguration für erforderliche Status-Checks \(null zum Deaktivieren\). Objekt mit strict \(boolean\) und contexts \(String-Array\) |
+| `enforce_admins` | boolean | Ja | Ob Einschränkungen für Administratoren durchgesetzt werden sollen |
+| `required_pull_request_reviews` | object | Ja | PR-Review-Anforderungen \(null zum Deaktivieren\). Objekt mit optionalen required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews |
+| `restrictions` | object | Ja | Push-Einschränkungen \(null zum Deaktivieren\). Objekt mit users \(String-Array\) und teams \(String-Array\) |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Zusammenfassung der Branch-Schutz-Aktualisierung |
+| `metadata` | object | Aktualisierte Branch-Schutz-Konfiguration |
+
+### `github_create_issue`
+
+Erstellen Sie ein neues Issue in einem GitHub-Repository
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `title` | string | Ja | Issue-Titel |
+| `body` | string | Nein | Issue-Beschreibung/Inhalt |
+| `assignees` | string | Nein | Kommagetrennte Liste von Benutzernamen, die diesem Issue zugewiesen werden sollen |
+| `labels` | string | Nein | Kommagetrennte Liste von Label-Namen, die diesem Issue hinzugefügt werden sollen |
+| `milestone` | number | Nein | Meilenstein-Nummer, die mit diesem Issue verknüpft werden soll |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigung der Issue-Erstellung |
+| `metadata` | object | Issue-Metadaten |
+
+### `github_update_issue`
+
+Aktualisieren eines vorhandenen Issues in einem GitHub-Repository
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `issue_number` | number | Ja | Issue-Nummer |
+| `title` | string | Nein | Neuer Issue-Titel |
+| `body` | string | Nein | Neue Issue-Beschreibung/Inhalt |
+| `state` | string | Nein | Issue-Status \(open oder closed\) |
+| `labels` | array | Nein | Array von Label-Namen \(ersetzt alle vorhandenen Labels\) |
+| `assignees` | array | Nein | Array von Benutzernamen \(ersetzt alle vorhandenen Zuweisungen\) |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigung der Issue-Aktualisierung |
+| `metadata` | object | Aktualisierte Issue-Metadaten |
+
+### `github_list_issues`
+
+Auflisten von Issues in einem GitHub-Repository. Hinweis: Dies schließt Pull Requests ein, da PRs in GitHub als Issues betrachtet werden
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `state` | string | Nein | Filtern nach Status: open, closed oder all \(Standard: open\) |
+| `assignee` | string | Nein | Filtern nach zugewiesenem Benutzernamen |
+| `creator` | string | Nein | Filtern nach Ersteller-Benutzernamen |
+| `labels` | string | Nein | Kommagetrennte Liste von Label-Namen zum Filtern |
+| `sort` | string | Nein | Sortieren nach: created, updated oder comments \(Standard: created\) |
+| `direction` | string | Nein | Sortierrichtung: asc oder desc \(Standard: desc\) |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100, Standard: 30\) |
+| `page` | number | Nein | Seitennummer \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Liste von Issues |
+| `metadata` | object | Metadaten der Issues-Liste |
+
+### `github_get_issue`
+
+Detaillierte Informationen über ein bestimmtes Issue in einem GitHub-Repository abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `issue_number` | number | Ja | Issue-Nummer |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Issue-Details |
+| `metadata` | object | Detaillierte Issue-Metadaten |
+
+### `github_close_issue`
+
+Ein Issue in einem GitHub-Repository schließen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `issue_number` | number | Ja | Issue-Nummer |
+| `state_reason` | string | Nein | Grund für das Schließen: completed oder not_planned |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigung des Issue-Schließens |
+| `metadata` | object | Metadaten des geschlossenen Issues |
+
+### `github_add_labels`
+
+Labels zu einem Issue in einem GitHub-Repository hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `issue_number` | number | Ja | Issue-Nummer |
+| `labels` | string | Ja | Kommagetrennte Liste von Label-Namen, die dem Issue hinzugefügt werden sollen |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Label-Bestätigung |
+| `metadata` | object | Label-Metadaten |
+
+### `github_remove_label`
+
+Ein Label von einem Issue in einem GitHub-Repository entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `issue_number` | number | Ja | Issue-Nummer |
+| `name` | string | Ja | Label-Name, der entfernt werden soll |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigung der Label-Entfernung |
+| `metadata` | object | Metadaten der verbleibenden Labels |
+
+### `github_add_assignees`
+
+Bearbeiter zu einem Issue in einem GitHub-Repository hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `issue_number` | number | Ja | Issue-Nummer |
+| `assignees` | string | Ja | Kommagetrennte Liste von Benutzernamen, die dem Issue zugewiesen werden sollen |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigung der Zuweisungen |
+| `metadata` | object | Aktualisierte Issue-Metadaten mit Zuweisungen |
+
+### `github_create_release`
+
+Erstellt ein neues Release für ein GitHub-Repository. Geben Sie Tag-Namen, Ziel-Commit, Titel, Beschreibung und an, ob es ein Entwurf oder Vorabversion sein soll.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `tag_name` | string | Ja | Der Name des Tags für dieses Release |
+| `target_commitish` | string | Nein | Gibt den Commitish-Wert an, der bestimmt, von wo aus der Git-Tag erstellt wird. Kann ein beliebiger Branch oder Commit-SHA sein. Standardmäßig der Standard-Branch des Repositories. |
+| `name` | string | Nein | Der Name des Releases |
+| `body` | string | Nein | Text, der den Inhalt des Releases beschreibt \(Markdown unterstützt\) |
+| `draft` | boolean | Nein | true, um einen Entwurf \(unveröffentlicht\) zu erstellen, false für ein veröffentlichtes Release |
+| `prerelease` | boolean | Nein | true, um das Release als Vorabversion zu kennzeichnen, false für ein vollständiges Release |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Zusammenfassung der Release-Erstellung |
+| `metadata` | object | Release-Metadaten einschließlich Download-URLs |
+
+### `github_update_release`
+
+Aktualisieren eines bestehenden GitHub-Releases. Ändern von Tag-Name, Ziel-Commit, Titel, Beschreibung, Entwurfsstatus oder Vorabveröffentlichungsstatus.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `release_id` | number | Ja | Die eindeutige Kennung des Releases |
+| `tag_name` | string | Nein | Der Name des Tags |
+| `target_commitish` | string | Nein | Gibt den Commitish-Wert an, von dem aus der Tag erstellt wird |
+| `name` | string | Nein | Der Name des Releases |
+| `body` | string | Nein | Text, der den Inhalt des Releases beschreibt \(Markdown unterstützt\) |
+| `draft` | boolean | Nein | true, um als Entwurf zu setzen, false zum Veröffentlichen |
+| `prerelease` | boolean | Nein | true, um als Vorabversion zu kennzeichnen, false für eine vollständige Version |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Zusammenfassung der Release-Aktualisierung |
+| `metadata` | object | Aktualisierte Release-Metadaten einschließlich Download-URLs |
+
+### `github_list_releases`
+
+Listet alle Releases eines GitHub-Repositories auf. Gibt Release-Informationen einschließlich Tags, Namen und Download-URLs zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite \(max. 100\) |
+| `page` | number | Nein | Seitennummer der abzurufenden Ergebnisse |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Liste der Releases mit Zusammenfassung |
+| `metadata` | object | Release-Metadaten |
+
+### `github_get_release`
+
+Ruft detaillierte Informationen über einen bestimmten GitHub-Release anhand der ID ab. Gibt Release-Metadaten einschließlich Assets und Download-URLs zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `release_id` | number | Ja | Die eindeutige Kennung des Releases |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Release-Details |
+| `metadata` | object | Release-Metadaten einschließlich Download-URLs |
+
+### `github_delete_release`
+
+Löscht einen GitHub-Release anhand seiner ID. Dies entfernt den Release dauerhaft, löscht jedoch nicht den zugehörigen Git-Tag.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `release_id` | number | Ja | Die eindeutige Kennung des zu löschenden Releases |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Löschbestätigung |
+| `metadata` | object | Metadaten zum Löschergebnis |
+
+### `github_list_workflows`
+
+Listet alle Workflows in einem GitHub-Repository auf. Gibt Workflow-Details zurück, einschließlich ID, Name, Pfad, Status und Badge-URL.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite \(Standard: 30, max: 100\) |
+| `page` | number | Nein | Seitennummer der abzurufenden Ergebnisse \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Workflow-Zusammenfassung |
+| `metadata` | object | Workflow-Metadaten |
+
+### `github_get_workflow`
+
+Ruft Details eines bestimmten GitHub Actions Workflows anhand der ID oder des Dateinamens ab. Gibt Workflow-Informationen zurück, einschließlich Name, Pfad, Status und Badge-URL.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer (Benutzer oder Organisation) |
+| `repo` | string | Ja | Repository-Name |
+| `workflow_id` | string | Ja | Workflow-ID (Nummer) oder Workflow-Dateiname (z.B. "main.yaml") |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Workflow-Details |
+| `metadata` | object | Workflow-Metadaten |
+
+### `github_trigger_workflow`
+
+Löst ein Workflow-Dispatch-Ereignis für einen GitHub Actions Workflow aus. Der Workflow muss einen workflow_dispatch-Trigger konfiguriert haben. Gibt bei Erfolg 204 No Content zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer (Benutzer oder Organisation) |
+| `repo` | string | Ja | Repository-Name |
+| `workflow_id` | string | Ja | Workflow-ID (Nummer) oder Workflow-Dateiname (z.B. "main.yaml") |
+| `ref` | string | Ja | Git-Referenz (Branch- oder Tag-Name), auf der der Workflow ausgeführt werden soll |
+| `inputs` | object | Nein | Eingabeschlüssel und -werte, die in der Workflow-Datei konfiguriert sind |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Bestätigungsnachricht |
+| `metadata` | object | Leeres Metadatenobjekt \(204 No Content-Antwort\) |
+
+### `github_list_workflow_runs`
+
+Listet Workflow-Ausführungen für ein Repository auf. Unterstützt Filterung nach Akteur, Branch, Ereignis und Status. Gibt Ausführungsdetails zurück, einschließlich Status, Ergebnis und Links.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `actor` | string | Nein | Filtern nach Benutzer, der den Workflow ausgelöst hat |
+| `branch` | string | Nein | Filtern nach Branch-Name |
+| `event` | string | Nein | Filtern nach Ereignistyp \(z.B. push, pull_request, workflow_dispatch\) |
+| `status` | string | Nein | Filtern nach Status \(queued, in_progress, completed, waiting, requested, pending\) |
+| `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite \(Standard: 30, max: 100\) |
+| `page` | number | Nein | Seitennummer der abzurufenden Ergebnisse \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Zusammenfassung der Workflow-Ausführungen |
+| `metadata` | object | Metadaten der Workflow-Ausführungen |
+
+### `github_get_workflow_run`
+
+Ruft detaillierte Informationen über eine bestimmte Workflow-Ausführung anhand der ID ab. Gibt Status, Ergebnis, Zeitplanung und Links zur Ausführung zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `run_id` | number | Ja | Workflow-Run-ID |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Workflow-Run-Details |
+| `metadata` | object | Workflow-Run-Metadaten |
+
+### `github_cancel_workflow_run`
+
+Bricht einen Workflow-Run ab. Gibt 202 Accepted zurück, wenn der Abbruch eingeleitet wurde, oder 409 Conflict, wenn der Run nicht abgebrochen werden kann (bereits abgeschlossen).
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `run_id` | number | Ja | Abzubrechende Workflow-Run-ID |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Statusmeldung zum Abbruch |
+| `metadata` | object | Abbruch-Metadaten |
+
+### `github_rerun_workflow`
+
+Führt einen Workflow-Run erneut aus. Optional kann Debug-Logging für den erneuten Durchlauf aktiviert werden. Gibt bei Erfolg 201 Created zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `run_id` | number | Ja | Workflow-Run-ID für erneute Ausführung |
+| `enable_debug_logging` | boolean | Nein | Debug-Logging für die erneute Ausführung aktivieren \(Standard: false\) |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Bestätigungsnachricht für erneute Ausführung |
+| `metadata` | object | Metadaten zur erneuten Ausführung |
+
+### `github_list_projects`
+
+Liste der GitHub Projects V2 für eine Organisation oder einen Benutzer. Gibt bis zu 20 Projekte mit ihren Details zurück, einschließlich ID, Titel, Nummer, URL und Status.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner_type` | string | Ja | Besitzertyp: "org" für Organisation oder "user" für Benutzer |
+| `owner_login` | string | Ja | Login-Name der Organisation oder des Benutzers |
+| `apiKey` | string | Ja | GitHub Personal Access Token mit Projekt-Leseberechtigungen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Liste der Projekte |
+| `metadata` | object | Projekt-Metadaten |
+
+### `github_get_project`
+
+Erhalte detaillierte Informationen über ein bestimmtes GitHub Project V2 anhand seiner Nummer. Gibt Projektdetails zurück, einschließlich ID, Titel, Beschreibung, URL und Status.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner_type` | string | Ja | Besitzertyp: "org" für Organisation oder "user" für Benutzer |
+| `owner_login` | string | Ja | Login-Name der Organisation oder des Benutzers |
+| `project_number` | number | Ja | Projektnummer |
+| `apiKey` | string | Ja | GitHub Personal Access Token mit Projekt-Leseberechtigungen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Projektdetails |
+| `metadata` | object | Projekt-Metadaten |
+
+### `github_create_project`
+
+Erstellt ein neues GitHub Project V2. Erfordert die Node-ID des Besitzers (nicht den Login-Namen). Gibt das erstellte Projekt mit ID, Titel und URL zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner_id` | string | Ja | Node-ID des Besitzers \(Format: PVT_... oder MDQ6...\). Verwenden Sie die GitHub GraphQL API, um diese ID von einer Organisation oder einem Benutzer-Login zu erhalten. |
+| `title` | string | Ja | Projekttitel |
+| `apiKey` | string | Ja | GitHub Personal Access Token mit Projekt-Schreibberechtigungen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigungsnachricht |
+| `metadata` | object | Metadaten des erstellten Projekts |
+
+### `github_update_project`
+
+Aktualisiert ein bestehendes GitHub Project V2. Kann Titel, Beschreibung, Sichtbarkeit (öffentlich) oder Status (geschlossen) aktualisieren. Erfordert die Projekt-Node-ID.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `project_id` | string | Ja | Projekt-Node-ID \(Format: PVT_...\) |
+| `title` | string | Nein | Neuer Projekttitel |
+| `shortDescription` | string | Nein | Neue Kurzbeschreibung des Projekts |
+| `project_public` | boolean | Nein | Projektsichtbarkeit festlegen \(true = öffentlich, false = privat\) |
+| `closed` | boolean | Nein | Projektstatus festlegen \(true = geschlossen, false = offen\) |
+| `apiKey` | string | Ja | GitHub Personal Access Token mit Projekt-Schreibberechtigungen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigungsnachricht |
+| `metadata` | object | Aktualisierte Projekt-Metadaten |
+
+### `github_delete_project`
+
+Löscht ein GitHub Project V2. Diese Aktion ist permanent und kann nicht rückgängig gemacht werden. Erfordert die Projekt-Node-ID.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `project_id` | string | Ja | Projekt-Node-ID (Format: PVT_...) |
+| `apiKey` | string | Ja | GitHub Personal Access Token mit Projekt-Administratorberechtigungen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Bestätigungsnachricht |
+| `metadata` | object | Metadaten des gelöschten Projekts |
 
 ## Hinweise
 

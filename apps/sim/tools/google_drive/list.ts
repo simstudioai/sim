@@ -10,10 +10,6 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
   oauth: {
     required: true,
     provider: 'google-drive',
-    additionalScopes: [
-      'https://www.googleapis.com/auth/drive.readonly',
-      'https://www.googleapis.com/auth/drive.file',
-    ],
   },
 
   params: {
@@ -83,7 +79,7 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
         url.searchParams.set('q', `${existingQ} and ${queryPart}`)
       }
       if (params.pageSize) {
-        url.searchParams.append('pageSize', params.pageSize.toString())
+        url.searchParams.append('pageSize', Number(params.pageSize).toString())
       }
       if (params.pageToken) {
         url.searchParams.append('pageToken', params.pageToken)

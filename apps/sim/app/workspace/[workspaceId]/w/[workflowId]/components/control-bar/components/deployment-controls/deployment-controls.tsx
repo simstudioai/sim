@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, Rocket } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components'
 import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
@@ -37,7 +37,7 @@ export function DeploymentControls({
   const workflowNeedsRedeployment = needsRedeployment
   const isPreviousVersionActive = isDeployed && workflowNeedsRedeployment
 
-  const [isDeploying, _setIsDeploying] = useState(false)
+  const [isDeploying, setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   const lastWorkflowIdRef = useRef<string | null>(null)
@@ -59,11 +59,52 @@ export function DeploymentControls({
   const canDeploy = userPermissions.canAdmin
   const isDisabled = isDeploying || !canDeploy
 
-  const handleDeployClick = useCallback(() => {
-    if (canDeploy) {
-      setIsModalOpen(true)
+  const handleDeployClick = useCallback(async () => {
+    if (!canDeploy || !activeWorkflowId) return
+
+    // If undeployed, deploy first then open modal
+    if (!isDeployed) {
+      setIsDeploying(true)
+      try {
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/deploy`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            deployChatEnabled: false,
+          }),
+        })
+
+        if (response.ok) {
+          const responseData = await response.json()
+          const setDeploymentStatus = useWorkflowRegistry.getState().setDeploymentStatus
+          const isDeployedStatus = responseData.isDeployed ?? false
+          const deployedAtTime = responseData.deployedAt
+            ? new Date(responseData.deployedAt)
+            : undefined
+          setDeploymentStatus(
+            activeWorkflowId,
+            isDeployedStatus,
+            deployedAtTime,
+            responseData.apiKey || ''
+          )
+          await refetchWithErrorHandling()
+          // Open modal after successful deployment
+          setIsModalOpen(true)
+        }
+      } catch (error) {
+        // On error, still open modal to show error
+        setIsModalOpen(true)
+      } finally {
+        setIsDeploying(false)
+      }
+      return
     }
-  }, [canDeploy, setIsModalOpen])
+
+    // If already deployed, just open modal
+    setIsModalOpen(true)
+  }, [canDeploy, isDeployed, activeWorkflowId, refetchWithErrorHandling])
 
   const getTooltipText = () => {
     if (!canDeploy) {
@@ -83,8 +124,8 @@ export function DeploymentControls({
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
           <div className='relative'>
             <Button
               variant='outline'
@@ -119,9 +160,9 @@ export function DeploymentControls({
               </div>
             )}
           </div>
-        </TooltipTrigger>
-        <TooltipContent>{getTooltipText()}</TooltipContent>
-      </Tooltip>
+        </Tooltip.Trigger>
+        <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
+      </Tooltip.Root>
 
       <DeployModal
         open={isModalOpen}

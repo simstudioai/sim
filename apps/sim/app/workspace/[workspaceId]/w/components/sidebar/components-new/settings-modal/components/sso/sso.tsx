@@ -1,0 +1,1079 @@
+'use client'
+
+import { useState } from 'react'
+import { Check, ChevronDown, Copy, Eye, EyeOff } from 'lucide-react'
+import { Button, Combobox } from '@/components/emcn'
+import { Alert, AlertDescription, Input, Label } from '@/components/ui'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useSession } from '@/lib/auth-client'
+import { isBillingEnabled } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console/logger'
+import { getUserRole } from '@/lib/organization/helpers'
+import { getSubscriptionStatus } from '@/lib/subscription/helpers'
+import { getBaseUrl } from '@/lib/urls/utils'
+import { cn } from '@/lib/utils'
+import { useOrganizations } from '@/hooks/queries/organization'
+import { useConfigureSSO, useSSOProviders } from '@/hooks/queries/sso'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
+
+const logger = createLogger('SSO')
+
+const TRUSTED_SSO_PROVIDERS = [
+  'okta',
+  'okta-saml',
+  'okta-prod',
+  'okta-dev',
+  'okta-staging',
+  'okta-test',
+  'azure-ad',
+  'azure-active-directory',
+  'azure-corp',
+  'azure-enterprise',
+  'adfs',
+  'adfs-company',
+  'adfs-corp',
+  'adfs-enterprise',
+  'auth0',
+  'auth0-prod',
+  'auth0-dev',
+  'auth0-staging',
+  'onelogin',
+  'onelogin-prod',
+  'onelogin-corp',
+  'jumpcloud',
+  'jumpcloud-prod',
+  'jumpcloud-corp',
+  'ping-identity',
+  'ping-federate',
+  'pingone',
+  'shibboleth',
+  'shibboleth-idp',
+  'google-workspace',
+  'google-sso',
+  'saml',
+  'saml2',
+  'saml-sso',
+  'oidc',
+  'oidc-sso',
+  'openid-connect',
+  'custom-sso',
+  'enterprise-sso',
+  'company-sso',
+]
+
+interface SSOProvider {
+  id: string
+  providerId: string
+  domain: string
+  issuer: string
+  organizationId: string
+  userId?: string
+  oidcConfig?: string
+  samlConfig?: string
+  providerType: 'oidc' | 'saml'
+}
+
+export function SSO() {
+  const { data: session } = useSession()
+  const { data: orgsData } = useOrganizations()
+  const { data: subscriptionData } = useSubscriptionData()
+  const activeOrganization = orgsData?.activeOrganization
+
+  // Determine if we should fetch SSO providers
+  const userEmail = session?.user?.email
+  const userId = session?.user?.id
+  const userRole = getUserRole(activeOrganization, userEmail)
+  const isOwner = userRole === 'owner'
+  const isAdmin = userRole === 'admin'
+  const canManageSSO = isOwner || isAdmin
+  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
+  const hasEnterprisePlan = subscriptionStatus.isEnterprise
+
+  // Use React Query to fetch SSO providers
+  const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders()
+
+  const providers = providersData?.providers || []
+  const isSSOProviderOwner =
+    !isBillingEnabled && userId ? providers.some((p: any) => p.userId === userId) : null
+
+  // Use mutation hook for configuring SSO
+  const configureSSOMutation = useConfigureSSO()
+
+  const [error, setError] = useState<string | null>(null)
+  const [showClientSecret, setShowClientSecret] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [showConfigForm, setShowConfigForm] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+
+  const [formData, setFormData] = useState({
+    providerType: 'oidc' as 'oidc' | 'saml',
+    providerId: '',
+    issuerUrl: '',
+    domain: '',
+    // OIDC fields
+    clientId: '',
+    clientSecret: '',
+    scopes: 'openid,profile,email',
+    // SAML fields
+    entryPoint: '',
+    cert: '',
+    callbackUrl: '',
+    audience: '',
+    wantAssertionsSigned: true,
+    idpMetadata: '', // Optional IDP metadata XML
+    // Advanced options
+    showAdvanced: false,
+  })
+
+  const [errors, setErrors] = useState<Record<string, string[]>>({
+    providerType: [],
+    providerId: [],
+    issuerUrl: [],
+    domain: [],
+    clientId: [],
+    clientSecret: [],
+    entryPoint: [],
+    cert: [],
+    scopes: [],
+    callbackUrl: [],
+    audience: [],
+  })
+  const [showErrors, setShowErrors] = useState(false)
+
+  if (isBillingEnabled) {
+    if (!activeOrganization) {
+      return (
+        <div className='flex h-full items-center justify-center p-6'>
+          <Alert>
+            <AlertDescription>
+              You must be part of an organization to configure Single Sign-On.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )
+    }
+
+    if (!hasEnterprisePlan) {
+      return (
+        <div className='flex h-full items-center justify-center p-6'>
+          <Alert>
+            <AlertDescription>
+              Single Sign-On is available on Enterprise plans only.
+              <br />
+              Contact your admin to upgrade your plan.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )
+    }
+
+    if (!canManageSSO) {
+      return (
+        <div className='flex h-full items-center justify-center p-6'>
+          <Alert>
+            <AlertDescription>
+              Only organization owners and admins can configure Single Sign-On settings.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )
+    }
+  } else {
+    if (!isLoadingProviders && isSSOProviderOwner === false && providers.length > 0) {
+      return (
+        <div className='flex h-full items-center justify-center p-6'>
+          <Alert>
+            <AlertDescription>
+              Only the user who configured SSO can manage these settings.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )
+    }
+  }
+
+  const validateProviderId = (value: string): string[] => {
+    const out: string[] = []
+    if (!value || !value.trim()) out.push('Provider ID is required.')
+    if (!/^[-a-z0-9]+$/i.test(value.trim())) out.push('Use letters, numbers, and dashes only.')
+    return out
+  }
+
+  const validateIssuerUrl = (value: string): string[] => {
+    const out: string[] = []
+    if (!value || !value.trim()) return ['Issuer URL is required.']
+    try {
+      const url = new URL(value.trim())
+      const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+      if (url.protocol !== 'https:' && !isLocalhost) {
+        out.push('Issuer URL must use HTTPS.')
+      }
+    } catch {
+      out.push('Enter a valid issuer URL like https://your-identity-provider.com/oauth2/default')
+    }
+    return out
+  }
+
+  const validateDomain = (value: string): string[] => {
+    const out: string[] = []
+    if (!value || !value.trim()) return ['Domain is required.']
+    if (/^https?:\/\//i.test(value.trim())) out.push('Do not include protocol (https://).')
+    if (!/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(value.trim()))
+      out.push('Enter a valid domain like your-domain.identityprovider.com')
+    return out
+  }
+
+  const validateRequired = (label: string, value: string): string[] => {
+    const out: string[] = []
+    if (!value || !value.trim()) out.push(`${label} is required.`)
+    return out
+  }
+
+  const validateAll = (data: typeof formData) => {
+    const newErrors: Record<string, string[]> = {
+      providerType: [],
+      providerId: validateProviderId(data.providerId),
+      issuerUrl: validateIssuerUrl(data.issuerUrl),
+      domain: validateDomain(data.domain),
+      clientId: [],
+      clientSecret: [],
+      entryPoint: [],
+      cert: [],
+      scopes: [],
+      callbackUrl: [],
+      audience: [],
+    }
+
+    if (data.providerType === 'oidc') {
+      newErrors.clientId = validateRequired('Client ID', data.clientId)
+      newErrors.clientSecret = validateRequired('Client Secret', data.clientSecret)
+      if (!data.scopes || !data.scopes.trim()) {
+        newErrors.scopes = ['Scopes are required for OIDC providers']
+      }
+    } else if (data.providerType === 'saml') {
+      newErrors.entryPoint = validateIssuerUrl(data.entryPoint || '')
+      if (!newErrors.entryPoint.length && !data.entryPoint) {
+        newErrors.entryPoint = ['Entry Point URL is required for SAML providers']
+      }
+      newErrors.cert = validateRequired('Certificate', data.cert)
+    }
+
+    setErrors(newErrors)
+    return newErrors
+  }
+
+  const hasAnyErrors = (errs: Record<string, string[]>) =>
+    Object.values(errs).some((l) => l.length > 0)
+
+  const isFormValid = () => {
+    const requiredFields = ['providerId', 'issuerUrl', 'domain']
+    const hasRequiredFields = requiredFields.every((field) => {
+      const value = formData[field as keyof typeof formData]
+      return typeof value === 'string' && value.trim() !== ''
+    })
+
+    if (formData.providerType === 'oidc') {
+      return (
+        hasRequiredFields &&
+        formData.clientId.trim() !== '' &&
+        formData.clientSecret.trim() !== '' &&
+        formData.scopes.trim() !== ''
+      )
+    }
+    if (formData.providerType === 'saml') {
+      return hasRequiredFields && formData.entryPoint.trim() !== '' && formData.cert.trim() !== ''
+    }
+
+    return false
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    setShowErrors(true)
+    const validation = validateAll(formData)
+    if (hasAnyErrors(validation)) {
+      return
+    }
+
+    try {
+      const requestBody: any = {
+        providerId: formData.providerId,
+        issuer: formData.issuerUrl,
+        domain: formData.domain,
+        providerType: formData.providerType,
+        orgId: activeOrganization?.id,
+        mapping: {
+          id: 'sub',
+          email: 'email',
+          name: 'name',
+          image: 'picture',
+        },
+      }
+
+      if (formData.providerType === 'oidc') {
+        requestBody.clientId = formData.clientId
+        requestBody.clientSecret = formData.clientSecret
+        requestBody.scopes = formData.scopes.split(',').map((s) => s.trim())
+      } else if (formData.providerType === 'saml') {
+        requestBody.entryPoint = formData.entryPoint
+        requestBody.cert = formData.cert
+        requestBody.wantAssertionsSigned = formData.wantAssertionsSigned
+        if (formData.callbackUrl) requestBody.callbackUrl = formData.callbackUrl
+        if (formData.audience) requestBody.audience = formData.audience
+        if (formData.idpMetadata) requestBody.idpMetadata = formData.idpMetadata
+
+        requestBody.mapping = {
+          id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
+          email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
+          name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+        }
+      }
+
+      // Use the mutation hook - this will automatically invalidate the cache
+      await configureSSOMutation.mutateAsync(requestBody)
+
+      logger.info('SSO provider configured', { providerId: formData.providerId })
+
+      // Reset form
+      setFormData({
+        providerType: 'oidc',
+        providerId: '',
+        issuerUrl: '',
+        domain: '',
+        clientId: '',
+        clientSecret: '',
+        scopes: 'openid,profile,email',
+        entryPoint: '',
+        cert: '',
+        callbackUrl: '',
+        audience: '',
+        wantAssertionsSigned: true,
+        idpMetadata: '',
+        showAdvanced: false,
+      })
+
+      setShowConfigForm(false)
+      setIsEditing(false)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error occurred'
+      setError(message)
+      logger.error('Failed to configure SSO provider', { error: err })
+    }
+  }
+
+  const handleInputChange = (field: keyof typeof formData, value: string) => {
+    setFormData((prev) => {
+      let processedValue: any = value
+
+      if (field === 'wantAssertionsSigned' || field === 'showAdvanced') {
+        processedValue = value === 'true'
+      }
+
+      const next = { ...prev, [field]: processedValue }
+
+      if (field === 'providerType') {
+        setShowErrors(false)
+        setErrors({
+          providerType: [],
+          providerId: [],
+          issuerUrl: [],
+          domain: [],
+          clientId: [],
+          clientSecret: [],
+          entryPoint: [],
+          cert: [],
+          scopes: [],
+          callbackUrl: [],
+          audience: [],
+        })
+      } else {
+        validateAll(next)
+      }
+
+      return next
+    })
+  }
+
+  const callbackUrl = `${getBaseUrl()}/api/auth/sso/callback/${formData.providerId}`
+
+  const copyCallback = async () => {
+    try {
+      await navigator.clipboard.writeText(callbackUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {}
+  }
+
+  const handleReconfigure = (provider: SSOProvider) => {
+    try {
+      // Parse config based on provider type
+      let clientId = ''
+      let clientSecret = ''
+      let scopes = 'openid,profile,email'
+
+      if (provider.providerType === 'oidc' && provider.oidcConfig) {
+        const config = JSON.parse(provider.oidcConfig)
+        clientId = config.clientId || ''
+        clientSecret = config.clientSecret || ''
+        scopes = config.scopes?.join(',') || 'openid,profile,email'
+      }
+
+      setFormData({
+        providerType: provider.providerType,
+        providerId: provider.providerId,
+        issuerUrl: provider.issuer,
+        domain: provider.domain,
+        clientId,
+        clientSecret,
+        scopes,
+        entryPoint: '',
+        cert: '',
+        callbackUrl: '',
+        audience: '',
+        wantAssertionsSigned: true,
+        idpMetadata: '',
+        showAdvanced: false,
+      })
+      setIsEditing(true)
+      setShowConfigForm(true)
+    } catch (error) {
+      logger.error('Failed to parse provider config', { error })
+      setError('Failed to load provider configuration')
+    }
+  }
+
+  if (isLoadingProviders) {
+    return <SsoSkeleton />
+  }
+
+  const hasProviders = providers.length > 0
+  const showStatus = hasProviders && !showConfigForm
+
+  return (
+    <div className='relative flex h-full flex-col'>
+      {/* Hidden dummy inputs to prevent browser password manager autofill */}
+      <input
+        type='text'
+        name='fakeusernameremembered'
+        autoComplete='username'
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        tabIndex={-1}
+        readOnly
+      />
+      <input
+        type='password'
+        name='fakepasswordremembered'
+        autoComplete='current-password'
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        tabIndex={-1}
+        readOnly
+      />
+      <input
+        type='email'
+        name='fakeemailremembered'
+        autoComplete='email'
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        tabIndex={-1}
+        readOnly
+      />
+      <div className='flex-1 overflow-y-auto px-6 pt-4 pb-4'>
+        <div className='space-y-6'>
+          {error && (
+            <Alert variant='destructive' className='rounded-[8px]'>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {showStatus ? (
+            // SSO Provider Status View
+            <div className='space-y-4'>
+              {providers.map((provider: SSOProvider) => (
+                <div key={provider.id} className='rounded-[8px] bg-muted/30 p-4'>
+                  <div className='flex items-start justify-between gap-3'>
+                    <div className='flex-1'>
+                      <h3 className='font-medium text-base'>Single Sign-On Provider</h3>
+                      <p className='mt-1 text-muted-foreground text-sm'>
+                        {provider.providerId} • {provider.domain}
+                      </p>
+                    </div>
+                    <div className='flex items-center space-x-2'>
+                      <Button
+                        variant='ghost'
+                        onClick={() => handleReconfigure(provider)}
+                        className='h-8'
+                      >
+                        Reconfigure
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className='mt-4 border-border border-t pt-4'>
+                    <div className='grid grid-cols-2 gap-4 text-sm'>
+                      <div>
+                        <span className='font-medium text-muted-foreground'>Issuer URL</span>
+                        <p className='mt-1 break-all font-mono text-foreground text-xs'>
+                          {provider.issuer}
+                        </p>
+                      </div>
+                      <div>
+                        <span className='font-medium text-muted-foreground'>Provider ID</span>
+                        <p className='mt-1 text-foreground'>{provider.providerId}</p>
+                      </div>
+                    </div>
+
+                    <div className='mt-4'>
+                      <span className='font-medium text-muted-foreground text-sm'>
+                        Callback URL
+                      </span>
+                      <div className='relative mt-2'>
+                        <Input
+                          readOnly
+                          value={`${getBaseUrl()}/api/auth/sso/callback/${provider.providerId}`}
+                          className='h-9 w-full cursor-text pr-10 font-mono text-xs focus-visible:ring-2 focus-visible:ring-primary/20'
+                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                        />
+                        <button
+                          type='button'
+                          onClick={() => {
+                            const url = `${getBaseUrl()}/api/auth/sso/callback/${provider.providerId}`
+                            navigator.clipboard.writeText(url)
+                            setCopied(true)
+                            setTimeout(() => setCopied(false), 1500)
+                          }}
+                          aria-label='Copy callback URL'
+                          className='-translate-y-1/2 absolute top-1/2 right-3 rounded p-1 text-muted-foreground transition hover:text-foreground'
+                        >
+                          {copied ? (
+                            <Check className='h-4 w-4 text-green-500' />
+                          ) : (
+                            <Copy className='h-4 w-4' />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            // SSO Configuration Form
+            <>
+              {hasProviders && (
+                <div className='mb-4'>
+                  <Button
+                    variant='ghost'
+                    onClick={() => {
+                      setShowConfigForm(false)
+                      setIsEditing(false)
+                    }}
+                    className='h-8'
+                  >
+                    ← Back to SSO Status
+                  </Button>
+                </div>
+              )}
+              <form onSubmit={handleSubmit} className='space-y-3' autoComplete='off'>
+                {/* Hidden dummy input to prevent autofill */}
+                <input type='text' name='hidden' style={{ display: 'none' }} autoComplete='false' />
+                {/* Provider Type Selection */}
+                <div className='space-y-1'>
+                  <Label>Provider Type</Label>
+                  <div className='flex gap-2 rounded-[10px] border border-[var(--border-muted)] bg-[var(--surface-3)] p-1'>
+                    <button
+                      type='button'
+                      className={cn(
+                        'flex-1 rounded-[6px] px-3 py-2 font-medium text-sm transition-all',
+                        formData.providerType === 'oidc'
+                          ? 'bg-[var(--surface-1)] text-[var(--text-primary)] shadow-sm ring-1 ring-[var(--border-muted)]'
+                          : 'text-muted-foreground hover:bg-[var(--surface-2)] hover:text-foreground'
+                      )}
+                      onClick={() => handleInputChange('providerType', 'oidc')}
+                    >
+                      OIDC
+                    </button>
+                    <button
+                      type='button'
+                      className={cn(
+                        'flex-1 rounded-[6px] px-3 py-2 font-medium text-sm transition-all',
+                        formData.providerType === 'saml'
+                          ? 'bg-[var(--surface-1)] text-[var(--text-primary)] shadow-sm ring-1 ring-[var(--border-muted)]'
+                          : 'text-muted-foreground hover:bg-[var(--surface-2)] hover:text-foreground'
+                      )}
+                      onClick={() => handleInputChange('providerType', 'saml')}
+                    >
+                      SAML
+                    </button>
+                  </div>
+                  <p className='text-muted-foreground text-xs'>
+                    {formData.providerType === 'oidc'
+                      ? 'OpenID Connect (Okta, Azure AD, Auth0, etc.)'
+                      : 'Security Assertion Markup Language (ADFS, Shibboleth, etc.)'}
+                  </p>
+                </div>
+
+                <div className='space-y-1'>
+                  <Label htmlFor='provider-id'>Provider ID</Label>
+                  <Combobox
+                    value={formData.providerId}
+                    onChange={(value: string) => handleInputChange('providerId', value)}
+                    options={TRUSTED_SSO_PROVIDERS.map((id) => ({
+                      label: id,
+                      value: id,
+                    }))}
+                    placeholder='Select a provider ID'
+                    editable={true}
+                    className={cn(
+                      showErrors &&
+                        errors.providerId.length > 0 &&
+                        'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                    )}
+                  />
+                  {showErrors && errors.providerId.length > 0 && (
+                    <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                      <p>{errors.providerId.join(' ')}</p>
+                    </div>
+                  )}
+                  <p className='text-muted-foreground text-xs'>
+                    Select a pre-configured provider ID from the trusted providers list
+                  </p>
+                </div>
+
+                <div className='space-y-1'>
+                  <Label htmlFor='issuer-url'>Issuer URL</Label>
+                  <Input
+                    id='issuer-url'
+                    type='url'
+                    placeholder='Enter Issuer URL'
+                    value={formData.issuerUrl}
+                    name='sso_issuer_endpoint'
+                    autoComplete='off'
+                    autoCapitalize='none'
+                    spellCheck={false}
+                    readOnly
+                    onFocus={(e) => e.target.removeAttribute('readOnly')}
+                    onChange={(e) => handleInputChange('issuerUrl', e.target.value)}
+                    className={cn(
+                      'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                      showErrors &&
+                        errors.issuerUrl.length > 0 &&
+                        'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                    )}
+                  />
+                  {showErrors && errors.issuerUrl.length > 0 && (
+                    <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                      <p>{errors.issuerUrl.join(' ')}</p>
+                    </div>
+                  )}
+                  <p className='text-muted-foreground text-xs' />
+                </div>
+
+                <div className='space-y-1'>
+                  <Label htmlFor='domain'>Domain</Label>
+                  <Input
+                    id='domain'
+                    type='text'
+                    placeholder='Enter Domain'
+                    value={formData.domain}
+                    name='sso_identity_domain'
+                    autoComplete='off'
+                    autoCapitalize='none'
+                    spellCheck={false}
+                    readOnly
+                    onFocus={(e) => e.target.removeAttribute('readOnly')}
+                    onChange={(e) => handleInputChange('domain', e.target.value)}
+                    className={cn(
+                      'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                      showErrors &&
+                        errors.domain.length > 0 &&
+                        'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                    )}
+                  />
+                  {showErrors && errors.domain.length > 0 && (
+                    <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                      <p>{errors.domain.join(' ')}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Provider-specific fields */}
+                {formData.providerType === 'oidc' ? (
+                  <>
+                    <div className='space-y-1'>
+                      <Label htmlFor='client-id'>Client ID</Label>
+                      <Input
+                        id='client-id'
+                        type='text'
+                        placeholder='Enter Client ID'
+                        value={formData.clientId}
+                        name='sso_client_identifier'
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        readOnly
+                        onFocus={(e) => e.target.removeAttribute('readOnly')}
+                        onChange={(e) => handleInputChange('clientId', e.target.value)}
+                        className={cn(
+                          'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                          showErrors &&
+                            errors.clientId.length > 0 &&
+                            'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                        )}
+                      />
+                      {showErrors && errors.clientId.length > 0 && (
+                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                          <p>{errors.clientId.join(' ')}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className='space-y-1'>
+                      <Label htmlFor='client-secret'>Client Secret</Label>
+                      <div className='relative'>
+                        <Input
+                          id='client-secret'
+                          type='text'
+                          placeholder='Enter Client Secret'
+                          value={formData.clientSecret}
+                          name='sso_client_key'
+                          autoComplete='off'
+                          autoCapitalize='none'
+                          spellCheck={false}
+                          readOnly
+                          onFocus={(e) => {
+                            e.target.removeAttribute('readOnly')
+                            setShowClientSecret(true)
+                          }}
+                          onBlurCapture={() => setShowClientSecret(false)}
+                          onChange={(e) => handleInputChange('clientSecret', e.target.value)}
+                          style={
+                            !showClientSecret
+                              ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
+                              : undefined
+                          }
+                          className={cn(
+                            'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                            showErrors &&
+                              errors.clientSecret.length > 0 &&
+                              'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                          )}
+                        />
+                        <Button
+                          variant='ghost'
+                          onClick={() => setShowClientSecret((s) => !s)}
+                          className='-translate-y-1/2 absolute top-1/2 right-3 h-6 w-6 rounded-[4px] p-0 text-muted-foreground hover:text-foreground'
+                          aria-label={
+                            showClientSecret ? 'Hide client secret' : 'Show client secret'
+                          }
+                        >
+                          {showClientSecret ? (
+                            <EyeOff className='h-4 w-4' />
+                          ) : (
+                            <Eye className='h-4 w-4' />
+                          )}
+                        </Button>
+                      </div>
+                      {showErrors && errors.clientSecret.length > 0 && (
+                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                          <p>{errors.clientSecret.join(' ')}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className='space-y-1'>
+                      <Label htmlFor='scopes'>Scopes</Label>
+                      <Input
+                        id='scopes'
+                        type='text'
+                        placeholder='openid,profile,email'
+                        value={formData.scopes}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        onChange={(e) => handleInputChange('scopes', e.target.value)}
+                        className={cn(
+                          'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                          showErrors &&
+                            errors.scopes.length > 0 &&
+                            'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                        )}
+                      />
+                      {showErrors && errors.scopes.length > 0 && (
+                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                          <p>{errors.scopes.join(' ')}</p>
+                        </div>
+                      )}
+                      <p className='text-muted-foreground text-xs'>
+                        Comma-separated list of OIDC scopes to request
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className='space-y-1'>
+                      <Label htmlFor='entry-point'>Entry Point URL</Label>
+                      <Input
+                        id='entry-point'
+                        type='url'
+                        placeholder='Enter Entry Point URL'
+                        value={formData.entryPoint}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        onChange={(e) => handleInputChange('entryPoint', e.target.value)}
+                        className={cn(
+                          'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                          showErrors &&
+                            errors.entryPoint.length > 0 &&
+                            'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                        )}
+                      />
+                      {showErrors && errors.entryPoint.length > 0 && (
+                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                          <p>{errors.entryPoint.join(' ')}</p>
+                        </div>
+                      )}
+                      <p className='text-muted-foreground text-xs' />
+                    </div>
+
+                    <div className='space-y-1'>
+                      <Label htmlFor='cert'>Identity Provider Certificate</Label>
+                      <textarea
+                        id='cert'
+                        placeholder='-----BEGIN CERTIFICATE-----&#10;MIIDBjCCAe4CAQAwDQYJKoZIhvcNAQEFBQAwEjEQMA...&#10;-----END CERTIFICATE-----'
+                        value={formData.cert}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        onChange={(e) => handleInputChange('cert', e.target.value)}
+                        className={cn(
+                          'min-h-[100px] w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                          showErrors &&
+                            errors.cert.length > 0 &&
+                            'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                        )}
+                        rows={4}
+                      />
+                      {showErrors && errors.cert.length > 0 && (
+                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                          <p>{errors.cert.join(' ')}</p>
+                        </div>
+                      )}
+                      <p className='text-muted-foreground text-xs' />
+                    </div>
+
+                    {/* Advanced SAML Options */}
+                    <div className='space-y-3'>
+                      <button
+                        type='button'
+                        onClick={() =>
+                          handleInputChange(
+                            'showAdvanced',
+                            formData.showAdvanced ? 'false' : 'true'
+                          )
+                        }
+                        className='flex items-center gap-2 text-muted-foreground text-sm hover:text-foreground'
+                      >
+                        <ChevronDown
+                          className={cn(
+                            'h-4 w-4 transition-transform',
+                            formData.showAdvanced && 'rotate-180'
+                          )}
+                        />
+                        Advanced SAML Options
+                      </button>
+
+                      {formData.showAdvanced && (
+                        <>
+                          <div className='space-y-1'>
+                            <Label htmlFor='audience'>Audience (Entity ID)</Label>
+                            <Input
+                              id='audience'
+                              type='text'
+                              placeholder='Enter Audience'
+                              value={formData.audience}
+                              autoComplete='off'
+                              autoCapitalize='none'
+                              spellCheck={false}
+                              onChange={(e) => handleInputChange('audience', e.target.value)}
+                              className='rounded-[10px] shadow-sm'
+                            />
+                            <p className='text-muted-foreground text-xs'>
+                              The SAML audience restriction (optional, defaults to app URL)
+                            </p>
+                          </div>
+
+                          <div className='space-y-1'>
+                            <Label htmlFor='callback-url'>Callback URL Override</Label>
+                            <Input
+                              id='callback-url'
+                              type='url'
+                              placeholder='Enter Callback URL'
+                              value={formData.callbackUrl}
+                              autoComplete='off'
+                              autoCapitalize='none'
+                              spellCheck={false}
+                              onChange={(e) => handleInputChange('callbackUrl', e.target.value)}
+                              className='rounded-[10px] shadow-sm'
+                            />
+                            <p className='text-muted-foreground text-xs'>
+                              Custom SAML callback URL (optional, auto-generated if empty)
+                            </p>
+                          </div>
+
+                          <div className='flex items-center space-x-2'>
+                            <input
+                              type='checkbox'
+                              id='want-assertions-signed'
+                              checked={formData.wantAssertionsSigned}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  'wantAssertionsSigned',
+                                  e.target.checked ? 'true' : 'false'
+                                )
+                              }
+                              className='rounded'
+                            />
+                            <Label htmlFor='want-assertions-signed' className='text-sm'>
+                              Require signed SAML assertions
+                            </Label>
+                          </div>
+
+                          <div className='space-y-1'>
+                            <Label htmlFor='idp-metadata'>Identity Provider Metadata XML</Label>
+                            <textarea
+                              id='idp-metadata'
+                              placeholder='<?xml version="1.0" encoding="UTF-8"?>&#10;<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">&#10;  ...&#10;</md:EntityDescriptor>'
+                              value={formData.idpMetadata}
+                              autoComplete='off'
+                              autoCapitalize='none'
+                              spellCheck={false}
+                              onChange={(e) => handleInputChange('idpMetadata', e.target.value)}
+                              className='min-h-[100px] w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100'
+                              rows={4}
+                            />
+                            <p className='text-muted-foreground text-xs'>
+                              Paste the complete IDP metadata XML from your identity provider for
+                              advanced configuration
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                <Button
+                  type='submit'
+                  className='h-9 w-full'
+                  disabled={
+                    configureSSOMutation.isPending || hasAnyErrors(errors) || !isFormValid()
+                  }
+                >
+                  {configureSSOMutation.isPending
+                    ? isEditing
+                      ? 'Updating...'
+                      : 'Configuring...'
+                    : isEditing
+                      ? 'Update SSO Provider'
+                      : 'Configure SSO Provider'}
+                </Button>
+              </form>
+
+              <div className='space-y-1'>
+                <Label htmlFor='callback-url'>Callback URL</Label>
+                <p className='text-muted-foreground text-xs'>
+                  Configure this URL in your identity provider as the callback/redirect URI
+                </p>
+                <div className='relative flex h-9 items-center rounded-[8px] bg-muted px-3 pr-10'>
+                  <code className='flex-1 truncate font-mono text-foreground text-xs'>
+                    {callbackUrl}
+                  </code>
+                  <Button
+                    variant='ghost'
+                    onClick={copyCallback}
+                    aria-label='Copy callback URL'
+                    className='absolute right-1 h-6 w-6 rounded-[4px] p-0 text-muted-foreground hover:text-foreground'
+                  >
+                    {copied ? <Check className='h-4 w-4' /> : <Copy className='h-4 w-4' />}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SsoSkeleton() {
+  return (
+    <div className='flex h-full flex-col'>
+      <div className='flex-1 overflow-y-auto px-6 pt-4 pb-4'>
+        <div className='space-y-3'>
+          {/* Provider type toggle */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-28' />
+            <Skeleton className='h-10 w-full rounded-[10px]' />
+            <Skeleton className='h-3 w-64' />
+          </div>
+
+          {/* Provider ID */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-24' />
+            <Skeleton className='h-9 w-full rounded-[10px]' />
+            <Skeleton className='h-3 w-80' />
+          </div>
+
+          {/* Issuer URL */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-24' />
+            <Skeleton className='h-9 w-full rounded-[10px]' />
+          </div>
+
+          {/* Domain */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-16' />
+            <Skeleton className='h-9 w-full rounded-[10px]' />
+          </div>
+
+          {/* Client ID */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-20' />
+            <Skeleton className='h-9 w-full rounded-[10px]' />
+          </div>
+
+          {/* Client Secret */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-24' />
+            <div className='relative'>
+              <Skeleton className='h-9 w-full rounded-[10px]' />
+              <Skeleton className='-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 rounded' />
+            </div>
+          </div>
+
+          {/* Scopes */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-16' />
+            <Skeleton className='h-9 w-full rounded-[10px]' />
+            <Skeleton className='h-3 w-56' />
+          </div>
+
+          {/* Submit button */}
+          <Skeleton className='h-9 w-full rounded-[10px]' />
+
+          {/* Callback URL */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-24' />
+            <Skeleton className='h-3 w-96' />
+            <div className='relative flex h-9 items-center rounded-[8px] bg-muted px-3'>
+              <Skeleton className='h-3 w-64' />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

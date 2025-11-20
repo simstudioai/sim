@@ -1,0 +1,170 @@
+---
+title: Trello
+description: Manage Trello boards and cards
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="trello"
+  color="#0052CC"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Trello](https://trello.com) is a visual collaboration tool that helps you organize projects, tasks, and workflows using boards, lists, and cards.
+
+With Trello in Sim, you can:
+
+- **List boards and lists**: View the boards you have access to and their associated lists.
+- **List and search cards**: Retrieve all cards on a board or filter by list to see their content and status.
+- **Create cards**: Add new cards to a Trello list, including descriptions, labels, and due dates.
+- **Update and move cards**: Edit card properties, move cards across lists, and set due dates or labels.
+- **Get recent activity**: Retrieve actions and activity history for boards and cards.
+- **Comment on cards**: Add comments to cards for collaboration and tracking.
+
+Integrating Trello with Sim empowers your agents to manage your team’s tasks, boards, and projects programmatically. Automate project management workflows, keep task lists up-to-date, synchronize with other tools, or trigger intelligent workflows in response to Trello events—all through your AI agents.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate with Trello to manage boards and cards. List boards, list cards, create cards, update cards, get actions, and add comments.
+
+
+
+## Tools
+
+### `trello_list_lists`
+
+List all lists on a Trello board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | ID of the board to list lists from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the operation was successful |
+| `lists` | array | Array of list objects with id, name, closed, pos, and idBoard |
+| `count` | number | Number of lists returned |
+| `error` | string | Error message if operation failed |
+
+### `trello_list_cards`
+
+List all cards on a Trello board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | ID of the board to list cards from |
+| `listId` | string | No | Optional: Filter cards by list ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the operation was successful |
+| `cards` | array | Array of card objects with id, name, desc, url, board/list IDs, labels, and due date |
+| `count` | number | Number of cards returned |
+| `error` | string | Error message if operation failed |
+
+### `trello_create_card`
+
+Create a new card on a Trello board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | ID of the board to create the card on |
+| `listId` | string | Yes | ID of the list to create the card in |
+| `name` | string | Yes | Name/title of the card |
+| `desc` | string | No | Description of the card |
+| `pos` | string | No | Position of the card \(top, bottom, or positive float\) |
+| `due` | string | No | Due date \(ISO 8601 format\) |
+| `labels` | string | No | Comma-separated list of label IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the card was created successfully |
+| `card` | object | The created card object with id, name, desc, url, and other properties |
+| `error` | string | Error message if operation failed |
+
+### `trello_update_card`
+
+Update an existing card on Trello
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | Yes | ID of the card to update |
+| `name` | string | No | New name/title of the card |
+| `desc` | string | No | New description of the card |
+| `closed` | boolean | No | Archive/close the card \(true\) or reopen it \(false\) |
+| `idList` | string | No | Move card to a different list |
+| `due` | string | No | Due date \(ISO 8601 format\) |
+| `dueComplete` | boolean | No | Mark the due date as complete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the card was updated successfully |
+| `card` | object | The updated card object with id, name, desc, url, and other properties |
+| `error` | string | Error message if operation failed |
+
+### `trello_get_actions`
+
+Get activity/actions from a board or card
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | No | ID of the board to get actions from \(either boardId or cardId required\) |
+| `cardId` | string | No | ID of the card to get actions from \(either boardId or cardId required\) |
+| `filter` | string | No | Filter actions by type \(e.g., "commentCard,updateCard,createCard" or "all"\) |
+| `limit` | number | No | Maximum number of actions to return \(default: 50, max: 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the operation was successful |
+| `actions` | array | Array of action objects with type, date, member, and data |
+| `count` | number | Number of actions returned |
+| `error` | string | Error message if operation failed |
+
+### `trello_add_comment`
+
+Add a comment to a Trello card
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | Yes | ID of the card to comment on |
+| `text` | string | Yes | Comment text |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the comment was added successfully |
+| `comment` | object | The created comment object with id, text, date, and member creator |
+| `error` | string | Error message if operation failed |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `trello`

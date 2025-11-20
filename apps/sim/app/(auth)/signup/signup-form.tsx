@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { ArrowRight, ChevronRight, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/fonts/inter/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
 const logger = createLogger('SignupForm')
@@ -96,6 +96,7 @@ function SignupFormContent({
   const [redirectUrl, setRedirectUrl] = useState('')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+  const [isButtonHovered, setIsButtonHovered] = useState(false)
 
   const [name, setName] = useState('')
   const [nameErrors, setNameErrors] = useState<string[]>([])
@@ -506,10 +507,21 @@ function SignupFormContent({
 
           <Button
             type='submit'
-            className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
+            onMouseEnter={() => setIsButtonHovered(true)}
+            onMouseLeave={() => setIsButtonHovered(false)}
+            className='group inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all'
             disabled={isLoading}
           >
-            {isLoading ? 'Creating account...' : 'Create account'}
+            <span className='flex items-center gap-1'>
+              {isLoading ? 'Creating account' : 'Create account'}
+              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                {isButtonHovered ? (
+                  <ArrowRight className='h-4 w-4' aria-hidden='true' />
+                ) : (
+                  <ChevronRight className='h-4 w-4' aria-hidden='true' />
+                )}
+              </span>
+            </span>
           </Button>
         </form>
       )}

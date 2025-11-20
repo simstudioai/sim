@@ -14,14 +14,6 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
   oauth: {
     required: true,
     provider: 'onedrive',
-    additionalScopes: [
-      'openid',
-      'profile',
-      'email',
-      'Files.Read',
-      'Files.ReadWrite',
-      'offline_access',
-    ],
   },
 
   params: {
@@ -81,7 +73,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
 
       // Add pagination
       if (params.pageSize) {
-        url.searchParams.append('$top', params.pageSize.toString())
+        url.searchParams.append('$top', Number(params.pageSize).toString())
       }
 
       return url.toString()

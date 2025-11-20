@@ -8,21 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="jira"
   color="#E0E0E0"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      xmlns='http://www.w3.org/2000/svg'
-      viewBox='0 0 30 30'
-      
-      
-      focusable='false'
-      aria-hidden='true'
-    >
-      <path
-        fill='#1868DB'
-        d='M11.034 21.99h-2.22c-3.346 0-5.747-2.05-5.747-5.052h11.932c.619 0 1.019.44 1.019 1.062v12.007c-2.983 0-4.984-2.416-4.984-5.784zm5.893-5.967h-2.219c-3.347 0-5.748-2.013-5.748-5.015h11.933c.618 0 1.055.402 1.055 1.025V24.04c-2.983 0-5.02-2.416-5.02-5.784zm5.93-5.93h-2.219c-3.347 0-5.748-2.05-5.748-5.052h11.933c.618 0 1.018.439 1.018 1.025v12.007c-2.983 0-4.984-2.416-4.984-5.784z'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -42,7 +27,7 @@ Dans Sim, l'intégration de Jira permet à vos agents d'interagir de manière tr
 
 ## Instructions d'utilisation
 
-Intégrez Jira dans le flux de travail. Peut lire, écrire et mettre à jour les problèmes. Nécessite OAuth.
+Intégrez Jira dans le flux de travail. Peut lire, écrire et mettre à jour des tickets. Peut également déclencher des flux de travail basés sur des événements webhook Jira.
 
 ## Outils
 
@@ -133,6 +118,376 @@ Récupérer plusieurs demandes Jira en masse
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
 | `output` | array | Tableau des tickets Jira avec résumé, description, horodatages de création et de mise à jour |
+
+### `jira_delete_issue`
+
+Supprimer un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira à supprimer \(ex. : PROJ-123\) |
+| `deleteSubtasks` | booléen | Non | Indique s'il faut supprimer les sous-tâches. Si faux, les tickets parents avec sous-tâches ne peuvent pas être supprimés. |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Détails du ticket supprimé avec horodatage, clé du ticket et statut de réussite |
+
+### `jira_assign_issue`
+
+Assigner un ticket Jira à un utilisateur
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira à assigner \(ex. : PROJ-123\) |
+| `accountId` | chaîne | Oui | ID de compte de l'utilisateur à qui assigner le ticket. Utilisez "-1" pour l'attribution automatique ou null pour retirer l'assignation. |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Détails de l'assignation avec horodatage, clé du ticket, ID de l'assigné et statut de réussite |
+
+### `jira_transition_issue`
+
+Déplacer un ticket Jira entre les statuts de workflow (par ex., À faire -> En cours)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira à faire transiter \(ex. : PROJ-123\) |
+| `transitionId` | chaîne | Oui | ID de la transition à exécuter \(ex. : "11" pour "À faire", "21" pour "En cours"\) |
+| `comment` | chaîne | Non | Commentaire optionnel à ajouter lors de la transition du ticket |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Détails de la transition avec horodatage, clé du ticket, ID de transition et statut de réussite |
+
+### `jira_search_issues`
+
+Rechercher des tickets Jira à l'aide de JQL (Jira Query Language)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `jql` | chaîne | Oui | Chaîne de requête JQL pour rechercher des tickets \(ex. : "project = PROJ AND status = Open"\) |
+| `startAt` | nombre | Non | L'index du premier résultat à renvoyer \(pour la pagination\) |
+| `maxResults` | nombre | Non | Nombre maximum de résultats à renvoyer \(par défaut : 50\) |
+| `fields` | tableau | Non | Tableau des noms de champs à renvoyer \(par défaut : \['summary', 'status', 'assignee', 'created', 'updated'\]\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Résultats de recherche avec horodatage, nombre total, détails de pagination et tableau des tickets correspondants |
+
+### `jira_add_comment`
+
+Ajouter un commentaire à un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira auquel ajouter un commentaire \(ex. : PROJ-123\) |
+| `body` | chaîne | Oui | Texte du corps du commentaire |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Détails du commentaire avec horodatage, clé du ticket, ID du commentaire, corps et statut de réussite |
+
+### `jira_get_comments`
+
+Obtenir tous les commentaires d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira dont il faut récupérer les commentaires \(ex. : PROJ-123\) |
+| `startAt` | nombre | Non | Index du premier commentaire à renvoyer \(par défaut : 0\) |
+| `maxResults` | nombre | Non | Nombre maximum de commentaires à renvoyer \(par défaut : 50\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données des commentaires avec horodatage, clé du ticket, nombre total et tableau de commentaires |
+
+### `jira_update_comment`
+
+Mettre à jour un commentaire existant sur un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira contenant le commentaire \(ex. : PROJ-123\) |
+| `commentId` | chaîne | Oui | ID du commentaire à mettre à jour |
+| `body` | chaîne | Oui | Texte du commentaire mis à jour |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails du commentaire mis à jour avec horodatage, clé du ticket, ID du commentaire, texte du corps et statut de réussite |
+
+### `jira_delete_comment`
+
+Supprimer un commentaire d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira contenant le commentaire \(ex. : PROJ-123\) |
+| `commentId` | chaîne | Oui | ID du commentaire à supprimer |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails de la suppression avec horodatage, clé du ticket, ID du commentaire et statut de réussite |
+
+### `jira_get_attachments`
+
+Obtenir toutes les pièces jointes d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | string | Oui | Clé du ticket Jira pour obtenir les pièces jointes \(ex. : PROJ-123\) |
+| `cloudId` | string | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données des pièces jointes avec horodatage, clé du ticket et tableau des pièces jointes |
+
+### `jira_delete_attachment`
+
+Supprimer une pièce jointe d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `attachmentId` | string | Oui | ID de la pièce jointe à supprimer |
+| `cloudId` | string | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails de la suppression avec horodatage, ID de la pièce jointe et statut de réussite |
+
+### `jira_add_worklog`
+
+Ajouter une entrée de journal de travail pour le suivi du temps à un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira auquel ajouter le journal de travail \(ex. : PROJ-123\) |
+| `timeSpentSeconds` | nombre | Oui | Temps passé en secondes |
+| `comment` | chaîne | Non | Commentaire optionnel pour l'entrée du journal de travail |
+| `started` | chaîne | Non | Heure de début optionnelle au format ISO \(par défaut : heure actuelle\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Détails du journal de travail avec horodatage, clé du ticket, ID du journal de travail, temps passé en secondes et statut de réussite |
+
+### `jira_get_worklogs`
+
+Obtenir toutes les entrées du journal de travail d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira dont il faut obtenir les journaux de travail \(ex. : PROJ-123\) |
+| `startAt` | nombre | Non | Index du premier journal de travail à retourner \(par défaut : 0\) |
+| `maxResults` | nombre | Non | Nombre maximum de journaux de travail à retourner \(par défaut : 50\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données des journaux de travail avec horodatage, clé du ticket, nombre total et tableau des journaux de travail |
+
+### `jira_update_worklog`
+
+Mettre à jour une entrée de journal de travail existante sur un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira contenant le journal de travail \(ex. : PROJ-123\) |
+| `worklogId` | chaîne | Oui | ID de l'entrée du journal de travail à mettre à jour |
+| `timeSpentSeconds` | nombre | Non | Temps passé en secondes |
+| `comment` | chaîne | Non | Commentaire optionnel pour l'entrée du journal de travail |
+| `started` | chaîne | Non | Heure de début optionnelle au format ISO |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails de la mise à jour du journal de travail avec horodatage, clé du ticket, ID du journal de travail et statut de réussite |
+
+### `jira_delete_worklog`
+
+Supprimer une entrée de journal de travail d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira contenant le journal de travail \(ex. : PROJ-123\) |
+| `worklogId` | chaîne | Oui | ID de l'entrée du journal de travail à supprimer |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails de la suppression avec horodatage, clé de la demande, ID du journal de travail et statut de réussite |
+
+### `jira_create_issue_link`
+
+Créer une relation de lien entre deux tickets Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `inwardIssueKey` | string | Oui | Clé du ticket Jira pour la demande entrante \(ex. : PROJ-123\) |
+| `outwardIssueKey` | string | Oui | Clé du ticket Jira pour la demande sortante \(ex. : PROJ-456\) |
+| `linkType` | string | Oui | Le type de relation de lien \(ex. : "Bloque", "Est lié à", "Duplique"\) |
+| `comment` | string | Non | Commentaire optionnel à ajouter au lien de la demande |
+| `cloudId` | string | Non | ID Jira Cloud pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails du lien entre tickets avec horodatage, clé du ticket entrant, clé du ticket sortant, type de lien et statut de réussite |
+
+### `jira_delete_issue_link`
+
+Supprimer un lien entre deux tickets Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `linkId` | string | Oui | ID du lien de ticket à supprimer |
+| `cloudId` | string | Non | ID Jira Cloud pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails de la suppression avec horodatage, ID du lien et statut de réussite |
+
+### `jira_add_watcher`
+
+Ajouter un observateur à un ticket Jira pour recevoir des notifications sur les mises à jour
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | string | Oui | Clé du ticket Jira auquel ajouter un observateur \(ex. : PROJ-123\) |
+| `accountId` | string | Oui | ID de compte de l'utilisateur à ajouter comme observateur |
+| `cloudId` | string | Non | ID Jira Cloud pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails de l'observateur avec horodatage, clé du ticket, ID de compte de l'observateur et statut de réussite |
+
+### `jira_remove_watcher`
+
+Supprimer un observateur d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | string | Oui | Clé du ticket Jira duquel supprimer l'observateur \(ex. : PROJ-123\) |
+| `accountId` | string | Oui | ID de compte de l'utilisateur à supprimer comme observateur |
+| `cloudId` | string | Non | ID Jira Cloud pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails de la suppression avec horodatage, clé de la demande, ID du compte observateur et statut de réussite |
 
 ## Notes
 

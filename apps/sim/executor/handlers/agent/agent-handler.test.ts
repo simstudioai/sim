@@ -17,6 +17,8 @@ vi.mock('@/lib/environment', () => ({
   isDev: vi.fn().mockReturnValue(true),
   isTest: vi.fn().mockReturnValue(false),
   getCostMultiplier: vi.fn().mockReturnValue(1),
+  isEmailVerificationEnabled: false,
+  isBillingEnabled: false,
 }))
 
 vi.mock('@/providers/utils', () => ({
@@ -107,8 +109,7 @@ describe('AgentBlockHandler', () => {
       metadata: { startTime: new Date().toISOString(), duration: 0 },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
+      loopExecutions: new Map(),
       completedLoops: new Set(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
@@ -219,7 +220,7 @@ describe('AgentBlockHandler', () => {
         cost: 0.001,
       }
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
       expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
@@ -338,7 +339,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       expect(Promise.all).toHaveBeenCalled()
 
@@ -421,7 +422,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       const fetchCall = mockFetch.mock.calls[0]
       const requestBody = JSON.parse(fetchCall[1].body)
@@ -466,7 +467,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       const fetchCall = mockFetch.mock.calls[0]
       const requestBody = JSON.parse(fetchCall[1].body)
@@ -531,7 +532,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       const fetchCall = mockFetch.mock.calls[0]
       const requestBody = JSON.parse(fetchCall[1].body)
@@ -563,7 +564,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
     })
@@ -601,7 +602,7 @@ describe('AgentBlockHandler', () => {
         cost: 0.001,
       }
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       expect(mockTransformBlockTool).toHaveBeenCalledWith(
         inputs.tools[0],
@@ -656,7 +657,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
     })
@@ -692,7 +693,7 @@ describe('AgentBlockHandler', () => {
           '{"type":"object","properties":{"result":{"type":"string"},"score":{"type":"number"}}}',
       }
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       expect(result).toEqual({
         result: 'Success',
@@ -732,7 +733,7 @@ describe('AgentBlockHandler', () => {
         responseFormat: '', // Empty string
       }
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       expect(result).toEqual({
         content: 'Regular text response',
@@ -775,7 +776,7 @@ describe('AgentBlockHandler', () => {
       }
 
       // Should not throw an error, but continue with default behavior
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       expect(result).toEqual({
         content: 'Regular text response',
@@ -818,7 +819,7 @@ describe('AgentBlockHandler', () => {
       }
 
       // Should not throw an error, but continue with default behavior
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       expect(result).toEqual({
         content: 'Regular text response',
@@ -840,7 +841,7 @@ describe('AgentBlockHandler', () => {
       mockGetProviderFromModel.mockReturnValue('openai')
       mockFetch.mockRejectedValue(new Error('Provider API Error'))
 
-      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
         'Provider API Error'
       )
     })
@@ -888,7 +889,7 @@ describe('AgentBlockHandler', () => {
       mockContext.stream = true
       mockContext.selectedOutputs = [mockBlock.id]
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       expect(result).toHaveProperty('stream')
       expect(result).toHaveProperty('execution')
@@ -957,7 +958,7 @@ describe('AgentBlockHandler', () => {
       mockContext.stream = true
       mockContext.selectedOutputs = [mockBlock.id]
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       expect(result).toHaveProperty('stream')
       expect(result).toHaveProperty('execution')
@@ -1014,7 +1015,7 @@ describe('AgentBlockHandler', () => {
       mockContext.stream = true
       mockContext.selectedOutputs = [mockBlock.id]
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       expect(result).toHaveProperty('stream')
       expect(result).toHaveProperty('execution')
@@ -1040,7 +1041,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       const fetchCall = mockFetch.mock.calls[0]
       const requestBody = JSON.parse(fetchCall[1].body)
@@ -1090,7 +1091,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       const fetchCall = mockFetch.mock.calls[0]
       const requestBody = JSON.parse(fetchCall[1].body)
@@ -1129,7 +1130,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       const fetchCall = mockFetch.mock.calls[0]
       const requestBody = JSON.parse(fetchCall[1].body)
@@ -1144,11 +1145,13 @@ describe('AgentBlockHandler', () => {
       expect(systemMessages[0].content).toBe('You are a helpful assistant.')
     })
 
-    it('should prioritize explicit systemPrompt over system messages in memories', async () => {
+    it('should prioritize messages array system message over system messages in memories', async () => {
       const inputs = {
         model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        userPrompt: 'What should I do?',
+        messages: [
+          { role: 'system' as const, content: 'You are a helpful assistant.' },
+          { role: 'user' as const, content: 'What should I do?' },
+        ],
         memories: [
           { role: 'system', content: 'Old system message from memories.' },
           { role: 'user', content: 'Hello!' },
@@ -1159,38 +1162,37 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       const fetchCall = mockFetch.mock.calls[0]
       const requestBody = JSON.parse(fetchCall[1].body)
 
       // Verify messages were built correctly
       expect(requestBody.messages).toBeDefined()
-      expect(requestBody.messages.length).toBe(4) // explicit system + 2 non-system memories + user prompt
+      expect(requestBody.messages.length).toBe(5) // memory system + 2 non-system memories + 2 from messages array
 
-      // Check only one system message exists and it's the explicit one
-      const systemMessages = requestBody.messages.filter((msg: any) => msg.role === 'system')
-      expect(systemMessages.length).toBe(1)
-      expect(systemMessages[0].content).toBe('You are a helpful assistant.')
-
-      // Verify the explicit system prompt is first
+      // All messages should be present (memories first, then messages array)
+      // Memory messages come first
       expect(requestBody.messages[0].role).toBe('system')
-      expect(requestBody.messages[0].content).toBe('You are a helpful assistant.')
-
-      // Verify conversation order is preserved
+      expect(requestBody.messages[0].content).toBe('Old system message from memories.')
       expect(requestBody.messages[1].role).toBe('user')
       expect(requestBody.messages[1].content).toBe('Hello!')
       expect(requestBody.messages[2].role).toBe('assistant')
       expect(requestBody.messages[2].content).toBe('Hi there!')
-      expect(requestBody.messages[3].role).toBe('user')
-      expect(requestBody.messages[3].content).toBe('What should I do?')
+      // Then messages array
+      expect(requestBody.messages[3].role).toBe('system')
+      expect(requestBody.messages[3].content).toBe('You are a helpful assistant.')
+      expect(requestBody.messages[4].role).toBe('user')
+      expect(requestBody.messages[4].content).toBe('What should I do?')
     })
 
-    it('should handle multiple system messages in memories with explicit systemPrompt', async () => {
+    it('should handle multiple system messages in memories with messages array', async () => {
       const inputs = {
         model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        userPrompt: 'Continue our conversation.',
+        messages: [
+          { role: 'system' as const, content: 'You are a helpful assistant.' },
+          { role: 'user' as const, content: 'Continue our conversation.' },
+        ],
         memories: [
           { role: 'system', content: 'First system message.' },
           { role: 'user', content: 'Hello!' },
@@ -1203,29 +1205,30 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       const fetchCall = mockFetch.mock.calls[0]
       const requestBody = JSON.parse(fetchCall[1].body)
 
       // Verify messages were built correctly
       expect(requestBody.messages).toBeDefined()
-      expect(requestBody.messages.length).toBe(4) // explicit system + 2 non-system memories + user prompt
+      expect(requestBody.messages.length).toBe(7) // 5 memory messages (3 system + 2 conversation) + 2 from messages array
 
-      // Check only one system message exists and message order is preserved
-      const systemMessages = requestBody.messages.filter((msg: any) => msg.role === 'system')
-      expect(systemMessages.length).toBe(1)
-      expect(systemMessages[0].content).toBe('You are a helpful assistant.')
-
-      // Verify conversation flow is preserved
+      // All messages should be present in order
       expect(requestBody.messages[0].role).toBe('system')
-      expect(requestBody.messages[0].content).toBe('You are a helpful assistant.')
+      expect(requestBody.messages[0].content).toBe('First system message.')
       expect(requestBody.messages[1].role).toBe('user')
       expect(requestBody.messages[1].content).toBe('Hello!')
-      expect(requestBody.messages[2].role).toBe('assistant')
-      expect(requestBody.messages[2].content).toBe('Hi there!')
-      expect(requestBody.messages[3].role).toBe('user')
-      expect(requestBody.messages[3].content).toBe('Continue our conversation.')
+      expect(requestBody.messages[2].role).toBe('system')
+      expect(requestBody.messages[2].content).toBe('Second system message.')
+      expect(requestBody.messages[3].role).toBe('assistant')
+      expect(requestBody.messages[3].content).toBe('Hi there!')
+      expect(requestBody.messages[4].role).toBe('system')
+      expect(requestBody.messages[4].content).toBe('Third system message.')
+      expect(requestBody.messages[5].role).toBe('system')
+      expect(requestBody.messages[5].content).toBe('You are a helpful assistant.')
+      expect(requestBody.messages[6].role).toBe('user')
+      expect(requestBody.messages[6].content).toBe('Continue our conversation.')
     })
 
     it('should preserve multiple system messages when no explicit systemPrompt is provided', async () => {
@@ -1243,7 +1246,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       const fetchCall = mockFetch.mock.calls[0]
       const requestBody = JSON.parse(fetchCall[1].body)
@@ -1285,7 +1288,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       const fetchCall = mockFetch.mock.calls[0]
       const requestBody = JSON.parse(fetchCall[1].body)
@@ -1312,7 +1315,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('azure-openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
 
@@ -1340,7 +1343,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
 
@@ -1367,7 +1370,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, mockContext)
+      await handler.execute(mockContext, mockBlock, inputs)
 
       expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
 
@@ -1487,7 +1490,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      const result = await handler.execute(mockBlock, inputs, mcpContext)
+      const result = await handler.execute(mcpContext, mockBlock, inputs)
 
       expect((result as any).content).toBe('I will use MCP tools to help you.')
       expect((result as any).toolCalls.count).toBe(2)
@@ -1572,7 +1575,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      const result = await handler.execute(mockBlock, inputs, mcpContext)
+      const result = await handler.execute(mcpContext, mockBlock, inputs)
 
       expect((result as any).content).toBe('Let me try to use this tool.')
       expect((result as any).toolCalls.count).toBe(1)
@@ -1644,7 +1647,7 @@ describe('AgentBlockHandler', () => {
         usageControl: tool.usageControl,
       }))
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
 
       // Verify that the agent executed successfully with MCP tools
       expect(result).toBeDefined()
@@ -1712,7 +1715,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      await handler.execute(mockBlock, inputs, contextWithWorkspace)
+      await handler.execute(contextWithWorkspace, mockBlock, inputs)
 
       expect(contextWithWorkspace.workspaceId).toBe('test-workspace-456')
     })

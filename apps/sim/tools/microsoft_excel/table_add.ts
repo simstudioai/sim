@@ -17,7 +17,6 @@ export const tableAddTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'microsoft-excel',
-    additionalScopes: [],
   },
 
   params: {

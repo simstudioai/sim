@@ -3,55 +3,20 @@ title: Condition
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { Image } from '@/components/ui/image'
 
-The Condition block allows you to branch your workflow execution path based on boolean expressions, enabling you to create dynamic, responsive workflows with different execution paths. It evaluates conditions and routes the workflow accordingly, letting you control execution flow based on data or logic without requiring an LLM.
+The Condition block branches workflow execution based on boolean expressions. Evaluate conditions using previous block outputs and route to different paths without requiring an LLM.
 
 <div className="flex justify-center">
   <Image
     src="/static/blocks/condition.png"
     alt="Condition Block"
     width={500}
-    height={350}
+    height={400}
     className="my-6"
   />
 </div>
-
-<Callout>
-  Condition blocks enable deterministic decision-making without requiring an LLM, making them ideal
-  for straightforward branching logic.
-</Callout>
-
-## Overview
-
-The Condition block enables you to:
-
-<Steps>
-  <Step>
-    <strong>Create branching logic</strong>: Route workflows based on boolean expressions
-  </Step>
-  <Step>
-    <strong>Make data-driven decisions</strong>: Evaluate conditions using previous block outputs
-  </Step>
-  <Step>
-    <strong>Handle multiple scenarios</strong>: Define multiple conditions with different paths
-  </Step>
-  <Step>
-    <strong>Provide deterministic routing</strong>: Make decisions without requiring an LLM
-  </Step>
-</Steps>
-
-## How It Works
-
-The Condition block operates through a sequential evaluation process:
-
-1. **Evaluate Expression** - Processes the JavaScript/TypeScript boolean expression using current workflow data
-2. **Determine Result** - Returns true or false based on the expression evaluation
-3. **Route Workflow** - Directs execution to the appropriate destination block based on the result  
-4. **Provide Context** - Generates metadata about the decision for debugging and monitoring
 
 ## Configuration Options
 
@@ -143,90 +108,29 @@ Conditions automatically handle:
 - Invalid expressions with error logging
 - Missing variables with default values
 
-## Inputs and Outputs
+## Outputs
 
-<Tabs items={['Configuration', 'Variables', 'Results']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Conditions</strong>: Array of boolean expressions to evaluate
-      </li>
-      <li>
-        <strong>Expressions</strong>: JavaScript/TypeScript conditions using block outputs
-      </li>
-      <li>
-        <strong>Routing Paths</strong>: Destination blocks for each condition result
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>condition.result</strong>: Boolean result of condition evaluation
-      </li>
-      <li>
-        <strong>condition.matched_condition</strong>: ID of the matched condition
-      </li>
-      <li>
-        <strong>condition.content</strong>: Description of evaluation result
-      </li>
-      <li>
-        <strong>condition.path</strong>: Details of chosen routing destination
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Boolean Result</strong>: Primary condition evaluation outcome
-      </li>
-      <li>
-        <strong>Routing Information</strong>: Path selection and condition details
-      </li>
-      <li>
-        <strong>Access</strong>: Available in blocks after the condition
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<condition.result>`**: Boolean result of the evaluation
+- **`<condition.matched_condition>`**: ID of the matched condition
+- **`<condition.content>`**: Description of the evaluation result
+- **`<condition.path>`**: Details of the chosen routing destination
 
 ## Example Use Cases
 
-### Customer Support Routing
+**Customer Support Routing** - Route tickets based on priority
+```
+API (Ticket) → Condition (priority === 'high') → Agent (Escalation) or Agent (Standard)
+```
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Route support tickets based on priority</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>API block fetches support ticket data</li>
-    <li>Condition checks if `<api.priority>` equals 'high'</li>
-    <li>High priority tickets → Agent with escalation tools</li>
-    <li>Normal priority tickets → Standard support agent</li>
-  </ol>
-</div>
+**Content Moderation** - Filter content based on analysis
+```
+Agent (Analyze) → Condition (toxicity > 0.7) → Moderation or Publish
+```
 
-### Content Moderation
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Filter content based on analysis results</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Agent analyzes user-generated content</li>
-    <li>Condition checks if `<agent.toxicity_score>` > 0.7</li>
-    <li>Toxic content → Moderation workflow</li>
-    <li>Clean content → Publishing workflow</li>
-  </ol>
-</div>
-
-### User Onboarding Flow
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Personalize onboarding based on user type</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Function block processes user registration data</li>
-    <li>Condition checks if `<user.account_type>` === 'enterprise'</li>
-    <li>Enterprise users → Advanced setup workflow</li>
-    <li>Individual users → Simple onboarding workflow</li>
-  </ol>
-</div>
+**User Onboarding Flow** - Personalize onboarding based on user type
+```
+Function (Process) → Condition (account_type === 'enterprise') → Advanced or Simple
+```
 
 ## Best Practices
 

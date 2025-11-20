@@ -2,7 +2,10 @@ import { db } from '@sim/db'
 import { chat, workflow, workspace } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
+import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { ChatFiles } from '@/lib/uploads'
 import { generateRequestId } from '@/lib/utils'
 import {
@@ -15,10 +18,25 @@ import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/
 
 const logger = createLogger('ChatIdentifierAPI')
 
+const chatFileSchema = z.object({
+  name: z.string().min(1, 'File name is required'),
+  type: z.string().min(1, 'File type is required'),
+  size: z.number().positive('File size must be positive'),
+  data: z.string().min(1, 'File data is required'),
+  lastModified: z.number().optional(),
+})
+
+const chatPostBodySchema = z.object({
+  input: z.string().optional(),
+  password: z.string().optional(),
+  email: z.string().email('Invalid email format').optional().or(z.literal('')),
+  conversationId: z.string().optional(),
+  files: z.array(chatFileSchema).optional().default([]),
+})
+
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-// This endpoint handles chat interactions via the identifier
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ identifier: string }> }
@@ -29,15 +47,27 @@ export async function POST(
   try {
     logger.debug(`[${requestId}] Processing chat request for identifier: ${identifier}`)
 
-    // Parse the request body once
     let parsedBody
     try {
-      parsedBody = await request.json()
+      const rawBody = await request.json()
+      const validation = chatPostBodySchema.safeParse(rawBody)
+
+      if (!validation.success) {
+        const errorMessage = validation.error.errors
+          .map((err) => `${err.path.join('.')}: ${err.message}`)
+          .join(', ')
+        logger.warn(`[${requestId}] Validation error: ${errorMessage}`)
+        return addCorsHeaders(
+          createErrorResponse(`Invalid request body: ${errorMessage}`, 400),
+          request
+        )
+      }
+
+      parsedBody = validation.data
     } catch (_error) {
       return addCorsHeaders(createErrorResponse('Invalid request body', 400), request)
     }
 
-    // Find the chat deployment for this identifier
     const deploymentResult = await db
       .select({
         id: chat.id,
@@ -60,13 +90,34 @@ export async function POST(
 
     const deployment = deploymentResult[0]
 
-    // Check if the chat is active
     if (!deployment.isActive) {
       logger.warn(`[${requestId}] Chat is not active: ${identifier}`)
+
+      const executionId = uuidv4()
+      const loggingSession = new LoggingSession(
+        deployment.workflowId,
+        executionId,
+        'chat',
+        requestId
+      )
+
+      await loggingSession.safeStart({
+        userId: deployment.userId,
+        workspaceId: '', // Will be resolved if needed
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message: 'This chat is currently unavailable. The chat has been disabled.',
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
       return addCorsHeaders(createErrorResponse('This chat is currently unavailable', 403), request)
     }
 
-    // Validate authentication with the parsed body
     const authResult = await validateChatAuth(requestId, deployment, request, parsedBody)
     if (!authResult.authorized) {
       return addCorsHeaders(
@@ -75,26 +126,20 @@ export async function POST(
       )
     }
 
-    // Use the already parsed body
     const { input, password, email, conversationId, files } = parsedBody
 
-    // If this is an authentication request (has password or email but no input),
-    // set auth cookie and return success
     if ((password || email) && !input) {
       const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
 
-      // Set authentication cookie
       setChatAuthCookie(response, deployment.id, deployment.authType)
 
       return response
     }
 
-    // For chat messages, create regular response (allow empty input if files are present)
     if (!input && (!files || files.length === 0)) {
       return addCorsHeaders(createErrorResponse('No input provided', 400), request)
     }
 
-    // Get the workflow and workspace owner for this chat
     const workflowResult = await db
       .select({
         isDeployed: workflow.isDeployed,
@@ -107,6 +152,29 @@ export async function POST(
 
     if (workflowResult.length === 0 || !workflowResult[0].isDeployed) {
       logger.warn(`[${requestId}] Workflow not found or not deployed: ${deployment.workflowId}`)
+
+      const executionId = uuidv4()
+      const loggingSession = new LoggingSession(
+        deployment.workflowId,
+        executionId,
+        'chat',
+        requestId
+      )
+
+      await loggingSession.safeStart({
+        userId: deployment.userId,
+        workspaceId: workflowResult[0]?.workspaceId || '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message: 'Chat workflow is not available. The workflow is not deployed.',
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
       return addCorsHeaders(createErrorResponse('Chat workflow is not available', 503), request)
     }
 
@@ -120,6 +188,29 @@ export async function POST(
 
       if (workspaceData.length === 0) {
         logger.error(`[${requestId}] Workspace not found for workflow ${deployment.workflowId}`)
+
+        const executionId = uuidv4()
+        const loggingSession = new LoggingSession(
+          deployment.workflowId,
+          executionId,
+          'chat',
+          requestId
+        )
+
+        await loggingSession.safeStart({
+          userId: deployment.userId,
+          workspaceId: workflowResult[0].workspaceId || '',
+          variables: {},
+        })
+
+        await loggingSession.safeCompleteWithError({
+          error: {
+            message: 'Workspace not found. Critical configuration error - please contact support.',
+            stackTrace: undefined,
+          },
+          traceSpans: [],
+        })
+
         return addCorsHeaders(createErrorResponse('Workspace not found', 500), request)
       }
 
@@ -141,24 +232,53 @@ export async function POST(
       const { SSE_HEADERS } = await import('@/lib/utils')
       const { createFilteredResult } = await import('@/app/api/workflows/[id]/execute/route')
 
-      // Generate executionId early so it can be used for file uploads and workflow execution
       const executionId = crypto.randomUUID()
 
       const workflowInput: any = { input, conversationId }
       if (files && Array.isArray(files) && files.length > 0) {
-        logger.debug(`[${requestId}] Processing ${files.length} attached files`)
-
         const executionContext = {
-          workspaceId: deployment.userId,
+          workspaceId: workflowResult[0].workspaceId || '',
           workflowId: deployment.workflowId,
           executionId,
         }
 
-        const uploadedFiles = await ChatFiles.processChatFiles(files, executionContext, requestId)
+        try {
+          const uploadedFiles = await ChatFiles.processChatFiles(
+            files,
+            executionContext,
+            requestId,
+            deployment.userId
+          )
 
-        if (uploadedFiles.length > 0) {
-          workflowInput.files = uploadedFiles
-          logger.info(`[${requestId}] Successfully processed ${uploadedFiles.length} files`)
+          if (uploadedFiles.length > 0) {
+            workflowInput.files = uploadedFiles
+            logger.info(`[${requestId}] Successfully processed ${uploadedFiles.length} files`)
+          }
+        } catch (fileError: any) {
+          logger.error(`[${requestId}] Failed to process chat files:`, fileError)
+
+          const fileLoggingSession = new LoggingSession(
+            deployment.workflowId,
+            executionId,
+            'chat',
+            requestId
+          )
+
+          await fileLoggingSession.safeStart({
+            userId: workspaceOwnerId,
+            workspaceId: workflowResult[0].workspaceId || '',
+            variables: {},
+          })
+
+          await fileLoggingSession.safeCompleteWithError({
+            error: {
+              message: `File upload failed: ${fileError.message || 'Unable to process uploaded files'}`,
+              stackTrace: fileError.stack,
+            },
+            traceSpans: [],
+          })
+
+          throw fileError
         }
       }
 
@@ -205,7 +325,6 @@ export async function POST(
   }
 }
 
-// This endpoint returns information about the chat
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ identifier: string }> }
@@ -216,7 +335,6 @@ export async function GET(
   try {
     logger.debug(`[${requestId}] Fetching chat info for identifier: ${identifier}`)
 
-    // Find the chat deployment for this identifier
     const deploymentResult = await db
       .select({
         id: chat.id,
@@ -241,13 +359,11 @@ export async function GET(
 
     const deployment = deploymentResult[0]
 
-    // Check if the chat is active
     if (!deployment.isActive) {
       logger.warn(`[${requestId}] Chat is not active: ${identifier}`)
       return addCorsHeaders(createErrorResponse('This chat is currently unavailable', 403), request)
     }
 
-    // Check for auth cookie first
     const cookieName = `chat_auth_${deployment.id}`
     const authCookie = request.cookies.get(cookieName)
 
@@ -256,7 +372,6 @@ export async function GET(
       authCookie &&
       validateAuthToken(authCookie.value, deployment.id)
     ) {
-      // Cookie valid, return chat info
       return addCorsHeaders(
         createSuccessResponse({
           id: deployment.id,
@@ -270,7 +385,6 @@ export async function GET(
       )
     }
 
-    // If no valid cookie, proceed with standard auth check
     const authResult = await validateChatAuth(requestId, deployment, request)
     if (!authResult.authorized) {
       logger.info(
@@ -282,7 +396,6 @@ export async function GET(
       )
     }
 
-    // Return public information about the chat including auth type
     return addCorsHeaders(
       createSuccessResponse({
         id: deployment.id,

@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ConsoleEntry } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/console/components'
-import { useConsoleStore } from '@/stores/panel/console/store'
+import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface ConsoleProps {
@@ -11,7 +11,7 @@ interface ConsoleProps {
 }
 
 export function Console({ panelWidth }: ConsoleProps) {
-  const entries = useConsoleStore((state) => state.entries)
+  const entries = useTerminalConsoleStore((state) => state.entries)
   const { activeWorkflowId } = useWorkflowRegistry()
 
   const filteredEntries = useMemo(() => {

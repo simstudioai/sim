@@ -33,39 +33,42 @@ export async function checkHybridAuth(
     const authHeader = request.headers.get('authorization')
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1]
-      const isInternalCall = await verifyInternalToken(token)
+      const verification = await verifyInternalToken(token)
 
-      if (isInternalCall) {
-        // For internal calls, we need workflowId to determine user context
+      if (verification.valid) {
         let workflowId: string | null = null
+        let userId: string | null = verification.userId || null
 
-        // Try to get workflowId from query params or request body
         const { searchParams } = new URL(request.url)
         workflowId = searchParams.get('workflowId')
+        if (!userId) {
+          userId = searchParams.get('userId')
+        }
 
-        if (!workflowId && request.method === 'POST') {
+        if (!workflowId && !userId && request.method === 'POST') {
           try {
             // Clone the request to avoid consuming the original body
             const clonedRequest = request.clone()
             const bodyText = await clonedRequest.text()
             if (bodyText) {
               const body = JSON.parse(bodyText)
-              workflowId = body.workflowId
+              workflowId = body.workflowId || body._context?.workflowId
+              userId = userId || body.userId || body._context?.userId
             }
           } catch {
             // Ignore JSON parse errors
           }
         }
 
-        if (!workflowId && options.requireWorkflowId !== false) {
+        if (userId) {
           return {
-            success: false,
-            error: 'workflowId required for internal JWT calls',
+            success: true,
+            userId,
+            authType: 'internal_jwt',
           }
         }
 
         if (workflowId) {
-          // Get workflow owner as user context
           const [workflowData] = await db
             .select({ userId: workflow.userId })
             .from(workflow)
@@ -85,7 +88,14 @@ export async function checkHybridAuth(
             authType: 'internal_jwt',
           }
         }
-        // Internal call without workflow context - still valid for some routes
+
+        if (options.requireWorkflowId !== false) {
+          return {
+            success: false,
+            error: 'workflowId or userId required for internal JWT calls',
+          }
+        }
+
         return {
           success: true,
           authType: 'internal_jwt',

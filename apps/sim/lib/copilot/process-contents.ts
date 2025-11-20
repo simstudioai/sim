@@ -4,7 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { sanitizeForCopilot } from '@/lib/workflows/json-sanitizer'
-import type { ChatContext } from '@/stores/copilot/types'
+import type { ChatContext } from '@/stores/panel-new/copilot/types'
 
 export type AgentContextType =
   | 'past_chat'
@@ -427,9 +427,7 @@ async function processTemplateFromDb(
       .select({
         id: templates.id,
         name: templates.name,
-        description: templates.description,
-        category: templates.category,
-        author: templates.author,
+        details: templates.details,
         stars: templates.stars,
         state: templates.state,
       })
@@ -438,14 +436,11 @@ async function processTemplateFromDb(
       .limit(1)
     const t = rows?.[0]
     if (!t) return null
-    const workflowState = (t as any).state || {}
-    // Match get-user-workflow format: just the workflow state JSON
+    const workflowState = t.state || {}
     const summary = {
       id: t.id,
       name: t.name,
-      description: t.description || '',
-      category: t.category,
-      author: t.author,
+      description: (t.details as any)?.tagline || '',
       stars: t.stars || 0,
       workflow: workflowState,
     }

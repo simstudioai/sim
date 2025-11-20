@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { Circle, CircleOff, Trash2 } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 
@@ -49,8 +49,8 @@ export function ActionBar({
 
         <div className='flex items-center gap-1'>
           {showEnableButton && (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
                   size='sm'
@@ -60,16 +60,16 @@ export function ActionBar({
                 >
                   <Circle className='h-4 w-4' />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
                 Enable {disabledCount > 1 ? `${disabledCount} items` : 'item'}
-              </TooltipContent>
-            </Tooltip>
+              </Tooltip.Content>
+            </Tooltip.Root>
           )}
 
           {showDisableButton && (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
                   size='sm'
@@ -79,16 +79,16 @@ export function ActionBar({
                 >
                   <CircleOff className='h-4 w-4' />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
                 Disable {enabledCount > 1 ? `${enabledCount} items` : 'item'}
-              </TooltipContent>
-            </Tooltip>
+              </Tooltip.Content>
+            </Tooltip.Root>
           )}
 
           {onDelete && canEdit && (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
                   size='sm'
@@ -98,9 +98,9 @@ export function ActionBar({
                 >
                   <Trash2 className='h-4 w-4' />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>Delete items</TooltipContent>
-            </Tooltip>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Delete items</Tooltip.Content>
+            </Tooltip.Root>
           )}
         </div>
       </div>

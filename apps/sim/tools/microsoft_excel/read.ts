@@ -18,7 +18,6 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   oauth: {
     required: true,
     provider: 'microsoft-excel',
-    additionalScopes: [],
   },
 
   params: {

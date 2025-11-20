@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Bug,
   ChevronLeft,
@@ -10,13 +10,13 @@ import {
   RefreshCw,
   SkipForward,
   StepForward,
-  Store,
   Trash2,
   Webhook,
   WifiOff,
   X,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { Tooltip } from '@/components/emcn'
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -27,9 +27,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
   Button,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
 } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { getEnv, isTruthy } from '@/lib/env'
@@ -39,18 +36,13 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import {
   DeploymentControls,
   ExportControls,
-  TemplateModal,
   WebhookSettings,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
-import {
-  getKeyboardShortcutText,
-  useKeyboardShortcuts,
-} from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { usePanelStore } from '@/stores/panel/store'
-import { useSubscriptionStore } from '@/stores/subscription/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -86,15 +78,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
   // Store hooks
   const { lastSaved, setNeedsRedeploymentFlag, blocks } = useWorkflowStore()
-  const {
-    workflows,
-    updateWorkflow,
-    activeWorkflowId,
-    removeWorkflow,
-    duplicateWorkflow,
-    setDeploymentStatus,
-    isLoading: isRegistryLoading,
-  } = useWorkflowRegistry()
+  const { workflows, activeWorkflowId, duplicateWorkflow, hydration } = useWorkflowRegistry()
+  const isRegistryLoading =
+    hydration.phase === 'idle' ||
+    hydration.phase === 'metadata-loading' ||
+    hydration.phase === 'state-loading'
   const { isExecuting, handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { setActiveTab, togglePanel, isOpen } = usePanelStore()
   const { getFolderTree, expandedFolders } = useFolderStore()
@@ -107,10 +95,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     useWorkflowExecution()
 
   // Local state
-  const [mounted, setMounted] = useState(false)
+  const [, setMounted] = useState(false)
   const [, forceUpdate] = useState({})
   const [isExpanded, setIsExpanded] = useState(false)
-  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
   const [isWebhookSettingsOpen, setIsWebhookSettingsOpen] = useState(false)
   const [isAutoLayouting, setIsAutoLayouting] = useState(false)
 
@@ -150,14 +137,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
   // Shared condition for keyboard shortcut and button disabled state
   const isWorkflowBlocked = isExecuting || hasValidationErrors
-
-  // Register keyboard shortcut for running workflow
-  useKeyboardShortcuts(() => {
-    if (!isWorkflowBlocked) {
-      openConsolePanel()
-      handleRunWorkflow()
-    }
-  }, isWorkflowBlocked)
 
   // // Check if the current user is the owner of the published workflow
   // const isWorkflowOwner = () => {
@@ -265,6 +244,39 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     activeWorkflowId ? state.workflowValues[activeWorkflowId] : null
   )
 
+  const [blockStructureVersion, setBlockStructureVersion] = useState(0)
+  const [edgeStructureVersion, setEdgeStructureVersion] = useState(0)
+  const [subBlockStructureVersion, setSubBlockStructureVersion] = useState(0)
+
+  useEffect(() => {
+    setBlockStructureVersion((version) => version + 1)
+  }, [currentBlocks])
+
+  useEffect(() => {
+    setEdgeStructureVersion((version) => version + 1)
+  }, [currentEdges])
+
+  useEffect(() => {
+    setSubBlockStructureVersion((version) => version + 1)
+  }, [subBlockValues])
+
+  useEffect(() => {
+    setBlockStructureVersion(0)
+    setEdgeStructureVersion(0)
+    setSubBlockStructureVersion(0)
+  }, [activeWorkflowId])
+
+  const statusCheckTrigger = useMemo(() => {
+    return JSON.stringify({
+      lastSaved: lastSaved ?? 0,
+      blockVersion: blockStructureVersion,
+      edgeVersion: edgeStructureVersion,
+      subBlockVersion: subBlockStructureVersion,
+    })
+  }, [lastSaved, blockStructureVersion, edgeStructureVersion, subBlockStructureVersion])
+
+  const debouncedStatusCheckTrigger = useDebounce(statusCheckTrigger, 500)
+
   useEffect(() => {
     // Avoid off-by-one false positives: wait until operation queue is idle
     const { operations, isProcessing } = useOperationQueueStore.getState()
@@ -299,16 +311,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     checkForChanges()
-  }, [
-    activeWorkflowId,
-    deployedState,
-    currentBlocks,
-    currentEdges,
-    subBlockValues,
-    isLoadingDeployedState,
-    useOperationQueueStore.getState().isProcessing,
-    useOperationQueueStore.getState().operations.length,
-  ])
+  }, [activeWorkflowId, deployedState, debouncedStatusCheckTrigger, isLoadingDeployedState])
 
   useEffect(() => {
     if (session?.user?.id && !isRegistryLoading) {
@@ -324,7 +327,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   /**
    * Check user usage limits and cache results
    */
-  async function checkUserUsage(userId: string, forceRefresh = false): Promise<any | null> {
+  async function checkUserUsage(_userId: string, forceRefresh = false): Promise<any | null> {
     const now = Date.now()
     const cacheAge = now - usageDataCache.timestamp
 
@@ -347,14 +350,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         return usage
       }
 
-      // Fallback: use store if API not available
-      const { getUsage, refresh } = useSubscriptionStore.getState()
-      if (forceRefresh) await refresh()
-      const usage = getUsage()
-
-      // Update cache
-      usageDataCache = { data: usage, timestamp: now, expirationMs: usageDataCache.expirationMs }
-      return usage
+      // No fallback needed anymore - React Query handles this
+      return null
     } catch (error) {
       logger.error('Error checking usage limits:', { error })
       return null
@@ -570,14 +567,14 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
     if (isDisabled) {
       return (
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
               <Trash2 className='h-4 w-4' />
             </div>
-          </TooltipTrigger>
-          <TooltipContent>{getTooltipText()}</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
+        </Tooltip.Root>
       )
     }
 
@@ -599,8 +596,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
           }
         }}
       >
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <AlertDialogTrigger asChild>
               <Button
                 variant='outline'
@@ -614,31 +611,35 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                 <span className='sr-only'>Delete Workflow</span>
               </Button>
             </AlertDialogTrigger>
-          </TooltipTrigger>
-          <TooltipContent>{getTooltipText()}</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
+        </Tooltip.Root>
 
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {deleteState.showTemplateChoice ? 'Published Templates Found' : 'Delete workflow?'}
+              {deleteState.showTemplateChoice ? 'Template Connected' : 'Delete workflow?'}
             </AlertDialogTitle>
             {deleteState.showTemplateChoice ? (
               <div className='space-y-3'>
-                <AlertDialogDescription>
-                  This workflow has {deleteState.publishedTemplates.length} published template
-                  {deleteState.publishedTemplates.length > 1 ? 's' : ''}:
-                </AlertDialogDescription>
-                {deleteState.publishedTemplates.length > 0 && (
-                  <ul className='list-disc space-y-1 pl-6'>
-                    {deleteState.publishedTemplates.map((template) => (
-                      <li key={template.id}>{template.name}</li>
-                    ))}
-                  </ul>
-                )}
-                <AlertDialogDescription>
-                  What would you like to do with the published template
-                  {deleteState.publishedTemplates.length > 1 ? 's' : ''}?
+                <AlertDialogDescription asChild>
+                  <div className='space-y-2'>
+                    <div>
+                      This workflow is connected to a template:{' '}
+                      <strong>{deleteState.publishedTemplates[0]?.name}</strong>
+                    </div>
+                    <div className='mt-3'>What would you like to do with it?</div>
+                    <div className='mt-2 space-y-1 text-xs'>
+                      <div className='text-muted-foreground'>
+                        <strong>Keep template:</strong> Template remains in the marketplace. You can
+                        reconnect it later by clicking "Edit" on the template.
+                      </div>
+                      <div className='text-muted-foreground'>
+                        <strong>Delete template:</strong> Permanently remove template from the
+                        marketplace.
+                      </div>
+                    </div>
+                  </div>
                 </AlertDialogDescription>
               </div>
             ) : (
@@ -660,14 +661,14 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                   disabled={deleteState.isDeleting}
                   className='h-9 flex-1 rounded-[8px]'
                 >
-                  Keep templates
+                  Keep template
                 </Button>
                 <Button
                   onClick={() => handleTemplateAction('delete')}
                   disabled={deleteState.isDeleting}
                   className='h-9 flex-1 rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
                 >
-                  {deleteState.isDeleting ? 'Deleting...' : 'Delete templates'}
+                  {deleteState.isDeleting ? 'Deleting...' : 'Delete template'}
                 </Button>
               </div>
             ) : (
@@ -723,8 +724,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
           <Button
             variant='outline'
             size='icon'
@@ -735,9 +736,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             <Webhook className='h-5 w-5' />
             <span className='sr-only'>Webhook Settings</span>
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>{getTooltipText()}</TooltipContent>
-      </Tooltip>
+        </Tooltip.Trigger>
+        <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
+      </Tooltip.Root>
     )
   }
 
@@ -755,8 +756,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
           {isDisabled ? (
             <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
               <Copy className='h-4 w-4' />
@@ -771,9 +772,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               <span className='sr-only'>Duplicate Workflow</span>
             </Button>
           )}
-        </TooltipTrigger>
-        <TooltipContent>{getTooltipText()}</TooltipContent>
-      </Tooltip>
+        </Tooltip.Trigger>
+        <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
+      </Tooltip.Root>
     )
   }
 
@@ -788,8 +789,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
       setIsAutoLayouting(true)
       try {
-        // Use the shared auto layout utility for immediate frontend updates
-        const { applyAutoLayoutAndUpdateStore } = await import('../../utils/auto-layout')
+        // Use the standalone auto layout utility for immediate frontend updates
+        const { applyAutoLayoutAndUpdateStore } = await import('../../utils')
 
         const result = await applyAutoLayoutAndUpdateStore(activeWorkflowId!)
 
@@ -819,8 +820,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
           {isDisabled ? (
             <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
               {isAutoLayouting ? (
@@ -844,11 +845,12 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               <span className='sr-only'>Auto Layout</span>
             </Button>
           )}
-        </TooltipTrigger>
-        <TooltipContent command={`${isDebugging ? '' : 'Shift+L'}`}>
+        </Tooltip.Trigger>
+        <Tooltip.Content>
           {getTooltipText()}
-        </TooltipContent>
-      </Tooltip>
+          {!isDebugging && <span className='ml-1 text-xs opacity-75'>(Shift+L)</span>}
+        </Tooltip.Content>
+      </Tooltip.Root>
     )
   }
 
@@ -906,8 +908,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
     return (
       <div className='flex items-center gap-1'>
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               onClick={() => {
                 openConsolePanel()
@@ -919,12 +921,12 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               <StepForward className='h-5 w-5' />
               <span className='sr-only'>Step Forward</span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>Step Forward</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>Step Forward</Tooltip.Content>
+        </Tooltip.Root>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               onClick={() => {
                 openConsolePanel()
@@ -936,12 +938,12 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               <SkipForward className='h-5 w-5' />
               <span className='sr-only'>Resume Until End</span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>Resume Until End</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>Resume Until End</Tooltip.Content>
+        </Tooltip.Root>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               onClick={() => {
                 handleCancelDebug()
@@ -951,47 +953,10 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               <X className='h-5 w-5' />
               <span className='sr-only'>Cancel Debugging</span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>Cancel Debugging</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>Cancel Debugging</Tooltip.Content>
+        </Tooltip.Root>
       </div>
-    )
-  }
-
-  /**
-   * Render publish template button
-   */
-  const renderPublishButton = () => {
-    const canEdit = userPermissions.canEdit
-    const isDisabled = isExecuting || isDebugging || !canEdit
-
-    const getTooltipText = () => {
-      if (!canEdit) return 'Admin permission required to publish templates'
-      if (isDebugging) return 'Cannot publish template while debugging'
-      if (isExecuting) return 'Cannot publish template while workflow is running'
-      return 'Publish as template'
-    }
-
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          {isDisabled ? (
-            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
-              <Store className='h-4 w-4' />
-            </div>
-          ) : (
-            <Button
-              variant='outline'
-              onClick={() => setIsTemplateModalOpen(true)}
-              className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
-            >
-              <Store className='h-5 w-5' />
-              <span className='sr-only'>Publish Template</span>
-            </Button>
-          )}
-        </TooltipTrigger>
-        <TooltipContent>{getTooltipText()}</TooltipContent>
-      </Tooltip>
     )
   }
 
@@ -1020,8 +985,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     )
 
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
           {isDisabled ? (
             <div
               className={cn(
@@ -1039,9 +1004,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               <span className='sr-only'>{getTooltipText()}</span>
             </Button>
           )}
-        </TooltipTrigger>
-        <TooltipContent>{getTooltipText()}</TooltipContent>
-      </Tooltip>
+        </Tooltip.Trigger>
+        <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
+      </Tooltip.Root>
     )
   }
 
@@ -1057,8 +1022,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     // If currently executing, show cancel button
     if (isExecuting) {
       return (
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               className={cn(
                 'gap-2 font-medium',
@@ -1071,9 +1036,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             >
               <X className={cn('h-3.5 w-3.5')} />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>Cancel execution</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>Cancel execution</Tooltip.Content>
+        </Tooltip.Root>
       )
     }
 
@@ -1120,8 +1085,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
           <Button
             className={cn(
               'gap-2 font-medium',
@@ -1136,11 +1101,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
           >
             <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent command={getKeyboardShortcutText('Enter', true)}>
-          {getTooltipContent()}
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Trigger>
+        <Tooltip.Content>{getTooltipContent()}</Tooltip.Content>
+      </Tooltip.Root>
     )
   }
 
@@ -1151,7 +1114,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     // Get and sort regular workflows by creation date (newest first) for stable ordering
     const regularWorkflows = Object.values(workflows)
       .filter((workflow) => workflow.workspaceId === workspaceId)
-      .filter((workflow) => workflow.marketplaceData?.status !== 'temp')
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 
     // Group workflows by folder
@@ -1198,12 +1160,12 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
     return (
       <div className='flex h-12 items-center gap-2 rounded-[11px] border border-red-500 bg-red-500 px-3 text-white shadow-xs'>
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <WifiOff className='h-[18px] w-[18px] cursor-help' />
-          </TooltipTrigger>
-          <TooltipContent className='mt-3'>Connection lost - refresh</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content className='mt-3'>Connection lost - refresh</Tooltip.Content>
+        </Tooltip.Root>
         <Button
           variant='ghost'
           size='sm'
@@ -1221,8 +1183,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
    */
   const renderToggleButton = () => {
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
           <Button
             variant='outline'
             onClick={() => setIsExpanded(!isExpanded)}
@@ -1236,9 +1198,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             />
             <span className='sr-only'>{isExpanded ? 'Collapse' : 'Expand'} Control Bar</span>
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>{isExpanded ? 'Collapse' : 'Expand'} Control Bar</TooltipContent>
-      </Tooltip>
+        </Tooltip.Trigger>
+        <Tooltip.Content>{isExpanded ? 'Collapse' : 'Expand'} Control Bar</Tooltip.Content>
+      </Tooltip.Root>
     )
   }
 
@@ -1249,21 +1211,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {isExpanded && renderWebhookButton()}
       {isExpanded && <ExportControls />}
       {isExpanded && renderAutoLayoutButton()}
-      {isExpanded && renderPublishButton()}
       {renderDeleteButton()}
       {renderDuplicateButton()}
       {!isDebugging && renderDebugModeToggle()}
       {renderDeployButton()}
       {isDebugging ? renderDebugControlsBar() : renderRunButton()}
-
-      {/* Template Modal */}
-      {activeWorkflowId && (
-        <TemplateModal
-          open={isTemplateModalOpen}
-          onOpenChange={setIsTemplateModalOpen}
-          workflowId={activeWorkflowId}
-        />
-      )}
 
       {/* Webhook Settings */}
       {activeWorkflowId && (

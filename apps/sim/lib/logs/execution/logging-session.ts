@@ -21,6 +21,7 @@ export interface SessionStartParams {
   workspaceId?: string
   variables?: Record<string, string>
   triggerData?: Record<string, unknown>
+  skipLogCreation?: boolean // For resume executions - reuse existing log entry
 }
 
 export interface SessionCompleteParams {
@@ -49,6 +50,7 @@ export class LoggingSession {
   private trigger?: ExecutionTrigger
   private environment?: ExecutionEnvironment
   private workflowState?: WorkflowState
+  private isResume = false // Track if this is a resume execution
 
   constructor(
     workflowId: string,
@@ -63,7 +65,7 @@ export class LoggingSession {
   }
 
   async start(params: SessionStartParams = {}): Promise<void> {
-    const { userId, workspaceId, variables, triggerData } = params
+    const { userId, workspaceId, variables, triggerData, skipLogCreation } = params
 
     try {
       this.trigger = createTriggerObject(this.triggerType, triggerData)
@@ -76,16 +78,26 @@ export class LoggingSession {
       )
       this.workflowState = await loadWorkflowStateForExecution(this.workflowId)
 
-      await executionLogger.startWorkflowExecution({
-        workflowId: this.workflowId,
-        executionId: this.executionId,
-        trigger: this.trigger,
-        environment: this.environment,
-        workflowState: this.workflowState,
-      })
+      // Only create a new log entry if not resuming
+      if (!skipLogCreation) {
+        await executionLogger.startWorkflowExecution({
+          workflowId: this.workflowId,
+          executionId: this.executionId,
+          trigger: this.trigger,
+          environment: this.environment,
+          workflowState: this.workflowState,
+        })
 
-      if (this.requestId) {
-        logger.debug(`[${this.requestId}] Started logging for execution ${this.executionId}`)
+        if (this.requestId) {
+          logger.debug(`[${this.requestId}] Started logging for execution ${this.executionId}`)
+        }
+      } else {
+        this.isResume = true // Mark as resume
+        if (this.requestId) {
+          logger.debug(
+            `[${this.requestId}] Resuming logging for existing execution ${this.executionId}`
+          )
+        }
       }
     } catch (error) {
       if (this.requestId) {
@@ -122,6 +134,7 @@ export class LoggingSession {
         finalOutput: finalOutput || {},
         traceSpans: traceSpans || [],
         workflowInput,
+        isResume: this.isResume,
       })
 
       // Track workflow execution outcome

@@ -2,22 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDownToLine, CircleSlash, History, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { LandingPromptStorage } from '@/lib/browser-storage'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useCopilotStore } from '@/stores/copilot/store'
-import { useChatStore } from '@/stores/panel/chat/store'
-import { useConsoleStore } from '@/stores/panel/console/store'
+import { useChatStore } from '@/stores/chat/store'
 import { usePanelStore } from '@/stores/panel/store'
+import { useCopilotStore } from '@/stores/panel-new/copilot/store'
+import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { Chat } from './components/chat/chat'
+import { Copilot } from '../panel-new/components/copilot/copilot'
+// import { Chat } from './components/chat/chat'
 import { Console } from './components/console/console'
-import { Copilot } from './components/copilot/copilot'
 import { Variables } from './components/variables/variables'
 
 const logger = createLogger('Panel')
@@ -44,8 +44,8 @@ export function Panel() {
   const panelWidth = usePanelStore((state) => state.panelWidth)
   const setPanelWidth = usePanelStore((state) => state.setPanelWidth)
 
-  const clearConsole = useConsoleStore((state) => state.clearConsole)
-  const exportConsoleCSV = useConsoleStore((state) => state.exportConsoleCSV)
+  const clearConsole = useTerminalConsoleStore((state) => state.clearConsole)
+  const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
   const clearChat = useChatStore((state) => state.clearChat)
   const exportChatCSV = useChatStore((state) => state.exportChatCSV)
   const { activeWorkflowId } = useWorkflowRegistry()
@@ -370,8 +370,8 @@ export function Panel() {
             <h2 className='font-[450] text-base text-card-foreground capitalize'>{activeTab}</h2>
             <div className='flex items-center gap-2'>
               {activeTab === 'console' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <button
                       onClick={() => activeWorkflowId && exportConsoleCSV(activeWorkflowId)}
                       className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
@@ -379,13 +379,13 @@ export function Panel() {
                     >
                       <ArrowDownToLine className='h-4 w-4' strokeWidth={2} />
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent side='bottom'>Export console data</TooltipContent>
-                </Tooltip>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>Export console data</Tooltip.Content>
+                </Tooltip.Root>
               )}
               {activeTab === 'chat' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <button
                       onClick={() => activeWorkflowId && exportChatCSV(activeWorkflowId)}
                       className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
@@ -393,15 +393,15 @@ export function Panel() {
                     >
                       <ArrowDownToLine className='h-4 w-4' strokeWidth={2} />
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent side='bottom'>Export chat data</TooltipContent>
-                </Tooltip>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>Export chat data</Tooltip.Content>
+                </Tooltip.Root>
               )}
               {activeTab === 'copilot' && (
                 <>
                   {/* New Chat Button */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
                       <button
                         onClick={handleNewChat}
                         className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
@@ -409,28 +409,28 @@ export function Panel() {
                       >
                         <Plus className='h-4 w-4' strokeWidth={2} />
                       </button>
-                    </TooltipTrigger>
-                    <TooltipContent side='bottom'>New chat</TooltipContent>
-                  </Tooltip>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='bottom'>New chat</Tooltip.Content>
+                  </Tooltip.Root>
 
                   {/* History Dropdown */}
                   <DropdownMenu
                     open={isHistoryDropdownOpen}
                     onOpenChange={handleHistoryDropdownOpen}
                   >
-                    <Tooltip>
+                    <Tooltip.Root>
                       <DropdownMenuTrigger asChild>
-                        <TooltipTrigger asChild>
+                        <Tooltip.Trigger asChild>
                           <button
                             className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
                             style={{ color: 'var(--base-muted-foreground)' }}
                           >
                             <History className='h-4 w-4' strokeWidth={2} />
                           </button>
-                        </TooltipTrigger>
+                        </Tooltip.Trigger>
                       </DropdownMenuTrigger>
-                      <TooltipContent side='bottom'>Chat history</TooltipContent>
-                    </Tooltip>
+                      <Tooltip.Content side='bottom'>Chat history</Tooltip.Content>
+                    </Tooltip.Root>
                     <DropdownMenuContent
                       align='end'
                       className='z-[200] w-96 rounded-lg border bg-background p-2 shadow-lg dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
@@ -474,8 +474,7 @@ export function Panel() {
                                         onKeyDown={async (e) => {
                                           if (e.key === 'Enter') {
                                             e.preventDefault()
-                                            const newTitle =
-                                              editingChatTitle.trim() || 'Untitled Chat'
+                                            const newTitle = editingChatTitle.trim() || 'New Chat'
 
                                             // Update optimistically in store first
                                             const updatedChats = chats.map((c) =>
@@ -521,14 +520,14 @@ export function Panel() {
                                           className='min-w-0 cursor-pointer truncate text-sm'
                                           style={{ maxWidth: 'calc(100% - 60px)' }}
                                         >
-                                          {chat.title || 'Untitled Chat'}
+                                          {chat.title || 'New Chat'}
                                         </span>
                                         <div className='ml-auto flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation()
                                               setEditingChatId(chat.id)
-                                              setEditingChatTitle(chat.title || 'Untitled Chat')
+                                              setEditingChatTitle(chat.title || 'New Chat')
                                             }}
                                             className='flex h-5 w-5 items-center justify-center rounded hover:bg-muted'
                                           >
@@ -568,8 +567,8 @@ export function Panel() {
                 </>
               )}
               {(activeTab === 'console' || activeTab === 'chat') && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <button
                       onClick={() => {
                         if (activeTab === 'console') {
@@ -583,12 +582,12 @@ export function Panel() {
                     >
                       <CircleSlash className='h-4 w-4' strokeWidth={2} />
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent side='bottom'>Clear {activeTab}</TooltipContent>
-                </Tooltip>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>Clear {activeTab}</Tooltip.Content>
+                </Tooltip.Root>
               )}
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
                   <button
                     onClick={handleClosePanel}
                     className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
@@ -596,9 +595,9 @@ export function Panel() {
                   >
                     <X className='h-4 w-4' strokeWidth={2} />
                   </button>
-                </TooltipTrigger>
-                <TooltipContent side='bottom'>Close panel</TooltipContent>
-              </Tooltip>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='bottom'>Close panel</Tooltip.Content>
+              </Tooltip.Root>
             </div>
           </div>
 
@@ -606,7 +605,7 @@ export function Panel() {
           <div className='flex-1 overflow-hidden px-3'>
             {/* Keep all tabs mounted but hidden to preserve state and animations */}
             <div style={{ display: activeTab === 'chat' ? 'block' : 'none', height: '100%' }}>
-              <Chat chatMessage={chatMessage} setChatMessage={setChatMessage} />
+              {/* <Chat chatMessage={chatMessage} setChatMessage={setChatMessage} /> */}
             </div>
             <div style={{ display: activeTab === 'console' ? 'block' : 'none', height: '100%' }}>
               <Console panelWidth={panelWidth} />

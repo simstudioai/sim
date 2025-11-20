@@ -6,19 +6,12 @@ import { AlertCircle, Check, Loader2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { Button, Input, Label, Modal, ModalContent, ModalTitle, Textarea } from '@/components/emcn'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  ACCEPT_ATTRIBUTE,
-  ACCEPTED_FILE_TYPES,
-  MAX_FILE_SIZE,
-} from '@/lib/uploads/utils/validation'
+import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
+import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
@@ -84,9 +77,9 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   const dropZoneRef = useRef<HTMLDivElement>(null)
 
   const { uploadFiles, isUploading, uploadProgress, uploadError, clearError } = useKnowledgeUpload({
+    workspaceId,
     onUploadComplete: (uploadedFiles) => {
       logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
-      // Files uploaded and document records created - processing will continue in background
     },
   })
 
@@ -97,7 +90,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     onOpenChange(open)
   }
 
-  // Cleanup file preview URLs when component unmounts to prevent memory leaks
   useEffect(() => {
     return () => {
       files.forEach((file) => {
@@ -126,19 +118,15 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     mode: 'onSubmit',
   })
 
-  // Watch the name field to enable/disable the submit button
   const nameValue = watch('name')
 
-  // Reset state when modal opens/closes
   useEffect(() => {
     if (open) {
-      // Reset states when modal opens
       setSubmitStatus(null)
       setFileError(null)
       setFiles([])
       setIsDragging(false)
       setDragCounter(0)
-      // Reset form to default values
       reset({
         name: '',
         description: '',
@@ -159,23 +147,13 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       let hasError = false
 
       for (const file of Array.from(fileList)) {
-        // Check file size
-        if (file.size > MAX_FILE_SIZE) {
-          setFileError(`File ${file.name} is too large. Maximum size is 100MB per file.`)
+        const validationError = validateKnowledgeBaseFile(file)
+        if (validationError) {
+          setFileError(validationError)
           hasError = true
           continue
         }
 
-        // Check file type
-        if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
-          setFileError(
-            `File ${file.name} has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON, YAML, or YML.`
-          )
-          hasError = true
-          continue
-        }
-
-        // Create file with preview (using file icon since these aren't images)
         const fileWithPreview = Object.assign(file, {
           preview: URL.createObjectURL(file),
         }) as FileWithPreview
@@ -190,7 +168,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       logger.error('Error processing files:', error)
       setFileError('An error occurred while processing files. Please try again.')
     } finally {
-      // Reset the input
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -203,7 +180,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     }
   }
 
-  // Handle drag events
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -231,7 +207,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    // Add visual feedback for valid drop zone
     e.dataTransfer.dropEffect = 'copy'
   }
 
@@ -248,7 +223,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
 
   const removeFile = (index: number) => {
     setFiles((prev) => {
-      // Revoke the URL to avoid memory leaks
       URL.revokeObjectURL(prev[index].preview)
       return prev.filter((_, i) => i !== index)
     })
@@ -259,20 +233,11 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     return <IconComponent className='h-10 w-8' />
   }
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
-  }
-
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true)
     setSubmitStatus(null)
 
     try {
-      // First create the knowledge base
       const knowledgeBasePayload = {
         name: data.name,
         description: data.description || undefined,
@@ -343,53 +308,44 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent
-        className='flex h-[74vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
-        hideCloseButton
-      >
-        <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
-          <div className='flex items-center justify-between'>
-            <DialogTitle className='font-medium text-lg'>Create Knowledge Base</DialogTitle>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='h-8 w-8 p-0'
-              onClick={() => handleClose(false)}
-            >
-              <X className='h-4 w-4' />
-              <span className='sr-only'>Close</span>
-            </Button>
-          </div>
-        </DialogHeader>
+    <Modal open={open} onOpenChange={handleClose}>
+      <ModalContent className='flex h-[78vh] max-h-[95vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[750px]'>
+        {/* Modal Header */}
+        <div className='flex-shrink-0 px-6 py-5'>
+          <ModalTitle className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+            Create Knowledge Base
+          </ModalTitle>
+        </div>
 
-        <div className='flex flex-1 flex-col overflow-hidden'>
-          <form onSubmit={handleSubmit(onSubmit)} className='flex h-full flex-col'>
+        {/* Modal Body */}
+        <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
+          <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
             {/* Scrollable Content */}
             <div
               ref={scrollContainerRef}
-              className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
+              className='scrollbar-hide min-h-0 flex-1 overflow-y-auto pb-20'
             >
-              <div className='flex min-h-full flex-col py-4'>
-                {submitStatus && submitStatus.type === 'error' && (
-                  <Alert variant='destructive' className='mb-6'>
-                    <AlertCircle className='h-4 w-4' />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{submitStatus.message}</AlertDescription>
-                  </Alert>
-                )}
-
+              <div className='px-6'>
+                {/* Show upload error first, then submit error only if no upload error */}
                 {uploadError && (
-                  <Alert variant='destructive' className='mb-6'>
+                  <Alert variant='destructive'>
                     <AlertCircle className='h-4 w-4' />
                     <AlertTitle>Upload Error</AlertTitle>
                     <AlertDescription>{uploadError.message}</AlertDescription>
                   </Alert>
                 )}
 
-                {/* Form Fields Section - Fixed at top */}
-                <div className='flex-shrink-0 space-y-4'>
-                  <div className='space-y-2'>
+                {submitStatus && submitStatus.type === 'error' && !uploadError && (
+                  <Alert variant='destructive'>
+                    <AlertCircle className='h-4 w-4' />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{submitStatus.message}</AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Form Fields Section */}
+                <div className='space-y-[12px]'>
+                  <div className='space-y-[8px]'>
                     <Label htmlFor='name'>Name *</Label>
                     <Input
                       id='name'
@@ -402,7 +358,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                     )}
                   </div>
 
-                  <div className='space-y-2'>
+                  <div className='space-y-[8px]'>
                     <Label htmlFor='description'>Description</Label>
                     <Textarea
                       id='description'
@@ -417,12 +373,12 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                   </div>
 
                   {/* Chunk Configuration Section */}
-                  <div className='space-y-4 rounded-lg border p-4'>
+                  <div className='space-y-[12px] rounded-lg border p-5'>
                     <h3 className='font-medium text-foreground text-sm'>Chunking Configuration</h3>
 
                     {/* Min and Max Chunk Size Row */}
                     <div className='grid grid-cols-2 gap-4'>
-                      <div className='space-y-2'>
+                      <div className='space-y-[8px]'>
                         <Label htmlFor='minChunkSize'>Min Chunk Size</Label>
                         <Input
                           id='minChunkSize'
@@ -439,7 +395,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                         )}
                       </div>
 
-                      <div className='space-y-2'>
+                      <div className='space-y-[8px]'>
                         <Label htmlFor='maxChunkSize'>Max Chunk Size</Label>
                         <Input
                           id='maxChunkSize'
@@ -458,7 +414,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                     </div>
 
                     {/* Overlap Size */}
-                    <div className='space-y-2'>
+                    <div className='space-y-[8px]'>
                       <Label htmlFor='overlapSize'>Overlap Size</Label>
                       <Input
                         id='overlapSize'
@@ -480,12 +436,10 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                       provide more precise retrieval but may lose context.
                     </p>
                   </div>
-                </div>
 
-                {/* File Upload Section - Expands to fill remaining space */}
-                <div className='mt-6 flex flex-1 flex-col'>
-                  <Label className='mb-2'>Upload Documents</Label>
-                  <div className='flex flex-1 flex-col'>
+                  {/* File Upload Section */}
+                  <div className='space-y-[12px]'>
+                    <Label>Upload Documents</Label>
                     {files.length === 0 ? (
                       <div
                         ref={dropZoneRef}
@@ -494,7 +448,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         onClick={() => fileInputRef.current?.click()}
-                        className={`relative flex flex-1 cursor-pointer items-center justify-center rounded-lg border-[1.5px] border-dashed py-8 text-center transition-all duration-200 ${
+                        className={`relative flex cursor-pointer items-center justify-center rounded-lg border-[1.5px] border-dashed py-8 text-center transition-all duration-200 ${
                           isDragging
                             ? 'border-purple-300 bg-purple-50 shadow-sm'
                             : 'border-muted-foreground/25 hover:border-muted-foreground/40 hover:bg-muted/10'
@@ -527,7 +481,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                         </div>
                       </div>
                     ) : (
-                      <div className='flex flex-1 flex-col space-y-2'>
+                      <div className='space-y-2'>
                         {/* Compact drop area at top of file list */}
                         <div
                           ref={dropZoneRef}
@@ -612,7 +566,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                                 <Button
                                   type='button'
                                   variant='ghost'
-                                  size='sm'
                                   onClick={() => removeFile(index)}
                                   disabled={isUploading}
                                   className='h-8 w-8 p-0 text-muted-foreground hover:text-destructive'
@@ -626,7 +579,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                       </div>
                     )}
                     {fileError && (
-                      <Alert variant='destructive' className='mt-2'>
+                      <Alert variant='destructive'>
                         <AlertCircle className='h-4 w-4' />
                         <AlertTitle>Error</AlertTitle>
                         <AlertDescription>{fileError}</AlertDescription>
@@ -637,16 +590,21 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
               </div>
             </div>
 
-            {/* Footer */}
-            <div className='mt-auto border-t px-6 pt-4 pb-6'>
-              <div className='flex justify-between'>
-                <Button variant='outline' onClick={() => handleClose(false)} type='button'>
+            {/* Fixed Footer with Actions */}
+            <div className='absolute inset-x-0 bottom-0 bg-[var(--surface-1)] dark:bg-[var(--surface-1)]'>
+              <div className='flex w-full items-center justify-between gap-[8px] px-6 py-4'>
+                <Button
+                  variant='default'
+                  onClick={() => handleClose(false)}
+                  type='button'
+                  disabled={isSubmitting}
+                >
                   Cancel
                 </Button>
                 <Button
+                  variant='primary'
                   type='submit'
                   disabled={isSubmitting || !nameValue?.trim()}
-                  className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:shadow-none'
                 >
                   {isSubmitting
                     ? isUploading
@@ -662,7 +620,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
             </div>
           </form>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ModalContent>
+    </Modal>
   )
 }

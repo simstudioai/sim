@@ -10,13 +10,15 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Install turbo globally
+# Install turbo globally (cached separately, changes infrequently)
 RUN bun install -g turbo
 
-COPY package.json bun.lock ./
-RUN mkdir -p apps
+COPY package.json bun.lock turbo.json ./
+RUN mkdir -p apps packages/db
 COPY apps/sim/package.json ./apps/sim/package.json
+COPY packages/db/package.json ./packages/db/package.json
 
+# Install dependencies (this layer will be cached if package files don't change)
 RUN bun install --omit dev --ignore-scripts
 
 # ========================================
@@ -25,14 +27,26 @@ RUN bun install --omit dev --ignore-scripts
 FROM base AS builder
 WORKDIR /app
 
-# Install turbo globally in builder stage
+# Install turbo globally (cached separately, changes infrequently)
 RUN bun install -g turbo
 
+# Copy node_modules from deps stage (cached if dependencies don't change)
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
 
-# Installing with full context to prevent missing dependencies error
-RUN bun install --omit dev --ignore-scripts
+# Copy package configuration files (needed for build)
+COPY package.json bun.lock turbo.json ./
+COPY apps/sim/package.json ./apps/sim/package.json
+COPY packages/db/package.json ./packages/db/package.json
+
+# Copy workspace configuration files (needed for turbo)
+COPY apps/sim/next.config.ts ./apps/sim/next.config.ts
+COPY apps/sim/tsconfig.json ./apps/sim/tsconfig.json
+COPY apps/sim/tailwind.config.ts ./apps/sim/tailwind.config.ts
+COPY apps/sim/postcss.config.mjs ./apps/sim/postcss.config.mjs
+
+# Copy source code (changes most frequently - placed last to maximize cache hits)
+COPY apps/sim ./apps/sim
+COPY packages ./packages
 
 # Required for standalone nextjs build
 WORKDIR /app/apps/sim
@@ -63,15 +77,17 @@ RUN bun run build
 FROM base AS runner
 WORKDIR /app
 
-# Install Python and dependencies for guardrails PII detection
-RUN apk add --no-cache python3 py3-pip bash
+# Install Python and dependencies for guardrails PII detection (cached separately)
+# Also install ffmpeg for audio/video processing in STT
+RUN apk add --no-cache python3 py3-pip bash ffmpeg
 
 ENV NODE_ENV=production
 
-# Create non-root user and group
+# Create non-root user and group (cached separately)
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
 
+# Copy application artifacts from builder (these change on every build)
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/public ./apps/sim/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/.next/static

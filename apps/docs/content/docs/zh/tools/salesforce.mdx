@@ -1,0 +1,419 @@
+---
+title: Salesforce
+description: 与 Salesforce CRM 互动
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="salesforce"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Salesforce](https://www.salesforce.com/) 工具使您能够直接连接到 Salesforce CRM，并在您的代理工作流中执行广泛的客户关系管理操作。通过无缝且安全的集成，您可以高效地访问并自动化销售、支持和营销数据中的关键业务流程。
+
+使用 Salesforce 工具，您可以：
+
+- **检索账户**：使用 `salesforce_get_accounts` 操作从 Salesforce 中获取账户，支持自定义过滤、排序和字段选择。
+- **创建账户**：通过 `salesforce_create_account` 操作自动将新账户添加到 Salesforce，指定名称、行业和账单地址等详细信息。
+- **管理联系人**：如果提供类似工具，可用于联系人管理——添加、更新或根据需要获取联系人。
+- **处理潜在客户和商机**：将潜在客户和商机管理集成到您的工作流中，让您的代理捕获、筛选并更新销售管道数据。
+- **跟踪案例和任务**：通过与 Salesforce 中的案例和任务交互，自动化客户支持和跟进活动。
+
+Salesforce 工具非常适合需要简化销售、账户管理、潜在客户生成和支持操作的工作流。无论您的代理是跨平台同步数据、提供实时客户洞察，还是自动化常规 CRM 更新，Salesforce 工具都能将 Salesforce 的全部功能和可扩展性引入您的程序化、代理驱动的流程中。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Salesforce 集成到您的工作流中。通过强大的自动化功能管理账户、联系人、潜在客户、商机、案例和任务。
+
+## 工具
+
+### `salesforce_get_accounts`
+
+从 Salesforce CRM 检索账户
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | Salesforce OAuth 的 ID 令牌（包含实例 URL） |
+| `instanceUrl` | string | 否 | Salesforce 实例 URL |
+| `limit` | string | 否 | 返回结果的数量（默认：100，最大：2000） |
+| `fields` | string | 否 | 要返回的字段的逗号分隔列表（例如："Id,Name,Industry,Phone"） |
+| `orderBy` | string | 否 | 排序字段（例如："Name ASC" 或 "CreatedDate DESC"） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 账户数据 |
+
+### `salesforce_create_account`
+
+在 Salesforce CRM 中创建一个新账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `name` | string | 是 | 账户名称（必需） |
+| `type` | string | 否 | 账户类型（例如：客户、合作伙伴、潜在客户） |
+| `industry` | string | 否 | 行业（例如：科技、医疗、金融） |
+| `phone` | string | 否 | 电话号码 |
+| `website` | string | 否 | 网站 URL |
+| `billingStreet` | string | 否 | 账单街道地址 |
+| `billingCity` | string | 否 | 账单城市 |
+| `billingState` | string | 否 | 账单州/省 |
+| `billingPostalCode` | string | 否 | 账单邮政编码 |
+| `billingCountry` | string | 否 | 账单国家 |
+| `description` | string | 否 | 账户描述 |
+| `annualRevenue` | string | 否 | 年收入（数字） |
+| `numberOfEmployees` | string | 否 | 员工人数（数字） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的账户数据 |
+
+### `salesforce_update_account`
+
+更新 Salesforce CRM 中的现有账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `accountId` | string | 是 | 要更新的账户 ID（必需） |
+| `name` | string | 否 | 账户名称 |
+| `type` | string | 否 | 账户类型 |
+| `industry` | string | 否 | 行业 |
+| `phone` | string | 否 | 电话号码 |
+| `website` | string | 否 | 网站 URL |
+| `billingStreet` | string | 否 | 账单街道地址 |
+| `billingCity` | string | 否 | 账单城市 |
+| `billingState` | string | 否 | 账单州/省 |
+| `billingPostalCode` | string | 否 | 账单邮政编码 |
+| `billingCountry` | string | 否 | 账单国家 |
+| `description` | string | 否 | 账户描述 |
+| `annualRevenue` | string | 否 | 年收入（数字） |
+| `numberOfEmployees` | string | 否 | 员工人数（数字） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新后的账户数据 |
+
+### `salesforce_delete_account`
+
+从 Salesforce CRM 中删除账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `accountId` | string | 是 | 要删除的账户 ID（必需） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 已删除的账户数据 |
+
+### `salesforce_get_contacts`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_create_contact`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_update_contact`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_delete_contact`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_get_leads`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_create_lead`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_update_lead`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_delete_lead`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_get_opportunities`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_create_opportunity`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_update_opportunity`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_delete_opportunity`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_get_cases`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_create_case`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_update_case`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_delete_case`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_get_tasks`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_create_task`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_update_task`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+### `salesforce_delete_task`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | json | 操作结果数据 |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `salesforce`

@@ -4,8 +4,10 @@ import { NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
-import type { StorageContext } from '@/lib/uploads/core/config-resolver'
+import type { StorageContext } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createErrorResponse,
   createFileResponse,
@@ -29,14 +31,6 @@ export async function GET(
 
     logger.info('File serve request:', { path })
 
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
-
-    if (!authResult.success) {
-      logger.warn('Unauthorized file access attempt', { path, error: authResult.error })
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const userId = authResult.userId
     const fullPath = path.join('/')
     const isS3Path = path[0] === 's3'
     const isBlobPath = path[0] === 'blob'
@@ -46,11 +40,33 @@ export async function GET(
     const contextParam = request.nextUrl.searchParams.get('context')
     const legacyBucketType = request.nextUrl.searchParams.get('bucket')
 
-    if (isUsingCloudStorage() || isCloudPath) {
-      return await handleCloudProxy(cloudKey, contextParam, legacyBucketType, userId)
+    const context = contextParam || (isCloudPath ? inferContextFromKey(cloudKey) : undefined)
+
+    if (context === 'profile-pictures') {
+      logger.info('Serving public profile picture:', { cloudKey })
+      if (isUsingCloudStorage() || isCloudPath) {
+        return await handleCloudProxyPublic(cloudKey, context, legacyBucketType)
+      }
+      return await handleLocalFilePublic(fullPath)
     }
 
-    return await handleLocalFile(fullPath, userId)
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+
+    if (!authResult.success || !authResult.userId) {
+      logger.warn('Unauthorized file access attempt', {
+        path,
+        error: authResult.error || 'Missing userId',
+      })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userId = authResult.userId
+
+    if (isUsingCloudStorage()) {
+      return await handleCloudProxy(cloudKey, userId, contextParam)
+    }
+
+    return await handleLocalFile(cloudKey, userId)
   } catch (error) {
     logger.error('Error serving file:', error)
 
@@ -62,8 +78,25 @@ export async function GET(
   }
 }
 
-async function handleLocalFile(filename: string, userId?: string): Promise<NextResponse> {
+async function handleLocalFile(filename: string, userId: string): Promise<NextResponse> {
   try {
+    const contextParam: StorageContext | undefined = inferContextFromKey(filename) as
+      | StorageContext
+      | undefined
+
+    const hasAccess = await verifyFileAccess(
+      filename,
+      userId,
+      undefined, // customConfig
+      contextParam, // context
+      true // isLocal
+    )
+
+    if (!hasAccess) {
+      logger.warn('Unauthorized local file access attempt', { userId, filename })
+      throw new FileNotFoundError(`File not found: ${filename}`)
+    }
+
     const filePath = findLocalFile(filename)
 
     if (!filePath) {
@@ -86,44 +119,10 @@ async function handleLocalFile(filename: string, userId?: string): Promise<NextR
   }
 }
 
-/**
- * Infer storage context from file key pattern
- */
-function inferContextFromKey(key: string): StorageContext {
-  // KB files always start with 'kb/' prefix
-  if (key.startsWith('kb/')) {
-    return 'knowledge-base'
-  }
-
-  // Workspace files: UUID-like ID followed by timestamp pattern
-  // Pattern: {uuid}/{timestamp}-{random}-{filename}
-  if (key.match(/^[a-f0-9-]{36}\/\d+-[a-z0-9]+-/)) {
-    return 'workspace'
-  }
-
-  // Execution files: three UUID segments (workspace/workflow/execution)
-  // Pattern: {uuid}/{uuid}/{uuid}/{filename}
-  const segments = key.split('/')
-  if (segments.length >= 4 && segments[0].match(/^[a-f0-9-]{36}$/)) {
-    return 'execution'
-  }
-
-  // Copilot files: timestamp-random-filename (no path segments)
-  // Pattern: {timestamp}-{random}-{filename}
-  // NOTE: This is ambiguous with other contexts - prefer explicit context parameter
-  if (key.match(/^\d+-[a-z0-9]+-/)) {
-    // Could be copilot, general, or chat - default to general
-    return 'general'
-  }
-
-  return 'general'
-}
-
 async function handleCloudProxy(
   cloudKey: string,
-  contextParam?: string | null,
-  legacyBucketType?: string | null,
-  userId?: string
+  userId: string,
+  contextParam?: string | null
 ): Promise<NextResponse> {
   try {
     let context: StorageContext
@@ -131,12 +130,22 @@ async function handleCloudProxy(
     if (contextParam) {
       context = contextParam as StorageContext
       logger.info(`Using explicit context: ${context} for key: ${cloudKey}`)
-    } else if (legacyBucketType === 'copilot') {
-      context = 'copilot'
-      logger.info(`Using legacy bucket parameter for copilot context: ${cloudKey}`)
     } else {
       context = inferContextFromKey(cloudKey)
       logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
+    }
+
+    const hasAccess = await verifyFileAccess(
+      cloudKey,
+      userId,
+      undefined, // customConfig
+      context, // context
+      false // isLocal
+    )
+
+    if (!hasAccess) {
+      logger.warn('Unauthorized cloud file access attempt', { userId, key: cloudKey, context })
+      throw new FileNotFoundError(`File not found: ${cloudKey}`)
     }
 
     let fileBuffer: Buffer
@@ -167,6 +176,67 @@ async function handleCloudProxy(
     })
   } catch (error) {
     logger.error('Error downloading from cloud storage:', error)
+    throw error
+  }
+}
+
+async function handleCloudProxyPublic(
+  cloudKey: string,
+  context: StorageContext,
+  legacyBucketType?: string | null
+): Promise<NextResponse> {
+  try {
+    let fileBuffer: Buffer
+
+    if (context === 'copilot') {
+      fileBuffer = await CopilotFiles.downloadCopilotFile(cloudKey)
+    } else {
+      fileBuffer = await downloadFile({
+        key: cloudKey,
+        context,
+      })
+    }
+
+    const originalFilename = cloudKey.split('/').pop() || 'download'
+    const contentType = getContentType(originalFilename)
+
+    logger.info('Public cloud file served', {
+      key: cloudKey,
+      size: fileBuffer.length,
+      context,
+    })
+
+    return createFileResponse({
+      buffer: fileBuffer,
+      contentType,
+      filename: originalFilename,
+    })
+  } catch (error) {
+    logger.error('Error serving public cloud file:', error)
+    throw error
+  }
+}
+
+async function handleLocalFilePublic(filename: string): Promise<NextResponse> {
+  try {
+    const filePath = findLocalFile(filename)
+
+    if (!filePath) {
+      throw new FileNotFoundError(`File not found: ${filename}`)
+    }
+
+    const fileBuffer = await readFile(filePath)
+    const contentType = getContentType(filename)
+
+    logger.info('Public local file served', { filename, size: fileBuffer.length })
+
+    return createFileResponse({
+      buffer: fileBuffer,
+      contentType,
+      filename,
+    })
+  } catch (error) {
+    logger.error('Error reading public local file:', error)
     throw error
   }
 }

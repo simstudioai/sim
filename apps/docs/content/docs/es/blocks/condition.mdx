@@ -3,55 +3,20 @@ title: Condición
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { Image } from '@/components/ui/image'
 
-El bloque de Condición te permite ramificar la ruta de ejecución de tu flujo de trabajo basándose en expresiones booleanas, permitiéndote crear flujos de trabajo dinámicos y receptivos con diferentes rutas de ejecución. Evalúa condiciones y dirige el flujo de trabajo en consecuencia, permitiéndote controlar el flujo de ejecución basado en datos o lógica sin requerir un LLM.
+El bloque Condición ramifica la ejecución del flujo de trabajo basándose en expresiones booleanas. Evalúa condiciones utilizando las salidas de bloques anteriores y dirige a diferentes rutas sin requerir un LLM.
 
 <div className="flex justify-center">
   <Image
     src="/static/blocks/condition.png"
-    alt="Bloque de Condición"
+    alt="Bloque de condición"
     width={500}
-    height={350}
+    height={400}
     className="my-6"
   />
 </div>
-
-<Callout>
-  Los bloques de Condición permiten una toma de decisiones determinista sin requerir un LLM, haciéndolos ideales
-  para lógica de ramificación sencilla.
-</Callout>
-
-## Descripción general
-
-El bloque de Condición te permite:
-
-<Steps>
-  <Step>
-    <strong>Crear lógica de ramificación</strong>: dirigir flujos de trabajo basados en expresiones booleanas
-  </Step>
-  <Step>
-    <strong>Tomar decisiones basadas en datos</strong>: evaluar condiciones usando salidas de bloques anteriores
-  </Step>
-  <Step>
-    <strong>Manejar múltiples escenarios</strong>: definir múltiples condiciones con diferentes rutas
-  </Step>
-  <Step>
-    <strong>Proporcionar enrutamiento determinista</strong>: tomar decisiones sin requerir un LLM
-  </Step>
-</Steps>
-
-## Cómo funciona
-
-El bloque de Condición opera a través de un proceso de evaluación secuencial:
-
-1. **Evaluar expresión** - Procesa la expresión booleana de JavaScript/TypeScript usando los datos actuales del flujo de trabajo
-2. **Determinar resultado** - Devuelve verdadero o falso basado en la evaluación de la expresión
-3. **Dirigir flujo de trabajo** - Dirige la ejecución al bloque de destino apropiado basado en el resultado  
-4. **Proporcionar contexto** - Genera metadatos sobre la decisión para depuración y monitoreo
 
 ## Opciones de configuración
 
@@ -59,11 +24,11 @@ El bloque de Condición opera a través de un proceso de evaluación secuencial:
 
 Define una o más condiciones que serán evaluadas. Cada condición incluye:
 
-- **Expresión**: una expresión JavaScript/TypeScript que evalúa a verdadero o falso
-- **Ruta**: el bloque de destino al que dirigir si la condición es verdadera
-- **Descripción**: explicación opcional de lo que comprueba la condición
+- **Expresión**: Una expresión JavaScript/TypeScript que evalúa a verdadero o falso
+- **Ruta**: El bloque de destino al que dirigirse si la condición es verdadera
+- **Descripción**: Explicación opcional de lo que verifica la condición
 
-Puedes crear múltiples condiciones que se evalúan en orden, donde la primera condición que coincida determina la ruta de ejecución.
+Puedes crear múltiples condiciones que se evalúan en orden, siendo la primera condición coincidente la que determina la ruta de ejecución.
 
 ### Formato de expresión de condición
 
@@ -98,7 +63,7 @@ Las condiciones utilizan sintaxis JavaScript y pueden hacer referencia a valores
 
 ### Acceso a resultados
 
-Después de evaluar una condición, puedes acceder a sus salidas:
+Después de que una condición se evalúa, puedes acceder a sus salidas:
 
 - **`<condition.result>`**: Resultado booleano de la evaluación de la condición
 - **`<condition.matched_condition>`**: ID de la condición que coincidió
@@ -109,7 +74,7 @@ Después de evaluar una condición, puedes acceder a sus salidas:
 
 ### Expresiones complejas
 
-Usa operadores y funciones de JavaScript en las condiciones:
+Usa operadores y funciones JavaScript en las condiciones:
 
 ```javascript
 // String operations
@@ -127,7 +92,7 @@ new Date(<api.created_at>) > new Date('2024-01-01')
 
 ### Evaluación de múltiples condiciones
 
-Las condiciones se evalúan en orden hasta que una coincida:
+Las condiciones se evalúan en orden hasta que una coincide:
 
 ```javascript
 // Condition 1: Check for high priority
@@ -144,99 +109,41 @@ true
 
 Las condiciones manejan automáticamente:
 - Valores indefinidos o nulos con evaluación segura
-- Incompatibilidades de tipo con alternativas apropiadas
+- Discrepancias de tipo con alternativas apropiadas
 - Expresiones inválidas con registro de errores
 - Variables faltantes con valores predeterminados
 
-## Entradas y salidas
+## Salidas
 
-<Tabs items={['Configuración', 'Variables', 'Resultados']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Condiciones</strong>: Array de expresiones booleanas para evaluar
-      </li>
-      <li>
-        <strong>Expresiones</strong>: Condiciones JavaScript/TypeScript usando salidas de bloques
-      </li>
-      <li>
-        <strong>Rutas de enrutamiento</strong>: Bloques de destino para cada resultado de condición
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>condition.result</strong>: Resultado booleano de la evaluación de condición
-      </li>
-      <li>
-        <strong>condition.matched_condition</strong>: ID de la condición coincidente
-      </li>
-      <li>
-        <strong>condition.content</strong>: Descripción del resultado de evaluación
-      </li>
-      <li>
-        <strong>condition.path</strong>: Detalles del destino de enrutamiento elegido
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Resultado booleano</strong>: Resultado principal de la evaluación de condición
-      </li>
-      <li>
-        <strong>Información de enrutamiento</strong>: Selección de ruta y detalles de condición
-      </li>
-      <li>
-        <strong>Acceso</strong>: Disponible en bloques después de la condición
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<condition.result>`**: Resultado booleano de la evaluación
+- **`<condition.matched_condition>`**: ID de la condición coincidente
+- **`<condition.content>`**: Descripción del resultado de la evaluación
+- **`<condition.path>`**: Detalles del destino de enrutamiento elegido
 
 ## Ejemplos de casos de uso
 
-### Enrutamiento de atención al cliente
+**Enrutamiento de atención al cliente** - Enrutar tickets según la prioridad
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Enrutar tickets de soporte según la prioridad</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>El bloque API obtiene datos de tickets de soporte</li>
-    <li>La condición verifica si `<api.priority>` es igual a 'high'</li>
-    <li>Tickets de alta prioridad → Agente con herramientas de escalación</li>
-    <li>Tickets de prioridad normal → Agente de soporte estándar</li>
-  </ol>
-</div>
+```
+API (Ticket) → Condition (priority === 'high') → Agent (Escalation) or Agent (Standard)
+```
 
-### Moderación de contenido
+**Moderación de contenido** - Filtrar contenido basado en análisis
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Filtrar contenido basado en resultados de análisis</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>El agente analiza contenido generado por usuarios</li>
-    <li>La condición verifica si `<agent.toxicity_score>` > 0.7</li>
-    <li>Contenido tóxico → Flujo de moderación</li>
-    <li>Contenido limpio → Flujo de publicación</li>
-  </ol>
-</div>
+```
+Agent (Analyze) → Condition (toxicity > 0.7) → Moderation or Publish
+```
 
-### Flujo de incorporación de usuarios
+**Flujo de incorporación de usuarios** - Personalizar la incorporación según el tipo de usuario
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Personalizar la incorporación según el tipo de usuario</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>El bloque de función procesa datos de registro de usuarios</li>
-    <li>La condición verifica si `<user.account_type>` === 'enterprise'</li>
-    <li>Usuarios empresariales → Flujo de configuración avanzada</li>
-    <li>Usuarios individuales → Flujo de incorporación simple</li>
-  </ol>
-</div>
+```
+Function (Process) → Condition (account_type === 'enterprise') → Advanced or Simple
+```
 
 ## Mejores prácticas
 
 - **Ordenar las condiciones correctamente**: Coloca las condiciones más específicas antes que las generales para asegurar que la lógica específica tenga prioridad sobre las alternativas
-- **Incluir una condición predeterminada**: Añade una condición general (`true`) como última condición para manejar casos no coincidentes y evitar que la ejecución del flujo de trabajo se quede atascada
+- **Incluir una condición predeterminada**: Añade una condición general (`true`) como última condición para manejar casos no coincidentes y evitar que la ejecución del flujo de trabajo se detenga
 - **Mantener las expresiones simples**: Usa expresiones booleanas claras y directas para mejorar la legibilidad y facilitar la depuración
 - **Documentar tus condiciones**: Añade descripciones para explicar el propósito de cada condición para una mejor colaboración en equipo y mantenimiento
-- **Probar casos límite**: Verifica que las condiciones manejen correctamente los valores límite probando con valores en los extremos de los rangos de tus condiciones
+- **Probar casos límite**: Verifica que las condiciones manejen correctamente los valores límite probando con valores en los extremos de tus rangos de condición

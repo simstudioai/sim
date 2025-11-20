@@ -28,10 +28,6 @@ const ScheduleRequestSchema = z.object({
   }),
 })
 
-// Track recent requests to reduce redundant logging
-const recentRequests = new Map<string, number>()
-const LOGGING_THROTTLE_MS = 5000 // 5 seconds between logging for the same workflow
-
 function hasValidScheduleConfig(
   scheduleType: string | undefined,
   scheduleValues: ReturnType<typeof getScheduleTimeValues>,
@@ -86,7 +82,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing workflowId parameter' }, { status: 400 })
     }
 
-    // Check if user has permission to view this workflow
     const [workflowRecord] = await db
       .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
       .from(workflow)
@@ -97,10 +92,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    // Check authorization - either the user owns the workflow or has workspace permissions
     let isAuthorized = workflowRecord.userId === session.user.id
 
-    // If not authorized by ownership and the workflow belongs to a workspace, check workspace permissions
     if (!isAuthorized && workflowRecord.workspaceId) {
       const userPermission = await getUserEntityPermissions(
         session.user.id,
@@ -114,16 +107,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Not authorized to view this workflow' }, { status: 403 })
     }
 
-    const now = Date.now()
-    const lastLog = recentRequests.get(workflowId) || 0
-    const shouldLog = now - lastLog > LOGGING_THROTTLE_MS
+    logger.info(`[${requestId}] Getting schedule for workflow ${workflowId}`)
 
-    if (shouldLog) {
-      logger.info(`[${requestId}] Getting schedule for workflow ${workflowId}`)
-      recentRequests.set(workflowId, now)
-    }
-
-    // Build query conditions
     const conditions = [eq(workflowSchedule.workflowId, workflowId)]
     if (blockId) {
       conditions.push(eq(workflowSchedule.blockId, blockId))
@@ -136,7 +121,7 @@ export async function GET(req: NextRequest) {
       .limit(1)
 
     const headers = new Headers()
-    headers.set('Cache-Control', 'max-age=30') // Cache for 30 seconds
+    headers.set('Cache-Control', 'no-store, max-age=0')
 
     if (schedule.length === 0) {
       return NextResponse.json({ schedule: null }, { headers })
@@ -161,6 +146,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
+const saveAttempts = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT_WINDOW = 60000 // 1 minute
+const RATE_LIMIT_MAX = 10 // 10 saves per minute
+
 /**
  * Create or update a schedule for a workflow
  */
@@ -174,12 +163,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const now = Date.now()
+    const userKey = session.user.id
+    const limit = saveAttempts.get(userKey)
+
+    if (limit && limit.resetAt > now) {
+      if (limit.count >= RATE_LIMIT_MAX) {
+        logger.warn(`[${requestId}] Rate limit exceeded for user: ${userKey}`)
+        return NextResponse.json(
+          { error: 'Too many save attempts. Please wait a moment and try again.' },
+          { status: 429 }
+        )
+      }
+      limit.count++
+    } else {
+      saveAttempts.set(userKey, { count: 1, resetAt: now + RATE_LIMIT_WINDOW })
+    }
+
     const body = await req.json()
     const { workflowId, blockId, state } = ScheduleRequestSchema.parse(body)
 
     logger.info(`[${requestId}] Processing schedule update for workflow ${workflowId}`)
 
-    // Check if user has permission to modify this workflow
     const [workflowRecord] = await db
       .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
       .from(workflow)
@@ -191,10 +196,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    // Check authorization - either the user owns the workflow or has write/admin workspace permissions
     let isAuthorized = workflowRecord.userId === session.user.id
 
-    // If not authorized by ownership and the workflow belongs to a workspace, check workspace permissions
     if (!isAuthorized && workflowRecord.workspaceId) {
       const userPermission = await getUserEntityPermissions(
         session.user.id,
@@ -211,15 +214,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not authorized to modify this workflow' }, { status: 403 })
     }
 
-    // Find the target block - prioritize the specific blockId if provided
     let targetBlock: BlockState | undefined
     if (blockId) {
-      // If blockId is provided, find that specific block
       targetBlock = Object.values(state.blocks).find((block: any) => block.id === blockId) as
         | BlockState
         | undefined
     } else {
-      // Fallback: find either starter block or schedule trigger block
       targetBlock = Object.values(state.blocks).find(
         (block: any) => block.type === 'starter' || block.type === 'schedule'
       ) as BlockState | undefined
@@ -240,12 +240,9 @@ export async function POST(req: NextRequest) {
 
     const hasScheduleConfig = hasValidScheduleConfig(scheduleType, scheduleValues, targetBlock)
 
-    // For schedule trigger blocks, we always have valid configuration
-    // For starter blocks, check if schedule is selected and has valid config
     const isScheduleBlock = targetBlock.type === 'schedule'
     const hasValidConfig = isScheduleBlock || (startWorkflow === 'schedule' && hasScheduleConfig)
 
-    // Debug logging to understand why validation fails
     logger.info(`[${requestId}] Schedule validation debug:`, {
       workflowId,
       blockId,
@@ -266,7 +263,6 @@ export async function POST(req: NextRequest) {
       logger.info(
         `[${requestId}] Removing schedule for workflow ${workflowId} - no valid configuration found`
       )
-      // Build delete conditions
       const deleteConditions = [eq(workflowSchedule.workflowId, workflowId)]
       if (blockId) {
         deleteConditions.push(eq(workflowSchedule.blockId, blockId))
@@ -305,29 +301,36 @@ export async function POST(req: NextRequest) {
         time: scheduleTime || 'not specified',
       })
 
-      cronExpression = generateCronExpression(defaultScheduleType, scheduleValues)
+      const sanitizedScheduleValues =
+        defaultScheduleType !== 'custom'
+          ? { ...scheduleValues, cronExpression: null }
+          : scheduleValues
 
-      // Additional validation for custom cron expressions
-      if (defaultScheduleType === 'custom' && cronExpression) {
-        // Validate with timezone for accurate validation
+      cronExpression = generateCronExpression(defaultScheduleType, sanitizedScheduleValues)
+
+      if (cronExpression) {
         const validation = validateCronExpression(cronExpression, timezone)
         if (!validation.isValid) {
-          logger.error(`[${requestId}] Invalid cron expression: ${validation.error}`)
+          logger.error(`[${requestId}] Invalid cron expression: ${validation.error}`, {
+            scheduleType: defaultScheduleType,
+            cronExpression,
+          })
           return NextResponse.json(
-            { error: `Invalid cron expression: ${validation.error}` },
+            { error: `Invalid schedule configuration: ${validation.error}` },
             { status: 400 }
           )
         }
       }
 
-      nextRunAt = calculateNextRunTime(defaultScheduleType, scheduleValues)
+      nextRunAt = calculateNextRunTime(defaultScheduleType, sanitizedScheduleValues)
 
       logger.debug(
         `[${requestId}] Generated cron: ${cronExpression}, next run at: ${nextRunAt.toISOString()}`
       )
-    } catch (error) {
+    } catch (error: any) {
       logger.error(`[${requestId}] Error generating schedule: ${error}`)
-      return NextResponse.json({ error: 'Failed to generate schedule' }, { status: 400 })
+      const errorMessage = error?.message || 'Failed to generate schedule'
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
     }
 
     const values = {
@@ -354,20 +357,21 @@ export async function POST(req: NextRequest) {
       failedCount: 0, // Reset failure count on reconfiguration
     }
 
-    await db
-      .insert(workflowSchedule)
-      .values(values)
-      .onConflictDoUpdate({
-        target: [workflowSchedule.workflowId, workflowSchedule.blockId],
-        set: setValues,
-      })
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(workflowSchedule)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [workflowSchedule.workflowId, workflowSchedule.blockId],
+          set: setValues,
+        })
+    })
 
     logger.info(`[${requestId}] Schedule updated for workflow ${workflowId}`, {
       nextRunAt: nextRunAt?.toISOString(),
       cronExpression,
     })
 
-    // Track schedule creation/update
     try {
       const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
       trackPlatformEvent('platform.schedule.created', {
@@ -382,10 +386,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       message: 'Schedule updated',
+      schedule: { id: values.id },
       nextRunAt,
       cronExpression,
     })
-  } catch (error) {
+  } catch (error: any) {
     logger.error(`[${requestId}] Error updating workflow schedule`, error)
 
     if (error instanceof z.ZodError) {
@@ -394,6 +399,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    return NextResponse.json({ error: 'Failed to update workflow schedule' }, { status: 500 })
+
+    const errorMessage = error?.message || 'Failed to update workflow schedule'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

@@ -193,6 +193,9 @@ export async function executeTool(
 
         const data = await response.json()
         contextParams.accessToken = data.accessToken
+        if (data.idToken) {
+          contextParams.idToken = data.idToken
+        }
 
         logger.info(
           `[${requestId}] Successfully got access token for ${toolId}, length: ${data.accessToken?.length || 0}`
@@ -450,20 +453,25 @@ async function handleInternalRequest(
 ): Promise<ToolResponse> {
   const requestId = generateRequestId()
 
-  // Format the request parameters
   const requestParams = formatRequestParams(tool, params)
 
   try {
     const baseUrl = getBaseUrl()
-    // Handle the case where url may be a function or string
     const endpointUrl =
       typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
 
     const fullUrlObj = new URL(endpointUrl, baseUrl)
     const isInternalRoute = endpointUrl.startsWith('/api/')
+
+    if (isInternalRoute) {
+      const workflowId = params._context?.workflowId
+      if (workflowId) {
+        fullUrlObj.searchParams.set('workflowId', workflowId)
+      }
+    }
+
     const fullUrl = fullUrlObj.toString()
 
-    // For custom tools, validate parameters on the client side before sending
     if (toolId.startsWith('custom_') && tool.request.body) {
       const requestBody = tool.request.body(params)
       if (requestBody.schema && requestBody.params) {

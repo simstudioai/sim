@@ -11,8 +11,8 @@ import { Video } from '@/components/ui/video'
 
 <div className="flex justify-center">
   <Image
-    src="/static/schedule.png"
-    alt="计划模块"
+    src="/static/blocks/schedule.png"
+    alt="计划块"
     width={500}
     height={400}
     className="my-6"
@@ -45,20 +45,24 @@ import { Video } from '@/components/ui/video'
 
 ## 配置计划
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="configure-schedule.mp4" width={700} height={450} />
-</div>
-
 当工作流被计划时：
-- 计划变为**激活**状态，并显示下一次执行时间
-- 点击 **"已计划"** 按钮可以停用计划
-- 如果**连续失败 3 次**，计划会自动停用
-
-## 停用的计划
+- 计划变为**激活**状态，并显示下次执行时间
+- 点击 **"已计划"** 按钮以停用计划
+- 计划在 **连续失败 3 次** 后会自动停用
 
 <div className="flex justify-center">
   <Image
-    src="/static/schedule-disabled.png"
+    src="/static/blocks/schedule-2.png"
+    alt="活动计划块"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
     alt="停用的计划"
     width={500}
     height={350}
@@ -66,8 +70,18 @@ import { Video } from '@/components/ui/video'
   />
 </div>
 
-停用的计划会显示上次激活的时间，并可以随时重新启用。
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
+    alt="禁用计划"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+已禁用的计划会显示上次激活的时间。点击 **"已禁用"** 徽章以重新激活计划。
 
 <Callout>
-计划模块无法接收传入连接，仅作为纯工作流触发器使用。
+计划块无法接收传入连接，仅作为纯工作流触发器。
 </Callout>

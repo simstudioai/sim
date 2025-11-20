@@ -2,14 +2,15 @@ import { OutlookIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { OutlookResponse } from '@/tools/outlook/types'
+import { getTrigger } from '@/triggers'
 
 export const OutlookBlock: BlockConfig<OutlookResponse> = {
   type: 'outlook',
   name: 'Outlook',
-  description: 'Access Outlook',
+  description: 'Send, read, draft, forward, and move Outlook email messages',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Outlook into the workflow. Can read, draft, and send email messages. Can be used in trigger mode to trigger a workflow when a new email is received.',
+    'Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.',
   docsLink: 'https://docs.sim.ai/tools/outlook',
   category: 'tools',
   triggerAllowed: true,
@@ -20,12 +21,16 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Send Email', id: 'send_outlook' },
         { label: 'Draft Email', id: 'draft_outlook' },
         { label: 'Read Email', id: 'read_outlook' },
         { label: 'Forward Email', id: 'forward_outlook' },
+        { label: 'Move Email', id: 'move_outlook' },
+        { label: 'Mark as Read', id: 'mark_read_outlook' },
+        { label: 'Mark as Unread', id: 'mark_unread_outlook' },
+        { label: 'Delete Email', id: 'delete_outlook' },
+        { label: 'Copy Email', id: 'copy_outlook' },
       ],
       value: () => 'send_outlook',
     },
@@ -33,7 +38,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
-      layout: 'full',
       provider: 'outlook',
       serviceId: 'outlook',
       requiredScopes: [
@@ -53,7 +57,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'to',
       title: 'To',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Recipient email address',
       condition: {
         field: 'operation',
@@ -65,7 +68,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'messageId',
       title: 'Message ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Message ID to forward',
       condition: { field: 'operation', value: ['forward_outlook'] },
       required: true,
@@ -74,7 +76,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'comment',
       title: 'Comment',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Optional comment to include when forwarding',
       condition: { field: 'operation', value: ['forward_outlook'] },
       required: false,
@@ -83,7 +84,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'subject',
       title: 'Subject',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Email subject',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
       required: true,
@@ -92,17 +92,27 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'body',
       title: 'Body',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Email content',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
       required: true,
+    },
+    {
+      id: 'contentType',
+      title: 'Content Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Plain Text', id: 'text' },
+        { label: 'HTML', id: 'html' },
+      ],
+      condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      value: () => 'text',
+      required: false,
     },
     // File upload (basic mode)
     {
       id: 'attachmentFiles',
       title: 'Attachments',
       type: 'file-upload',
-      layout: 'full',
       canonicalParamId: 'attachments',
       placeholder: 'Upload files to attach',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
@@ -115,7 +125,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'attachments',
       title: 'Attachments',
       type: 'short-input',
-      layout: 'full',
       canonicalParamId: 'attachments',
       placeholder: 'Reference files from previous blocks',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
@@ -127,7 +136,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'replyToMessageId',
       title: 'Reply to Message ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Message ID to reply to (for threading)',
       condition: { field: 'operation', value: ['send_outlook'] },
       mode: 'advanced',
@@ -137,7 +145,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'conversationId',
       title: 'Conversation ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Conversation ID for threading',
       condition: { field: 'operation', value: ['send_outlook'] },
       mode: 'advanced',
@@ -148,7 +155,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'cc',
       title: 'CC',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'CC recipients (comma-separated)',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
       mode: 'advanced',
@@ -158,7 +164,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'bcc',
       title: 'BCC',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'BCC recipients (comma-separated)',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
       mode: 'advanced',
@@ -169,7 +174,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'folder',
       title: 'Folder',
       type: 'folder-selector',
-      layout: 'full',
       canonicalParamId: 'folder',
       provider: 'outlook',
       serviceId: 'outlook',
@@ -184,7 +188,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'manualFolder',
       title: 'Folder',
       type: 'short-input',
-      layout: 'full',
       canonicalParamId: 'folder',
       placeholder: 'Enter Outlook folder name (e.g., INBOX, SENT, or custom folder)',
       mode: 'advanced',
@@ -194,7 +197,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'maxResults',
       title: 'Number of Emails',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Number of emails to retrieve (default: 1, max: 10)',
       condition: { field: 'operation', value: 'read_outlook' },
     },
@@ -202,21 +204,104 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'includeAttachments',
       title: 'Include Attachments',
       type: 'switch',
-      layout: 'full',
       condition: { field: 'operation', value: 'read_outlook' },
     },
-    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
+    // Move Email Fields
     {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'outlook',
-      availableTriggers: ['outlook_poller'],
+      id: 'moveMessageId',
+      title: 'Message ID',
+      type: 'short-input',
+      placeholder: 'ID of the email to move',
+      condition: { field: 'operation', value: 'move_outlook' },
+      required: true,
     },
+    // Destination folder selector (basic mode)
+    {
+      id: 'destinationFolder',
+      title: 'Move To Folder',
+      type: 'folder-selector',
+      canonicalParamId: 'destinationId',
+      provider: 'outlook',
+      serviceId: 'outlook',
+      requiredScopes: ['Mail.ReadWrite', 'Mail.ReadBasic', 'Mail.Read'],
+      placeholder: 'Select destination folder',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'move_outlook' },
+      required: true,
+    },
+    // Manual destination folder input (advanced mode)
+    {
+      id: 'manualDestinationFolder',
+      title: 'Move To Folder',
+      type: 'short-input',
+      canonicalParamId: 'destinationId',
+      placeholder: 'Enter folder ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'move_outlook' },
+      required: true,
+    },
+    // Mark as Read/Unread, Delete - Message ID field
+    {
+      id: 'actionMessageId',
+      title: 'Message ID',
+      type: 'short-input',
+      placeholder: 'ID of the email',
+      condition: {
+        field: 'operation',
+        value: ['mark_read_outlook', 'mark_unread_outlook', 'delete_outlook'],
+      },
+      required: true,
+    },
+    // Copy Email - Message ID field
+    {
+      id: 'copyMessageId',
+      title: 'Message ID',
+      type: 'short-input',
+      placeholder: 'ID of the email to copy',
+      condition: { field: 'operation', value: 'copy_outlook' },
+      required: true,
+    },
+    // Copy Email - Destination folder selector (basic mode)
+    {
+      id: 'copyDestinationFolder',
+      title: 'Copy To Folder',
+      type: 'folder-selector',
+      canonicalParamId: 'copyDestinationId',
+      provider: 'outlook',
+      serviceId: 'outlook',
+      requiredScopes: ['Mail.ReadWrite', 'Mail.ReadBasic', 'Mail.Read'],
+      placeholder: 'Select destination folder',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'copy_outlook' },
+      required: true,
+    },
+    // Copy Email - Manual destination folder input (advanced mode)
+    {
+      id: 'manualCopyDestinationFolder',
+      title: 'Copy To Folder',
+      type: 'short-input',
+      canonicalParamId: 'copyDestinationId',
+      placeholder: 'Enter folder ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'copy_outlook' },
+      required: true,
+    },
+    ...getTrigger('outlook_poller').subBlocks,
   ],
   tools: {
-    access: ['outlook_send', 'outlook_draft', 'outlook_read', 'outlook_forward'],
+    access: [
+      'outlook_send',
+      'outlook_draft',
+      'outlook_read',
+      'outlook_forward',
+      'outlook_move',
+      'outlook_mark_read',
+      'outlook_mark_unread',
+      'outlook_delete',
+      'outlook_copy',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -228,12 +313,34 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
             return 'outlook_draft'
           case 'forward_outlook':
             return 'outlook_forward'
+          case 'move_outlook':
+            return 'outlook_move'
+          case 'mark_read_outlook':
+            return 'outlook_mark_read'
+          case 'mark_unread_outlook':
+            return 'outlook_mark_unread'
+          case 'delete_outlook':
+            return 'outlook_delete'
+          case 'copy_outlook':
+            return 'outlook_copy'
           default:
             throw new Error(`Invalid Outlook operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { credential, folder, manualFolder, ...rest } = params
+        const {
+          credential,
+          folder,
+          manualFolder,
+          destinationFolder,
+          manualDestinationFolder,
+          moveMessageId,
+          actionMessageId,
+          copyMessageId,
+          copyDestinationFolder,
+          manualCopyDestinationFolder,
+          ...rest
+        } = params
 
         // Handle both selector and manual folder input
         const effectiveFolder = (folder || manualFolder || '').trim()
@@ -242,9 +349,40 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           rest.folder = effectiveFolder || 'INBOX'
         }
 
+        // Handle move operation
+        if (rest.operation === 'move_outlook') {
+          if (moveMessageId) {
+            rest.messageId = moveMessageId
+          }
+          if (!rest.destinationId) {
+            rest.destinationId = (destinationFolder || manualDestinationFolder || '').trim()
+          }
+        }
+
+        if (
+          ['mark_read_outlook', 'mark_unread_outlook', 'delete_outlook'].includes(rest.operation)
+        ) {
+          if (actionMessageId) {
+            rest.messageId = actionMessageId
+          }
+        }
+
+        if (rest.operation === 'copy_outlook') {
+          if (copyMessageId) {
+            rest.messageId = copyMessageId
+          }
+          // Handle copyDestinationId (from UI canonical param) or destinationId (from trigger)
+          if (rest.copyDestinationId) {
+            rest.destinationId = rest.copyDestinationId
+            rest.copyDestinationId = undefined
+          } else if (!rest.destinationId) {
+            rest.destinationId = (copyDestinationFolder || manualCopyDestinationFolder || '').trim()
+          }
+        }
+
         return {
           ...rest,
-          credential, // Keep the credential parameter
+          credential,
         }
       },
     },
@@ -256,8 +394,9 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email content' },
+    contentType: { type: 'string', description: 'Content type (Text or HTML)' },
     attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    attachments: { type: 'json', description: 'Files to attach (UserFile array)' },
+    attachments: { type: 'array', description: 'Files to attach (UserFile array)' },
     // Forward operation inputs
     messageId: { type: 'string', description: 'Message ID to forward' },
     comment: { type: 'string', description: 'Optional comment for forwarding' },
@@ -266,6 +405,20 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     manualFolder: { type: 'string', description: 'Manual folder name' },
     maxResults: { type: 'number', description: 'Maximum emails' },
     includeAttachments: { type: 'boolean', description: 'Include email attachments' },
+    // Move operation inputs
+    moveMessageId: { type: 'string', description: 'Message ID to move' },
+    destinationFolder: { type: 'string', description: 'Destination folder ID' },
+    manualDestinationFolder: { type: 'string', description: 'Manual destination folder ID' },
+    destinationId: { type: 'string', description: 'Destination folder ID for move' },
+    // Action operation inputs
+    actionMessageId: { type: 'string', description: 'Message ID for actions' },
+    copyMessageId: { type: 'string', description: 'Message ID to copy' },
+    copyDestinationFolder: { type: 'string', description: 'Copy destination folder ID' },
+    manualCopyDestinationFolder: {
+      type: 'string',
+      description: 'Manual copy destination folder ID',
+    },
+    copyDestinationId: { type: 'string', description: 'Destination folder ID for copy' },
   },
   outputs: {
     // Common outputs

@@ -4,16 +4,23 @@ title: Webhooks
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
-Les webhooks permettent aux services externes de déclencher l'exécution de flux de travail à partir de webhooks externes en envoyant des requêtes HTTP à votre flux de travail. Sim prend en charge deux approches pour les déclencheurs basés sur les webhooks.
+Les webhooks permettent aux services externes de déclencher l'exécution de flux de travail en envoyant des requêtes HTTP à votre workflow. Sim prend en charge deux approches pour les déclencheurs basés sur les webhooks.
 
 ## Déclencheur de webhook générique
 
 Le bloc Webhook générique crée un point de terminaison flexible qui peut recevoir n'importe quelle charge utile et déclencher votre flux de travail :
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="webhooks-1.mp4" width={700} height={450} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Configuration de webhook générique"
+    width={500}
+    height={400}
+    className="my-6"
+  />
 </div>
 
 ### Comment ça fonctionne
@@ -68,17 +75,33 @@ Alternativement, vous pouvez utiliser des blocs de service spécifiques (comme S
 
 ## Services pris en charge pour le mode déclencheur
 
-Les blocs de service suivants prennent en charge le mode déclencheur :
+**Développement et gestion de projet**
+- GitHub - Problèmes, PRs, pushes, releases, exécutions de workflow
+- Jira - Événements liés aux tickets, journaux de travail
+- Linear - Problèmes, commentaires, projets, cycles, étiquettes
 
-- **Slack** - Messages, mentions, réactions
-- **GitHub** - Événements de push, PR, problèmes  
-- **Airtable** - Modifications d'enregistrements
-- **Telegram** - Messages et commandes de bot
-- **Gmail** - Notifications par e-mail
-- **WhatsApp** - Événements de messagerie
-- **Jira** - Mises à jour de tickets, commentaires
-- **Linear** - Changements d'état des tickets
-- **Notion** - Mises à jour de pages
+**Communication**
+- Slack - Messages, mentions, réactions
+- Microsoft Teams - Messages de chat, notifications de canal
+- Telegram - Messages de bot, commandes
+- WhatsApp - Événements de messagerie
+
+**Email**
+- Gmail - Nouveaux emails (interrogation), changements d'étiquettes
+- Outlook - Nouveaux emails (interrogation), événements de dossier
+
+**CRM et ventes**
+- HubSpot - Contacts, entreprises, affaires, tickets, conversations
+- Stripe - Paiements, abonnements, clients
+
+**Formulaires et sondages**
+- Typeform - Soumissions de formulaires
+- Google Forms - Réponses aux formulaires
+- Webflow - Éléments de collection, soumissions de formulaires
+
+**Autres**
+- Airtable - Modifications d'enregistrements
+- Twilio Voice - Appels entrants, statut d'appel
 
 ## Sécurité et bonnes pratiques
 
@@ -87,18 +110,18 @@ Les blocs de service suivants prennent en charge le mode déclencheur :
 - **Jetons Bearer** : Inclure l'en-tête `Authorization: Bearer <token>`
 - **En-têtes personnalisés** : Définir des en-têtes d'authentification personnalisés
 
-### Gestion de la charge utile
+### Gestion des charges utiles
 
-- **Validation** : Validez les charges utiles entrantes pour éviter les données mal formées
+- **Validation** : Valider les charges utiles entrantes pour éviter les données mal formées
 - **Limites de taille** : Les webhooks ont des limites de taille de charge utile pour la sécurité
-- **Gestion des erreurs** : Configurez les réponses d'erreur pour les requêtes invalides
+- **Gestion des erreurs** : Configurer les réponses d'erreur pour les requêtes invalides
 
-### Tester les webhooks
+### Test des webhooks
 
-1. Utilisez des outils comme Postman ou curl pour tester vos points de terminaison webhook
-2. Vérifiez les journaux d'exécution des workflows pour le débogage
-3. Vérifiez que la structure de la charge utile correspond à vos attentes
-4. Testez l'authentification et les scénarios d'erreur
+1. Utiliser des outils comme Postman ou curl pour tester vos points de terminaison webhook
+2. Vérifier les journaux d'exécution du workflow pour le débogage
+3. Vérifier que la structure de la charge utile correspond à vos attentes
+4. Tester les scénarios d'authentification et d'erreur
 
 <Callout type="warning">
 Validez et assainissez toujours les données webhook entrantes avant de les traiter dans vos workflows.
@@ -108,16 +131,16 @@ Validez et assainissez toujours les données webhook entrantes avant de les trai
 
 ### Notifications en temps réel
 - Messages Slack déclenchant des réponses automatisées
-- Notifications par e-mail pour les événements critiques
+- Notifications par email pour les événements critiques
 
 ### Intégration CI/CD  
-- Pushes GitHub déclenchant des workflows de déploiement
+- Déploiements automatisés déclenchés par des push GitHub
 - Mises à jour du statut de build
 - Pipelines de tests automatisés
 
 ### Synchronisation des données
-- Modifications Airtable mettant à jour d'autres systèmes
-- Soumissions de formulaires déclenchant des actions de suivi
+- Mise à jour d'autres systèmes suite aux changements dans Airtable
+- Actions de suivi déclenchées par des soumissions de formulaires
 - Traitement des commandes e-commerce
 
 ### Support client

@@ -34,51 +34,61 @@ function ExpandableDataSection({ title, data }: { title: string; data: any }) {
   return (
     <>
       <div>
-        <div className='mb-2 flex items-center justify-between'>
-          <h4 className='font-medium text-foreground text-sm'>{title}</h4>
-          <div className='flex items-center gap-1'>
+        <div className='mb-[8px] flex items-center justify-between'>
+          <h4 className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+            {title}
+          </h4>
+          <div className='flex items-center gap-[4px]'>
             {isLargeData && (
               <button
                 onClick={() => setIsModalOpen(true)}
-                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground'
+                className='p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--border)] hover:text-[var(--text-primary)] dark:text-[var(--text-secondary)] dark:hover:bg-[var(--border)] dark:hover:text-[var(--text-primary)]'
                 title='Expand in modal'
               >
-                <Maximize2 className='h-3 w-3' />
+                <Maximize2 className='h-[12px] w-[12px]' />
               </button>
             )}
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground'
+              className='rounded-[4px] p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--border)] hover:text-[var(--text-primary)] dark:text-[var(--text-secondary)] dark:hover:bg-[var(--border)] dark:hover:text-[var(--text-primary)]'
             >
-              {isExpanded ? <ChevronUp className='h-3 w-3' /> : <ChevronDown className='h-3 w-3' />}
+              {isExpanded ? (
+                <ChevronUp className='h-[12px] w-[12px]' />
+              ) : (
+                <ChevronDown className='h-[12px] w-[12px]' />
+              )}
             </button>
           </div>
         </div>
         <div
           className={cn(
-            'overflow-y-auto rounded bg-muted p-3 font-mono text-xs transition-all duration-200',
+            'overflow-y-auto bg-[var(--surface-5)] p-[12px] font-mono text-[12px] transition-all duration-200',
             isExpanded ? 'max-h-96' : 'max-h-32'
           )}
         >
-          <pre className='whitespace-pre-wrap break-words text-foreground'>{jsonString}</pre>
+          <pre className='whitespace-pre-wrap break-words text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+            {jsonString}
+          </pre>
         </div>
       </div>
 
       {/* Modal for large data */}
       {isModalOpen && (
         <div className='fixed inset-0 z-[200] flex items-center justify-center bg-black/50'>
-          <div className='mx-4 h-[80vh] w-full max-w-4xl rounded-lg border bg-background shadow-lg'>
-            <div className='flex items-center justify-between border-b p-4'>
-              <h3 className='font-medium text-foreground text-lg'>{title}</h3>
+          <div className='mx-[16px] h-[80vh] w-full max-w-4xl border bg-[var(--surface-1)] shadow-lg dark:border-[var(--border)] dark:bg-[var(--surface-1)]'>
+            <div className='flex items-center justify-between border-b p-[16px] dark:border-[var(--border)]'>
+              <h3 className='font-medium text-[15px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                {title}
+              </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground'
+                className='p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--border)] hover:text-[var(--text-primary)] dark:text-[var(--text-secondary)] dark:hover:bg-[var(--border)] dark:hover:text-[var(--text-primary)]'
               >
-                <X className='h-4 w-4' />
+                <X className='h-[14px] w-[14px]' />
               </button>
             </div>
-            <div className='h-[calc(80vh-4rem)] overflow-auto p-4'>
-              <pre className='whitespace-pre-wrap break-words font-mono text-foreground text-sm'>
+            <div className='h-[calc(80vh-4rem)] overflow-auto p-[16px]'>
+              <pre className='whitespace-pre-wrap break-words font-mono text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
                 {jsonString}
               </pre>
             </div>
@@ -184,28 +194,31 @@ function PinnedLogs({
     }
 
     return (
-      <Card className='fixed top-4 right-4 z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto border-border bg-background shadow-lg'>
-        <CardHeader className='pb-3'>
+      <Card className='fixed top-[16px] right-[16px] z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto border bg-[var(--surface-1)] shadow-lg dark:border-[var(--border)] dark:bg-[var(--surface-1)]'>
+        <CardHeader className='pb-[12px]'>
           <div className='flex items-center justify-between'>
-            <CardTitle className='flex items-center gap-2 text-foreground text-lg'>
-              <Zap className='h-5 w-5' />
+            <CardTitle className='flex items-center gap-[8px] text-[15px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+              <Zap className='h-[16px] w-[16px]' />
               {formatted.blockName}
             </CardTitle>
-            <button onClick={onClose} className='rounded-sm p-1 text-foreground hover:bg-muted'>
-              <X className='h-4 w-4' />
+            <button
+              onClick={onClose}
+              className='rounded-[4px] p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--border)] dark:text-[var(--text-secondary)] dark:hover:bg-[var(--border)]'
+            >
+              <X className='h-[14px] w-[14px]' />
             </button>
           </div>
           <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-2'>
+            <div className='flex items-center gap-[8px]'>
               <Badge variant='secondary'>{formatted.blockType}</Badge>
               <Badge variant='outline'>not executed</Badge>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className='space-y-4'>
-          <div className='rounded-md bg-muted/50 p-4 text-center'>
-            <div className='text-muted-foreground text-sm'>
+        <CardContent className='space-y-[16px]'>
+          <div className='bg-[var(--surface-5)] p-[16px] text-center'>
+            <div className='text-[13px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
               This block was not executed because the workflow failed before reaching it.
             </div>
           </div>
@@ -236,19 +249,22 @@ function PinnedLogs({
   }
 
   return (
-    <Card className='fixed top-4 right-4 z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto border-border bg-background shadow-lg'>
-      <CardHeader className='pb-3'>
+    <Card className='fixed top-[16px] right-[16px] z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto rounded-[14px] border bg-[var(--surface-1)] shadow-lg dark:border-[var(--border)] dark:bg-[var(--surface-1)]'>
+      <CardHeader className='pb-[12px]'>
         <div className='flex items-center justify-between'>
-          <CardTitle className='flex items-center gap-2 text-foreground text-lg'>
-            <Zap className='h-5 w-5' />
+          <CardTitle className='flex items-center gap-[8px] text-[15px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+            <Zap className='h-[16px] w-[16px]' />
             {formatted.blockName}
           </CardTitle>
-          <button onClick={onClose} className='rounded-sm p-1 text-foreground hover:bg-muted'>
-            <X className='h-4 w-4' />
+          <button
+            onClick={onClose}
+            className='rounded-[4px] p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--border)] dark:text-[var(--text-secondary)] dark:hover:bg-[var(--border)]'
+          >
+            <X className='h-[14px] w-[14px]' />
           </button>
         </div>
         <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
+          <div className='flex items-center gap-[8px]'>
             <Badge variant={formatted.status === 'success' ? 'default' : 'destructive'}>
               {formatted.blockType}
             </Badge>
@@ -257,15 +273,15 @@ function PinnedLogs({
 
           {/* Iteration Navigation */}
           {iterationInfo.hasMultipleIterations && (
-            <div className='flex items-center gap-1'>
+            <div className='flex items-center gap-[4px]'>
               <button
                 onClick={goToPreviousIteration}
                 disabled={currentIterationIndex === 0}
-                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50'
+                className='rounded-[4px] p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--border)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50 dark:text-[var(--text-secondary)] dark:hover:bg-[var(--border)] dark:hover:text-[var(--text-primary)]'
               >
-                <ChevronLeft className='h-4 w-4' />
+                <ChevronLeft className='h-[14px] w-[14px]' />
               </button>
-              <span className='px-2 text-muted-foreground text-xs'>
+              <span className='px-[8px] text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
                 {iterationInfo.totalIterations !== undefined
                   ? `${currentIterationIndex + 1} / ${iterationInfo.totalIterations}`
                   : `${currentIterationIndex + 1}`}
@@ -273,33 +289,39 @@ function PinnedLogs({
               <button
                 onClick={goToNextIteration}
                 disabled={currentIterationIndex === totalIterations - 1}
-                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50'
+                className='rounded-[4px] p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--border)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50 dark:text-[var(--text-secondary)] dark:hover:bg-[var(--border)] dark:hover:text-[var(--text-primary)]'
               >
-                <ChevronRight className='h-4 w-4' />
+                <ChevronRight className='h-[14px] w-[14px]' />
               </button>
             </div>
           )}
         </div>
       </CardHeader>
 
-      <CardContent className='space-y-4'>
-        <div className='grid grid-cols-2 gap-4'>
-          <div className='flex items-center gap-2'>
-            <Clock className='h-4 w-4 text-muted-foreground' />
-            <span className='text-foreground text-sm'>{formatted.duration}</span>
+      <CardContent className='space-y-[16px]'>
+        <div className='grid grid-cols-2 gap-[16px]'>
+          <div className='flex items-center gap-[8px]'>
+            <Clock className='h-[14px] w-[14px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]' />
+            <span className='text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+              {formatted.duration}
+            </span>
           </div>
 
           {formatted.cost && formatted.cost.total > 0 && (
-            <div className='flex items-center gap-2'>
-              <DollarSign className='h-4 w-4 text-muted-foreground' />
-              <span className='text-foreground text-sm'>${formatted.cost.total.toFixed(5)}</span>
+            <div className='flex items-center gap-[8px]'>
+              <DollarSign className='h-[14px] w-[14px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]' />
+              <span className='text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                ${formatted.cost.total.toFixed(5)}
+              </span>
             </div>
           )}
 
           {formatted.tokens && formatted.tokens.total > 0 && (
-            <div className='flex items-center gap-2'>
-              <Hash className='h-4 w-4 text-muted-foreground' />
-              <span className='text-foreground text-sm'>{formatted.tokens.total} tokens</span>
+            <div className='flex items-center gap-[8px]'>
+              <Hash className='h-[14px] w-[14px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]' />
+              <span className='text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                {formatted.tokens.total} tokens
+              </span>
             </div>
           )}
         </div>
@@ -310,17 +332,19 @@ function PinnedLogs({
 
         {formatted.cost && formatted.cost.total > 0 && (
           <div>
-            <h4 className='mb-2 font-medium text-foreground text-sm'>Cost Breakdown</h4>
-            <div className='space-y-1 text-sm'>
-              <div className='flex justify-between text-foreground'>
+            <h4 className='mb-[8px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+              Cost Breakdown
+            </h4>
+            <div className='space-y-[4px] text-[13px]'>
+              <div className='flex justify-between text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
                 <span>Input:</span>
                 <span>${formatted.cost.input.toFixed(5)}</span>
               </div>
-              <div className='flex justify-between text-foreground'>
+              <div className='flex justify-between text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
                 <span>Output:</span>
                 <span>${formatted.cost.output.toFixed(5)}</span>
               </div>
-              <div className='flex justify-between border-border border-t pt-1 font-medium text-foreground'>
+              <div className='flex justify-between border-t pt-[4px] font-medium text-[var(--text-primary)] dark:border-[var(--border)] dark:text-[var(--text-primary)]'>
                 <span>Total:</span>
                 <span>${formatted.cost.total.toFixed(5)}</span>
               </div>
@@ -330,17 +354,19 @@ function PinnedLogs({
 
         {formatted.tokens && formatted.tokens.total > 0 && (
           <div>
-            <h4 className='mb-2 font-medium text-foreground text-sm'>Token Usage</h4>
-            <div className='space-y-1 text-sm'>
-              <div className='flex justify-between text-foreground'>
+            <h4 className='mb-[8px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+              Token Usage
+            </h4>
+            <div className='space-y-[4px] text-[13px]'>
+              <div className='flex justify-between text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
                 <span>Prompt:</span>
                 <span>{formatted.tokens.prompt}</span>
               </div>
-              <div className='flex justify-between text-foreground'>
+              <div className='flex justify-between text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
                 <span>Completion:</span>
                 <span>{formatted.tokens.completion}</span>
               </div>
-              <div className='flex justify-between border-border border-t pt-1 font-medium text-foreground'>
+              <div className='flex justify-between border-t pt-[4px] font-medium text-[var(--text-primary)] dark:border-[var(--border)] dark:text-[var(--text-primary)]'>
                 <span>Total:</span>
                 <span>{formatted.tokens.total}</span>
               </div>
@@ -527,9 +553,9 @@ export function FrozenCanvas({
   if (loading) {
     return (
       <div className={cn('flex items-center justify-center', className)} style={{ height, width }}>
-        <div className='flex items-center gap-2 text-muted-foreground'>
-          <Loader2 className='h-5 w-5 animate-spin' />
-          <span>Loading frozen canvas...</span>
+        <div className='flex items-center gap-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+          <Loader2 className='h-[16px] w-[16px] animate-spin' />
+          <span className='text-[13px]'>Loading frozen canvas...</span>
         </div>
       </div>
     )
@@ -538,9 +564,9 @@ export function FrozenCanvas({
   if (error) {
     return (
       <div className={cn('flex items-center justify-center', className)} style={{ height, width }}>
-        <div className='flex items-center gap-2 text-destructive'>
-          <AlertCircle className='h-5 w-5' />
-          <span>Failed to load frozen canvas: {error}</span>
+        <div className='flex items-center gap-[8px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
+          <AlertCircle className='h-[16px] w-[16px]' />
+          <span className='text-[13px]'>Failed to load frozen canvas: {error}</span>
         </div>
       </div>
     )
@@ -549,7 +575,9 @@ export function FrozenCanvas({
   if (!data) {
     return (
       <div className={cn('flex items-center justify-center', className)} style={{ height, width }}>
-        <div className='text-muted-foreground'>No data available</div>
+        <div className='text-[13px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+          No data available
+        </div>
       </div>
     )
   }
@@ -559,18 +587,18 @@ export function FrozenCanvas({
   if (isMigratedLog) {
     return (
       <div
-        className={cn('flex flex-col items-center justify-center gap-4 p-8', className)}
+        className={cn('flex flex-col items-center justify-center gap-[16px] p-[32px]', className)}
         style={{ height, width }}
       >
-        <div className='flex items-center gap-3 text-amber-600 dark:text-amber-400'>
-          <AlertCircle className='h-6 w-6' />
-          <span className='font-medium text-lg'>Logged State Not Found</span>
+        <div className='flex items-center gap-[12px] text-amber-600 dark:text-amber-400'>
+          <AlertCircle className='h-[20px] w-[20px]' />
+          <span className='font-medium text-[15px]'>Logged State Not Found</span>
         </div>
-        <div className='max-w-md text-center text-muted-foreground text-sm'>
+        <div className='max-w-md text-center text-[13px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
           This log was migrated from the old logging system. The workflow state at execution time is
           not available.
         </div>
-        <div className='text-muted-foreground text-xs'>
+        <div className='text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
           Note: {(data.workflowState as any)?._note}
         </div>
       </div>

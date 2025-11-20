@@ -8,37 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="tavily"
   color="#0066FF"
-  icon={true}
-  iconSvg={`<svg className="block-icon" viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg' >
-      <path
-        d='M432 291C415 294 418 313 417 326C380 328 342 327 306 328C316 344 312 368 301 381C339 384 377 383 414 384C419 393 415 404 419 412C424 419 431 422 437 421C554 393 539 314 425 290'
-        fill='rgb(248,202,81)'
-      />
-      <path
-        d='M263 87C260 88 257 89 255 93C237 121 219 147 204 174C203 184 206 191 212 195C222 198 231 196 239 197C241 238 240 277 241 316C257 307 276 309 294 308C296 273 295 234 296 199C309 196 328 200 333 183C314 149 299 103 267 83'
-        fill='rgb(109,164,249)'
-      />
-      <path
-        d='M314 356L316 354C386 355 457 354 527 355C504 385 469 400 440 421C431 421 424 418 421 411C415 402 420 389 416 383C384 371 284 406 312 358'
-        fill='rgb(250,188,28)'
-      />
-      <path
-        d='M314 356C281 405 384 369 410 384C422 388 415 402 421 409C425 417 431 420 437 420C469 400 504 384 529 360C456 355 386 356 317 355'
-        fill='rgb(251,186,23)'
-      />
-      <path
-        d='M264 325C271 325 290 329 283 339C236 384 186 436 139 482C133 481 133 477 131 474C133 477 133 481 135 482C174 490 213 472 250 466C261 447 246 435 235 426C254 406 271 389 289 372C303 352 287 324 266 326'
-        fill='rgb(251,156,158)'
-      />
-      <path
-        d='M263 327C260 328 256 328 253 330C233 348 216 367 197 384C188 381 183 371 175 368C166 367 161 369 156 372C148 409 133 447 133 482C173 430 281 366 277 323'
-        fill='rgb(248,56,63)'
-      />
-      <path
-        d='M258 326C235 341 218 365 198 382C186 376 176 360 161 368L160 369L157 369C149 378 150 391 146 401C150 391 149 379 157 370C174 359 185 376 195 385C219 365 238 337 262 325'
-        fill='rgb(242,165,165)'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -71,6 +40,21 @@ Effectuer des recherches web alimentées par l'IA en utilisant Tavily
 | --------- | ---- | ---------- | ----------- |
 | `query` | chaîne | Oui | La requête de recherche à exécuter |
 | `max_results` | nombre | Non | Nombre maximum de résultats \(1-20\) |
+| `topic` | chaîne | Non | Type de catégorie : general, news, ou finance \(par défaut : general\) |
+| `search_depth` | chaîne | Non | Portée de recherche : basic \(1 crédit\) ou advanced \(2 crédits\) \(par défaut : basic\) |
+| `include_answer` | chaîne | Non | Réponse générée par LLM : true/basic pour une réponse rapide ou advanced pour détaillée |
+| `include_raw_content` | chaîne | Non | Contenu HTML analysé : true/markdown ou format texte |
+| `include_images` | booléen | Non | Inclure les résultats de recherche d'images |
+| `include_image_descriptions` | booléen | Non | Ajouter du texte descriptif pour les images |
+| `include_favicon` | booléen | Non | Inclure les URLs des favicons |
+| `chunks_per_source` | nombre | Non | Nombre maximum de fragments pertinents par source \(1-3, par défaut : 3\) |
+| `time_range` | chaîne | Non | Filtrer par récence : day/d, week/w, month/m, year/y |
+| `start_date` | chaîne | Non | Date de publication la plus ancienne \(format AAAA-MM-JJ\) |
+| `end_date` | chaîne | Non | Date de publication la plus récente \(format AAAA-MM-JJ\) |
+| `include_domains` | chaîne | Non | Liste de domaines autorisés séparés par des virgules \(max 300\) |
+| `exclude_domains` | chaîne | Non | Liste de domaines exclus séparés par des virgules \(max 150\) |
+| `country` | chaîne | Non | Favoriser les résultats d'un pays spécifié \(sujet général uniquement\) |
+| `auto_parameters` | booléen | Non | Configuration automatique des paramètres basée sur l'intention de la requête |
 | `apiKey` | chaîne | Oui | Clé API Tavily |
 
 #### Sortie
@@ -88,8 +72,11 @@ Extraire le contenu brut de plusieurs pages web simultanément en utilisant Tavi
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
-| `urls` | chaîne | Oui | URL ou tableau d'URLs dont extraire le contenu |
-| `extract_depth` | chaîne | Non | La profondeur d'extraction \(basique=1 crédit/5 URLs, avancée=2 crédits/5 URLs\) |
+| `urls` | chaîne | Oui | URL ou tableau d'URLs pour extraire le contenu |
+| `extract_depth` | chaîne | Non | La profondeur d'extraction \(basic=1 crédit/5 URLs, advanced=2 crédits/5 URLs\) |
+| `format` | chaîne | Non | Format de sortie : markdown ou text \(par défaut : markdown\) |
+| `include_images` | booléen | Non | Incorporer des images dans le résultat d'extraction |
+| `include_favicon` | booléen | Non | Ajouter l'URL du favicon pour chaque résultat |
 | `apiKey` | chaîne | Oui | Clé API Tavily |
 
 #### Sortie
@@ -97,6 +84,64 @@ Extraire le contenu brut de plusieurs pages web simultanément en utilisant Tavi
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | tableau | L'URL qui a été extraite |
+
+### `tavily_crawl`
+
+Explorer et extraire systématiquement le contenu des sites web en utilisant Tavily
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `url` | chaîne | Oui | L'URL racine pour commencer l'exploration |
+| `instructions` | chaîne | Non | Instructions en langage naturel pour le crawler \(coûte 2 crédits par 10 pages\) |
+| `max_depth` | nombre | Non | Distance d'exploration depuis l'URL de base \(1-5, par défaut : 1\) |
+| `max_breadth` | nombre | Non | Liens suivis par niveau de page \(≥1, par défaut : 20\) |
+| `limit` | nombre | Non | Total des liens traités avant l'arrêt \(≥1, par défaut : 50\) |
+| `select_paths` | chaîne | Non | Modèles regex séparés par des virgules pour inclure des chemins d'URL spécifiques \(ex. : /docs/.*\) |
+| `select_domains` | chaîne | Non | Modèles regex séparés par des virgules pour restreindre l'exploration à certains domaines |
+| `exclude_paths` | chaîne | Non | Modèles regex séparés par des virgules pour ignorer des chemins d'URL spécifiques |
+| `exclude_domains` | chaîne | Non | Modèles regex séparés par des virgules pour bloquer certains domaines |
+| `allow_external` | booléen | Non | Inclure les liens de domaines externes dans les résultats \(par défaut : true\) |
+| `include_images` | booléen | Non | Incorporer des images dans le résultat d'exploration |
+| `extract_depth` | chaîne | Non | Profondeur d'extraction : basic \(1 crédit/5 pages\) ou advanced \(2 crédits/5 pages\) |
+| `format` | chaîne | Non | Format de sortie : markdown ou text \(par défaut : markdown\) |
+| `include_favicon` | booléen | Non | Ajouter l'URL du favicon pour chaque résultat |
+| `apiKey` | chaîne | Oui | Clé API Tavily |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `base_url` | chaîne | L'URL de base qui a été explorée |
+| `results` | tableau | L'URL de la page explorée |
+
+### `tavily_map`
+
+Découvrir et visualiser la structure d'un site web avec Tavily
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `url` | chaîne | Oui | L'URL racine pour commencer la cartographie |
+| `instructions` | chaîne | Non | Instructions en langage naturel pour le comportement de cartographie \(coûte 2 crédits par 10 pages\) |
+| `max_depth` | nombre | Non | Distance d'exploration depuis l'URL de base \(1-5, par défaut : 1\) |
+| `max_breadth` | nombre | Non | Liens à suivre par niveau \(par défaut : 20\) |
+| `limit` | nombre | Non | Nombre total de liens à traiter \(par défaut : 50\) |
+| `select_paths` | chaîne | Non | Motifs regex séparés par des virgules pour le filtrage des chemins d'URL \(ex. : /docs/.*\) |
+| `select_domains` | chaîne | Non | Motifs regex séparés par des virgules pour restreindre la cartographie à des domaines spécifiques |
+| `exclude_paths` | chaîne | Non | Motifs regex séparés par des virgules pour exclure des chemins d'URL spécifiques |
+| `exclude_domains` | chaîne | Non | Motifs regex séparés par des virgules pour exclure des domaines |
+| `allow_external` | booléen | Non | Inclure les liens de domaines externes dans les résultats \(par défaut : true\) |
+| `apiKey` | chaîne | Oui | Clé API Tavily |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `base_url` | chaîne | L'URL de base qui a été cartographiée |
+| `results` | tableau | URL découverte |
 
 ## Notes
 

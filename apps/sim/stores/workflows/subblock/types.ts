@@ -1,5 +1,9 @@
 export interface SubBlockState {
   workflowValues: Record<string, Record<string, Record<string, any>>> // Store values per workflow ID
+  loadingWebhooks: Set<string> // Track which blockIds are currently loading webhooks
+  checkedWebhooks: Set<string> // Track which blockIds have been checked for webhooks
+  loadingSchedules: Set<string> // Track which blockIds are currently loading schedules
+  checkedSchedules: Set<string> // Track which blockIds have been checked for schedules
 }
 
 export interface SubBlockStore extends SubBlockState {
@@ -7,6 +11,4 @@ export interface SubBlockStore extends SubBlockState {
   getValue: (blockId: string, subBlockId: string) => any
   clear: () => void
   initializeFromWorkflow: (workflowId: string, blocks: Record<string, any>) => void
-  // Add debounced sync function
-  syncWithDB: () => void
 }

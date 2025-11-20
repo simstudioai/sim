@@ -23,8 +23,7 @@ export const useWorkflowJsonStore = create<WorkflowJsonStore>()(
       lastGenerated: undefined,
 
       generateJson: () => {
-        // Get the active workflow ID from registry
-        const { activeWorkflowId } = useWorkflowRegistry.getState()
+        const { activeWorkflowId, workflows } = useWorkflowRegistry.getState()
 
         if (!activeWorkflowId) {
           logger.warn('No active workflow to generate JSON for')
@@ -32,7 +31,6 @@ export const useWorkflowJsonStore = create<WorkflowJsonStore>()(
         }
 
         try {
-          // Get the workflow state with merged subblock values
           const workflow = getWorkflowWithValues(activeWorkflowId)
 
           if (!workflow || !workflow.state) {
@@ -40,9 +38,27 @@ export const useWorkflowJsonStore = create<WorkflowJsonStore>()(
             return
           }
 
-          const workflowState = workflow.state
+          const workflowMetadata = workflows[activeWorkflowId]
+          const { useVariablesStore } = require('@/stores/panel/variables/store')
+          const workflowVariables = useVariablesStore
+            .getState()
+            .getVariablesByWorkflowId(activeWorkflowId)
 
-          // Sanitize for export (keeps positions, removes secrets, adds version)
+          const workflowState = {
+            ...workflow.state,
+            metadata: {
+              name: workflowMetadata?.name,
+              description: workflowMetadata?.description,
+              exportedAt: new Date().toISOString(),
+            },
+            variables: workflowVariables.map((v: any) => ({
+              id: v.id,
+              name: v.name,
+              type: v.type,
+              value: v.value,
+            })),
+          }
+
           const exportState: ExportWorkflowState = sanitizeForExport(workflowState)
 
           // Convert to formatted JSON

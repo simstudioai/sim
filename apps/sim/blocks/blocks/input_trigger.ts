@@ -8,8 +8,8 @@ const InputTriggerIcon = (props: SVGProps<SVGSVGElement>) => createElement(FormI
 export const InputTriggerBlock: BlockConfig = {
   type: 'input_trigger',
   triggerAllowed: true,
-  name: 'Input Form',
-  description: 'Start workflow manually with a defined input schema',
+  name: 'Input Form (Legacy)',
+  description: 'Legacy manual start block with structured input. Prefer Start block.',
   longDescription:
     'Manually trigger the workflow from the editor with a structured input schema. This enables typed inputs for parent workflows to map into.',
   bestPractices: `
@@ -18,6 +18,7 @@ export const InputTriggerBlock: BlockConfig = {
   - Also used in child workflows to map variables from the parent workflow.
   `,
   category: 'triggers',
+  hideFromToolbar: true,
   bgColor: '#3B82F6',
   icon: InputTriggerIcon,
   subBlocks: [
@@ -25,7 +26,6 @@ export const InputTriggerBlock: BlockConfig = {
       id: 'inputFormat',
       title: 'Input Format',
       type: 'input-format',
-      layout: 'full',
       description: 'Define the JSON input schema for this workflow when run manually.',
     },
   ],

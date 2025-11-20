@@ -3,11 +3,10 @@ title: レスポンス
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-レスポンスブロックはワークフローの最終ステップであり、APIコールに対して構造化されたレスポンスをフォーマットして送信します。これはワークフロー全体の「return」ステートメントのようなもので、結果をパッケージ化して返送します。
+レスポンスブロックは、構造化されたHTTPレスポンスをフォーマットしてAPIコーラーに送り返します。適切なステータスコードとヘッダーを含むワークフローの結果を返すために使用します。
 
 <div className="flex justify-center">
   <Image
@@ -23,97 +22,36 @@ import { Image } from '@/components/ui/image'
   レスポンスブロックは終端ブロックです - ワークフローの実行を終了し、他のブロックに接続することはできません。
 </Callout>
 
-## 概要
-
-レスポンスブロックでは以下のことが可能です：
-
-<Steps>
-  <Step>
-    <strong>APIレスポンスのフォーマット</strong>：ワークフロー結果を適切なHTTPレスポンスに構造化する
-  </Step>
-  <Step>
-    <strong>ステータスコードの設定</strong>：ワークフロー結果に基づいて適切なHTTPステータスコードを設定する
-  </Step>
-  <Step>
-    <strong>ヘッダーの制御</strong>：APIレスポンスとウェブフックにカスタムヘッダーを追加する
-  </Step>
-  <Step>
-    <strong>データの変換</strong>：ワークフロー変数をクライアントフレンドリーなレスポンス形式に変換する
-  </Step>
-</Steps>
-
-## 動作の仕組み
-
-レスポンスブロックはワークフローの実行を完了させます：
-
-1. **データの収集** - 前のブロックからの変数と出力を収集する
-2. **レスポンスのフォーマット** - 設定に従ってデータを構造化する
-3. **HTTP詳細の設定** - ステータスコードとヘッダーを適用する
-4. **レスポンスの送信** - フォーマットされたレスポンスをAPI呼び出し元に返す
-
-## レスポンスブロックが必要な場合
-
-- **APIエンドポイント**：ワークフローがAPI経由で呼び出される場合、レスポンスブロックは返すデータをフォーマットします
-- **ウェブフック**：確認またはデータを呼び出しシステムに返します
-- **テスト**：ワークフローをテストする際にフォーマットされた結果を確認できます
-
-## レスポンスを構築する2つの方法
-
-### ビルダーモード（推奨）
-レスポンス構造を構築するためのビジュアルインターフェース：
-- フィールドのドラッグ＆ドロップ
-- ワークフロー変数の簡単な参照
-- レスポンス構造のビジュアルプレビュー
-
-### エディターモード（上級者向け）
-JSONを直接記述：
-- レスポンス形式の完全な制御
-- 複雑なネスト構造のサポート
-- 動的な値には `<variable.name>` 構文を使用
-
 ## 設定オプション
 
 ### レスポンスデータ
 
-レスポンスデータは、APIの呼び出し元に送り返される主要なコンテンツです。JSONとして形式化され、以下を含めることができます：
+レスポンスデータは、APIコーラーに送り返される主要なコンテンツです。これはJSON形式でフォーマットされ、以下を含むことができます：
 
 - 静的な値
-- `<variable.name>` 構文を使用したワークフロー変数への動的な参照
+- `<variable.name>` 構文を使用したワークフロー変数への動的参照
 - ネストされたオブジェクトと配列
 - 任意の有効なJSON構造
 
 ### ステータスコード
 
-レスポンスのHTTPステータスコードを設定します。一般的なステータスコードには以下があります：
+レスポンスのHTTPステータスコードを設定します（デフォルトは200）：
 
-<Tabs items={['成功 (2xx)', 'クライアントエラー (4xx)', 'サーバーエラー (5xx)']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>200</strong>: OK - 標準的な成功レスポンス</li>
-      <li><strong>201</strong>: Created - リソースが正常に作成された</li>
-      <li><strong>204</strong>: No Content - レスポンス本文のない成功</li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>400</strong>: Bad Request - 無効なリクエストパラメータ</li>
-      <li><strong>401</strong>: Unauthorized - 認証が必要</li>
-      <li><strong>404</strong>: Not Found - リソースが存在しない</li>
-      <li><strong>422</strong>: Unprocessable Entity - バリデーションエラー</li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>500</strong>: Internal Server Error - サーバー側のエラー</li>
-      <li><strong>502</strong>: Bad Gateway - 外部サービスのエラー</li>
-      <li><strong>503</strong>: Service Unavailable - サービスが一時的に利用不可</li>
-    </ul>
-  </Tab>
-</Tabs>
+**成功 (2xx):**
+- **200**: OK - 標準的な成功レスポンス
+- **201**: Created - リソースが正常に作成された
+- **204**: No Content - レスポンス本文のない成功
 
-<div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-  指定されない場合、デフォルトのステータスコードは200です。
-</div>
+**クライアントエラー (4xx):**
+- **400**: Bad Request - 無効なリクエストパラメータ
+- **401**: Unauthorized - 認証が必要
+- **404**: Not Found - リソースが存在しない
+- **422**: Unprocessable Entity - バリデーションエラー
+
+**サーバーエラー (5xx):**
+- **500**: Internal Server Error - サーバー側のエラー
+- **502**: Bad Gateway - 外部サービスのエラー
+- **503**: Service Unavailable - サービスが一時的に利用不可
 
 ### レスポンスヘッダー
 
@@ -129,95 +67,31 @@ JSONを直接記述：
 
 ## 使用例
 
-### APIエンドポイントのレスポンス
+**APIエンドポイントレスポンス** - 検索APIから構造化データを返す
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：検索APIから構造化データを返す</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>ワークフローが検索クエリを処理し結果を取得</li>
-    <li>ファンクションブロックが結果をフォーマットしページネーション</li>
-    <li>レスポンスブロックがデータ、ページネーション、メタデータを含むJSONを返す</li>
-    <li>クライアントが200ステータスで構造化レスポンスを受信</li>
-  </ol>
-</div>
+```
+Agent (Search) → Function (Format & Paginate) → Response (200, JSON)
+```
 
-### Webhook確認
+**Webhookの確認** - Webhookの受信と処理を確認する
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：Webhookの受信と処理を確認</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Webhookトリガーが外部システムからデータを受信</li>
-    <li>ワークフローが受信データを処理</li>
-    <li>レスポンスブロックが処理状況を含む確認を返す</li>
-    <li>外部システムが確認を受信</li>
-  </ol>
-</div>
+```
+Webhook Trigger → Function (Process) → Response (200, Confirmation)
+```
 
-### エラーレスポンスの処理
+**エラーレスポンス処理** - 適切なエラーレスポンスを返す
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：適切なエラーレスポンスを返す</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>条件ブロックがバリデーション失敗またはシステムエラーを検出</li>
-    <li>ルーターがエラー処理パスに誘導</li>
-    <li>レスポンスブロックがエラー詳細とともに400/500ステータスを返す</li>
-    <li>クライアントが構造化されたエラー情報を受信</li>
-  </ol>
-</div>
+```
+Condition (Error Detected) → Router → Response (400/500, Error Details)
+```
 
-## 入力と出力
+## 出力
 
-<Tabs items={['設定', '変数', '結果']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>レスポンスデータ</strong>：レスポンス本文のJSON構造
-      </li>
-      <li>
-        <strong>ステータスコード</strong>：HTTPステータスコード（デフォルト：200）
-      </li>
-      <li>
-        <strong>ヘッダー</strong>：キーと値のペアとしてのカスタムHTTPヘッダー
-      </li>
-      <li>
-        <strong>モード</strong>：レスポンス構築のためのビルダーまたはエディターモード
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>response.data</strong>：構造化されたレスポンス本文
-      </li>
-      <li>
-        <strong>response.status</strong>：送信されたHTTPステータスコード
-      </li>
-      <li>
-        <strong>response.headers</strong>：レスポンスに含まれるヘッダー
-      </li>
-      <li>
-        <strong>response.success</strong>：正常完了を示すブール値
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>HTTPレスポンス</strong>：API呼び出し元に送信される完全なレスポンス
-      </li>
-      <li>
-        <strong>ワークフロー終了</strong>：ワークフロー実行を終了
-      </li>
-      <li>
-        <strong>アクセス</strong>：レスポンスブロックは終端 - 後続ブロックなし
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+レスポンスブロックは終端的なものです - ワークフローの実行を終了し、HTTPレスポンスをAPI呼び出し元に送信します。下流のブロックに利用可能な出力はありません。
 
 ## 変数の参照
 
-`<variable.name>` 構文を使用して、ワークフロー変数を応答に動的に挿入します：
+`<variable.name>` 構文を使用して、レスポンスにワークフロー変数を動的に挿入します：
 
 ```json
 {
@@ -239,8 +113,8 @@ JSONを直接記述：
 
 ## ベストプラクティス
 
-- **意味のあるステータスコードを使用する**: ワークフローの結果を正確に反映する適切なHTTPステータスコードを選択してください
-- **一貫した応答構造を維持する**: より良い開発者体験のために、すべてのAPIエンドポイントで一貫したJSON構造を維持してください
-- **関連するメタデータを含める**: デバッグとモニタリングに役立つタイムスタンプとバージョン情報を追加してください
-- **エラーを適切に処理する**: ワークフローで条件付きロジックを使用して、説明的なメッセージを含む適切なエラー応答を設定してください
-- **変数参照を検証する**: 応答ブロックが実行される前に、参照されるすべての変数が存在し、予想されるデータ型を含んでいることを確認してください
+- **意味のあるステータスコードを使用する**: ワークフローの結果を正確に反映する適切なHTTPステータスコードを選択する
+- **レスポンスを一貫した構造にする**: より良い開発者体験のために、すべてのAPIエンドポイントで一貫したJSON構造を維持する
+- **関連するメタデータを含める**: デバッグとモニタリングに役立つタイムスタンプとバージョン情報を追加する
+- **エラーを適切に処理する**: ワークフローで条件付きロジックを使用して、説明的なメッセージを含む適切なエラーレスポンスを設定する
+- **変数参照を検証する**: レスポンスブロックが実行される前に、参照されるすべての変数が存在し、予想されるデータ型を含んでいることを確認する

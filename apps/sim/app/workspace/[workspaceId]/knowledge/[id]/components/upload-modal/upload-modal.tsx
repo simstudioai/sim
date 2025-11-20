@@ -2,16 +2,20 @@
 
 import { useRef, useState } from 'react'
 import { AlertCircle, Check, Loader2, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useParams } from 'next/navigation'
+import {
+  Button,
+  Modal,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  ACCEPT_ATTRIBUTE,
-  ACCEPTED_FILE_TYPES,
-  MAX_FILE_SIZE,
-} from '@/lib/uploads/utils/validation'
+import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
+import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
@@ -40,6 +44,8 @@ export function UploadModal({
   chunkingConfig,
   onUploadComplete,
 }: UploadModalProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<FileWithPreview[]>([])
 
@@ -47,6 +53,7 @@ export function UploadModal({
   const [isDragging, setIsDragging] = useState(false)
 
   const { isUploading, uploadProgress, uploadError, uploadFiles, clearError } = useKnowledgeUpload({
+    workspaceId,
     onUploadComplete: () => {
       logger.info(`Successfully uploaded ${files.length} files`)
       onUploadComplete?.()
@@ -65,13 +72,7 @@ export function UploadModal({
   }
 
   const validateFile = (file: File): string | null => {
-    if (file.size > MAX_FILE_SIZE) {
-      return `File "${file.name}" is too large. Maximum size is 100MB.`
-    }
-    if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
-      return `File "${file.name}" has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON, YAML, or YML files.`
-    }
-    return null
+    return validateKnowledgeBaseFile(file)
   }
 
   const processFiles = (fileList: FileList | File[]) => {
@@ -153,20 +154,12 @@ export function UploadModal({
     return <IconComponent className='h-10 w-8' />
   }
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
-  }
-
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className='flex max-h-[95vh] flex-col overflow-hidden sm:max-w-[600px]'>
-        <DialogHeader>
-          <DialogTitle>Upload Documents</DialogTitle>
-        </DialogHeader>
+    <Modal open={open} onOpenChange={handleClose}>
+      <ModalContent className='flex max-h-[95vh] flex-col overflow-hidden sm:max-w-[600px]'>
+        <ModalHeader>
+          <ModalTitle>Upload Documents</ModalTitle>
+        </ModalHeader>
 
         <div className='flex-1 space-y-6 overflow-auto'>
           {/* File Upload Section */}
@@ -266,7 +259,6 @@ export function UploadModal({
                           <Button
                             type='button'
                             variant='ghost'
-                            size='sm'
                             onClick={() => removeFile(index)}
                             disabled={isUploading}
                             className='h-8 w-8 p-0 text-muted-foreground hover:text-destructive'
@@ -281,12 +273,7 @@ export function UploadModal({
               </div>
             )}
 
-            {fileError && (
-              <div className='rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-destructive text-sm'>
-                {fileError}
-              </div>
-            )}
-
+            {/* Show upload error first, then file error only if no upload error */}
             {uploadError && (
               <div className='rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2'>
                 <div className='flex items-start gap-2'>
@@ -295,32 +282,40 @@ export function UploadModal({
                 </div>
               </div>
             )}
+
+            {fileError && !uploadError && (
+              <div className='rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-destructive text-sm'>
+                {fileError}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Footer */}
-        <div className='flex justify-between border-t pt-4'>
-          <div className='flex gap-3' />
-          <div className='flex gap-3'>
-            <Button variant='outline' onClick={handleClose} disabled={isUploading}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={files.length === 0 || isUploading}
-              className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
-            >
-              {isUploading
-                ? uploadProgress.stage === 'uploading'
-                  ? `Uploading ${uploadProgress.filesCompleted + 1}/${uploadProgress.totalFiles}...`
-                  : uploadProgress.stage === 'processing'
-                    ? 'Processing...'
-                    : 'Uploading...'
-                : `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        <ModalFooter>
+          <Button
+            variant='outline'
+            onClick={handleClose}
+            disabled={isUploading}
+            className='h-[32px] px-[12px]'
+          >
+            Cancel
+          </Button>
+          <Button
+            variant='primary'
+            onClick={handleUpload}
+            disabled={files.length === 0 || isUploading}
+            className='h-[32px] px-[12px]'
+          >
+            {isUploading
+              ? uploadProgress.stage === 'uploading'
+                ? `Uploading ${uploadProgress.filesCompleted + 1}/${uploadProgress.totalFiles}...`
+                : uploadProgress.stage === 'processing'
+                  ? 'Processing...'
+                  : 'Uploading...'
+              : `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`}
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   )
 }

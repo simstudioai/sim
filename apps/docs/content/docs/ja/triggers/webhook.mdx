@@ -4,16 +4,23 @@ title: Webhooks
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
-Webhookを使用すると、外部サービスがHTTPリクエストをワークフローに送信することで、外部webhookからワークフロー実行をトリガーできます。Simはwebhookベースのトリガーに対して2つのアプローチをサポートしています。
+Webhookを使用すると、外部サービスがHTTPリクエストを送信してワークフローの実行をトリガーできます。Simはwebhookベースのトリガーに対して2つのアプローチをサポートしています。
 
 ## 汎用Webhookトリガー
 
 汎用Webhookブロックは、あらゆるペイロードを受信してワークフローをトリガーできる柔軟なエンドポイントを作成します：
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="webhooks-1.mp4" width={700} height={450} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="汎用Webhook設定"
+    width={500}
+    height={400}
+    className="my-6"
+  />
 </div>
 
 ### 仕組み
@@ -68,17 +75,33 @@ Webhookを使用すると、外部サービスがHTTPリクエストをワーク
 
 ## トリガーモードをサポートするサービス
 
-以下のサービスブロックはトリガーモードをサポートしています：
+**開発とプロジェクト管理**
+- GitHub - 課題、PR、プッシュ、リリース、ワークフロー実行
+- Jira - 課題イベント、作業ログ
+- Linear - 課題、コメント、プロジェクト、サイクル、ラベル
 
-- **Slack** - メッセージ、メンション、リアクション
-- **GitHub** - プッシュ、PR、イシューイベント
-- **Airtable** - レコード変更
-- **Telegram** - ボットメッセージとコマンド
-- **Gmail** - メール通知
-- **WhatsApp** - メッセージングイベント
-- **Jira** - イシュー更新、コメント
-- **Linear** - イシュー状態変更
-- **Notion** - ページ更新
+**コミュニケーション**
+- Slack - メッセージ、メンション、リアクション
+- Microsoft Teams - チャットメッセージ、チャンネル通知
+- Telegram - ボットメッセージ、コマンド
+- WhatsApp - メッセージングイベント
+
+**メール**
+- Gmail - 新着メール（ポーリング）、ラベル変更
+- Outlook - 新着メール（ポーリング）、フォルダーイベント
+
+**CRMと営業**
+- HubSpot - 連絡先、企業、取引、チケット、会話
+- Stripe - 支払い、サブスクリプション、顧客
+
+**フォームとアンケート**
+- Typeform - フォーム送信
+- Google Forms - フォーム回答
+- Webflow - コレクションアイテム、フォーム送信
+
+**その他**
+- Airtable - レコード変更
+- Twilio Voice - 着信、通話状態
 
 ## セキュリティとベストプラクティス
 
@@ -90,18 +113,18 @@ Webhookを使用すると、外部サービスがHTTPリクエストをワーク
 ### ペイロード処理
 
 - **検証**: 不正な形式のデータを防ぐために受信ペイロードを検証する
-- **サイズ制限**: Webhookはセキュリティのためにペイロードサイズ制限がある
-- **エラー処理**: 無効なリクエストに対するエラーレスポンスを設定する
+- **サイズ制限**: Webhookにはセキュリティのためのペイロードサイズ制限がある
+- **エラー処理**: 無効なリクエストに対するエラー応答を設定する
 
 ### Webhookのテスト
 
-1. PostmanやcurlなどのツールでWebhookエンドポイントをテストする
+1. Postmanやcurlなどのツールを使用してWebhookエンドポイントをテストする
 2. デバッグのためにワークフロー実行ログを確認する
 3. ペイロード構造が期待通りであることを確認する
 4. 認証とエラーシナリオをテストする
 
 <Callout type="warning">
-ワークフローで処理する前に、受信したWebhookデータを常に検証およびサニタイズしてください。
+受信したWebhookデータは、ワークフローで処理する前に必ず検証とサニタイズを行ってください。
 </Callout>
 
 ## 一般的なユースケース
@@ -110,14 +133,14 @@ Webhookを使用すると、外部サービスがHTTPリクエストをワーク
 - 自動応答をトリガーするSlackメッセージ
 - 重要なイベントに対するメール通知
 
-### CI/CD統合
-- デプロイメントワークフローをトリガーするGitHubプッシュ
+### CI/CD 統合  
+- GitHub プッシュによるデプロイメントワークフローのトリガー
 - ビルドステータスの更新
 - 自動テストパイプライン
 
 ### データ同期
-- 他のシステムを更新するAirtableの変更
-- フォロー​​アップアクションをトリガーするフォーム送信
+- Airtable の変更による他システムの更新
+- フォーム送信によるフォローアップアクションのトリガー
 - Eコマース注文処理
 
 ### カスタマーサポート

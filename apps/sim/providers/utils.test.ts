@@ -35,7 +35,6 @@ const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
 const originalRequire = module.require
 
 describe('getApiKey', () => {
-  // Save original env and reset between tests
   const originalEnv = { ...process.env }
 
   beforeEach(() => {
@@ -146,6 +145,12 @@ describe('Model Capabilities', () => {
         'deepseek-chat',
         'azure/gpt-4.1',
         'azure/model-router',
+        // GPT-5.1 models don't support temperature (removed in our implementation)
+        'gpt-5.1',
+        'azure/gpt-5.1',
+        'azure/gpt-5.1-mini',
+        'azure/gpt-5.1-nano',
+        'azure/gpt-5.1-codex',
         // GPT-5 models don't support temperature (removed in our implementation)
         'gpt-5',
         'gpt-5-mini',
@@ -218,6 +223,12 @@ describe('Model Capabilities', () => {
       expect(getMaxTemperature('azure/o3')).toBeUndefined()
       expect(getMaxTemperature('azure/o4-mini')).toBeUndefined()
       expect(getMaxTemperature('deepseek-r1')).toBeUndefined()
+      // GPT-5.1 models don't support temperature
+      expect(getMaxTemperature('gpt-5.1')).toBeUndefined()
+      expect(getMaxTemperature('azure/gpt-5.1')).toBeUndefined()
+      expect(getMaxTemperature('azure/gpt-5.1-mini')).toBeUndefined()
+      expect(getMaxTemperature('azure/gpt-5.1-nano')).toBeUndefined()
+      expect(getMaxTemperature('azure/gpt-5.1-codex')).toBeUndefined()
       // GPT-5 models don't support temperature
       expect(getMaxTemperature('gpt-5')).toBeUndefined()
       expect(getMaxTemperature('gpt-5-mini')).toBeUndefined()
@@ -263,7 +274,7 @@ describe('Model Capabilities', () => {
     it.concurrent(
       'should return false for providers that do not support tool usage control',
       () => {
-        const unsupportedProviders = ['ollama', 'cerebras', 'groq', 'non-existent-provider']
+        const unsupportedProviders = ['ollama', 'non-existent-provider']
 
         for (const provider of unsupportedProviders) {
           expect(supportsToolUsageControl(provider)).toBe(false)
@@ -306,6 +317,13 @@ describe('Model Capabilities', () => {
     )
 
     it.concurrent('should have correct models in MODELS_WITH_REASONING_EFFORT', () => {
+      // Should contain GPT-5.1 models that support reasoning effort
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.1')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1-mini')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1-nano')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1-codex')
+
       // Should contain GPT-5 models that support reasoning effort
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5-mini')
@@ -325,6 +343,13 @@ describe('Model Capabilities', () => {
     })
 
     it.concurrent('should have correct models in MODELS_WITH_VERBOSITY', () => {
+      // Should contain GPT-5.1 models that support verbosity
+      expect(MODELS_WITH_VERBOSITY).toContain('gpt-5.1')
+      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1')
+      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1-mini')
+      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1-nano')
+      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1-codex')
+
       // Should contain GPT-5 models that support verbosity
       expect(MODELS_WITH_VERBOSITY).toContain('gpt-5')
       expect(MODELS_WITH_VERBOSITY).toContain('gpt-5-mini')

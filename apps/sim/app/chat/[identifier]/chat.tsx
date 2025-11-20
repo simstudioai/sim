@@ -354,7 +354,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
             name: file.name,
             size: file.size,
             type: file.type,
-            dataUrl: file.dataUrl || (await fileToBase64(file.file)),
+            data: file.dataUrl || (await fileToBase64(file.file)),
           }))
         )
       }
@@ -409,6 +409,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
             autoPlayResponses: shouldPlayAudio,
           },
           audioStreamHandler: audioHandler,
+          outputConfigs: chatConfig?.outputConfigs,
         }
       )
     } catch (error: any) {

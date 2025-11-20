@@ -1,19 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { LogOut, Pencil, Plus, Send, Trash2 } from 'lucide-react'
+import { Download, LogOut, Pencil, Plus, Send, Trash2 } from 'lucide-react'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+  Button,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/emcn'
+import { Button as UIButton } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -21,7 +19,7 @@ import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-selector/components/invite-modal/invite-modal'
+import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workspace-header/components/invite-modal/invite-modal'
 
 const logger = createLogger('WorkspaceSelector')
 
@@ -84,6 +82,9 @@ export function WorkspaceSelector({
   } | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(null)
+  const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
+  const [workspaceToLeave, setWorkspaceToLeave] = useState<Workspace | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   // Refs
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -300,6 +301,128 @@ export function WorkspaceSelector({
     [onLeaveWorkspace]
   )
 
+  /**
+   * Handle export workspace
+   */
+  const handleExportWorkspace = useCallback(async () => {
+    if (!activeWorkspace || isExporting) return
+
+    setIsExporting(true)
+    try {
+      const { exportWorkspaceToZip } = await import('@/lib/workflows/import-export')
+      const { useFolderStore } = await import('@/stores/folders/store')
+
+      const workflowsUrl = new URL('/api/workflows', window.location.origin)
+      workflowsUrl.searchParams.append('workspaceId', activeWorkspace.id)
+
+      const workflowsResponse = await fetch(workflowsUrl.toString())
+      if (!workflowsResponse.ok) {
+        throw new Error('Failed to fetch workflows')
+      }
+
+      const { data: workflows } = await workflowsResponse.json()
+
+      if (!workflows || workflows.length === 0) {
+        logger.warn('No workflows found to export')
+        return
+      }
+
+      const foldersUrl = new URL('/api/folders', window.location.origin)
+      foldersUrl.searchParams.append('workspaceId', activeWorkspace.id)
+
+      const foldersResponse = await fetch(foldersUrl.toString())
+      const foldersData = foldersResponse.ok ? await foldersResponse.json() : { folders: [] }
+
+      const workflowsToExport: Array<{
+        workflow: {
+          id: string
+          name: string
+          description?: string
+          folderId?: string | null
+        }
+        state: any
+        variables?: Array<{
+          id: string
+          name: string
+          type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+          value: any
+        }>
+      }> = []
+
+      for (const workflow of workflows) {
+        try {
+          const workflowResponse = await fetch(`/api/workflows/${workflow.id}`)
+          if (!workflowResponse.ok) {
+            logger.warn(`Failed to fetch workflow ${workflow.id}`)
+            continue
+          }
+
+          const { data: workflowData } = await workflowResponse.json()
+          if (!workflowData?.state) {
+            logger.warn(`Workflow ${workflow.id} has no state`)
+            continue
+          }
+
+          const variablesResponse = await fetch(`/api/workflows/${workflow.id}/variables`)
+          let workflowVariables: any[] = []
+          if (variablesResponse.ok) {
+            const variablesData = await variablesResponse.json()
+            workflowVariables = Object.values(variablesData?.data || {}).map((v: any) => ({
+              id: v.id,
+              name: v.name,
+              type: v.type,
+              value: v.value,
+            }))
+          }
+
+          workflowsToExport.push({
+            workflow: {
+              id: workflow.id,
+              name: workflow.name,
+              description: workflow.description,
+              folderId: workflow.folderId,
+            },
+            state: workflowData.state,
+            variables: workflowVariables,
+          })
+        } catch (error) {
+          logger.error(`Failed to export workflow ${workflow.id}:`, error)
+        }
+      }
+
+      const foldersToExport: Array<{
+        id: string
+        name: string
+        parentId: string | null
+      }> = (foldersData.folders || []).map((folder: any) => ({
+        id: folder.id,
+        name: folder.name,
+        parentId: folder.parentId,
+      }))
+
+      const zipBlob = await exportWorkspaceToZip(
+        activeWorkspace.name,
+        workflowsToExport,
+        foldersToExport
+      )
+
+      const blobUrl = URL.createObjectURL(zipBlob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = `${activeWorkspace.name.replace(/[^a-z0-9]/gi, '-')}-workspace-export.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+
+      logger.info(`Exported ${workflowsToExport.length} workflows from workspace`)
+    } catch (error) {
+      logger.error('Failed to export workspace:', error)
+    } finally {
+      setIsExporting(false)
+    }
+  }, [activeWorkspace, isExporting])
+
   // Render workspace list
   const renderWorkspaceList = () => {
     if (isWorkspacesLoading) {
@@ -379,11 +502,29 @@ export function WorkspaceSelector({
                 className='flex h-full flex-shrink-0 items-center justify-center gap-1'
                 onClick={(e) => e.stopPropagation()}
               >
+                {/* Export button - show on hover for admin users */}
+                {!isEditing &&
+                  isHovered &&
+                  workspace.permissions === 'admin' &&
+                  activeWorkspace?.id === workspace.id && (
+                    <Button
+                      variant='ghost'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleExportWorkspace()
+                      }}
+                      disabled={isExporting}
+                      className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
+                      title='Export workspace'
+                    >
+                      <Download className='!h-3.5 !w-3.5' />
+                    </Button>
+                  )}
+
                 {/* Edit button - show on hover for admin users */}
                 {!isEditing && isHovered && workspace.permissions === 'admin' && (
                   <Button
                     variant='ghost'
-                    size='icon'
                     onClick={(e) => handleStartEdit(workspace, e)}
                     className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
                   >
@@ -393,72 +534,29 @@ export function WorkspaceSelector({
 
                 {/* Leave Workspace - for non-admin users */}
                 {workspace.permissions !== 'admin' && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        onClick={(e) => e.stopPropagation()}
-                        className={cn(
-                          'h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground',
-                          !isEditing && isHovered ? 'opacity-100' : 'pointer-events-none opacity-0'
-                        )}
-                      >
-                        <LogOut className='!h-3.5 !w-3.5' />
-                      </Button>
-                    </AlertDialogTrigger>
-
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Leave workspace?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Leaving this workspace will remove your access to all associated
-                          workflows, logs, and knowledge bases.{' '}
-                          <span className='text-red-500 dark:text-red-500'>
-                            This action cannot be undone.
-                          </span>
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-
-                      <div className='py-2'>
-                        <p className='mb-2 font-[360] text-sm'>
-                          Enter the workspace name <strong>{workspace.name}</strong> to confirm.
-                        </p>
-                        <Input
-                          value={leaveConfirmationName}
-                          onChange={(e) => setLeaveConfirmationName(e.target.value)}
-                          placeholder={workspace.name}
-                          className='h-9'
-                        />
-                      </div>
-
-                      <AlertDialogFooter className='flex'>
-                        <AlertDialogCancel
-                          className='h-9 w-full rounded-[8px]'
-                          onClick={() => setLeaveConfirmationName('')}
-                        >
-                          Cancel
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => {
-                            confirmLeaveWorkspace(workspace)
-                            setLeaveConfirmationName('')
-                          }}
-                          className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
-                          disabled={isLeaving || leaveConfirmationName !== workspace.name}
-                        >
-                          {isLeaving ? 'Leaving...' : 'Leave'}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <>
+                    <UIButton
+                      variant='ghost'
+                      size='icon'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setWorkspaceToLeave(workspace)
+                        setIsLeaveDialogOpen(true)
+                      }}
+                      className={cn(
+                        'h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground',
+                        !isEditing && isHovered ? 'opacity-100' : 'pointer-events-none opacity-0'
+                      )}
+                    >
+                      <LogOut className='!h-3.5 !w-3.5' />
+                    </UIButton>
+                  </>
                 )}
 
                 {/* Delete Workspace - for admin users */}
                 {workspace.permissions === 'admin' && (
                   <Button
                     variant='ghost'
-                    size='icon'
                     onClick={(e) => {
                       e.stopPropagation()
                       setWorkspaceToDelete(workspace)
@@ -527,15 +625,15 @@ export function WorkspaceSelector({
       </div>
 
       {/* Centralized Delete Workspace Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={handleDialogClose}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
+      <Modal open={isDeleteDialogOpen} onOpenChange={handleDialogClose}>
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>
               {showTemplateChoice
                 ? 'Delete workspace with published templates?'
                 : 'Delete workspace?'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
+            </ModalTitle>
+            <ModalDescription>
               {showTemplateChoice ? (
                 <>
                   This workspace contains {templatesInfo?.count} published template
@@ -554,19 +652,19 @@ export function WorkspaceSelector({
                 <>
                   Deleting this workspace will permanently remove all associated workflows, logs,
                   and knowledge bases.{' '}
-                  <span className='text-red-500 dark:text-red-500'>
+                  <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
                     This action cannot be undone.
                   </span>
                 </>
               )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+            </ModalDescription>
+          </ModalHeader>
 
           {showTemplateChoice ? (
             <div className='flex gap-2 py-2'>
               <Button
                 onClick={() => handleTemplateAction('keep')}
-                className='h-9 flex-1 rounded-[8px]'
+                className='h-[32px] flex-1 px-[12px]'
                 variant='outline'
                 disabled={isDeleting}
               >
@@ -574,7 +672,7 @@ export function WorkspaceSelector({
               </Button>
               <Button
                 onClick={() => handleTemplateAction('delete')}
-                className='h-9 flex-1 rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+                className='h-[32px] flex-1 bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
                 disabled={isDeleting}
               >
                 {isDeleting ? 'Deleting...' : 'Delete Templates'}
@@ -596,10 +694,10 @@ export function WorkspaceSelector({
           )}
 
           {!showTemplateChoice && (
-            <AlertDialogFooter className='flex'>
+            <ModalFooter>
               <Button
                 variant='outline'
-                className='h-9 w-full rounded-[8px]'
+                className='h-[32px] px-[12px]'
                 onClick={() => {
                   resetDeleteState()
                   setIsDeleteDialogOpen(false)
@@ -612,7 +710,7 @@ export function WorkspaceSelector({
                   e.preventDefault()
                   handleDeleteClick()
                 }}
-                className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+                className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
                 disabled={
                   isDeleting ||
                   deleteConfirmationName !== workspaceToDelete?.name ||
@@ -621,10 +719,75 @@ export function WorkspaceSelector({
               >
                 {isDeleting ? 'Deleting...' : isCheckingTemplates ? 'Deleting...' : 'Delete'}
               </Button>
-            </AlertDialogFooter>
+            </ModalFooter>
           )}
-        </AlertDialogContent>
-      </AlertDialog>
+        </ModalContent>
+      </Modal>
+
+      {/* Leave Workspace Modal */}
+      <Modal
+        open={isLeaveDialogOpen}
+        onOpenChange={(open) => {
+          setIsLeaveDialogOpen(open)
+          if (!open) {
+            setLeaveConfirmationName('')
+            setWorkspaceToLeave(null)
+          }
+        }}
+      >
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>Leave workspace?</ModalTitle>
+            <ModalDescription>
+              Leaving this workspace will remove your access to all associated workflows, logs, and
+              knowledge bases.{' '}
+              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                This action cannot be undone.
+              </span>
+            </ModalDescription>
+          </ModalHeader>
+
+          <div className='py-2'>
+            <p className='mb-2 font-[360] text-sm'>
+              Enter the workspace name <strong>{workspaceToLeave?.name}</strong> to confirm.
+            </p>
+            <Input
+              value={leaveConfirmationName}
+              onChange={(e) => setLeaveConfirmationName(e.target.value)}
+              placeholder={workspaceToLeave?.name}
+              className='h-9'
+            />
+          </div>
+
+          <ModalFooter>
+            <Button
+              variant='outline'
+              className='h-[32px] px-[12px]'
+              onClick={() => {
+                setIsLeaveDialogOpen(false)
+                setLeaveConfirmationName('')
+                setWorkspaceToLeave(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (workspaceToLeave) {
+                  confirmLeaveWorkspace(workspaceToLeave)
+                  setLeaveConfirmationName('')
+                  setIsLeaveDialogOpen(false)
+                  setWorkspaceToLeave(null)
+                }
+              }}
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              disabled={isLeaving || leaveConfirmationName !== workspaceToLeave?.name}
+            >
+              {isLeaving ? 'Leaving...' : 'Leave'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* Invite Modal */}
       <InviteModal

@@ -1,6 +1,6 @@
 ---
 title: Linear
-description: Issues in Linear lesen und erstellen
+description: Interagiere mit Linear-Tickets, Projekten und mehr
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -8,17 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="linear"
   color="#5E6AD2"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      xmlns='http://www.w3.org/2000/svg'
-      fill='currentColor'
-      viewBox='0 0 100 100'
-    >
-      <path
-        fill='currentColor'
-        d='M1.22541 61.5228c-.2225-.9485.90748-1.5459 1.59638-.857L39.3342 97.1782c.6889.6889.0915 1.8189-.857 1.5964C20.0515 94.4522 5.54779 79.9485 1.22541 61.5228ZM.00189135 46.8891c-.01764375.2833.08887215.5599.28957165.7606L52.3503 99.7085c.2007.2007.4773.3075.7606.2896 2.3692-.1476 4.6938-.46 6.9624-.9259.7645-.157 1.0301-1.0963.4782-1.6481L2.57595 39.4485c-.55186-.5519-1.49117-.2863-1.648174.4782-.465915 2.2686-.77832 4.5932-.92588465 6.9624ZM4.21093 29.7054c-.16649.3738-.08169.8106.20765 1.1l64.77602 64.776c.2894.2894.7262.3742 1.1.2077 1.7861-.7956 3.5171-1.6927 5.1855-2.684.5521-.328.6373-1.0867.1832-1.5407L8.43566 24.3367c-.45409-.4541-1.21271-.3689-1.54074.1832-.99132 1.6684-1.88843 3.3994-2.68399 5.1855ZM12.6587 18.074c-.3701-.3701-.393-.9637-.0443-1.3541C21.7795 6.45931 35.1114 0 49.9519 0 77.5927 0 100 22.4073 100 50.0481c0 14.8405-6.4593 28.1724-16.7199 37.3375-.3903.3487-.984.3258-1.3542-.0443L12.6587 18.074Z'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -38,7 +27,7 @@ In Sim ermöglicht die Linear-Integration Ihren Agenten eine nahtlose Interaktio
 
 ## Nutzungsanweisungen
 
-Integriert Linear in den Workflow. Kann Tickets lesen und erstellen. Erfordert OAuth.
+Linear in den Workflow integrieren. Kann Tickets, Kommentare, Projekte, Labels, Workflow-Status, Zyklen, Anhänge und mehr verwalten. Kann auch Workflows basierend auf Linear-Webhook-Ereignissen auslösen.
 
 ## Tools
 
@@ -59,6 +48,22 @@ Tickets von Linear abrufen und filtern
 | --------- | ---- | ----------- |
 | `issues` | array | Array von Tickets aus dem angegebenen Linear Team und Projekt, jedes enthält id, title, description, state, teamId und projectId |
 
+### `linear_get_issue`
+
+Ein einzelnes Ticket anhand der ID von Linear mit vollständigen Details abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Linear Ticket-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `issue` | object | Das Ticket mit vollständigen Details |
+
 ### `linear_create_issue`
 
 Ein neues Ticket in Linear erstellen
@@ -77,6 +82,1381 @@ Ein neues Ticket in Linear erstellen
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `issue` | object | Das erstellte Ticket mit id, title, description, state, teamId und projectId |
+
+### `linear_update_issue`
+
+Ein bestehendes Ticket in Linear aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Linear Ticket-ID zum Aktualisieren |
+| `title` | string | Nein | Neuer Ticket-Titel |
+| `description` | string | Nein | Neue Ticket-Beschreibung |
+| `stateId` | string | Nein | Workflow-Status-ID \(Status\) |
+| `assigneeId` | string | Nein | Benutzer-ID, dem das Ticket zugewiesen werden soll |
+| `priority` | number | Nein | Priorität \(0=Keine Priorität, 1=Dringend, 2=Hoch, 3=Normal, 4=Niedrig\) |
+| `estimate` | number | Nein | Schätzung in Punkten |
+| `labelIds` | array | Nein | Array von Label-IDs, die dem Ticket zugewiesen werden sollen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `issue` | object | Das aktualisierte Ticket |
+
+### `linear_archive_issue`
+
+Ein Ticket in Linear archivieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Linear Ticket-ID zum Archivieren |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Archivierungsvorgang erfolgreich war |
+| `issueId` | string | Die ID des archivierten Tickets |
+
+### `linear_unarchive_issue`
+
+Ein archiviertes Ticket in Linear wiederherstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Linear Ticket-ID zum Wiederherstellen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Wiederherstellungsvorgang erfolgreich war |
+| `issueId` | string | Die ID des wiederhergestellten Tickets |
+
+### `linear_delete_issue`
+
+Ein Ticket in Linear löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Linear Ticket-ID zum Löschen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Löschvorgang erfolgreich war |
+
+### `linear_search_issues`
+
+Suche nach Tickets in Linear mit Volltextsuche
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Ja | Suchabfragetext |
+| `teamId` | string | Nein | Nach Team-ID filtern |
+| `includeArchived` | boolean | Nein | Archivierte Tickets in Suchergebnisse einbeziehen |
+| `first` | number | Nein | Anzahl der zurückzugebenden Ergebnisse \(Standard: 50\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `issues` | array | Array von übereinstimmenden Tickets |
+
+### `linear_add_label_to_issue`
+
+Ein Label zu einem Ticket in Linear hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Linear Ticket-ID |
+| `labelId` | string | Ja | Label-ID, die dem Ticket hinzugefügt werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Label erfolgreich hinzugefügt wurde |
+| `issueId` | string | Die ID des Tickets |
+
+### `linear_remove_label_from_issue`
+
+Ein Label von einem Ticket in Linear entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Linear Ticket-ID |
+| `labelId` | string | Ja | Label-ID, die vom Ticket entfernt werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Label erfolgreich entfernt wurde |
+| `issueId` | string | Die ID des Issues |
+
+### `linear_create_comment`
+
+Einen Kommentar zu einem Issue in Linear hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Linear Issue-ID, zu der kommentiert werden soll |
+| `body` | string | Ja | Kommentartext \(unterstützt Markdown\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `comment` | object | Der erstellte Kommentar |
+
+### `linear_update_comment`
+
+Einen Kommentar in Linear bearbeiten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | Ja | Kommentar-ID, die aktualisiert werden soll |
+| `body` | string | Ja | Neuer Kommentartext \(unterstützt Markdown\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `comment` | object | Der aktualisierte Kommentar |
+
+### `linear_delete_comment`
+
+Einen Kommentar aus Linear löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | Ja | Kommentar-ID, die gelöscht werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Löschvorgang erfolgreich war |
+
+### `linear_list_comments`
+
+Alle Kommentare zu einem Ticket in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Linear Ticket-ID |
+| `first` | number | Nein | Anzahl der zurückzugebenden Kommentare \(Standard: 50\) |
+| `after` | string | Nein | Cursor für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `comments` | array | Array von Kommentaren zum Ticket |
+
+### `linear_list_projects`
+
+Projekte in Linear auflisten mit optionaler Filterung
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Nein | Nach Team-ID filtern |
+| `includeArchived` | boolean | Nein | Archivierte Projekte einschließen |
+| `first` | number | Nein | Anzahl der zurückzugebenden Projekte \(Standard: 50\) |
+| `after` | string | Nein | Cursor für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `projects` | array | Array von Projekten |
+
+### `linear_get_project`
+
+Ein einzelnes Projekt anhand der ID aus Linear abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Linear Projekt-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `project` | object | Das Projekt mit vollständigen Details |
+
+### `linear_create_project`
+
+Ein neues Projekt in Linear erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Ja | Team-ID, in dem das Projekt erstellt werden soll |
+| `name` | string | Ja | Projektname |
+| `description` | string | Nein | Projektbeschreibung |
+| `leadId` | string | Nein | Benutzer-ID des Projektleiters |
+| `startDate` | string | Nein | Projektstartdatum (ISO-Format) |
+| `targetDate` | string | Nein | Projektzieldatum (ISO-Format) |
+| `priority` | number | Nein | Projektpriorität (0-4) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `project` | object | Das erstellte Projekt |
+
+### `linear_update_project`
+
+Ein bestehendes Projekt in Linear aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Projekt-ID, die aktualisiert werden soll |
+| `name` | string | Nein | Neuer Projektname |
+| `description` | string | Nein | Neue Projektbeschreibung |
+| `state` | string | Nein | Projektstatus (geplant, gestartet, abgeschlossen, abgebrochen) |
+| `leadId` | string | Nein | Benutzer-ID des Projektleiters |
+| `startDate` | string | Nein | Projektstartdatum (ISO-Format) |
+| `targetDate` | string | Nein | Projektzieldatum (ISO-Format) |
+| `priority` | number | Nein | Projektpriorität (0-4) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `project` | object | Das aktualisierte Projekt |
+
+### `linear_archive_project`
+
+Ein Projekt in Linear archivieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Projekt-ID zum Archivieren |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Archivierungsvorgang erfolgreich war |
+| `projectId` | string | Die ID des archivierten Projekts |
+
+### `linear_list_users`
+
+Alle Benutzer im Linear-Workspace auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `includeDisabled` | boolean | Nein | Deaktivierte/inaktive Benutzer einschließen |
+| `first` | number | Nein | Anzahl der zurückzugebenden Benutzer \(Standard: 50\) |
+| `after` | string | Nein | Cursor für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `users` | array | Array von Workspace-Benutzern |
+
+### `linear_list_teams`
+
+Alle Teams im Linear-Workspace auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `first` | number | Nein | Anzahl der zurückzugebenden Teams \(Standard: 50\) |
+| `after` | string | Nein | Cursor für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `teams` | array | Array von Teams |
+
+### `linear_get_viewer`
+
+Informationen des aktuell authentifizierten Benutzers (Betrachter) abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `user` | object | Der aktuell authentifizierte Benutzer |
+
+### `linear_list_labels`
+
+Alle Labels im Linear Workspace oder Team auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Nein | Nach Team-ID filtern |
+| `first` | number | Nein | Anzahl der zurückzugebenden Labels (Standard: 50) |
+| `after` | string | Nein | Cursor für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `labels` | array | Array von Labels |
+
+### `linear_create_label`
+
+Ein neues Label in Linear erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Ja | Label-Name |
+| `color` | string | Nein | Label-Farbe (Hex-Format, z.B. "#ff0000") |
+| `description` | string | Nein | Label-Beschreibung |
+| `teamId` | string | Nein | Team-ID (wenn weggelassen, wird ein Workspace-Label erstellt) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `label` | object | Das erstellte Label |
+
+### `linear_update_label`
+
+Ein bestehendes Label in Linear aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `labelId` | string | Ja | Label-ID zum Aktualisieren |
+| `name` | string | Nein | Neuer Label-Name |
+| `color` | string | Nein | Neue Label-Farbe \(Hex-Format\) |
+| `description` | string | Nein | Neue Label-Beschreibung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `label` | object | Das aktualisierte Label |
+
+### `linear_archive_label`
+
+Ein Label in Linear archivieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `labelId` | string | Ja | Label-ID zum Archivieren |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Archivierungsvorgang erfolgreich war |
+| `labelId` | string | Die ID des archivierten Labels |
+
+### `linear_list_workflow_states`
+
+Alle Workflow-Status in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Nein | Nach Team-ID filtern |
+| `first` | number | Nein | Anzahl der zurückzugebenden Status \(Standard: 50\) |
+| `after` | string | Nein | Cursor für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `states` | array | Array von Workflow-Status |
+
+### `linear_create_workflow_state`
+
+Einen neuen Workflow-Status in Linear erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Ja | Team-ID, in dem der Status erstellt werden soll |
+| `name` | string | Ja | Name des Status \(z.B. "In Prüfung"\) |
+| `color` | string | Ja | Farbe des Status \(Hex-Format\) |
+| `type` | string | Ja | Statustyp: "backlog", "unstarted", "started", "completed" oder "canceled" |
+| `description` | string | Nein | Beschreibung des Status |
+| `position` | number | Nein | Position im Workflow |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `state` | object | Der erstellte Workflow-Status |
+
+### `linear_update_workflow_state`
+
+Einen bestehenden Workflow-Status in Linear aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `stateId` | string | Ja | ID des zu aktualisierenden Workflow-Status |
+| `name` | string | Nein | Neuer Name des Status |
+| `color` | string | Nein | Neue Farbe des Status \(Hex-Format\) |
+| `description` | string | Nein | Neue Beschreibung des Status |
+| `position` | number | Nein | Neue Position im Workflow |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `state` | object | Der aktualisierte Workflow-Status |
+
+### `linear_list_cycles`
+
+Zyklen (Sprints/Iterationen) in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Nein | Nach Team-ID filtern |
+| `first` | number | Nein | Anzahl der zurückzugebenden Zyklen \(Standard: 50\) |
+| `after` | string | Nein | Cursor für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `cycles` | array | Array von Zyklen |
+
+### `linear_get_cycle`
+
+Einen einzelnen Zyklus anhand der ID von Linear abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `cycleId` | string | Ja | Zyklus-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `cycle` | object | Der Zyklus mit vollständigen Details |
+
+### `linear_create_cycle`
+
+Einen neuen Zyklus (Sprint/Iteration) in Linear erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Ja | Team-ID, in der der Zyklus erstellt werden soll |
+| `startsAt` | string | Ja | Startdatum des Zyklus \(ISO-Format\) |
+| `endsAt` | string | Ja | Enddatum des Zyklus \(ISO-Format\) |
+| `name` | string | Nein | Name des Zyklus \(optional, wird automatisch generiert, wenn nicht angegeben\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `cycle` | object | Der erstellte Zyklus |
+
+### `linear_get_active_cycle`
+
+Den aktuell aktiven Zyklus für ein Team abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Ja | Team-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `cycle` | object | Der aktive Zyklus (null, wenn kein aktiver Zyklus vorhanden) |
+
+### `linear_create_attachment`
+
+Einen Anhang zu einem Ticket in Linear hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Ticket-ID, an die der Anhang angehängt werden soll |
+| `url` | string | Ja | URL des Anhangs |
+| `title` | string | Nein | Titel des Anhangs |
+| `subtitle` | string | Nein | Untertitel/Beschreibung des Anhangs |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `attachment` | object | Der erstellte Anhang |
+
+### `linear_list_attachments`
+
+Alle Anhänge eines Tickets in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Ticket-ID |
+| `first` | number | Nein | Anzahl der zurückzugebenden Anhänge (Standard: 50) |
+| `after` | string | Nein | Cursor für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `attachments` | array | Array von Anhängen |
+
+### `linear_update_attachment`
+
+Metadaten eines Anhangs in Linear aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `attachmentId` | string | Ja | Anhang-ID zum Aktualisieren |
+| `title` | string | Nein | Neuer Titel des Anhangs |
+| `subtitle` | string | Nein | Neuer Untertitel des Anhangs |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `attachment` | object | Der aktualisierte Anhang |
+
+### `linear_delete_attachment`
+
+Einen Anhang aus Linear löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `attachmentId` | string | Ja | Anhang-ID zum Löschen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Löschvorgang erfolgreich war |
+
+### `linear_create_issue_relation`
+
+Zwei Tickets in Linear miteinander verknüpfen (blockiert, bezieht sich auf, dupliziert)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Quell-Ticket-ID |
+| `relatedIssueId` | string | Ja | Ziel-Ticket-ID für die Verknüpfung |
+| `type` | string | Ja | Beziehungstyp: "blocks", "blocked", "duplicate", "related" |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `relation` | object | Die erstellte Ticket-Beziehung |
+
+### `linear_list_issue_relations`
+
+Alle Beziehungen (Abhängigkeiten) für ein Ticket in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Ja | Ticket-ID |
+| `first` | number | Nein | Anzahl der zurückzugebenden Beziehungen \(Standard: 50\) |
+| `after` | string | Nein | Cursor für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `relations` | array | Array von Ticket-Beziehungen |
+
+### `linear_delete_issue_relation`
+
+Eine Beziehung zwischen zwei Tickets in Linear entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `relationId` | string | Ja | Zu löschende Beziehungs-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Löschvorgang erfolgreich war |
+
+### `linear_create_favorite`
+
+Ein Ticket, Projekt, einen Zyklus oder ein Label in Linear als Lesezeichen speichern
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `issueId` | string | Nein | Ticket-ID zum Favorisieren |
+| `projectId` | string | Nein | Projekt-ID zum Favorisieren |
+| `cycleId` | string | Nein | Zyklus-ID zum Favorisieren |
+| `labelId` | string | Nein | Label-ID zum Favorisieren |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `favorite` | object | Der erstellte Favorit |
+
+### `linear_list_favorites`
+
+Alle Lesezeichen des aktuellen Benutzers in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `first` | number | Nein | Anzahl der zurückzugebenden Favoriten \(Standard: 50\) |
+| `after` | string | Nein | Cursor für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `favorites` | array | Array der favorisierten Elemente |
+
+### `linear_create_project_update`
+
+Ein Statusupdate für ein Projekt in Linear veröffentlichen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Projekt-ID, für die das Update veröffentlicht wird |
+| `body` | string | Ja | Update-Nachricht \(unterstützt Markdown\) |
+| `health` | string | Nein | Projektstatus: "onTrack", "atRisk" oder "offTrack" |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `update` | object | Das erstellte Projektupdate |
+
+### `linear_list_project_updates`
+
+Alle Statusupdates für ein Projekt in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Projekt-ID |
+| `first` | number | Nein | Anzahl der zurückzugebenden Updates \(Standard: 50\) |
+| `after` | string | Nein | Cursor für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `updates` | array | Array von Projekt-Updates |
+
+### `linear_create_project_link`
+
+Einen externen Link zu einem Projekt in Linear hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Projekt-ID, zu der der Link hinzugefügt werden soll |
+| `url` | string | Ja | URL des externen Links |
+| `label` | string | Nein | Link-Bezeichnung/Titel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `link` | object | Der erstellte Projekt-Link |
+
+### `linear_list_notifications`
+
+Benachrichtigungen für den aktuellen Benutzer in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `first` | number | Nein | Anzahl der zurückzugebenden Benachrichtigungen \(Standard: 50\) |
+| `after` | string | Nein | Cursor für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `notifications` | array | Array von Benachrichtigungen |
+
+### `linear_update_notification`
+
+Eine Benachrichtigung in Linear als gelesen oder ungelesen markieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `notificationId` | string | Ja | Benachrichtigungs-ID, die aktualisiert werden soll |
+| `readAt` | string | Nein | Zeitstempel, um als gelesen zu markieren \(ISO-Format\). Übergeben Sie null oder lassen Sie es weg, um als ungelesen zu markieren |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `notification` | object | Die aktualisierte Benachrichtigung |
+
+### `linear_create_customer`
+
+Einen neuen Kunden in Linear erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Ja | Kundenname |
+| `domains` | array | Nein | Mit diesem Kunden verknüpfte Domains |
+| `externalIds` | array | Nein | Externe IDs aus anderen Systemen |
+| `logoUrl` | string | Nein | Logo-URL des Kunden |
+| `ownerId` | string | Nein | ID des Benutzers, der diesen Kunden betreut |
+| `revenue` | number | Nein | Jährlicher Umsatz von diesem Kunden |
+| `size` | number | Nein | Größe der Kundenorganisation |
+| `statusId` | string | Nein | Kundenstatus-ID |
+| `tierId` | string | Nein | Kundenstufen-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customer` | object | Der erstellte Kunde |
+
+### `linear_list_customers`
+
+Alle Kunden in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `first` | number | Nein | Anzahl der zurückzugebenden Kunden \(Standard: 50\) |
+| `after` | string | Nein | Cursor für Paginierung |
+| `includeArchived` | boolean | Nein | Archivierte Kunden einschließen \(Standard: false\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customers` | array | Array von Kunden |
+
+### `linear_create_customer_request`
+
+Erstellt eine Kundenanfrage (Bedarf) in Linear. Weist sie einem Kunden zu, legt die Dringlichkeit fest (Priorität: 0 = Nicht wichtig, 1 = Wichtig) und verknüpft sie optional mit einem Ticket.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Ja | Kunden-ID, der diese Anfrage zugewiesen werden soll |
+| `body` | string | Nein | Beschreibung der Kundenanfrage |
+| `priority` | number | Nein | Dringlichkeitsstufe: 0 = Nicht wichtig, 1 = Wichtig \(Standard: 0\) |
+| `issueId` | string | Nein | Ticket-ID, mit der diese Anfrage verknüpft werden soll |
+| `projectId` | string | Nein | Projekt-ID, mit der diese Anfrage verknüpft werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customerNeed` | object | Die erstellte Kundenanfrage |
+
+### `linear_update_customer_request`
+
+Aktualisiert eine Kundenanfrage (Bedarf) in Linear. Kann Dringlichkeit, Beschreibung, Kundenzuweisung und verknüpftes Ticket ändern.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `customerNeedId` | string | Ja | Kundenanfrage-ID, die aktualisiert werden soll |
+| `body` | string | Nein | Aktualisierte Beschreibung der Kundenanfrage |
+| `priority` | number | Nein | Aktualisierte Dringlichkeitsstufe: 0 = Nicht wichtig, 1 = Wichtig |
+| `customerId` | string | Nein | Neue Kunden-ID, der diese Anfrage zugewiesen werden soll |
+| `issueId` | string | Nein | Neue Ticket-ID, mit der diese Anfrage verknüpft werden soll |
+| `projectId` | string | Nein | Neue Projekt-ID, mit der diese Anfrage verknüpft werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customerNeed` | object | Die aktualisierte Kundenanfrage |
+
+### `linear_list_customer_requests`
+
+Alle Kundenanfragen (Bedürfnisse) in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `first` | number | Nein | Anzahl der zurückzugebenden Kundenanfragen \(Standard: 50\) |
+| `after` | string | Nein | Cursor für Paginierung |
+| `includeArchived` | boolean | Nein | Archivierte Kundenanfragen einschließen \(Standard: false\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customerNeeds` | array | Array von Kundenanfragen |
+
+### `linear_get_customer`
+
+Einen einzelnen Kunden anhand der ID in Linear abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Ja | Kunden-ID zum Abrufen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customer` | object | Die Kundendaten |
+
+### `linear_update_customer`
+
+Einen Kunden in Linear aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Ja | Kunden-ID zum Aktualisieren |
+| `name` | string | Nein | Aktualisierter Kundenname |
+| `domains` | array | Nein | Aktualisierte Domains |
+| `externalIds` | array | Nein | Aktualisierte externe IDs |
+| `logoUrl` | string | Nein | Aktualisierte Logo-URL |
+| `ownerId` | string | Nein | Aktualisierte Besitzer-Benutzer-ID |
+| `revenue` | number | Nein | Aktualisierter Jahresumsatz |
+| `size` | number | Nein | Aktualisierte Organisationsgröße |
+| `statusId` | string | Nein | Aktualisierte Kundenstatus-ID |
+| `tierId` | string | Nein | Aktualisierte Kundenstufen-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customer` | object | Der aktualisierte Kunde |
+
+### `linear_delete_customer`
+
+Einen Kunden in Linear löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Ja | Kunden-ID zum Löschen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Löschung erfolgreich war |
+
+### `linear_merge_customers`
+
+Zwei Kunden in Linear zusammenführen, indem alle Daten von der Quelle zum Ziel verschoben werden
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `sourceCustomerId` | string | Ja | Quell-Kunden-ID \(wird nach der Zusammenführung gelöscht\) |
+| `targetCustomerId` | string | Ja | Ziel-Kunden-ID \(erhält alle Daten\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customer` | object | Der zusammengeführte Zielkunde |
+
+### `linear_create_customer_status`
+
+Einen neuen Kundenstatus in Linear erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Ja | Name des Kundenstatus |
+| `color` | string | Ja | Statusfarbe \(Hex-Code\) |
+| `displayName` | string | Nein | Anzeigename für den Status |
+| `description` | string | Nein | Statusbeschreibung |
+| `position` | number | Nein | Position in der Statusliste |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customerStatus` | object | Der erstellte Kundenstatus |
+
+### `linear_update_customer_status`
+
+Einen Kundenstatus in Linear aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | Ja | Kundenstatus-ID zum Aktualisieren |
+| `name` | string | Nein | Aktualisierter Statusname |
+| `color` | string | Nein | Aktualisierte Statusfarbe |
+| `displayName` | string | Nein | Aktualisierter Anzeigename |
+| `description` | string | Nein | Aktualisierte Beschreibung |
+| `position` | number | Nein | Aktualisierte Position |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customerStatus` | object | Der aktualisierte Kundenstatus |
+
+### `linear_delete_customer_status`
+
+Einen Kundenstatus in Linear löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | Ja | Kundenstatus-ID zum Löschen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Löschen erfolgreich war |
+
+### `linear_list_customer_statuses`
+
+Alle Kundenstatus in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customerStatuses` | array | Liste der Kundenstatus |
+
+### `linear_create_customer_tier`
+
+Erstellen einer neuen Kundenstufe in Linear
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Ja | Name der Kundenstufe |
+| `color` | string | Ja | Stufenfarbe (Hex-Code) |
+| `displayName` | string | Nein | Anzeigename für die Stufe |
+| `description` | string | Nein | Beschreibung der Stufe |
+| `position` | number | Nein | Position in der Stufenliste |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customerTier` | object | Die erstellte Kundenstufe |
+
+### `linear_update_customer_tier`
+
+Aktualisieren einer Kundenstufe in Linear
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `tierId` | string | Ja | Zu aktualisierende Kundenstufen-ID |
+| `name` | string | Nein | Aktualisierter Stufenname |
+| `color` | string | Nein | Aktualisierte Stufenfarbe |
+| `displayName` | string | Nein | Aktualisierter Anzeigename |
+| `description` | string | Nein | Aktualisierte Beschreibung |
+| `position` | number | Nein | Aktualisierte Position |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customerTier` | object | Die aktualisierte Kundenstufe |
+
+### `linear_delete_customer_tier`
+
+Löschen einer Kundenstufe in Linear
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `tierId` | string | Ja | Zu löschende Kundenstufen-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Löschung erfolgreich war |
+
+### `linear_list_customer_tiers`
+
+Alle Kundenstufen in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `customerTiers` | array | Liste der Kundenstufen |
+
+### `linear_delete_project`
+
+Ein Projekt in Linear löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Projekt-ID zum Löschen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Löschung erfolgreich war |
+
+### `linear_create_project_label`
+
+Ein neues Projekt-Label in Linear erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Ja | Projekt-Label-Name |
+| `color` | string | Nein | Label-Farbe \(Hex-Code\) |
+| `description` | string | Nein | Label-Beschreibung |
+| `isGroup` | boolean | Nein | Ob dies eine Label-Gruppe ist |
+| `parentId` | string | Nein | Übergeordnete Label-Gruppen-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `projectLabel` | object | Das erstellte Projekt-Label |
+
+### `linear_update_project_label`
+
+Ein Projektlabel in Linear aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `labelId` | string | Ja | Projektlabel-ID zum Aktualisieren |
+| `name` | string | Nein | Aktualisierter Labelname |
+| `color` | string | Nein | Aktualisierte Labelfarbe |
+| `description` | string | Nein | Aktualisierte Beschreibung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `projectLabel` | object | Das aktualisierte Projektlabel |
+
+### `linear_delete_project_label`
+
+Ein Projektlabel in Linear löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `labelId` | string | Ja | Projektlabel-ID zum Löschen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Löschen erfolgreich war |
+
+### `linear_list_project_labels`
+
+Alle Projektlabels in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Nein | Optionale Projekt-ID, um Labels für ein bestimmtes Projekt zu filtern |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `projectLabels` | array | Liste der Projektlabels |
+
+### `linear_add_label_to_project`
+
+Ein Label zu einem Projekt in Linear hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Projekt-ID |
+| `labelId` | string | Ja | Label-ID zum Hinzufügen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Label erfolgreich hinzugefügt wurde |
+| `projectId` | string | Die Projekt-ID |
+
+### `linear_remove_label_from_project`
+
+Ein Label von einem Projekt in Linear entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Projekt-ID |
+| `labelId` | string | Ja | Label-ID zum Entfernen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Label erfolgreich entfernt wurde |
+| `projectId` | string | Die Projekt-ID |
+
+### `linear_create_project_milestone`
+
+Einen neuen Projekt-Meilenstein in Linear erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Projekt-ID |
+| `name` | string | Ja | Meilenstein-Name |
+| `description` | string | Nein | Meilenstein-Beschreibung |
+| `targetDate` | string | Nein | Zieldatum \(ISO 8601\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `projectMilestone` | object | Der erstellte Projekt-Meilenstein |
+
+### `linear_update_project_milestone`
+
+Einen Projektmeilenstein in Linear aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `milestoneId` | string | Ja | Projektmeilenstein-ID, die aktualisiert werden soll |
+| `name` | string | Nein | Aktualisierter Meilensteinname |
+| `description` | string | Nein | Aktualisierte Beschreibung |
+| `targetDate` | string | Nein | Aktualisiertes Zieldatum \(ISO 8601\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `projectMilestone` | object | Der aktualisierte Projektmeilenstein |
+
+### `linear_delete_project_milestone`
+
+Einen Projektmeilenstein in Linear löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `milestoneId` | string | Ja | Projektmeilenstein-ID zum Löschen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Löschen erfolgreich war |
+
+### `linear_list_project_milestones`
+
+Alle Meilensteine für ein Projekt in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Projekt-ID, für die Meilensteine aufgelistet werden sollen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `projectMilestones` | array | Liste der Projektmeilensteine |
+
+### `linear_create_project_status`
+
+Einen neuen Projektstatus in Linear erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Ja | Name des Projektstatus |
+| `color` | string | Ja | Statusfarbe \(Hex-Code\) |
+| `description` | string | Nein | Statusbeschreibung |
+| `indefinite` | boolean | Nein | Ob der Status unbefristet ist |
+| `position` | number | Nein | Position in der Statusliste |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `projectStatus` | object | Der erstellte Projektstatus |
+
+### `linear_update_project_status`
+
+Einen Projektstatus in Linear aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | Ja | Projektstatus-ID zum Aktualisieren |
+| `name` | string | Nein | Aktualisierter Statusname |
+| `color` | string | Nein | Aktualisierte Statusfarbe |
+| `description` | string | Nein | Aktualisierte Beschreibung |
+| `indefinite` | boolean | Nein | Aktualisiertes Unbefristet-Flag |
+| `position` | number | Nein | Aktualisierte Position |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `projectStatus` | object | Der aktualisierte Projektstatus |
+
+### `linear_delete_project_status`
+
+Einen Projektstatus in Linear löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | Ja | Projektstatus-ID zum Löschen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Löschen erfolgreich war |
+
+### `linear_list_project_statuses`
+
+Alle Projektstatusarten in Linear auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `projectStatuses` | array | Liste von Projektstatusarten |
 
 ## Hinweise
 

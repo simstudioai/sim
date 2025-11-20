@@ -1,3 +1,6 @@
+import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
+import type { StorageConfig } from '@/lib/uploads/shared/types'
+
 import { createLogger } from '@/lib/logs/console/logger'
 import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/core/setup'
 import type { CustomBlobConfig } from '@/lib/uploads/providers/blob/blob-client'
@@ -257,17 +260,85 @@ export function getStorageProvider(): 'blob' | 's3' | 'local' {
 }
 
 /**
- * Check if we're using cloud storage (either S3 or Blob)
+ * Get the serve path prefix (unified across all storage providers)
  */
-export function isUsingCloudStorage(): boolean {
-  return USE_BLOB_STORAGE || USE_S3_STORAGE
+export function getServePathPrefix(): string {
+  return '/api/files/serve/'
 }
 
 /**
- * Get the appropriate serve path prefix based on storage provider
+ * Get file metadata from storage provider
+ * @param key File key/name
+ * @param customConfig Optional custom storage configuration
+ * @returns File metadata object with userId, workspaceId, originalName, uploadedAt, etc.
  */
-export function getServePathPrefix(): string {
-  if (USE_BLOB_STORAGE) return '/api/files/serve/blob/'
-  if (USE_S3_STORAGE) return '/api/files/serve/s3/'
-  return '/api/files/serve/'
+export async function getFileMetadata(
+  key: string,
+  customConfig?: StorageConfig
+): Promise<Record<string, string>> {
+  const { getFileMetadataByKey } = await import('../server/metadata')
+  const metadataRecord = await getFileMetadataByKey(key)
+
+  if (metadataRecord) {
+    return {
+      userId: metadataRecord.userId,
+      workspaceId: metadataRecord.workspaceId || '',
+      originalName: metadataRecord.originalName,
+      uploadedAt: metadataRecord.uploadedAt.toISOString(),
+      purpose: metadataRecord.context,
+    }
+  }
+
+  if (USE_BLOB_STORAGE) {
+    const { getBlobServiceClient } = await import('@/lib/uploads/providers/blob/client')
+    const { BLOB_CONFIG } = await import('@/lib/uploads/config')
+
+    let blobServiceClient = await getBlobServiceClient()
+    let containerName = BLOB_CONFIG.containerName
+
+    if (customConfig) {
+      const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
+      if (customConfig.connectionString) {
+        blobServiceClient = BlobServiceClient.fromConnectionString(customConfig.connectionString)
+      } else if (customConfig.accountName && customConfig.accountKey) {
+        const credential = new StorageSharedKeyCredential(
+          customConfig.accountName,
+          customConfig.accountKey
+        )
+        blobServiceClient = new BlobServiceClient(
+          `https://${customConfig.accountName}.blob.core.windows.net`,
+          credential
+        )
+      }
+      containerName = customConfig.containerName || containerName
+    }
+
+    const containerClient = blobServiceClient.getContainerClient(containerName)
+    const blockBlobClient = containerClient.getBlockBlobClient(key)
+    const properties = await blockBlobClient.getProperties()
+    return properties.metadata || {}
+  }
+
+  if (USE_S3_STORAGE) {
+    const { getS3Client } = await import('@/lib/uploads/providers/s3/client')
+    const { HeadObjectCommand } = await import('@aws-sdk/client-s3')
+    const { S3_CONFIG } = await import('@/lib/uploads/config')
+
+    const s3Client = getS3Client()
+    const bucket = customConfig?.bucket || S3_CONFIG.bucket
+
+    if (!bucket) {
+      throw new Error('S3 bucket not configured')
+    }
+
+    const command = new HeadObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    })
+
+    const response = await s3Client.send(command)
+    return response.Metadata || {}
+  }
+
+  return {}
 }

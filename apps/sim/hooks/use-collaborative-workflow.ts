@@ -3,12 +3,13 @@ import type { Edge } from 'reactflow'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/block-outputs'
+import { TriggerUtils } from '@/lib/workflows/triggers'
 import { getBlock } from '@/blocks'
-import { resolveOutputType } from '@/blocks/utils'
 import { useSocket } from '@/contexts/socket-context'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
+import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -19,6 +20,8 @@ import type { BlockState, Position } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('CollaborativeWorkflow')
 
+const WEBHOOK_SUBBLOCK_FIELDS = ['webhookId', 'triggerPath']
+
 export function useCollaborativeWorkflow() {
   const undoRedo = useUndoRedo()
   const isUndoRedoInProgress = useRef(false)
@@ -28,7 +31,6 @@ export function useCollaborativeWorkflow() {
     const moveHandler = (e: any) => {
       const { blockId, before, after } = e.detail || {}
       if (!blockId || !before || !after) return
-      // Don't record moves during undo/redo operations
       if (isUndoRedoInProgress.current) return
       undoRedo.recordMove(blockId, before, after)
     }
@@ -37,7 +39,6 @@ export function useCollaborativeWorkflow() {
       const { blockId, oldParentId, newParentId, oldPosition, newPosition, affectedEdges } =
         e.detail || {}
       if (!blockId) return
-      // Don't record during undo/redo operations
       if (isUndoRedoInProgress.current) return
       undoRedo.recordUpdateParent(
         blockId,
@@ -163,7 +164,6 @@ export function useCollaborativeWorkflow() {
                 {
                   enabled: payload.enabled,
                   horizontalHandles: payload.horizontalHandles,
-                  isWide: payload.isWide,
                   advancedMode: payload.advancedMode,
                   triggerMode: payload.triggerMode ?? false,
                   height: payload.height,
@@ -175,6 +175,9 @@ export function useCollaborativeWorkflow() {
               // Apply subblock values if present in payload
               if (payload.subBlocks && typeof payload.subBlocks === 'object') {
                 Object.entries(payload.subBlocks).forEach(([subblockId, subblock]) => {
+                  if (WEBHOOK_SUBBLOCK_FIELDS.includes(subblockId)) {
+                    return
+                  }
                   const value = (subblock as any)?.value
                   if (value !== undefined && value !== null) {
                     subBlockStore.setValue(payload.id, subblockId, value)
@@ -253,9 +256,6 @@ export function useCollaborativeWorkflow() {
             case 'update-parent':
               workflowStore.updateParentId(payload.id, payload.parentId, payload.extent)
               break
-            case 'update-wide':
-              workflowStore.setBlockWide(payload.id, payload.isWide)
-              break
             case 'update-advanced-mode':
               workflowStore.setBlockAdvancedMode(payload.id, payload.advancedMode)
               break
@@ -281,7 +281,6 @@ export function useCollaborativeWorkflow() {
                 {
                   enabled: payload.enabled,
                   horizontalHandles: payload.horizontalHandles,
-                  isWide: payload.isWide,
                   advancedMode: payload.advancedMode,
                   triggerMode: payload.triggerMode ?? false,
                   height: payload.height,
@@ -294,6 +293,9 @@ export function useCollaborativeWorkflow() {
               // Apply subblock values from duplicate payload so collaborators see content immediately
               if (payload.subBlocks && typeof payload.subBlocks === 'object') {
                 Object.entries(payload.subBlocks).forEach(([subblockId, subblock]) => {
+                  if (WEBHOOK_SUBBLOCK_FIELDS.includes(subblockId)) {
+                    return
+                  }
                   const value = (subblock as any)?.value
                   if (value !== undefined) {
                     subBlockStore.setValue(payload.id, subblockId, value)
@@ -340,11 +342,14 @@ export function useCollaborativeWorkflow() {
                 if (config.iterations !== undefined) {
                   workflowStore.updateLoopCount(payload.id, config.iterations)
                 }
-                // Handle both forEach items and while conditions
                 if (config.forEachItems !== undefined) {
-                  workflowStore.updateLoopCollection(payload.id, config.forEachItems)
-                } else if (config.whileCondition !== undefined) {
-                  workflowStore.updateLoopCollection(payload.id, config.whileCondition)
+                  workflowStore.setLoopForEachItems(payload.id, config.forEachItems)
+                }
+                if (config.whileCondition !== undefined) {
+                  workflowStore.setLoopWhileCondition(payload.id, config.whileCondition)
+                }
+                if (config.doWhileCondition !== undefined) {
+                  workflowStore.setLoopDoWhileCondition(payload.id, config.doWhileCondition)
                 }
               } else if (payload.type === 'parallel') {
                 const { config } = payload
@@ -372,6 +377,15 @@ export function useCollaborativeWorkflow() {
                 },
                 payload.id
               )
+              break
+            case 'variable-update':
+              if (payload.field === 'name') {
+                variablesStore.updateVariable(payload.variableId, { name: payload.value })
+              } else if (payload.field === 'value') {
+                variablesStore.updateVariable(payload.variableId, { value: payload.value })
+              } else if (payload.field === 'type') {
+                variablesStore.updateVariable(payload.variableId, { type: payload.value })
+              }
               break
             case 'remove':
               variablesStore.deleteVariable(payload.variableId)
@@ -697,7 +711,6 @@ export function useCollaborativeWorkflow() {
           outputs: {},
           enabled: true,
           horizontalHandles: true,
-          isWide: false,
           advancedMode: false,
           triggerMode: triggerMode || false,
           height: 0,
@@ -706,7 +719,7 @@ export function useCollaborativeWorkflow() {
           autoConnectEdge, // Include edge data for atomic operation
         }
 
-        // Skip if applying remote changes
+        // Skip if applying remote changes (don't auto-select blocks added by other users)
         if (isApplyingRemoteChange.current) {
           workflowStore.addBlock(id, type, name, position, data, parentId, extent, {
             triggerMode: triggerMode || false,
@@ -743,6 +756,9 @@ export function useCollaborativeWorkflow() {
         // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
         undoRedo.recordAddBlock(id, autoConnectEdge)
 
+        // Automatically select the newly added block (opens editor tab)
+        usePanelEditorStore.getState().setCurrentBlockId(id)
+
         return
       }
 
@@ -754,22 +770,46 @@ export function useCollaborativeWorkflow() {
       // Generate subBlocks and outputs from the block configuration
       const subBlocks: Record<string, any> = {}
 
-      // Create subBlocks from the block configuration
       if (blockConfig.subBlocks) {
         blockConfig.subBlocks.forEach((subBlock) => {
+          let initialValue: unknown = null
+
+          if (typeof subBlock.value === 'function') {
+            try {
+              initialValue = subBlock.value({})
+            } catch (error) {
+              logger.warn('Failed to resolve dynamic sub-block default value', {
+                subBlockId: subBlock.id,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+          } else if (subBlock.defaultValue !== undefined) {
+            initialValue = subBlock.defaultValue
+          } else if (subBlock.type === 'input-format') {
+            initialValue = [
+              {
+                id: crypto.randomUUID(),
+                name: '',
+                type: 'string',
+                value: '',
+                collapsed: false,
+              },
+            ]
+          } else if (subBlock.type === 'table') {
+            initialValue = []
+          }
+
           subBlocks[subBlock.id] = {
             id: subBlock.id,
             type: subBlock.type,
-            value: subBlock.defaultValue ?? null,
+            value: initialValue,
           }
         })
       }
 
       // Get outputs based on trigger mode
       const isTriggerMode = triggerMode || false
-      const outputs = isTriggerMode
-        ? getBlockOutputs(type, subBlocks, isTriggerMode)
-        : resolveOutputType(blockConfig.outputs)
+      const outputs = getBlockOutputs(type, subBlocks, isTriggerMode)
 
       const completeBlockData = {
         id,
@@ -781,7 +821,6 @@ export function useCollaborativeWorkflow() {
         outputs,
         enabled: true,
         horizontalHandles: true,
-        isWide: false,
         advancedMode: false,
         triggerMode: isTriggerMode,
         height: 0, // Default height, will be set by the UI
@@ -790,7 +829,7 @@ export function useCollaborativeWorkflow() {
         autoConnectEdge, // Include edge data for atomic operation
       }
 
-      // Skip if applying remote changes
+      // Skip if applying remote changes (don't auto-select blocks added by other users)
       if (isApplyingRemoteChange.current) return
 
       // Generate operation ID
@@ -818,6 +857,9 @@ export function useCollaborativeWorkflow() {
 
       // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
       undoRedo.recordAddBlock(id, autoConnectEdge)
+
+      // Automatically select the newly added block (opens editor tab)
+      usePanelEditorStore.getState().setCurrentBlockId(id)
     },
     [
       workflowStore,
@@ -846,6 +888,12 @@ export function useCollaborativeWorkflow() {
         })
       }
       findAllDescendants(id)
+
+      // If the currently edited block is among the blocks being removed, clear selection to restore the last tab
+      const currentEditedBlockId = usePanelEditorStore.getState().currentBlockId
+      if (currentEditedBlockId && blocksToRemove.has(currentEditedBlockId)) {
+        usePanelEditorStore.getState().clearCurrentBlock()
+      }
 
       // Capture state before removal, including all nested blocks with subblock values
       const allBlocks = mergeSubblockState(workflowStore.blocks, activeWorkflowId || undefined)
@@ -889,10 +937,42 @@ export function useCollaborativeWorkflow() {
   const collaborativeUpdateBlockName = useCallback(
     (id: string, name: string) => {
       executeQueuedOperation('update-name', 'block', { id, name }, () => {
-        workflowStore.updateBlockName(id, name)
+        const result = workflowStore.updateBlockName(id, name)
+
+        if (result.success && result.changedSubblocks.length > 0) {
+          logger.info('Emitting cascaded subblock updates from block rename', {
+            blockId: id,
+            newName: name,
+            updateCount: result.changedSubblocks.length,
+          })
+
+          result.changedSubblocks.forEach(
+            ({
+              blockId,
+              subBlockId,
+              newValue,
+            }: {
+              blockId: string
+              subBlockId: string
+              newValue: any
+            }) => {
+              const operationId = crypto.randomUUID()
+              addToQueue({
+                id: operationId,
+                operation: {
+                  operation: 'subblock-update',
+                  target: 'subblock',
+                  payload: { blockId, subBlockId, value: newValue },
+                },
+                workflowId: activeWorkflowId || '',
+                userId: session?.user?.id || 'unknown',
+              })
+            }
+          )
+        }
       })
     },
-    [executeQueuedOperation, workflowStore]
+    [executeQueuedOperation, workflowStore, addToQueue, activeWorkflowId, session?.user?.id]
   )
 
   const collaborativeToggleBlockEnabled = useCallback(
@@ -908,22 +988,6 @@ export function useCollaborativeWorkflow() {
     (id: string, parentId: string, extent: 'parent') => {
       executeQueuedOperation('update-parent', 'block', { id, parentId, extent }, () =>
         workflowStore.updateParentId(id, parentId, extent)
-      )
-    },
-    [executeQueuedOperation, workflowStore]
-  )
-
-  const collaborativeToggleBlockWide = useCallback(
-    (id: string) => {
-      // Get the current state before toggling
-      const currentBlock = workflowStore.blocks[id]
-      if (!currentBlock) return
-
-      // Calculate the new isWide value
-      const newIsWide = !currentBlock.isWide
-
-      executeQueuedOperation('update-wide', 'block', { id, isWide: newIsWide }, () =>
-        workflowStore.toggleBlockWide(id)
       )
     },
     [executeQueuedOperation, workflowStore]
@@ -952,6 +1016,20 @@ export function useCollaborativeWorkflow() {
       if (!currentBlock) return
 
       const newTriggerMode = !currentBlock.triggerMode
+
+      // When enabling trigger mode, check if block is inside a subflow
+      if (newTriggerMode && TriggerUtils.isBlockInSubflow(id, workflowStore.blocks)) {
+        // Dispatch custom event to show warning modal
+        window.dispatchEvent(
+          new CustomEvent('show-trigger-warning', {
+            detail: {
+              type: 'trigger_in_subflow',
+              triggerName: 'trigger',
+            },
+          })
+        )
+        return
+      }
 
       executeQueuedOperation(
         'update-trigger-mode',
@@ -1049,6 +1127,9 @@ export function useCollaborativeWorkflow() {
       // Generate operation ID for queue tracking
       const operationId = crypto.randomUUID()
 
+      // Get fresh activeWorkflowId from store to avoid stale closure
+      const currentActiveWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+
       // Add to queue for retry mechanism
       addToQueue({
         id: operationId,
@@ -1057,7 +1138,7 @@ export function useCollaborativeWorkflow() {
           target: 'subblock',
           payload: { blockId, subblockId, value },
         },
-        workflowId: activeWorkflowId || '',
+        workflowId: currentActiveWorkflowId || '',
         userId: session?.user?.id || 'unknown',
       })
 
@@ -1086,15 +1167,7 @@ export function useCollaborativeWorkflow() {
         // Best-effort; do not block on clearing
       }
     },
-    [
-      subBlockStore,
-      currentWorkflowId,
-      activeWorkflowId,
-      addToQueue,
-      session?.user?.id,
-      isShowingDiff,
-      isInActiveRoom,
-    ]
+    [subBlockStore, currentWorkflowId, addToQueue, session?.user?.id, isShowingDiff, isInActiveRoom]
   )
 
   // Immediate tag selection (uses queue but processes immediately, no debouncing)
@@ -1154,6 +1227,15 @@ export function useCollaborativeWorkflow() {
       const sourceBlock = workflowStore.blocks[sourceId]
       if (!sourceBlock) return
 
+      // Prevent duplication of start blocks (both legacy starter and unified start_trigger)
+      if (sourceBlock.type === 'starter' || sourceBlock.type === 'start_trigger') {
+        logger.warn('Cannot duplicate start block - only one start block allowed per workflow', {
+          blockId: sourceId,
+          blockType: sourceBlock.type,
+        })
+        return
+      }
+
       // Generate new ID and calculate position
       const newId = crypto.randomUUID()
       const offsetPosition = {
@@ -1163,13 +1245,23 @@ export function useCollaborativeWorkflow() {
 
       const newName = getUniqueBlockName(sourceBlock.name, workflowStore.blocks)
 
-      // Get subblock values from the store
-      const subBlockValues = subBlockStore.workflowValues[activeWorkflowId || '']?.[sourceId] || {}
+      // Get subblock values from the store, excluding webhook-specific fields
+      const allSubBlockValues =
+        subBlockStore.workflowValues[activeWorkflowId || '']?.[sourceId] || {}
+      const subBlockValues = Object.fromEntries(
+        Object.entries(allSubBlockValues).filter(([key]) => !WEBHOOK_SUBBLOCK_FIELDS.includes(key))
+      )
 
       // Merge subblock structure with actual values
       const mergedSubBlocks = sourceBlock.subBlocks
         ? JSON.parse(JSON.stringify(sourceBlock.subBlocks))
         : {}
+
+      WEBHOOK_SUBBLOCK_FIELDS.forEach((field) => {
+        if (field in mergedSubBlocks) {
+          delete mergedSubBlocks[field]
+        }
+      })
       Object.entries(subBlockValues).forEach(([subblockId, value]) => {
         if (mergedSubBlocks[subblockId]) {
           mergedSubBlocks[subblockId].value = value
@@ -1197,9 +1289,8 @@ export function useCollaborativeWorkflow() {
         extent: sourceBlock.data?.extent || null,
         enabled: sourceBlock.enabled ?? true,
         horizontalHandles: sourceBlock.horizontalHandles ?? true,
-        isWide: sourceBlock.isWide ?? false,
         advancedMode: sourceBlock.advancedMode ?? false,
-        triggerMode: false, // Always duplicate as normal mode to avoid webhook conflicts
+        triggerMode: sourceBlock.triggerMode ?? false,
         height: sourceBlock.height || 0,
       }
 
@@ -1214,12 +1305,14 @@ export function useCollaborativeWorkflow() {
         {
           enabled: sourceBlock.enabled,
           horizontalHandles: sourceBlock.horizontalHandles,
-          isWide: sourceBlock.isWide,
           advancedMode: sourceBlock.advancedMode,
-          triggerMode: false, // Always duplicate as normal mode
+          triggerMode: sourceBlock.triggerMode ?? false,
           height: sourceBlock.height,
         }
       )
+
+      // Focus the newly duplicated block in the editor
+      usePanelEditorStore.getState().setCurrentBlockId(newId)
 
       executeQueuedOperation('duplicate', 'block', duplicatedBlockData, () => {
         workflowStore.addBlock(
@@ -1233,9 +1326,8 @@ export function useCollaborativeWorkflow() {
           {
             enabled: sourceBlock.enabled,
             horizontalHandles: sourceBlock.horizontalHandles,
-            isWide: sourceBlock.isWide,
             advancedMode: sourceBlock.advancedMode,
-            triggerMode: false, // Always duplicate as normal mode
+            triggerMode: sourceBlock.triggerMode ?? false,
             height: sourceBlock.height,
           }
         )
@@ -1274,25 +1366,30 @@ export function useCollaborativeWorkflow() {
 
       const currentIterations = currentBlock.data?.count || 5
       const currentCollection = currentBlock.data?.collection || ''
-      const currentCondition = currentBlock.data?.whileCondition || ''
+
+      const existingLoop = workflowStore.loops[loopId]
+      const existingForEachItems = existingLoop?.forEachItems ?? currentCollection ?? ''
+      const existingWhileCondition =
+        existingLoop?.whileCondition ?? currentBlock.data?.whileCondition ?? ''
+      const existingDoWhileCondition =
+        existingLoop?.doWhileCondition ?? currentBlock.data?.doWhileCondition ?? ''
 
       const config: any = {
         id: loopId,
         nodes: childNodes,
         iterations: currentIterations,
         loopType,
+        forEachItems: existingForEachItems ?? '',
+        whileCondition: existingWhileCondition ?? '',
+        doWhileCondition: existingDoWhileCondition ?? '',
       }
 
-      // Include the appropriate field based on loop type
-      if (loopType === 'forEach') {
-        config.forEachItems = currentCollection
-      } else if (loopType === 'while' || loopType === 'doWhile') {
-        config.whileCondition = currentCondition
-      }
-
-      executeQueuedOperation('update', 'subflow', { id: loopId, type: 'loop', config }, () =>
+      executeQueuedOperation('update', 'subflow', { id: loopId, type: 'loop', config }, () => {
         workflowStore.updateLoopType(loopId, loopType)
-      )
+        workflowStore.setLoopForEachItems(loopId, existingForEachItems ?? '')
+        workflowStore.setLoopWhileCondition(loopId, existingWhileCondition ?? '')
+        workflowStore.setLoopDoWhileCondition(loopId, existingDoWhileCondition ?? '')
+      })
     },
     [executeQueuedOperation, workflowStore]
   )
@@ -1396,23 +1493,36 @@ export function useCollaborativeWorkflow() {
         const currentIterations = currentBlock.data?.count || 5
         const currentLoopType = currentBlock.data?.loopType || 'for'
 
+        const existingLoop = workflowStore.loops[nodeId]
+        let nextForEachItems = existingLoop?.forEachItems ?? currentBlock.data?.collection ?? ''
+        let nextWhileCondition =
+          existingLoop?.whileCondition ?? currentBlock.data?.whileCondition ?? ''
+        let nextDoWhileCondition =
+          existingLoop?.doWhileCondition ?? currentBlock.data?.doWhileCondition ?? ''
+
+        if (currentLoopType === 'forEach') {
+          nextForEachItems = collection
+        } else if (currentLoopType === 'while') {
+          nextWhileCondition = collection
+        } else if (currentLoopType === 'doWhile') {
+          nextDoWhileCondition = collection
+        }
+
         const config: any = {
           id: nodeId,
           nodes: childNodes,
           iterations: currentIterations,
           loopType: currentLoopType,
+          forEachItems: nextForEachItems ?? '',
+          whileCondition: nextWhileCondition ?? '',
+          doWhileCondition: nextDoWhileCondition ?? '',
         }
 
-        // Add the appropriate field based on loop type
-        if (currentLoopType === 'forEach') {
-          config.forEachItems = collection
-        } else if (currentLoopType === 'while') {
-          config.whileCondition = collection
-        }
-
-        executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'loop', config }, () =>
-          workflowStore.updateLoopCollection(nodeId, collection)
-        )
+        executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'loop', config }, () => {
+          workflowStore.setLoopForEachItems(nodeId, nextForEachItems ?? '')
+          workflowStore.setLoopWhileCondition(nodeId, nextWhileCondition ?? '')
+          workflowStore.setLoopDoWhileCondition(nodeId, nextDoWhileCondition ?? '')
+        })
       } else {
         const currentCount = currentBlock.data?.count || 5
         const currentParallelType = currentBlock.data?.parallelType || 'count'
@@ -1451,6 +1561,8 @@ export function useCollaborativeWorkflow() {
   const collaborativeAddVariable = useCallback(
     (variableData: { name: string; type: any; value: any; workflowId: string }) => {
       const id = crypto.randomUUID()
+
+      // Optimistically add to local store first
       variablesStore.addVariable(variableData, id)
       const processedVariable = useVariablesStore.getState().variables[id]
 
@@ -1461,6 +1573,8 @@ export function useCollaborativeWorkflow() {
           name: processedVariable.name,
         }
 
+        // Queue operation with processed name for server & other clients
+        // Empty callback because local store is already updated above
         executeQueuedOperation('add', 'variable', payloadWithProcessedName, () => {})
       }
 
@@ -1517,7 +1631,6 @@ export function useCollaborativeWorkflow() {
     collaborativeRemoveBlock,
     collaborativeToggleBlockEnabled,
     collaborativeUpdateParentId,
-    collaborativeToggleBlockWide,
     collaborativeToggleBlockAdvancedMode,
     collaborativeToggleBlockTriggerMode,
     collaborativeToggleBlockHandles,

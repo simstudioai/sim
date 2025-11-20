@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
-import { Loader2, RefreshCw, Search } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ArrowUp, Loader2, RefreshCw, Search } from 'lucide-react'
+import { Button, Tooltip } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import Timeline from '@/app/workspace/[workspaceId]/logs/components/filters/components/timeline'
@@ -17,7 +16,6 @@ export function Controls({
   viewMode,
   setViewMode,
   searchComponent,
-  showExport = true,
   onExport,
 }: {
   searchQuery?: string
@@ -49,7 +47,7 @@ export function Controls({
             placeholder='Search workflows...'
             value={searchQuery}
             onChange={(e) => setSearchQuery?.(e.target.value)}
-            className='h-9 w-full rounded-[11px] border-[#E5E5E5] bg-[#FFFFFF] pr-10 pl-9 dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+            className='h-9 w-full border-[#E5E5E5] bg-[var(--white)] pr-10 pl-9 dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
           />
           {searchQuery && (
             <button
@@ -73,57 +71,45 @@ export function Controls({
       )}
 
       <div className='ml-auto flex flex-shrink-0 items-center gap-3'>
-        <Tooltip>
-          <TooltipTrigger asChild>
+        {viewMode !== 'dashboard' && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                onClick={onExport}
+                className='h-9 w-9 p-0 hover:bg-secondary'
+                aria-label='Export CSV'
+              >
+                <ArrowUp className='h-4 w-4' />
+                <span className='sr-only'>Export CSV</span>
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content>Export CSV</Tooltip.Content>
+          </Tooltip.Root>
+        )}
+
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              size='icon'
               onClick={resetToNow}
-              className='h-9 rounded-[11px] hover:bg-secondary'
+              className='h-9 w-9 p-0 hover:bg-secondary'
               disabled={isRefetching}
             >
               {isRefetching ? (
-                <Loader2 className='h-5 w-5 animate-spin' />
+                <Loader2 className='h-4 w-4 animate-spin' />
               ) : (
-                <RefreshCw className='h-5 w-5' />
+                <RefreshCw className='h-4 w-4' />
               )}
               <span className='sr-only'>Refresh</span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>{isRefetching ? 'Refreshing...' : 'Refresh'}</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='ghost'
-              size='icon'
-              onClick={onExport}
-              className='h-9 rounded-[11px] hover:bg-secondary'
-              aria-label='Export CSV'
-            >
-              <svg
-                xmlns='http://www.w3.org/2000/svg'
-                viewBox='0 0 24 24'
-                fill='none'
-                stroke='currentColor'
-                strokeWidth='2'
-                className='h-5 w-5'
-              >
-                <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
-                <polyline points='7 10 12 15 17 10' />
-                <line x1='12' y1='15' x2='12' y2='3' />
-              </svg>
-              <span className='sr-only'>Export CSV</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Export CSV</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>{isRefetching ? 'Refreshing...' : 'Refresh'}</Tooltip.Content>
+        </Tooltip.Root>
 
         <div className='inline-flex h-9 items-center rounded-[11px] border bg-card p-1 shadow-sm'>
           <Button
             variant='ghost'
-            size='sm'
             onClick={() => setLive((v) => !v)}
             className={cn(
               'h-7 rounded-[8px] px-3 font-normal text-xs',
@@ -140,7 +126,6 @@ export function Controls({
         <div className='inline-flex h-9 items-center rounded-[11px] border bg-card p-1 shadow-sm'>
           <Button
             variant='ghost'
-            size='sm'
             onClick={() => setViewMode('logs')}
             className={cn(
               'h-7 rounded-[8px] px-3 font-normal text-xs',
@@ -154,7 +139,6 @@ export function Controls({
           </Button>
           <Button
             variant='ghost'
-            size='sm'
             onClick={() => setViewMode('dashboard')}
             className={cn(
               'h-7 rounded-[8px] px-3 font-normal text-xs',
@@ -170,9 +154,7 @@ export function Controls({
       </div>
 
       <div className='sm:hidden'>
-        <TooltipProvider>
-          <Timeline />
-        </TooltipProvider>
+        <Timeline />
       </div>
     </div>
   )

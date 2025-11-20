@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { ArrowRight, ChevronRight, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -22,7 +22,7 @@ import { getBaseUrl } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/fonts/inter/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
 const logger = createLogger('LoginForm')
@@ -106,6 +106,7 @@ export default function LoginPage({
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+  const [isButtonHovered, setIsButtonHovered] = useState(false)
 
   const [callbackUrl, setCallbackUrl] = useState('/workspace')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
@@ -113,6 +114,7 @@ export default function LoginPage({
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
   const [isSubmittingReset, setIsSubmittingReset] = useState(false)
+  const [isResetButtonHovered, setIsResetButtonHovered] = useState(false)
   const [resetStatus, setResetStatus] = useState<{
     type: 'success' | 'error' | null
     message: string
@@ -228,7 +230,7 @@ export default function LoginPage({
         },
         {
           onError: (ctx) => {
-            console.error('Login error:', ctx.error)
+            logger.error('Login error:', ctx.error)
             const errorMessage: string[] = ['Invalid email or password']
 
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
@@ -288,7 +290,7 @@ export default function LoginPage({
         return
       }
 
-      console.error('Uncaught login error:', err)
+      logger.error('Uncaught login error:', err)
     } finally {
       setIsLoading(false)
     }
@@ -482,10 +484,21 @@ export default function LoginPage({
 
           <Button
             type='submit'
-            className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
+            onMouseEnter={() => setIsButtonHovered(true)}
+            onMouseLeave={() => setIsButtonHovered(false)}
+            className='group inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all'
             disabled={isLoading}
           >
-            {isLoading ? 'Signing in...' : 'Sign in'}
+            <span className='flex items-center gap-1'>
+              {isLoading ? 'Signing in...' : 'Sign in'}
+              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                {isButtonHovered ? (
+                  <ArrowRight className='h-4 w-4' aria-hidden='true' />
+                ) : (
+                  <ChevronRight className='h-4 w-4' aria-hidden='true' />
+                )}
+              </span>
+            </span>
           </Button>
         </form>
       )}
@@ -600,10 +613,21 @@ export default function LoginPage({
             <Button
               type='button'
               onClick={handleForgotPassword}
-              className={`${buttonClass} w-full rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
+              onMouseEnter={() => setIsResetButtonHovered(true)}
+              onMouseLeave={() => setIsResetButtonHovered(false)}
+              className='group inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all'
               disabled={isSubmittingReset}
             >
-              {isSubmittingReset ? 'Sending...' : 'Send Reset Link'}
+              <span className='flex items-center gap-1'>
+                {isSubmittingReset ? 'Sending...' : 'Send Reset Link'}
+                <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                  {isResetButtonHovered ? (
+                    <ArrowRight className='h-4 w-4' aria-hidden='true' />
+                  ) : (
+                    <ChevronRight className='h-4 w-4' aria-hidden='true' />
+                  )}
+                </span>
+              </span>
             </Button>
           </div>
         </DialogContent>

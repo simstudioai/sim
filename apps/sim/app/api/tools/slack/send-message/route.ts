@@ -2,10 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  downloadFileFromStorage,
-  processFilesToUserFiles,
-} from '@/lib/uploads/utils/file-processing'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
+import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { generateRequestId } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
@@ -16,6 +14,7 @@ const SlackSendMessageSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   channel: z.string().min(1, 'Channel is required'),
   text: z.string().min(1, 'Message text is required'),
+  thread_ts: z.string().optional().nullable(),
   files: z.array(z.any()).optional().nullable(),
 })
 
@@ -61,6 +60,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           channel: validatedData.channel,
           text: validatedData.text,
+          ...(validatedData.thread_ts && { thread_ts: validatedData.thread_ts }),
         }),
       })
 
@@ -78,9 +78,16 @@ export async function POST(request: NextRequest) {
       }
 
       logger.info(`[${requestId}] Message sent successfully`)
+      const messageObj = data.message || {
+        type: 'message',
+        ts: data.ts,
+        text: validatedData.text,
+        channel: data.channel,
+      }
       return NextResponse.json({
         success: true,
         output: {
+          message: messageObj,
           ts: data.ts,
           channel: data.channel,
         },
@@ -102,13 +109,21 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           channel: validatedData.channel,
           text: validatedData.text,
+          ...(validatedData.thread_ts && { thread_ts: validatedData.thread_ts }),
         }),
       })
 
       const data = await response.json()
+      const messageObj = data.message || {
+        type: 'message',
+        ts: data.ts,
+        text: validatedData.text,
+        channel: data.channel,
+      }
       return NextResponse.json({
         success: true,
         output: {
+          message: messageObj,
           ts: data.ts,
           channel: data.channel,
         },
@@ -168,13 +183,21 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           channel: validatedData.channel,
           text: validatedData.text,
+          ...(validatedData.thread_ts && { thread_ts: validatedData.thread_ts }),
         }),
       })
 
       const data = await response.json()
+      const messageObj = data.message || {
+        type: 'message',
+        ts: data.ts,
+        text: validatedData.text,
+        channel: data.channel,
+      }
       return NextResponse.json({
         success: true,
         output: {
+          message: messageObj,
           ts: data.ts,
           channel: data.channel,
         },
@@ -209,10 +232,28 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Files uploaded and shared successfully`)
 
+    // For file uploads, construct a message object
+    const fileTs = completeData.files?.[0]?.created?.toString() || (Date.now() / 1000).toString()
+    const fileMessage = {
+      type: 'message',
+      ts: fileTs,
+      text: validatedData.text,
+      channel: validatedData.channel,
+      files: completeData.files?.map((file: any) => ({
+        id: file?.id,
+        name: file?.name,
+        mimetype: file?.mimetype,
+        size: file?.size,
+        url_private: file?.url_private,
+        permalink: file?.permalink,
+      })),
+    }
+
     return NextResponse.json({
       success: true,
       output: {
-        ts: completeData.files?.[0]?.created || Date.now() / 1000,
+        message: fileMessage,
+        ts: fileTs,
         channel: validatedData.channel,
         fileCount: uploadedFileIds.length,
       },

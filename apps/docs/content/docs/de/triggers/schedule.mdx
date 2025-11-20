@@ -11,7 +11,7 @@ Der Zeitplan-Block löst Workflows automatisch nach einem wiederkehrenden Zeitpl
 
 <div className="flex justify-center">
   <Image
-    src="/static/schedule.png"
+    src="/static/blocks/schedule.png"
     alt="Zeitplan-Block"
     width={500}
     height={400}
@@ -45,20 +45,24 @@ Konfigurieren Sie, wann Ihr Workflow ausgeführt wird, mit den Dropdown-Optionen
 
 ## Zeitpläne konfigurieren
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="configure-schedule.mp4" width={700} height={450} />
-</div>
-
 Wenn ein Workflow geplant ist:
-- Wird der Zeitplan **aktiv** und zeigt die nächste Ausführungszeit an
+- Der Zeitplan wird **aktiv** und zeigt die nächste Ausführungszeit an
 - Klicken Sie auf die Schaltfläche **"Geplant"**, um den Zeitplan zu deaktivieren
 - Zeitpläne werden nach **3 aufeinanderfolgenden Fehlern** automatisch deaktiviert
 
-## Deaktivierte Zeitpläne
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-2.png"
+    alt="Aktiver Zeitplan-Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 <div className="flex justify-center">
   <Image
-    src="/static/schedule-disabled.png"
+    src="/static/blocks/schedule-3.png"
     alt="Deaktivierter Zeitplan"
     width={500}
     height={350}
@@ -66,8 +70,18 @@ Wenn ein Workflow geplant ist:
   />
 </div>
 
-Deaktivierte Zeitpläne zeigen an, wann sie zuletzt aktiv waren, und können jederzeit wieder aktiviert werden.
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
+    alt="Deaktivierter Zeitplan"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+Deaktivierte Zeitpläne zeigen an, wann sie zuletzt aktiv waren. Klicken Sie auf das **"Deaktiviert"**-Badge, um den Zeitplan wieder zu aktivieren.
 
 <Callout>
-Zeitplan-Blöcke können keine eingehenden Verbindungen empfangen und dienen als reine Workflow-Auslöser.
+Zeitplan-Blöcke können keine eingehenden Verbindungen empfangen und dienen ausschließlich als Workflow-Auslöser.
 </Callout>

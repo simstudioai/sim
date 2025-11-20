@@ -2,21 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ==========================================================================
-   WORKFLOW COMPONENT Z-INDEX FIXES
-   ========================================================================== */
+/**
+ * CSS-based sidebar and panel widths to prevent SSR hydration mismatches.
+ * Default widths are set here and updated via blocking script before React hydrates.
+ */
+:root {
+  --sidebar-width: 232px;
+  --panel-width: 244px;
+  --toolbar-triggers-height: 300px;
+  --editor-connections-height: 200px;
+  --terminal-height: 196px;
+}
+
+.sidebar-container {
+  width: var(--sidebar-width);
+}
+
+.panel-container {
+  width: var(--panel-width);
+}
+
+.terminal-container {
+  height: var(--terminal-height);
+}
+
+/**
+ * Workflow component z-index fixes and background colors
+ */
 .workflow-container .react-flow__edges {
   z-index: 0 !important;
 }
 
 .workflow-container .react-flow__node {
   z-index: 21 !important;
-}
-
-.workflow-container .react-flow__node-loopNode,
-.workflow-container .react-flow__node-parallelNode,
-.workflow-container .react-flow__node-subflowNode {
-  z-index: -1 !important;
 }
 
 .workflow-container .react-flow__handle {
@@ -31,208 +49,318 @@
   z-index: 60 !important;
 }
 
-/* ==========================================================================
-   LANDING LOOP ANIMATION
-   ========================================================================== */
-@keyframes dash-animation {
-  from {
-    stroke-dashoffset: 0;
-  }
-  to {
-    stroke-dashoffset: -24;
-  }
+.workflow-container,
+.workflow-container .react-flow__pane,
+.workflow-container .react-flow__renderer {
+  background-color: var(--bg) !important;
 }
 
+.dark .workflow-container,
+.dark .workflow-container .react-flow__pane,
+.dark .workflow-container .react-flow__renderer {
+  background-color: var(--bg) !important;
+}
+
+/**
+ * Landing loop animation styles (keyframes defined in tailwind.config.ts)
+ */
 .landing-loop-animated-dash {
   animation: dash-animation 1.5s linear infinite;
-  /* Ensure animation works in React Flow context */
   will-change: stroke-dashoffset;
   transform: translateZ(0);
 }
 
-/* Ensure React Flow doesn't override our animation */
 .react-flow__node-landingLoop svg rect.landing-loop-animated-dash {
   animation: dash-animation 1.5s linear infinite !important;
 }
 
-/* ==========================================================================
-   THEME SYSTEM - CSS CUSTOM PROPERTIES
-   ========================================================================== */
+/**
+ * Dark color tokens - single source of truth for all colors (dark-only)
+ */
 @layer base {
-  /* Light Mode Theme */
   :root,
   .light {
-    /* Core Colors */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    /* Neutrals (surfaces) */
+    --bg: #ffffff;
+    --surface-1: #ffffff;
+    --surface-2: #fafafa;
+    --surface-3: #f8f8f8;
+    --surface-4: #f6f6f6;
+    --surface-5: #f3f3f3;
+    --surface-6: #f0f0f0;
+    --surface-9: #eaeaea;
+    --surface-11: #e6e6e6;
+    --surface-12: #e0e0e0;
+    --surface-13: #dcdcdc;
+    --surface-14: #d6d6d6;
+    --surface-15: #cfcfcf;
+    --surface-elevated: #ffffff;
+    --bg-strong: #f5f5f5;
 
-    /* Card Colors */
-    --card: 0 0% 99.2%;
-    --card-foreground: 0 0% 3.9%;
+    /* Text */
+    --text-primary: #1b1b1b;
+    --text-secondary: #404040;
+    --text-tertiary: #555555;
+    --text-muted: #737373;
+    --text-subtle: #8a8a8a;
+    --text-inverse: #1b1b1b;
+    --text-error: #ef4444;
 
-    /* Popover Colors */
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
+    /* Borders / dividers */
+    --border: #dddddd;
+    --border-strong: #d1d1d1;
+    --divider: #e5e5e5;
+    --border-muted: #eeeeee;
+    --border-success: #d5d5d5;
 
-    /* Primary Colors */
-    --primary: 0 0% 11.2%;
-    --primary-foreground: 0 0% 98%;
+    /* Brand & state */
+    --brand-400: #8e4cfb;
+    --brand-500: #6f3dfa;
+    --brand-secondary: #33b4ff;
+    --brand-tertiary: #22c55e;
+    --warning: #ff6600;
 
-    /* Secondary Colors */
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 11.2%;
+    /* Utility */
+    --white: #ffffff;
 
-    /* Muted Colors */
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 46.9%;
+    /* RGB for opacity usage */
+    --surface-4-rgb: 246 246 246;
+    --surface-5-rgb: 243 243 243;
+    --surface-7-rgb: 230 230 230;
+    --surface-9-rgb: 234 234 234;
+    --divider-rgb: 229 229 229;
+    --white-rgb: 255 255 255;
+    --black-rgb: 0 0 0;
 
-    /* Accent Colors */
-    --accent: 0 0% 92.5%;
-    --accent-foreground: 0 0% 11.2%;
+    /* Extended palette (exhaustive from code usage via -[#...]) */
+    /* Neutral deep shades */
+    --c-0D0D0D: #0d0d0d;
+    --c-1A1A1A: #1a1a1a;
+    --c-1F1F1F: #1f1f1f;
+    --c-2A2A2A: #2a2a2a;
+    --c-383838: #383838;
+    --c-414141: #414141;
+    --c-442929: #442929;
+    --c-491515: #491515;
+    --c-575757: #575757;
+    --c-686868: #686868;
+    --c-707070: #707070;
+    --c-727272: #727272;
+    --c-737373: #737373;
+    --c-808080: #808080;
+    --c-858585: #858585;
+    --c-868686: #868686;
+    --c-8D8D8D: #8d8d8d;
+    --c-939393: #939393;
+    --c-A8A8A8: #a8a8a8;
+    --c-B8B8B8: #b8b8b8;
+    --c-C0C0C0: #c0c0c0;
+    --c-CDCDCD: #cdcdcd;
+    --c-D0D0D0: #d0d0d0;
+    --c-D2D2D2: #d2d2d2;
+    --c-E0E0E0: #e0e0e0;
+    --c-E5E5E5: #e5e5e5;
+    --c-E8E8E8: #e8e8e8;
+    --c-EEEEEE: #eeeeee;
+    --c-F0F0F0: #f0f0f0;
+    --c-F4F4F4: #f4f4f4;
+    --c-F5F5F5: #f5f5f5;
 
-    /* Destructive Colors */
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
+    /* Blues and cyans */
+    --c-00B0B0: #00b0b0;
+    --c-264F78: #264f78;
+    --c-2F55FF: #2f55ff;
+    --c-2FA1FF: #2fa1ff;
+    --c-336699: #336699;
+    --c-34B5FF: #34b5ff;
+    --c-601EE0: #601ee0;
+    --c-611F69: #611f69;
+    --c-802FFF: #802fff;
+    --c-8357FF: #8357ff;
+    --c-8C10FF: #8c10ff;
 
-    /* Border & Input Colors */
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+    /* Greens */
+    --c-4CAF50: #4caf50;
 
-    /* Border Radius */
-    --radius: 0.5rem;
+    /* Oranges / Ambers */
+    --c-F59E0B: #f59e0b;
+    --c-F97316: #f97316;
+    --c-FF972F: #ff972f;
 
-    /* Scrollbar Properties */
-    --scrollbar-track: 0 0% 85%;
-    --scrollbar-thumb: 0 0% 65%;
-    --scrollbar-thumb-hover: 0 0% 55%;
-    --scrollbar-size: 8px;
-
-    /* Workflow Properties */
-    --workflow-background: 0 0% 100%;
-    --workflow-dots: 0 0% 94.5%;
-    --card-background: 0 0% 99.2%;
-    --card-border: 0 0% 89.8%;
-    --card-text: 0 0% 3.9%;
-    --card-hover: 0 0% 96.1%;
-
-    /* Base Component Properties */
-    --base-muted-foreground: #737373;
-
-    /* Gradient Colors */
-    --gradient-primary: 263 85% 70%; /* More vibrant purple */
-    --gradient-secondary: 336 95% 65%; /* More vibrant pink */
-
-    /* Brand Colors (Default Sim Theme) */
-    --brand-primary-hex: #6f3dfa; /* Primary brand purple - matches Get Started gradient start */
-    --brand-primary-hover-hex: #6338d9; /* Primary brand purple hover - matches Get Started hover */
-    --brand-accent-hex: #6f3dfa; /* Accent purple for links - matches sign in button */
-    --brand-accent-hover-hex: #6f3dfa; /* Accent purple hover - matches sign in gradient start */
-    --brand-background-hex: #ffffff; /* Primary light background */
-
-    /* UI Surface Colors */
-    --surface-elevated: #202020; /* Elevated surface background for dark mode */
+    /* Reds */
+    --c-DC2626: #dc2626;
+    --c-F6D2D2: #f6d2d2;
+    --c-F87171: #f87171;
+    --c-FF402F: #ff402f;
+    --c-B91C1C: #b91c1c;
+    --c-883827: #883827;
   }
-
-  /* Dark Mode Theme */
   .dark {
-    /* Core Colors */
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
+    /* Neutrals (surfaces) */
+    --bg: #1b1b1b;
+    --surface-1: #1e1e1e;
+    --surface-2: #232323;
+    --surface-3: #242424;
+    --surface-4: #252525;
+    --surface-5: #272727;
+    --surface-6: #282828;
+    --surface-9: #363636;
+    --surface-11: #3d3d3d;
+    --surface-12: #434343;
+    --surface-13: #454545;
+    --surface-14: #4a4a4a;
+    --surface-15: #5a5a5a;
+    --surface-elevated: #202020;
+    --bg-strong: #0c0c0c;
 
-    /* Card Colors */
-    --card: 0 0% 9.0%;
-    --card-foreground: 0 0% 98%;
+    /* Text */
+    --text-primary: #e6e6e6;
+    --text-secondary: #b1b1b1;
+    --text-tertiary: #aeaeae;
+    --text-muted: #787878;
+    --text-subtle: #7d7d7d;
+    --text-inverse: #1b1b1b;
+    --text-error: #ef4444;
 
-    /* Popover Colors */
-    --popover: 0 0% 9.0%;
-    --popover-foreground: 0 0% 98%;
+    /* Borders / dividers */
+    --border: #2c2c2c;
+    --border-strong: #303030;
+    --divider: #393939;
+    --border-muted: #424242;
+    --border-success: #575757;
 
-    /* Primary Colors */
-    --primary: 0 0% 11.2%;
-    --primary-foreground: 0 0% 98%;
+    /* Brand & state */
+    --brand-400: #8e4cfb;
+    --brand-secondary: #33b4ff;
+    --brand-tertiary: #22c55e;
+    --warning: #ff6600;
 
-    /* Secondary Colors */
-    --secondary: 0 0% 12.0%;
-    --secondary-foreground: 0 0% 98%;
+    /* Utility */
+    --white: #ffffff;
 
-    /* Muted Colors */
-    --muted: 0 0% 17.5%;
-    --muted-foreground: 0 0% 65.1%;
+    /* RGB for opacity usage */
+    --surface-4-rgb: 37 37 37;
+    --surface-5-rgb: 39 39 39;
+    --surface-7-rgb: 44 44 44;
+    --surface-9-rgb: 54 54 54;
+    --divider-rgb: 57 57 57;
+    --white-rgb: 255 255 255;
+    --black-rgb: 0 0 0;
 
-    /* Accent Colors */
-    --accent: 0 0% 17.5%;
-    --accent-foreground: 0 0% 98%;
+    /* Extended palette (exhaustive from code usage via -[#...]) */
+    /* Neutral deep shades */
+    --c-0D0D0D: #0d0d0d;
+    --c-1A1A1A: #1a1a1a;
+    --c-1F1F1F: #1f1f1f;
+    --c-2A2A2A: #2a2a2a;
+    --c-383838: #383838;
+    --c-414141: #414141;
+    --c-442929: #442929;
+    --c-491515: #491515;
+    --c-575757: #575757;
+    --c-686868: #686868;
+    --c-707070: #707070;
+    --c-727272: #727272;
+    --c-737373: #737373;
+    --c-808080: #808080;
+    --c-858585: #858585;
+    --c-868686: #868686;
+    --c-8D8D8D: #8d8d8d;
+    --c-939393: #939393;
+    --c-A8A8A8: #a8a8a8;
+    --c-B8B8B8: #b8b8b8;
+    --c-C0C0C0: #c0c0c0;
+    --c-CDCDCD: #cdcdcd;
+    --c-D0D0D0: #d0d0d0;
+    --c-D2D2D2: #d2d2d2;
+    --c-E0E0E0: #e0e0e0;
+    --c-E5E5E5: #e5e5e5;
+    --c-E8E8E8: #e8e8e8;
+    --c-EEEEEE: #eeeeee;
+    --c-F0F0F0: #f0f0f0;
+    --c-F4F4F4: #f4f4f4;
+    --c-F5F5F5: #f5f5f5;
 
-    /* Destructive Colors */
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
+    --c-CFCFCF: #cfcfcf;
 
-    /* Border & Input Colors */
-    --border: 0 0% 16.1%;
-    --input: 0 0% 16.1%;
-    --ring: 0 0% 83.9%;
+    /* Blues and cyans */
+    --c-00B0B0: #00b0b0;
+    --c-264F78: #264f78;
+    --c-2F55FF: #2f55ff;
+    --c-2FA1FF: #2fa1ff;
+    --c-336699: #336699;
+    --c-34B5FF: #34b5ff;
+    --c-601EE0: #601ee0;
+    --c-611F69: #611f69;
+    --c-802FFF: #802fff;
+    --c-8357FF: #8357ff;
+    --c-8C10FF: #8c10ff;
 
-    /* Scrollbar Properties */
-    --scrollbar-track: 0 0% 17.5%;
-    --scrollbar-thumb: 0 0% 30%;
-    --scrollbar-thumb-hover: 0 0% 40%;
+    /* Greens */
+    --c-4CAF50: #4caf50;
 
-    /* Workflow Properties */
-    --workflow-background: 0 0% 3.9%;
-    --workflow-dots: 0 0% 7.5%;
-    --card-background: 0 0% 9.0%;
-    --card-border: 0 0% 22.7%;
-    --card-text: 0 0% 98%;
-    --card-hover: 0 0% 12.0%;
+    /* Oranges / Ambers */
+    --c-F59E0B: #f59e0b;
+    --c-F97316: #f97316;
+    --c-FF972F: #ff972f;
 
-    /* Base Component Properties */
-    --base-muted-foreground: #a3a3a3;
-
-    /* Gradient Colors - Adjusted for dark mode */
-    --gradient-primary: 263 90% 75%; /* More vibrant purple for dark mode */
-    --gradient-secondary: 336 100% 72%; /* More vibrant pink for dark mode */
-
-    /* Brand Colors (Keep dark background for actual dark mode) */
-    --brand-primary-hex: #701ffc; /* Primary brand purple */
-    --brand-primary-hover-hex: #802fff; /* Primary brand purple hover */
-    --brand-accent-hex: #9d54ff; /* Accent purple for links */
-    --brand-accent-hover-hex: #a66fff; /* Accent purple hover */
-    --brand-background-hex: #0c0c0c; /* Primary dark background */
-
-    /* UI Surface Colors */
-    --surface-elevated: #202020; /* Elevated surface background for dark mode */
+    /* Reds */
+    --c-DC2626: #dc2626;
+    --c-F6D2D2: #f6d2d2;
+    --c-F87171: #f87171;
+    --c-FF402F: #ff402f;
+    --c-B91C1C: #b91c1c;
+    --c-883827: #883827;
   }
 }
 
-/* ==========================================================================
-   BASE STYLES
-   ========================================================================== */
+/**
+ * Base styles for body, scrollbars, and global elements
+ */
 @layer base {
   * {
-    @apply border-border;
+    border-color: var(--border);
     overscroll-behavior-x: none;
+  }
+
+  *:focus {
+    outline: none;
   }
 
   body {
-    @apply bg-background text-foreground;
+    background-color: var(--bg);
+    color: var(--text-primary);
     overscroll-behavior-x: none;
     overscroll-behavior-y: none;
     min-height: 100vh;
-    /* Prevent layout shifts when scrollbar appears/disappears */
     scrollbar-gutter: stable;
-    /* Improve animation performance */
     text-rendering: optimizeSpeed;
+    letter-spacing: 0.28px;
   }
 
-  /* Global Scrollbar Styling */
+  /* Ensure visible text caret across inputs and editors */
+  input,
+  textarea,
+  [contenteditable="true"] {
+    caret-color: var(--text-primary);
+  }
+
+  .dark input,
+  .dark textarea,
+  .dark [contenteditable="true"] {
+    caret-color: var(--text-primary);
+  }
+
+  .dark body {
+    @apply antialiased;
+  }
   ::-webkit-scrollbar {
     width: var(--scrollbar-size);
     height: var(--scrollbar-size);
   }
 
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: var(--white);
   }
 
   ::-webkit-scrollbar-thumb {
@@ -241,105 +369,88 @@
   }
 
   ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  /* Dark Mode Global Scrollbar */
+  .dark ::-webkit-scrollbar-track {
+    background: var(--surface-5);
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
     background-color: hsl(var(--muted-foreground) / 0.3);
   }
 
-  /* For Firefox */
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
   * {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) var(--white);
+  }
+
+  .dark * {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) var(--surface-5);
+  }
+
+  .copilot-scrollable {
+    scrollbar-gutter: stable;
   }
 }
 
-/* ==========================================================================
-   TYPOGRAPHY
-   ========================================================================== */
-.font-geist-sans {
-  font-family: var(--font-geist-sans);
-}
-
-.font-geist-mono {
-  font-family: var(--font-geist-mono);
-}
-
-/* ==========================================================================
-   PANEL STYLES
-   ========================================================================== */
+/**
+ * Panel tab styles
+ */
 .panel-tab-base {
   color: var(--base-muted-foreground);
 }
 
 .panel-tab-active {
-  /* Light Mode Panel Tab Active */
-  background-color: #f5f5f5;
-  color: #1a1a1a;
-  border-color: #e5e5e5;
+  background-color: var(--white);
+  color: var(--text-inverse);
+  border-color: var(--border-muted);
 }
 
-/* Dark Mode Panel Tab Active */
 .dark .panel-tab-active {
-  background-color: #1f1f1f;
-  color: #ffffff;
-  border-color: #424242;
+  background-color: var(--surface-1);
+  color: var(--white);
+  border-color: var(--border-muted);
 }
 
 .panel-tab-inactive:hover {
-  background-color: hsl(var(--secondary));
-  color: hsl(var(--card-foreground));
+  background-color: var(--surface-9);
+  color: var(--text-primary);
 }
 
-/* ==========================================================================
-   DARK MODE OVERRIDES
-   ========================================================================== */
-.dark .error-badge {
-  background-color: hsl(0, 70%, 20%) !important;
-  /* Darker red background for dark mode */
-  color: hsl(0, 0%, 100%) !important;
-  /* Pure white text for better contrast */
-}
-
+/**
+ * Dark mode specific overrides
+ */
 .dark .bg-red-500 {
   @apply bg-red-700;
 }
 
-/* ==========================================================================
-   BROWSER INPUT OVERRIDES
-   ========================================================================== */
-/* Chrome, Safari, Edge, Opera */
+/**
+ * Browser input overrides
+ */
 input[type="search"]::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
 }
 
-/* Firefox */
 input[type="search"]::-moz-search-cancel-button {
   display: none;
 }
 
-/* Microsoft Edge */
 input[type="search"]::-ms-clear {
   display: none;
 }
 
-/* ==========================================================================
-   LAYOUT UTILITIES
-   ========================================================================== */
-.main-content-overlay {
-  z-index: 40;
-  /* Higher z-index to appear above content */
-}
-
-/* ==========================================================================
-   ANIMATIONS & UTILITIES
-   ========================================================================== */
+/**
+ * Utilities and special effects
+ * Animation keyframes are defined in tailwind.config.ts
+ */
 @layer utilities {
-  /* Animation Performance */
-  .animation-container {
-    contain: paint layout style;
-    will-change: opacity, transform;
-  }
-
-  /* Scrollbar Utilities */
   .scrollbar-none {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -350,17 +461,12 @@ input[type="search"]::-ms-clear {
   }
 
   .scrollbar-hide {
-    /* For Webkit browsers (Chrome, Safari, Edge) */
     -webkit-scrollbar: none;
     -webkit-scrollbar-width: none;
     -webkit-scrollbar-track: transparent;
     -webkit-scrollbar-thumb: transparent;
-
-    /* For Firefox */
     scrollbar-width: none;
     scrollbar-color: transparent transparent;
-
-    /* For Internet Explorer and Edge Legacy */
     -ms-overflow-style: none;
   }
 
@@ -381,75 +487,40 @@ input[type="search"]::-ms-clear {
     background: transparent;
   }
 
-  /* Gradient Text Utility - Use with Tailwind gradient directions */
   .gradient-text {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
-  /* Brand Color Utilities */
-  .bg-brand-primary {
-    background-color: var(--brand-primary-hex);
+  .bg-input-background {
+    background-color: hsl(var(--input-background));
   }
 
-  .bg-brand-primary-hover {
-    background-color: var(--brand-primary-hover-hex);
-  }
-
-  .hover\:bg-brand-primary-hover:hover {
-    background-color: var(--brand-primary-hover-hex);
-  }
-
-  .hover\:text-brand-accent-hover:hover {
-    color: var(--brand-accent-hover-hex);
-  }
-
-  /* Gradient Button Utilities */
-  .bg-brand-gradient {
-    background: linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--brand-primary-hex) 85%, white),
-      var(--brand-primary-hex)
-    );
-  }
-
-  .border-brand-gradient {
-    border-color: var(--brand-primary-hex);
-  }
-
-  .shadow-brand-gradient {
-    box-shadow: inset 0 2px 4px 0 color-mix(in srgb, var(--brand-primary-hex) 60%, transparent);
-  }
-
-  .hover\:bg-brand-gradient-hover:hover {
-    background: linear-gradient(
-      to bottom,
-      var(--brand-primary-hover-hex),
-      color-mix(in srgb, var(--brand-primary-hex) 90%, black)
-    );
-  }
-
-  /* Apply fixed default light theme values for auth components */
   .auth-card {
-    background-color: rgba(255, 255, 255, 0.9) !important;
-    border-color: #e5e5e5 !important;
+    background-color: var(--white) !important;
+    border-color: var(--border-muted) !important;
+  }
+
+  .dark .auth-card {
+    background-color: var(--surface-1) !important;
+    border-color: var(--border-muted) !important;
   }
 
   .auth-text-primary {
-    color: #1a1a1a !important;
+    color: var(--text-inverse) !important;
   }
 
   .auth-text-secondary {
-    color: #4a4a4a !important;
+    color: var(--text-secondary) !important;
   }
 
   .auth-text-muted {
-    color: #737373 !important;
+    color: var(--text-muted) !important;
   }
 
   .auth-divider {
-    border-color: #e5e5e5 !important;
+    border-color: var(--border-muted) !important;
   }
 
   .auth-card-shadow {
@@ -459,17 +530,7 @@ input[type="search"]::-ms-clear {
   }
 
   .auth-link {
-    color: #737373 !important;
-  }
-
-  /* Surface Utilities */
-  .bg-surface-elevated {
-    background-color: var(--surface-elevated);
-  }
-
-  /* Animation Classes */
-  .animate-pulse-ring {
-    animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    color: var(--text-muted) !important;
   }
 
   .transition-ring {
@@ -478,23 +539,6 @@ input[type="search"]::-ms-clear {
     transition-duration: 300ms;
   }
 
-  .animate-orbit {
-    animation: orbit calc(var(--duration, 2) * 1s) linear infinite;
-  }
-
-  .animate-marquee {
-    animation: marquee var(--duration) infinite linear;
-  }
-
-  .animate-marquee-vertical {
-    animation: marquee-vertical var(--duration) linear infinite;
-  }
-
-  .animate-fade-in {
-    animation: fadeIn 0.3s ease-in-out forwards;
-  }
-
-  /* Special Effects */
   .streaming-effect {
     @apply relative overflow-hidden;
   }
@@ -525,109 +569,162 @@ input[type="search"]::-ms-clear {
     animation: placeholder-pulse 1.5s ease-in-out infinite;
   }
 
-  /* Auth Button Styles - Default Gradient */
   .auth-button-gradient {
-    background: linear-gradient(to bottom, #8357ff, #6f3dfa) !important;
-    border-color: #6f3dfa !important;
-    box-shadow: inset 0 2px 4px 0 #9b77ff !important;
+    background: linear-gradient(to bottom, var(--brand-500), var(--brand-400)) !important;
+    border-color: var(--brand-400) !important;
+    box-shadow: inset 0 2px 4px 0 var(--brand-400) !important;
   }
 
   .auth-button-gradient:hover {
-    background: linear-gradient(to bottom, #8357ff, #6f3dfa) !important;
+    background: linear-gradient(to bottom, var(--brand-500), var(--brand-400)) !important;
     opacity: 0.9;
   }
 
-  /* Auth Button Styles - CSS Variable Based */
   .auth-button-custom {
-    background: var(--brand-accent-hex) !important;
-    border-color: var(--brand-accent-hex) !important;
-    /* Remove purple shadow when using custom color */
+    background: var(--brand-500) !important;
+    border-color: var(--brand-500) !important;
     box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.1) !important;
   }
 
   .auth-button-custom:hover {
-    background: var(--brand-accent-hover-hex, var(--brand-accent-hex)) !important;
-    border-color: var(--brand-accent-hover-hex, var(--brand-accent-hex)) !important;
+    background: var(--brand-500) !important;
+    border-color: var(--brand-500) !important;
     opacity: 1;
   }
 
-  /* ==========================================================================
-     KEYFRAME ANIMATIONS
-     ========================================================================== */
-  @keyframes pulse-ring {
-    0% {
-      box-shadow: 0 0 0 0 hsl(var(--border));
-    }
-
-    50% {
-      box-shadow: 0 0 0 8px hsl(var(--border));
-    }
-
-    100% {
-      box-shadow: 0 0 0 0 hsl(var(--border));
-    }
+  /**
+   * Panel tab visibility and styling to prevent hydration flash
+   */
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-content="toolbar"],
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-content="editor"] {
+    display: none !important;
   }
 
-  @keyframes code-shimmer {
-    0% {
-      transform: translateX(-100%);
-    }
-
-    100% {
-      transform: translateX(100%);
-    }
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-content="copilot"],
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-content="editor"] {
+    display: none !important;
   }
 
-  @keyframes orbit {
-    0% {
-      transform: rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px))
-        rotate(calc(var(--angle) * -1deg));
-    }
-
-    100% {
-      transform: rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px))
-        rotate(calc((var(--angle) * -1deg) - 360deg));
-    }
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-content="copilot"],
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-content="toolbar"] {
+    display: none !important;
   }
 
-  @keyframes marquee {
-    from {
-      transform: translateX(0);
-    }
-
-    to {
-      transform: translateX(calc(-100% - var(--gap)));
-    }
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="copilot"] {
+    background-color: var(--surface-11) !important;
+    color: var(--text-primary) !important;
+  }
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="toolbar"],
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="editor"] {
+    background-color: transparent !important;
+    color: var(--text-tertiary) !important;
   }
 
-  @keyframes marquee-vertical {
-    from {
-      transform: translateY(0);
-    }
-
-    to {
-      transform: translateY(calc(-100% - var(--gap)));
-    }
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="toolbar"] {
+    background-color: var(--surface-11) !important;
+    color: var(--text-primary) !important;
+  }
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="copilot"],
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="editor"] {
+    background-color: transparent !important;
+    color: var(--text-tertiary) !important;
   }
 
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-button="editor"] {
+    background-color: var(--surface-11) !important;
+    color: var(--text-primary) !important;
+  }
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-button="copilot"],
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-button="toolbar"] {
+    background-color: transparent !important;
+    color: var(--text-tertiary) !important;
+  }
+}
 
-    to {
-      opacity: 1;
-    }
+/**
+ * @depricated
+ * Legacy globals (light/dark) kept for backward-compat with old classes.
+ * Do not modify; remove after migration.
+ */
+@layer base {
+  :root,
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 99.2%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 11.2%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 11.2%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 46.9%;
+    --accent: 0 0% 92.5%;
+    --accent-foreground: 0 0% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --input: 0 0% 89.8%;
+    --input-background: 0 0% 100%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+    --scrollbar-track: 0 0% 85%;
+    --scrollbar-thumb: 0 0% 65%;
+    --scrollbar-thumb-hover: 0 0% 55%;
+    --scrollbar-size: 8px;
+    --workflow-background: 0 0% 100%;
+    --card-background: 0 0% 99.2%;
+    --card-border: 0 0% 89.8%;
+    --card-text: 0 0% 3.9%;
+    --card-hover: 0 0% 96.1%;
+    --base-muted-foreground: #737373;
+    --gradient-primary: 263 85% 70%;
+    --gradient-secondary: 336 95% 65%;
+    --brand-primary-hex: #6f3dfa;
+    --brand-primary-hover-hex: #6338d9;
+    --brand-accent-hex: #6f3dfa;
+    --brand-accent-hover-hex: #6f3dfa;
+    --brand-background-hex: #ffffff;
+    --surface-elevated: #202020;
   }
 
-  @keyframes placeholder-pulse {
-    0%,
-    100% {
-      opacity: 0.5;
-    }
-
-    50% {
-      opacity: 0.8;
-    }
+  .dark {
+    --background: 0 0% 10.59%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 9.0%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 9.0%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 11.2%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 12.0%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 17.5%;
+    /* --muted-foreground: 0 0% 65.1%; */
+    --accent: 0 0% 17.5%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --input: 0 0% 16.1%;
+    --input-background: 0 0% 20.78%;
+    --ring: 0 0% 83.9%;
+    --scrollbar-track: 0 0% 17.5%;
+    --scrollbar-thumb: 0 0% 30%;
+    --scrollbar-thumb-hover: 0 0% 40%;
+    --workflow-background: 0 0% 10.59%;
+    --card-background: 0 0% 9.0%;
+    --card-border: 0 0% 22.7%;
+    --card-text: 0 0% 98%;
+    --card-hover: 0 0% 12.0%;
+    --base-muted-foreground: #a3a3a3;
+    --gradient-primary: 263 90% 75%;
+    --gradient-secondary: 336 100% 72%;
+    --brand-primary-hex: #701ffc;
+    --brand-primary-hover-hex: #802fff;
+    --brand-accent-hex: #9d54ff;
+    --brand-accent-hover-hex: #a66fff;
+    --brand-background-hex: #0c0c0c;
+    --surface-elevated: #202020;
   }
 }

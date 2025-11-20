@@ -2,9 +2,18 @@ export interface AgentInputs {
   model?: string
   responseFormat?: string | object
   tools?: ToolInput[]
+  // Legacy inputs (backward compatible)
   systemPrompt?: string
   userPrompt?: string | object
-  memories?: any
+  memories?: any // Legacy memory block output
+  // New message array input (from messages-input subblock)
+  messages?: Message[]
+  // Memory configuration
+  memoryType?: 'none' | 'conversation' | 'sliding_window' | 'sliding_window_tokens'
+  conversationId?: string // Required for all non-none memory types
+  slidingWindowSize?: string // For message-based sliding window
+  slidingWindowTokens?: string // For token-based sliding window
+  // LLM parameters
   temperature?: number
   maxTokens?: number
   apiKey?: string

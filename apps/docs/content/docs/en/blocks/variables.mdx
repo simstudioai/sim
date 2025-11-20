@@ -13,7 +13,7 @@ The Variables block updates workflow variables during execution. Variables must 
     src="/static/blocks/variables.png"
     alt="Variables Block"
     width={500}
-    height={350}
+    height={400}
     className="my-6"
   />
 </div>
@@ -21,22 +21,6 @@ The Variables block updates workflow variables during execution. Variables must 
 <Callout>
   Access variables anywhere in your workflow using `<variable.variableName>` syntax.
 </Callout>
-
-## Overview
-
-The Variables block enables you to:
-
-<Steps>
-  <Step>
-    <strong>Update workflow variables</strong>: Change variable values during execution
-  </Step>
-  <Step>
-    <strong>Store dynamic data</strong>: Capture block outputs into variables
-  </Step>
-  <Step>
-    <strong>Maintain state</strong>: Track counters, flags, and intermediate results
-  </Step>
-</Steps>
 
 ## How to Use Variables
 
@@ -72,44 +56,20 @@ API body: {"status": "<variable.currentStatus>"}
 
 ## Example Use Cases
 
-### Loop Counter and State
+**Loop Counter and State** - Track progress through iterations
+```
+Loop → Agent (Process) → Variables (itemsProcessed + 1) → Variables (Store lastResult)
+```
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Track progress through loop iterations</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Initialize in workflow: `itemsProcessed = 0`, `lastResult = ""`</li>
-    <li>Loop iterates over items</li>
-    <li>Inside loop: Agent processes current item</li>
-    <li>Inside loop: Variables updates `itemsProcessed = <variable.itemsProcessed> + 1`</li>
-    <li>Inside loop: Variables updates `lastResult = <agent.content>`</li>
-    <li>Next iteration: Access `<variable.lastResult>` to compare with current result</li>
-  </ol>
-</div>
+**Retry Logic** - Track API retry attempts
+```
+API (Try) → Variables (retryCount + 1) → Condition (retryCount < 3)
+```
 
-### Retry Logic
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Track API retry attempts</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Initialize in workflow: `retryCount = 0`</li>
-    <li>API block attempts request</li>
-    <li>If failed, Variables increments: `retryCount = <variable.retryCount> + 1`</li>
-    <li>Condition checks if `<variable.retryCount>` \< 3 to retry or fail</li>
-  </ol>
-</div>
-
-### Dynamic Configuration
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Store user context for workflow</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Initialize in workflow: `userId = ""`, `userTier = ""`</li>
-    <li>API fetches user profile</li>
-    <li>Variables stores: `userId = <api.id>`, `userTier = <api.tier>`</li>
-    <li>Agent personalizes response using `<variable.userTier>`</li>
-    <li>API uses `<variable.userId>` for logging</li>
-  </ol>
-</div>
+**Dynamic Configuration** - Store user context for workflow
+```
+API (Fetch Profile) → Variables (userId, userTier) → Agent (Personalize)
+```
 
 ## Outputs
 

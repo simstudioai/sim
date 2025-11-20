@@ -31,7 +31,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const normalizedData = await loadWorkflowFromNormalizedTables(id)
 
       if (!normalizedData) {
-        return createErrorResponse('Failed to load workflow state', 500)
+        // Workflow exists but has no blocks in normalized tables (empty workflow or not migrated)
+        // This is valid state - return success with no redeployment needed
+        return createSuccessResponse({
+          isDeployed: validation.workflow.isDeployed,
+          deployedAt: validation.workflow.deployedAt,
+          isPublished: validation.workflow.isPublished,
+          needsRedeployment: false,
+        })
       }
 
       const currentState = {
@@ -62,7 +69,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return createSuccessResponse({
       isDeployed: validation.workflow.isDeployed,
       deployedAt: validation.workflow.deployedAt,
-      isPublished: validation.workflow.isPublished,
       needsRedeployment,
     })
   } catch (error) {

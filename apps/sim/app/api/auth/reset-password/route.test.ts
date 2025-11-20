@@ -24,7 +24,7 @@ describe('Reset Password API Route', () => {
 
     const req = createMockRequest('POST', {
       token: 'valid-reset-token',
-      newPassword: 'newSecurePassword123',
+      newPassword: 'newSecurePassword123!',
     })
 
     const { POST } = await import('@/app/api/auth/reset-password/route')
@@ -39,7 +39,7 @@ describe('Reset Password API Route', () => {
     expect(auth.auth.api.resetPassword).toHaveBeenCalledWith({
       body: {
         token: 'valid-reset-token',
-        newPassword: 'newSecurePassword123',
+        newPassword: 'newSecurePassword123!',
       },
       method: 'POST',
     })
@@ -58,7 +58,7 @@ describe('Reset Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.message).toBe('Token and new password are required')
+    expect(data.message).toBe('Token is required')
 
     const auth = await import('@/lib/auth')
     expect(auth.auth.api.resetPassword).not.toHaveBeenCalled()
@@ -77,7 +77,7 @@ describe('Reset Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.message).toBe('Token and new password are required')
+    expect(data.message).toBe('Password is required')
 
     const auth = await import('@/lib/auth')
     expect(auth.auth.api.resetPassword).not.toHaveBeenCalled()
@@ -97,7 +97,7 @@ describe('Reset Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.message).toBe('Token and new password are required')
+    expect(data.message).toBe('Token is required')
 
     const auth = await import('@/lib/auth')
     expect(auth.auth.api.resetPassword).not.toHaveBeenCalled()
@@ -117,7 +117,7 @@ describe('Reset Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.message).toBe('Token and new password are required')
+    expect(data.message).toBe('Password must be at least 8 characters long')
 
     const auth = await import('@/lib/auth')
     expect(auth.auth.api.resetPassword).not.toHaveBeenCalled()
@@ -137,7 +137,7 @@ describe('Reset Password API Route', () => {
 
     const req = createMockRequest('POST', {
       token: 'invalid-token',
-      newPassword: 'newSecurePassword123',
+      newPassword: 'newSecurePassword123!',
     })
 
     const { POST } = await import('@/app/api/auth/reset-password/route')
@@ -168,7 +168,7 @@ describe('Reset Password API Route', () => {
 
     const req = createMockRequest('POST', {
       token: 'valid-reset-token',
-      newPassword: 'newSecurePassword123',
+      newPassword: 'newSecurePassword123!',
     })
 
     const { POST } = await import('@/app/api/auth/reset-password/route')

@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflow, workflowSchedule } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
@@ -10,6 +11,18 @@ import { generateRequestId } from '@/lib/utils'
 const logger = createLogger('ScheduleAPI')
 
 export const dynamic = 'force-dynamic'
+
+const scheduleActionEnum = z.enum(['reactivate', 'disable'])
+const scheduleStatusEnum = z.enum(['active', 'disabled'])
+
+const scheduleUpdateSchema = z
+  .object({
+    action: scheduleActionEnum.optional(),
+    status: scheduleStatusEnum.optional(),
+  })
+  .refine((data) => data.action || data.status, {
+    message: 'Either action or status must be provided',
+  })
 
 /**
  * Delete a schedule
@@ -99,7 +112,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const body = await request.json()
-    const { action } = body
+    const validation = scheduleUpdateSchema.safeParse(body)
+
+    if (!validation.success) {
+      const firstError = validation.error.errors[0]
+      logger.warn(`[${requestId}] Validation error:`, firstError)
+      return NextResponse.json({ error: firstError.message }, { status: 400 })
+    }
+
+    const { action, status: requestedStatus } = validation.data
 
     const [schedule] = await db
       .select({
@@ -117,7 +138,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const [workflowRecord] = await db
-      .select({ userId: workflow.userId })
+      .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
       .from(workflow)
       .where(eq(workflow.id, schedule.workflowId))
       .limit(1)
@@ -127,12 +148,23 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    if (workflowRecord.userId !== session.user.id) {
+    let isAuthorized = workflowRecord.userId === session.user.id
+
+    if (!isAuthorized && workflowRecord.workspaceId) {
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workflowRecord.workspaceId
+      )
+      isAuthorized = userPermission === 'write' || userPermission === 'admin'
+    }
+
+    if (!isAuthorized) {
       logger.warn(`[${requestId}] User not authorized to modify this schedule: ${scheduleId}`)
       return NextResponse.json({ error: 'Not authorized to modify this schedule' }, { status: 403 })
     }
 
-    if (action === 'reactivate' || (body.status && body.status === 'active')) {
+    if (action === 'reactivate' || (requestedStatus && requestedStatus === 'active')) {
       if (schedule.status === 'active') {
         return NextResponse.json({ message: 'Schedule is already active' }, { status: 200 })
       }
@@ -158,7 +190,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       })
     }
 
-    if (action === 'disable' || (body.status && body.status === 'disabled')) {
+    if (action === 'disable' || (requestedStatus && requestedStatus === 'disabled')) {
       if (schedule.status === 'disabled') {
         return NextResponse.json({ message: 'Schedule is already disabled' }, { status: 200 })
       }

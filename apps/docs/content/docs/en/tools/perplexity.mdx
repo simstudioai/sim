@@ -1,6 +1,6 @@
 ---
 title: Perplexity
-description: Use Perplexity AI chat models
+description: Use Perplexity AI for chat and search
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -8,14 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="perplexity"
   color="#20808D"
-  icon={true}
-  iconSvg={`<svg className="block-icon"   viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' >
-      <path
-        d='M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z'
-        fill='currentColor'
-        fillRule='nonzero'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -37,7 +29,7 @@ In Sim, the Perplexity integration enables your agents to leverage these powerfu
 
 ## Usage Instructions
 
-Integrate Perplexity into the workflow. Can generate completions using Perplexity AI chat models.
+Integrate Perplexity into the workflow. Can generate completions using Perplexity AI chat models or perform web searches with advanced filtering.
 
 
 
@@ -64,6 +56,31 @@ Generate completions using Perplexity AI chat models
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Chat completion results |
+
+### `perplexity_search`
+
+Get ranked search results from Perplexity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | A search query or array of queries \(max 5 for multi-query search\) |
+| `max_results` | number | No | Maximum number of search results to return \(1-20, default: 10\) |
+| `search_domain_filter` | array | No | List of domains/URLs to limit search results to \(max 20\) |
+| `max_tokens_per_page` | number | No | Maximum number of tokens retrieved from each webpage \(default: 1024\) |
+| `country` | string | No | Country code to filter search results \(e.g., US, GB, DE\) |
+| `search_recency_filter` | string | No | Filter results by recency: hour, day, week, month, or year |
+| `search_after_date` | string | No | Include only content published after this date \(format: MM/DD/YYYY\) |
+| `search_before_date` | string | No | Include only content published before this date \(format: MM/DD/YYYY\) |
+| `apiKey` | string | Yes | Perplexity API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Search results |
 
 
 

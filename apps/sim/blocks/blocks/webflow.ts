@@ -2,6 +2,7 @@ import { WebflowIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { WebflowResponse } from '@/tools/webflow/types'
+import { getTrigger } from '@/triggers'
 
 export const WebflowBlock: BlockConfig<WebflowResponse> = {
   type: 'webflow',
@@ -20,7 +21,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'List Items', id: 'list' },
         { label: 'Get Item', id: 'get' },
@@ -34,7 +34,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       id: 'credential',
       title: 'Webflow Account',
       type: 'oauth-input',
-      layout: 'full',
       provider: 'webflow',
       serviceId: 'webflow',
       requiredScopes: ['sites:read', 'sites:write', 'cms:read', 'cms:write'],
@@ -45,7 +44,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       id: 'collectionId',
       title: 'Collection ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter collection ID',
       dependsOn: ['credential'],
       required: true,
@@ -54,7 +52,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       id: 'itemId',
       title: 'Item ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'ID of the item',
       condition: { field: 'operation', value: ['get', 'update', 'delete'] },
       required: true,
@@ -63,7 +60,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       id: 'offset',
       title: 'Offset',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'Pagination offset (optional)',
       condition: { field: 'operation', value: 'list' },
     },
@@ -71,7 +67,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'Max items to return (optional)',
       condition: { field: 'operation', value: 'list' },
     },
@@ -79,25 +74,14 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       id: 'fieldData',
       title: 'Field Data',
       type: 'code',
-      layout: 'full',
       language: 'json',
       placeholder: 'Field data as JSON: `{ "name": "Item Name", "slug": "item-slug" }`',
       condition: { field: 'operation', value: ['create', 'update'] },
       required: true,
     },
-    {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'webflow',
-      availableTriggers: [
-        'webflow_collection_item_created',
-        'webflow_collection_item_changed',
-        'webflow_collection_item_deleted',
-        'webflow_form_submission',
-      ],
-    },
+    ...getTrigger('webflow_collection_item_created').subBlocks,
+    ...getTrigger('webflow_collection_item_changed').subBlocks,
+    ...getTrigger('webflow_collection_item_deleted').subBlocks,
   ],
   tools: {
     access: [

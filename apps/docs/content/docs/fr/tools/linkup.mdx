@@ -8,23 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="linkup"
   color="#D6D3C7"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      xmlns='http://www.w3.org/2000/svg'
-      viewBox='0 0 24 24'
-      
-      
-      fill='none'
-    >
-      <path
-        d='M20.2 14.1c-.4-.3-1.6-.4-2.9-.2.5-1.4 1.3-3.9.1-5-.6-.5-1.5-.7-2.6-.5-.3 0-.6.1-1 .2-1.1-1.6-2.4-2.5-3.8-2.5-1.6 0-3.1 1-4.1 2.9-1.2 2.1-1.9 5.1-1.9 8.8v.03l.4.3c3-.9 7.5-2.3 10.7-2.9 0 .9.1 1.9.1 2.8v.03l.4.3c.1 0 5.4-1.7 5.3-3.3 0-.2-.1-.5-.3-.7zM19.9 14.7c.03.4-1.7 1.4-4 2.3.5-.7 1-1.6 1.3-2.5 1.4-.1 2.4-.1 2.7.2zM16.4 14.6c-.3.7-.7 1.4-1.2 2-.02-.6-.1-1.2-.2-1.8.4-.1.9-.1 1.4-.2zM16.5 9.4c.8.7.9 2.4.1 5.1-.5.1-1 .1-1.5.2-.3-2-.9-3.8-1.7-5.3.3-.1.6-.2.8-.2.9-.1 1.7.05 2.3.2zM9.5 6.8c1.2 0 2.3.7 3.2 2.1-2.8 1.1-5.9 3.4-8.4 7.8.2-5.1 1.9-9.9 5.2-9.9zM4.7 17c3.4-4.9 6.4-6.8 8.4-7.8.7 1.3 1.2 2.9 1.5 4.8-3.2.6-7.3 1.8-9.9 3z'
-        fill='currentColor'
-        stroke='currentColor'
-        strokeWidth='0.5'
-        strokeLinejoin='round'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -54,10 +37,17 @@ Recherchez des informations sur le web en utilisant Linkup
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
-| `q` | chaîne | Oui | La requête de recherche |
-| `depth` | chaîne | Oui | Profondeur de recherche \(doit être soit « standard » soit « deep »\) |
-| `outputType` | chaîne | Oui | Type de sortie à retourner \(doit être soit « sourcedAnswer » soit « searchResults »\) |
-| `apiKey` | chaîne | Oui | Entrez votre clé API Linkup |
+| `q` | string | Oui | La requête de recherche |
+| `depth` | string | Oui | Profondeur de recherche \(doit être soit "standard" soit "deep"\) |
+| `outputType` | string | Oui | Type de sortie à retourner \(doit être "sourcedAnswer" ou "searchResults"\) |
+| `apiKey` | string | Oui | Entrez votre clé API Linkup |
+| `includeImages` | boolean | Non | Indique s'il faut inclure des images dans les résultats de recherche |
+| `fromDate` | string | Non | Date de début pour filtrer les résultats \(format AAAA-MM-JJ\) |
+| `toDate` | string | Non | Date de fin pour filtrer les résultats \(format AAAA-MM-JJ\) |
+| `excludeDomains` | string | Non | Liste de noms de domaine séparés par des virgules à exclure des résultats de recherche |
+| `includeDomains` | string | Non | Liste de noms de domaine séparés par des virgules pour restreindre les résultats de recherche |
+| `includeInlineCitations` | boolean | Non | Ajouter des citations en ligne aux réponses \(s'applique uniquement lorsque outputType est "sourcedAnswer"\) |
+| `includeSources` | boolean | Non | Inclure les sources dans la réponse |
 
 #### Sortie
 

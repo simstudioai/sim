@@ -3,36 +3,14 @@ title: Parallel
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-Le bloc Parallel est un bloc conteneur dans Sim qui permet d'exécuter plusieurs instances de blocs simultanément pour un traitement de flux de travail plus rapide.
-
-Le bloc Parallel prend en charge deux types d'exécution concurrente :
+Le bloc Parallèle est un conteneur qui exécute plusieurs instances simultanément pour un traitement plus rapide des flux de travail. Traitez les éléments en parallèle plutôt que séquentiellement.
 
 <Callout type="info">
-  Les blocs Parallel sont des nœuds conteneurs qui exécutent leur contenu plusieurs fois simultanément, contrairement aux boucles qui s'exécutent séquentiellement.
+  Les blocs parallèles sont des nœuds conteneurs qui exécutent leur contenu plusieurs fois simultanément, contrairement aux boucles qui s'exécutent séquentiellement.
 </Callout>
-
-## Aperçu
-
-Le bloc Parallel vous permet de :
-
-<Steps>
-  <Step>
-    <strong>Distribuer le travail</strong> : traiter plusieurs éléments simultanément
-  </Step>
-  <Step>
-    <strong>Accélérer l'exécution</strong> : exécuter des opérations indépendantes simultanément
-  </Step>
-  <Step>
-    <strong>Gérer des opérations en masse</strong> : traiter efficacement de grands ensembles de données
-  </Step>
-  <Step>
-    <strong>Agréger les résultats</strong> : collecter les sorties de toutes les exécutions parallèles
-  </Step>
-</Steps>
 
 ## Options de configuration
 
@@ -40,14 +18,14 @@ Le bloc Parallel vous permet de :
 
 Choisissez entre deux types d'exécution parallèle :
 
-<Tabs items={['Count-based', 'Collection-based']}>
+<Tabs items={['Basée sur un nombre', 'Basée sur une collection']}>
   <Tab>
-    **Parallel basé sur le comptage** - Exécuter un nombre fixe d'instances parallèles :
+    **Parallèle basé sur un nombre** - Exécute un nombre fixe d'instances parallèles :
     
     <div className="flex justify-center">
       <Image
         src="/static/blocks/parallel-1.png"
-        alt="Exécution parallèle basée sur le comptage"
+        alt="Exécution parallèle basée sur un nombre"
         width={500}
         height={400}
         className="my-6"
@@ -68,7 +46,7 @@ Choisissez entre deux types d'exécution parallèle :
 
   </Tab>
   <Tab>
-    **Parallel basé sur une collection** - Distribuer une collection à travers des instances parallèles :
+    **Parallèle basé sur une collection** - Distribue une collection à travers des instances parallèles :
     
     <div className="flex justify-center">
       <Image
@@ -93,44 +71,34 @@ Choisissez entre deux types d'exécution parallèle :
   </Tab>
 </Tabs>
 
-## Comment utiliser les blocs Parallel
+## Comment utiliser les blocs parallèles
 
-### Création d'un bloc Parallel
+### Création d'un bloc parallèle
 
-1. Faites glisser un bloc Parallel depuis la barre d'outils sur votre canevas
+1. Faites glisser un bloc Parallèle depuis la barre d'outils sur votre canevas
 2. Configurez le type de parallélisation et les paramètres
-3. Faites glisser un seul bloc à l'intérieur du conteneur parallel
+3. Faites glisser un seul bloc à l'intérieur du conteneur parallèle
 4. Connectez le bloc selon vos besoins
 
 ### Accès aux résultats
 
-Après la fin d'un bloc parallèle, vous pouvez accéder aux résultats agrégés :
+Une fois qu'un bloc parallèle est terminé, vous pouvez accéder aux résultats agrégés :
 
 - **`<parallel.results>`** : Tableau des résultats de toutes les instances parallèles
 
 ## Exemples de cas d'utilisation
 
-### Traitement par lots d'API
+**Traitement par lots d'API** - Traiter plusieurs appels API simultanément
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : traiter plusieurs appels d'API simultanément</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Bloc parallèle avec une collection de points de terminaison API</li>
-    <li>À l'intérieur du parallèle : le bloc API appelle chaque point de terminaison</li>
-    <li>Après le parallèle : traitement de toutes les réponses ensemble</li>
-  </ol>
-</div>
+```
+Parallel (Collection) → API (Call Endpoint) → Function (Aggregate)
+```
 
-### Traitement IA multi-modèles
+**Traitement multi-modèles d'IA** - Obtenir des réponses de plusieurs modèles d'IA simultanément
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : obtenir des réponses de plusieurs modèles d'IA</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Parallèle basé sur une collection de modèles (ex. : ["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"])</li>
-    <li>À l'intérieur du parallèle : le modèle de l'agent est défini sur l'élément actuel de la collection</li>
-    <li>Après le parallèle : comparer et sélectionner la meilleure réponse</li>
-  </ol>
-</div>
+```
+Parallel (["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]) → Agent → Evaluator (Select Best)
+```
 
 ## Fonctionnalités avancées
 
@@ -138,11 +106,7 @@ Après la fin d'un bloc parallèle, vous pouvez accéder aux résultats agrégé
 
 Les résultats de toutes les instances parallèles sont automatiquement collectés :
 
-```javascript
-// In a Function block after the parallel
-const allResults = input.parallel.results;
-// Returns: [result1, result2, result3, ...]
-```
+### Cas d'utilisation courants
 
 ### Isolation des instances
 
@@ -155,13 +119,9 @@ Chaque instance parallèle s'exécute indépendamment :
 
 <Callout type="warning">
   Les blocs conteneurs (Boucles et Parallèles) ne peuvent pas être imbriqués les uns dans les autres. Cela signifie :
-  - Vous ne pouvez pas placer un bloc Boucle dans un bloc Parallèle
-  - Vous ne pouvez pas placer un autre bloc Parallèle dans un bloc Parallèle
-  - Vous ne pouvez pas placer un bloc conteneur dans un autre bloc conteneur
-</Callout>
-
-<Callout type="warning">
-  Les blocs parallèles ne peuvent contenir qu'un seul bloc. Vous ne pouvez pas avoir plusieurs blocs connectés les uns aux autres à l'intérieur d'un parallèle - seul le premier bloc s'exécuterait dans ce cas.
+  - Vous ne pouvez pas placer un bloc de Boucle à l'intérieur d'un bloc Parallèle
+  - Vous ne pouvez pas placer un autre bloc Parallèle à l'intérieur d'un bloc Parallèle
+  - Vous ne pouvez pas placer un bloc conteneur à l'intérieur d'un autre bloc conteneur
 </Callout>
 
 <Callout type="info">
@@ -177,7 +137,7 @@ Comprendre quand utiliser chacun :
 
 | Fonctionnalité | Parallèle | Boucle |
 |---------|----------|------|
-| Exécution | Concurrente | Séquentielle |
+| Exécution | Simultanée | Séquentielle |
 | Vitesse | Plus rapide pour les opérations indépendantes | Plus lente mais ordonnée |
 | Ordre | Pas d'ordre garanti | Maintient l'ordre |
 | Cas d'utilisation | Opérations indépendantes | Opérations dépendantes |

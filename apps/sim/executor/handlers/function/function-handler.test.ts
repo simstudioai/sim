@@ -46,8 +46,7 @@ describe('FunctionBlockHandler', () => {
       metadata: { duration: 0 },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
+      loopExecutions: new Map(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
       completedLoops: new Set(),
@@ -77,7 +76,6 @@ describe('FunctionBlockHandler', () => {
     const expectedToolParams = {
       code: inputs.code,
       language: 'javascript',
-      useLocalVM: true,
       timeout: inputs.timeout,
       envVars: {},
       workflowVariables: {},
@@ -87,7 +85,7 @@ describe('FunctionBlockHandler', () => {
     }
     const expectedOutput: any = { result: 'Success' }
 
-    const result = await handler.execute(mockBlock, inputs, mockContext)
+    const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'function_execute',
@@ -111,7 +109,6 @@ describe('FunctionBlockHandler', () => {
     const expectedToolParams = {
       code: expectedCode,
       language: 'javascript',
-      useLocalVM: true,
       timeout: inputs.timeout,
       envVars: {},
       workflowVariables: {},
@@ -121,7 +118,7 @@ describe('FunctionBlockHandler', () => {
     }
     const expectedOutput: any = { result: 'Success' }
 
-    const result = await handler.execute(mockBlock, inputs, mockContext)
+    const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'function_execute',
@@ -138,7 +135,6 @@ describe('FunctionBlockHandler', () => {
     const expectedToolParams = {
       code: inputs.code,
       language: 'javascript',
-      useLocalVM: true,
       timeout: DEFAULT_EXECUTION_TIMEOUT_MS,
       envVars: {},
       workflowVariables: {},
@@ -147,7 +143,7 @@ describe('FunctionBlockHandler', () => {
       _context: { workflowId: mockContext.workflowId, workspaceId: mockContext.workspaceId },
     }
 
-    await handler.execute(mockBlock, inputs, mockContext)
+    await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'function_execute',
@@ -163,7 +159,7 @@ describe('FunctionBlockHandler', () => {
     const errorResult = { success: false, error: 'Function execution failed: Code failed' }
     mockExecuteTool.mockResolvedValue(errorResult)
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       'Function execution failed: Code failed'
     )
     expect(mockExecuteTool).toHaveBeenCalled()
@@ -174,7 +170,7 @@ describe('FunctionBlockHandler', () => {
     const errorResult = { success: false }
     mockExecuteTool.mockResolvedValue(errorResult)
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       'Function execution failed'
     )
   })

@@ -111,6 +111,7 @@ export function ImageSelector({
         // Fallback to traditional upload through API route
         const formData = new FormData()
         formData.append('file', file)
+        formData.append('context', 'chat')
 
         const response = await fetch('/api/files/upload', {
           method: 'POST',

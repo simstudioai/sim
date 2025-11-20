@@ -3,8 +3,6 @@ title: Guardrails
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
@@ -15,29 +13,10 @@ The Guardrails block validates and protects your AI workflows by checking conten
     src="/static/blocks/guardrails.png"
     alt="Guardrails Block"
     width={500}
-    height={350}
+    height={400}
     className="my-6"
   />
 </div>
-
-## Overview
-
-The Guardrails block enables you to:
-
-<Steps>
-  <Step>
-    <strong>Validate JSON Structure</strong>: Ensure LLM outputs are valid JSON before parsing
-  </Step>
-  <Step>
-    <strong>Match Regex Patterns</strong>: Verify content matches specific formats (emails, phone numbers, URLs, etc.)
-  </Step>
-  <Step>
-    <strong>Detect Hallucinations</strong>: Use RAG + LLM scoring to validate AI outputs against knowledge base content
-  </Step>
-  <Step>
-    <strong>Detect PII</strong>: Identify and optionally mask personally identifiable information across 40+ entity types
-  </Step>
-</Steps>
 
 ## Validation Types
 
@@ -106,14 +85,26 @@ Uses Retrieval-Augmented Generation (RAG) with LLM scoring to detect when AI-gen
 
 Detects personally identifiable information using Microsoft Presidio. Supports 40+ entity types across multiple countries and languages.
 
-<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-  <Video src="guardrails.mp4" width={500} height={350} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/guardrails-2.png"
+    alt="PII Detection Configuration"
+    width={700}
+    height={450}
+    className="my-6"
+  />
 </div>
 
 **How It Works:**
-1. Scans content for PII entities using pattern matching and NLP
-2. Returns detected entities with locations and confidence scores
-3. Optionally masks detected PII in the output
+1. Pass content to validate (e.g., `<agent1.content>`)
+2. Select PII types to detect using the modal selector
+3. Choose detection mode (Detect or Mask)
+4. Content is scanned for matching PII entities
+5. Returns detection results and optionally masked text
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="guardrails.mp4" width={500} height={350} />
+</div>
 
 **Configuration:**
 - **PII Types to Detect**: Select from grouped categories via modal selector
@@ -182,57 +173,20 @@ Additional outputs by type:
 
 ## Example Use Cases
 
-### Validate JSON Before Parsing
+**Validate JSON Before Parsing** - Ensure Agent output is valid JSON
+```
+Agent (Generate) → Guardrails (Validate) → Condition (Check passed) → Function (Parse)
+```
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Ensure Agent output is valid JSON</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Agent generates structured JSON response</li>
-    <li>Guardrails validates JSON format</li>
-    <li>Condition block checks `<guardrails.passed>`</li>
-    <li>If passed → Parse and use data, If failed → Retry or handle error</li>
-  </ol>
-</div>
+**Prevent Hallucinations** - Validate customer support responses against knowledge base
+```
+Agent (Response) → Guardrails (Check KB) → Condition (Score ≥ 3) → Send or Flag
+```
 
-### Prevent Hallucinations
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Validate customer support responses</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Agent generates response to customer question</li>
-    <li>Guardrails checks against support documentation knowledge base</li>
-    <li>If confidence score ≥ 3 → Send response</li>
-    <li>If confidence score \< 3 → Flag for human review</li>
-  </ol>
-</div>
-
-### Block PII in User Inputs
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Sanitize user-submitted content</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>User submits form with text content</li>
-    <li>Guardrails detects PII (emails, phone numbers, SSN, etc.)</li>
-    <li>If PII detected → Reject submission or mask sensitive data</li>
-    <li>If no PII → Process normally</li>
-  </ol>
-</div>
-
-<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-  <Video src="guardrails-example.mp4" width={500} height={350} />
-</div>
-
-### Validate Email Format
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Check email address format</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Agent extracts email from text</li>
-    <li>Guardrails validates with regex pattern</li>
-    <li>If valid → Use email for notification</li>
-    <li>If invalid → Request correction</li>
-  </ol>
-</div>
+**Block PII in User Inputs** - Sanitize user-submitted content
+```
+Input → Guardrails (Detect PII) → Condition (No PII) → Process or Reject
+```
 
 ## Best Practices
 

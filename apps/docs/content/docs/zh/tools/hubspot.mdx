@@ -1,0 +1,274 @@
+---
+title: HubSpot
+description: 与 HubSpot CRM 互动或通过 HubSpot 事件触发工作流
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="hubspot"
+  color="#FF7A59"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[HubSpot](https://www.hubspot.com) 是一个全面的 CRM 平台，提供完整的营销、销售和客户服务工具套件，帮助企业更好地发展。凭借强大的自动化功能和广泛的 API，HubSpot 已成为全球领先的 CRM 平台之一，为各行业的各种规模企业提供服务。
+
+HubSpot CRM 提供了一个完整的解决方案，用于管理客户关系，从初次接触到长期客户成功。该平台将联系人管理、交易跟踪、营销自动化和客户服务工具整合到一个统一的系统中，帮助团队保持一致并专注于客户成功。
+
+HubSpot CRM 的主要功能包括：
+
+- 联系人和公司管理：全面的数据库，用于存储和组织客户及潜在客户信息
+- 交易管道：可视化销售管道，用于通过可自定义的阶段跟踪机会
+- 营销活动：跟踪和管理营销活动和事件，并提供详细的归因
+- 工单管理：客户支持工单系统，用于跟踪和解决客户问题
+- 报价和产品项：创建和管理包含详细产品项的销售报价
+- 用户和团队管理：组织团队，分配所有权，并跟踪平台上的用户活动
+
+在 Sim 中，HubSpot 集成使您的 AI 代理能够无缝地与您的 CRM 数据交互并自动化关键业务流程。这为智能潜在客户资格认证、自动化联系人丰富、交易管理、客户支持自动化以及技术堆栈中数据同步创造了强大的机会。该集成允许代理创建、检索、更新和搜索所有主要的 HubSpot 对象，从而实现能够响应 CRM 事件、维护数据质量并确保您的团队拥有最新客户信息的复杂工作流程。通过将 Sim 与 HubSpot 连接，您可以构建 AI 代理，自动资格认证潜在客户、分配支持工单、根据客户互动更新交易阶段、生成报价，并使您的 CRM 数据与其他业务系统保持同步——最终提高团队生产力并改善客户体验。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 HubSpot 集成到您的工作流程中。通过强大的自动化功能管理联系人、公司、交易、工单和其他 CRM 对象。可以在触发模式下使用，以在联系人被创建、删除或更新时启动工作流程。
+
+## 工具
+
+### `hubspot_get_users`
+
+从 HubSpot 账户中检索所有用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | 否 | 返回结果的数量 \(默认值: 100\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 用户数据 |
+
+### `hubspot_list_contacts`
+
+从 HubSpot 账户中检索所有联系人，支持分页
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | 否 | 每页结果的最大数量（最大值 100，默认值 100） |
+| `after` | string | 否 | 用于获取下一页结果的分页游标 |
+| `properties` | string | 否 | 逗号分隔的属性列表（例如："email,firstname,lastname"） |
+| `associations` | string | 否 | 逗号分隔的对象类型列表，用于检索关联的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 联系人数据 |
+
+### `hubspot_get_contact`
+
+通过 ID 或电子邮件从 HubSpot 检索单个联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要检索的联系人的 ID 或电子邮件 |
+| `idProperty` | string | 否 | 用作唯一标识符的属性（例如："email"）。如果未指定，则使用记录 ID |
+| `properties` | string | 否 | 逗号分隔的属性列表 |
+| `associations` | string | 否 | 逗号分隔的对象类型列表，用于检索关联的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 联系人数据 |
+
+### `hubspot_create_contact`
+
+在 HubSpot 中创建一个新联系人。至少需要以下之一：email、firstname 或 lastname。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `properties` | object | 是 | 作为 JSON 对象的联系人属性。必须至少包含以下之一：email、firstname 或 lastname |
+| `associations` | array | 否 | 要与联系人创建关联的数组（例如，公司、交易）。每个对象应包含 "to"（带有 "id"）和 "types"（带有 "associationCategory" 和 "associationTypeId"） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的联系人数据 |
+
+### `hubspot_update_contact`
+
+通过 ID 或 email 更新 HubSpot 中的现有联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要更新的联系人的 ID 或 email |
+| `idProperty` | string | 否 | 用作唯一标识符的属性（例如，"email"）。如果未指定，则使用记录 ID |
+| `properties` | object | 是 | 要更新的联系人属性，作为 JSON 对象 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的联系人数据 |
+
+### `hubspot_search_contacts`
+
+使用过滤器、排序和查询在 HubSpot 中搜索联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `filterGroups` | array | 否 | 过滤组的数组。每个组包含具有 propertyName、operator 和 value 的过滤器 |
+| `sorts` | array | 否 | 包含 propertyName 和 direction \("ASCENDING" 或 "DESCENDING"\) 的排序对象数组 |
+| `query` | string | 否 | 搜索查询字符串 |
+| `properties` | array | 否 | 要返回的属性名称数组 |
+| `limit` | number | 否 | 要返回的最大结果数 \(最大 100\) |
+| `after` | string | 否 | 下一页的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 搜索结果 |
+
+### `hubspot_list_companies`
+
+检索 HubSpot 帐户中的所有公司，支持分页
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | 否 | 每页的最大结果数 \(最大 100，默认 100\) |
+| `after` | string | 否 | 下一页结果的分页游标 |
+| `properties` | string | 否 | 逗号分隔的要返回的属性列表 |
+| `associations` | string | 否 | 逗号分隔的对象类型列表，用于检索关联的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 公司数据 |
+
+### `hubspot_get_company`
+
+从 HubSpot 按 ID 或域名检索单个公司
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | 是 | 要检索的公司的 ID 或域名 |
+| `idProperty` | string | 否 | 用作唯一标识符的属性 \(例如，"domain"\)。如果未指定，则使用记录 ID |
+| `properties` | string | 否 | 要返回的属性的逗号分隔列表 |
+| `associations` | string | 否 | 要检索关联 ID 的对象类型的逗号分隔列表 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 公司数据 |
+
+### `hubspot_create_company`
+
+在 HubSpot 中创建一个新公司
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `properties` | object | 是 | 作为 JSON 对象的公司属性 \(例如，名称、域名、城市、行业\) |
+| `associations` | array | 否 | 要与公司创建关联的数组 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的公司数据 |
+
+### `hubspot_update_company`
+
+通过 ID 或域名更新 HubSpot 中的现有公司
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | 是 | 要更新的公司的 ID 或域名 |
+| `idProperty` | string | 否 | 用作唯一标识符的属性 \(例如，"domain"\)。如果未指定，则使用记录 ID |
+| `properties` | object | 是 | 要更新的公司属性，作为 JSON 对象 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的公司数据 |
+
+### `hubspot_search_companies`
+
+使用过滤器、排序和查询在 HubSpot 中搜索公司
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `filterGroups` | array | 否 | 过滤组数组。每个组包含具有 propertyName、operator 和 value 的过滤器 |
+| `sorts` | array | 否 | 包含 propertyName 和 direction \("ASCENDING" 或 "DESCENDING"\) 的排序对象数组 |
+| `query` | string | 否 | 搜索查询字符串 |
+| `properties` | array | 否 | 要返回的属性名称数组 |
+| `limit` | number | 否 | 要返回的最大结果数 \(最多 100\) |
+| `after` | string | 否 | 下一页的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 搜索结果 |
+
+### `hubspot_list_deals`
+
+通过分页支持从 HubSpot 账户中检索所有交易
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | 否 | 每页的最大结果数 \(最多 100，默认 100\) |
+| `after` | string | 否 | 下一页结果的分页游标 |
+| `properties` | string | 否 | 逗号分隔的要返回的属性列表 |
+| `associations` | string | 否 | 逗号分隔的对象类型列表，用于检索关联的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 操作成功状态 |
+| `output` | 对象 | 交易数据 |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `hubspot`

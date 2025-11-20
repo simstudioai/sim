@@ -8,37 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="tavily"
   color="#0066FF"
-  icon={true}
-  iconSvg={`<svg className="block-icon" viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg' >
-      <path
-        d='M432 291C415 294 418 313 417 326C380 328 342 327 306 328C316 344 312 368 301 381C339 384 377 383 414 384C419 393 415 404 419 412C424 419 431 422 437 421C554 393 539 314 425 290'
-        fill='rgb(248,202,81)'
-      />
-      <path
-        d='M263 87C260 88 257 89 255 93C237 121 219 147 204 174C203 184 206 191 212 195C222 198 231 196 239 197C241 238 240 277 241 316C257 307 276 309 294 308C296 273 295 234 296 199C309 196 328 200 333 183C314 149 299 103 267 83'
-        fill='rgb(109,164,249)'
-      />
-      <path
-        d='M314 356L316 354C386 355 457 354 527 355C504 385 469 400 440 421C431 421 424 418 421 411C415 402 420 389 416 383C384 371 284 406 312 358'
-        fill='rgb(250,188,28)'
-      />
-      <path
-        d='M314 356C281 405 384 369 410 384C422 388 415 402 421 409C425 417 431 420 437 420C469 400 504 384 529 360C456 355 386 356 317 355'
-        fill='rgb(251,186,23)'
-      />
-      <path
-        d='M264 325C271 325 290 329 283 339C236 384 186 436 139 482C133 481 133 477 131 474C133 477 133 481 135 482C174 490 213 472 250 466C261 447 246 435 235 426C254 406 271 389 289 372C303 352 287 324 266 326'
-        fill='rgb(251,156,158)'
-      />
-      <path
-        d='M263 327C260 328 256 328 253 330C233 348 216 367 197 384C188 381 183 371 175 368C166 367 161 369 156 372C148 409 133 447 133 482C173 430 281 366 277 323'
-        fill='rgb(248,56,63)'
-      />
-      <path
-        d='M258 326C235 341 218 365 198 382C186 376 176 360 161 368L160 369L157 369C149 378 150 391 146 401C150 391 149 379 157 370C174 359 185 376 195 385C219 365 238 337 262 325'
-        fill='rgb(242,165,165)'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -71,6 +40,21 @@ Tavilyを使用してAI搭載ウェブ検索を実行する
 | --------- | ---- | -------- | ----------- |
 | `query` | string | はい | 実行する検索クエリ |
 | `max_results` | number | いいえ | 結果の最大数（1-20） |
+| `topic` | string | いいえ | カテゴリタイプ: general、news、またはfinance（デフォルト: general） |
+| `search_depth` | string | いいえ | 検索範囲: basic（1クレジット）またはadvanced（2クレジット）（デフォルト: basic） |
+| `include_answer` | string | いいえ | LLM生成レスポンス: true/basicで簡潔な回答、advancedで詳細な回答 |
+| `include_raw_content` | string | いいえ | 解析されたHTMLコンテンツ: true/markdownまたはテキスト形式 |
+| `include_images` | boolean | いいえ | 画像検索結果を含める |
+| `include_image_descriptions` | boolean | いいえ | 画像の説明テキストを追加 |
+| `include_favicon` | boolean | いいえ | ファビコンURLを含める |
+| `chunks_per_source` | number | いいえ | ソースごとの関連チャンクの最大数（1-3、デフォルト: 3） |
+| `time_range` | string | いいえ | 最新性でフィルタリング: day/d、week/w、month/m、year/y |
+| `start_date` | string | いいえ | 最も古い公開日（YYYY-MM-DD形式） |
+| `end_date` | string | いいえ | 最新の公開日（YYYY-MM-DD形式） |
+| `include_domains` | string | いいえ | ホワイトリストに登録するドメインのカンマ区切りリスト（最大300） |
+| `exclude_domains` | string | いいえ | ブラックリストに登録するドメインのカンマ区切りリスト（最大150） |
+| `country` | string | いいえ | 指定した国からの結果を優先（一般トピックのみ） |
+| `auto_parameters` | boolean | いいえ | クエリの意図に基づく自動パラメータ設定 |
 | `apiKey` | string | はい | Tavily APIキー |
 
 #### 出力
@@ -90,6 +74,9 @@ Tavilyを使用して複数のウェブページから同時に生のコンテ�
 | --------- | ---- | -------- | ----------- |
 | `urls` | string | はい | コンテンツを抽出するURLまたはURL配列 |
 | `extract_depth` | string | いいえ | 抽出の深さ（basic=1クレジット/5 URL、advanced=2クレジット/5 URL） |
+| `format` | string | いいえ | 出力形式：markdownまたはtext（デフォルト：markdown） |
+| `include_images` | boolean | いいえ | 抽出出力に画像を含める |
+| `include_favicon` | boolean | いいえ | 各結果にファビコンURLを追加 |
 | `apiKey` | string | はい | Tavily APIキー |
 
 #### 出力
@@ -97,6 +84,64 @@ Tavilyを使用して複数のウェブページから同時に生のコンテ�
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `results` | array | 抽出されたURL |
+
+### `tavily_crawl`
+
+Tavilyを使用してウェブサイトから体系的にクロールしてコンテンツを抽出する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | はい | クロールを開始するルートURL |
+| `instructions` | string | いいえ | クローラーのための自然言語指示（10ページごとに2クレジットかかります） |
+| `max_depth` | number | いいえ | ベースURLからどれだけ探索するか（1-5、デフォルト：1） |
+| `max_breadth` | number | いいえ | ページレベルごとにフォローするリンク（≥1、デフォルト：20） |
+| `limit` | number | いいえ | 停止する前に処理する総リンク数（≥1、デフォルト：50） |
+| `select_paths` | string | いいえ | 特定のURLパスを含めるためのカンマ区切りの正規表現パターン（例：/docs/.*） |
+| `select_domains` | string | いいえ | 特定のドメインにクロールを制限するためのカンマ区切りの正規表現パターン |
+| `exclude_paths` | string | いいえ | 特定のURLパスをスキップするためのカンマ区切りの正規表現パターン |
+| `exclude_domains` | string | いいえ | 特定のドメインをブロックするためのカンマ区切りの正規表現パターン |
+| `allow_external` | boolean | いいえ | 結果に外部ドメインリンクを含める（デフォルト：true） |
+| `include_images` | boolean | いいえ | クロール出力に画像を含める |
+| `extract_depth` | string | いいえ | 抽出の深さ：basic（1クレジット/5ページ）またはadvanced（2クレジット/5ページ） |
+| `format` | string | いいえ | 出力形式：markdownまたはtext（デフォルト：markdown） |
+| `include_favicon` | boolean | いいえ | 各結果にファビコンURLを追加 |
+| `apiKey` | string | はい | Tavily APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `base_url` | string | クロールされたベースURL |
+| `results` | array | クロールされたページURL |
+
+### `tavily_map`
+
+Tavilyを使用してウェブサイト構造を発見・可視化する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | はい | マッピングを開始するルートURL |
+| `instructions` | string | いいえ | マッピング動作のための自然言語ガイダンス（10ページごとに2クレジットかかります） |
+| `max_depth` | number | いいえ | ベースURLからの探索距離（1-5、デフォルト：1） |
+| `max_breadth` | number | いいえ | レベルごとにフォローするリンク数（デフォルト：20） |
+| `limit` | number | いいえ | 処理する総リンク数（デフォルト：50） |
+| `select_paths` | string | いいえ | URLパスフィルタリング用のカンマ区切り正規表現パターン（例：/docs/.*） |
+| `select_domains` | string | いいえ | 特定ドメインへのマッピングを制限するカンマ区切り正規表現パターン |
+| `exclude_paths` | string | いいえ | 特定のURLパスを除外するカンマ区切り正規表現パターン |
+| `exclude_domains` | string | いいえ | 除外するドメインのカンマ区切り正規表現パターン |
+| `allow_external` | boolean | いいえ | 結果に外部ドメインリンクを含める（デフォルト：true） |
+| `apiKey` | string | はい | Tavily APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `base_url` | string | マッピングされたベースURL |
+| `results` | array | 発見されたURL |
 
 ## 注意事項
 

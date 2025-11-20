@@ -3,11 +3,10 @@ title: 响应
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-响应模块是工作流中的最后一步，用于格式化并将结构化的响应发送回 API 调用。它就像整个工作流的 "return" 语句——将结果打包并返回。
+Response 块用于格式化并将结构化的 HTTP 响应发送回 API 调用方。使用它可以通过适当的状态码和头信息返回工作流结果。
 
 <div className="flex justify-center">
   <Image
@@ -20,62 +19,14 @@ import { Image } from '@/components/ui/image'
 </div>
 
 <Callout type="info">
-  响应模块是终端模块——它们结束工作流的执行，无法连接到其他模块。
+  Response 块是终止块——它们会结束工作流的执行，无法连接到其他块。
 </Callout>
-
-## 概述
-
-响应模块可以让您：
-
-<Steps>
-  <Step>
-    <strong>格式化 API 响应</strong>：将工作流结果结构化为正确的 HTTP 响应
-  </Step>
-  <Step>
-    <strong>设置状态码</strong>：根据工作流结果配置适当的 HTTP 状态码
-  </Step>
-  <Step>
-    <strong>控制头信息</strong>：为 API 响应和 Webhooks 添加自定义头信息
-  </Step>
-  <Step>
-    <strong>转换数据</strong>：将工作流变量转换为客户端友好的响应格式
-  </Step>
-</Steps>
-
-## 工作原理
-
-响应模块完成工作流的执行：
-
-1. **收集数据** - 收集前面模块的变量和输出
-2. **格式化响应** - 根据您的配置结构化数据
-3. **设置 HTTP 详细信息** - 应用状态码和头信息
-4. **发送响应** - 将格式化的响应返回给 API 调用方
-
-## 何时需要响应模块
-
-- **API 端点**：当您的工作流通过 API 调用时，响应模块会格式化返回数据
-- **Webhooks**：将确认或数据返回给调用系统
-- **测试**：在测试工作流时查看格式化的结果
-
-## 构建响应的两种方式
-
-### 构建器模式（推荐）
-用于构建响应结构的可视化界面：
-- 拖放字段
-- 轻松引用工作流变量
-- 响应结构的可视化预览
-
-### 编辑器模式（高级）
-直接编写 JSON：
-- 完全控制响应格式
-- 支持复杂的嵌套结构
-- 使用 `<variable.name>` 语法表示动态值
 
 ## 配置选项
 
 ### 响应数据
 
-响应数据是将返回给 API 调用者的主要内容。它应以 JSON 格式编写，可以包括：
+响应数据是将发送回 API 调用方的主要内容。它应以 JSON 格式编写，可以包括：
 
 - 静态值
 - 使用 `<variable.name>` 语法动态引用工作流变量
@@ -84,42 +35,29 @@ import { Image } from '@/components/ui/image'
 
 ### 状态码
 
-设置响应的 HTTP 状态码。常见的状态码包括：
+为响应设置 HTTP 状态码（默认为 200）：
 
-<Tabs items={['成功 (2xx)', '客户端错误 (4xx)', '服务器错误 (5xx)']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>200</strong>：OK - 标准成功响应</li>
-      <li><strong>201</strong>：Created - 资源成功创建</li>
-      <li><strong>204</strong>：No Content - 成功但无响应内容</li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>400</strong>：Bad Request - 请求参数无效</li>
-      <li><strong>401</strong>：Unauthorized - 需要身份验证</li>
-      <li><strong>404</strong>：Not Found - 资源不存在</li>
-      <li><strong>422</strong>：Unprocessable Entity - 验证错误</li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>500</strong>：Internal Server Error - 服务器端错误</li>
-      <li><strong>502</strong>：Bad Gateway - 外部服务错误</li>
-      <li><strong>503</strong>：Service Unavailable - 服务暂时不可用</li>
-    </ul>
-  </Tab>
-</Tabs>
+**成功 (2xx)：**
+- **200**: OK - 标准成功响应
+- **201**: Created - 资源成功创建
+- **204**: No Content - 成功但无响应内容
 
-<div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-  如果未指定，默认状态码为 200。
-</div>
+**客户端错误 (4xx)：**
+- **400**: Bad Request - 请求参数无效
+- **401**: Unauthorized - 需要身份验证
+- **404**: Not Found - 资源不存在
+- **422**: Unprocessable Entity - 验证错误
+
+**服务器错误 (5xx)：**
+- **500**: Internal Server Error - 服务器端错误
+- **502**: Bad Gateway - 外部服务错误
+- **503**: Service Unavailable - 服务暂时不可用
 
 ### 响应头
 
-配置响应中包含的额外 HTTP 头信息。
+配置要包含在响应中的额外 HTTP 头信息。
 
-标头被配置为键值对：
+头信息以键值对的形式配置：
 
 | 键 | 值 |
 |-----|-------|
@@ -129,95 +67,31 @@ import { Image } from '@/components/ui/image'
 
 ## 示例用例
 
-### API 端点响应
+**API 端点响应** - 返回来自搜索 API 的结构化数据
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：从搜索 API 返回结构化数据</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>工作流处理搜索查询并检索结果</li>
-    <li>功能块格式化并分页结果</li>
-    <li>响应块返回包含数据、分页和元数据的 JSON</li>
-    <li>客户端接收带有 200 状态的结构化响应</li>
-  </ol>
-</div>
+```
+Agent (Search) → Function (Format & Paginate) → Response (200, JSON)
+```
 
-### Webhook 确认
+**Webhook 确认** - 确认 webhook 的接收和处理
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：确认 Webhook 的接收和处理</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Webhook 触发器接收外部系统数据</li>
-    <li>工作流处理传入数据</li>
-    <li>响应块返回带有处理状态的确认</li>
-    <li>外部系统接收确认信息</li>
-  </ol>
-</div>
+```
+Webhook Trigger → Function (Process) → Response (200, Confirmation)
+```
 
-### 错误响应处理
+**错误响应处理** - 返回适当的错误响应
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：返回适当的错误响应</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>条件块检测到验证失败或系统错误</li>
-    <li>路由器引导到错误处理路径</li>
-    <li>响应块返回带有错误详情的 400/500 状态</li>
-    <li>客户端接收结构化的错误信息</li>
-  </ol>
-</div>
+```
+Condition (Error Detected) → Router → Response (400/500, Error Details)
+```
 
-## 输入和输出
+## 输出
 
-<Tabs items={['Configuration', 'Variables', 'Results']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>响应数据</strong>：响应体的 JSON 结构
-      </li>
-      <li>
-        <strong>状态码</strong>：HTTP 状态码（默认：200）
-      </li>
-      <li>
-        <strong>标头</strong>：自定义 HTTP 标头，格式为键值对
-      </li>
-      <li>
-        <strong>模式</strong>：用于响应构建的 Builder 或 Editor 模式
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>response.data</strong>：结构化的响应体
-      </li>
-      <li>
-        <strong>response.status</strong>：发送的 HTTP 状态码
-      </li>
-      <li>
-        <strong>response.headers</strong>：响应中包含的标头
-      </li>
-      <li>
-        <strong>response.success</strong>：指示成功完成的布尔值
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>HTTP 响应</strong>：发送给 API 调用者的完整响应
-      </li>
-      <li>
-        <strong>工作流终止</strong>：结束工作流执行
-      </li>
-      <li>
-        <strong>访问</strong>：响应块是终端块 - 无后续块
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+响应块是终端块——它们结束工作流的执行并将 HTTP 响应发送给 API 调用者。下游块不可用任何输出。
 
 ## 变量引用
 
-使用 `<variable.name>` 语法将工作流变量动态插入到您的响应中：
+使用 `<variable.name>` 语法在响应中动态插入工作流变量：
 
 ```json
 {
@@ -240,7 +114,7 @@ import { Image } from '@/components/ui/image'
 ## 最佳实践
 
 - **使用有意义的状态码**：选择适当的 HTTP 状态码，准确反映工作流的结果
-- **保持响应结构一致**：在所有 API 端点中保持一致的 JSON 结构，以提升开发者体验
+- **结构化响应的一致性**：在所有 API 端点中保持一致的 JSON 结构，以提升开发者体验
 - **包含相关元数据**：添加时间戳和版本信息，以便调试和监控
 - **优雅地处理错误**：在工作流中使用条件逻辑设置适当的错误响应，并提供描述性消息
-- **验证变量引用**：确保所有引用的变量存在并包含预期的数据类型，然后再执行响应块
+- **验证变量引用**：确保所有引用的变量存在并在响应块执行前包含预期的数据类型

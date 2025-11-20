@@ -11,7 +11,6 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
   oauth: {
     required: true,
     provider: 'notion',
-    additionalScopes: ['workspace.content', 'database.read'],
   },
 
   params: {
@@ -94,7 +93,7 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
 
       // Add page size if provided
       if (params.pageSize) {
-        body.page_size = Math.min(params.pageSize, 100)
+        body.page_size = Math.min(Number(params.pageSize), 100)
       }
 
       return body

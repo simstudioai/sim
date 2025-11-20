@@ -8,37 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="tavily"
   color="#0066FF"
-  icon={true}
-  iconSvg={`<svg className="block-icon" viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg' >
-      <path
-        d='M432 291C415 294 418 313 417 326C380 328 342 327 306 328C316 344 312 368 301 381C339 384 377 383 414 384C419 393 415 404 419 412C424 419 431 422 437 421C554 393 539 314 425 290'
-        fill='rgb(248,202,81)'
-      />
-      <path
-        d='M263 87C260 88 257 89 255 93C237 121 219 147 204 174C203 184 206 191 212 195C222 198 231 196 239 197C241 238 240 277 241 316C257 307 276 309 294 308C296 273 295 234 296 199C309 196 328 200 333 183C314 149 299 103 267 83'
-        fill='rgb(109,164,249)'
-      />
-      <path
-        d='M314 356L316 354C386 355 457 354 527 355C504 385 469 400 440 421C431 421 424 418 421 411C415 402 420 389 416 383C384 371 284 406 312 358'
-        fill='rgb(250,188,28)'
-      />
-      <path
-        d='M314 356C281 405 384 369 410 384C422 388 415 402 421 409C425 417 431 420 437 420C469 400 504 384 529 360C456 355 386 356 317 355'
-        fill='rgb(251,186,23)'
-      />
-      <path
-        d='M264 325C271 325 290 329 283 339C236 384 186 436 139 482C133 481 133 477 131 474C133 477 133 481 135 482C174 490 213 472 250 466C261 447 246 435 235 426C254 406 271 389 289 372C303 352 287 324 266 326'
-        fill='rgb(251,156,158)'
-      />
-      <path
-        d='M263 327C260 328 256 328 253 330C233 348 216 367 197 384C188 381 183 371 175 368C166 367 161 369 156 372C148 409 133 447 133 482C173 430 281 366 277 323'
-        fill='rgb(248,56,63)'
-      />
-      <path
-        d='M258 326C235 341 218 365 198 382C186 376 176 360 161 368L160 369L157 369C149 378 150 391 146 401C150 391 149 379 157 370C174 359 185 376 195 385C219 365 238 337 262 325'
-        fill='rgb(242,165,165)'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -71,6 +40,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `query` | 字符串 | 是 | 要执行的搜索查询 |
 | `max_results` | 数字 | 否 | 最大结果数量 \(1-20\) |
+| `topic` | 字符串 | 否 | 类别类型：general、news 或 finance \(默认：general\) |
+| `search_depth` | 字符串 | 否 | 搜索范围：basic \(1 积分\) 或 advanced \(2 积分\) \(默认：basic\) |
+| `include_answer` | 字符串 | 否 | LLM 生成的响应：true/basic 表示快速回答，advanced 表示详细回答 |
+| `include_raw_content` | 字符串 | 否 | 解析的 HTML 内容：true/markdown 或文本格式 |
+| `include_images` | 布尔值 | 否 | 包括图片搜索结果 |
+| `include_image_descriptions` | 布尔值 | 否 | 为图片添加描述性文本 |
+| `include_favicon` | 布尔值 | 否 | 包括 favicon URL |
+| `chunks_per_source` | 数字 | 否 | 每个来源的最大相关块数 \(1-3，默认：3\) |
+| `time_range` | 字符串 | 否 | 按最新时间筛选：day/d、week/w、month/m、year/y |
+| `start_date` | 字符串 | 否 | 最早发布日期 \(YYYY-MM-DD 格式\) |
+| `end_date` | 字符串 | 否 | 最晚发布日期 \(YYYY-MM-DD 格式\) |
+| `include_domains` | 字符串 | 否 | 逗号分隔的白名单域名列表 \(最多 300 个\) |
+| `exclude_domains` | 字符串 | 否 | 逗号分隔的黑名单域名列表 \(最多 150 个\) |
+| `country` | 字符串 | 否 | 提升指定国家的结果 \(仅限 general 主题\) |
+| `auto_parameters` | 布尔值 | 否 | 根据查询意图自动配置参数 |
 | `apiKey` | 字符串 | 是 | Tavily API 密钥 |
 
 #### 输出
@@ -89,7 +73,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `urls` | 字符串 | 是 | 要提取内容的 URL 或 URL 数组 |
-| `extract_depth` | 字符串 | 否 | 提取深度 \(基础=1 积分/5 个 URL，高级=2 积分/5 个 URL\) |
+| `extract_depth` | 字符串 | 否 | 提取深度 \(basic=1 积分/5 个 URL，advanced=2 积分/5 个 URL\) |
+| `format` | 字符串 | 否 | 输出格式：markdown 或 text \(默认：markdown\) |
+| `include_images` | 布尔值 | 否 | 在提取输出中包含图像 |
+| `include_favicon` | 布尔值 | 否 | 为每个结果添加 favicon URL |
 | `apiKey` | 字符串 | 是 | Tavily API 密钥 |
 
 #### 输出
@@ -97,6 +84,64 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `results` | 数组 | 已提取的 URL |
+
+### `tavily_crawl`
+
+使用 Tavily 系统化地爬取并提取网站内容
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | 字符串 | 是 | 开始爬取的根 URL |
+| `instructions` | 字符串 | 否 | 爬取器的自然语言指令 \(每 10 页消耗 2 积分\) |
+| `max_depth` | 数字 | 否 | 从基础 URL 探索的深度 \(1-5，默认：1\) |
+| `max_breadth` | 数字 | 否 | 每个页面级别跟随的链接数量 \(≥1，默认：20\) |
+| `limit` | 数字 | 否 | 停止前处理的总链接数量 \(≥1，默认：50\) |
+| `select_paths` | 字符串 | 否 | 用逗号分隔的正则表达式模式，用于包含特定的 URL 路径 \(例如，/docs/.*\) |
+| `select_domains` | 字符串 | 否 | 用逗号分隔的正则表达式模式，用于限制爬取特定域名 |
+| `exclude_paths` | 字符串 | 否 | 用逗号分隔的正则表达式模式，用于跳过特定的 URL 路径 |
+| `exclude_domains` | 字符串 | 否 | 用逗号分隔的正则表达式模式，用于屏蔽特定域名 |
+| `allow_external` | 布尔值 | 否 | 在结果中包含外部域名链接 \(默认：true\) |
+| `include_images` | 布尔值 | 否 | 在爬取输出中包含图像 |
+| `extract_depth` | 字符串 | 否 | 提取深度：basic \(1 积分/5 页\) 或 advanced \(2 积分/5 页\) |
+| `format` | 字符串 | 否 | 输出格式：markdown 或 text \(默认：markdown\) |
+| `include_favicon` | 布尔值 | 否 | 为每个结果添加 favicon URL |
+| `apiKey` | 字符串 | 是 | Tavily API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `base_url` | 字符串 | 被爬取的基础 URL |
+| `results` | 数组 | 被爬取的页面 URL |
+
+### `tavily_map`
+
+使用 Tavily 探索并可视化网站结构
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | 字符串 | 是 | 开始映射的根 URL |
+| `instructions` | 字符串 | 否 | 用于映射行为的自然语言指导 \(每 10 页消耗 2 积分\) |
+| `max_depth` | 数字 | 否 | 从基础 URL 探索的深度 \(1-5，默认值：1\) |
+| `max_breadth` | 数字 | 否 | 每级要跟随的链接数量 \(默认值：20\) |
+| `limit` | 数字 | 否 | 要处理的总链接数量 \(默认值：50\) |
+| `select_paths` | 字符串 | 否 | 用于 URL 路径过滤的逗号分隔正则表达式模式 \(例如：/docs/.*\) |
+| `select_domains` | 字符串 | 否 | 限制映射到特定域的逗号分隔正则表达式模式 |
+| `exclude_paths` | 字符串 | 否 | 排除特定 URL 路径的逗号分隔正则表达式模式 |
+| `exclude_domains` | 字符串 | 否 | 排除域的逗号分隔正则表达式模式 |
+| `allow_external` | 布尔值 | 否 | 在结果中包含外部域链接 \(默认值：true\) |
+| `apiKey` | 字符串 | 是 | Tavily API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `base_url` | 字符串 | 被映射的基础 URL |
+| `results` | 数组 | 发现的 URL |
 
 ## 注意事项
 

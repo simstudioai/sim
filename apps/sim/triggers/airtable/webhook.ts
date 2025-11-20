@@ -1,5 +1,5 @@
 import { AirtableIcon } from '@/components/icons'
-import type { TriggerConfig } from '../types'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const airtableWebhookTrigger: TriggerConfig = {
   id: 'airtable_webhook',
@@ -10,32 +10,72 @@ export const airtableWebhookTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AirtableIcon,
 
-  // Airtable requires OAuth credentials to create webhooks
-  requiresCredentials: true,
-  credentialProvider: 'airtable',
-
-  configFields: {
-    baseId: {
-      type: 'string',
-      label: 'Base ID',
+  subBlocks: [
+    {
+      id: 'triggerCredentials',
+      title: 'Credentials',
+      type: 'oauth-input',
+      description: 'This trigger requires airtable credentials to access your account.',
+      provider: 'airtable',
+      requiredScopes: [],
+      required: true,
+      mode: 'trigger',
+    },
+    {
+      id: 'baseId',
+      title: 'Base ID',
+      type: 'short-input',
       placeholder: 'appXXXXXXXXXXXXXX',
       description: 'The ID of the Airtable Base this webhook will monitor.',
       required: true,
+      mode: 'trigger',
     },
-    tableId: {
-      type: 'string',
-      label: 'Table ID',
+    {
+      id: 'tableId',
+      title: 'Table ID',
+      type: 'short-input',
       placeholder: 'tblXXXXXXXXXXXXXX',
       description: 'The ID of the table within the Base that the webhook will monitor.',
       required: true,
+      mode: 'trigger',
     },
-    includeCellValues: {
-      type: 'boolean',
-      label: 'Include Full Record Data',
+    {
+      id: 'includeCellValues',
+      title: 'Include Full Record Data',
+      type: 'switch',
       description: 'Enable to receive the complete record data in the payload, not just changes.',
       defaultValue: false,
+      mode: 'trigger',
     },
-  },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: [
+        'Connect your Airtable account using the "Select Airtable credential" button above.',
+        'Ensure you have provided the correct Base ID and Table ID above.',
+        'You can find your Base ID in the Airtable URL: https://airtable.com/[baseId]/...',
+        'You can find your Table ID by clicking on the table name and looking in the URL.',
+        'The webhook will trigger whenever records are created, updated, or deleted in the specified table.',
+        'Make sure your Airtable account has appropriate permissions for the specified base.',
+      ]
+        .map(
+          (instruction, index) =>
+            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+        )
+        .join(''),
+      mode: 'trigger',
+    },
+    {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'airtable_webhook',
+    },
+  ],
 
   outputs: {
     payloads: {
@@ -75,54 +115,6 @@ export const airtableWebhookTrigger: TriggerConfig = {
     airtableChanges: {
       type: 'array',
       description: 'Changes made to the Airtable table',
-    },
-  },
-
-  instructions: [
-    'Connect your Airtable account using the "Select Airtable credential" button above.',
-    'Ensure you have provided the correct Base ID and Table ID above.',
-    'You can find your Base ID in the Airtable URL: https://airtable.com/[baseId]/...',
-    'You can find your Table ID by clicking on the table name and looking in the URL.',
-    'The webhook will trigger whenever records are created, updated, or deleted in the specified table.',
-    'Make sure your Airtable account has appropriate permissions for the specified base.',
-  ],
-
-  samplePayload: {
-    webhook: {
-      id: 'achAbCdEfGhIjKlMn',
-    },
-    timestamp: '2023-01-01T00:00:00.000Z',
-    base: {
-      id: 'appXXXXXXXXXXXXXX',
-    },
-    table: {
-      id: 'tblXXXXXXXXXXXXXX',
-    },
-    changedTablesById: {
-      tblXXXXXXXXXXXXXX: {
-        changedRecordsById: {
-          recXXXXXXXXXXXXXX: {
-            current: {
-              id: 'recXXXXXXXXXXXXXX',
-              createdTime: '2023-01-01T00:00:00.000Z',
-              fields: {
-                Name: 'Sample Record',
-                Status: 'Active',
-              },
-            },
-            previous: {
-              id: 'recXXXXXXXXXXXXXX',
-              createdTime: '2023-01-01T00:00:00.000Z',
-              fields: {
-                Name: 'Sample Record',
-                Status: 'Inactive',
-              },
-            },
-          },
-        },
-        createdRecordsById: {},
-        destroyedRecordIds: [],
-      },
     },
   },
 

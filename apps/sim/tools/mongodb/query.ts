@@ -84,7 +84,7 @@ export const queryTool: ToolConfig<MongoDBQueryParams, MongoDBResponse> = {
     }),
     body: (params) => ({
       host: params.host,
-      port: params.port,
+      port: Number(params.port),
       database: params.database,
       username: params.username,
       password: params.password,
@@ -92,7 +92,7 @@ export const queryTool: ToolConfig<MongoDBQueryParams, MongoDBResponse> = {
       ssl: params.ssl || 'preferred',
       collection: params.collection,
       query: params.query,
-      limit: params.limit,
+      limit: params.limit ? Number(params.limit) : undefined,
       sort: params.sort,
     }),
   },

@@ -8,27 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="typeform"
   color="#262627"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      version='1.1'
-      id='Layer_1'
-      xmlns='http://www.w3.org/2000/svg'
-      xmlnsXlink='http://www.w3.org/1999/xlink'
-      x='0px'
-      y='0px'
-      viewBox='0 0 122.3 80.3'
-      xmlSpace='preserve'
-    >
-      <g>
-        <path
-          fill='currentColor'
-          d='M94.3,0H65.4c-26,0-28,11.2-28,26.2l0,27.9c0,15.6,2,26.2,28.1,26.2h28.8c26,0,28-11.2,28-26.1V26.2
-		C122.3,11.2,120.3,0,94.3,0z M0,20.1C0,6.9,5.2,0,14,0c8.8,0,14,6.9,14,20.1v40.1c0,13.2-5.2,20.1-14,20.1c-8.8,0-14-6.9-14-20.1
-		V20.1z'
-        />
-      </g>
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -46,7 +25,7 @@ En Sim, la integración de Typeform permite a tus agentes interactuar programát
 
 ## Instrucciones de uso
 
-Integra Typeform en el flujo de trabajo. Puede recuperar respuestas, descargar archivos y obtener información de formularios. Requiere clave API.
+Integra Typeform en el flujo de trabajo. Puede recuperar respuestas, descargar archivos y obtener información de formularios. Se puede usar en modo de activación para iniciar un flujo de trabajo cuando se envía un formulario. Requiere clave API.
 
 ## Herramientas
 
@@ -69,9 +48,25 @@ Recuperar respuestas de formularios de Typeform
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `total_items` | number | Recuento total de respuestas |
+| `total_items` | number | Recuento total de respuestas/formularios |
 | `page_count` | number | Recuento total de páginas |
-| `items` | json | Elementos de respuesta |
+| `items` | json | Array de elementos de respuesta/formulario |
+| `id` | string | Identificador único del formulario |
+| `title` | string | Título del formulario |
+| `type` | string | Tipo de formulario |
+| `created_at` | string | Marca de tiempo ISO de creación del formulario |
+| `last_updated_at` | string | Marca de tiempo ISO de última actualización |
+| `settings` | json | Objeto de configuración del formulario |
+| `theme` | json | Objeto de configuración del tema |
+| `workspace` | json | Información del espacio de trabajo |
+| `fields` | json | Array de campos/preguntas del formulario |
+| `thankyou_screens` | json | Array de pantallas de agradecimiento |
+| `_links` | json | Enlaces a recursos relacionados |
+| `deleted` | boolean | Si el formulario se eliminó correctamente |
+| `message` | string | Mensaje de confirmación de eliminación |
+| `fileUrl` | string | URL del archivo descargado |
+| `contentType` | string | Tipo de contenido del archivo |
+| `filename` | string | Nombre del archivo |
 
 ### `typeform_files`
 
@@ -112,6 +107,129 @@ Obtener información y análisis para formularios de Typeform
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `fields` | array | Número de usuarios que abandonaron en este campo |
+
+### `typeform_list_forms`
+
+Recupera una lista de todos los formularios en tu cuenta de Typeform
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de acceso personal de Typeform |
+| `search` | string | No | Consulta de búsqueda para filtrar formularios por título |
+| `page` | number | No | Número de página \(predeterminado: 1\) |
+| `pageSize` | number | No | Número de formularios por página \(predeterminado: 10, máx: 200\) |
+| `workspaceId` | string | No | Filtrar formularios por ID de espacio de trabajo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `total_items` | number | Número total de formularios en la cuenta |
+| `page_count` | number | Número total de páginas disponibles |
+| `items` | array | Array de objetos de formulario |
+
+### `typeform_get_form`
+
+Recuperar detalles completos y estructura de un formulario específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de acceso personal de Typeform |
+| `formId` | string | Sí | Identificador único del formulario |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | Identificador único del formulario |
+| `title` | string | Título del formulario |
+| `type` | string | Tipo de formulario \(form, quiz, etc.\) |
+| `created_at` | string | Marca de tiempo ISO de creación del formulario |
+| `last_updated_at` | string | Marca de tiempo ISO de última actualización |
+| `settings` | object | Configuración del formulario incluyendo idioma, barra de progreso, etc. |
+| `theme` | object | Configuración del tema con colores, fuentes y ajustes de diseño |
+| `workspace` | object | Información del espacio de trabajo |
+
+### `typeform_create_form`
+
+Crear un nuevo formulario con campos y configuraciones
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de acceso personal de Typeform |
+| `title` | string | Sí | Título del formulario |
+| `type` | string | No | Tipo de formulario \(predeterminado: "form"\). Opciones: "form", "quiz" |
+| `workspaceId` | string | No | ID del espacio de trabajo donde crear el formulario |
+| `fields` | json | No | Array de objetos de campo que definen la estructura del formulario. Cada campo necesita: tipo, título y propiedades/validaciones opcionales |
+| `settings` | json | No | Objeto de configuración del formulario \(idioma, barra_de_progreso, etc.\) |
+| `themeId` | string | No | ID del tema a aplicar al formulario |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | Identificador único del formulario creado |
+| `title` | string | Título del formulario |
+| `type` | string | Tipo de formulario |
+| `created_at` | string | Marca de tiempo ISO de creación del formulario |
+| `last_updated_at` | string | Marca de tiempo ISO de última actualización |
+| `settings` | object | Configuración del formulario |
+| `theme` | object | Configuración del tema aplicado |
+| `workspace` | object | Información del espacio de trabajo |
+| `fields` | array | Array de campos del formulario creados |
+| `_links` | object | Enlaces a recursos relacionados |
+
+### `typeform_update_form`
+
+Actualizar un formulario existente usando operaciones JSON Patch
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de acceso personal de Typeform |
+| `formId` | string | Sí | Identificador único del formulario a actualizar |
+| `operations` | json | Sí | Array de operaciones JSON Patch \(RFC 6902\). Cada operación necesita: op \(add/remove/replace\), path, y value \(para add/replace\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | Identificador único del formulario actualizado |
+| `title` | string | Título del formulario |
+| `type` | string | Tipo de formulario |
+| `created_at` | string | Marca de tiempo ISO de creación del formulario |
+| `last_updated_at` | string | Marca de tiempo ISO de última actualización |
+| `settings` | object | Configuración del formulario |
+| `theme` | object | Configuración del tema |
+| `workspace` | object | Información del espacio de trabajo |
+| `fields` | array | Array de campos del formulario |
+| `thankyou_screens` | array | Array de pantallas de agradecimiento |
+| `_links` | object | Enlaces a recursos relacionados |
+
+### `typeform_delete_form`
+
+Eliminar permanentemente un formulario y todas sus respuestas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de acceso personal de Typeform |
+| `formId` | string | Sí | Identificador único del formulario a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Si el formulario se eliminó correctamente |
+| `message` | string | Mensaje de confirmación de eliminación |
 
 ## Notas
 

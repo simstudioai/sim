@@ -8,37 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="tavily"
   color="#0066FF"
-  icon={true}
-  iconSvg={`<svg className="block-icon" viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg' >
-      <path
-        d='M432 291C415 294 418 313 417 326C380 328 342 327 306 328C316 344 312 368 301 381C339 384 377 383 414 384C419 393 415 404 419 412C424 419 431 422 437 421C554 393 539 314 425 290'
-        fill='rgb(248,202,81)'
-      />
-      <path
-        d='M263 87C260 88 257 89 255 93C237 121 219 147 204 174C203 184 206 191 212 195C222 198 231 196 239 197C241 238 240 277 241 316C257 307 276 309 294 308C296 273 295 234 296 199C309 196 328 200 333 183C314 149 299 103 267 83'
-        fill='rgb(109,164,249)'
-      />
-      <path
-        d='M314 356L316 354C386 355 457 354 527 355C504 385 469 400 440 421C431 421 424 418 421 411C415 402 420 389 416 383C384 371 284 406 312 358'
-        fill='rgb(250,188,28)'
-      />
-      <path
-        d='M314 356C281 405 384 369 410 384C422 388 415 402 421 409C425 417 431 420 437 420C469 400 504 384 529 360C456 355 386 356 317 355'
-        fill='rgb(251,186,23)'
-      />
-      <path
-        d='M264 325C271 325 290 329 283 339C236 384 186 436 139 482C133 481 133 477 131 474C133 477 133 481 135 482C174 490 213 472 250 466C261 447 246 435 235 426C254 406 271 389 289 372C303 352 287 324 266 326'
-        fill='rgb(251,156,158)'
-      />
-      <path
-        d='M263 327C260 328 256 328 253 330C233 348 216 367 197 384C188 381 183 371 175 368C166 367 161 369 156 372C148 409 133 447 133 482C173 430 281 366 277 323'
-        fill='rgb(248,56,63)'
-      />
-      <path
-        d='M258 326C235 341 218 365 198 382C186 376 176 360 161 368L160 369L157 369C149 378 150 391 146 401C150 391 149 379 157 370C174 359 185 376 195 385C219 365 238 337 262 325'
-        fill='rgb(242,165,165)'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -71,6 +40,21 @@ Realiza búsquedas web potenciadas por IA usando Tavily
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Sí | La consulta de búsqueda a ejecutar |
 | `max_results` | number | No | Número máximo de resultados \(1-20\) |
+| `topic` | string | No | Tipo de categoría: general, noticias o finanzas \(predeterminado: general\) |
+| `search_depth` | string | No | Alcance de búsqueda: básico \(1 crédito\) o avanzado \(2 créditos\) \(predeterminado: básico\) |
+| `include_answer` | string | No | Respuesta generada por LLM: true/basic para respuesta rápida o advanced para detallada |
+| `include_raw_content` | string | No | Contenido HTML analizado: true/markdown o formato de texto |
+| `include_images` | boolean | No | Incluir resultados de búsqueda de imágenes |
+| `include_image_descriptions` | boolean | No | Añadir texto descriptivo para imágenes |
+| `include_favicon` | boolean | No | Incluir URLs de favicon |
+| `chunks_per_source` | number | No | Número máximo de fragmentos relevantes por fuente \(1-3, predeterminado: 3\) |
+| `time_range` | string | No | Filtrar por actualidad: día/d, semana/w, mes/m, año/y |
+| `start_date` | string | No | Fecha de publicación más temprana \(formato AAAA-MM-DD\) |
+| `end_date` | string | No | Fecha de publicación más reciente \(formato AAAA-MM-DD\) |
+| `include_domains` | string | No | Lista separada por comas de dominios permitidos \(máx. 300\) |
+| `exclude_domains` | string | No | Lista separada por comas de dominios bloqueados \(máx. 150\) |
+| `country` | string | No | Potenciar resultados del país especificado \(solo tema general\) |
+| `auto_parameters` | boolean | No | Configuración automática de parámetros basada en la intención de la consulta |
 | `apiKey` | string | Sí | Clave API de Tavily |
 
 #### Salida
@@ -88,8 +72,11 @@ Extrae contenido en bruto de múltiples páginas web simultáneamente usando Tav
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `urls` | string | Sí | URL o array de URLs para extraer contenido |
+| `urls` | string | Sí | URL o array de URLs de donde extraer contenido |
 | `extract_depth` | string | No | La profundidad de extracción \(básica=1 crédito/5 URLs, avanzada=2 créditos/5 URLs\) |
+| `format` | string | No | Formato de salida: markdown o texto \(predeterminado: markdown\) |
+| `include_images` | boolean | No | Incorporar imágenes en la salida de extracción |
+| `include_favicon` | boolean | No | Añadir URL del favicon para cada resultado |
 | `apiKey` | string | Sí | Clave API de Tavily |
 
 #### Salida
@@ -97,6 +84,64 @@ Extrae contenido en bruto de múltiples páginas web simultáneamente usando Tav
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `results` | array | La URL que fue extraída |
+
+### `tavily_crawl`
+
+Rastrea y extrae contenido sistemáticamente de sitios web usando Tavily
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Sí | La URL raíz para comenzar el rastreo |
+| `instructions` | string | No | Instrucciones en lenguaje natural para el rastreador \(cuesta 2 créditos por 10 páginas\) |
+| `max_depth` | number | No | Qué tan lejos de la URL base explorar \(1-5, predeterminado: 1\) |
+| `max_breadth` | number | No | Enlaces seguidos por nivel de página \(≥1, predeterminado: 20\) |
+| `limit` | number | No | Total de enlaces procesados antes de detenerse \(≥1, predeterminado: 50\) |
+| `select_paths` | string | No | Patrones regex separados por comas para incluir rutas de URL específicas \(ej., /docs/.*\) |
+| `select_domains` | string | No | Patrones regex separados por comas para restringir el rastreo a ciertos dominios |
+| `exclude_paths` | string | No | Patrones regex separados por comas para omitir rutas de URL específicas |
+| `exclude_domains` | string | No | Patrones regex separados por comas para bloquear ciertos dominios |
+| `allow_external` | boolean | No | Incluir enlaces de dominios externos en los resultados \(predeterminado: true\) |
+| `include_images` | boolean | No | Incorporar imágenes en la salida del rastreo |
+| `extract_depth` | string | No | Profundidad de extracción: básica \(1 crédito/5 páginas\) o avanzada \(2 créditos/5 páginas\) |
+| `format` | string | No | Formato de salida: markdown o texto \(predeterminado: markdown\) |
+| `include_favicon` | boolean | No | Añadir URL del favicon para cada resultado |
+| `apiKey` | string | Sí | Clave API de Tavily |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `base_url` | string | La URL base que fue rastreada |
+| `results` | array | La URL de la página rastreada |
+
+### `tavily_map`
+
+Descubre y visualiza la estructura de sitios web usando Tavily
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Sí | La URL raíz para comenzar el mapeo |
+| `instructions` | string | No | Guía en lenguaje natural para el comportamiento de mapeo \(cuesta 2 créditos por cada 10 páginas\) |
+| `max_depth` | number | No | Qué tan lejos de la URL base explorar \(1-5, predeterminado: 1\) |
+| `max_breadth` | number | No | Enlaces a seguir por nivel \(predeterminado: 20\) |
+| `limit` | number | No | Total de enlaces a procesar \(predeterminado: 50\) |
+| `select_paths` | string | No | Patrones regex separados por comas para filtrar rutas de URL \(ej., /docs/.*\) |
+| `select_domains` | string | No | Patrones regex separados por comas para restringir el mapeo a dominios específicos |
+| `exclude_paths` | string | No | Patrones regex separados por comas para excluir rutas de URL específicas |
+| `exclude_domains` | string | No | Patrones regex separados por comas para excluir dominios |
+| `allow_external` | boolean | No | Incluir enlaces de dominios externos en los resultados \(predeterminado: true\) |
+| `apiKey` | string | Sí | Clave API de Tavily |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `base_url` | string | La URL base que fue mapeada |
+| `results` | array | URL descubierta |
 
 ## Notas
 

@@ -6,13 +6,18 @@ import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateFolderName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
+import {
+  extractWorkflowName,
+  extractWorkflowsFromFiles,
+  extractWorkflowsFromZip,
+} from '@/lib/workflows/import-export'
+import { generateFolderName } from '@/lib/workspaces/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useFolderStore } from '@/stores/folders/store'
+import { useCreateFolder } from '@/hooks/queries/folders'
+import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { parseWorkflowJson } from '@/stores/workflows/json/importer'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CreateMenu')
 
@@ -38,8 +43,8 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
-  const { createFolder } = useFolderStore()
-  const { createWorkflow } = useWorkflowRegistry()
+  const createFolderMutation = useCreateFolder()
+  const createWorkflowMutation = useCreateWorkflow()
   const userPermissions = useUserPermissionsContext()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -105,88 +110,14 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
     try {
       setIsCreating(true)
       const folderName = await generateFolderName(workspaceId)
-      await createFolder({ name: folderName, workspaceId })
+      await createFolderMutation.mutateAsync({ name: folderName, workspaceId })
       logger.info(`Created folder: ${folderName}`)
     } catch (error) {
       logger.error('Failed to create folder:', { error })
     } finally {
       setIsCreating(false)
     }
-  }, [createFolder, workspaceId, isCreating])
-
-  const handleDirectImport = useCallback(
-    async (content: string, filename?: string) => {
-      if (!content.trim()) {
-        logger.error('JSON content is required')
-        return
-      }
-
-      setIsImporting(true)
-
-      try {
-        // First validate the JSON without importing
-        const { data: workflowData, errors: parseErrors } = parseWorkflowJson(content)
-
-        if (!workflowData || parseErrors.length > 0) {
-          logger.error('Failed to parse JSON:', { errors: parseErrors })
-          return
-        }
-
-        // Generate workflow name from filename or fallback to time-based name
-        const getWorkflowName = () => {
-          if (filename) {
-            // Remove file extension and use the filename
-            const nameWithoutExtension = filename.replace(/\.json$/i, '')
-            return (
-              nameWithoutExtension.trim() || `Imported Workflow - ${new Date().toLocaleString()}`
-            )
-          }
-          return `Imported Workflow - ${new Date().toLocaleString()}`
-        }
-
-        // Clear workflow diff store when creating a new workflow from import
-        const { clearDiff } = useWorkflowDiffStore.getState()
-        clearDiff()
-
-        // Create a new workflow
-        const newWorkflowId = await createWorkflow({
-          name: getWorkflowName(),
-          description: 'Workflow imported from JSON',
-          workspaceId,
-        })
-
-        // Save workflow state to database first
-        const response = await fetch(`/api/workflows/${newWorkflowId}/state`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(workflowData),
-        })
-
-        if (!response.ok) {
-          logger.error('Failed to persist imported workflow to database')
-          throw new Error('Failed to save workflow')
-        }
-
-        logger.info('Imported workflow persisted to database')
-
-        // Pre-load the workflow state before navigating
-        const { setActiveWorkflow } = useWorkflowRegistry.getState()
-        await setActiveWorkflow(newWorkflowId)
-
-        // Navigate to the new workflow (replace to avoid history entry)
-        router.replace(`/workspace/${workspaceId}/w/${newWorkflowId}`)
-
-        logger.info('Workflow imported successfully from JSON')
-      } catch (error) {
-        logger.error('Failed to import workflow:', { error })
-      } finally {
-        setIsImporting(false)
-      }
-    },
-    [createWorkflow, workspaceId, router]
-  )
+  }, [createFolderMutation, workspaceId, isCreating])
 
   const handleImportWorkflow = useCallback(() => {
     setIsOpen(false)
@@ -195,24 +126,193 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
 
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (!file) return
+      const files = event.target.files
+      if (!files || files.length === 0) return
+
+      setIsImporting(true)
 
       try {
-        const content = await file.text()
+        const fileArray = Array.from(files)
+        const hasZip = fileArray.some((f) => f.name.toLowerCase().endsWith('.zip'))
+        const jsonFiles = fileArray.filter((f) => f.name.toLowerCase().endsWith('.json'))
 
-        // Import directly with filename
-        await handleDirectImport(content, file.name)
+        let importedWorkflows: Array<{ content: string; name: string; folderPath: string[] }> = []
+
+        if (hasZip && fileArray.length === 1) {
+          const zipFile = fileArray[0]
+          const { workflows: extractedWorkflows, metadata } = await extractWorkflowsFromZip(zipFile)
+          importedWorkflows = extractedWorkflows
+
+          const folderName = metadata?.workspaceName || zipFile.name.replace(/\.zip$/i, '')
+          const importFolder = await createFolderMutation.mutateAsync({
+            name: folderName,
+            workspaceId,
+          })
+
+          const folderMap = new Map<string, string>()
+
+          for (const workflow of importedWorkflows) {
+            try {
+              const { data: workflowData, errors: parseErrors } = parseWorkflowJson(
+                workflow.content
+              )
+
+              if (!workflowData || parseErrors.length > 0) {
+                logger.warn(`Failed to parse ${workflow.name}:`, parseErrors)
+                continue
+              }
+
+              let targetFolderId = importFolder.id
+
+              if (workflow.folderPath.length > 0) {
+                const folderPathKey = workflow.folderPath.join('/')
+
+                if (!folderMap.has(folderPathKey)) {
+                  let parentId = importFolder.id
+
+                  for (let i = 0; i < workflow.folderPath.length; i++) {
+                    const pathSegment = workflow.folderPath.slice(0, i + 1).join('/')
+
+                    if (!folderMap.has(pathSegment)) {
+                      const subFolder = await createFolderMutation.mutateAsync({
+                        name: workflow.folderPath[i],
+                        workspaceId,
+                        parentId,
+                      })
+                      folderMap.set(pathSegment, subFolder.id)
+                      parentId = subFolder.id
+                    } else {
+                      parentId = folderMap.get(pathSegment)!
+                    }
+                  }
+                }
+
+                targetFolderId = folderMap.get(folderPathKey)!
+              }
+
+              const workflowName = extractWorkflowName(workflow.content, workflow.name)
+              const { clearDiff } = useWorkflowDiffStore.getState()
+              clearDiff()
+
+              const result = await createWorkflowMutation.mutateAsync({
+                name: workflowName,
+                description: 'Imported from workspace export',
+                workspaceId,
+                folderId: targetFolderId,
+              })
+              const newWorkflowId = result.id
+
+              const response = await fetch(`/api/workflows/${newWorkflowId}/state`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(workflowData),
+              })
+
+              if (!response.ok) {
+                logger.error(`Failed to save imported workflow ${newWorkflowId}`)
+                continue
+              }
+
+              if (workflowData.variables && workflowData.variables.length > 0) {
+                const variablesPayload = workflowData.variables.map((v: any) => ({
+                  id: typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID(),
+                  workflowId: newWorkflowId,
+                  name: v.name,
+                  type: v.type,
+                  value: v.value,
+                }))
+
+                await fetch(`/api/workflows/${newWorkflowId}/variables`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ variables: variablesPayload }),
+                })
+              }
+
+              logger.info(`Imported workflow: ${workflowName}`)
+            } catch (error) {
+              logger.error(`Failed to import ${workflow.name}:`, error)
+            }
+          }
+        } else if (jsonFiles.length > 0) {
+          importedWorkflows = await extractWorkflowsFromFiles(jsonFiles)
+
+          for (const workflow of importedWorkflows) {
+            try {
+              const { data: workflowData, errors: parseErrors } = parseWorkflowJson(
+                workflow.content
+              )
+
+              if (!workflowData || parseErrors.length > 0) {
+                logger.warn(`Failed to parse ${workflow.name}:`, parseErrors)
+                continue
+              }
+
+              const workflowName = extractWorkflowName(workflow.content, workflow.name)
+              const { clearDiff } = useWorkflowDiffStore.getState()
+              clearDiff()
+
+              const result = await createWorkflowMutation.mutateAsync({
+                name: workflowName,
+                description: 'Imported from JSON',
+                workspaceId,
+              })
+              const newWorkflowId = result.id
+
+              const response = await fetch(`/api/workflows/${newWorkflowId}/state`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(workflowData),
+              })
+
+              if (!response.ok) {
+                logger.error(`Failed to save imported workflow ${newWorkflowId}`)
+                continue
+              }
+
+              if (workflowData.variables && workflowData.variables.length > 0) {
+                const variablesPayload = workflowData.variables.map((v: any) => ({
+                  id: typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID(),
+                  workflowId: newWorkflowId,
+                  name: v.name,
+                  type: v.type,
+                  value: v.value,
+                }))
+
+                await fetch(`/api/workflows/${newWorkflowId}/variables`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ variables: variablesPayload }),
+                })
+              }
+
+              logger.info(`Imported workflow: ${workflowName}`)
+            } catch (error) {
+              logger.error(`Failed to import ${workflow.name}:`, error)
+            }
+          }
+        }
+
+        // Invalidate workflow queries to reload the list
+        // The useWorkflows hook in the sidebar will automatically refetch
       } catch (error) {
-        logger.error('Failed to read file:', { error })
-      }
-
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
+        logger.error('Failed to import workflows:', error)
+      } finally {
+        setIsImporting(false)
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
       }
     },
-    [handleDirectImport]
+    [workspaceId, createWorkflowMutation, createFolderMutation]
   )
 
   // Button event handlers
@@ -360,7 +460,7 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
           >
             <Download className={iconClassName} />
             <span className={textClassName}>
-              {isImporting ? 'Importing...' : 'Import workflow'}
+              {isImporting ? 'Importing...' : 'Import Workflows'}
             </span>
           </button>
         </PopoverContent>
@@ -369,7 +469,8 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
       <input
         ref={fileInputRef}
         type='file'
-        accept='.json'
+        accept='.json,.zip'
+        multiple
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />

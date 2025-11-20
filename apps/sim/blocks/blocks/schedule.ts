@@ -10,6 +10,7 @@ export const ScheduleBlock: BlockConfig = {
   triggerAllowed: true,
   name: 'Schedule',
   description: 'Trigger workflow execution on a schedule',
+  docsLink: 'https://docs.sim.ai/triggers/schedule',
   longDescription:
     'Integrate Schedule into the workflow. Can trigger a workflow on a schedule configuration.',
   bestPractices: `
@@ -22,49 +23,56 @@ export const ScheduleBlock: BlockConfig = {
   icon: ScheduleIcon,
 
   subBlocks: [
-    // Schedule configuration status display
-    {
-      id: 'scheduleConfig',
-      title: 'Schedule Status',
-      type: 'schedule-config',
-      layout: 'full',
-    },
-    // Hidden fields for schedule configuration (used by the modal only)
     {
       id: 'scheduleType',
-      title: 'Frequency',
       type: 'dropdown',
-      layout: 'full',
+      title: 'Run frequency',
       options: [
         { label: 'Every X Minutes', id: 'minutes' },
         { label: 'Hourly', id: 'hourly' },
         { label: 'Daily', id: 'daily' },
         { label: 'Weekly', id: 'weekly' },
         { label: 'Monthly', id: 'monthly' },
-        { label: 'Custom Cron', id: 'custom' },
+        { label: 'Custom (Cron)', id: 'custom' },
       ],
       value: () => 'daily',
-      hidden: true,
+      required: true,
+      mode: 'trigger',
     },
+
     {
       id: 'minutesInterval',
       type: 'short-input',
-      hidden: true,
+      title: 'Interval (minutes)',
+      placeholder: '15',
+      required: true,
+      mode: 'trigger',
+      condition: { field: 'scheduleType', value: 'minutes' },
     },
+
     {
       id: 'hourlyMinute',
       type: 'short-input',
-      hidden: true,
+      title: 'Minute',
+      placeholder: '0-59',
+      required: true,
+      mode: 'trigger',
+      condition: { field: 'scheduleType', value: 'hourly' },
     },
+
     {
       id: 'dailyTime',
-      type: 'short-input',
-      hidden: true,
+      type: 'time-input',
+      title: 'Time',
+      required: true,
+      mode: 'trigger',
+      condition: { field: 'scheduleType', value: 'daily' },
     },
+
     {
       id: 'weeklyDay',
       type: 'dropdown',
-      hidden: true,
+      title: 'Day of week',
       options: [
         { label: 'Monday', id: 'MON' },
         { label: 'Tuesday', id: 'TUE' },
@@ -74,45 +82,90 @@ export const ScheduleBlock: BlockConfig = {
         { label: 'Saturday', id: 'SAT' },
         { label: 'Sunday', id: 'SUN' },
       ],
-      value: () => 'MON',
+      required: true,
+      mode: 'trigger',
+      condition: { field: 'scheduleType', value: 'weekly' },
     },
+
     {
       id: 'weeklyDayTime',
-      type: 'short-input',
-      hidden: true,
+      type: 'time-input',
+      title: 'Time',
+      required: true,
+      mode: 'trigger',
+      condition: { field: 'scheduleType', value: 'weekly' },
     },
+
     {
       id: 'monthlyDay',
       type: 'short-input',
-      hidden: true,
+      title: 'Day of month',
+      placeholder: '1-31',
+      required: true,
+      mode: 'trigger',
+      condition: { field: 'scheduleType', value: 'monthly' },
     },
+
     {
       id: 'monthlyTime',
-      type: 'short-input',
-      hidden: true,
+      type: 'time-input',
+      title: 'Time',
+      required: true,
+      mode: 'trigger',
+      condition: { field: 'scheduleType', value: 'monthly' },
     },
+
     {
       id: 'cronExpression',
       type: 'short-input',
-      hidden: true,
+      title: 'Cron expression',
+      placeholder: '0 0 * * *',
+      required: true,
+      mode: 'trigger',
+      condition: { field: 'scheduleType', value: 'custom' },
     },
+
     {
       id: 'timezone',
       type: 'dropdown',
-      hidden: true,
+      title: 'Timezone',
       options: [
         { label: 'UTC', id: 'UTC' },
-        { label: 'US Eastern (UTC-4)', id: 'America/New_York' },
-        { label: 'US Central (UTC-5)', id: 'America/Chicago' },
-        { label: 'US Mountain (UTC-6)', id: 'America/Denver' },
-        { label: 'US Pacific (UTC-7)', id: 'America/Los_Angeles' },
-        { label: 'London (UTC+1)', id: 'Europe/London' },
-        { label: 'Paris (UTC+2)', id: 'Europe/Paris' },
+        { label: 'US Eastern (UTC-5)', id: 'America/New_York' },
+        { label: 'US Central (UTC-6)', id: 'America/Chicago' },
+        { label: 'US Mountain (UTC-7)', id: 'America/Denver' },
+        { label: 'US Pacific (UTC-8)', id: 'America/Los_Angeles' },
+        { label: 'Mexico City (UTC-6)', id: 'America/Mexico_City' },
+        { label: 'São Paulo (UTC-3)', id: 'America/Sao_Paulo' },
+        { label: 'London (UTC+0)', id: 'Europe/London' },
+        { label: 'Paris (UTC+1)', id: 'Europe/Paris' },
+        { label: 'Berlin (UTC+1)', id: 'Europe/Berlin' },
+        { label: 'Dubai (UTC+4)', id: 'Asia/Dubai' },
+        { label: 'India (UTC+5:30)', id: 'Asia/Kolkata' },
         { label: 'Singapore (UTC+8)', id: 'Asia/Singapore' },
+        { label: 'China (UTC+8)', id: 'Asia/Shanghai' },
+        { label: 'Hong Kong (UTC+8)', id: 'Asia/Hong_Kong' },
         { label: 'Tokyo (UTC+9)', id: 'Asia/Tokyo' },
         { label: 'Sydney (UTC+10)', id: 'Australia/Sydney' },
+        { label: 'Auckland (UTC+12)', id: 'Pacific/Auckland' },
       ],
       value: () => 'UTC',
+      required: false,
+      mode: 'trigger',
+      condition: { field: 'scheduleType', value: ['minutes', 'hourly'], not: true },
+    },
+
+    {
+      id: 'scheduleSave',
+      type: 'schedule-save',
+      mode: 'trigger',
+    },
+
+    {
+      id: 'scheduleId',
+      type: 'short-input',
+      hidden: true,
+      mode: 'trigger',
     },
   ],
 

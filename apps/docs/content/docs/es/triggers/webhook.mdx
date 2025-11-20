@@ -4,16 +4,23 @@ title: Webhooks
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
-Los webhooks permiten que servicios externos activen la ejecución de flujos de trabajo desde webhooks externos mediante el envío de solicitudes HTTP a tu flujo de trabajo. Sim admite dos enfoques para los disparadores basados en webhooks.
+Los webhooks permiten que servicios externos activen la ejecución de flujos de trabajo mediante el envío de solicitudes HTTP a tu flujo de trabajo. Sim admite dos enfoques para los disparadores basados en webhooks.
 
 ## Disparador de webhook genérico
 
 El bloque de webhook genérico crea un punto de conexión flexible que puede recibir cualquier carga útil y activar tu flujo de trabajo:
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="webhooks-1.mp4" width={700} height={450} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Configuración genérica de webhook"
+    width={500}
+    height={400}
+    className="my-6"
+  />
 </div>
 
 ### Cómo funciona
@@ -68,37 +75,53 @@ Alternativamente, puedes usar bloques de servicio específicos (como Slack, GitH
 
 ## Servicios compatibles con el modo de activación
 
-Los siguientes bloques de servicio admiten el modo de activación:
+**Desarrollo y gestión de proyectos**
+- GitHub - Issues, PRs, pushes, releases, ejecuciones de workflow
+- Jira - Eventos de issues, registros de trabajo
+- Linear - Issues, comentarios, proyectos, ciclos, etiquetas
 
-- **Slack** - Mensajes, menciones, reacciones
-- **GitHub** - Eventos de push, PR, issues  
-- **Airtable** - Cambios en registros
-- **Telegram** - Mensajes y comandos de bot
-- **Gmail** - Notificaciones de correo electrónico
-- **WhatsApp** - Eventos de mensajería
-- **Jira** - Actualizaciones de issues, comentarios
-- **Linear** - Cambios de estado de issues
-- **Notion** - Actualizaciones de páginas
+**Comunicación**
+- Slack - Mensajes, menciones, reacciones
+- Microsoft Teams - Mensajes de chat, notificaciones de canal
+- Telegram - Mensajes de bot, comandos
+- WhatsApp - Eventos de mensajería
+
+**Correo electrónico**
+- Gmail - Nuevos correos (polling), cambios de etiquetas
+- Outlook - Nuevos correos (polling), eventos de carpetas
+
+**CRM y ventas**
+- HubSpot - Contactos, empresas, acuerdos, tickets, conversaciones
+- Stripe - Pagos, suscripciones, clientes
+
+**Formularios y encuestas**
+- Typeform - Envíos de formularios
+- Google Forms - Respuestas de formularios
+- Webflow - Elementos de colección, envíos de formularios
+
+**Otros**
+- Airtable - Cambios en registros
+- Twilio Voice - Llamadas entrantes, estado de llamadas
 
 ## Seguridad y mejores prácticas
 
 ### Opciones de autenticación
 
-- **Tokens Bearer**: Incluye el encabezado `Authorization: Bearer <token>`
-- **Encabezados personalizados**: Define encabezados de autenticación personalizados
+- **Tokens Bearer**: Incluir encabezado `Authorization: Bearer <token>`
+- **Encabezados personalizados**: Definir encabezados de autenticación personalizados
 
-### Manejo de carga útil
+### Manejo de payload
 
-- **Validación**: Valida las cargas útiles entrantes para prevenir datos mal formados
-- **Límites de tamaño**: Los webhooks tienen límites de tamaño de carga útil por seguridad
-- **Manejo de errores**: Configura respuestas de error para solicitudes no válidas
+- **Validación**: Validar payloads entrantes para prevenir datos malformados
+- **Límites de tamaño**: Los webhooks tienen límites de tamaño de payload por seguridad
+- **Manejo de errores**: Configurar respuestas de error para solicitudes inválidas
 
 ### Pruebas de webhooks
 
-1. Utiliza herramientas como Postman o curl para probar tus endpoints de webhook
-2. Revisa los registros de ejecución del flujo de trabajo para depuración
-3. Verifica que la estructura de la carga útil coincida con tus expectativas
-4. Prueba escenarios de autenticación y errores
+1. Usar herramientas como Postman o curl para probar tus endpoints de webhook
+2. Revisar los registros de ejecución del flujo de trabajo para depuración
+3. Verificar que la estructura del payload coincida con tus expectativas
+4. Probar escenarios de autenticación y error
 
 <Callout type="warning">
 Siempre valida y desinfecta los datos entrantes de webhook antes de procesarlos en tus flujos de trabajo.
@@ -111,13 +134,13 @@ Siempre valida y desinfecta los datos entrantes de webhook antes de procesarlos 
 - Notificaciones por correo electrónico para eventos críticos
 
 ### Integración CI/CD  
-- Pushes de GitHub que desencadenan flujos de trabajo de despliegue
+- Envíos de GitHub que activan flujos de trabajo de despliegue
 - Actualizaciones del estado de compilación
-- Canales automatizados de pruebas
+- Canales de pruebas automatizadas
 
 ### Sincronización de datos
 - Cambios en Airtable que actualizan otros sistemas
-- Envíos de formularios que desencadenan acciones de seguimiento
+- Envíos de formularios que activan acciones de seguimiento
 - Procesamiento de pedidos de comercio electrónico
 
 ### Atención al cliente

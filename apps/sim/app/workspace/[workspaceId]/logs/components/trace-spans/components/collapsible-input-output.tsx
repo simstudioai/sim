@@ -34,7 +34,7 @@ export function CollapsibleInputOutput({ span, spanId, depth }: CollapsibleInput
             Input
           </button>
           {inputExpanded && (
-            <div className='mb-2 overflow-hidden rounded-md bg-secondary/30 p-3'>
+            <div className='mb-2 overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] p-3'>
               <BlockDataDisplay data={span.input} blockType={span.type} isInput={true} />
             </div>
           )}
@@ -55,7 +55,7 @@ export function CollapsibleInputOutput({ span, spanId, depth }: CollapsibleInput
             {span.status === 'error' ? 'Error Details' : 'Output'}
           </button>
           {outputExpanded && (
-            <div className='mb-2 overflow-hidden rounded-md bg-secondary/30 p-3'>
+            <div className='mb-2 overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] p-3'>
               <BlockDataDisplay
                 data={span.output}
                 blockType={span.type}

@@ -8,37 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="tavily"
   color="#0066FF"
-  icon={true}
-  iconSvg={`<svg className="block-icon" viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg' >
-      <path
-        d='M432 291C415 294 418 313 417 326C380 328 342 327 306 328C316 344 312 368 301 381C339 384 377 383 414 384C419 393 415 404 419 412C424 419 431 422 437 421C554 393 539 314 425 290'
-        fill='rgb(248,202,81)'
-      />
-      <path
-        d='M263 87C260 88 257 89 255 93C237 121 219 147 204 174C203 184 206 191 212 195C222 198 231 196 239 197C241 238 240 277 241 316C257 307 276 309 294 308C296 273 295 234 296 199C309 196 328 200 333 183C314 149 299 103 267 83'
-        fill='rgb(109,164,249)'
-      />
-      <path
-        d='M314 356L316 354C386 355 457 354 527 355C504 385 469 400 440 421C431 421 424 418 421 411C415 402 420 389 416 383C384 371 284 406 312 358'
-        fill='rgb(250,188,28)'
-      />
-      <path
-        d='M314 356C281 405 384 369 410 384C422 388 415 402 421 409C425 417 431 420 437 420C469 400 504 384 529 360C456 355 386 356 317 355'
-        fill='rgb(251,186,23)'
-      />
-      <path
-        d='M264 325C271 325 290 329 283 339C236 384 186 436 139 482C133 481 133 477 131 474C133 477 133 481 135 482C174 490 213 472 250 466C261 447 246 435 235 426C254 406 271 389 289 372C303 352 287 324 266 326'
-        fill='rgb(251,156,158)'
-      />
-      <path
-        d='M263 327C260 328 256 328 253 330C233 348 216 367 197 384C188 381 183 371 175 368C166 367 161 369 156 372C148 409 133 447 133 482C173 430 281 366 277 323'
-        fill='rgb(248,56,63)'
-      />
-      <path
-        d='M258 326C235 341 218 365 198 382C186 376 176 360 161 368L160 369L157 369C149 378 150 391 146 401C150 391 149 379 157 370C174 359 185 376 195 385C219 365 238 337 262 325'
-        fill='rgb(242,165,165)'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -71,6 +40,21 @@ KI-gestützte Websuchen mit Tavily durchführen
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Ja | Die auszuführende Suchanfrage |
 | `max_results` | number | Nein | Maximale Anzahl an Ergebnissen \(1-20\) |
+| `topic` | string | Nein | Kategorie-Typ: general, news oder finance \(Standard: general\) |
+| `search_depth` | string | Nein | Suchbereich: basic \(1 Kredit\) oder advanced \(2 Kredite\) \(Standard: basic\) |
+| `include_answer` | string | Nein | LLM-generierte Antwort: true/basic für schnelle Antwort oder advanced für detaillierte |
+| `include_raw_content` | string | Nein | Geparster HTML-Inhalt: true/markdown oder text-Format |
+| `include_images` | boolean | Nein | Bildsuchergebnisse einbeziehen |
+| `include_image_descriptions` | boolean | Nein | Beschreibenden Text für Bilder hinzufügen |
+| `include_favicon` | boolean | Nein | Favicon-URLs einbeziehen |
+| `chunks_per_source` | number | Nein | Maximale Anzahl relevanter Abschnitte pro Quelle \(1-3, Standard: 3\) |
+| `time_range` | string | Nein | Nach Aktualität filtern: day/d, week/w, month/m, year/y |
+| `start_date` | string | Nein | Frühestes Veröffentlichungsdatum \(Format JJJJ-MM-TT\) |
+| `end_date` | string | Nein | Spätestes Veröffentlichungsdatum \(Format JJJJ-MM-TT\) |
+| `include_domains` | string | Nein | Kommagetrennte Liste von Domains auf der Whitelist \(max. 300\) |
+| `exclude_domains` | string | Nein | Kommagetrennte Liste von Domains auf der Blacklist \(max. 150\) |
+| `country` | string | Nein | Ergebnisse aus bestimmtem Land bevorzugen \(nur für allgemeine Themen\) |
+| `auto_parameters` | boolean | Nein | Automatische Parameterkonfiguration basierend auf der Abfrageabsicht |
 | `apiKey` | string | Ja | Tavily API-Schlüssel |
 
 #### Ausgabe
@@ -88,8 +72,11 @@ Extrahieren Sie Rohinhalt von mehreren Webseiten gleichzeitig mit Tavily
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `urls` | string | Ja | URL oder Array von URLs, von denen Inhalte extrahiert werden sollen |
-| `extract_depth` | string | Nein | Die Extraktionstiefe \(basic=1 Kredit/5 URLs, advanced=2 Kredite/5 URLs\) |
+| `urls` | string | Ja | URL oder Array von URLs, aus denen Inhalte extrahiert werden sollen |
+| `extract_depth` | string | Nein | Die Tiefe der Extraktion \(basic=1 Kredit/5 URLs, advanced=2 Kredite/5 URLs\) |
+| `format` | string | Nein | Ausgabeformat: markdown oder text \(Standard: markdown\) |
+| `include_images` | boolean | Nein | Bilder in die Extraktionsausgabe einbeziehen |
+| `include_favicon` | boolean | Nein | Favicon-URL für jedes Ergebnis hinzufügen |
 | `apiKey` | string | Ja | Tavily API-Schlüssel |
 
 #### Ausgabe
@@ -97,6 +84,64 @@ Extrahieren Sie Rohinhalt von mehreren Webseiten gleichzeitig mit Tavily
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `results` | array | Die URL, die extrahiert wurde |
+
+### `tavily_crawl`
+
+Systematisches Crawlen und Extrahieren von Inhalten aus Websites mit Tavily
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Ja | Die Stamm-URL, bei der der Crawl beginnen soll |
+| `instructions` | string | Nein | Anweisungen in natürlicher Sprache für den Crawler \(kostet 2 Kredite pro 10 Seiten\) |
+| `max_depth` | number | Nein | Wie weit von der Basis-URL aus erkundet werden soll \(1-5, Standard: 1\) |
+| `max_breadth` | number | Nein | Links, die pro Seitenebene verfolgt werden \(≥1, Standard: 20\) |
+| `limit` | number | Nein | Gesamtzahl der verarbeiteten Links vor dem Stopp \(≥1, Standard: 50\) |
+| `select_paths` | string | Nein | Kommagetrennte Regex-Muster, um bestimmte URL-Pfade einzuschließen \(z.B. /docs/.*\) |
+| `select_domains` | string | Nein | Kommagetrennte Regex-Muster, um das Crawlen auf bestimmte Domains zu beschränken |
+| `exclude_paths` | string | Nein | Kommagetrennte Regex-Muster, um bestimmte URL-Pfade zu überspringen |
+| `exclude_domains` | string | Nein | Kommagetrennte Regex-Muster, um bestimmte Domains zu blockieren |
+| `allow_external` | boolean | Nein | Links zu externen Domains in die Ergebnisse einbeziehen \(Standard: true\) |
+| `include_images` | boolean | Nein | Bilder in die Crawl-Ausgabe einbeziehen |
+| `extract_depth` | string | Nein | Extraktionstiefe: basic \(1 Kredit/5 Seiten\) oder advanced \(2 Kredite/5 Seiten\) |
+| `format` | string | Nein | Ausgabeformat: markdown oder text \(Standard: markdown\) |
+| `include_favicon` | boolean | Nein | Favicon-URL für jedes Ergebnis hinzufügen |
+| `apiKey` | string | Ja | Tavily API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `base_url` | string | Die Basis-URL, die durchsucht wurde |
+| `results` | array | Die durchsuchte Seiten-URL |
+
+### `tavily_map`
+
+Entdecken und visualisieren der Website-Struktur mit Tavily
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Ja | Die Root-URL, bei der die Kartierung beginnen soll |
+| `instructions` | string | Nein | Natürlichsprachliche Anleitung für das Kartierungsverhalten \(kostet 2 Kredite pro 10 Seiten\) |
+| `max_depth` | number | Nein | Wie weit von der Basis-URL aus erkundet werden soll \(1-5, Standard: 1\) |
+| `max_breadth` | number | Nein | Links, die pro Ebene verfolgt werden sollen \(Standard: 20\) |
+| `limit` | number | Nein | Gesamtzahl der zu verarbeitenden Links \(Standard: 50\) |
+| `select_paths` | string | Nein | Durch Kommas getrennte Regex-Muster für URL-Pfadfilterung \(z.B. /docs/.*\) |
+| `select_domains` | string | Nein | Durch Kommas getrennte Regex-Muster, um die Kartierung auf bestimmte Domains zu beschränken |
+| `exclude_paths` | string | Nein | Durch Kommas getrennte Regex-Muster, um bestimmte URL-Pfade auszuschließen |
+| `exclude_domains` | string | Nein | Durch Kommas getrennte Regex-Muster, um Domains auszuschließen |
+| `allow_external` | boolean | Nein | Externe Domain-Links in Ergebnisse einbeziehen \(Standard: true\) |
+| `apiKey` | string | Ja | Tavily API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `base_url` | string | Die Basis-URL, die kartiert wurde |
+| `results` | array | Entdeckte URL |
 
 ## Hinweise
 

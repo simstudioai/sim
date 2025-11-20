@@ -27,11 +27,14 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/json-sanitizer'
 import { formatEditSequence } from '@/lib/workflows/training/compute-edit-sequence'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
+
+const logger = createLogger('TrainingModal')
 
 /**
  * Modal for starting training sessions and viewing/exporting datasets
@@ -136,7 +139,7 @@ export function TrainingModal() {
 
       return result
     } catch (error) {
-      console.error('Failed to send dataset to indexer:', error)
+      logger.error('Failed to send dataset to indexer:', error)
       throw error
     }
   }
@@ -310,8 +313,11 @@ export function TrainingModal() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           json: JSON.stringify(sanitizedWorkflow),
-          source_path: liveWorkflowTitle,
-          summary: liveWorkflowDescription,
+          title: liveWorkflowTitle,
+          tags: [],
+          metadata: {
+            summary: liveWorkflowDescription,
+          },
         }),
       })
 
@@ -325,7 +331,7 @@ export function TrainingModal() {
       setLiveWorkflowDescription('')
       setTimeout(() => setLiveWorkflowSent(false), 5000)
     } catch (error) {
-      console.error('Failed to send live workflow:', error)
+      logger.error('Failed to send live workflow:', error)
       setLiveWorkflowFailed(true)
       setTimeout(() => setLiveWorkflowFailed(false), 5000)
     } finally {

@@ -26,6 +26,7 @@ import type {
   WorkflowExecutionSnapshot,
   WorkflowState,
 } from '@/lib/logs/types'
+import { filterForDisplay, redactApiKeys } from '@/lib/utils'
 
 export interface ToolCall {
   name: string
@@ -41,6 +42,67 @@ export interface ToolCall {
 const logger = createLogger('ExecutionLogger')
 
 export class ExecutionLogger implements IExecutionLoggerService {
+  private mergeTraceSpans(existing: TraceSpan[], additional: TraceSpan[]): TraceSpan[] {
+    // If no existing spans, just return additional
+    if (!existing || existing.length === 0) return additional
+    if (!additional || additional.length === 0) return existing
+
+    // Find the root "Workflow Execution" span in both arrays
+    const existingRoot = existing.find((s) => s.name === 'Workflow Execution')
+    const additionalRoot = additional.find((s) => s.name === 'Workflow Execution')
+
+    if (!existingRoot || !additionalRoot) {
+      // If we can't find both roots, just concatenate (fallback)
+      return [...existing, ...additional]
+    }
+
+    // Calculate the full duration from original start to resume end
+    const startTime = existingRoot.startTime
+    const endTime = additionalRoot.endTime || existingRoot.endTime
+    const fullDuration =
+      startTime && endTime
+        ? new Date(endTime).getTime() - new Date(startTime).getTime()
+        : (existingRoot.duration || 0) + (additionalRoot.duration || 0)
+
+    // Merge the children of the workflow execution spans
+    const mergedRoot = {
+      ...existingRoot,
+      children: [...(existingRoot.children || []), ...(additionalRoot.children || [])],
+      endTime,
+      duration: fullDuration,
+    }
+
+    // Return array with merged root plus any other top-level spans
+    const otherExisting = existing.filter((s) => s.name !== 'Workflow Execution')
+    const otherAdditional = additional.filter((s) => s.name !== 'Workflow Execution')
+
+    return [mergedRoot, ...otherExisting, ...otherAdditional]
+  }
+
+  private mergeCostModels(
+    existing: Record<string, any>,
+    additional: Record<string, any>
+  ): Record<string, any> {
+    const merged = { ...existing }
+    for (const [model, costs] of Object.entries(additional)) {
+      if (merged[model]) {
+        merged[model] = {
+          input: (merged[model].input || 0) + (costs.input || 0),
+          output: (merged[model].output || 0) + (costs.output || 0),
+          total: (merged[model].total || 0) + (costs.total || 0),
+          tokens: {
+            prompt: (merged[model].tokens?.prompt || 0) + (costs.tokens?.prompt || 0),
+            completion: (merged[model].tokens?.completion || 0) + (costs.tokens?.completion || 0),
+            total: (merged[model].tokens?.total || 0) + (costs.tokens?.total || 0),
+          },
+        }
+      } else {
+        merged[model] = costs
+      }
+    }
+    return merged
+  }
+
   async startWorkflowExecution(params: {
     workflowId: string
     executionId: string
@@ -54,6 +116,39 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const { workflowId, executionId, trigger, environment, workflowState } = params
 
     logger.debug(`Starting workflow execution ${executionId} for workflow ${workflowId}`)
+
+    // Check if execution log already exists (idempotency check)
+    const existingLog = await db
+      .select()
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, executionId))
+      .limit(1)
+
+    if (existingLog.length > 0) {
+      logger.debug(
+        `Execution log already exists for ${executionId}, skipping duplicate INSERT (idempotent)`
+      )
+      const snapshot = await snapshotService.getSnapshot(existingLog[0].stateSnapshotId)
+      if (!snapshot) {
+        throw new Error(`Snapshot ${existingLog[0].stateSnapshotId} not found for existing log`)
+      }
+      return {
+        workflowLog: {
+          id: existingLog[0].id,
+          workflowId: existingLog[0].workflowId,
+          executionId: existingLog[0].executionId,
+          stateSnapshotId: existingLog[0].stateSnapshotId,
+          level: existingLog[0].level as 'info' | 'error',
+          trigger: existingLog[0].trigger as ExecutionTrigger['type'],
+          startedAt: existingLog[0].startedAt.toISOString(),
+          endedAt: existingLog[0].endedAt?.toISOString() || existingLog[0].startedAt.toISOString(),
+          totalDurationMs: existingLog[0].totalDurationMs || 0,
+          executionData: existingLog[0].executionData as WorkflowExecutionLog['executionData'],
+          createdAt: existingLog[0].createdAt.toISOString(),
+        },
+        snapshot,
+      }
+    }
 
     const snapshotResult = await snapshotService.createSnapshotWithDeduplication(
       workflowId,
@@ -127,6 +222,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
     workflowInput?: any
+    isResume?: boolean // If true, merge with existing data instead of replacing
   }): Promise<WorkflowExecutionLog> {
     const {
       executionId,
@@ -136,9 +232,21 @@ export class ExecutionLogger implements IExecutionLoggerService {
       finalOutput,
       traceSpans,
       workflowInput,
+      isResume,
     } = params
 
-    logger.debug(`Completing workflow execution ${executionId}`)
+    logger.debug(`Completing workflow execution ${executionId}`, { isResume })
+
+    // If this is a resume, fetch the existing log to merge data
+    let existingLog: any = null
+    if (isResume) {
+      const [existing] = await db
+        .select()
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, executionId))
+        .limit(1)
+      existingLog = existing
+    }
 
     // Determine if workflow failed by checking trace spans for errors
     const hasErrors = traceSpans?.some((span: any) => {
@@ -157,24 +265,34 @@ export class ExecutionLogger implements IExecutionLoggerService {
     // Extract files from trace spans, final output, and workflow input
     const executionFiles = this.extractFilesFromExecution(traceSpans, finalOutput, workflowInput)
 
-    const [updatedLog] = await db
-      .update(workflowExecutionLogs)
-      .set({
-        level,
-        endedAt: new Date(endedAt),
-        totalDurationMs,
-        files: executionFiles.length > 0 ? executionFiles : null,
-        executionData: {
-          traceSpans,
-          finalOutput,
-          tokenBreakdown: {
-            prompt: costSummary.totalPromptTokens,
-            completion: costSummary.totalCompletionTokens,
-            total: costSummary.totalTokens,
+    // For resume executions, rebuild trace spans from the aggregated logs
+    const mergedTraceSpans = isResume
+      ? traceSpans && traceSpans.length > 0
+        ? traceSpans
+        : existingLog?.executionData?.traceSpans || []
+      : traceSpans
+
+    const filteredTraceSpans = filterForDisplay(mergedTraceSpans)
+    const filteredFinalOutput = filterForDisplay(finalOutput)
+    const redactedTraceSpans = redactApiKeys(filteredTraceSpans)
+    const redactedFinalOutput = redactApiKeys(filteredFinalOutput)
+
+    // Merge costs if resuming
+    const existingCost = isResume && existingLog?.cost ? existingLog.cost : null
+    const mergedCost = existingCost
+      ? {
+          // For resume, add only the model costs, NOT the base execution charge again
+          total: (existingCost.total || 0) + costSummary.modelCost,
+          input: (existingCost.input || 0) + costSummary.totalInputCost,
+          output: (existingCost.output || 0) + costSummary.totalOutputCost,
+          tokens: {
+            prompt: (existingCost.tokens?.prompt || 0) + costSummary.totalPromptTokens,
+            completion: (existingCost.tokens?.completion || 0) + costSummary.totalCompletionTokens,
+            total: (existingCost.tokens?.total || 0) + costSummary.totalTokens,
           },
-          models: costSummary.models,
-        },
-        cost: {
+          models: this.mergeCostModels(existingCost.models || {}, costSummary.models),
+        }
+      : {
           total: costSummary.totalCost,
           input: costSummary.totalInputCost,
           output: costSummary.totalOutputCost,
@@ -184,7 +302,36 @@ export class ExecutionLogger implements IExecutionLoggerService {
             total: costSummary.totalTokens,
           },
           models: costSummary.models,
+        }
+
+    // Merge files if resuming
+    const existingFiles = isResume && existingLog?.files ? existingLog.files : []
+    const mergedFiles = [...existingFiles, ...executionFiles]
+
+    // Calculate the actual total duration for resume executions
+    const actualTotalDuration =
+      isResume && existingLog?.startedAt
+        ? new Date(endedAt).getTime() - new Date(existingLog.startedAt).getTime()
+        : totalDurationMs
+
+    const [updatedLog] = await db
+      .update(workflowExecutionLogs)
+      .set({
+        level,
+        endedAt: new Date(endedAt),
+        totalDurationMs: actualTotalDuration,
+        files: mergedFiles.length > 0 ? mergedFiles : null,
+        executionData: {
+          traceSpans: redactedTraceSpans,
+          finalOutput: redactedFinalOutput,
+          tokenBreakdown: {
+            prompt: mergedCost.tokens.prompt,
+            completion: mergedCost.tokens.completion,
+            total: mergedCost.tokens.total,
+          },
+          models: mergedCost.models,
         },
+        cost: mergedCost,
       })
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .returning()
@@ -492,10 +639,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
                 type: file.type,
                 url: file.url,
                 key: file.key,
-                uploadedAt: file.uploadedAt,
-                expiresAt: file.expiresAt,
-                storageProvider: file.storageProvider,
-                bucketName: file.bucketName,
               })
             }
           }
@@ -515,10 +658,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
                 type: file.type,
                 url: file.url,
                 key: file.key,
-                uploadedAt: file.uploadedAt,
-                expiresAt: file.expiresAt,
-                storageProvider: file.storageProvider,
-                bucketName: file.bucketName,
               })
             }
           }

@@ -1,6 +1,4 @@
-import { db } from '@sim/db'
-import { customTools } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { upsertCustomTools } from '@/lib/custom-tools/operations'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CustomToolsPersistence')
@@ -91,89 +89,58 @@ export function extractCustomToolsFromWorkflowState(workflowState: any): CustomT
 }
 
 /**
- * Persist custom tools to the database
+ * Persist custom tools to the database using the upsert function
  * Creates new tools or updates existing ones
  */
 export async function persistCustomToolsToDatabase(
   customToolsList: CustomTool[],
+  workspaceId: string | null,
   userId: string
 ): Promise<{ saved: number; errors: string[] }> {
   if (!customToolsList || customToolsList.length === 0) {
     return { saved: 0, errors: [] }
   }
 
+  // Only persist if workspaceId is provided (new workspace-scoped tools)
+  // Skip persistence for existing user-scoped tools to maintain backward compatibility
+  if (!workspaceId) {
+    logger.debug('Skipping custom tools persistence - no workspaceId provided (user-scoped tools)')
+    return { saved: 0, errors: [] }
+  }
+
   const errors: string[] = []
   let saved = 0
 
+  // Filter out tools without function names
+  const validTools = customToolsList.filter((tool) => {
+    if (!tool.schema?.function?.name) {
+      logger.warn(`Skipping custom tool without function name: ${tool.title}`)
+      return false
+    }
+    return true
+  })
+
+  if (validTools.length === 0) {
+    return { saved: 0, errors: [] }
+  }
+
   try {
-    await db.transaction(async (tx) => {
-      for (const tool of customToolsList) {
-        try {
-          // Extract the base identifier (without 'custom_' prefix) for database storage
-          // If toolId exists and has the prefix, strip it; otherwise use title as base
-          let baseId: string
-          if (tool.toolId) {
-            baseId = tool.toolId.startsWith('custom_')
-              ? tool.toolId.replace('custom_', '')
-              : tool.toolId
-          } else {
-            // Use title as the base identifier (agent handler will add 'custom_' prefix)
-            baseId = tool.title
-          }
-
-          const nowTime = new Date()
-
-          // Check if tool already exists
-          const existingTool = await tx
-            .select()
-            .from(customTools)
-            .where(eq(customTools.id, baseId))
-            .limit(1)
-
-          if (existingTool.length === 0) {
-            // Create new tool
-            await tx.insert(customTools).values({
-              id: baseId,
-              userId,
-              title: tool.title,
-              schema: tool.schema,
-              code: tool.code,
-              createdAt: nowTime,
-              updatedAt: nowTime,
-            })
-
-            logger.info(`Created custom tool: ${tool.title}`, { toolId: baseId })
-            saved++
-          } else if (existingTool[0].userId === userId) {
-            // Update existing tool if it belongs to the user
-            await tx
-              .update(customTools)
-              .set({
-                title: tool.title,
-                schema: tool.schema,
-                code: tool.code,
-                updatedAt: nowTime,
-              })
-              .where(eq(customTools.id, baseId))
-
-            logger.info(`Updated custom tool: ${tool.title}`, { toolId: baseId })
-            saved++
-          } else {
-            // Tool exists but belongs to different user - skip
-            logger.warn(`Skipping custom tool - belongs to different user: ${tool.title}`, {
-              toolId: baseId,
-            })
-            errors.push(`Tool ${tool.title} belongs to a different user`)
-          }
-        } catch (error) {
-          const errorMsg = `Failed to persist tool ${tool.title}: ${error instanceof Error ? error.message : String(error)}`
-          logger.error(errorMsg, { error })
-          errors.push(errorMsg)
-        }
-      }
+    // Call the upsert function from lib
+    await upsertCustomTools({
+      tools: validTools.map((tool) => ({
+        id: tool.schema.function.name, // Use function name as ID for updates
+        title: tool.title,
+        schema: tool.schema,
+        code: tool.code,
+      })),
+      workspaceId,
+      userId,
     })
+
+    saved = validTools.length
+    logger.info(`Persisted ${saved} custom tool(s)`, { workspaceId })
   } catch (error) {
-    const errorMsg = `Transaction failed while persisting custom tools: ${error instanceof Error ? error.message : String(error)}`
+    const errorMsg = `Failed to persist custom tools: ${error instanceof Error ? error.message : String(error)}`
     logger.error(errorMsg, { error })
     errors.push(errorMsg)
   }
@@ -186,6 +153,7 @@ export async function persistCustomToolsToDatabase(
  */
 export async function extractAndPersistCustomTools(
   workflowState: any,
+  workspaceId: string | null,
   userId: string
 ): Promise<{ saved: number; errors: string[] }> {
   const customToolsList = extractCustomToolsFromWorkflowState(workflowState)
@@ -197,7 +165,8 @@ export async function extractAndPersistCustomTools(
 
   logger.info(`Found ${customToolsList.length} custom tool(s) to persist`, {
     tools: customToolsList.map((t) => t.title),
+    workspaceId,
   })
 
-  return await persistCustomToolsToDatabase(customToolsList, userId)
+  return await persistCustomToolsToDatabase(customToolsList, workspaceId, userId)
 }

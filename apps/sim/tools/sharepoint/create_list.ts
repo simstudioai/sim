@@ -17,7 +17,6 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
   oauth: {
     required: true,
     provider: 'sharepoint',
-    additionalScopes: ['openid', 'profile', 'email', 'Sites.ReadWrite.All', 'offline_access'],
   },
 
   params: {

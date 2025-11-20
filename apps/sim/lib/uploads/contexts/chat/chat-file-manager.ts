@@ -5,7 +5,8 @@ import type { UserFile } from '@/executor/types'
 const logger = createLogger('ChatFileManager')
 
 export interface ChatFile {
-  dataUrl?: string // Base64-encoded file data (data:mime;base64,...)
+  data?: string // Legacy field - base64-encoded file data (data:mime;base64,...) or raw base64
+  dataUrl?: string // Preferred field - base64-encoded file data (data:mime;base64,...)
   url?: string // Direct URL to existing file
   name: string // Original filename
   type: string // MIME type
@@ -29,12 +30,14 @@ export interface ChatExecutionContext {
  * @param files Array of chat file attachments
  * @param executionContext Execution context for temporary storage
  * @param requestId Unique request identifier for logging/tracing
+ * @param userId User ID for file metadata (optional)
  * @returns Array of UserFile objects with upload results
  */
 export async function processChatFiles(
   files: ChatFile[],
   executionContext: ChatExecutionContext,
-  requestId: string
+  requestId: string,
+  userId?: string
 ): Promise<UserFile[]> {
   logger.info(
     `Processing ${files.length} chat files for execution ${executionContext.executionId}`,
@@ -44,14 +47,23 @@ export async function processChatFiles(
     }
   )
 
-  const transformedFiles = files.map((file) => ({
-    type: file.dataUrl ? ('file' as const) : ('url' as const),
-    data: file.dataUrl || file.url || '',
-    name: file.name,
-    mime: file.type,
-  }))
+  const transformedFiles = files.map((file) => {
+    const inlineData = file.dataUrl || file.data
 
-  const userFiles = await processExecutionFiles(transformedFiles, executionContext, requestId)
+    return {
+      type: inlineData ? ('file' as const) : ('url' as const),
+      data: inlineData || file.url || '',
+      name: file.name,
+      mime: file.type,
+    }
+  })
+
+  const userFiles = await processExecutionFiles(
+    transformedFiles,
+    executionContext,
+    requestId,
+    userId
+  )
 
   logger.info(`Successfully processed ${userFiles.length} chat files`, {
     requestId,
@@ -75,8 +87,9 @@ export async function processChatFiles(
 export async function uploadChatFile(
   file: ChatFile,
   executionContext: ChatExecutionContext,
-  requestId: string
+  requestId: string,
+  userId?: string
 ): Promise<UserFile> {
-  const [userFile] = await processChatFiles([file], executionContext, requestId)
+  const [userFile] = await processChatFiles([file], executionContext, requestId, userId)
   return userFile
 }

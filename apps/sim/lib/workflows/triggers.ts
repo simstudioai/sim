@@ -1,4 +1,5 @@
 import { getBlock } from '@/blocks'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
  * Unified trigger type definitions
@@ -9,21 +10,238 @@ export const TRIGGER_TYPES = {
   CHAT: 'chat_trigger',
   API: 'api_trigger',
   WEBHOOK: 'webhook',
+  GENERIC_WEBHOOK: 'generic_webhook',
   SCHEDULE: 'schedule',
+  START: 'start_trigger',
   STARTER: 'starter', // Legacy
 } as const
 
 export type TriggerType = (typeof TRIGGER_TYPES)[keyof typeof TRIGGER_TYPES]
+
+export enum StartBlockPath {
+  UNIFIED = 'unified_start',
+  LEGACY_STARTER = 'legacy_starter',
+  SPLIT_INPUT = 'legacy_input_trigger',
+  SPLIT_API = 'legacy_api_trigger',
+  SPLIT_CHAT = 'legacy_chat_trigger',
+  SPLIT_MANUAL = 'legacy_manual_trigger',
+  EXTERNAL_TRIGGER = 'external_trigger',
+}
+
+type StartExecutionKind = 'chat' | 'manual' | 'api'
+
+const EXECUTION_PRIORITIES: Record<StartExecutionKind, StartBlockPath[]> = {
+  chat: [StartBlockPath.UNIFIED, StartBlockPath.SPLIT_CHAT, StartBlockPath.LEGACY_STARTER],
+  manual: [
+    StartBlockPath.UNIFIED,
+    StartBlockPath.SPLIT_API,
+    StartBlockPath.SPLIT_INPUT,
+    StartBlockPath.SPLIT_MANUAL,
+    StartBlockPath.LEGACY_STARTER,
+    StartBlockPath.EXTERNAL_TRIGGER,
+  ],
+  api: [
+    StartBlockPath.UNIFIED,
+    StartBlockPath.SPLIT_API,
+    StartBlockPath.SPLIT_INPUT,
+    StartBlockPath.LEGACY_STARTER,
+  ],
+}
+
+const CHILD_PRIORITIES: StartBlockPath[] = [
+  StartBlockPath.UNIFIED,
+  StartBlockPath.SPLIT_INPUT,
+  StartBlockPath.LEGACY_STARTER,
+]
+
+const START_CONFLICT_TYPES: TriggerType[] = [
+  TRIGGER_TYPES.START,
+  TRIGGER_TYPES.API,
+  TRIGGER_TYPES.INPUT,
+  TRIGGER_TYPES.MANUAL,
+  TRIGGER_TYPES.CHAT,
+  TRIGGER_TYPES.STARTER, // Legacy starter also conflicts with start_trigger
+]
+
+type MinimalBlock = { type: string; subBlocks?: Record<string, unknown> | undefined }
+
+export interface StartBlockCandidate<T extends MinimalBlock> {
+  blockId: string
+  block: T
+  path: StartBlockPath
+}
+
+type ClassifyStartOptions = {
+  category?: string
+  triggerModeEnabled?: boolean
+}
+
+export function classifyStartBlockType(
+  type: string,
+  opts?: ClassifyStartOptions
+): StartBlockPath | null {
+  switch (type) {
+    case TRIGGER_TYPES.START:
+      return StartBlockPath.UNIFIED
+    case TRIGGER_TYPES.STARTER:
+      return StartBlockPath.LEGACY_STARTER
+    case TRIGGER_TYPES.INPUT:
+      return StartBlockPath.SPLIT_INPUT
+    case TRIGGER_TYPES.API:
+      return StartBlockPath.SPLIT_API
+    case TRIGGER_TYPES.CHAT:
+      return StartBlockPath.SPLIT_CHAT
+    case TRIGGER_TYPES.MANUAL:
+      return StartBlockPath.SPLIT_MANUAL
+    case TRIGGER_TYPES.WEBHOOK:
+    case TRIGGER_TYPES.SCHEDULE:
+      return StartBlockPath.EXTERNAL_TRIGGER
+    default:
+      if (opts?.category === 'triggers' || opts?.triggerModeEnabled) {
+        return StartBlockPath.EXTERNAL_TRIGGER
+      }
+      return null
+  }
+}
+
+export function classifyStartBlock<T extends MinimalBlock>(block: T): StartBlockPath | null {
+  const blockState = block as Partial<BlockState>
+
+  // Try to get metadata from the block itself first
+  let category: string | undefined
+  const triggerModeEnabled = Boolean(blockState.triggerMode)
+
+  // If not available on the block, fetch from registry
+  const blockConfig = getBlock(block.type)
+
+  if (blockConfig) {
+    category = blockConfig.category
+  }
+
+  return classifyStartBlockType(block.type, { category, triggerModeEnabled })
+}
+
+export function isLegacyStartPath(path: StartBlockPath): boolean {
+  return path !== StartBlockPath.UNIFIED
+}
+
+function toEntries<T extends MinimalBlock>(blocks: Record<string, T> | T[]): Array<[string, T]> {
+  if (Array.isArray(blocks)) {
+    return blocks.map((block, index) => {
+      const potentialId = (block as { id?: unknown }).id
+      const inferredId = typeof potentialId === 'string' ? potentialId : `${index}`
+      return [inferredId, block]
+    })
+  }
+  return Object.entries(blocks)
+}
+
+type ResolveStartOptions = {
+  execution: StartExecutionKind
+  isChildWorkflow?: boolean
+  allowLegacyStarter?: boolean
+}
+
+function supportsExecution(path: StartBlockPath, execution: StartExecutionKind): boolean {
+  if (path === StartBlockPath.UNIFIED || path === StartBlockPath.LEGACY_STARTER) {
+    return true
+  }
+
+  if (execution === 'chat') {
+    return path === StartBlockPath.SPLIT_CHAT
+  }
+
+  if (execution === 'api') {
+    return path === StartBlockPath.SPLIT_API || path === StartBlockPath.SPLIT_INPUT
+  }
+
+  return (
+    path === StartBlockPath.SPLIT_API ||
+    path === StartBlockPath.SPLIT_INPUT ||
+    path === StartBlockPath.SPLIT_MANUAL ||
+    path === StartBlockPath.EXTERNAL_TRIGGER
+  )
+}
+
+export function resolveStartCandidates<T extends MinimalBlock>(
+  blocks: Record<string, T> | T[],
+  options: ResolveStartOptions
+): StartBlockCandidate<T>[] {
+  const entries = toEntries(blocks)
+  if (entries.length === 0) return []
+
+  const priorities = options.isChildWorkflow
+    ? CHILD_PRIORITIES
+    : EXECUTION_PRIORITIES[options.execution]
+
+  const candidates: StartBlockCandidate<T>[] = []
+
+  for (const [blockId, block] of entries) {
+    // Skip disabled blocks - they cannot be used as triggers
+    if ('enabled' in block && block.enabled === false) {
+      continue
+    }
+
+    const path = classifyStartBlock(block)
+    if (!path) continue
+
+    if (options.isChildWorkflow) {
+      if (!CHILD_PRIORITIES.includes(path)) {
+        continue
+      }
+    } else if (!supportsExecution(path, options.execution)) {
+      continue
+    }
+
+    if (path === StartBlockPath.LEGACY_STARTER && options.allowLegacyStarter === false) {
+      continue
+    }
+
+    candidates.push({ blockId, block, path })
+  }
+
+  candidates.sort((a, b) => {
+    const order = options.isChildWorkflow ? CHILD_PRIORITIES : priorities
+    const aIdx = order.indexOf(a.path)
+    const bIdx = order.indexOf(b.path)
+    if (aIdx === -1 && bIdx === -1) return 0
+    if (aIdx === -1) return 1
+    if (bIdx === -1) return -1
+    return aIdx - bIdx
+  })
+
+  return candidates
+}
+
+type SubBlockWithValue = { value?: unknown }
+
+function readSubBlockValue(subBlocks: Record<string, unknown> | undefined, key: string): unknown {
+  const raw = subBlocks?.[key]
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return (raw as SubBlockWithValue).value
+  }
+  return undefined
+}
+
+export function getLegacyStarterMode(block: {
+  subBlocks?: Record<string, unknown>
+}): 'manual' | 'api' | 'chat' | null {
+  const modeValue = readSubBlockValue(block.subBlocks, 'startWorkflow')
+  if (modeValue === 'chat') return 'chat'
+  if (modeValue === 'api' || modeValue === 'run') return 'api'
+  if (modeValue === undefined || modeValue === 'manual') return 'manual'
+  return null
+}
 
 /**
  * Mapping from reference alias (used in inline refs like <api.*>, <chat.*>, etc.)
  * to concrete trigger block type identifiers used across the system.
  */
 export const TRIGGER_REFERENCE_ALIAS_MAP = {
-  start: TRIGGER_TYPES.STARTER,
+  start: TRIGGER_TYPES.START,
   api: TRIGGER_TYPES.API,
   chat: TRIGGER_TYPES.CHAT,
-  manual: TRIGGER_TYPES.INPUT,
+  manual: TRIGGER_TYPES.START,
 } as const
 
 export type TriggerReferenceAlias = keyof typeof TRIGGER_REFERENCE_ALIAS_MAP
@@ -66,7 +284,7 @@ export class TriggerUtils {
    * Check if a block is a chat-compatible trigger
    */
   static isChatTrigger(block: { type: string; subBlocks?: any }): boolean {
-    if (block.type === TRIGGER_TYPES.CHAT) {
+    if (block.type === TRIGGER_TYPES.CHAT || block.type === TRIGGER_TYPES.START) {
       return true
     }
 
@@ -82,7 +300,11 @@ export class TriggerUtils {
    * Check if a block is a manual-compatible trigger
    */
   static isManualTrigger(block: { type: string; subBlocks?: any }): boolean {
-    if (block.type === TRIGGER_TYPES.INPUT || block.type === TRIGGER_TYPES.MANUAL) {
+    if (
+      block.type === TRIGGER_TYPES.INPUT ||
+      block.type === TRIGGER_TYPES.MANUAL ||
+      block.type === TRIGGER_TYPES.START
+    ) {
       return true
     }
 
@@ -103,11 +325,11 @@ export class TriggerUtils {
    */
   static isApiTrigger(block: { type: string; subBlocks?: any }, isChildWorkflow = false): boolean {
     if (isChildWorkflow) {
-      // Child workflows (workflow-in-workflow) only work with input_trigger
-      return block.type === TRIGGER_TYPES.INPUT
+      // Child workflows (workflow-in-workflow) support legacy input trigger and new start block
+      return block.type === TRIGGER_TYPES.INPUT || block.type === TRIGGER_TYPES.START
     }
-    // Direct API calls only work with api_trigger
-    if (block.type === TRIGGER_TYPES.API) {
+    // Direct API calls work with api_trigger and the new start block
+    if (block.type === TRIGGER_TYPES.API || block.type === TRIGGER_TYPES.START) {
       return true
     }
 
@@ -127,8 +349,7 @@ export class TriggerUtils {
     // Use the block's actual name from the registry
     const block = getBlock(triggerType)
     if (block) {
-      // Special case for generic_webhook - show as "Webhook" in UI
-      if (triggerType === 'generic_webhook') {
+      if (triggerType === TRIGGER_TYPES.GENERIC_WEBHOOK) {
         return 'Webhook'
       }
       return block.name
@@ -144,6 +365,8 @@ export class TriggerUtils {
         return 'Manual'
       case TRIGGER_TYPES.API:
         return 'API'
+      case TRIGGER_TYPES.START:
+        return 'Start'
       case TRIGGER_TYPES.WEBHOOK:
         return 'Webhook'
       case TRIGGER_TYPES.SCHEDULE:
@@ -182,25 +405,18 @@ export class TriggerUtils {
     blocks: Record<string, T>,
     executionType: 'chat' | 'manual' | 'api',
     isChildWorkflow = false
-  ): { blockId: string; block: T } | null {
-    const entries = Object.entries(blocks)
+  ): (StartBlockCandidate<T> & { block: T }) | null {
+    const candidates = resolveStartCandidates(blocks, {
+      execution: executionType,
+      isChildWorkflow,
+    })
 
-    // Look for new trigger blocks first
-    const triggers = TriggerUtils.findTriggersByType(blocks, executionType, isChildWorkflow)
-    if (triggers.length > 0) {
-      const blockId = entries.find(([, b]) => b === triggers[0])?.[0]
-      if (blockId) {
-        return { blockId, block: triggers[0] }
-      }
+    if (candidates.length === 0) {
+      return null
     }
 
-    // Legacy fallback: look for starter block
-    const starterEntry = entries.find(([, block]) => block.type === TRIGGER_TYPES.STARTER)
-    if (starterEntry) {
-      return { blockId: starterEntry[0], block: starterEntry[1] }
-    }
-
-    return null
+    const [primary] = candidates
+    return primary
   }
 
   /**
@@ -227,7 +443,8 @@ export class TriggerUtils {
       triggerType === TRIGGER_TYPES.API ||
       triggerType === TRIGGER_TYPES.INPUT ||
       triggerType === TRIGGER_TYPES.MANUAL ||
-      triggerType === TRIGGER_TYPES.CHAT
+      triggerType === TRIGGER_TYPES.CHAT ||
+      triggerType === TRIGGER_TYPES.START
     )
   }
 
@@ -255,7 +472,8 @@ export class TriggerUtils {
         triggerType === TRIGGER_TYPES.CHAT ||
         triggerType === TRIGGER_TYPES.INPUT ||
         triggerType === TRIGGER_TYPES.MANUAL ||
-        triggerType === TRIGGER_TYPES.API
+        triggerType === TRIGGER_TYPES.API ||
+        triggerType === TRIGGER_TYPES.START
       ) {
         return true
       }
@@ -267,11 +485,17 @@ export class TriggerUtils {
           block.type === TRIGGER_TYPES.CHAT ||
           block.type === TRIGGER_TYPES.INPUT ||
           block.type === TRIGGER_TYPES.MANUAL ||
-          block.type === TRIGGER_TYPES.API
+          block.type === TRIGGER_TYPES.API ||
+          block.type === TRIGGER_TYPES.START
       )
       if (hasModernTriggers) {
         return true
       }
+    }
+
+    // Start trigger cannot coexist with other single-instance trigger types
+    if (triggerType === TRIGGER_TYPES.START) {
+      return blockArray.some((block) => START_CONFLICT_TYPES.includes(block.type as TriggerType))
     }
 
     // Only one Input trigger allowed
@@ -339,5 +563,33 @@ export class TriggerUtils {
     }
 
     return `Multiple ${triggerName} Trigger blocks found. Keep only one.`
+  }
+
+  /**
+   * Check if a block is inside a loop or parallel subflow
+   * @param blockId - ID of the block to check
+   * @param blocks - Record of all blocks in the workflow
+   * @returns true if the block is inside a loop or parallel, false otherwise
+   */
+  static isBlockInSubflow<T extends { id: string; data?: { parentId?: string } }>(
+    blockId: string,
+    blocks: T[] | Record<string, T>
+  ): boolean {
+    const blockArray = Array.isArray(blocks) ? blocks : Object.values(blocks)
+    const block = blockArray.find((b) => b.id === blockId)
+
+    if (!block || !block.data?.parentId) {
+      return false
+    }
+
+    // Check if the parent is a loop or parallel block
+    const parent = blockArray.find((b) => b.id === block.data?.parentId)
+    if (!parent) {
+      return false
+    }
+
+    // Type-safe check: parent must have a 'type' property
+    const parentWithType = parent as T & { type?: string }
+    return parentWithType.type === 'loop' || parentWithType.type === 'parallel'
   }
 }

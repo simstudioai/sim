@@ -8,46 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="supabase"
   color="#1C1C1C"
-  icon={true}
-  iconSvg={`<svg className="block-icon"    viewBox='0 0 27 27' xmlns='http://www.w3.org/2000/svg'>
-      <path
-        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
-        fill='url(#paint0_linear)'
-      />
-      <path
-        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
-        fill='url(#paint1_linear)'
-        fillOpacity='0.2'
-      />
-      <path
-        d='M11.0167 0.443853C11.6983 -0.415083 13.0832 0.0553814 13.0982 1.15237L13.2042 17.1976H2.55005C0.596215 17.1976 -0.493259 14.9408 0.721603 13.4111L11.0167 0.443853Z'
-        fill='#3ECF8E'
-      />
-      <defs>
-        <linearGradient
-          id='paint0_linear'
-          x1='13.084'
-          y1='13.0655'
-          x2='22.6727'
-          y2='17.087'
-          gradientUnits='userSpaceOnUse'
-        >
-          <stop stopColor='#249361' />
-          <stop offset='1' stopColor='#3ECF8E' />
-        </linearGradient>
-        <linearGradient
-          id='paint1_linear'
-          x1='8.83277'
-          y1='7.24485'
-          x2='13.2057'
-          y2='15.477'
-          gradientUnits='userSpaceOnUse'
-        >
-          <stop />
-          <stop offset='1' stopOpacity='0' />
-        </linearGradient>
-      </defs>
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -75,7 +35,7 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 
 ## 使用说明
 
-将 Supabase 集成到工作流程中。可以获取多行数据，获取、创建、更新、删除以及插入或更新一行数据。
+将 Supabase 集成到工作流程中。支持数据库操作（查询、插入、更新、删除、upsert）、全文搜索、RPC 函数、行计数、向量搜索以及完整的存储管理（上传、下载、列出、移动、复制、删除文件和存储桶）。
 
 ## 工具
 
@@ -202,6 +162,51 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | `message` | string | 操作状态消息 |
 | `results` | array | 已 upsert 的记录数组 |
 
+### `supabase_count`
+
+统计 Supabase 表中的行数
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `table` | string | 是 | 要统计行数的 Supabase 表名 |
+| `filter` | string | 否 | PostgREST 过滤条件 \(例如："status=eq.active"\) |
+| `countType` | string | 否 | 计数类型：exact、planned 或 estimated \(默认：exact\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `count` | number | 符合过滤条件的行数 |
+
+### `supabase_text_search`
+
+在 Supabase 表中执行全文搜索
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `table` | string | 是 | 要搜索的 Supabase 表名 |
+| `column` | string | 是 | 要搜索的列 |
+| `query` | string | 是 | 搜索查询 |
+| `searchType` | string | 否 | 搜索类型：plain、phrase 或 websearch \(默认：websearch\) |
+| `language` | string | 否 | 文本搜索配置的语言 \(默认：english\) |
+| `limit` | number | 否 | 返回的最大行数 |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | array | 与搜索查询匹配的记录数组 |
+
 ### `supabase_vector_search`
 
 在 Supabase 表中使用 pgvector 执行相似性搜索
@@ -223,6 +228,257 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | --------- | ---- | ----------- |
 | `message` | string | 操作状态消息 |
 | `results` | array | 包含向量搜索相似度分数的记录数组。每条记录包括一个相似度字段 \(0-1\)，表示与查询向量的相似程度。 |
+
+### `supabase_rpc`
+
+调用 Supabase 中的 PostgreSQL 函数
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `functionName` | string | 是 | 要调用的 PostgreSQL 函数名称 |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | json | 函数返回的结果 |
+
+### `supabase_storage_upload`
+
+将文件上传到 Supabase 存储桶
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `bucket` | string | 是 | 存储桶的名称 |
+| `path` | string | 是 | 文件将存储的路径 \(例如："folder/file.jpg"\) |
+| `fileContent` | string | 是 | 文件内容 \(二进制文件为 base64 编码，或纯文本\) |
+| `contentType` | string | 否 | 文件的 MIME 类型 \(例如："image/jpeg", "text/plain"\) |
+| `upsert` | boolean | 否 | 如果为 true，则覆盖现有文件 \(默认值：false\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | object | 上传结果，包括文件路径和元数据 |
+
+### `supabase_storage_download`
+
+从 Supabase 存储桶下载文件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `bucket` | string | 是 | 存储桶的名称 |
+| `path` | string | 是 | 要下载的文件路径 \(例如："folder/file.jpg"\) |
+| `fileName` | string | 否 | 可选的文件名覆盖 |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `file` | file | 下载的文件存储在执行文件中 |
+
+### `supabase_storage_list`
+
+列出 Supabase 存储桶中的文件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `bucket` | string | 是 | 存储桶的名称 |
+| `path` | string | 否 | 要列出文件的文件夹路径 \(默认：根目录\) |
+| `limit` | number | 否 | 返回的最大文件数 \(默认：100\) |
+| `offset` | number | 否 | 要跳过的文件数 \(用于分页\) |
+| `sortBy` | string | 否 | 排序的列：name, created_at, updated_at \(默认：name\) |
+| `sortOrder` | string | 否 | 排序顺序：asc 或 desc \(默认：asc\) |
+| `search` | string | 否 | 按名称过滤文件的搜索词 |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | array | 包含元数据的文件对象数组 |
+
+### `supabase_storage_delete`
+
+从 Supabase 存储桶中删除文件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `bucket` | string | 是 | 存储桶的名称 |
+| `paths` | array | 是 | 要删除的文件路径数组 \(例如：\["folder/file1.jpg", "folder/file2.jpg"\]\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | array | 已删除文件对象的数组 |
+
+### `supabase_storage_move`
+
+在 Supabase 存储桶中移动文件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `bucket` | string | 是 | 存储桶的名称 |
+| `fromPath` | string | 是 | 文件的当前路径 \(例如："folder/old.jpg"\) |
+| `toPath` | string | 是 | 文件的新路径 \(例如："newfolder/new.jpg"\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | object | 移动操作结果 |
+
+### `supabase_storage_copy`
+
+在 Supabase 存储桶中复制文件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `bucket` | string | 是 | 存储桶的名称 |
+| `fromPath` | string | 是 | 源文件的路径 \(例如："folder/source.jpg"\) |
+| `toPath` | string | 是 | 复制文件的路径 \(例如："folder/copy.jpg"\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | object | 复制操作结果 |
+
+### `supabase_storage_create_bucket`
+
+在 Supabase 中创建一个新的存储桶
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `bucket` | string | 是 | 要创建的存储桶名称 |
+| `isPublic` | boolean | 否 | 存储桶是否应为公开访问 \(默认值：false\) |
+| `fileSizeLimit` | number | 否 | 最大文件大小（以字节为单位）\(可选\) |
+| `allowedMimeTypes` | array | 否 | 允许的 MIME 类型数组 \(例如：\["image/png", "image/jpeg"\]\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | object | 创建的存储桶信息 |
+
+### `supabase_storage_list_buckets`
+
+列出 Supabase 中的所有存储桶
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | array | 存储桶对象的数组 |
+
+### `supabase_storage_delete_bucket`
+
+删除 Supabase 中的存储桶
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `bucket` | string | 是 | 要删除的存储桶名称 |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | object | 删除操作结果 |
+
+### `supabase_storage_get_public_url`
+
+获取 Supabase 存储桶中文件的公共 URL
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `bucket` | string | 是 | 存储桶的名称 |
+| `path` | string | 是 | 文件路径 \(例如："folder/file.jpg"\) |
+| `download` | boolean | 否 | 如果为 true，则强制下载而不是内联显示 \(默认值：false\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `publicUrl` | string | 访问文件的公共 URL |
+
+### `supabase_storage_create_signed_url`
+
+为 Supabase 存储桶中的文件创建一个临时签名 URL
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `bucket` | string | 是 | 存储桶的名称 |
+| `path` | string | 是 | 文件的路径 \(例如："folder/file.jpg"\) |
+| `expiresIn` | number | 是 | URL 过期的秒数 \(例如：3600 表示 1 小时\) |
+| `download` | boolean | 否 | 如果为 true，则强制下载而不是内联显示 \(默认值：false\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `signedUrl` | string | 访问文件的临时签名 URL |
 
 ## 注意事项
 

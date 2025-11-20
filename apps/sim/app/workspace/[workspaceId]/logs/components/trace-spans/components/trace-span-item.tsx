@@ -1,5 +1,7 @@
 import type React from 'react'
+import { useState } from 'react'
 import { ChevronDown, ChevronRight, Code, Cpu, ExternalLink } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import {
   AgentIcon,
   ApiIcon,
@@ -8,7 +10,6 @@ import {
   ConditionalIcon,
   ConnectIcon,
 } from '@/components/icons'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import {
   CollapsibleInputOutput,
@@ -29,9 +30,8 @@ interface TraceSpanItemProps {
   onToggle: (spanId: string, expanded: boolean, hasSubItems: boolean) => void
   expandedSpans: Set<string>
   hasSubItems?: boolean
-  hoveredPercent?: number | null
-  hoveredWorkflowMs?: number | null
-  forwardHover: (clientX: number, clientY: number) => void
+  onTimelineHover?: (clientX: number, clientY: number, rect: DOMRect) => void
+  onTimelineLeave?: () => void
   gapBeforeMs?: number
   gapBeforePercent?: number
   showRelativeChip?: boolean
@@ -52,13 +52,14 @@ export function TraceSpanItem({
   workflowStartTime,
   onToggle,
   expandedSpans,
-  hoveredPercent,
-  forwardHover,
+  onTimelineHover,
+  onTimelineLeave,
   gapBeforeMs = 0,
   gapBeforePercent = 0,
   showRelativeChip = true,
   chipVisibility = { model: true, toolProvider: true, tokens: true, cost: true, relative: true },
 }: TraceSpanItemProps): React.ReactNode {
+  const [localHoveredPercent, setLocalHoveredPercent] = useState<number | null>(null)
   const spanId = span.id || `span-${span.name}-${span.startTime}`
   const expanded = expandedSpans.has(spanId)
   const hasChildren = span.children && span.children.length > 0
@@ -95,7 +96,7 @@ export function TraceSpanItem({
     if (type === 'evaluator') return <ChartBarIcon className='h-3 w-3 text-[#2FA1FF]' />
     if (type === 'condition') return <ConditionalIcon className='h-3 w-3 text-[#FF972F]' />
     if (type === 'router') return <ConnectIcon className='h-3 w-3 text-[#2FA1FF]' />
-    if (type === 'model') return <Cpu className='h-3 w-3 text-[#10a37f]' />
+    if (type === 'model') return <Cpu className='h-3 w-3 text-[var(--brand-primary-hover-hex)]' />
     if (type === 'function') return <CodeIcon className='h-3 w-3 text-[#FF402F]' />
     if (type === 'tool') {
       const toolId = String(span.name || '')
@@ -130,7 +131,7 @@ export function TraceSpanItem({
       case 'provider':
         return '#818cf8'
       case 'model':
-        return '#10a37f'
+        return 'var(--brand-primary-hover-hex)' // Same purple as agent
       case 'function':
         return '#FF402F'
       case 'tool':
@@ -284,23 +285,21 @@ export function TraceSpanItem({
                 {formatSpanName(span)}
               </span>
               {chipVisibility.model && span.model && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className='inline-flex cursor-default items-center gap-1 rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
-                        {(() => {
-                          const model = String(span.model) || ''
-                          const IconComp = getProviderIcon(model) as React.ComponentType<{
-                            className?: string
-                          }> | null
-                          return IconComp ? <IconComp className='h-3 w-3' /> : null
-                        })()}
-                        {String(span.model)}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>Model</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span className='inline-flex cursor-default items-center gap-1 rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
+                      {(() => {
+                        const model = String(span.model) || ''
+                        const IconComp = getProviderIcon(model) as React.ComponentType<{
+                          className?: string
+                        }> | null
+                        return IconComp ? <IconComp className='h-3 w-3' /> : null
+                      })()}
+                      {String(span.model)}
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>Model</Tooltip.Content>
+                </Tooltip.Root>
               )}
               {chipVisibility.toolProvider &&
                 span.type === 'tool' &&
@@ -325,100 +324,93 @@ export function TraceSpanItem({
                   )
                 })()}
               {chipVisibility.tokens && span.tokens && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className='cursor-default rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
-                        {(() => {
-                          const t = span.tokens
-                          const total =
-                            typeof t === 'number'
-                              ? t
-                              : (t.total ?? (t.input || 0) + (t.output || 0))
-                          return `T:${total}`
-                        })()}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span className='cursor-default rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
                       {(() => {
                         const t = span.tokens
-                        if (typeof t === 'number') return <span>{t} tokens</span>
-                        const hasIn = typeof t.input === 'number'
-                        const hasOut = typeof t.output === 'number'
-                        const input = hasIn ? t.input : undefined
-                        const output = hasOut ? t.output : undefined
                         const total =
-                          t.total ??
-                          (hasIn && hasOut ? (t.input || 0) + (t.output || 0) : undefined)
-
-                        if (hasIn || hasOut) {
-                          return (
-                            <span className='font-normal text-xs'>
-                              {`${hasIn ? input : '—'} in / ${hasOut ? output : '—'} out`}
-                              {typeof total === 'number' ? ` (total ${total})` : ''}
-                            </span>
-                          )
-                        }
-                        if (typeof total === 'number')
-                          return <span className='font-normal text-xs'>Total {total} tokens</span>
-                        return <span className='font-normal text-xs'>Tokens unavailable</span>
+                          typeof t === 'number' ? t : (t.total ?? (t.input || 0) + (t.output || 0))
+                        return `T:${total}`
                       })()}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>
+                    {(() => {
+                      const t = span.tokens
+                      if (typeof t === 'number') return <span>{t} tokens</span>
+                      const hasIn = typeof t.input === 'number'
+                      const hasOut = typeof t.output === 'number'
+                      const input = hasIn ? t.input : undefined
+                      const output = hasOut ? t.output : undefined
+                      const total =
+                        t.total ?? (hasIn && hasOut ? (t.input || 0) + (t.output || 0) : undefined)
+
+                      if (hasIn || hasOut) {
+                        return (
+                          <span className='font-normal text-xs'>
+                            {`${hasIn ? input : '—'} in / ${hasOut ? output : '—'} out`}
+                            {typeof total === 'number' ? ` (total ${total})` : ''}
+                          </span>
+                        )
+                      }
+                      if (typeof total === 'number')
+                        return <span className='font-normal text-xs'>Total {total} tokens</span>
+                      return <span className='font-normal text-xs'>Tokens unavailable</span>
+                    })()}
+                  </Tooltip.Content>
+                </Tooltip.Root>
               )}
               {chipVisibility.cost && span.cost?.total !== undefined && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className='cursor-default rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
-                        {(() => {
-                          try {
-                            const { formatCost } = require('@/providers/utils')
-                            return formatCost(Number(span.cost.total) || 0)
-                          } catch {
-                            return `$${Number.parseFloat(String(span.cost.total)).toFixed(4)}`
-                          }
-                        })()}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span className='cursor-default rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
                       {(() => {
-                        const c = span.cost || {}
-                        const input = typeof c.input === 'number' ? c.input : undefined
-                        const output = typeof c.output === 'number' ? c.output : undefined
-                        const total =
-                          typeof c.total === 'number'
-                            ? c.total
-                            : typeof input === 'number' && typeof output === 'number'
-                              ? input + output
-                              : undefined
-                        let formatCostFn: (v: number) => string = (v: number) =>
-                          `$${Number(v).toFixed(4)}`
                         try {
-                          formatCostFn = require('@/providers/utils').formatCost as (
-                            v: number
-                          ) => string
-                        } catch {}
-                        return (
-                          <div className='space-y-0.5'>
-                            {typeof input === 'number' && (
-                              <div className='text-xs'>Input: {formatCostFn(input)}</div>
-                            )}
-                            {typeof output === 'number' && (
-                              <div className='text-xs'>Output: {formatCostFn(output)}</div>
-                            )}
-                            {typeof total === 'number' && (
-                              <div className='border-t pt-0.5 text-xs'>
-                                Total: {formatCostFn(total)}
-                              </div>
-                            )}
-                          </div>
-                        )
+                          const { formatCost } = require('@/providers/utils')
+                          return formatCost(Number(span.cost.total) || 0)
+                        } catch {
+                          return `$${Number.parseFloat(String(span.cost.total)).toFixed(4)}`
+                        }
                       })()}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>
+                    {(() => {
+                      const c = span.cost || {}
+                      const input = typeof c.input === 'number' ? c.input : undefined
+                      const output = typeof c.output === 'number' ? c.output : undefined
+                      const total =
+                        typeof c.total === 'number'
+                          ? c.total
+                          : typeof input === 'number' && typeof output === 'number'
+                            ? input + output
+                            : undefined
+                      let formatCostFn: (v: number) => string = (v: number) =>
+                        `$${Number(v).toFixed(4)}`
+                      try {
+                        formatCostFn = require('@/providers/utils').formatCost as (
+                          v: number
+                        ) => string
+                      } catch {}
+                      return (
+                        <div className='space-y-0.5'>
+                          {typeof input === 'number' && (
+                            <div className='text-xs'>Input: {formatCostFn(input)}</div>
+                          )}
+                          {typeof output === 'number' && (
+                            <div className='text-xs'>Output: {formatCostFn(output)}</div>
+                          )}
+                          {typeof total === 'number' && (
+                            <div className='border-t pt-0.5 text-xs'>
+                              Total: {formatCostFn(total)}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </Tooltip.Content>
+                </Tooltip.Root>
               )}
               {showRelativeChip && depth > 0 && (
                 <span className='inline-flex items-center rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
@@ -436,9 +428,18 @@ export function TraceSpanItem({
             style={{ width: 'calc(45% - 73px)', pointerEvents: 'none' }}
           >
             <div
-              className='relative h-2 w-full overflow-visible rounded-full bg-accent/30'
+              className='relative h-2 w-full overflow-hidden bg-accent/30'
               style={{ pointerEvents: 'auto' }}
-              onPointerMove={(e) => forwardHover(e.clientX, e.clientY)}
+              onPointerMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect()
+                const clamped = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+                setLocalHoveredPercent(clamped * 100)
+                onTimelineHover?.(e.clientX, e.clientY, rect)
+              }}
+              onPointerLeave={() => {
+                setLocalHoveredPercent(null)
+                onTimelineLeave?.()
+              }}
             >
               {gapBeforeMs > 5 && (
                 <div
@@ -465,7 +466,6 @@ export function TraceSpanItem({
                   ? 'rgba(148, 163, 184, 0.28)'
                   : 'rgba(148, 163, 184, 0.32)'
                 const baseColor = type === 'workflow' ? neutralRail : softenColor(spanColor, isDark)
-                const isFlatBase = type !== 'workflow'
                 return (
                   <div
                     className='absolute h-full'
@@ -473,19 +473,17 @@ export function TraceSpanItem({
                       left: `${safeStartPercent}%`,
                       width: `${safeWidthPercent}%`,
                       backgroundColor: baseColor,
-                      borderRadius: isFlatBase ? 0 : 9999,
                       zIndex: 5,
                     }}
                   />
                 )
               })()}
 
-              {/* Workflow-level overlay of child spans (no duplication of agent's model/streaming) */}
               {(() => {
-                if (String(span.type || '').toLowerCase() !== 'workflow') return null
+                const spanType = String(span.type || '').toLowerCase()
+                if (spanType !== 'workflow' && spanType !== 'agent') return null
                 const children = (span.children || []) as TraceSpan[]
                 if (!children.length) return null
-                // Build overlay segments (exclude agent-internal pieces like model/streaming)
                 const overlay = children
                   .filter(
                     (c) => c.type !== 'model' && c.name?.toLowerCase() !== 'streaming response'
@@ -610,13 +608,15 @@ export function TraceSpanItem({
                     )
                   })
               })()}
-              {hoveredPercent != null && (
+              {localHoveredPercent != null && (
                 <div
-                  className='pointer-events-none absolute top-[-10px] bottom-[-10px] w-px bg-black/30 dark:bg-white/45'
-                  style={{ left: `${Math.max(0, Math.min(100, hoveredPercent))}%`, zIndex: 12 }}
+                  className='pointer-events-none absolute inset-y-0 w-px bg-black/30 dark:bg-gray-600'
+                  style={{
+                    left: `${Math.max(0, Math.min(100, localHoveredPercent))}%`,
+                    zIndex: 12,
+                  }}
                 />
               )}
-              <div className='absolute inset-x-0 inset-y-[-12px] cursor-crosshair' />
             </div>
           </div>
 
@@ -668,7 +668,8 @@ export function TraceSpanItem({
                     onToggle={onToggle}
                     expandedSpans={expandedSpans}
                     hasSubItems={childHasSubItems}
-                    forwardHover={forwardHover}
+                    onTimelineHover={onTimelineHover}
+                    onTimelineLeave={onTimelineLeave}
                     gapBeforeMs={childGapMs}
                     gapBeforePercent={childGapPercent}
                     showRelativeChip={chipVisibility.relative}
@@ -717,7 +718,8 @@ export function TraceSpanItem({
                     onToggle={onToggle}
                     expandedSpans={expandedSpans}
                     hasSubItems={hasToolCallData}
-                    forwardHover={forwardHover}
+                    onTimelineHover={onTimelineHover}
+                    onTimelineLeave={onTimelineLeave}
                     showRelativeChip={chipVisibility.relative}
                     chipVisibility={chipVisibility}
                   />

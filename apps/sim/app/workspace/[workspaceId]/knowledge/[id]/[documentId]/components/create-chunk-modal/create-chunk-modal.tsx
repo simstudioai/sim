@@ -2,20 +2,8 @@
 
 import { useRef, useState } from 'react'
 import { AlertCircle, Loader2, X } from 'lucide-react'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button, Modal, ModalContent, ModalTitle, Textarea } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ChunkData, DocumentData } from '@/stores/knowledge/store'
 
@@ -123,109 +111,135 @@ export function CreateChunkModal({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleCloseAttempt}>
-        <DialogContent
+      <Modal open={open} onOpenChange={handleCloseAttempt}>
+        <ModalContent
           className='flex h-[74vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
-          hideCloseButton
+          showClose={false}
         >
-          <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
+          {/* Modal Header */}
+          <div className='flex-shrink-0 px-6 py-5'>
             <div className='flex items-center justify-between'>
-              <DialogTitle className='font-medium text-lg'>Create Chunk</DialogTitle>
-              <Button
-                variant='ghost'
-                size='icon'
-                className='h-8 w-8 p-0'
-                onClick={handleCloseAttempt}
-              >
+              <ModalTitle className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                Create Chunk
+              </ModalTitle>
+              <Button variant='ghost' className='h-8 w-8 p-0' onClick={handleCloseAttempt}>
                 <X className='h-4 w-4' />
                 <span className='sr-only'>Close</span>
               </Button>
             </div>
-          </DialogHeader>
+          </div>
 
-          <div className='flex flex-1 flex-col overflow-hidden'>
-            <div className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
-              <div className='flex min-h-full flex-col py-4'>
-                {/* Document Info Section - Fixed at top */}
-                <div className='flex-shrink-0 space-y-4'>
-                  <div className='flex items-center gap-3 rounded-lg border bg-muted/30 p-4'>
-                    <div className='min-w-0 flex-1'>
-                      <p className='font-medium text-sm'>
-                        {document?.filename || 'Unknown Document'}
-                      </p>
-                      <p className='text-muted-foreground text-xs'>Adding chunk to this document</p>
+          {/* Modal Body */}
+          <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
+            <form className='flex min-h-0 flex-1 flex-col'>
+              {/* Scrollable Content */}
+              <div className='scrollbar-hide min-h-0 flex-1 overflow-y-auto pb-20'>
+                <div className='flex min-h-full flex-col px-6'>
+                  <div className='flex flex-1 flex-col space-y-[12px] pt-0 pb-6'>
+                    {/* Document Info Section */}
+                    <div className='flex-shrink-0 space-y-[8px]'>
+                      <div className='flex items-center gap-3 rounded-lg border bg-muted/30 p-4'>
+                        <div className='min-w-0 flex-1'>
+                          <p className='font-medium text-sm'>
+                            {document?.filename || 'Unknown Document'}
+                          </p>
+                          <p className='text-muted-foreground text-xs'>
+                            Adding chunk to this document
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Error Display */}
+                      {error && (
+                        <div className='flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3'>
+                          <AlertCircle className='h-4 w-4 text-red-600' />
+                          <p className='text-red-800 text-sm'>{error}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Content Input Section - Expands to fill space */}
+                    <div className='flex min-h-0 flex-1 flex-col space-y-[8px]'>
+                      <Label
+                        htmlFor='content'
+                        className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+                      >
+                        Chunk Content
+                      </Label>
+                      <Textarea
+                        id='content'
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        placeholder='Enter the content for this chunk...'
+                        className='min-h-0 flex-1 resize-none'
+                        disabled={isCreating}
+                      />
                     </div>
                   </div>
-
-                  {/* Error Display */}
-                  {error && (
-                    <div className='flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3'>
-                      <AlertCircle className='h-4 w-4 text-red-600' />
-                      <p className='text-red-800 text-sm'>{error}</p>
-                    </div>
-                  )}
                 </div>
+              </div>
 
-                {/* Content Input Section - Expands to fill remaining space */}
-                <div className='mt-4 flex flex-1 flex-col'>
-                  <Label htmlFor='content' className='mb-2 font-medium text-sm'>
-                    Chunk Content
-                  </Label>
-                  <Textarea
-                    id='content'
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder='Enter the content for this chunk...'
-                    className='flex-1 resize-none'
+              {/* Fixed Footer with Actions */}
+              <div className='absolute inset-x-0 bottom-0 bg-[var(--surface-1)] dark:bg-[var(--surface-1)]'>
+                <div className='flex w-full items-center justify-between gap-[8px] px-6 py-4'>
+                  <Button
+                    variant='default'
+                    onClick={handleCloseAttempt}
+                    type='button'
                     disabled={isCreating}
-                  />
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant='primary'
+                    onClick={handleCreateChunk}
+                    type='button'
+                    disabled={!isFormValid || isCreating}
+                  >
+                    {isCreating ? (
+                      <>
+                        <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                        Creating...
+                      </>
+                    ) : (
+                      'Create Chunk'
+                    )}
+                  </Button>
                 </div>
               </div>
-            </div>
-
-            {/* Footer */}
-            <div className='mt-auto border-t px-6 pt-4 pb-6'>
-              <div className='flex justify-between'>
-                <Button variant='outline' onClick={handleCloseAttempt} disabled={isCreating}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleCreateChunk}
-                  disabled={!isFormValid || isCreating}
-                  className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
-                >
-                  {isCreating ? (
-                    <>
-                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Chunk'
-                  )}
-                </Button>
-              </div>
-            </div>
+            </form>
           </div>
-        </DialogContent>
-      </Dialog>
+        </ModalContent>
+      </Modal>
 
       {/* Unsaved Changes Alert */}
-      <AlertDialog open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
+        <ModalContent className='flex flex-col gap-0 p-0'>
+          {/* Modal Header */}
+          <div className='flex-shrink-0 px-6 py-5'>
+            <ModalTitle className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+              Discard changes?
+            </ModalTitle>
+            <p className='mt-2 text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
               You have unsaved changes. Are you sure you want to close without saving?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowUnsavedChangesAlert(false)}>
+            </p>
+          </div>
+
+          {/* Modal Footer */}
+          <div className='flex w-full items-center justify-between gap-[8px] px-6 py-4'>
+            <Button
+              variant='default'
+              onClick={() => setShowUnsavedChangesAlert(false)}
+              type='button'
+            >
               Keep editing
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDiscard}>Discard changes</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+            <Button variant='primary' onClick={handleConfirmDiscard} type='button'>
+              Discard changes
+            </Button>
+          </div>
+        </ModalContent>
+      </Modal>
     </>
   )
 }

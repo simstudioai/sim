@@ -8,20 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="youtube"
   color="#FF0000"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      
-      viewBox='0 0 28 20'
-      fill='currentColor'
-      xmlns='http://www.w3.org/2000/svg'
-      
-    >
-      <path
-        d='M11.2 14L18.466 9.8L11.2 5.6V14ZM27.384 3.038C27.566 3.696 27.692 4.578 27.776 5.698C27.874 6.818 27.916 7.784 27.916 8.624L28 9.8C28 12.866 27.776 15.12 27.384 16.562C27.034 17.822 26.222 18.634 24.962 18.984C24.304 19.166 23.1 19.292 21.252 19.376C19.432 19.474 17.766 19.516 16.226 19.516L14 19.6C8.134 19.6 4.48 19.376 3.038 18.984C1.778 18.634 0.966 17.822 0.616 16.562C0.434 15.904 0.308 15.022 0.224 13.902C0.126 12.782 0.0839999 11.816 0.0839999 10.976L0 9.8C0 6.734 0.224 4.48 0.616 3.038C0.966 1.778 1.778 0.966 3.038 0.616C3.696 0.434 4.9 0.308 6.748 0.224C8.568 0.126 10.234 0.0839999 11.774 0.0839999L14 0C19.866 0 23.52 0.224 24.962 0.616C26.222 0.966 27.034 1.778 27.384 3.038Z'
-        fill='currentColor'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -39,21 +25,32 @@ In Sim ermöglicht die YouTube-Integration Ihren Agenten, YouTube-Inhalte progra
 
 ## Gebrauchsanweisung
 
-Integriere YouTube in den Workflow. Kann nach Videos suchen, Videodetails abrufen, Kanalinformationen abrufen, Playlist-Elemente abrufen und Videokommentare abrufen.
+Integrieren Sie YouTube in den Workflow. Kann Videos suchen, Videodetails abrufen, Kanalinformationen abrufen, alle Videos eines Kanals abrufen, Kanal-Playlists abrufen, Playlist-Elemente abrufen, verwandte Videos finden und Videokommentare abrufen.
 
 ## Tools
 
 ### `youtube_search`
 
-Suche nach Videos auf YouTube mit der YouTube Data API.
+Suchen Sie nach Videos auf YouTube mit der YouTube Data API. Unterstützt erweiterte Filterung nach Kanal, Datumsbereich, Dauer, Kategorie, Qualität, Untertiteln und mehr.
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Ja | Suchanfrage für YouTube-Videos |
-| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Videos |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Videos (1-50) |
 | `apiKey` | string | Ja | YouTube API-Schlüssel |
+| `channelId` | string | Nein | Filtert Ergebnisse nach einer bestimmten YouTube-Kanal-ID |
+| `publishedAfter` | string | Nein | Nur Videos zurückgeben, die nach diesem Datum veröffentlicht wurden (RFC 3339-Format: "2024-01-01T00:00:00Z") |
+| `publishedBefore` | string | Nein | Nur Videos zurückgeben, die vor diesem Datum veröffentlicht wurden (RFC 3339-Format: "2024-01-01T00:00:00Z") |
+| `videoDuration` | string | Nein | Nach Videolänge filtern: "short" (weniger als 4 Minuten), "medium" (4-20 Minuten), "long" (mehr als 20 Minuten), "any" |
+| `order` | string | Nein | Ergebnisse sortieren nach: "date", "rating", "relevance" (Standard), "title", "videoCount", "viewCount" |
+| `videoCategoryId` | string | Nein | Nach YouTube-Kategorie-ID filtern (z.B. "10" für Musik, "20" für Gaming) |
+| `videoDefinition` | string | Nein | Nach Videoqualität filtern: "high" (HD), "standard", "any" |
+| `videoCaption` | string | Nein | Nach Untertitelverfügbarkeit filtern: "closedCaption" (hat Untertitel), "none" (keine Untertitel), "any" |
+| `regionCode` | string | Nein | Ergebnisse zurückgeben, die für eine bestimmte Region relevant sind (ISO 3166-1 alpha-2 Ländercode, z.B. "US", "GB") |
+| `relevanceLanguage` | string | Nein | Ergebnisse zurückgeben, die für eine Sprache am relevantesten sind (ISO 639-1 Code, z.B. "en", "es") |
+| `safeSearch` | string | Nein | Inhaltsfilterungsstufe: "moderate" (Standard), "none", "strict" |
 
 #### Ausgabe
 
@@ -115,6 +112,45 @@ Erhalte detaillierte Informationen über einen YouTube-Kanal.
 | `thumbnail` | string | URL des Kanal-Thumbnails |
 | `customUrl` | string | Benutzerdefinierte Kanal-URL |
 
+### `youtube_channel_videos`
+
+Alle Videos von einem bestimmten YouTube-Kanal abrufen, mit Sortieroptionen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | Ja | YouTube-Kanal-ID, von der Videos abgerufen werden sollen |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Videos \(1-50\) |
+| `order` | string | Nein | Sortierreihenfolge: "date" \(neueste zuerst\), "rating", "relevance", "title", "viewCount" |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Videos des Kanals |
+
+### `youtube_channel_playlists`
+
+Alle Playlists von einem bestimmten YouTube-Kanal abrufen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | Ja | YouTube-Kanal-ID, von der Playlists abgerufen werden sollen |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Playlists \(1-50\) |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Playlists des Kanals |
+
 ### `youtube_playlist_items`
 
 Videos aus einer YouTube-Playlist abrufen.
@@ -125,7 +161,7 @@ Videos aus einer YouTube-Playlist abrufen.
 | --------- | ---- | -------- | ----------- |
 | `playlistId` | string | Ja | YouTube-Playlist-ID |
 | `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Videos |
-| `pageToken` | string | Nein | Page-Token für Paginierung |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
 | `apiKey` | string | Ja | YouTube API-Schlüssel |
 
 #### Ausgabe
@@ -134,9 +170,28 @@ Videos aus einer YouTube-Playlist abrufen.
 | --------- | ---- | ----------- |
 | `items` | array | Array von Videos in der Playlist |
 
+### `youtube_related_videos`
+
+Finde Videos, die mit einem bestimmten YouTube-Video verwandt sind.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | Ja | YouTube-Video-ID, für die verwandte Videos gefunden werden sollen |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden verwandten Videos \(1-50\) |
+| `pageToken` | string | Nein | Page-Token für Paginierung |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von verwandten Videos |
+
 ### `youtube_comments`
 
-Kommentare von einem YouTube-Video abrufen.
+Rufe Kommentare von einem YouTube-Video ab.
 
 #### Eingabe
 

@@ -8,13 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="github"
   color="#181C1E"
-  icon={true}
-  iconSvg={`<svg className="block-icon"    viewBox='0 0 26 26' xmlns='http://www.w3.org/2000/svg'>
-      <path
-        d='M13 0C11.2928 0 9.60235 0.336255 8.02511 0.989566C6.44788 1.64288 5.01477 2.60045 3.80761 3.80761C1.36964 6.24558 0 9.55219 0 13C0 18.746 3.731 23.621 8.892 25.35C9.542 25.454 9.75 25.051 9.75 24.7V22.503C6.149 23.283 5.382 20.761 5.382 20.761C4.784 19.253 3.939 18.85 3.939 18.85C2.756 18.044 4.03 18.07 4.03 18.07C5.33 18.161 6.019 19.409 6.019 19.409C7.15 21.385 9.061 20.8 9.802 20.488C9.919 19.643 10.257 19.071 10.621 18.746C7.735 18.421 4.706 17.303 4.706 12.35C4.706 10.907 5.2 9.75 6.045 8.827C5.915 8.502 5.46 7.15 6.175 5.395C6.175 5.395 7.267 5.044 9.75 6.721C10.777 6.435 11.895 6.292 13 6.292C14.105 6.292 15.223 6.435 16.25 6.721C18.733 5.044 19.825 5.395 19.825 5.395C20.54 7.15 20.085 8.502 19.955 8.827C20.8 9.75 21.294 10.907 21.294 12.35C21.294 17.316 18.252 18.408 15.353 18.733C15.821 19.136 16.25 19.929 16.25 21.138V24.7C16.25 25.051 16.458 25.467 17.121 25.35C22.282 23.608 26 18.746 26 13C26 11.2928 25.6637 9.60235 25.0104 8.02511C24.3571 6.44788 23.3995 5.01477 22.1924 3.80761C20.9852 2.60045 19.5521 1.64288 17.9749 0.989566C16.3977 0.336255 14.7072 0 13 0Z'
-        fill='currentColor'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -123,6 +116,1055 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `content` | string | 人类可读的提交摘要 |
 | `metadata` | object | 提交元数据 |
+
+### `github_issue_comment`
+
+在 GitHub 问题上创建评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `issue_number` | number | 是 | 问题编号 |
+| `body` | string | 是 | 评论内容 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的评论确认 |
+| `metadata` | object | 评论元数据 |
+
+### `github_list_issue_comments`
+
+列出 GitHub 问题上的所有评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `issue_number` | number | 是 | 问题编号 |
+| `since` | string | 否 | 仅显示此 ISO 8601 时间戳之后更新的评论 |
+| `per_page` | number | 否 | 每页结果数 \(最大 100\) |
+| `page` | number | 否 | 页码 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的评论摘要 |
+| `metadata` | object | 评论列表元数据 |
+
+### `github_update_comment`
+
+更新 GitHub 问题或拉取请求上的现有评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `comment_id` | number | 是 | 评论 ID |
+| `body` | string | 是 | 更新后的评论内容 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的更新确认 |
+| `metadata` | object | 更新后的评论元数据 |
+
+### `github_delete_comment`
+
+删除 GitHub 问题或拉取请求上的评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `comment_id` | number | 是 | 评论 ID |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的删除确认 |
+| `metadata` | object | 删除结果元数据 |
+
+### `github_list_pr_comments`
+
+列出 GitHub 拉取请求上的所有审查评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `pullNumber` | number | 是 | 拉取请求编号 |
+| `sort` | string | 否 | 按创建或更新排序 |
+| `direction` | string | 否 | 排序方向 \(升序或降序\) |
+| `since` | string | 否 | 仅显示此 ISO 8601 时间戳之后更新的评论 |
+| `per_page` | number | 否 | 每页结果数 \(最大 100\) |
+| `page` | number | 否 | 页码 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的审查评论摘要 |
+| `metadata` | object | 审查评论列表元数据 |
+
+### `github_create_pr`
+
+在 GitHub 仓库中创建一个新的拉取请求
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `title` | string | 是 | 拉取请求标题 |
+| `head` | string | 是 | 实现更改的分支名称 |
+| `base` | string | 是 | 要将更改合并到的分支名称 |
+| `body` | string | 否 | 拉取请求描述 \(Markdown\) |
+| `draft` | boolean | 否 | 创建为草稿拉取请求 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的拉取请求创建确认 |
+| `metadata` | object | 拉取请求元数据 |
+
+### `github_update_pr`
+
+更新 GitHub 仓库中的现有拉取请求
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `pullNumber` | number | 是 | 拉取请求编号 |
+| `title` | string | 否 | 新的拉取请求标题 |
+| `body` | string | 否 | 新的拉取请求描述 \(Markdown\) |
+| `state` | string | 否 | 新状态 \(open 或 closed\) |
+| `base` | string | 否 | 新的基准分支名称 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 可读的 PR 更新确认 |
+| `metadata` | object | 更新的拉取请求元数据 |
+
+### `github_merge_pr`
+
+在 GitHub 仓库中合并拉取请求
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `pullNumber` | number | 是 | 拉取请求编号 |
+| `commit_title` | string | 否 | 合并提交的标题 |
+| `commit_message` | string | 否 | 附加到合并提交消息的额外详细信息 |
+| `merge_method` | string | 否 | 合并方法：merge、squash 或 rebase |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 可读的合并确认 |
+| `metadata` | object | 合并结果元数据 |
+
+### `github_list_prs`
+
+列出 GitHub 仓库中的拉取请求
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `state` | string | 否 | 按状态筛选：open、closed 或 all |
+| `head` | string | 否 | 按 head 用户或分支名称筛选 \(格式：user:ref-name 或 organization:ref-name\) |
+| `base` | string | 否 | 按 base 分支名称筛选 |
+| `sort` | string | 否 | 按以下方式排序：created、updated、popularity 或 long-running |
+| `direction` | string | 否 | 排序方向：asc 或 desc |
+| `per_page` | number | 否 | 每页结果数 \(最大 100\) |
+| `page` | number | 否 | 页码 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 可读的拉取请求列表 |
+| `metadata` | object | 拉取请求列表元数据 |
+
+### `github_get_pr_files`
+
+获取拉取请求中更改的文件列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `pullNumber` | number | 是 | 拉取请求编号 |
+| `per_page` | number | 否 | 每页结果数 \(最大 100\) |
+| `page` | number | 否 | 页码 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 可读的拉取请求中更改的文件列表 |
+| `metadata` | object | 拉取请求文件元数据 |
+
+### `github_close_pr`
+
+关闭 GitHub 仓库中的拉取请求
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `pullNumber` | number | 是 | 拉取请求编号 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 可读的拉取请求关闭确认 |
+| `metadata` | object | 已关闭的拉取请求元数据 |
+
+### `github_request_reviewers`
+
+为拉取请求指定审查者
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `pullNumber` | number | 是 | 拉取请求编号 |
+| `reviewers` | string | 是 | 以逗号分隔的用户登录名列表，用于请求审查 |
+| `team_reviewers` | string | 否 | 以逗号分隔的团队标识列表，用于请求审查 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的审查请求确认 |
+| `metadata` | object | 请求的审查者元数据 |
+
+### `github_get_file_content`
+
+从 GitHub 仓库中获取文件内容。支持最大 1MB 的文件。内容以解码和人类可读的形式返回。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `path` | string | 是 | 仓库中文件的路径 \(例如："src/index.ts"\) |
+| `ref` | string | 否 | 分支名称、标签或提交 SHA \(默认为仓库的默认分支\) |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的文件信息，包含内容预览 |
+| `metadata` | object | 文件元数据，包括名称、路径、SHA、大小和 URL |
+
+### `github_create_file`
+
+在 GitHub 仓库中创建一个新文件。文件内容将自动进行 Base64 编码。支持最大 1MB 的文件。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `path` | string | 是 | 文件将被创建的路径 \(例如："src/newfile.ts"\) |
+| `message` | string | 是 | 此文件创建的提交消息 |
+| `content` | string | 是 | 文件内容 \(纯文本，将自动进行 Base64 编码\) |
+| `branch` | string | 否 | 创建文件的分支 \(默认为仓库的默认分支\) |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的文件创建确认信息 |
+| `metadata` | object | 文件和提交元数据 |
+
+### `github_update_file`
+
+更新 GitHub 仓库中的现有文件。需要文件的 SHA。内容将自动进行 Base64 编码。支持最大 1MB 的文件。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `path` | string | 是 | 要更新的文件路径 \(例如："src/index.ts"\) |
+| `message` | string | 是 | 此文件更新的提交消息 |
+| `content` | string | 是 | 新的文件内容 \(纯文本，将自动进行 Base64 编码\) |
+| `sha` | string | 是 | 被替换文件的 blob SHA \(从 github_get_file_content 获取\) |
+| `branch` | string | 否 | 要更新文件的分支 \(默认为仓库的默认分支\) |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的文件更新确认 |
+| `metadata` | object | 更新的文件和提交元数据 |
+
+### `github_delete_file`
+
+从 GitHub 仓库中删除文件。需要文件的 SHA。此操作无法通过 API 撤销。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `path` | string | 是 | 要删除的文件路径 \(例如："src/oldfile.ts"\) |
+| `message` | string | 是 | 此文件删除的提交消息 |
+| `sha` | string | 是 | 被删除文件的 blob SHA \(从 github_get_file_content 获取\) |
+| `branch` | string | 否 | 要删除文件的分支 \(默认为仓库的默认分支\) |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的文件删除确认 |
+| `metadata` | object | 删除确认和提交元数据 |
+
+### `github_get_tree`
+
+获取 GitHub 仓库中目录的内容。返回文件和子目录的列表。使用空路径或省略路径以获取根目录内容。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `path` | string | 否 | 目录路径 \(例如："src/components"\)。留空表示根目录。 |
+| `ref` | string | 否 | 分支名称、标签或提交 SHA \(默认为仓库默认分支\) |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的目录树列表 |
+| `metadata` | object | 目录内容元数据 |
+
+### `github_list_branches`
+
+列出 GitHub 仓库中的所有分支。可选地按保护状态过滤并控制分页。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `protected` | boolean | 否 | 按保护状态过滤分支 |
+| `per_page` | number | 否 | 每页结果数 \(最大 100，默认 30\) |
+| `page` | number | 否 | 分页的页码 \(默认 1\) |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的分支列表 |
+| `metadata` | object | 分支列表元数据 |
+
+### `github_get_branch`
+
+获取 GitHub 仓库中特定分支的详细信息，包括提交详情和保护状态。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `branch` | string | 是 | 分支名称 |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的分支详情 |
+| `metadata` | object | 分支元数据 |
+
+### `github_create_branch`
+
+通过创建指向特定提交 SHA 的 git 引用，在 GitHub 仓库中创建一个新分支。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `branch` | string | 是 | 要创建的分支名称 |
+| `sha` | string | 是 | 分支指向的提交 SHA |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的分支创建确认 |
+| `metadata` | object | Git 引用元数据 |
+
+### `github_delete_branch`
+
+通过删除 Git 引用从 GitHub 仓库中删除分支。受保护的分支无法删除。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `branch` | string | 是 | 要删除的分支名称 |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的删除确认 |
+| `metadata` | object | 删除元数据 |
+
+### `github_get_branch_protection`
+
+获取特定分支的分支保护规则，包括状态检查、审查要求和限制。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `branch` | string | 是 | 分支名称 |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的分支保护摘要 |
+| `metadata` | object | 分支保护配置 |
+
+### `github_update_branch_protection`
+
+更新特定分支的分支保护规则，包括状态检查、审查要求、管理员强制执行和推送限制。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `branch` | string | 是 | 分支名称 |
+| `required_status_checks` | object | 是 | 所需状态检查配置 \(null 表示禁用\)。对象包含 strict \(布尔值\) 和 contexts \(字符串数组\) |
+| `enforce_admins` | boolean | 是 | 是否对管理员强制执行限制 |
+| `required_pull_request_reviews` | object | 是 | PR 审查要求 \(null 表示禁用\)。对象包含可选的 required_approving_review_count、dismiss_stale_reviews、require_code_owner_reviews |
+| `restrictions` | object | 是 | 推送限制 \(null 表示禁用\)。对象包含 users \(字符串数组\) 和 teams \(字符串数组\) |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的分支保护更新摘要 |
+| `metadata` | object | 更新后的分支保护配置 |
+
+### `github_create_issue`
+
+在 GitHub 仓库中创建一个新问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `title` | string | 是 | 问题标题 |
+| `body` | string | 否 | 问题描述/正文 |
+| `assignees` | string | 否 | 要分配给此问题的用户名列表（以逗号分隔） |
+| `labels` | string | 否 | 要添加到此问题的标签名称列表（以逗号分隔） |
+| `milestone` | number | 否 | 要与此问题关联的里程碑编号 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的问题创建确认 |
+| `metadata` | object | 问题元数据 |
+
+### `github_update_issue`
+
+更新 GitHub 仓库中的现有问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `issue_number` | number | 是 | 问题编号 |
+| `title` | string | 否 | 新的问题标题 |
+| `body` | string | 否 | 新的问题描述/正文 |
+| `state` | string | 否 | 问题状态 \(open 或 closed\) |
+| `labels` | array | 否 | 标签名称数组 \(替换所有现有标签\) |
+| `assignees` | array | 否 | 用户名数组 \(替换所有现有分配者\) |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的问题更新确认 |
+| `metadata` | object | 更新的问题元数据 |
+
+### `github_list_issues`
+
+列出 GitHub 仓库中的问题。注意：这包括拉取请求，因为在 GitHub 中 PR 被视为问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `state` | string | 否 | 按状态筛选：open、closed 或 all \(默认：open\) |
+| `assignee` | string | 否 | 按分配者用户名筛选 |
+| `creator` | string | 否 | 按创建者用户名筛选 |
+| `labels` | string | 否 | 按标签名称的逗号分隔列表筛选 |
+| `sort` | string | 否 | 排序方式：created、updated 或 comments \(默认：created\) |
+| `direction` | string | 否 | 排序方向：asc 或 desc \(默认：desc\) |
+| `per_page` | number | 否 | 每页结果数 \(最大 100，默认：30\) |
+| `page` | number | 否 | 页码 \(默认：1\) |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的问题列表 |
+| `metadata` | object | 问题列表元数据 |
+
+### `github_get_issue`
+
+获取 GitHub 仓库中特定问题的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `issue_number` | number | 是 | 问题编号 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的问题详细信息 |
+| `metadata` | object | 详细的问题元数据 |
+
+### `github_close_issue`
+
+关闭 GitHub 仓库中的一个问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `issue_number` | number | 是 | 问题编号 |
+| `state_reason` | string | 否 | 关闭原因：已完成或未计划 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的问题关闭确认 |
+| `metadata` | object | 已关闭的问题元数据 |
+
+### `github_add_labels`
+
+为 GitHub 仓库中的问题添加标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `issue_number` | number | 是 | 问题编号 |
+| `labels` | string | 是 | 要添加到问题的标签名称（以逗号分隔） |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的标签确认 |
+| `metadata` | object | 标签元数据 |
+
+### `github_remove_label`
+
+从 GitHub 仓库中的问题中移除标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `issue_number` | number | 是 | 问题编号 |
+| `name` | string | 是 | 要移除的标签名称 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的标签移除确认 |
+| `metadata` | object | 剩余标签元数据 |
+
+### `github_add_assignees`
+
+为 GitHub 仓库中的问题添加受理人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `issue_number` | number | 是 | 问题编号 |
+| `assignees` | string | 是 | 要分配给问题的用户名列表（以逗号分隔） |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的分配确认 |
+| `metadata` | object | 包含分配信息的更新问题元数据 |
+
+### `github_create_release`
+
+为 GitHub 仓库创建一个新版本。指定标签名称、目标提交、标题、描述，以及是否为草稿或预发布版本。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `tag_name` | string | 是 | 此版本的标签名称 |
+| `target_commitish` | string | 否 | 指定用于创建 Git 标签的 commitish 值。可以是任何分支或提交 SHA。默认为仓库的默认分支。 |
+| `name` | string | 否 | 版本的名称 |
+| `body` | string | 否 | 描述版本内容的文本（支持 markdown） |
+| `draft` | boolean | 否 | true 表示创建草稿（未发布）版本，false 表示创建已发布版本 |
+| `prerelease` | boolean | 否 | true 表示将版本标识为预发布版本，false 表示标识为完整版本 |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的发布创建摘要 |
+| `metadata` | object | 包括下载 URL 的发布元数据 |
+
+### `github_update_release`
+
+更新现有的 GitHub 发布。修改标签名称、目标提交、标题、描述、草稿状态或预发布状态。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `release_id` | number | 是 | 发布的唯一标识符 |
+| `tag_name` | string | 否 | 标签的名称 |
+| `target_commitish` | string | 否 | 指定标签创建来源的 commitish 值 |
+| `name` | string | 否 | 发布的名称 |
+| `body` | string | 否 | 描述发布内容的文本 \(支持 markdown\) |
+| `draft` | boolean | 否 | true 表示设置为草稿，false 表示发布 |
+| `prerelease` | boolean | 否 | true 表示标识为预发布，false 表示完整发布 |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的发布更新摘要 |
+| `metadata` | object | 更新的发布元数据，包括下载 URL |
+
+### `github_list_releases`
+
+列出 GitHub 仓库的所有发布版本。返回包括标签、名称和下载 URL 在内的发布信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `per_page` | number | 否 | 每页结果数量 \(最大 100\) |
+| `page` | number | 否 | 要获取的结果页码 |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的发布版本列表摘要 |
+| `metadata` | object | 发布版本元数据 |
+
+### `github_get_release`
+
+通过 ID 获取特定 GitHub 发布版本的详细信息。返回包括资源和下载 URL 在内的发布元数据。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `release_id` | number | 是 | 发布版本的唯一标识符 |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的发布版本详细信息 |
+| `metadata` | object | 包括下载 URL 在内的发布元数据 |
+
+### `github_delete_release`
+
+通过 ID 删除 GitHub 发布版本。这将永久删除发布版本，但不会删除关联的 Git 标签。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `release_id` | number | 是 | 要删除的发布版本的唯一标识符 |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的删除确认信息 |
+| `metadata` | object | 删除结果元数据 |
+
+### `github_list_workflows`
+
+列出 GitHub 仓库中的所有工作流。返回包括 ID、名称、路径、状态和徽章 URL 在内的工作流详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `per_page` | number | 否 | 每页结果数量 \(默认: 30, 最大: 100\) |
+| `page` | number | 否 | 要获取的结果页码 \(默认: 1\) |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的工作流摘要 |
+| `metadata` | object | 工作流元数据 |
+
+### `github_get_workflow`
+
+通过 ID 或文件名获取特定 GitHub Actions 工作流的详细信息。返回的工作流信息包括名称、路径、状态和徽章 URL。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `workflow_id` | string | 是 | 工作流 ID \(数字\) 或工作流文件名 \(例如："main.yaml"\) |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的工作流详细信息 |
+| `metadata` | object | 工作流元数据 |
+
+### `github_trigger_workflow`
+
+触发 GitHub Actions 工作流的工作流调度事件。工作流必须配置了 workflow_dispatch 触发器。成功时返回 204 No Content。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `workflow_id` | string | 是 | 工作流 ID \(数字\) 或工作流文件名 \(例如："main.yaml"\) |
+| `ref` | string | 是 | Git 引用 \(分支或标签名称\) 用于运行工作流 |
+| `inputs` | object | 否 | 在工作流文件中配置的输入键和值 |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 确认消息 |
+| `metadata` | object | 空的元数据对象 \(204 无内容响应\) |
+
+### `github_list_workflow_runs`
+
+列出仓库的工作流运行。支持按触发者、分支、事件和状态进行筛选。返回包括状态、结论和链接在内的运行详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `actor` | string | 否 | 按触发工作流的用户筛选 |
+| `branch` | string | 否 | 按分支名称筛选 |
+| `event` | string | 否 | 按事件类型筛选 \(例如：push, pull_request, workflow_dispatch\) |
+| `status` | string | 否 | 按状态筛选 \(queued, in_progress, completed, waiting, requested, pending\) |
+| `per_page` | number | 否 | 每页结果数量 \(默认：30，最大：100\) |
+| `page` | number | 否 | 要获取的结果页码 \(默认：1\) |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的工作流运行摘要 |
+| `metadata` | object | 工作流运行元数据 |
+
+### `github_get_workflow_run`
+
+获取有关特定工作流运行的详细信息（通过 ID）。返回状态、结论、时间以及运行的链接。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `run_id` | number | 是 | 工作流运行 ID |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的工作流运行详情 |
+| `metadata` | object | 工作流运行元数据 |
+
+### `github_cancel_workflow_run`
+
+取消工作流运行。如果取消已启动，则返回 202 Accepted；如果运行无法取消（已完成），则返回 409 Conflict。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `run_id` | number | 是 | 要取消的工作流运行 ID |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 取消状态消息 |
+| `metadata` | object | 取消元数据 |
+
+### `github_rerun_workflow`
+
+重新运行工作流运行。可选择启用调试日志记录。成功时返回 201 Created。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 \(用户或组织\) |
+| `repo` | string | 是 | 仓库名称 |
+| `run_id` | number | 是 | 要重新运行的工作流运行 ID |
+| `enable_debug_logging` | boolean | 否 | 启用重新运行的调试日志记录 \(默认值：false\) |
+| `apiKey` | string | 是 | GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 重新运行确认消息 |
+| `metadata` | object | 重新运行元数据 |
+
+### `github_list_projects`
+
+列出组织或用户的 GitHub Projects V2。返回最多 20 个项目及其详细信息，包括 ID、标题、编号、URL 和状态。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner_type` | string | 是 | 所有者类型："org" 表示组织，"user" 表示用户 |
+| `owner_login` | string | 是 | 组织或用户的登录名 |
+| `apiKey` | string | 是 | 具有项目读取权限的 GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的项目列表 |
+| `metadata` | object | 项目元数据 |
+
+### `github_get_project`
+
+通过项目编号获取特定 GitHub Projects V2 的详细信息。返回项目的详细信息，包括 ID、标题、描述、URL 和状态。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner_type` | string | 是 | 所有者类型："org" 表示组织，"user" 表示用户 |
+| `owner_login` | string | 是 | 组织或用户的登录名 |
+| `project_number` | number | 是 | 项目编号 |
+| `apiKey` | string | 是 | 具有项目读取权限的 GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的项目详情 |
+| `metadata` | object | 项目元数据 |
+
+### `github_create_project`
+
+创建一个新的 GitHub Project V2。需要提供所有者节点 ID（而非登录名）。返回包含 ID、标题和 URL 的已创建项目。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner_id` | string | 是 | 所有者节点 ID \(格式：PVT_... 或 MDQ6...\)。使用 GitHub GraphQL API 从组织或用户登录中获取此 ID。 |
+| `title` | string | 是 | 项目标题 |
+| `apiKey` | string | 是 | 具有项目写入权限的 GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的确认消息 |
+| `metadata` | object | 已创建项目的元数据 |
+
+### `github_update_project`
+
+更新现有的 GitHub Project V2。可以更新标题、描述、可见性（公开）或状态（关闭）。需要提供项目节点 ID。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `project_id` | string | 是 | 项目节点 ID \(格式：PVT_...\) |
+| `title` | string | 否 | 新的项目标题 |
+| `shortDescription` | string | 否 | 新的项目简短描述 |
+| `project_public` | boolean | 否 | 设置项目可见性 \(true = 公开, false = 私有\) |
+| `closed` | boolean | 否 | 设置项目状态 \(true = 关闭, false = 打开\) |
+| `apiKey` | string | 是 | 具有项目写入权限的 GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的确认消息 |
+| `metadata` | object | 更新的项目元数据 |
+
+### `github_delete_project`
+
+删除一个 GitHub 项目 V2。此操作是永久性的，无法撤销。需要项目节点 ID。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `project_id` | string | 是 | 项目节点 ID \(格式：PVT_...\) |
+| `apiKey` | string | 是 | 具有项目管理员权限的 GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 人类可读的确认消息 |
+| `metadata` | object | 已删除的项目元数据 |
 
 ## 注意事项
 

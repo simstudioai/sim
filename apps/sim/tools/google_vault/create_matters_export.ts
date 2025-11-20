@@ -12,7 +12,6 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
   oauth: {
     required: true,
     provider: 'google-vault',
-    additionalScopes: ['https://www.googleapis.com/auth/ediscovery'],
   },
 
   params: {

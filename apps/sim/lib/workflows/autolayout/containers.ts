@@ -9,6 +9,7 @@ import {
   CONTAINER_PADDING_Y,
   DEFAULT_CONTAINER_HEIGHT,
   DEFAULT_CONTAINER_WIDTH,
+  filterLayoutEligibleBlockIds,
   getBlocksByParent,
   prepareBlockMetrics,
 } from './utils'
@@ -35,13 +36,14 @@ export function layoutContainers(
 
     logger.debug('Processing container', { parentId, childCount: childIds.length })
 
+    const layoutChildIds = filterLayoutEligibleBlockIds(childIds, blocks)
     const childBlocks: Record<string, BlockState> = {}
-    for (const childId of childIds) {
+    for (const childId of layoutChildIds) {
       childBlocks[childId] = blocks[childId]
     }
 
     const childEdges = edges.filter(
-      (edge) => childIds.includes(edge.source) && childIds.includes(edge.target)
+      (edge) => layoutChildIds.includes(edge.source) && layoutChildIds.includes(edge.target)
     )
 
     if (Object.keys(childBlocks).length === 0) {

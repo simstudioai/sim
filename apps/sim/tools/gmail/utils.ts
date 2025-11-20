@@ -7,6 +7,47 @@ import type {
 
 export const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
+/**
+ * Fetch original message headers for threading
+ * @param messageId Gmail message ID to fetch headers from
+ * @param accessToken Gmail access token
+ * @returns Object containing threading headers (messageId, references, subject)
+ */
+export async function fetchThreadingHeaders(
+  messageId: string,
+  accessToken: string
+): Promise<{
+  messageId?: string
+  references?: string
+  subject?: string
+}> {
+  try {
+    const messageResponse = await fetch(
+      `${GMAIL_API_BASE}/messages/${messageId}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Subject`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    )
+
+    if (messageResponse.ok) {
+      const messageData = await messageResponse.json()
+      const headers = messageData.payload?.headers || []
+
+      return {
+        messageId: headers.find((h: any) => h.name.toLowerCase() === 'message-id')?.value,
+        references: headers.find((h: any) => h.name.toLowerCase() === 'references')?.value,
+        subject: headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value,
+      }
+    }
+  } catch (error) {
+    // Continue without threading headers rather than failing
+  }
+
+  return {}
+}
+
 // Helper function to process a Gmail message
 export async function processMessage(
   message: GmailMessage,
@@ -81,6 +122,7 @@ export function processMessageForSummary(message: GmailMessage): any {
       threadId: message?.threadId || '',
       subject: 'Unknown Subject',
       from: 'Unknown Sender',
+      to: '',
       date: '',
       snippet: message?.snippet || '',
     }
@@ -89,6 +131,7 @@ export function processMessageForSummary(message: GmailMessage): any {
   const headers = message.payload.headers || []
   const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value || 'No Subject'
   const from = headers.find((h) => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender'
+  const to = headers.find((h) => h.name.toLowerCase() === 'to')?.value || ''
   const date = headers.find((h) => h.name.toLowerCase() === 'date')?.value || ''
 
   return {
@@ -96,6 +139,7 @@ export function processMessageForSummary(message: GmailMessage): any {
     threadId: message.threadId,
     subject,
     from,
+    to,
     date,
     snippet: message.snippet || '',
   }
@@ -230,7 +274,10 @@ export function createMessagesSummary(messages: any[]): string {
   messages.forEach((msg, index) => {
     summary += `${index + 1}. Subject: ${msg.subject}\n`
     summary += `   From: ${msg.from}\n`
+    summary += `   To: ${msg.to}\n`
     summary += `   Date: ${msg.date}\n`
+    summary += `   ID: ${msg.id}\n`
+    summary += `   Thread ID: ${msg.threadId}\n`
     summary += `   Preview: ${msg.snippet}\n\n`
   })
 
@@ -256,6 +303,49 @@ export function base64UrlEncode(data: string | Buffer): string {
 }
 
 /**
+ * Build a simple text email message (without attachments)
+ * @param params Email parameters including recipients, subject, body, and threading info
+ * @returns Base64url encoded raw message
+ */
+export function buildSimpleEmailMessage(params: {
+  to: string
+  cc?: string | null
+  bcc?: string | null
+  subject?: string | null
+  body: string
+  contentType?: 'text' | 'html'
+  inReplyTo?: string
+  references?: string
+}): string {
+  const { to, cc, bcc, subject, body, contentType, inReplyTo, references } = params
+  const mimeContentType = contentType === 'html' ? 'text/html' : 'text/plain'
+  const emailHeaders = [
+    `Content-Type: ${mimeContentType}; charset="UTF-8"`,
+    'MIME-Version: 1.0',
+    `To: ${to}`,
+  ]
+
+  if (cc) {
+    emailHeaders.push(`Cc: ${cc}`)
+  }
+  if (bcc) {
+    emailHeaders.push(`Bcc: ${bcc}`)
+  }
+
+  emailHeaders.push(`Subject: ${subject || ''}`)
+
+  if (inReplyTo) {
+    emailHeaders.push(`In-Reply-To: ${inReplyTo}`)
+    const referencesChain = references ? `${references} ${inReplyTo}` : inReplyTo
+    emailHeaders.push(`References: ${referencesChain}`)
+  }
+
+  emailHeaders.push('', body)
+  const email = emailHeaders.join('\n')
+  return Buffer.from(email).toString('base64url')
+}
+
+/**
  * Build a MIME multipart message with optional attachments
  * @param params Message parameters including recipients, subject, body, and attachments
  * @returns Complete MIME message string ready to be base64url encoded
@@ -264,8 +354,11 @@ export interface BuildMimeMessageParams {
   to: string
   cc?: string
   bcc?: string
-  subject: string
+  subject?: string
   body: string
+  contentType?: 'text' | 'html'
+  inReplyTo?: string
+  references?: string
   attachments?: Array<{
     filename: string
     mimeType: string
@@ -274,11 +367,11 @@ export interface BuildMimeMessageParams {
 }
 
 export function buildMimeMessage(params: BuildMimeMessageParams): string {
-  const { to, cc, bcc, subject, body, attachments } = params
+  const { to, cc, bcc, subject, body, contentType, inReplyTo, references, attachments } = params
   const boundary = generateBoundary()
   const messageParts: string[] = []
+  const mimeContentType = contentType === 'html' ? 'text/html' : 'text/plain'
 
-  // Add headers
   messageParts.push(`To: ${to}`)
   if (cc) {
     messageParts.push(`Cc: ${cc}`)
@@ -286,21 +379,30 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
   if (bcc) {
     messageParts.push(`Bcc: ${bcc}`)
   }
-  messageParts.push(`Subject: ${subject}`)
+  messageParts.push(`Subject: ${subject || ''}`)
+
+  if (inReplyTo) {
+    messageParts.push(`In-Reply-To: ${inReplyTo}`)
+  }
+  if (references) {
+    const referencesChain = inReplyTo ? `${references} ${inReplyTo}` : references
+    messageParts.push(`References: ${referencesChain}`)
+  } else if (inReplyTo) {
+    messageParts.push(`References: ${inReplyTo}`)
+  }
+
   messageParts.push('MIME-Version: 1.0')
 
   if (attachments && attachments.length > 0) {
-    // Multipart message with attachments
     messageParts.push(`Content-Type: multipart/mixed; boundary="${boundary}"`)
     messageParts.push('')
     messageParts.push(`--${boundary}`)
-    messageParts.push('Content-Type: text/plain; charset="UTF-8"')
+    messageParts.push(`Content-Type: ${mimeContentType}; charset="UTF-8"`)
     messageParts.push('Content-Transfer-Encoding: 7bit')
     messageParts.push('')
     messageParts.push(body)
     messageParts.push('')
 
-    // Add each attachment
     for (const attachment of attachments) {
       messageParts.push(`--${boundary}`)
       messageParts.push(`Content-Type: ${attachment.mimeType}`)
@@ -308,7 +410,6 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
       messageParts.push('Content-Transfer-Encoding: base64')
       messageParts.push('')
 
-      // Split base64 content into 76-character lines (MIME standard)
       const base64Content = attachment.content.toString('base64')
       const lines = base64Content.match(/.{1,76}/g) || []
       messageParts.push(...lines)
@@ -317,8 +418,7 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
 
     messageParts.push(`--${boundary}--`)
   } else {
-    // Simple text message without attachments
-    messageParts.push('Content-Type: text/plain; charset="UTF-8"')
+    messageParts.push(`Content-Type: ${mimeContentType}; charset="UTF-8"`)
     messageParts.push('MIME-Version: 1.0')
     messageParts.push('')
     messageParts.push(body)

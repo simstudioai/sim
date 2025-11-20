@@ -10,6 +10,8 @@ import { extractAndPersistCustomTools } from '@/lib/workflows/custom-tools-persi
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
+import type { BlockState } from '@/stores/workflows/workflow/types'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowStateAPI')
 
@@ -27,6 +29,7 @@ const BlockDataSchema = z.object({
   count: z.number().optional(),
   loopType: z.enum(['for', 'forEach', 'while', 'doWhile']).optional(),
   whileCondition: z.string().optional(),
+  doWhileCondition: z.string().optional(),
   parallelType: z.enum(['collection', 'count']).optional(),
   type: z.string().optional(),
 })
@@ -48,7 +51,6 @@ const BlockStateSchema = z.object({
   outputs: z.record(BlockOutputSchema),
   enabled: z.boolean(),
   horizontalHandles: z.boolean().optional(),
-  isWide: z.boolean().optional(),
   height: z.number().optional(),
   advancedMode: z.boolean().optional(),
   triggerMode: z.boolean().optional(),
@@ -82,6 +84,7 @@ const LoopSchema = z.object({
   loopType: z.enum(['for', 'forEach', 'while', 'doWhile']),
   forEachItems: z.union([z.array(z.any()), z.record(z.any()), z.string()]).optional(),
   whileCondition: z.string().optional(),
+  doWhileCondition: z.string().optional(),
 })
 
 const ParallelSchema = z.object({
@@ -100,6 +103,7 @@ const WorkflowStateSchema = z.object({
   lastSaved: z.number().optional(),
   isDeployed: z.boolean().optional(),
   deployedAt: z.coerce.date().optional(),
+  variables: z.any().optional(), // Workflow variables
 })
 
 /**
@@ -121,7 +125,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const userId = session.user.id
 
-    // Parse and validate request body
     const body = await request.json()
     const state = WorkflowStateSchema.parse(body)
 
@@ -164,7 +167,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             enabled: block.enabled !== undefined ? block.enabled : true,
             horizontalHandles:
               block.horizontalHandles !== undefined ? block.horizontalHandles : true,
-            isWide: block.isWide !== undefined ? block.isWide : false,
             height: block.height !== undefined ? block.height : 0,
             subBlocks: block.subBlocks || {},
             outputs: block.outputs || {},
@@ -175,11 +177,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       {} as typeof state.blocks
     )
 
+    const typedBlocks = filteredBlocks as Record<string, BlockState>
+    const canonicalLoops = generateLoopBlocks(typedBlocks)
+    const canonicalParallels = generateParallelBlocks(typedBlocks)
+
     const workflowState = {
       blocks: filteredBlocks,
       edges: state.edges,
-      loops: state.loops || {},
-      parallels: state.parallels || {},
+      loops: canonicalLoops,
+      parallels: canonicalParallels,
       lastSaved: state.lastSaved || Date.now(),
       isDeployed: state.isDeployed || false,
       deployedAt: state.deployedAt,
@@ -197,27 +203,47 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Extract and persist custom tools to database
     try {
-      const { saved, errors } = await extractAndPersistCustomTools(workflowState, userId)
+      const workspaceId = workflowData.workspaceId
+      if (workspaceId) {
+        const { saved, errors } = await extractAndPersistCustomTools(
+          workflowState,
+          workspaceId,
+          userId
+        )
 
-      if (saved > 0) {
-        logger.info(`[${requestId}] Persisted ${saved} custom tool(s) to database`, { workflowId })
-      }
+        if (saved > 0) {
+          logger.info(`[${requestId}] Persisted ${saved} custom tool(s) to database`, {
+            workflowId,
+          })
+        }
 
-      if (errors.length > 0) {
-        logger.warn(`[${requestId}] Some custom tools failed to persist`, { errors, workflowId })
+        if (errors.length > 0) {
+          logger.warn(`[${requestId}] Some custom tools failed to persist`, { errors, workflowId })
+        }
+      } else {
+        logger.warn(
+          `[${requestId}] Workflow has no workspaceId, skipping custom tools persistence`,
+          {
+            workflowId,
+          }
+        )
       }
     } catch (error) {
       logger.error(`[${requestId}] Failed to persist custom tools`, { error, workflowId })
     }
 
-    // Update workflow's lastSynced timestamp
-    await db
-      .update(workflow)
-      .set({
-        lastSynced: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(workflow.id, workflowId))
+    // Update workflow's lastSynced timestamp and variables if provided
+    const updateData: any = {
+      lastSynced: new Date(),
+      updatedAt: new Date(),
+    }
+
+    // If variables are provided in the state, update them in the workflow record
+    if (state.variables !== undefined) {
+      updateData.variables = state.variables
+    }
+
+    await db.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
 
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)

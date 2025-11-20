@@ -62,11 +62,26 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
   const isPreformattedContent =
     headers['Content-Type'] === 'application/x-ndjson' ||
     headers['Content-Type'] === 'application/x-www-form-urlencoded'
-  const body = hasBody
-    ? isPreformattedContent && typeof bodyResult === 'string'
-      ? bodyResult
-      : JSON.stringify(bodyResult)
-    : undefined
+
+  let body: string | undefined
+  if (hasBody) {
+    if (isPreformattedContent) {
+      // Check if bodyResult is a string
+      if (typeof bodyResult === 'string') {
+        body = bodyResult
+      }
+      // Check if bodyResult is an object with a 'body' property (Twilio pattern)
+      else if (bodyResult && typeof bodyResult === 'object' && 'body' in bodyResult) {
+        body = bodyResult.body
+      }
+      // Otherwise JSON stringify it
+      else {
+        body = JSON.stringify(bodyResult)
+      }
+    } else {
+      body = typeof bodyResult === 'string' ? bodyResult : JSON.stringify(bodyResult)
+    }
+  }
 
   return { url, method, headers, body }
 }
@@ -365,7 +380,22 @@ async function getCustomTool(
       url.searchParams.append('workflowId', workflowId)
     }
 
-    const response = await fetch(url.toString())
+    // For server-side calls (during workflow execution), use internal JWT token
+    const headers: Record<string, string> = {}
+    if (typeof window === 'undefined') {
+      try {
+        const { generateInternalToken } = await import('@/lib/auth/internal')
+        const internalToken = await generateInternalToken()
+        headers.Authorization = `Bearer ${internalToken}`
+      } catch (error) {
+        logger.warn('Failed to generate internal token for custom tools fetch', { error })
+        // Continue without token - will fail auth and be reported upstream
+      }
+    }
+
+    const response = await fetch(url.toString(), {
+      headers,
+    })
 
     if (!response.ok) {
       logger.error(`Failed to fetch custom tools: ${response.statusText}`)

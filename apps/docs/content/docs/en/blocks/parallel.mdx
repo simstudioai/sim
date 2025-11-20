@@ -3,36 +3,14 @@ title: Parallel
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-The Parallel block is a container block in Sim that allows you to execute multiple instances of blocks concurrently for faster workflow processing.
-
-The Parallel block supports two types of concurrent execution:
+The Parallel block is a container that executes multiple instances concurrently for faster workflow processing. Process items simultaneously instead of sequentially.
 
 <Callout type="info">
   Parallel blocks are container nodes that execute their contents multiple times simultaneously, unlike loops which execute sequentially.
 </Callout>
-
-## Overview
-
-The Parallel block enables you to:
-
-<Steps>
-  <Step>
-    <strong>Distribute work</strong>: Process multiple items concurrently
-  </Step>
-  <Step>
-    <strong>Speed up execution</strong>: Run independent operations simultaneously
-  </Step>
-  <Step>
-    <strong>Handle bulk operations</strong>: Process large datasets efficiently
-  </Step>
-  <Step>
-    <strong>Aggregate results</strong>: Collect outputs from all parallel executions
-  </Step>
-</Steps>
 
 ## Configuration Options
 
@@ -106,27 +84,15 @@ After a parallel block completes, you can access aggregated results:
 
 ## Example Use Cases
 
-### Batch API Processing
+**Batch API Processing** - Process multiple API calls simultaneously
+```
+Parallel (Collection) → API (Call Endpoint) → Function (Aggregate)
+```
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Process multiple API calls simultaneously</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Parallel block with collection of API endpoints</li>
-    <li>Inside parallel: API block calls each endpoint</li>
-    <li>After parallel: Process all responses together</li>
-  </ol>
-</div>
-
-### Multi-Model AI Processing
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Get responses from multiple AI models</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Collection-based parallel over a list of model IDs (e.g., ["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"])</li>
-    <li>Inside parallel: Agent's model is set to the current item from the collection</li>
-    <li>After parallel: Compare and select best response</li>
-  </ol>
-</div>
+**Multi-Model AI Processing** - Get responses from multiple AI models concurrently
+```
+Parallel (["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]) → Agent → Evaluator (Select Best)
+```
 
 ## Advanced Features
 
@@ -154,10 +120,6 @@ Each parallel instance runs independently:
   - You cannot place a Loop block inside a Parallel block
   - You cannot place another Parallel block inside a Parallel block
   - You cannot place any container block inside another container block
-</Callout>
-
-<Callout type="warning">
-  Parallel blocks can only contain a single block. You cannot have multiple blocks connected to each other inside a parallel - only the first block would execute in that case.
 </Callout>
 
 <Callout type="info">

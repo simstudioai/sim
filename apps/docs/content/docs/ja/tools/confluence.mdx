@@ -8,22 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="confluence"
   color="#E0E0E0"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      
-      
-      viewBox='0 3 21 24'
-      focusable='false'
-      fill='none'
-      aria-hidden='true'
-      xmlns='http://www.w3.org/2000/svg'
-    >
-      <path
-        fill='#1868DB'
-        d='M20.602 20.234c-6.584-3.183-8.507-3.66-11.281-3.66-3.255 0-6.03 1.355-8.507 5.16l-.407.622c-.333.513-.407.696-.407.915s.111.403.518.659l4.18 2.598c.221.146.406.22.591.22.222 0 .37-.11.592-.44l.666-1.024c1.035-1.574 1.96-2.086 3.144-2.086 1.035 0 2.256.293 3.772 1.025l4.365 2.049c.444.22.925.11 1.146-.403l2.072-4.537c.222-.512.074-.842-.444-1.098M1.406 12.22c6.583 3.184 8.507 3.66 11.28 3.66 3.256 0 6.03-1.354 8.508-5.16l.407-.622c.332-.512.406-.695.406-.915s-.11-.402-.518-.658L17.31 5.927c-.222-.147-.407-.22-.592-.22-.222 0-.37.11-.592.44l-.665 1.024c-1.036 1.573-1.96 2.086-3.144 2.086-1.036 0-2.257-.293-3.773-1.025L4.18 6.183c-.444-.22-.925-.11-1.147.402L.962 11.123c-.222.512-.074.841.444 1.098'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -42,7 +26,7 @@ Simでは、Confluence統合により、エージェントが組織のナレッ�
 
 ## 使用手順
 
-Confluenceをワークフローに統合します。ページの読み取りと更新が可能です。OAuthが必要です。
+Confluenceをワークフローに統合します。ページの読み取り、作成、更新、削除、コメント管理、添付ファイル管理、ラベル管理、コンテンツ検索が可能です。
 
 ## ツール
 
@@ -90,6 +74,254 @@ Confluence APIを使用してConfluenceページを更新します。
 | `pageId` | string | Confluenceページ ID |
 | `title` | string | 更新されたページタイトル |
 | `success` | boolean | 更新操作の成功ステータス |
+
+### `confluence_create_page`
+
+Confluenceスペースに新しいページを作成します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `spaceId` | string | はい | ページが作成されるConfluenceスペースID |
+| `title` | string | はい | 新しいページのタイトル |
+| `content` | string | はい | Confluenceストレージ形式（HTML）のページコンテンツ |
+| `parentId` | string | いいえ | 子ページを作成する場合の親ページID |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 作成のタイムスタンプ |
+| `pageId` | string | 作成されたページID |
+| `title` | string | ページタイトル |
+| `url` | string | ページURL |
+
+### `confluence_delete_page`
+
+Confluenceページを削除します（復元可能なゴミ箱に移動します）。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | 削除するConfluenceページID |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 削除のタイムスタンプ |
+| `pageId` | string | 削除されたページID |
+| `deleted` | boolean | 削除ステータス |
+
+### `confluence_search`
+
+Confluenceのページ、ブログ投稿、その他のコンテンツ全体を検索します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `query` | string | はい | 検索クエリ文字列 |
+| `limit` | number | いいえ | 返す結果の最大数（デフォルト：25） |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 検索のタイムスタンプ |
+| `results` | array | 検索結果 |
+
+### `confluence_create_comment`
+
+Confluenceページにコメントを追加します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | コメントするConfluenceページID |
+| `comment` | string | はい | Confluenceストレージ形式でのコメントテキスト |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 作成のタイムスタンプ |
+| `commentId` | string | 作成されたコメントID |
+| `pageId` | string | ページID |
+
+### `confluence_list_comments`
+
+Confluenceページのすべてのコメントを一覧表示します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | コメントを一覧表示するConfluenceページID |
+| `limit` | number | いいえ | 返すコメントの最大数（デフォルト：25） |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 取得のタイムスタンプ |
+| `comments` | array | コメントのリスト |
+
+### `confluence_update_comment`
+
+Confluenceページの既存のコメントを更新します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `commentId` | string | はい | 更新するConfluenceコメントID |
+| `comment` | string | はい | Confluenceストレージ形式での更新されたコメントテキスト |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 更新のタイムスタンプ |
+| `commentId` | string | 更新されたコメントID |
+| `updated` | boolean | 更新ステータス |
+
+### `confluence_delete_comment`
+
+Confluenceページからコメントを削除します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `commentId` | string | はい | 削除するConfluenceコメントID |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 削除のタイムスタンプ |
+| `commentId` | string | 削除されたコメントID |
+| `deleted` | boolean | 削除ステータス |
+
+### `confluence_list_attachments`
+
+Confluenceページのすべての添付ファイルを一覧表示します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | 添付ファイルを一覧表示するConfluenceページID |
+| `limit` | number | いいえ | 返す添付ファイルの最大数（デフォルト：25） |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 取得のタイムスタンプ |
+| `attachments` | array | 添付ファイルのリスト |
+
+### `confluence_delete_attachment`
+
+Confluenceページから添付ファイルを削除します（ゴミ箱に移動します）。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `attachmentId` | string | はい | 削除するConfluence添付ファイルID |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 削除のタイムスタンプ |
+| `attachmentId` | string | 削除された添付ファイルID |
+| `deleted` | boolean | 削除ステータス |
+
+### `confluence_list_labels`
+
+Confluenceページのすべてのラベルを一覧表示します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | ラベルを一覧表示するConfluenceページID |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 取得のタイムスタンプ |
+| `labels` | array | ラベルのリスト |
+
+### `confluence_get_space`
+
+特定のConfluenceスペースの詳細を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `spaceId` | string | はい | 取得するConfluenceスペースID |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 取得のタイムスタンプ |
+| `spaceId` | string | スペースID |
+| `name` | string | スペース名 |
+| `key` | string | スペースキー |
+| `type` | string | スペースタイプ |
+| `status` | string | スペースステータス |
+| `url` | string | スペースURL |
+
+### `confluence_list_spaces`
+
+ユーザーがアクセスできるすべてのConfluenceスペースを一覧表示します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `limit` | number | いいえ | 返すスペースの最大数（デフォルト：25） |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 取得のタイムスタンプ |
+| `spaces` | array | スペースのリスト |
 
 ## 注意事項
 

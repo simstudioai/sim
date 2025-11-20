@@ -2,124 +2,41 @@
 title: Function
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-The Function block lets you execute custom JavaScript or TypeScript code in your workflows. Use it to transform data, perform calculations, or implement custom logic that isn't available in other blocks.
+The Function block executes custom JavaScript or TypeScript code in your workflows. Transform data, perform calculations, or implement custom logic.
 
 <div className="flex justify-center">
   <Image
     src="/static/blocks/function.png"
     alt="Function Block with Code Editor"
     width={500}
-    height={350}
+    height={400}
     className="my-6"
   />
 </div>
 
-## Overview
+## Outputs
 
-The Function block enables you to:
-
-<Steps>
-  <Step>
-    <strong>Transform data</strong>: Convert formats, parse text, manipulate arrays and objects
-  </Step>
-  <Step>
-    <strong>Perform calculations</strong>: Math operations, statistics, financial calculations
-  </Step>
-  <Step>
-    <strong>Implement custom logic</strong>: Complex conditionals, loops, and algorithms
-  </Step>
-  <Step>
-    <strong>Process external data</strong>: Parse responses, format requests, handle authentication
-  </Step>
-</Steps>
-
-## How It Works
-
-The Function block runs your code in a secure, isolated environment:
-
-1. **Receive Input**: Access data from previous blocks via the `input` object
-2. **Execute Code**: Run your JavaScript/Python code 
-3. **Return Results**: Use `return` to pass data to the next block
-4. **Handle Errors**: Built-in error handling and logging
-
-## Remote Execution (E2B)
-
-  - **Languages**: Run JavaScript and Python in an isolated E2B sandbox.
-  - **How to enable**: Toggle “Remote Code Execution” in the Function block.
-  - **When to use**: Heavier logic, external libraries, or Python-specific code.
-  - **Performance**: Slower than local JS due to sandbox startup and network overhead.
-  - **Notes**: Requires `E2B_API_KEY` if running locally. For lowest latency, use natively local JS (Fast Mode).
-
-## Inputs and Outputs
-
-<Tabs items={['Configuration', 'Variables']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Code</strong>: Your JavaScript/Python code to execute
-      </li>
-      <li>
-        <strong>Timeout</strong>: Maximum execution time (defaults to 30 seconds)
-      </li>
-      <li>
-        <strong>Input Data</strong>: All connected block outputs available via variables
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>function.result</strong>: The value returned from your function
-      </li>
-      <li>
-        <strong>function.stdout</strong>: Console.log() output from your code
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<function.result>`**: The value returned from your function
+- **`<function.stdout>`**: Console.log() output from your code
 
 ## Example Use Cases
 
-### Data Processing Pipeline
+**Data Processing Pipeline** - Transform API response into structured data
+```
+API (Fetch) → Function (Process & Validate) → Function (Calculate Metrics) → Response
+```
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Transform API response into structured data</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>API block fetches raw customer data</li>
-    <li>Function block processes and validates data</li>
-    <li>Function block calculates derived metrics</li>
-    <li>Response block returns formatted results</li>
-  </ol>
-</div>
+**Business Logic Implementation** - Calculate loyalty scores and tiers
+```
+Agent (Get History) → Function (Calculate Score) → Function (Determine Tier) → Condition (Route)
+```
 
-### Business Logic Implementation
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Calculate loyalty scores and tiers</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Agent retrieves customer purchase history</li>
-    <li>Function block calculates loyalty metrics</li>
-    <li>Function block determines customer tier</li>
-    <li>Condition block routes based on tier level</li>
-  </ol>
-</div>
-
-### Data Validation and Sanitization
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Validate and clean user input</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>User input received from form submission</li>
-    <li>Function block validates email format and phone numbers</li>
-    <li>Function block sanitizes and normalizes data</li>
-    <li>API block saves validated data to database</li>
-  </ol>
-</div>
+**Data Validation and Sanitization** - Validate and clean user input
+```
+Input → Function (Validate & Sanitize) → API (Save to Database)
+```
 
 ### Example: Loyalty Score Calculator
 

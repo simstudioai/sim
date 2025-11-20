@@ -56,7 +56,6 @@ describe('Function Execute Tool', () => {
         blockNameMapping: {},
         isCustomTool: false,
         language: 'javascript',
-        useLocalVM: false,
         timeout: 5000,
         workflowId: undefined,
       })
@@ -84,7 +83,6 @@ describe('Function Execute Tool', () => {
         blockNameMapping: {},
         isCustomTool: false,
         language: 'javascript',
-        useLocalVM: false,
         workflowId: undefined,
       })
     })
@@ -103,7 +101,6 @@ describe('Function Execute Tool', () => {
         blockNameMapping: {},
         isCustomTool: false,
         language: 'javascript',
-        useLocalVM: false,
         workflowId: undefined,
       })
     })

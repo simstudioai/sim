@@ -9,6 +9,7 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
   name: 'Write to Microsoft Teams Chat',
   description: 'Write or update content in a Microsoft Teams chat',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
   oauth: {
     required: true,
     provider: 'microsoft-teams',
@@ -62,6 +63,12 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
         return '/api/tools/microsoft_teams/write_chat'
       }
 
+      // If content contains mentions, use custom API route for mention resolution
+      const hasMentions = /<at>[^<]+<\/at>/i.test(params.content || '')
+      if (hasMentions) {
+        return '/api/tools/microsoft_teams/write_chat'
+      }
+
       return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages`
     },
     method: 'POST',
@@ -82,13 +89,22 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
         throw new Error('Content is required')
       }
 
-      // If using custom API route (with files), pass all params
+      // If using custom API route (with files or mentions), pass all params
+      const hasMentions = /<at>[^<]+<\/at>/i.test(params.content || '')
       if (params.files && params.files.length > 0) {
         return {
           accessToken: params.accessToken,
           chatId: params.chatId,
           content: params.content,
           files: params.files,
+        }
+      }
+
+      if (hasMentions) {
+        return {
+          accessToken: params.accessToken,
+          chatId: params.chatId,
+          content: params.content,
         }
       }
 

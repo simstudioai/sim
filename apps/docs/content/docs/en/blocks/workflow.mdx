@@ -12,8 +12,8 @@ import { Image } from '@/components/ui/image'
   <Image
     src='/static/blocks/workflow.png'
     alt='Workflow block configuration'
-    width={400}
-    height={280}
+    width={500}
+    height={400}
     className='rounded-xl border border-border shadow-sm'
   />
 </div>
@@ -23,11 +23,34 @@ Drop a Workflow block when you want to call a child workflow as part of a larger
 ## Configure It
 
 1. **Pick a workflow** from the dropdown (self-references are blocked to prevent loops).
-2. **Map inputs**: If the child workflow has an Input Form trigger, you’ll see each field and can connect parent variables. The mapped values are what the child receives.
+2. **Map inputs**: If the child workflow has an Input Form trigger, you'll see each field and can connect parent variables. The mapped values are what the child receives.
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/blocks/workflow-2.png'
+    alt='Workflow block with input mapping example'
+    width={700}
+    height={400}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
 3. **Outputs**: After the child finishes, the block exposes:
-   - `result` – the child workflow’s final response
+   - `result` – the child workflow's final response
    - `success` – whether it ran without errors
    - `error` – message when the run fails
+
+## Deployment Status Badge
+
+The Workflow block displays a deployment status badge to help you track whether the child workflow is ready to execute:
+
+- **Deployed** – The child workflow has been deployed and is ready to use. The block will execute the current deployed version.
+- **Undeployed** – The child workflow has never been deployed. You must deploy it before the Workflow block can execute it.
+- **Redeploy** – Changes have been detected in the child workflow since the last deployment. Click the badge to redeploy the child workflow with the latest changes.
+
+<Callout type="warn">
+The Workflow block always executes the most recent deployed version of the child workflow, not the editor version. Make sure to redeploy after making changes to ensure the block uses the latest logic.
+</Callout>
 
 ## Execution Notes
 

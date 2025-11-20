@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button, Label } from '@/components/emcn'
+import { Button as UIButton } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import {
   DropdownMenu,
@@ -10,9 +11,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Label } from '@/components/ui/label'
 import { getEnv, isTruthy } from '@/lib/env'
-import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components/output-select/output-select'
+import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 
 interface ExampleCommandProps {
   command: string
@@ -147,46 +147,31 @@ export function ExampleCommand({
           {showLabel && <Label className='font-medium text-sm'>Example</Label>}
           <div className='flex items-center gap-1'>
             <Button
-              variant='outline'
-              size='sm'
+              variant={mode === 'sync' ? 'active' : 'default'}
               onClick={() => setMode('sync')}
-              className={`h-6 min-w-[50px] px-2 py-1 text-xs transition-none ${
-                mode === 'sync'
-                  ? 'border-primary bg-primary text-primary-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground'
-                  : ''
-              }`}
+              className='h-6 min-w-[50px] px-2 py-1 text-xs'
             >
               Sync
             </Button>
             <Button
-              variant='outline'
-              size='sm'
+              variant={mode === 'stream' ? 'active' : 'default'}
               onClick={() => setMode('stream')}
-              className={`h-6 min-w-[50px] px-2 py-1 text-xs transition-none ${
-                mode === 'stream'
-                  ? 'border-primary bg-primary text-primary-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground'
-                  : ''
-              }`}
+              className='h-6 min-w-[50px] px-2 py-1 text-xs'
             >
               Stream
             </Button>
             {isAsyncEnabled && (
               <>
                 <Button
-                  variant='outline'
-                  size='sm'
+                  variant={mode === 'async' ? 'active' : 'default'}
                   onClick={() => setMode('async')}
-                  className={`h-6 min-w-[50px] px-2 py-1 text-xs transition-none ${
-                    mode === 'async'
-                      ? 'border-primary bg-primary text-primary-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground'
-                      : ''
-                  }`}
+                  className='h-6 min-w-[50px] px-2 py-1 text-xs'
                 >
                   Async
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button
+                    <UIButton
                       variant='outline'
                       size='sm'
                       className='h-6 min-w-[140px] justify-between px-2 py-1 text-xs'
@@ -194,9 +179,9 @@ export function ExampleCommand({
                     >
                       <span className='truncate'>{getExampleTitle()}</span>
                       <ChevronDown className='ml-1 h-3 w-3 flex-shrink-0' />
-                    </Button>
+                    </UIButton>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align='end'>
+                  <DropdownMenuContent align='end' className='z-[10000050]'>
                     <DropdownMenuItem
                       className='cursor-pointer'
                       onClick={() => setExampleType('execute')}

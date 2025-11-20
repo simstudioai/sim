@@ -1,9 +1,16 @@
 import { db } from '@sim/db'
-import { permissions } from '@sim/db/schema'
+import { permissions, workspace } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console/logger'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
+
+const logger = createLogger('WorkspaceMemberAPI')
+const deleteMemberSchema = z.object({
+  workspaceId: z.string().uuid(),
+})
 
 // DELETE /api/workspaces/members/[id] - Remove a member from a workspace
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -16,11 +23,24 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   try {
     // Get the workspace ID from the request body or URL
-    const body = await req.json()
-    const workspaceId = body.workspaceId
+    const body = deleteMemberSchema.parse(await req.json())
+    const { workspaceId } = body
 
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
+    const workspaceRow = await db
+      .select({ billedAccountUserId: workspace.billedAccountUserId })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+      .limit(1)
+
+    if (!workspaceRow.length) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    }
+
+    if (workspaceRow[0].billedAccountUserId === userId) {
+      return NextResponse.json(
+        { error: 'Cannot remove the workspace billing account. Please reassign billing first.' },
+        { status: 400 }
+      )
     }
 
     // Check if the user to be removed actually has permissions for this workspace
@@ -83,7 +103,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error removing workspace member:', error)
+    logger.error('Error removing workspace member:', error)
     return NextResponse.json({ error: 'Failed to remove workspace member' }, { status: 500 })
   }
 }

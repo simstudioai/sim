@@ -1,0 +1,141 @@
+---
+title: Asana
+description: 与 Asana 互动
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="asana"
+  color="#E0E0E0"
+/>
+
+## 使用说明
+
+将 Asana 集成到工作流程中。可以读取、写入和更新任务。
+
+## 工具
+
+### `asana_get_task`
+
+通过 GID 检索单个任务或使用筛选器获取多个任务
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | 否 | 任务的全局唯一标识符 \(GID\)。如果未提供，将获取多个任务。 |
+| `workspace` | string | 否 | 用于筛选任务的工作区 GID \(未使用 taskGid 时必需\) |
+| `project` | string | 否 | 用于筛选任务的项目 GID |
+| `limit` | number | 否 | 返回的最大任务数 \(默认值：50\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 单个任务详情或任务数组，取决于是否提供了 taskGid |
+
+### `asana_create_task`
+
+在 Asana 中创建一个新任务
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | 是 | 创建任务的工作区 GID |
+| `name` | string | 是 | 任务名称 |
+| `notes` | string | 否 | 任务的备注或描述 |
+| `assignee` | string | 否 | 分配任务的用户 GID |
+| `due_on` | string | 否 | 以 YYYY-MM-DD 格式的截止日期 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 包含时间戳、gid、名称、备注和永久链接的已创建任务详情 |
+
+### `asana_update_task`
+
+更新 Asana 中的现有任务
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | 是 | 要更新任务的全局唯一标识符 \(GID\) |
+| `name` | string | 否 | 更新后的任务名称 |
+| `notes` | string | 否 | 更新后的备注或描述 |
+| `assignee` | string | 否 | 更新后的分配用户 GID |
+| `completed` | boolean | 否 | 将任务标记为已完成或未完成 |
+| `due_on` | string | 否 | 更新后的截止日期，格式为 YYYY-MM-DD |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的任务详情，包括时间戳、gid、名称、备注和修改时间戳 |
+
+### `asana_get_projects`
+
+从 Asana 工作区检索所有项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | 是 | 要从中检索项目的工作区 GID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 项目列表，包括它们的 gid、名称和资源类型 |
+
+### `asana_search_tasks`
+
+在 Asana 工作区中搜索任务
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | 是 | 要搜索任务的工作区 GID |
+| `text` | string | 否 | 在任务名称中搜索的文本 |
+| `assignee` | string | 否 | 按分配用户 GID 筛选任务 |
+| `projects` | array | 否 | 按项目 GID 数组筛选任务 |
+| `completed` | boolean | 否 | 按完成状态筛选 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 符合搜索条件的任务列表 |
+
+### `asana_add_comment`
+
+向 Asana 任务添加评论（故事）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | 是 | 任务的全局唯一标识符 \(GID\) |
+| `text` | string | 是 | 评论的文本内容 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 评论详情，包括 gid、文本、创建时间戳和作者 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`asana`

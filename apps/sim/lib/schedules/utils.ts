@@ -142,14 +142,6 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
 
   const cronExpression = getSubBlockValue(starterBlock, 'cronExpression') || null
 
-  // Validate cron expression if provided
-  if (cronExpression) {
-    const validation = validateCronExpression(cronExpression)
-    if (!validation.isValid) {
-      throw new Error(`Invalid cron expression: ${validation.error}`)
-    }
-  }
-
   return {
     scheduleTime,
     scheduleStartAt,

@@ -8,22 +8,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="confluence"
   color="#E0E0E0"
-  icon={true}
-  iconSvg={`<svg className="block-icon"
-      
-      
-      
-      viewBox='0 3 21 24'
-      focusable='false'
-      fill='none'
-      aria-hidden='true'
-      xmlns='http://www.w3.org/2000/svg'
-    >
-      <path
-        fill='#1868DB'
-        d='M20.602 20.234c-6.584-3.183-8.507-3.66-11.281-3.66-3.255 0-6.03 1.355-8.507 5.16l-.407.622c-.333.513-.407.696-.407.915s.111.403.518.659l4.18 2.598c.221.146.406.22.591.22.222 0 .37-.11.592-.44l.666-1.024c1.035-1.574 1.96-2.086 3.144-2.086 1.035 0 2.256.293 3.772 1.025l4.365 2.049c.444.22.925.11 1.146-.403l2.072-4.537c.222-.512.074-.842-.444-1.098M1.406 12.22c6.583 3.184 8.507 3.66 11.28 3.66 3.256 0 6.03-1.354 8.508-5.16l.407-.622c.332-.512.406-.695.406-.915s-.11-.402-.518-.658L17.31 5.927c-.222-.147-.407-.22-.592-.22-.222 0-.37.11-.592.44l-.665 1.024c-1.036 1.573-1.96 2.086-3.144 2.086-1.036 0-2.257-.293-3.773-1.025L4.18 6.183c-.444-.22-.925-.11-1.147.402L.962 11.123c-.222.512-.074.841.444 1.098'
-      />
-    </svg>`}
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -41,7 +25,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 Confluence 集成到工作流程中。可以读取和更新页面。需要 OAuth。
+将 Confluence 集成到工作流程中。可以读取、创建、更新、删除页面，管理评论、附件、标签，并搜索内容。
 
 ## 工具
 
@@ -89,6 +73,254 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `pageId` | string | Confluence 页面 ID |
 | `title` | string | 更新的页面标题 |
 | `success` | boolean | 更新操作的成功状态 |
+
+### `confluence_create_page`
+
+在 Confluence 空间中创建新页面。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `spaceId` | string | 是 | 创建页面的 Confluence 空间 ID |
+| `title` | string | 是 | 新页面的标题 |
+| `content` | string | 是 | 页面内容（以 Confluence 存储格式 \(HTML\)） |
+| `parentId` | string | 否 | 如果创建子页面，则为父页面 ID |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 创建的时间戳 |
+| `pageId` | string | 创建的页面 ID |
+| `title` | string | 页面标题 |
+| `url` | string | 页面 URL |
+
+### `confluence_delete_page`
+
+删除 Confluence 页面（将其移至回收站，可从回收站恢复）。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `pageId` | string | 是 | 要删除的 Confluence 页面 ID |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 删除的时间戳 |
+| `pageId` | string | 已删除的页面 ID |
+| `deleted` | boolean | 删除状态 |
+
+### `confluence_search`
+
+在 Confluence 页面、博客文章和其他内容中搜索内容。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `query` | string | 是 | 搜索查询字符串 |
+| `limit` | number | 否 | 返回的最大结果数 \(默认值：25\) |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 搜索的时间戳 |
+| `results` | array | 搜索结果 |
+
+### `confluence_create_comment`
+
+向 Confluence 页面添加评论。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `pageId` | string | 是 | 要评论的 Confluence 页面 ID |
+| `comment` | string | 是 | 以 Confluence 存储格式编写的评论文本 |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 创建的时间戳 |
+| `commentId` | string | 创建的评论 ID |
+| `pageId` | string | 页面 ID |
+
+### `confluence_list_comments`
+
+列出 Confluence 页面上的所有评论。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `pageId` | string | 是 | 要列出评论的 Confluence 页面 ID |
+| `limit` | number | 否 | 返回的最大评论数 \(默认值：25\) |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 检索的时间戳 |
+| `comments` | array | 评论列表 |
+
+### `confluence_update_comment`
+
+更新 Confluence 页面上的现有评论。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `commentId` | string | 是 | 要更新的 Confluence 评论 ID |
+| `comment` | string | 是 | 更新后的评论文本（以 Confluence 存储格式） |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 更新的时间戳 |
+| `commentId` | string | 更新的评论 ID |
+| `updated` | boolean | 更新状态 |
+
+### `confluence_delete_comment`
+
+从 Confluence 页面删除评论。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `commentId` | string | 是 | 要删除的 Confluence 评论 ID |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 删除的时间戳 |
+| `commentId` | string | 删除的评论 ID |
+| `deleted` | boolean | 删除状态 |
+
+### `confluence_list_attachments`
+
+列出 Confluence 页面上的所有附件。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `pageId` | string | 是 | 要列出附件的 Confluence 页面 ID |
+| `limit` | number | 否 | 返回的附件最大数量 \(默认值：25\) |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 检索的时间戳 |
+| `attachments` | array | 附件列表 |
+
+### `confluence_delete_attachment`
+
+从 Confluence 页面删除附件（移至回收站）。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `attachmentId` | string | 是 | 要删除的 Confluence 附件 ID |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 删除的时间戳 |
+| `attachmentId` | string | 已删除的附件 ID |
+| `deleted` | boolean | 删除状态 |
+
+### `confluence_list_labels`
+
+列出 Confluence 页面上的所有标签。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `pageId` | string | 是 | 要列出标签的 Confluence 页面 ID |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 检索的时间戳 |
+| `labels` | array | 标签列表 |
+
+### `confluence_get_space`
+
+获取特定 Confluence 空间的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `spaceId` | string | 是 | 要检索的 Confluence 空间 ID |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 检索的时间戳 |
+| `spaceId` | string | 空间 ID |
+| `name` | string | 空间名称 |
+| `key` | string | 空间键值 |
+| `type` | string | 空间类型 |
+| `status` | string | 空间状态 |
+| `url` | string | 空间 URL |
+
+### `confluence_list_spaces`
+
+列出用户可访问的所有 Confluence 空间。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `limit` | number | 否 | 返回的最大空间数量 \(默认值：25\) |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 检索的时间戳 |
+| `spaces` | array | 空间列表 |
 
 ## 注意事项
 
