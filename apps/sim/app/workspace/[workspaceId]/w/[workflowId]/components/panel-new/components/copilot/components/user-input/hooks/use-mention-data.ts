@@ -118,7 +118,11 @@ export function useMentionData(props: UseMentionDataProps) {
 
   // Use workflow registry as source of truth for workflows
   const registryWorkflows = useWorkflowRegistry((state) => state.workflows)
-  const isLoadingWorkflows = useWorkflowRegistry((state) => state.isLoading)
+  const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
+  const isLoadingWorkflows =
+    hydrationPhase === 'idle' ||
+    hydrationPhase === 'metadata-loading' ||
+    hydrationPhase === 'state-loading'
 
   // Convert registry workflows to mention format, filtered by workspace and sorted
   const workflows: WorkflowItem[] = Object.values(registryWorkflows)
