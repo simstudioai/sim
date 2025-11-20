@@ -43,7 +43,9 @@ async function fetchWorkflows(workspaceId: string): Promise<WorkflowMetadata[]> 
 }
 
 export function useWorkflows(workspaceId?: string) {
-  const setWorkflows = useWorkflowRegistry((state) => state.setWorkflows)
+  const beginMetadataLoad = useWorkflowRegistry((state) => state.beginMetadataLoad)
+  const completeMetadataLoad = useWorkflowRegistry((state) => state.completeMetadataLoad)
+  const failMetadataLoad = useWorkflowRegistry((state) => state.failMetadataLoad)
 
   const query = useQuery({
     queryKey: workflowKeys.list(workspaceId),
@@ -54,10 +56,24 @@ export function useWorkflows(workspaceId?: string) {
   })
 
   useEffect(() => {
-    if (query.data) {
-      setWorkflows(query.data)
+    if (workspaceId && query.status === 'pending') {
+      beginMetadataLoad(workspaceId)
     }
-  }, [query.data, setWorkflows])
+  }, [workspaceId, query.status, beginMetadataLoad])
+
+  useEffect(() => {
+    if (workspaceId && query.status === 'success' && query.data) {
+      completeMetadataLoad(workspaceId, query.data)
+    }
+  }, [workspaceId, query.status, query.data, completeMetadataLoad])
+
+  useEffect(() => {
+    if (workspaceId && query.status === 'error') {
+      const message =
+        query.error instanceof Error ? query.error.message : 'Failed to fetch workflows'
+      failMetadataLoad(workspaceId, message)
+    }
+  }, [workspaceId, query.status, query.error, failMetadataLoad])
 
   return query
 }
