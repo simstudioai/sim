@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process'
+import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -10,26 +11,53 @@ import type {
   AudioMetadata,
 } from '@/lib/audio/types'
 
-// Set ffmpeg binary path with fallback to system ffmpeg
-try {
-  if (ffmpegStatic && typeof ffmpegStatic === 'string') {
-    ffmpeg.setFfmpegPath(ffmpegStatic)
-  } else {
-    // Try to find system ffmpeg
-    try {
-      const systemFfmpeg = execSync('which ffmpeg', { encoding: 'utf-8' }).trim()
-      if (systemFfmpeg) {
-        ffmpeg.setFfmpegPath(systemFfmpeg)
-        console.log('[FFmpeg] Using system ffmpeg:', systemFfmpeg)
-      }
-    } catch {
-      console.warn(
-        '[FFmpeg] ffmpeg-static not available and system ffmpeg not found. Please install ffmpeg: brew install ffmpeg (macOS) or apt-get install ffmpeg (Linux)'
+let ffmpegInitialized = false
+let ffmpegPath: string | null = null
+
+/**
+ * Lazy initialization of FFmpeg - only runs when needed, not at module load
+ */
+function ensureFfmpeg(): void {
+  if (ffmpegInitialized) {
+    if (!ffmpegPath) {
+      throw new Error(
+        'FFmpeg not found. Install: brew install ffmpeg (macOS) / apk add ffmpeg (Alpine) / apt-get install ffmpeg (Ubuntu)'
       )
     }
+    return
   }
-} catch (error) {
-  console.warn('[FFmpeg] Failed to set ffmpeg path:', error)
+
+  ffmpegInitialized = true
+
+  // Try ffmpeg-static binary
+  if (ffmpegStatic && typeof ffmpegStatic === 'string') {
+    try {
+      fsSync.accessSync(ffmpegStatic, fsSync.constants.X_OK)
+      ffmpegPath = ffmpegStatic
+      ffmpeg.setFfmpegPath(ffmpegPath)
+      console.log('[FFmpeg] Using ffmpeg-static:', ffmpegPath)
+      return
+    } catch {
+      // Binary doesn't exist or not executable
+    }
+  }
+
+  // Try system ffmpeg (cross-platform)
+  try {
+    const cmd = process.platform === 'win32' ? 'where ffmpeg' : 'which ffmpeg'
+    const result = execSync(cmd, { encoding: 'utf-8' }).trim()
+    // On Windows, 'where' returns multiple paths - take first
+    ffmpegPath = result.split('\n')[0]
+    ffmpeg.setFfmpegPath(ffmpegPath)
+    console.log('[FFmpeg] Using system ffmpeg:', ffmpegPath)
+    return
+  } catch {
+    // System ffmpeg not found
+  }
+
+  // No FFmpeg found - set flag but don't throw yet
+  // Error will be thrown when user tries to use video extraction
+  console.warn('[FFmpeg] No FFmpeg binary found at module load time')
 }
 
 /**
@@ -40,6 +68,8 @@ export async function extractAudioFromVideo(
   mimeType: string,
   options: AudioExtractionOptions = {}
 ): Promise<AudioExtractionResult> {
+  // Initialize FFmpeg on first use
+  ensureFfmpeg()
   const isVideo = mimeType.startsWith('video/')
   const isAudio = mimeType.startsWith('audio/')
 
@@ -152,6 +182,7 @@ async function convertAudioWithFFmpeg(
  * Get audio metadata using ffprobe
  */
 export async function getAudioMetadata(buffer: Buffer, mimeType: string): Promise<AudioMetadata> {
+  ensureFfmpeg() // Initialize FFmpeg/ffprobe
   const tempDir = os.tmpdir()
   const inputExt = getExtensionFromMimeType(mimeType)
   const inputFile = path.join(tempDir, `ffprobe-input-${Date.now()}.${inputExt}`)
@@ -176,6 +207,7 @@ export async function getAudioMetadata(buffer: Buffer, mimeType: string): Promis
  * Get audio metadata from a file path using ffprobe
  */
 async function getAudioMetadataFromFile(filePath: string): Promise<AudioMetadata> {
+  ensureFfmpeg() // Initialize FFmpeg/ffprobe
   return new Promise((resolve, reject) => {
     ffmpeg.ffprobe(filePath, (err, metadata) => {
       if (err) {
