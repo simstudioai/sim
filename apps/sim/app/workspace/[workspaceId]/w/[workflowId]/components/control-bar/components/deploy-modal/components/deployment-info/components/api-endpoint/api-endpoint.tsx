@@ -1,7 +1,7 @@
 'use client'
 
+import { Label } from '@/components/emcn'
 import { CopyButton } from '@/components/ui/copy-button'
-import { Label } from '@/components/ui/label'
 
 interface ApiEndpointProps {
   endpoint: string

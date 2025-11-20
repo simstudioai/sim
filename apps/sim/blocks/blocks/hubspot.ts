@@ -824,12 +824,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
         }
 
         if (propertiesToSet) {
-          try {
-            cleanParams.properties =
-              typeof propertiesToSet === 'string' ? JSON.parse(propertiesToSet) : propertiesToSet
-          } catch (error) {
-            throw new Error('Invalid JSON in properties field')
-          }
+          cleanParams.properties = propertiesToSet
         }
 
         if (properties && !searchProperties) {
@@ -837,29 +832,15 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
         }
 
         if (searchProperties) {
-          try {
-            cleanParams.properties =
-              typeof searchProperties === 'string' ? JSON.parse(searchProperties) : searchProperties
-          } catch (error) {
-            throw new Error('Invalid JSON in searchProperties field')
-          }
+          cleanParams.properties = searchProperties
         }
 
         if (filterGroups) {
-          try {
-            cleanParams.filterGroups =
-              typeof filterGroups === 'string' ? JSON.parse(filterGroups) : filterGroups
-          } catch (error) {
-            throw new Error('Invalid JSON in filterGroups field')
-          }
+          cleanParams.filterGroups = filterGroups
         }
 
         if (sorts) {
-          try {
-            cleanParams.sorts = typeof sorts === 'string' ? JSON.parse(sorts) : sorts
-          } catch (error) {
-            throw new Error('Invalid JSON in sorts field')
-          }
+          cleanParams.sorts = sorts
         }
 
         if (associations) {

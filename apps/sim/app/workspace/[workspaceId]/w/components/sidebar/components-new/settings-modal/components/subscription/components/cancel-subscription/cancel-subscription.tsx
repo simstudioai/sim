@@ -3,16 +3,14 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+  Button,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/emcn'
 import { useSession, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getSubscriptionStatus } from '@/lib/subscription/helpers'
@@ -235,25 +233,25 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
         </Button>
       </div>
 
-      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
+      <Modal open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>
               {isCancelAtPeriodEnd ? 'Restore' : 'Cancel'} {subscription.plan} subscription?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
+            </ModalTitle>
+            <ModalDescription>
               {isCancelAtPeriodEnd
                 ? 'Your subscription is set to cancel at the end of the billing period. Would you like to keep your subscription active?'
                 : `You'll be redirected to Stripe to manage your subscription. You'll keep access until ${formatDate(
                     periodEndDate
                   )}, then downgrade to free plan.`}{' '}
               {!isCancelAtPeriodEnd && (
-                <span className='text-red-500 dark:text-red-500'>
+                <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
                   This action cannot be undone.
                 </span>
               )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+            </ModalDescription>
+          </ModalHeader>
 
           {!isCancelAtPeriodEnd && (
             <div className='py-2'>
@@ -268,41 +266,42 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
             </div>
           )}
 
-          <AlertDialogFooter className='flex'>
-            <AlertDialogCancel
-              className='h-9 w-full rounded-[8px]'
+          <ModalFooter>
+            <Button
+              variant='outline'
+              className='h-[32px] px-[12px]'
               onClick={isCancelAtPeriodEnd ? () => setIsDialogOpen(false) : handleKeep}
               disabled={isLoading}
             >
               {isCancelAtPeriodEnd ? 'Cancel' : 'Keep Subscription'}
-            </AlertDialogCancel>
+            </Button>
 
             {(() => {
               const subscriptionStatus = currentSubscriptionStatus
               if (subscriptionStatus.isPaid && isCancelAtPeriodEnd) {
                 return (
-                  <AlertDialogAction
+                  <Button
                     onClick={handleKeep}
-                    className='h-9 w-full rounded-[8px] bg-green-500 text-white transition-all duration-200 hover:bg-green-600 dark:bg-green-500 dark:hover:bg-green-600'
+                    className='h-[32px] bg-green-500 px-[12px] text-white hover:bg-green-600 dark:bg-green-500 dark:hover:bg-green-600'
                     disabled={isLoading}
                   >
                     {isLoading ? 'Restoring...' : 'Restore Subscription'}
-                  </AlertDialogAction>
+                  </Button>
                 )
               }
               return (
-                <AlertDialogAction
+                <Button
                   onClick={handleCancel}
-                  className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+                  className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
                   disabled={isLoading}
                 >
                   {isLoading ? 'Redirecting...' : 'Continue'}
-                </AlertDialogAction>
+                </Button>
               )
             })()}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </>
   )
 }

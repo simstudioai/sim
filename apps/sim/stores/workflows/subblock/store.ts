@@ -115,9 +115,6 @@ export const useSubBlockStore = create<SubBlockStore>()(
         },
       }))
 
-      const originalActiveWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-      useWorkflowRegistry.setState({ activeWorkflowId: workflowId })
-
       Object.entries(blocks).forEach(([blockId, block]) => {
         const blockConfig = getBlock(block.type)
         if (!blockConfig) return
@@ -159,10 +156,6 @@ export const useSubBlockStore = create<SubBlockStore>()(
           }
         }
       })
-
-      if (originalActiveWorkflowId !== workflowId) {
-        useWorkflowRegistry.setState({ activeWorkflowId: originalActiveWorkflowId })
-      }
     },
   }))
 )

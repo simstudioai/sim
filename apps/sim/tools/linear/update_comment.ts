@@ -24,7 +24,7 @@ export const linearUpdateCommentTool: ToolConfig<
     },
     body: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'New comment text (supports Markdown)',
     },
@@ -42,8 +42,13 @@ export const linearUpdateCommentTool: ToolConfig<
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-    body: (params) => ({
-      query: `
+    body: (params) => {
+      const input: Record<string, any> = {}
+
+      if (params.body != null && params.body !== '') input.body = params.body
+
+      return {
+        query: `
         mutation UpdateComment($id: String!, $input: CommentUpdateInput!) {
           commentUpdate(id: $id, input: $input) {
             success
@@ -61,13 +66,12 @@ export const linearUpdateCommentTool: ToolConfig<
           }
         }
       `,
-      variables: {
-        id: params.commentId,
-        input: {
-          body: params.body,
+        variables: {
+          id: params.commentId,
+          input,
         },
-      },
-    }),
+      }
+    },
   },
 
   transformResponse: async (response) => {

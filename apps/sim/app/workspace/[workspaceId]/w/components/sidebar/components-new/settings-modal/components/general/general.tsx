@@ -27,6 +27,8 @@ const TOOLTIPS = {
     'Show training controls for recording workflow edits to build copilot training datasets.',
   superUserMode:
     'Toggle super user mode UI. When enabled, you can see and approve pending templates. Your super user status in the database remains unchanged.',
+  errorNotifications:
+    'Show error notifications when blocks fail. When disabled, errors will only appear in the console.',
 }
 
 export function General() {
@@ -108,6 +110,12 @@ export function General() {
   const handleTrainingControlsChange = async (checked: boolean) => {
     if (checked !== settings?.showTrainingControls && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'showTrainingControls', value: checked })
+    }
+  }
+
+  const handleErrorNotificationsChange = async (checked: boolean) => {
+    if (checked !== settings?.errorNotificationsEnabled && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({ key: 'errorNotificationsEnabled', value: checked })
     }
   }
 
@@ -212,7 +220,8 @@ export function General() {
           />
         </div>
 
-        <div className='flex items-center justify-between'>
+        {/* TODO: Add floating controls back when we implement the new UI for it */}
+        {/* <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
             <Label htmlFor='floating-controls' className='font-normal'>
               Floating controls
@@ -238,6 +247,36 @@ export function General() {
             id='floating-controls'
             checked={settings?.showFloatingControls ?? true}
             onCheckedChange={handleFloatingControlsChange}
+            disabled={updateSetting.isPending}
+          />
+        </div> */}
+
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-2'>
+            <Label htmlFor='error-notifications' className='font-normal'>
+              Error notifications
+            </Label>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='h-7 p-1 text-gray-500'
+                  aria-label='Learn more about error notifications'
+                  disabled={updateSetting.isPending}
+                >
+                  <Info className='h-5 w-5' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top' className='max-w-[300px] p-3'>
+                <p className='text-sm'>{TOOLTIPS.errorNotifications}</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          </div>
+          <Switch
+            id='error-notifications'
+            checked={settings?.errorNotificationsEnabled ?? true}
+            onCheckedChange={handleErrorNotificationsChange}
             disabled={updateSetting.isPending}
           />
         </div>

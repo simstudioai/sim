@@ -12,7 +12,7 @@ export interface FileAttachment {
 }
 
 export interface MessageContent {
-  type: 'text' | 'image' | 'document'
+  type: 'text' | 'image' | 'document' | 'audio' | 'video'
   text?: string
   source?: {
     type: 'base64'
@@ -24,7 +24,7 @@ export interface MessageContent {
 /**
  * Mapping of MIME types to content types
  */
-export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document'> = {
+export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 'video'> = {
   // Images
   'image/jpeg': 'image',
   'image/jpg': 'image',
@@ -49,12 +49,40 @@ export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document'> = {
   'application/vnd.ms-powerpoint': 'document', // .ppt
   'text/markdown': 'document',
   'application/rtf': 'document',
+
+  // Audio
+  'audio/mpeg': 'audio', // .mp3
+  'audio/mp3': 'audio',
+  'audio/mp4': 'audio', // .m4a
+  'audio/x-m4a': 'audio',
+  'audio/m4a': 'audio',
+  'audio/wav': 'audio',
+  'audio/wave': 'audio',
+  'audio/x-wav': 'audio',
+  'audio/webm': 'audio',
+  'audio/ogg': 'audio',
+  'audio/vorbis': 'audio',
+  'audio/flac': 'audio',
+  'audio/x-flac': 'audio',
+  'audio/aac': 'audio',
+  'audio/x-aac': 'audio',
+  'audio/opus': 'audio',
+
+  // Video
+  'video/mp4': 'video',
+  'video/mpeg': 'video',
+  'video/quicktime': 'video', // .mov
+  'video/x-quicktime': 'video',
+  'video/x-msvideo': 'video', // .avi
+  'video/avi': 'video',
+  'video/x-matroska': 'video', // .mkv
+  'video/webm': 'video',
 }
 
 /**
  * Get the content type for a given MIME type
  */
-export function getContentType(mimeType: string): 'image' | 'document' | null {
+export function getContentType(mimeType: string): 'image' | 'document' | 'audio' | 'video' | null {
   return MIME_TYPE_MAPPING[mimeType.toLowerCase()] || null
 }
 
@@ -78,6 +106,28 @@ export function isImageFileType(mimeType: string): boolean {
     'image/svg+xml',
   ]
   return imageTypes.includes(mimeType.toLowerCase())
+}
+
+/**
+ * Check if a MIME type is an audio type
+ */
+export function isAudioFileType(mimeType: string): boolean {
+  return getContentType(mimeType) === 'audio'
+}
+
+/**
+ * Check if a MIME type is a video type
+ */
+export function isVideoFileType(mimeType: string): boolean {
+  return getContentType(mimeType) === 'video'
+}
+
+/**
+ * Check if a MIME type is an audio or video type
+ */
+export function isMediaFileType(mimeType: string): boolean {
+  const contentType = getContentType(mimeType)
+  return contentType === 'audio' || contentType === 'video'
 }
 
 /**
@@ -143,6 +193,22 @@ export function getMimeTypeFromExtension(extension: string): string {
     ppt: 'application/vnd.ms-powerpoint',
     md: 'text/markdown',
     rtf: 'application/rtf',
+
+    // Audio
+    mp3: 'audio/mpeg',
+    m4a: 'audio/mp4',
+    wav: 'audio/wav',
+    webm: 'audio/webm',
+    ogg: 'audio/ogg',
+    flac: 'audio/flac',
+    aac: 'audio/aac',
+    opus: 'audio/opus',
+
+    // Video
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    avi: 'video/x-msvideo',
+    mkv: 'video/x-matroska',
   }
 
   return extensionMimeMap[extension.toLowerCase()] || 'application/octet-stream'

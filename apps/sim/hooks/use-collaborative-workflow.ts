@@ -937,10 +937,42 @@ export function useCollaborativeWorkflow() {
   const collaborativeUpdateBlockName = useCallback(
     (id: string, name: string) => {
       executeQueuedOperation('update-name', 'block', { id, name }, () => {
-        workflowStore.updateBlockName(id, name)
+        const result = workflowStore.updateBlockName(id, name)
+
+        if (result.success && result.changedSubblocks.length > 0) {
+          logger.info('Emitting cascaded subblock updates from block rename', {
+            blockId: id,
+            newName: name,
+            updateCount: result.changedSubblocks.length,
+          })
+
+          result.changedSubblocks.forEach(
+            ({
+              blockId,
+              subBlockId,
+              newValue,
+            }: {
+              blockId: string
+              subBlockId: string
+              newValue: any
+            }) => {
+              const operationId = crypto.randomUUID()
+              addToQueue({
+                id: operationId,
+                operation: {
+                  operation: 'subblock-update',
+                  target: 'subblock',
+                  payload: { blockId, subBlockId, value: newValue },
+                },
+                workflowId: activeWorkflowId || '',
+                userId: session?.user?.id || 'unknown',
+              })
+            }
+          )
+        }
       })
     },
-    [executeQueuedOperation, workflowStore]
+    [executeQueuedOperation, workflowStore, addToQueue, activeWorkflowId, session?.user?.id]
   )
 
   const collaborativeToggleBlockEnabled = useCallback(

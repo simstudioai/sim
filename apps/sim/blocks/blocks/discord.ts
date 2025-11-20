@@ -773,7 +773,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     reason: { type: 'string', description: 'Reason for moderation action' },
     archived: { type: 'string', description: 'Archive status (true/false)' },
     attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    files: { type: 'json', description: 'Files to attach (UserFile array)' },
+    files: { type: 'array', description: 'Files to attach (UserFile array)' },
     limit: { type: 'number', description: 'Message limit' },
     autoArchiveDuration: { type: 'number', description: 'Thread auto-archive duration in minutes' },
     channelType: { type: 'number', description: 'Discord channel type (0=text, 2=voice, etc.)' },

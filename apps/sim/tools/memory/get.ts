@@ -1,23 +1,43 @@
+import { buildMemoryKey } from '@/tools/memory/helpers'
 import type { MemoryResponse } from '@/tools/memory/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
   id: 'memory_get',
   name: 'Get Memory',
-  description: 'Retrieve a specific memory by its ID',
+  description:
+    'Retrieve memory by conversationId, blockId, blockName, or a combination. Returns all matching memories.',
   version: '1.0.0',
 
   params: {
+    conversationId: {
+      type: 'string',
+      required: false,
+      description:
+        'Conversation identifier (e.g., user-123, session-abc). If provided alone, returns all memories for this conversation across all blocks.',
+    },
     id: {
       type: 'string',
-      required: true,
-      description: 'Identifier for the memory to retrieve',
+      required: false,
+      description:
+        'Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility.',
+    },
+    blockId: {
+      type: 'string',
+      required: false,
+      description:
+        'Block identifier. If provided alone, returns all memories for this block across all conversations. If provided with conversationId, returns memories for that specific conversation in this block.',
+    },
+    blockName: {
+      type: 'string',
+      required: false,
+      description:
+        'Block name. Alternative to blockId. If provided alone, returns all memories for blocks with this name. If provided with conversationId, returns memories for that conversation in blocks with this name.',
     },
   },
 
   request: {
     url: (params): any => {
-      // Get workflowId from context (set by workflow execution)
       const workflowId = params._context?.workflowId
 
       if (!workflowId) {
@@ -34,8 +54,46 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
         }
       }
 
-      // Append workflowId as query parameter
-      return `/api/memory/${encodeURIComponent(params.id)}?workflowId=${encodeURIComponent(workflowId)}`
+      // Use 'id' as fallback for 'conversationId' for backwards compatibility
+      const conversationId = params.conversationId || params.id
+
+      if (!conversationId && !params.blockId && !params.blockName) {
+        return {
+          _errorResponse: {
+            status: 400,
+            data: {
+              success: false,
+              error: {
+                message:
+                  'At least one of conversationId, id, blockId, or blockName must be provided',
+              },
+            },
+          },
+        }
+      }
+
+      let query = ''
+
+      if (conversationId && params.blockId) {
+        query = buildMemoryKey(conversationId, params.blockId)
+      } else if (conversationId) {
+        // Also check for legacy format (conversationId without blockId)
+        query = `${conversationId}:`
+      } else if (params.blockId) {
+        query = `:${params.blockId}`
+      }
+
+      const url = new URL('/api/memory', 'http://dummy')
+      url.searchParams.set('workflowId', workflowId)
+      if (query) {
+        url.searchParams.set('query', query)
+      }
+      if (params.blockName) {
+        url.searchParams.set('blockName', params.blockName)
+      }
+      url.searchParams.set('limit', '1000')
+
+      return url.pathname + url.search
     },
     method: 'GET',
     headers: () => ({
@@ -45,20 +103,34 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
 
   transformResponse: async (response): Promise<MemoryResponse> => {
     const result = await response.json()
-    const data = result.data || result
+    const memories = result.data?.memories || []
+
+    if (!Array.isArray(memories) || memories.length === 0) {
+      return {
+        success: true,
+        output: {
+          memories: [],
+          message: 'No memories found',
+        },
+      }
+    }
 
     return {
       success: true,
       output: {
-        memories: data.data,
-        message: 'Memory retrieved successfully',
+        memories,
+        message: `Found ${memories.length} memories`,
       },
     }
   },
 
   outputs: {
     success: { type: 'boolean', description: 'Whether the memory was retrieved successfully' },
-    memories: { type: 'array', description: 'Array of memory data for the requested ID' },
+    memories: {
+      type: 'array',
+      description:
+        'Array of memory objects with conversationId, blockId, blockName, and data fields',
+    },
     message: { type: 'string', description: 'Success or error message' },
     error: { type: 'string', description: 'Error message if operation failed' },
   },

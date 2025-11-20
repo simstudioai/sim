@@ -442,7 +442,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     },
     reactionType: { type: 'string', description: 'Emoji reaction (e.g., ❤️, 👍, 😊)' },
     attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    files: { type: 'json', description: 'Files to attach (UserFile array)' },
+    files: { type: 'array', description: 'Files to attach (UserFile array)' },
   },
   outputs: {
     content: { type: 'string', description: 'Formatted message content from chat/channel' },

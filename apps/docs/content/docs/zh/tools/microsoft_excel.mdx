@@ -26,7 +26,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 Microsoft Excel 集成到工作流程中。可以读取、写入、更新和添加到表格中。需要 OAuth。
+将 Microsoft Excel 集成到工作流程中。可以读取、写入、更新、添加到表格以及创建新工作表。
 
 ## 工具
 
@@ -90,6 +90,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `index` | number | 添加的第一行的索引 |
 | `values` | array | 添加到表格的行数组 |
 | `metadata` | object | 电子表格元数据 |
+
+### `microsoft_excel_worksheet_add`
+
+在 Microsoft Excel 工作簿中创建一个新工作表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | 是 | 要添加工作表的 Excel 工作簿的 ID |
+| `worksheetName` | string | 是 | 新工作表的名称。必须在工作簿中唯一，且不能超过 31 个字符 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `worksheet` | object | 新创建工作表的详细信息 |
 
 ## 注意
 

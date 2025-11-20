@@ -1,0 +1,172 @@
+---
+title: Calendly
+description: Verwalte Calendly-Terminplanung und Ereignisse
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="calendly"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Calendly](https://calendly.com/) ist eine beliebte Plattform zur Terminplanungsautomatisierung, die Ihnen hilft, Meetings, Events und Termine mühelos zu buchen. Mit Calendly können Teams und Einzelpersonen die Terminplanung optimieren, den E-Mail-Austausch reduzieren und Aufgaben rund um Veranstaltungen automatisieren.
+
+Mit der Sim Calendly-Integration können Ihre Agenten:
+
+- **Informationen über Ihr Konto und geplante Ereignisse abrufen**: Verwenden Sie Tools, um Benutzerinformationen, Ereignistypen und geplante Ereignisse für Analysen oder Automatisierungen abzurufen.
+- **Ereignistypen und Terminplanung verwalten**: Greifen Sie auf verfügbare Ereignistypen für Benutzer oder Organisationen zu und listen Sie diese auf, rufen Sie Details zu bestimmten Ereignistypen ab und überwachen Sie geplante Meetings und Teilnehmerdaten.
+- **Automatisieren Sie Follow-ups und Workflows**: Wenn Benutzer Meetings planen, umplanen oder stornieren, können Sim-Agenten automatisch entsprechende Workflows auslösen – wie das Senden von Erinnerungen, das Aktualisieren von CRMs oder das Benachrichtigen von Teilnehmern.
+- **Einfache Integration über Webhooks**: Richten Sie Sim-Workflows ein, um auf Calendly-Webhook-Ereignisse in Echtzeit zu reagieren, einschließlich wenn Eingeladene Termine planen, stornieren oder mit Routing-Formularen interagieren.
+
+Ob Sie die Meeting-Vorbereitung automatisieren, Einladungen verwalten oder benutzerdefinierte Workflows als Reaktion auf Planungsaktivitäten ausführen möchten – die Calendly-Tools in Sim bieten Ihnen flexiblen und sicheren Zugriff. Erschließen Sie neue Automatisierungsmöglichkeiten, indem Sie sofort auf Planungsänderungen reagieren – und optimieren Sie so die Abläufe und die Kommunikation Ihres Teams.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie Calendly in Ihren Workflow. Verwalten Sie Ereignistypen, geplante Ereignisse, Eingeladene und Webhooks. Kann auch Workflows basierend auf Calendly-Webhook-Ereignissen auslösen (Eingeladener hat Termin vereinbart, Eingeladener hat storniert, Routing-Formular wurde eingereicht). Erfordert einen persönlichen Zugriffstoken.
+
+## Tools
+
+### `calendly_get_current_user`
+
+Informationen über den aktuell authentifizierten Calendly-Benutzer abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönlicher Zugriffstoken |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `resource` | object | Informationen zum aktuellen Benutzer |
+
+### `calendly_list_event_types`
+
+Eine Liste aller Ereignistypen für einen Benutzer oder eine Organisation abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
+| `user` | string | Nein | Nur Ereignistypen zurückgeben, die zu diesem Benutzer gehören \(URI-Format\) |
+| `organization` | string | Nein | Nur Ereignistypen zurückgeben, die zu dieser Organisation gehören \(URI-Format\) |
+| `count` | number | Nein | Anzahl der Ergebnisse pro Seite \(Standard: 20, max: 100\) |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
+| `sort` | string | Nein | Sortierreihenfolge für Ergebnisse \(z.B. "name:asc", "name:desc"\) |
+| `active` | boolean | Nein | Bei true werden nur aktive Ereignistypen angezeigt. Bei false oder nicht ausgewählt werden alle Ereignistypen angezeigt \(sowohl aktive als auch inaktive\). |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `collection` | array | Array von Ereignistyp-Objekten |
+
+### `calendly_get_event_type`
+
+Detaillierte Informationen über einen bestimmten Ereignistyp abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
+| `eventTypeUuid` | string | Ja | Ereignistyp-UUID \(kann vollständige URI oder nur die UUID sein\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `resource` | object | Details zum Ereignistyp |
+
+### `calendly_list_scheduled_events`
+
+Eine Liste geplanter Ereignisse für einen Benutzer oder eine Organisation abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
+| `user` | string | Nein | Gibt Ereignisse zurück, die zu diesem Benutzer gehören \(URI-Format\). Entweder "user" oder "organization" muss angegeben werden. |
+| `organization` | string | Nein | Gibt Ereignisse zurück, die zu dieser Organisation gehören \(URI-Format\). Entweder "user" oder "organization" muss angegeben werden. |
+| `invitee_email` | string | Nein | Gibt Ereignisse zurück, bei denen der Eingeladene diese E-Mail hat |
+| `count` | number | Nein | Anzahl der Ergebnisse pro Seite \(Standard: 20, max: 100\) |
+| `max_start_time` | string | Nein | Gibt Ereignisse mit Startzeit vor diesem Zeitpunkt zurück \(ISO 8601-Format\) |
+| `min_start_time` | string | Nein | Gibt Ereignisse mit Startzeit nach diesem Zeitpunkt zurück \(ISO 8601-Format\) |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
+| `sort` | string | Nein | Sortierreihenfolge für Ergebnisse \(z.B. "start_time:asc", "start_time:desc"\) |
+| `status` | string | Nein | Nach Status filtern \("active" oder "canceled"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `collection` | array | Array von geplanten Ereignisobjekten |
+
+### `calendly_get_scheduled_event`
+
+Detaillierte Informationen über ein bestimmtes geplantes Ereignis abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
+| `eventUuid` | string | Ja | UUID des geplanten Ereignisses \(kann vollständige URI oder nur die UUID sein\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `resource` | object | Details zum geplanten Ereignis |
+
+### `calendly_list_event_invitees`
+
+Eine Liste der Eingeladenen für ein geplantes Ereignis abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
+| `eventUuid` | string | Ja | UUID des geplanten Ereignisses \(kann vollständige URI oder nur die UUID sein\) |
+| `count` | number | Nein | Anzahl der Ergebnisse pro Seite \(Standard: 20, max: 100\) |
+| `email` | string | Nein | Eingeladene nach E-Mail-Adresse filtern |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
+| `sort` | string | Nein | Sortierreihenfolge für Ergebnisse \(z.B. "created_at:asc", "created_at:desc"\) |
+| `status` | string | Nein | Nach Status filtern \("active" oder "canceled"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `collection` | array | Array von Eingeladenen-Objekten |
+
+### `calendly_cancel_event`
+
+Ein geplantes Ereignis stornieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
+| `eventUuid` | string | Ja | UUID des zu stornierenden geplanten Ereignisses \(kann vollständige URI oder nur die UUID sein\) |
+| `reason` | string | Nein | Grund für die Stornierung \(wird an Eingeladene gesendet\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `resource` | object | Stornierungsdetails |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `calendly`

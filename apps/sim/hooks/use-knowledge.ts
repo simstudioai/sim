@@ -25,7 +25,9 @@ import {
 const logger = createLogger('UseKnowledgeBase')
 
 export function useKnowledgeBase(id: string) {
+  const queryClient = useQueryClient()
   const query = useKnowledgeBaseQuery(id)
+
   useEffect(() => {
     if (query.data) {
       const knowledgeBase = query.data
@@ -38,10 +40,17 @@ export function useKnowledgeBase(id: string) {
     }
   }, [query.data])
 
+  const refreshKnowledgeBase = useCallback(async () => {
+    await queryClient.invalidateQueries({
+      queryKey: knowledgeKeys.detail(id),
+    })
+  }, [queryClient, id])
+
   return {
     knowledgeBase: query.data ?? null,
     isLoading: query.isLoading,
     error: query.error instanceof Error ? query.error.message : null,
+    refresh: refreshKnowledgeBase,
   }
 }
 

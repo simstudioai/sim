@@ -81,7 +81,12 @@ interface TemplateData {
 export function Sidebar() {
   // useGlobalShortcuts()
 
-  const { workflows, isLoading: workflowsLoading, switchToWorkspace } = useWorkflowRegistry()
+  const { workflows, switchToWorkspace } = useWorkflowRegistry()
+  const workflowsHydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
+  const workflowsLoading =
+    workflowsHydrationPhase === 'idle' ||
+    workflowsHydrationPhase === 'metadata-loading' ||
+    workflowsHydrationPhase === 'state-loading'
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const userPermissions = useUserPermissionsContext()
   const isLoading = workflowsLoading || sessionLoading

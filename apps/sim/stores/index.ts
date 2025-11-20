@@ -207,8 +207,15 @@ export const resetAllStores = () => {
   useWorkflowRegistry.setState({
     workflows: {},
     activeWorkflowId: null,
-    isLoading: false,
     error: null,
+    deploymentStatuses: {},
+    hydration: {
+      phase: 'idle',
+      workspaceId: null,
+      workflowId: null,
+      requestId: null,
+      error: null,
+    },
   })
   useWorkflowStore.getState().clear()
   useSubBlockStore.getState().clear()

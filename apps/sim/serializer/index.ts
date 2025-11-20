@@ -38,6 +38,63 @@ function shouldIncludeField(subBlockConfig: SubBlockConfig, isAdvancedMode: bool
   return true
 }
 
+/**
+ * Helper function to migrate agent block params from old format to messages array
+ * Transforms systemPrompt/userPrompt into messages array format
+ * Only migrates if old format exists and new format doesn't (idempotent)
+ */
+function migrateAgentParamsToMessages(
+  params: Record<string, any>,
+  subBlocks: Record<string, any>,
+  blockId: string
+): void {
+  // Only migrate if old format exists and new format doesn't
+  if ((params.systemPrompt || params.userPrompt) && !params.messages) {
+    logger.info('Migrating agent block from legacy format to messages array', {
+      blockId,
+      hasSystemPrompt: !!params.systemPrompt,
+      hasUserPrompt: !!params.userPrompt,
+    })
+
+    const messages: any[] = []
+
+    // Add system message first (industry standard)
+    if (params.systemPrompt) {
+      messages.push({
+        role: 'system',
+        content: params.systemPrompt,
+      })
+    }
+
+    // Add user message
+    if (params.userPrompt) {
+      let userContent = params.userPrompt
+
+      // Handle object format (e.g., { input: "..." })
+      if (typeof userContent === 'object' && userContent !== null) {
+        if ('input' in userContent) {
+          userContent = userContent.input
+        } else {
+          // If it's an object but doesn't have 'input', stringify it
+          userContent = JSON.stringify(userContent)
+        }
+      }
+
+      messages.push({
+        role: 'user',
+        content: String(userContent),
+      })
+    }
+
+    // Set the migrated messages in subBlocks
+    subBlocks.messages = {
+      id: 'messages',
+      type: 'messages-input',
+      value: messages,
+    }
+  }
+}
+
 export class Serializer {
   serializeWorkflow(
     blocks: Record<string, BlockState>,
@@ -678,6 +735,11 @@ export class Serializer {
         value: serializedBlock.config.params[subBlock.id] ?? null,
       }
     })
+
+    // Migration logic for agent blocks: Transform old systemPrompt/userPrompt to messages array
+    if (blockType === 'agent') {
+      migrateAgentParamsToMessages(serializedBlock.config.params, subBlocks, serializedBlock.id)
+    }
 
     return {
       id: serializedBlock.id,

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { memory } from '@sim/db/schema'
+import { memory, workflowBlocks } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -7,6 +7,43 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('MemoryByIdAPI')
+
+/**
+ * Parse memory key into conversationId and blockId
+ * Key format: conversationId:blockId
+ */
+function parseMemoryKey(key: string): { conversationId: string; blockId: string } | null {
+  const parts = key.split(':')
+  if (parts.length !== 2) {
+    return null
+  }
+  return {
+    conversationId: parts[0],
+    blockId: parts[1],
+  }
+}
+
+/**
+ * Lookup block name from block ID
+ */
+async function getBlockName(blockId: string, workflowId: string): Promise<string | undefined> {
+  try {
+    const result = await db
+      .select({ name: workflowBlocks.name })
+      .from(workflowBlocks)
+      .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+      .limit(1)
+
+    if (result.length === 0) {
+      return undefined
+    }
+
+    return result[0].name
+  } catch (error) {
+    logger.error('Error looking up block name', { error, blockId, workflowId })
+    return undefined
+  }
+}
 
 const memoryQuerySchema = z.object({
   workflowId: z.string().uuid('Invalid workflow ID format'),
@@ -41,7 +78,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     logger.info(`[${requestId}] Processing memory get request for ID: ${id}`)
 
-    // Get workflowId from query parameter (required)
     const url = new URL(request.url)
     const workflowId = url.searchParams.get('workflowId')
 
@@ -65,7 +101,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { workflowId: validatedWorkflowId } = validation.data
 
-    // Query the database for the memory
     const memories = await db
       .select()
       .from(memory)
@@ -86,13 +121,36 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
+    const mem = memories[0]
+    const parsed = parseMemoryKey(mem.key)
+
+    let enrichedMemory
+    if (!parsed) {
+      enrichedMemory = {
+        conversationId: mem.key,
+        blockId: 'unknown',
+        blockName: 'unknown',
+        data: mem.data,
+      }
+    } else {
+      const { conversationId, blockId } = parsed
+      const blockName = (await getBlockName(blockId, validatedWorkflowId)) || 'unknown'
+
+      enrichedMemory = {
+        conversationId,
+        blockId,
+        blockName,
+        data: mem.data,
+      }
+    }
+
     logger.info(
       `[${requestId}] Memory retrieved successfully: ${id} for workflow: ${validatedWorkflowId}`
     )
     return NextResponse.json(
       {
         success: true,
-        data: memories[0],
+        data: enrichedMemory,
       },
       { status: 200 }
     )
@@ -122,7 +180,6 @@ export async function DELETE(
   try {
     logger.info(`[${requestId}] Processing memory delete request for ID: ${id}`)
 
-    // Get workflowId from query parameter (required)
     const url = new URL(request.url)
     const workflowId = url.searchParams.get('workflowId')
 
@@ -146,7 +203,6 @@ export async function DELETE(
 
     const { workflowId: validatedWorkflowId } = validation.data
 
-    // Verify memory exists before attempting to delete
     const existingMemory = await db
       .select({ id: memory.id })
       .from(memory)
@@ -166,7 +222,6 @@ export async function DELETE(
       )
     }
 
-    // Hard delete the memory
     await db
       .delete(memory)
       .where(and(eq(memory.key, id), eq(memory.workflowId, validatedWorkflowId)))
@@ -241,7 +296,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    // Verify memory exists before attempting to update
     const existingMemories = await db
       .select()
       .from(memory)
@@ -261,39 +315,60 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    const existingMemory = existingMemories[0]
-
-    // Additional validation for agent memory type
-    if (existingMemory.type === 'agent') {
-      const agentValidation = agentMemoryDataSchema.safeParse(validatedData)
-      if (!agentValidation.success) {
-        const errorMessage = agentValidation.error.errors
-          .map((err) => `${err.path.join('.')}: ${err.message}`)
-          .join(', ')
-        logger.warn(`[${requestId}] Agent memory validation error: ${errorMessage}`)
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              message: `Invalid agent memory data: ${errorMessage}`,
-            },
+    const agentValidation = agentMemoryDataSchema.safeParse(validatedData)
+    if (!agentValidation.success) {
+      const errorMessage = agentValidation.error.errors
+        .map((err) => `${err.path.join('.')}: ${err.message}`)
+        .join(', ')
+      logger.warn(`[${requestId}] Agent memory validation error: ${errorMessage}`)
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            message: `Invalid agent memory data: ${errorMessage}`,
           },
-          { status: 400 }
-        )
-      }
+        },
+        { status: 400 }
+      )
     }
 
-    // Update the memory with new data
+    const now = new Date()
     await db
-      .delete(memory)
+      .update(memory)
+      .set({
+        data: validatedData,
+        updatedAt: now,
+      })
       .where(and(eq(memory.key, id), eq(memory.workflowId, validatedWorkflowId)))
 
-    // Fetch the updated memory
     const updatedMemories = await db
       .select()
       .from(memory)
       .where(and(eq(memory.key, id), eq(memory.workflowId, validatedWorkflowId)))
       .limit(1)
+
+    const mem = updatedMemories[0]
+    const parsed = parseMemoryKey(mem.key)
+
+    let enrichedMemory
+    if (!parsed) {
+      enrichedMemory = {
+        conversationId: mem.key,
+        blockId: 'unknown',
+        blockName: 'unknown',
+        data: mem.data,
+      }
+    } else {
+      const { conversationId, blockId } = parsed
+      const blockName = (await getBlockName(blockId, validatedWorkflowId)) || 'unknown'
+
+      enrichedMemory = {
+        conversationId,
+        blockId,
+        blockName,
+        data: mem.data,
+      }
+    }
 
     logger.info(
       `[${requestId}] Memory updated successfully: ${id} for workflow: ${validatedWorkflowId}`
@@ -301,7 +376,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json(
       {
         success: true,
-        data: updatedMemories[0],
+        data: enrichedMemory,
       },
       { status: 200 }
     )

@@ -42,8 +42,8 @@ Fetch and filter issues from Linear
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Yes | Linear team ID |
-| `projectId` | string | Yes | Linear project ID |
+| `teamId` | string | No | Linear team ID to filter by |
+| `projectId` | string | No | Linear project ID to filter by |
 
 #### Output
 
@@ -76,7 +76,7 @@ Create a new issue in Linear
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | Yes | Linear team ID |
-| `projectId` | string | Yes | Linear project ID |
+| `projectId` | string | No | Linear project ID |
 | `title` | string | Yes | Issue title |
 | `description` | string | No | Issue description |
 
@@ -240,7 +240,7 @@ Edit a comment in Linear
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `commentId` | string | Yes | Comment ID to update |
-| `body` | string | Yes | New comment text \(supports Markdown\) |
+| `body` | string | No | New comment text \(supports Markdown\) |
 
 #### Output
 
@@ -640,7 +640,7 @@ Add an attachment to an issue in Linear
 | --------- | ---- | -------- | ----------- |
 | `issueId` | string | Yes | Issue ID to attach to |
 | `url` | string | Yes | URL of the attachment |
-| `title` | string | No | Attachment title |
+| `title` | string | Yes | Attachment title |
 | `subtitle` | string | No | Attachment subtitle/description |
 
 #### Output
@@ -676,7 +676,7 @@ Update an attachment metadata in Linear
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `attachmentId` | string | Yes | Attachment ID to update |
-| `title` | string | No | New attachment title |
+| `title` | string | Yes | New attachment title |
 | `subtitle` | string | No | New attachment subtitle |
 
 #### Output

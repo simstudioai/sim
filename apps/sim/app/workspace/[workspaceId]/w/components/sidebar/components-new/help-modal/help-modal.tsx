@@ -7,32 +7,36 @@ import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { Button, Input, Modal, ModalContent, ModalTitle } from '@/components/emcn'
-import { Label } from '@/components/ui/label'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
+  Button,
+  Combobox,
+  Input,
+  Modal,
+  ModalContent,
+  ModalTitle,
+  Textarea,
+} from '@/components/emcn'
+import { Label } from '@/components/ui/label'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 
 const logger = createLogger('HelpModal')
 
-// File upload constraints
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB maximum upload size
 const TARGET_SIZE_MB = 2 // Target size after compression
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 
-// UI timing constants
 const SCROLL_DELAY_MS = 100
 const SUCCESS_RESET_DELAY_MS = 2000
 
-// Form default values
 const DEFAULT_REQUEST_TYPE = 'bug'
+
+const REQUEST_TYPE_OPTIONS = [
+  { label: 'Bug Report', value: 'bug' },
+  { label: 'Feedback', value: 'feedback' },
+  { label: 'Feature Request', value: 'feature_request' },
+  { label: 'Other', value: 'other' },
+]
 
 const formSchema = z.object({
   subject: z.string().min(1, 'Subject is required'),
@@ -71,6 +75,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -100,6 +105,79 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
       })
     }
   }, [open, reset])
+
+  /**
+   * Fix z-index for popover/dropdown when inside modal
+   */
+  useEffect(() => {
+    if (!open) return
+
+    const updatePopoverZIndex = () => {
+      const allDivs = document.querySelectorAll('div')
+      allDivs.forEach((div) => {
+        const element = div as HTMLElement
+        const computedZIndex = window.getComputedStyle(element).zIndex
+        const zIndexNum = Number.parseInt(computedZIndex) || 0
+
+        if (zIndexNum === 10000001 || (zIndexNum > 0 && zIndexNum <= 10000100)) {
+          const hasPopoverStructure =
+            element.hasAttribute('data-radix-popover-content') ||
+            (element.hasAttribute('role') && element.getAttribute('role') === 'dialog') ||
+            element.querySelector('[role="listbox"]') !== null ||
+            element.classList.contains('rounded-[8px]') ||
+            element.classList.contains('rounded-[4px]')
+
+          if (hasPopoverStructure && element.offsetParent !== null) {
+            element.style.zIndex = '10000101'
+          }
+        }
+      })
+    }
+
+    // Create a style element to override popover z-index
+    const styleId = 'help-modal-popover-z-index'
+    let styleElement = document.getElementById(styleId) as HTMLStyleElement | null
+
+    if (!styleElement) {
+      styleElement = document.createElement('style')
+      styleElement.id = styleId
+      document.head.appendChild(styleElement)
+    }
+
+    styleElement.textContent = `
+      [data-radix-popover-content] {
+        z-index: 10000101 !important;
+      }
+      div[style*="z-index: 10000001"],
+      div[style*="z-index:10000001"] {
+        z-index: 10000101 !important;
+      }
+    `
+
+    const observer = new MutationObserver(() => {
+      updatePopoverZIndex()
+    })
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+    })
+
+    updatePopoverZIndex()
+
+    const intervalId = setInterval(updatePopoverZIndex, 100)
+
+    return () => {
+      const element = document.getElementById(styleId)
+      if (element) {
+        element.remove()
+      }
+      observer.disconnect()
+      clearInterval(intervalId)
+    }
+  }, [open])
 
   /**
    * Set default form value for request type
@@ -378,27 +456,19 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                     >
                       Request
                     </Label>
-                    <Select
-                      defaultValue={DEFAULT_REQUEST_TYPE}
-                      onValueChange={(value) => setValue('type', value as FormValues['type'])}
-                    >
-                      <SelectTrigger
-                        id='type'
-                        className={cn(
-                          'h-9 rounded-[4px] border-[var(--surface-11)] bg-[var(--surface-6)] text-[13px] dark:bg-[var(--surface-9)]',
-                          errors.type &&
-                            'border-[var(--text-error)] dark:border-[var(--text-error)]'
-                        )}
-                      >
-                        <SelectValue placeholder='Select a request type' />
-                      </SelectTrigger>
-                      <SelectContent className='z-[10000000]'>
-                        <SelectItem value='bug'>Bug Report</SelectItem>
-                        <SelectItem value='feedback'>Feedback</SelectItem>
-                        <SelectItem value='feature_request'>Feature Request</SelectItem>
-                        <SelectItem value='other'>Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Combobox
+                      id='type'
+                      options={REQUEST_TYPE_OPTIONS}
+                      value={watch('type') || DEFAULT_REQUEST_TYPE}
+                      selectedValue={watch('type') || DEFAULT_REQUEST_TYPE}
+                      onChange={(value) => setValue('type', value as FormValues['type'])}
+                      placeholder='Select a request type'
+                      editable={false}
+                      filterOptions={false}
+                      className={cn(
+                        errors.type && 'border-[var(--text-error)] dark:border-[var(--text-error)]'
+                      )}
+                    />
                     {errors.type && (
                       <p className='mt-[4px] text-[12px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
                         {errors.type.message}
@@ -509,28 +579,28 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                       <Label className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
                         Uploaded Images
                       </Label>
-                      <div className='grid grid-cols-2 gap-4'>
+                      <div className='grid grid-cols-2 gap-3'>
                         {images.map((image, index) => (
                           <div
                             key={index}
                             className='group relative overflow-hidden rounded-[4px] border border-[var(--surface-11)]'
                           >
-                            <div className='relative aspect-video'>
+                            <div className='relative flex max-h-[120px] min-h-[80px] w-full items-center justify-center bg-[var(--surface-2)]'>
                               <Image
                                 src={image.preview}
                                 alt={`Preview ${index + 1}`}
                                 fill
-                                className='object-cover'
+                                className='object-contain'
                               />
                               <button
                                 type='button'
                                 className='absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'
                                 onClick={() => removeImage(index)}
                               >
-                                <X className='h-6 w-6 text-white' />
+                                <X className='h-5 w-5 text-white' />
                               </button>
                             </div>
-                            <div className='truncate bg-[var(--surface-5)] p-2 text-[12px] text-[var(--text-secondary)] dark:bg-[var(--surface-5)] dark:text-[var(--text-secondary)]'>
+                            <div className='truncate bg-[var(--surface-5)] p-1.5 text-[12px] text-[var(--text-secondary)] dark:bg-[var(--surface-5)] dark:text-[var(--text-secondary)]'>
                               {image.name}
                             </div>
                           </div>
@@ -549,24 +619,11 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                   variant='default'
                   onClick={handleClose}
                   type='button'
-                  className='h-[32px] px-[12px] font-medium text-[13px]'
                   disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
-                <button
-                  type='submit'
-                  disabled={isSubmitting || isProcessing}
-                  className={cn(
-                    'flex h-[32px] items-center justify-center gap-[8px] rounded-[8px] px-[12px] font-medium text-[13px] text-white transition-all duration-200',
-                    submitStatus === 'error'
-                      ? 'bg-[var(--text-error)] hover:opacity-90 dark:bg-[var(--text-error)]'
-                      : submitStatus === 'success'
-                        ? 'bg-green-500 hover:opacity-90'
-                        : 'bg-[var(--brand-primary-hex)] shadow-[0_0_0_0_var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                    'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none'
-                  )}
-                >
+                <Button type='submit' variant='primary' disabled={isSubmitting || isProcessing}>
                   {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
                   {isSubmitting
                     ? 'Submitting...'
@@ -575,7 +632,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                       : submitStatus === 'success'
                         ? 'Success'
                         : 'Submit'}
-                </button>
+                </Button>
               </div>
             </div>
           </form>

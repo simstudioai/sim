@@ -13,7 +13,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
   description: 'Execute tools from Model Context Protocol (MCP) servers',
   longDescription:
     'Integrate MCP into the workflow. Can execute tools from MCP servers. Requires MCP servers in workspace settings.',
-  docsLink: 'https://docs.sim.ai/tools/mcp',
+  docsLink: 'https://docs.sim.ai/mcp',
   category: 'tools',
   bgColor: '#181C1E',
   icon: ServerIcon,

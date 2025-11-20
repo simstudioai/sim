@@ -199,6 +199,10 @@ export class BlockExecutor {
       error: errorMessage,
     }
 
+    if (error && typeof error === 'object' && 'childTraceSpans' in error) {
+      errorOutput.childTraceSpans = (error as any).childTraceSpans
+    }
+
     this.state.setBlockOutput(node.id, errorOutput, duration)
 
     logger.error(

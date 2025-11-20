@@ -24,9 +24,20 @@ jobs:
           node-version: '18'
           registry-url: 'https://registry.npmjs.org/'
 
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            **/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
       - name: Install dependencies
         working-directory: packages/cli
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Build package
         working-directory: packages/cli

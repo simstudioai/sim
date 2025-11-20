@@ -60,17 +60,13 @@ export const linearUpdateProjectLabelTool: ToolConfig<
     body: (params) => {
       const input: Record<string, any> = {}
 
-      if (params.name !== undefined && params.name !== null && params.name !== '') {
+      if (params.name != null && params.name !== '') {
         input.name = params.name
       }
-      if (params.color !== undefined && params.color !== null && params.color !== '') {
+      if (params.color != null && params.color !== '') {
         input.color = params.color
       }
-      if (
-        params.description !== undefined &&
-        params.description !== null &&
-        params.description !== ''
-      ) {
+      if (params.description != null && params.description !== '') {
         input.description = params.description
       }
 

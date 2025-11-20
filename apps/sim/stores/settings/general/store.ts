@@ -15,6 +15,7 @@ const initialState: General = {
   theme: 'system',
   telemetryEnabled: true,
   isBillingUsageNotificationsEnabled: true,
+  isErrorNotificationsEnabled: true,
 }
 
 export const useGeneralStore = create<GeneralStore>()(

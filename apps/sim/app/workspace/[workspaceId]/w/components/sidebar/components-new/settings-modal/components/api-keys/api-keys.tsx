@@ -84,7 +84,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [deleteConfirmationName, setDeleteConfirmationName] = useState('')
   const [keyType, setKeyType] = useState<'personal' | 'workspace'>('personal')
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -168,7 +167,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
 
       setShowDeleteDialog(false)
       setDeleteKey(null)
-      setDeleteConfirmationName('')
 
       await deleteApiKeyMutation.mutateAsync({
         workspaceId,
@@ -458,7 +456,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
 
       {/* Create API Key Dialog */}
       <Modal open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <ModalContent className='rounded-[10px] sm:max-w-md' showClose={false}>
+        <ModalContent className='sm:max-w-md'>
           <ModalHeader>
             <ModalTitle>Create new API key</ModalTitle>
             <ModalDescription>
@@ -521,9 +519,10 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             </div>
           </div>
 
-          <ModalFooter className='flex'>
+          <ModalFooter>
             <Button
-              className='h-9 w-full rounded-[8px] bg-background text-foreground hover:bg-muted dark:bg-background dark:text-foreground dark:hover:bg-muted/80'
+              variant='outline'
+              className='h-[32px] px-[12px]'
               onClick={() => {
                 setIsCreateDialogOpen(false)
                 setNewKeyName('')
@@ -535,15 +534,15 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             <Button
               type='button'
               variant='primary'
+              className='h-[32px] px-[12px]'
               onClick={handleCreateKey}
-              className='h-9 w-full rounded-[8px] disabled:cursor-not-allowed disabled:opacity-50'
               disabled={
                 !newKeyName.trim() ||
                 createApiKeyMutation.isPending ||
                 (keyType === 'workspace' && !canManageWorkspaceKeys)
               }
             >
-              Create {keyType === 'workspace' ? 'Workspace' : 'Personal'} Key
+              {createApiKeyMutation.isPending ? 'Creating...' : 'Create'}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -560,7 +559,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
           }
         }}
       >
-        <ModalContent className='rounded-[10px] sm:max-w-md' showClose={false}>
+        <ModalContent className='sm:max-w-md'>
           <ModalHeader>
             <ModalTitle>Your API key has been created</ModalTitle>
             <ModalDescription>
@@ -591,51 +590,34 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
 
       {/* Delete Confirmation Dialog */}
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent className='rounded-[10px] sm:max-w-md' showClose={false}>
+        <ModalContent className='sm:max-w-md'>
           <ModalHeader>
             <ModalTitle>Delete API key?</ModalTitle>
             <ModalDescription>
               Deleting this API key will immediately revoke access for any integrations using it.{' '}
-              <span className='text-red-500 dark:text-red-500'>This action cannot be undone.</span>
+              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                This action cannot be undone.
+              </span>
             </ModalDescription>
           </ModalHeader>
-
-          {deleteKey && (
-            <div className='py-2'>
-              <p className='mb-2 font-[360] text-sm'>
-                Enter the API key name <span className='font-semibold'>{deleteKey.name}</span> to
-                confirm.
-              </p>
-              <Input
-                value={deleteConfirmationName}
-                onChange={(e) => setDeleteConfirmationName(e.target.value)}
-                placeholder='Type key name to confirm'
-                className='h-9 rounded-[8px]'
-                autoFocus
-              />
-            </div>
-          )}
-
-          <ModalFooter className='flex'>
+          <ModalFooter>
             <Button
-              className='h-9 w-full rounded-[8px] bg-background text-foreground hover:bg-muted dark:bg-background dark:text-foreground dark:hover:bg-muted/80'
+              className='h-[32px] px-[12px]'
+              variant='outline'
               onClick={() => {
                 setShowDeleteDialog(false)
                 setDeleteKey(null)
-                setDeleteConfirmationName('')
               }}
+              disabled={deleteApiKeyMutation.isPending}
             >
               Cancel
             </Button>
             <Button
-              onClick={() => {
-                handleDeleteKey()
-                setDeleteConfirmationName('')
-              }}
-              className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
-              disabled={!deleteKey || deleteConfirmationName !== deleteKey.name}
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              onClick={handleDeleteKey}
+              disabled={deleteApiKeyMutation.isPending}
             >
-              Delete
+              {deleteApiKeyMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
         </ModalContent>

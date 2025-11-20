@@ -46,13 +46,10 @@ function defineServices(): ServiceInfo[] {
  */
 async function fetchOAuthConnections(): Promise<ServiceInfo[]> {
   try {
-    // Start with the base service definitions
     const serviceDefinitions = defineServices()
 
-    // Fetch all OAuth connections for the user
     const response = await fetch('/api/auth/oauth/connections')
 
-    // Treat 404 as "no connections"
     if (response.status === 404) {
       return serviceDefinitions
     }
@@ -64,12 +61,9 @@ async function fetchOAuthConnections(): Promise<ServiceInfo[]> {
     const data = await response.json()
     const connections = data.connections || []
 
-    // Update services with connection status and account info
     const updatedServices = serviceDefinitions.map((service) => {
-      // Find matching connection - exact match on providerId
       const connection = connections.find((conn: any) => conn.provider === service.providerId)
 
-      // If we found an exact match, use it
       if (connection) {
         return {
           ...service,
@@ -79,14 +73,11 @@ async function fetchOAuthConnections(): Promise<ServiceInfo[]> {
         }
       }
 
-      // If no exact match, check if any connection has all the required scopes
       const connectionWithScopes = connections.find((conn: any) => {
-        // Only consider connections from the same base provider
         if (!conn.baseProvider || !service.providerId.startsWith(conn.baseProvider)) {
           return false
         }
 
-        // Check if all required scopes for this service are included in the connection
         if (conn.scopes && service.scopes) {
           return service.scopes.every((scope) => conn.scopes.includes(scope))
         }
@@ -109,7 +100,6 @@ async function fetchOAuthConnections(): Promise<ServiceInfo[]> {
     return updatedServices
   } catch (error) {
     logger.error('Error fetching OAuth connections:', error)
-    // Return base definitions on error
     return defineServices()
   }
 }
@@ -140,7 +130,6 @@ export function useConnectOAuthService() {
 
   return useMutation({
     mutationFn: async ({ providerId, callbackURL }: ConnectServiceParams) => {
-      // Handle Trello specially
       if (providerId === 'trello') {
         window.location.href = '/api/auth/trello/authorize'
         return { success: true }
@@ -154,7 +143,6 @@ export function useConnectOAuthService() {
       return { success: true }
     },
     onSuccess: () => {
-      // Invalidate connections to refetch
       queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
     },
     onError: (error) => {
@@ -196,15 +184,12 @@ export function useDisconnectOAuthService() {
       return response.json()
     },
     onMutate: async ({ serviceId, accountId }) => {
-      // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: oauthConnectionsKeys.connections() })
 
-      // Snapshot the previous value
       const previousServices = queryClient.getQueryData<ServiceInfo[]>(
         oauthConnectionsKeys.connections()
       )
 
-      // Optimistically update by removing the disconnected account
       if (previousServices) {
         queryClient.setQueryData<ServiceInfo[]>(
           oauthConnectionsKeys.connections(),
@@ -225,14 +210,12 @@ export function useDisconnectOAuthService() {
       return { previousServices }
     },
     onError: (_err, _variables, context) => {
-      // Rollback on error
       if (context?.previousServices) {
         queryClient.setQueryData(oauthConnectionsKeys.connections(), context.previousServices)
       }
       logger.error('Failed to disconnect service')
     },
     onSettled: () => {
-      // Always refetch after error or success
       queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
     },
   })
