@@ -77,6 +77,7 @@ import { StagehandAgentBlock } from '@/blocks/blocks/stagehand_agent'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
 import { StripeBlock } from '@/blocks/blocks/stripe'
+import { SttBlock } from '@/blocks/blocks/stt'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
@@ -177,6 +178,7 @@ export const registry: Record<string, BlockConfig> = {
   stagehand_agent: StagehandAgentBlock,
   slack: SlackBlock,
   starter: StarterBlock,
+  stt: SttBlock,
   start_trigger: StartTriggerBlock,
   input_trigger: InputTriggerBlock,
   chat_trigger: ChatTriggerBlock,

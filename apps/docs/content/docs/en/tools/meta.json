@@ -61,6 +61,7 @@
     "stagehand",
     "stagehand_agent",
     "stripe",
+    "stt",
     "supabase",
     "tavily",
     "telegram",
