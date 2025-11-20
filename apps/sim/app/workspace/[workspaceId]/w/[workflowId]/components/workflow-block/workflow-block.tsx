@@ -325,14 +325,12 @@ const SubBlockRow = ({
     return server?.name ?? null
   }, [subBlock?.type, rawValue, mcpServers])
 
-  // Hydrate MCP tool ID to name using TanStack Query
   const { data: mcpToolsData = [] } = useMcpToolsQuery(workspaceId || '')
   const mcpToolDisplayName = useMemo(() => {
     if (subBlock?.type !== 'mcp-tool-selector' || typeof rawValue !== 'string') {
       return null
     }
-    // The rawValue is a composite ID like "serverId-toolName"
-    // We need to find the tool by matching the composite ID
+
     const tool = mcpToolsData.find((t) => {
       const toolId = createMcpToolId(t.serverId, t.name)
       return toolId === rawValue
@@ -340,10 +338,8 @@ const SubBlockRow = ({
     return tool?.name ?? null
   }, [subBlock?.type, rawValue, mcpToolsData])
 
-  // Subscribe to variables store to reactively update when variables change
   const allVariables = useVariablesStore((state) => state.variables)
 
-  // Special handling for variables-input to hydrate variable IDs to names from variables store
   const variablesDisplayValue = useMemo(() => {
     if (subBlock?.type !== 'variables-input' || !isVariableAssignmentsArray(rawValue)) {
       return null
