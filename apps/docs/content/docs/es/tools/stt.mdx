@@ -1,0 +1,117 @@
+---
+title: Voz a texto
+description: Convierte voz a texto usando IA
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="stt"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Transcribe voz a texto utilizando modelos de IA de vanguardia de proveedores líderes. Las herramientas de Sim de voz a texto (STT) te permiten convertir archivos de audio y video en transcripciones precisas, con soporte para múltiples idiomas, marcas de tiempo y traducción opcional.
+
+Proveedores compatibles:
+
+- **[OpenAI Whisper](https://platform.openai.com/docs/guides/speech-to-text/overview)**: Modelo STT avanzado de código abierto de OpenAI. Compatible con modelos como `whisper-1` y maneja una amplia variedad de idiomas y formatos de audio.
+- **[Deepgram](https://deepgram.com/)**: API de STT en tiempo real y por lotes con modelos de aprendizaje profundo como `nova-3`, `nova-2` y `whisper-large`. Ofrece características como diarización, reconocimiento de intención y ajuste específico para industrias.
+- **[ElevenLabs](https://elevenlabs.io/)**: Conocido por su IA de voz de alta calidad, ElevenLabs proporciona modelos STT enfocados en precisión y comprensión del lenguaje natural para numerosos idiomas y dialectos.
+
+Elige el proveedor y modelo que mejor se adapte a tu tarea, ya sea transcripción rápida de nivel de producción (Deepgram), capacidad multilingüe altamente precisa (Whisper) o comprensión avanzada y cobertura de idiomas (ElevenLabs).
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Transcribe archivos de audio y video a texto utilizando proveedores de IA líderes. Compatible con múltiples idiomas, marcas de tiempo y diarización de hablantes.
+
+## Herramientas
+
+### `stt_whisper`
+
+Transcribe audio a texto usando OpenAI Whisper
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Sí | Proveedor STT \(whisper\) |
+| `apiKey` | string | Sí | Clave API de OpenAI |
+| `model` | string | No | Modelo Whisper a utilizar \(predeterminado: whisper-1\) |
+| `audioFile` | file | No | Archivo de audio o video para transcribir |
+| `audioFileReference` | file | No | Referencia a archivo de audio/video de bloques anteriores |
+| `audioUrl` | string | No | URL al archivo de audio o video |
+| `language` | string | No | Código de idioma \(p.ej., "en", "es", "fr"\) o "auto" para detección automática |
+| `timestamps` | string | No | Granularidad de marcas de tiempo: none, sentence, o word |
+| `translateToEnglish` | boolean | No | Traducir audio a inglés |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `transcript` | string | Texto transcrito completo |
+| `segments` | array | Segmentos con marcas de tiempo |
+| `language` | string | Idioma detectado o especificado |
+| `duration` | number | Duración del audio en segundos |
+| `confidence` | number | Puntuación de confianza general |
+
+### `stt_deepgram`
+
+Transcribe audio a texto usando Deepgram
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Sí | Proveedor STT \(deepgram\) |
+| `apiKey` | string | Sí | Clave API de Deepgram |
+| `model` | string | No | Modelo de Deepgram a utilizar \(nova-3, nova-2, whisper-large, etc.\) |
+| `audioFile` | file | No | Archivo de audio o video para transcribir |
+| `audioFileReference` | file | No | Referencia al archivo de audio/video de bloques anteriores |
+| `audioUrl` | string | No | URL al archivo de audio o video |
+| `language` | string | No | Código de idioma \(p.ej., "en", "es", "fr"\) o "auto" para detección automática |
+| `timestamps` | string | No | Granularidad de marcas de tiempo: none, sentence, o word |
+| `diarization` | boolean | No | Habilitar diarización de hablantes |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `transcript` | string | Texto transcrito completo |
+| `segments` | array | Segmentos con marcas de tiempo y etiquetas de hablantes |
+| `language` | string | Idioma detectado o especificado |
+| `duration` | number | Duración del audio en segundos |
+| `confidence` | number | Puntuación de confianza general |
+
+### `stt_elevenlabs`
+
+Transcribe audio a texto usando ElevenLabs
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Sí | Proveedor STT \(elevenlabs\) |
+| `apiKey` | string | Sí | Clave API de ElevenLabs |
+| `model` | string | No | Modelo de ElevenLabs a utilizar \(scribe_v1, scribe_v1_experimental\) |
+| `audioFile` | file | No | Archivo de audio o video para transcribir |
+| `audioFileReference` | file | No | Referencia al archivo de audio/video de bloques anteriores |
+| `audioUrl` | string | No | URL al archivo de audio o video |
+| `language` | string | No | Código de idioma \(p.ej., "en", "es", "fr"\) o "auto" para detección automática |
+| `timestamps` | string | No | Granularidad de marca de tiempo: none, sentence, o word |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `transcript` | string | Texto transcrito completo |
+| `segments` | array | Segmentos con marcas de tiempo |
+| `language` | string | Idioma detectado o especificado |
+| `duration` | number | Duración del audio en segundos |
+| `confidence` | number | Puntuación de confianza general |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `stt`
