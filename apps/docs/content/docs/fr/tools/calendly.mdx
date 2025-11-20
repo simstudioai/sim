@@ -10,9 +10,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Calendly](https://calendly.com/) est une plateforme populaire d'automatisation de planification qui vous aide à organiser des réunions, des événements et des rendez-vous facilement. Avec Calendly, les équipes et les individus peuvent simplifier la planification, réduire les échanges d'e-mails et automatiser les tâches liées aux événements.
+
+Avec l'intégration Sim Calendly, vos agents peuvent :
+
+- **Récupérer des informations sur votre compte et les événements programmés** : Utilisez des outils pour obtenir des informations utilisateur, des types d'événements et des événements programmés pour l'analyse ou l'automatisation.
+- **Gérer les types d'événements et la planification** : Accédez et listez les types d'événements disponibles pour les utilisateurs ou les organisations, récupérez des détails sur des types d'événements spécifiques, et surveillez les réunions programmées et les données des invités.
+- **Automatiser les suivis et les flux de travail** : Lorsque les utilisateurs planifient, replanifient ou annulent des réunions, les agents Sim peuvent automatiquement déclencher les flux de travail correspondants—comme l'envoi de rappels, la mise à jour des CRM ou la notification des participants.
+- **S'intégrer facilement à l'aide de webhooks** : Configurez des flux de travail Sim pour répondre aux événements webhook de Calendly en temps réel, notamment lorsque les invités planifient, annulent ou interagissent avec des formulaires de routage.
+
+Que vous souhaitiez automatiser la préparation des réunions, gérer les invitations ou exécuter des flux de travail personnalisés en réponse à l'activité de planification, les outils Calendly dans Sim vous offrent un accès flexible et sécurisé. Débloquez de nouvelles automatisations en réagissant instantanément aux changements de planification—simplifiant les opérations et les communications de votre équipe.
+{/* MANUAL-CONTENT-END */}
+
 ## Instructions d'utilisation
 
-Intégrez Calendly dans votre flux de travail. Gérez les types d'événements, les événements programmés, les invités et les webhooks. Peut également déclencher des flux de travail basés sur des événements webhook Calendly (invité programmé, invité annulé, formulaire de routage soumis). Nécessite un jeton d'accès personnel.
+Intégrez Calendly dans votre flux de travail. Gérez les types d'événements, les événements programmés, les invités et les webhooks. Peut également déclencher des flux de travail basés sur les événements webhook de Calendly (invité programmé, invité annulé, formulaire de routage soumis). Nécessite un jeton d'accès personnel.
 
 ## Outils
 
@@ -23,7 +36,7 @@ Obtenir des informations sur l'utilisateur Calendly actuellement authentifié
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `apiKey` | string | Oui | Jeton d'accès personnel Calendly |
 
 #### Sortie
@@ -41,18 +54,18 @@ Récupérer une liste de tous les types d'événements pour un utilisateur ou un
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Oui | Jeton d'accès personnel Calendly |
-| `user` | string | Non | Renvoyer uniquement les types d'événements appartenant à cet utilisateur \(format URI\) |
-| `organization` | string | Non | Renvoyer uniquement les types d'événements appartenant à cette organisation \(format URI\) |
+| `user` | string | Non | Renvoie uniquement les types d'événements appartenant à cet utilisateur \(format URI\) |
+| `organization` | string | Non | Renvoie uniquement les types d'événements appartenant à cette organisation \(format URI\) |
 | `count` | number | Non | Nombre de résultats par page \(par défaut : 20, max : 100\) |
 | `pageToken` | string | Non | Jeton de page pour la pagination |
 | `sort` | string | Non | Ordre de tri pour les résultats \(par ex., "name:asc", "name:desc"\) |
-| `active` | boolean | Non | Lorsque vrai, affiche uniquement les types d'événements actifs. Lorsque faux ou non coché, affiche tous les types d'événements \(actifs et inactifs\). |
+| `active` | boolean | Non | Lorsque true, affiche uniquement les types d'événements actifs. Lorsque false ou non coché, affiche tous les types d'événements \(actifs et inactifs\). |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `collection` | array | Tableau d'objets de type d'événement |
+| `collection` | array | Tableau d'objets de types d'événements |
 
 ### `calendly_get_event_type`
 
@@ -80,12 +93,12 @@ Récupérer une liste des événements programmés pour un utilisateur ou une or
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Oui | Jeton d'accès personnel Calendly |
-| `user` | string | Non | Renvoie les événements appartenant à cet utilisateur \(format URI\). Soit "user" soit "organization" doit être fourni. |
-| `organization` | string | Non | Renvoie les événements appartenant à cette organisation \(format URI\). Soit "user" soit "organization" doit être fourni. |
-| `invitee_email` | string | Non | Renvoie les événements où l'invité a cet email |
+| `user` | string | Non | Renvoyer les événements appartenant à cet utilisateur \(format URI\). Soit "user" soit "organization" doit être fourni. |
+| `organization` | string | Non | Renvoyer les événements appartenant à cette organisation \(format URI\). Soit "user" soit "organization" doit être fourni. |
+| `invitee_email` | string | Non | Renvoyer les événements où l'invité a cette adresse e-mail |
 | `count` | number | Non | Nombre de résultats par page \(par défaut : 20, max : 100\) |
-| `max_start_time` | string | Non | Renvoie les événements avec une heure de début avant cette heure \(format ISO 8601\) |
-| `min_start_time` | string | Non | Renvoie les événements avec une heure de début après cette heure \(format ISO 8601\) |
+| `max_start_time` | string | Non | Renvoyer les événements avec une heure de début avant cette heure \(format ISO 8601\) |
+| `min_start_time` | string | Non | Renvoyer les événements avec une heure de début après cette heure \(format ISO 8601\) |
 | `pageToken` | string | Non | Jeton de page pour la pagination |
 | `sort` | string | Non | Ordre de tri pour les résultats \(par ex., "start_time:asc", "start_time:desc"\) |
 | `status` | string | Non | Filtrer par statut \("active" ou "canceled"\) |
@@ -124,7 +137,7 @@ Récupérer une liste des invités pour un événement programmé
 | `apiKey` | string | Oui | Jeton d'accès personnel Calendly |
 | `eventUuid` | string | Oui | UUID de l'événement programmé \(peut être l'URI complète ou simplement l'UUID\) |
 | `count` | number | Non | Nombre de résultats par page \(par défaut : 20, max : 100\) |
-| `email` | string | Non | Filtrer les invités par adresse e-mail |
+| `email` | string | Non | Filtrer les invités par adresse email |
 | `pageToken` | string | Non | Jeton de page pour la pagination |
 | `sort` | string | Non | Ordre de tri pour les résultats \(par ex., "created_at:asc", "created_at:desc"\) |
 | `status` | string | Non | Filtrer par statut \("active" ou "canceled"\) |
@@ -142,18 +155,18 @@ Annuler un événement programmé
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
-| `apiKey` | chaîne | Oui | Jeton d'accès personnel Calendly |
-| `eventUuid` | chaîne | Oui | UUID de l'événement programmé à annuler \(peut être l'URI complète ou simplement l'UUID\) |
-| `reason` | chaîne | Non | Motif d'annulation \(sera envoyé aux invités\) |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Jeton d'accès personnel Calendly |
+| `eventUuid` | string | Oui | UUID de l'événement programmé à annuler \(peut être l'URI complète ou simplement l'UUID\) |
+| `reason` | string | Non | Motif d'annulation \(sera envoyé aux invités\) |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `resource` | objet | Détails de l'annulation |
+| `resource` | object | Détails de l'annulation |
 
-## Remarques
+## Notes
 
 - Catégorie : `tools`
 - Type : `calendly`

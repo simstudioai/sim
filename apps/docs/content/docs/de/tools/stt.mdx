@@ -1,0 +1,117 @@
+---
+title: Speech-to-Text
+description: Konvertiere Sprache zu Text mit KI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="stt"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Transkribiere Sprache zu Text mit modernsten KI-Modellen führender Anbieter. Die Sim Speech-to-Text (STT)-Tools ermöglichen es dir, Audio- und Videodateien in präzise Transkripte umzuwandeln, mit Unterstützung für mehrere Sprachen, Zeitstempel und optionale Übersetzung.
+
+Unterstützte Anbieter:
+
+- **[OpenAI Whisper](https://platform.openai.com/docs/guides/speech-to-text/overview)**: Fortschrittliches Open-Source-STT-Modell von OpenAI. Unterstützt Modelle wie `whisper-1` und verarbeitet eine Vielzahl von Sprachen und Audioformaten.
+- **[Deepgram](https://deepgram.com/)**: Echtzeit- und Batch-STT-API mit Deep-Learning-Modellen wie `nova-3`, `nova-2` und `whisper-large`. Bietet Funktionen wie Sprechererkennung, Intentionserkennung und branchenspezifische Anpassungen.
+- **[ElevenLabs](https://elevenlabs.io/)**: Bekannt für hochwertige Sprach-KI, bietet ElevenLabs STT-Modelle mit Fokus auf Genauigkeit und natürlichem Sprachverständnis für zahlreiche Sprachen und Dialekte.
+
+Wähle den Anbieter und das Modell, das am besten zu deiner Aufgabe passt – sei es schnelle, produktionsreife Transkription (Deepgram), hochpräzise Mehrsprachenfähigkeit (Whisper) oder fortschrittliches Verständnis und Sprachabdeckung (ElevenLabs).
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Transkribiere Audio- und Videodateien zu Text mit führenden KI-Anbietern. Unterstützt mehrere Sprachen, Zeitstempel und Sprechererkennung.
+
+## Tools
+
+### `stt_whisper`
+
+Transkribiere Audio zu Text mit OpenAI Whisper
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Ja | STT-Anbieter \(whisper\) |
+| `apiKey` | string | Ja | OpenAI API-Schlüssel |
+| `model` | string | Nein | Zu verwendendes Whisper-Modell \(Standard: whisper-1\) |
+| `audioFile` | file | Nein | Zu transkribierende Audio- oder Videodatei |
+| `audioFileReference` | file | Nein | Verweis auf Audio-/Videodatei aus vorherigen Blöcken |
+| `audioUrl` | string | Nein | URL zu Audio- oder Videodatei |
+| `language` | string | Nein | Sprachcode \(z.B. "en", "es", "fr"\) oder "auto" für automatische Erkennung |
+| `timestamps` | string | Nein | Zeitstempel-Granularität: none, sentence oder word |
+| `translateToEnglish` | boolean | Nein | Audio ins Englische übersetzen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `transcript` | string | Vollständig transkribierter Text |
+| `segments` | array | Segmente mit Zeitstempeln |
+| `language` | string | Erkannte oder angegebene Sprache |
+| `duration` | number | Audiodauer in Sekunden |
+| `confidence` | number | Gesamter Konfidenzwert |
+
+### `stt_deepgram`
+
+Audio mit Deepgram in Text transkribieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Ja | STT-Anbieter (deepgram) |
+| `apiKey` | string | Ja | Deepgram API-Schlüssel |
+| `model` | string | Nein | Zu verwendendes Deepgram-Modell (nova-3, nova-2, whisper-large, usw.) |
+| `audioFile` | file | Nein | Zu transkribierendes Audio- oder Videodatei |
+| `audioFileReference` | file | Nein | Referenz auf Audio-/Videodatei aus vorherigen Blöcken |
+| `audioUrl` | string | Nein | URL zu Audio- oder Videodatei |
+| `language` | string | Nein | Sprachcode (z.B. "en", "es", "fr") oder "auto" für automatische Erkennung |
+| `timestamps` | string | Nein | Zeitstempel-Granularität: none, sentence oder word |
+| `diarization` | boolean | Nein | Sprechererkennung aktivieren |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `transcript` | string | Vollständig transkribierter Text |
+| `segments` | array | Segmente mit Zeitstempeln und Sprecherkennungen |
+| `language` | string | Erkannte oder angegebene Sprache |
+| `duration` | number | Audiodauer in Sekunden |
+| `confidence` | number | Gesamter Konfidenzwert |
+
+### `stt_elevenlabs`
+
+Audio in Text transkribieren mit ElevenLabs
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Ja | STT-Anbieter \(elevenlabs\) |
+| `apiKey` | string | Ja | ElevenLabs API-Schlüssel |
+| `model` | string | Nein | Zu verwendendes ElevenLabs-Modell \(scribe_v1, scribe_v1_experimental\) |
+| `audioFile` | file | Nein | Zu transkribierende Audio- oder Videodatei |
+| `audioFileReference` | file | Nein | Referenz auf Audio-/Videodatei aus vorherigen Blöcken |
+| `audioUrl` | string | Nein | URL zu Audio- oder Videodatei |
+| `language` | string | Nein | Sprachcode \(z.B. "en", "es", "fr"\) oder "auto" für automatische Erkennung |
+| `timestamps` | string | Nein | Zeitstempel-Granularität: none, sentence oder word |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `transcript` | string | Vollständig transkribierter Text |
+| `segments` | array | Segmente mit Zeitstempeln |
+| `language` | string | Erkannte oder angegebene Sprache |
+| `duration` | number | Audiodauer in Sekunden |
+| `confidence` | number | Gesamter Konfidenzwert |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `stt`

@@ -39,8 +39,8 @@ Tickets von Linear abrufen und filtern
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Ja | Linear Team-ID |
-| `projectId` | string | Ja | Linear Projekt-ID |
+| `teamId` | string | Nein | Linear Team-ID zum Filtern |
+| `projectId` | string | Nein | Linear Projekt-ID zum Filtern |
 
 #### Ausgabe
 
@@ -73,7 +73,7 @@ Ein neues Ticket in Linear erstellen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | Ja | Linear Team-ID |
-| `projectId` | string | Ja | Linear Projekt-ID |
+| `projectId` | string | Nein | Linear Projekt-ID |
 | `title` | string | Ja | Ticket-Titel |
 | `description` | string | Nein | Ticket-Beschreibung |
 
@@ -236,8 +236,8 @@ Einen Kommentar in Linear bearbeiten
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `commentId` | string | Ja | Kommentar-ID, die aktualisiert werden soll |
-| `body` | string | Ja | Neuer Kommentartext \(unterstützt Markdown\) |
+| `commentId` | string | Ja | Kommentar-ID zum Aktualisieren |
+| `body` | string | Nein | Neuer Kommentartext \(unterstützt Markdown\) |
 
 #### Ausgabe
 
@@ -635,9 +635,9 @@ Einen Anhang zu einem Ticket in Linear hinzufügen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `issueId` | string | Ja | Ticket-ID, an die der Anhang angehängt werden soll |
+| `issueId` | string | Ja | Ticket-ID, an die angehängt werden soll |
 | `url` | string | Ja | URL des Anhangs |
-| `title` | string | Nein | Titel des Anhangs |
+| `title` | string | Ja | Titel des Anhangs |
 | `subtitle` | string | Nein | Untertitel/Beschreibung des Anhangs |
 
 #### Ausgabe
@@ -673,7 +673,7 @@ Metadaten eines Anhangs in Linear aktualisieren
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `attachmentId` | string | Ja | Anhang-ID zum Aktualisieren |
-| `title` | string | Nein | Neuer Titel des Anhangs |
+| `title` | string | Ja | Neuer Titel des Anhangs |
 | `subtitle` | string | Nein | Neuer Untertitel des Anhangs |
 
 #### Ausgabe

@@ -1,0 +1,117 @@
+---
+title: 音声テキスト変換
+description: AIを使用して音声をテキストに変換
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="stt"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+最先端のAIモデルを使用して音声をテキストに変換します。Sim音声テキスト変換（STT）ツールを使用すると、音声ファイルや動画ファイルを正確な文字起こしに変換でき、複数の言語、タイムスタンプ、およびオプションの翻訳をサポートしています。
+
+対応プロバイダー：
+
+- **[OpenAI Whisper](https://platform.openai.com/docs/guides/speech-to-text/overview)**: OpenAIによる先進的なオープンソースSTTモデル。`whisper-1`などのモデルをサポートし、幅広い言語と音声フォーマットに対応しています。
+- **[Deepgram](https://deepgram.com/)**: `nova-3`、`nova-2`、`whisper-large`などのディープラーニングモデルを使用したリアルタイムおよびバッチSTT API。話者分離、意図認識、業界特化型チューニングなどの機能を提供します。
+- **[ElevenLabs](https://elevenlabs.io/)**: 高品質な音声AIで知られるElevenLabsは、多数の言語や方言に対応した精度と自然言語理解に焦点を当てたSTTモデルを提供しています。
+
+タスクに最適なプロバイダーとモデルを選択してください—高速で本番環境向けの文字起こし（Deepgram）、高精度の多言語対応（Whisper）、または高度な理解と言語カバレッジ（ElevenLabs）など。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+主要なAIプロバイダーを使用して音声ファイルや動画ファイルをテキストに変換します。複数の言語、タイムスタンプ、および話者分離をサポートしています。
+
+## ツール
+
+### `stt_whisper`
+
+OpenAI Whisperを使用して音声をテキストに変換
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | はい | STTプロバイダー（whisper） |
+| `apiKey` | string | はい | OpenAI APIキー |
+| `model` | string | いいえ | 使用するWhisperモデル（デフォルト：whisper-1） |
+| `audioFile` | file | いいえ | 文字起こしする音声または動画ファイル |
+| `audioFileReference` | file | いいえ | 前のブロックからの音声/動画ファイルへの参照 |
+| `audioUrl` | string | いいえ | 音声または動画ファイルのURL |
+| `language` | string | いいえ | 言語コード（例："en"、"es"、"fr"）または自動検出の場合は"auto" |
+| `timestamps` | string | いいえ | タイムスタンプの粒度：none、sentence、またはword |
+| `translateToEnglish` | boolean | いいえ | 音声を英語に翻訳 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `transcript` | string | 完全な文字起こしテキスト |
+| `segments` | array | タイムスタンプ付きセグメント |
+| `language` | string | 検出または指定された言語 |
+| `duration` | number | 音声の長さ（秒） |
+| `confidence` | number | 全体的な信頼度スコア |
+
+### `stt_deepgram`
+
+Deepgramを使用して音声をテキストに文字起こし
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | はい | STTプロバイダー（deepgram） |
+| `apiKey` | string | はい | Deepgram APIキー |
+| `model` | string | いいえ | 使用するDeepgramモデル（nova-3、nova-2、whisper-largeなど） |
+| `audioFile` | file | いいえ | 文字起こしする音声またはビデオファイル |
+| `audioFileReference` | file | いいえ | 前のブロックからの音声/ビデオファイルの参照 |
+| `audioUrl` | string | いいえ | 音声またはビデオファイルのURL |
+| `language` | string | いいえ | 言語コード（例："en"、"es"、"fr"）または自動検出の場合は"auto" |
+| `timestamps` | string | いいえ | タイムスタンプの粒度：none、sentence、またはword |
+| `diarization` | boolean | いいえ | 話者分離を有効にする |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `transcript` | string | 完全な文字起こしテキスト |
+| `segments` | array | 話者ラベル付きのタイムスタンプセグメント |
+| `language` | string | 検出または指定された言語 |
+| `duration` | number | 音声の長さ（秒） |
+| `confidence` | number | 全体的な信頼度スコア |
+
+### `stt_elevenlabs`
+
+ElevenLabsを使用して音声をテキストに変換する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | はい | STTプロバイダー（elevenlabs） |
+| `apiKey` | string | はい | ElevenLabs APIキー |
+| `model` | string | いいえ | 使用するElevenLabsモデル（scribe_v1, scribe_v1_experimental） |
+| `audioFile` | file | いいえ | 文字起こしする音声またはビデオファイル |
+| `audioFileReference` | file | いいえ | 前のブロックからの音声/ビデオファイルの参照 |
+| `audioUrl` | string | いいえ | 音声またはビデオファイルのURL |
+| `language` | string | いいえ | 言語コード（例："en"、"es"、"fr"）または自動検出の場合は"auto" |
+| `timestamps` | string | いいえ | タイムスタンプの粒度：none、sentence、またはword |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `transcript` | string | 完全な文字起こしテキスト |
+| `segments` | array | タイムスタンプ付きセグメント |
+| `language` | string | 検出または指定された言語 |
+| `duration` | number | 音声の長さ（秒） |
+| `confidence` | number | 全体的な信頼度スコア |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `stt`

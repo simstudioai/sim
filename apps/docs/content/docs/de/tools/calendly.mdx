@@ -10,15 +10,28 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
-## Nutzungsanleitung
+{/* MANUAL-CONTENT-START:intro */}
+[Calendly](https://calendly.com/) ist eine beliebte Plattform zur Terminplanungsautomatisierung, die Ihnen hilft, Meetings, Events und Termine mühelos zu buchen. Mit Calendly können Teams und Einzelpersonen die Terminplanung optimieren, den E-Mail-Austausch reduzieren und Aufgaben rund um Veranstaltungen automatisieren.
 
-Integriere Calendly in deinen Arbeitsablauf. Verwalte Ereignistypen, geplante Ereignisse, Eingeladene und Webhooks. Kann auch Workflows basierend auf Calendly-Webhook-Ereignissen auslösen (Teilnehmer geplant, Teilnehmer storniert, Routing-Formular übermittelt). Erfordert einen persönlichen Zugriffstoken.
+Mit der Sim Calendly-Integration können Ihre Agenten:
+
+- **Informationen über Ihr Konto und geplante Ereignisse abrufen**: Verwenden Sie Tools, um Benutzerinformationen, Ereignistypen und geplante Ereignisse für Analysen oder Automatisierungen abzurufen.
+- **Ereignistypen und Terminplanung verwalten**: Greifen Sie auf verfügbare Ereignistypen für Benutzer oder Organisationen zu und listen Sie diese auf, rufen Sie Details zu bestimmten Ereignistypen ab und überwachen Sie geplante Meetings und Teilnehmerdaten.
+- **Automatisieren Sie Follow-ups und Workflows**: Wenn Benutzer Meetings planen, umplanen oder stornieren, können Sim-Agenten automatisch entsprechende Workflows auslösen – wie das Senden von Erinnerungen, das Aktualisieren von CRMs oder das Benachrichtigen von Teilnehmern.
+- **Einfache Integration über Webhooks**: Richten Sie Sim-Workflows ein, um auf Calendly-Webhook-Ereignisse in Echtzeit zu reagieren, einschließlich wenn Eingeladene Termine planen, stornieren oder mit Routing-Formularen interagieren.
+
+Egal, ob Sie die Meeting-Vorbereitung automatisieren, Einladungen verwalten oder benutzerdefinierte Workflows als Reaktion auf Planungsaktivitäten ausführen möchten, die Calendly-Tools in Sim bieten Ihnen flexiblen und sicheren Zugriff. Erschließen Sie neue Automatisierungsmöglichkeiten, indem Sie sofort auf Planungsänderungen reagieren – und optimieren Sie so die Abläufe und die Kommunikation Ihres Teams.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie Calendly in Ihren Workflow. Verwalten Sie Ereignistypen, geplante Ereignisse, Eingeladene und Webhooks. Kann auch Workflows basierend auf Calendly-Webhook-Ereignissen auslösen (Eingeladener hat geplant, Eingeladener hat storniert, Routing-Formular wurde eingereicht). Erfordert einen persönlichen Zugriffstoken.
 
 ## Tools
 
 ### `calendly_get_current_user`
 
-Erhalte Informationen über den aktuell authentifizierten Calendly-Benutzer
+Informationen über den aktuell authentifizierten Calendly-Benutzer abrufen
 
 #### Eingabe
 
@@ -34,15 +47,15 @@ Erhalte Informationen über den aktuell authentifizierten Calendly-Benutzer
 
 ### `calendly_list_event_types`
 
-Rufe eine Liste aller Ereignistypen für einen Benutzer oder eine Organisation ab
+Eine Liste aller Ereignistypen für einen Benutzer oder eine Organisation abrufen
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Ja | Calendly persönlicher Zugriffstoken |
-| `user` | string | Nein | Gibt nur Ereignistypen zurück, die zu diesem Benutzer gehören \(URI-Format\) |
-| `organization` | string | Nein | Gibt nur Ereignistypen zurück, die zu dieser Organisation gehören \(URI-Format\) |
+| `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
+| `user` | string | Nein | Nur Ereignistypen zurückgeben, die zu diesem Benutzer gehören \(URI-Format\) |
+| `organization` | string | Nein | Nur Ereignistypen zurückgeben, die zu dieser Organisation gehören \(URI-Format\) |
 | `count` | number | Nein | Anzahl der Ergebnisse pro Seite \(Standard: 20, max: 100\) |
 | `pageToken` | string | Nein | Seitentoken für Paginierung |
 | `sort` | string | Nein | Sortierreihenfolge für Ergebnisse \(z.B. "name:asc", "name:desc"\) |
@@ -63,7 +76,7 @@ Detaillierte Informationen über einen bestimmten Ereignistyp abrufen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
-| `eventTypeUuid` | string | Ja | Ereignistyp UUID \(kann vollständige URI oder nur die UUID sein\) |
+| `eventTypeUuid` | string | Ja | Ereignistyp-UUID \(kann vollständige URI oder nur die UUID sein\) |
 
 #### Ausgabe
 
@@ -137,15 +150,15 @@ Eine Liste der Eingeladenen für ein geplantes Ereignis abrufen
 
 ### `calendly_cancel_event`
 
-Geplanten Termin stornieren
+Ein geplantes Ereignis stornieren
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
-| `eventUuid` | string | Ja | UUID des geplanten Termins, der storniert werden soll \(kann vollständige URI oder nur die UUID sein\) |
-| `reason` | string | Nein | Grund für die Stornierung \(wird an die Eingeladenen gesendet\) |
+| `eventUuid` | string | Ja | UUID des zu stornierenden geplanten Ereignisses \(kann vollständige URI oder nur die UUID sein\) |
+| `reason` | string | Nein | Grund für die Stornierung \(wird an Eingeladene gesendet\) |
 
 #### Ausgabe
 

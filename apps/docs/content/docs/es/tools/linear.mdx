@@ -39,8 +39,8 @@ Obtener y filtrar incidencias de Linear
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
-| `teamId` | string | Sí | ID del equipo de Linear |
-| `projectId` | string | Sí | ID del proyecto de Linear |
+| `teamId` | string | No | ID del equipo de Linear para filtrar |
+| `projectId` | string | No | ID del proyecto de Linear para filtrar |
 
 #### Salida
 
@@ -73,7 +73,7 @@ Crear una nueva incidencia en Linear
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
 | `teamId` | string | Sí | ID del equipo de Linear |
-| `projectId` | string | Sí | ID del proyecto de Linear |
+| `projectId` | string | No | ID del proyecto de Linear |
 | `title` | string | Sí | Título de la incidencia |
 | `description` | string | No | Descripción de la incidencia |
 
@@ -237,7 +237,7 @@ Editar un comentario en Linear
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
 | `commentId` | string | Sí | ID del comentario a actualizar |
-| `body` | string | Sí | Nuevo texto del comentario \(admite Markdown\) |
+| `body` | string | No | Nuevo texto del comentario \(admite Markdown\) |
 
 #### Salida
 
@@ -637,7 +637,7 @@ Añadir un adjunto a una incidencia en Linear
 | --------- | ---- | ----------- | ----------- |
 | `issueId` | string | Sí | ID de la incidencia a la que adjuntar |
 | `url` | string | Sí | URL del adjunto |
-| `title` | string | No | Título del adjunto |
+| `title` | string | Sí | Título del adjunto |
 | `subtitle` | string | No | Subtítulo/descripción del adjunto |
 
 #### Salida
@@ -673,7 +673,7 @@ Actualizar los metadatos de un adjunto en Linear
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
 | `attachmentId` | string | Sí | ID del adjunto a actualizar |
-| `title` | string | No | Nuevo título del adjunto |
+| `title` | string | Sí | Nuevo título del adjunto |
 | `subtitle` | string | No | Nuevo subtítulo del adjunto |
 
 #### Salida

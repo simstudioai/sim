@@ -1,0 +1,117 @@
+---
+title: 语音转文字
+description: 使用 AI 将语音转换为文字
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="stt"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+使用最先进的 AI 模型从领先的提供商处将语音转录为文字。Sim 语音转文字 (STT) 工具可以将音频和视频文件转换为准确的文字记录，支持多种语言、时间戳以及可选的翻译功能。
+
+支持的提供商：
+
+- **[OpenAI Whisper](https://platform.openai.com/docs/guides/speech-to-text/overview)**：来自 OpenAI 的先进开源 STT 模型。支持 `whisper-1` 等模型，能够处理多种语言和音频格式。
+- **[Deepgram](https://deepgram.com/)**：基于深度学习模型的实时和批量 STT API，例如 `nova-3`、`nova-2` 和 `whisper-large`。提供诸如说话人分离、意图识别和行业特定调优等功能。
+- **[ElevenLabs](https://elevenlabs.io/)**：以高质量语音 AI 闻名，ElevenLabs 提供专注于准确性和自然语言理解的 STT 模型，支持多种语言和方言。
+
+选择最适合您任务的提供商和模型——无论是快速、生产级转录 (Deepgram)，高精度多语言能力 (Whisper)，还是高级理解和语言覆盖 (ElevenLabs)。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用领先的 AI 提供商将音频和视频文件转录为文字。支持多种语言、时间戳和说话人分离。
+
+## 工具
+
+### `stt_whisper`
+
+使用 OpenAI Whisper 将音频转录为文字
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | 是 | STT 提供商 \(whisper\) |
+| `apiKey` | string | 是 | OpenAI API 密钥 |
+| `model` | string | 否 | 使用的 Whisper 模型 \(默认值：whisper-1\) |
+| `audioFile` | file | 否 | 要转录的音频或视频文件 |
+| `audioFileReference` | file | 否 | 来自前一个模块的音频/视频文件引用 |
+| `audioUrl` | string | 否 | 音频或视频文件的 URL |
+| `language` | string | 否 | 语言代码 \(例如："en"、"es"、"fr"\) 或 "auto" 进行自动检测 |
+| `timestamps` | string | 否 | 时间戳粒度：无、句子或单词 |
+| `translateToEnglish` | boolean | 否 | 将音频翻译为英语 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `transcript` | string | 完整的转录文本 |
+| `segments` | array | 带时间戳的片段 |
+| `language` | string | 检测到的或指定的语言 |
+| `duration` | number | 音频时长（秒） |
+| `confidence` | number | 总体置信度评分 |
+
+### `stt_deepgram`
+
+使用 Deepgram 将音频转录为文本
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | 是 | STT 提供商 \(deepgram\) |
+| `apiKey` | string | 是 | Deepgram API 密钥 |
+| `model` | string | 否 | 要使用的 Deepgram 模型 \(nova-3, nova-2, whisper-large 等\) |
+| `audioFile` | file | 否 | 要转录的音频或视频文件 |
+| `audioFileReference` | file | 否 | 来自前面模块的音频/视频文件引用 |
+| `audioUrl` | string | 否 | 音频或视频文件的 URL |
+| `language` | string | 否 | 语言代码 \(例如："en", "es", "fr"\) 或 "auto" 进行自动检测 |
+| `timestamps` | string | 否 | 时间戳粒度：无、句子或单词 |
+| `diarization` | boolean | 否 | 启用说话人分离 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `transcript` | string | 完整的转录文本 |
+| `segments` | array | 带有说话人标签的时间戳片段 |
+| `language` | string | 检测到的或指定的语言 |
+| `duration` | number | 音频时长（秒） |
+| `confidence` | number | 总体置信度评分 |
+
+### `stt_elevenlabs`
+
+使用 ElevenLabs 将音频转录为文本
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | 是 | STT 提供商 \(elevenlabs\) |
+| `apiKey` | string | 是 | ElevenLabs API 密钥 |
+| `model` | string | 否 | 要使用的 ElevenLabs 模型 \(scribe_v1, scribe_v1_experimental\) |
+| `audioFile` | file | 否 | 要转录的音频或视频文件 |
+| `audioFileReference` | file | 否 | 来自前面模块的音频/视频文件引用 |
+| `audioUrl` | string | 否 | 音频或视频文件的 URL |
+| `language` | string | 否 | 语言代码 \(例如 "en", "es", "fr"\) 或 "auto" 进行自动检测 |
+| `timestamps` | string | 否 | 时间戳粒度：无、句子或单词 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `transcript` | string | 完整转录文本 |
+| `segments` | array | 带时间戳的片段 |
+| `language` | string | 检测到或指定的语言 |
+| `duration` | number | 音频时长（秒） |
+| `confidence` | number | 总体置信度评分 |
+
+## 注意
+
+- 类别: `tools`
+- 类型: `stt`

@@ -39,8 +39,8 @@ Linear 的主要功能包括：
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | 是 | Linear 团队 ID |
-| `projectId` | string | 是 | Linear 项目 ID |
+| `teamId` | string | 否 | 用于筛选的 Linear 团队 ID |
+| `projectId` | string | 否 | 用于筛选的 Linear 项目 ID |
 
 #### 输出
 
@@ -73,7 +73,7 @@ Linear 的主要功能包括：
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | 是 | Linear 团队 ID |
-| `projectId` | string | 是 | Linear 项目 ID |
+| `projectId` | string | 否 | Linear 项目 ID |
 | `title` | string | 是 | 问题标题 |
 | `description` | string | 否 | 问题描述 |
 
@@ -237,7 +237,7 @@ Linear 的主要功能包括：
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `commentId` | string | 是 | 要更新的评论 ID |
-| `body` | string | 是 | 新的评论文本（支持 Markdown） |
+| `body` | string | 否 | 新的评论文本（支持 Markdown） |
 
 #### 输出
 
@@ -637,7 +637,7 @@ Linear 的主要功能包括：
 | --------- | ---- | -------- | ----------- |
 | `issueId` | string | 是 | 要附加的 Issue ID |
 | `url` | string | 是 | 附件的 URL |
-| `title` | string | 否 | 附件标题 |
+| `title` | string | 是 | 附件标题 |
 | `subtitle` | string | 否 | 附件副标题/描述 |
 
 #### 输出
@@ -673,7 +673,7 @@ Linear 的主要功能包括：
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `attachmentId` | string | 是 | 要更新的附件 ID |
-| `title` | string | 否 | 新的附件标题 |
+| `title` | string | 是 | 新的附件标题 |
 | `subtitle` | string | 否 | 新的附件副标题 |
 
 #### 输出

@@ -10,15 +10,28 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Calendly](https://calendly.com/) 是一个流行的日程安排自动化平台，可以帮助您轻松预订会议、活动和预约。通过 Calendly，团队和个人可以简化日程安排，减少来回邮件，并自动化与活动相关的任务。
+
+通过 Sim 的 Calendly 集成，您的代理可以：
+
+- **检索有关您的账户和已安排事件的信息**：使用工具获取用户信息、事件类型和已安排事件，以便进行分析或自动化。
+- **管理事件类型和日程安排**：访问并列出用户或组织的可用事件类型，检索特定事件类型的详细信息，并监控已安排的会议和受邀者数据。
+- **自动化跟进和工作流程**：当用户安排、重新安排或取消会议时，Sim 代理可以自动触发相应的工作流程，例如发送提醒、更新 CRM 或通知参与者。
+- **通过 Webhook 轻松集成**：设置 Sim 工作流程以响应实时 Calendly Webhook 事件，包括当受邀者安排、取消或与路由表单交互时。
+
+无论您是想自动化会议准备、管理邀请，还是根据日程安排活动运行自定义工作流程，Sim 中的 Calendly 工具都为您提供灵活且安全的访问权限。通过即时响应日程安排的变化解锁新的自动化功能——简化您的团队运营和沟通。
+{/* MANUAL-CONTENT-END */}
+
 ## 使用说明
 
-将 Calendly 集成到您的工作流程中。管理事件类型、已安排的事件、受邀者和 Webhooks。还可以基于 Calendly Webhook 事件（受邀者已安排、受邀者已取消、路由表单已提交）触发工作流程。需要个人访问令牌。
+将 Calendly 集成到您的工作流程中。管理事件类型、已安排事件、受邀者和 Webhook。还可以基于 Calendly Webhook 事件（受邀者已安排、受邀者已取消、路由表单已提交）触发工作流程。需要个人访问令牌。
 
 ## 工具
 
 ### `calendly_get_current_user`
 
-获取当前已认证 Calendly 用户的信息
+获取当前已认证的 Calendly 用户的信息
 
 #### 输入
 
@@ -41,22 +54,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | 是 | Calendly 个人访问令牌 |
-| `user` | string | 否 | 仅返回属于该用户的事件类型 \(URI 格式\) |
-| `organization` | string | 否 | 仅返回属于该组织的事件类型 \(URI 格式\) |
-| `count` | number | 否 | 每页结果数量 \(默认: 20, 最大: 100\) |
+| `user` | string | 否 | 仅返回属于该用户的事件类型（URI 格式） |
+| `organization` | string | 否 | 仅返回属于该组织的事件类型（URI 格式） |
+| `count` | number | 否 | 每页结果数量（默认：20，最大：100） |
 | `pageToken` | string | 否 | 分页的页面令牌 |
-| `sort` | string | 否 | 结果的排序顺序 \(例如: "name:asc", "name:desc"\) |
+| `sort` | string | 否 | 结果的排序顺序（例如，“name:asc”、“name:desc”） |
 | `active` | boolean | 否 | 如果为 true，仅显示活动的事件类型。如果为 false 或未选中，则显示所有事件类型（包括活动和非活动）。 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `collection` | array | 事件类型对象的数组 |
+| `collection` | array | 事件类型对象数组 |
 
 ### `calendly_get_event_type`
 
-获取有关特定事件类型的详细信息
+获取特定事件类型的详细信息
 
 #### 输入
 
@@ -80,21 +93,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | 是 | Calendly 个人访问令牌 |
-| `user` | string | 否 | 返回属于该用户的事件（URI 格式）。必须提供“用户”或“组织”之一。 |
-| `organization` | string | 否 | 返回属于该组织的事件（URI 格式）。必须提供“用户”或“组织”之一。 |
-| `invitee_email` | string | 否 | 返回邀请者具有此电子邮件的事件 |
-| `count` | number | 否 | 每页结果数量（默认：20，最大：100） |
-| `max_start_time` | string | 否 | 返回开始时间早于此时间的事件（ISO 8601 格式） |
-| `min_start_time` | string | 否 | 返回开始时间晚于此时间的事件（ISO 8601 格式） |
+| `user` | string | 否 | 返回属于该用户的事件 \(URI 格式\)。必须提供 "user" 或 "organization" 之一。 |
+| `organization` | string | 否 | 返回属于该组织的事件 \(URI 格式\)。必须提供 "user" 或 "organization" 之一。 |
+| `invitee_email` | string | 否 | 返回受邀者电子邮件为此的事件 |
+| `count` | number | 否 | 每页结果数量 \(默认: 20, 最大: 100\) |
+| `max_start_time` | string | 否 | 返回开始时间早于此时间的事件 \(ISO 8601 格式\) |
+| `min_start_time` | string | 否 | 返回开始时间晚于此时间的事件 \(ISO 8601 格式\) |
 | `pageToken` | string | 否 | 分页的页面令牌 |
-| `sort` | string | 否 | 结果的排序顺序（例如，“start_time:asc”、“start_time:desc”） |
-| `status` | string | 否 | 按状态筛选（“active” 或 “canceled”） |
+| `sort` | string | 否 | 结果的排序顺序 \(例如: "start_time:asc", "start_time:desc"\) |
+| `status` | string | 否 | 按状态筛选 \("active" 或 "canceled"\) |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `collection` | array | 计划事件对象的数组 |
+| `collection` | array | 已安排事件对象的数组 |
 
 ### `calendly_get_scheduled_event`
 
@@ -105,7 +118,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | 是 | Calendly 个人访问令牌 |
-| `eventUuid` | string | 是 | 计划事件 UUID \(可以是完整 URI 或仅是 UUID\) |
+| `eventUuid` | string | 是 | 计划事件 UUID（可以是完整 URI 或仅是 UUID） |
 
 #### 输出
 
@@ -122,30 +135,30 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | 是 | Calendly 个人访问令牌 |
-| `eventUuid` | string | 是 | 计划事件 UUID \(可以是完整 URI 或仅是 UUID\) |
-| `count` | number | 否 | 每页结果数量 \(默认: 20, 最大: 100\) |
+| `eventUuid` | string | 是 | 计划事件 UUID（可以是完整 URI 或仅是 UUID） |
+| `count` | number | 否 | 每页结果数量（默认: 20，最大: 100） |
 | `email` | string | 否 | 按电子邮件地址筛选受邀者 |
 | `pageToken` | string | 否 | 分页的页面令牌 |
-| `sort` | string | 否 | 结果的排序顺序 \(例如: "created_at:asc", "created_at:desc"\) |
-| `status` | string | 否 | 按状态筛选 \("active" 或 "canceled"\) |
+| `sort` | string | 否 | 结果的排序顺序（例如: "created_at:asc", "created_at:desc"） |
+| `status` | string | 否 | 按状态筛选（"active" 或 "canceled"） |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `collection` | array | 受邀者对象的数组 |
+| `collection` | array | 受邀者对象数组 |
 
 ### `calendly_cancel_event`
 
-取消已安排的事件
+取消计划事件
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | 是 | Calendly 个人访问令牌 |
-| `eventUuid` | string | 是 | 要取消的已安排事件 UUID（可以是完整 URI 或仅是 UUID） |
-| `reason` | string | 否 | 取消原因（将发送给受邀者） |
+| `eventUuid` | string | 是 | 要取消的计划事件 UUID \(可以是完整 URI 或仅是 UUID\) |
+| `reason` | string | 否 | 取消原因 \(将发送给受邀者\) |
 
 #### 输出
 
@@ -153,7 +166,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `resource` | object | 取消详情 |
 
-## 注意
+## 注意事项
 
 - 类别: `tools`
 - 类型: `calendly`

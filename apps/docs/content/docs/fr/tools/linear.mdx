@@ -39,8 +39,8 @@ Récupérer et filtrer les tickets depuis Linear
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `teamId` | chaîne | Oui | ID de l'équipe Linear |
-| `projectId` | chaîne | Oui | ID du projet Linear |
+| `teamId` | chaîne | Non | ID de l'équipe Linear pour filtrer |
+| `projectId` | chaîne | Non | ID du projet Linear pour filtrer |
 
 #### Sortie
 
@@ -73,7 +73,7 @@ Créer un nouveau ticket dans Linear
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
 | `teamId` | chaîne | Oui | ID de l'équipe Linear |
-| `projectId` | chaîne | Oui | ID du projet Linear |
+| `projectId` | chaîne | Non | ID du projet Linear |
 | `title` | chaîne | Oui | Titre du ticket |
 | `description` | chaîne | Non | Description du ticket |
 
@@ -237,7 +237,7 @@ Modifier un commentaire dans Linear
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
 | `commentId` | chaîne | Oui | ID du commentaire à mettre à jour |
-| `body` | chaîne | Oui | Nouveau texte du commentaire \(supporte le Markdown\) |
+| `body` | chaîne | Non | Nouveau texte du commentaire \(supporte le Markdown\) |
 
 #### Sortie
 
@@ -635,9 +635,9 @@ Ajouter une pièce jointe à un ticket dans Linear
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `issueId` | chaîne | Oui | ID du ticket auquel joindre la pièce |
+| `issueId` | chaîne | Oui | ID du ticket auquel joindre |
 | `url` | chaîne | Oui | URL de la pièce jointe |
-| `title` | chaîne | Non | Titre de la pièce jointe |
+| `title` | chaîne | Oui | Titre de la pièce jointe |
 | `subtitle` | chaîne | Non | Sous-titre/description de la pièce jointe |
 
 #### Sortie
@@ -673,7 +673,7 @@ Mettre à jour les métadonnées d'une pièce jointe dans Linear
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
 | `attachmentId` | chaîne | Oui | ID de la pièce jointe à mettre à jour |
-| `title` | chaîne | Non | Nouveau titre de la pièce jointe |
+| `title` | chaîne | Oui | Nouveau titre de la pièce jointe |
 | `subtitle` | chaîne | Non | Nouveau sous-titre de la pièce jointe |
 
 #### Sortie
