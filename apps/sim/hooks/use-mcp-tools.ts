@@ -2,16 +2,16 @@
  * Hook for discovering and managing MCP tools
  *
  * This hook provides a unified interface for accessing MCP tools
- * alongside regular platform tools in the tool-input component
+ * using TanStack Query for optimal caching and performance
  */
 
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { WrenchIcon } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { McpTool } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
-import { useMcpServers } from '@/hooks/queries/mcp'
+import { mcpKeys, useMcpToolsQuery } from '@/hooks/queries/mcp'
 
 const logger = createLogger('useMcpTools')
 
@@ -36,84 +36,51 @@ export interface UseMcpToolsResult {
   getToolsByServer: (serverId: string) => McpToolForUI[]
 }
 
+/**
+ * Hook for accessing MCP tools with TanStack Query
+ * Provides backward-compatible API with the old useState-based implementation
+ */
 export function useMcpTools(workspaceId: string): UseMcpToolsResult {
-  const [mcpTools, setMcpTools] = useState<McpToolForUI[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
-  const { data: servers = [] } = useMcpServers(workspaceId)
+  // Use TanStack Query hook for data fetching with caching
+  const { data: mcpToolsData = [], isLoading, error: queryError } = useMcpToolsQuery(workspaceId)
 
-  // Track the last fingerprint
-  const lastProcessedFingerprintRef = useRef<string>('')
+  // Transform raw tool data to UI-friendly format with memoization
+  const mcpTools = useMemo<McpToolForUI[]>(() => {
+    return mcpToolsData.map((tool) => ({
+      id: createMcpToolId(tool.serverId, tool.name),
+      name: tool.name,
+      description: tool.description,
+      serverId: tool.serverId,
+      serverName: tool.serverName,
+      type: 'mcp' as const,
+      inputSchema: tool.inputSchema,
+      bgColor: '#6366F1',
+      icon: WrenchIcon,
+    }))
+  }, [mcpToolsData])
 
-  // Create a stable server fingerprint
-  const serversFingerprint = useMemo(() => {
-    return servers
-      .filter((s) => s.enabled && !s.deletedAt)
-      .map((s) => `${s.id}-${s.enabled}-${s.updatedAt}`)
-      .sort()
-      .join('|')
-  }, [servers])
-
+  // Refresh tools by invalidating the query cache
   const refreshTools = useCallback(
     async (forceRefresh = false) => {
-      // Skip if no workspaceId (e.g., on template preview pages)
       if (!workspaceId) {
-        setMcpTools([])
-        setIsLoading(false)
+        logger.warn('Cannot refresh tools: no workspaceId provided')
         return
       }
 
-      setIsLoading(true)
-      setError(null)
+      logger.info('Refreshing MCP tools', { forceRefresh, workspaceId })
 
-      try {
-        logger.info('Discovering MCP tools', { forceRefresh, workspaceId })
-
-        const response = await fetch(
-          `/api/mcp/tools/discover?workspaceId=${workspaceId}&refresh=${forceRefresh}`
-        )
-
-        if (!response.ok) {
-          throw new Error(`Failed to discover MCP tools: ${response.status} ${response.statusText}`)
-        }
-
-        const data = await response.json()
-
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to discover MCP tools')
-        }
-
-        const tools = data.data.tools || []
-        const transformedTools = tools.map((tool: McpTool) => ({
-          id: createMcpToolId(tool.serverId, tool.name),
-          name: tool.name,
-          description: tool.description,
-          serverId: tool.serverId,
-          serverName: tool.serverName,
-          type: 'mcp' as const,
-          inputSchema: tool.inputSchema,
-          bgColor: '#6366F1',
-          icon: WrenchIcon,
-        }))
-
-        setMcpTools(transformedTools)
-
-        logger.info(
-          `Discovered ${transformedTools.length} MCP tools from ${data.data.byServer ? Object.keys(data.data.byServer).length : 0} servers`
-        )
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to discover MCP tools'
-        logger.error('Error discovering MCP tools:', err)
-        setError(errorMessage)
-        setMcpTools([])
-      } finally {
-        setIsLoading(false)
-      }
+      // Invalidate the query to trigger a refetch
+      await queryClient.invalidateQueries({
+        queryKey: mcpKeys.tools(workspaceId),
+        refetchType: forceRefresh ? 'active' : 'all',
+      })
     },
-    [workspaceId]
+    [workspaceId, queryClient]
   )
 
+  // Get tool by ID
   const getToolById = useCallback(
     (toolId: string): McpToolForUI | undefined => {
       return mcpTools.find((tool) => tool.id === toolId)
@@ -121,6 +88,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     [mcpTools]
   )
 
+  // Get all tools for a specific server
   const getToolsByServer = useCallback(
     (serverId: string): McpToolForUI[] => {
       return mcpTools.filter((tool) => tool.serverId === serverId)
@@ -128,41 +96,10 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     [mcpTools]
   )
 
-  useEffect(() => {
-    refreshTools()
-  }, [refreshTools])
-
-  // Refresh tools when servers change
-  useEffect(() => {
-    if (!serversFingerprint || serversFingerprint === lastProcessedFingerprintRef.current) return
-
-    logger.info('Active servers changed, refreshing MCP tools', {
-      serverCount: servers.filter((s) => s.enabled && !s.deletedAt).length,
-      fingerprint: serversFingerprint,
-    })
-
-    lastProcessedFingerprintRef.current = serversFingerprint
-    refreshTools()
-  }, [serversFingerprint, refreshTools])
-
-  // Auto-refresh every 5 minutes
-  useEffect(() => {
-    const interval = setInterval(
-      () => {
-        if (!isLoading) {
-          refreshTools()
-        }
-      },
-      5 * 60 * 1000
-    )
-
-    return () => clearInterval(interval)
-  }, [refreshTools])
-
   return {
     mcpTools,
     isLoading,
-    error,
+    error: queryError instanceof Error ? queryError.message : null,
     refreshTools,
     getToolById,
     getToolsByServer,

@@ -14,7 +14,6 @@ import {
   useMcpToolsQuery,
 } from '@/hooks/queries/mcp'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
-import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { AddServerForm } from './components/add-server-form'
 import type { McpServerFormData } from './types'
 
@@ -33,9 +32,6 @@ export function MCP() {
   const { data: mcpToolsData = [], error: toolsError } = useMcpToolsQuery(workspaceId)
   const createServerMutation = useCreateMcpServer()
   const deleteServerMutation = useDeleteMcpServer()
-
-  // Keep the old hook for backward compatibility with other features that use it
-  const { refreshTools } = useMcpTools(workspaceId)
 
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -198,21 +194,13 @@ export function MCP() {
       setActiveHeaderIndex(null)
       clearTestResult()
 
-      refreshTools(true) // Force refresh after adding server
+      // TanStack Query mutations automatically invalidate and refetch tools
     } catch (error) {
       logger.error('Failed to add MCP server:', error)
     } finally {
       setIsAddingServer(false)
     }
-  }, [
-    formData,
-    testResult,
-    testConnection,
-    createServerMutation,
-    refreshTools,
-    clearTestResult,
-    workspaceId,
-  ])
+  }, [formData, testResult, testConnection, createServerMutation, clearTestResult, workspaceId])
 
   const handleRemoveServer = useCallback(
     async (serverId: string) => {
@@ -220,7 +208,7 @@ export function MCP() {
 
       try {
         await deleteServerMutation.mutateAsync({ workspaceId, serverId })
-        await refreshTools(true)
+        // TanStack Query mutations automatically invalidate and refetch tools
 
         logger.info(`Removed MCP server: ${serverId}`)
       } catch (error) {
@@ -238,7 +226,7 @@ export function MCP() {
         })
       }
     },
-    [deleteServerMutation, refreshTools, workspaceId]
+    [deleteServerMutation, workspaceId]
   )
 
   const toolsByServer = (mcpToolsData || []).reduce(
