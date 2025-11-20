@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next'
-import { getAllPostMeta, getAllTags } from '@/lib/blog/registry'
+import { getAllPostMeta } from '@/lib/blog/registry'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://sim.ai'
@@ -56,12 +56,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.9, // Blog posts - high value content
   }))
 
-  const tags = await getAllTags()
-  const tagPages: MetadataRoute.Sitemap = tags.map((t) => ({
-    url: `${baseUrl}/studio/tags/${t.tag.toLowerCase().replace(/\s+/g, '-')}`,
-    lastModified: now,
-    priority: 0.6, // Tag pages - secondary navigation
-  }))
-
-  return [...staticPages, ...blogPages, ...tagPages]
+  return [...staticPages, ...blogPages]
 }
