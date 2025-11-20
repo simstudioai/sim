@@ -36,17 +36,11 @@ export interface UseMcpToolsResult {
   getToolsByServer: (serverId: string) => McpToolForUI[]
 }
 
-/**
- * Hook for accessing MCP tools with TanStack Query
- * Provides backward-compatible API with the old useState-based implementation
- */
 export function useMcpTools(workspaceId: string): UseMcpToolsResult {
   const queryClient = useQueryClient()
 
-  // Use TanStack Query hook for data fetching with caching
   const { data: mcpToolsData = [], isLoading, error: queryError } = useMcpToolsQuery(workspaceId)
 
-  // Transform raw tool data to UI-friendly format with memoization
   const mcpTools = useMemo<McpToolForUI[]>(() => {
     return mcpToolsData.map((tool) => ({
       id: createMcpToolId(tool.serverId, tool.name),
@@ -61,7 +55,6 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     }))
   }, [mcpToolsData])
 
-  // Refresh tools by invalidating the query cache
   const refreshTools = useCallback(
     async (forceRefresh = false) => {
       if (!workspaceId) {
@@ -71,7 +64,6 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
 
       logger.info('Refreshing MCP tools', { forceRefresh, workspaceId })
 
-      // Invalidate the query to trigger a refetch
       await queryClient.invalidateQueries({
         queryKey: mcpKeys.tools(workspaceId),
         refetchType: forceRefresh ? 'active' : 'all',
@@ -80,7 +72,6 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     [workspaceId, queryClient]
   )
 
-  // Get tool by ID
   const getToolById = useCallback(
     (toolId: string): McpToolForUI | undefined => {
       return mcpTools.find((tool) => tool.id === toolId)
@@ -88,7 +79,6 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     [mcpTools]
   )
 
-  // Get all tools for a specific server
   const getToolsByServer = useCallback(
     (serverId: string): McpToolForUI[] => {
       return mcpTools.filter((tool) => tool.serverId === serverId)
