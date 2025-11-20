@@ -29,9 +29,6 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
         { label: 'Get Scheduled Event', id: 'calendly_get_scheduled_event' },
         { label: 'List Event Invitees', id: 'calendly_list_event_invitees' },
         { label: 'Cancel Event', id: 'calendly_cancel_event' },
-        { label: 'List Webhooks', id: 'calendly_list_webhooks' },
-        { label: 'Create Webhook', id: 'calendly_create_webhook' },
-        { label: 'Delete Webhook', id: 'calendly_delete_webhook' },
       ],
       value: () => 'calendly_list_scheduled_events',
     },
@@ -60,23 +57,7 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
       placeholder: 'Filter by user URI',
       condition: {
         field: 'operation',
-        value: [
-          'calendly_list_event_types',
-          'calendly_list_scheduled_events',
-          'calendly_list_webhooks',
-          'calendly_create_webhook',
-        ],
-      },
-    },
-    {
-      id: 'organization',
-      title: 'Organization URI',
-      type: 'short-input',
-      placeholder: 'Filter by organization URI',
-      required: true,
-      condition: {
-        field: 'operation',
-        value: ['calendly_list_webhooks', 'calendly_create_webhook'],
+        value: ['calendly_list_event_types', 'calendly_list_scheduled_events'],
       },
     },
     {
@@ -93,6 +74,8 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
       id: 'active',
       title: 'Active Only',
       type: 'switch',
+      description:
+        'When enabled, shows only active event types. When disabled, shows all event types.',
       condition: { field: 'operation', value: 'calendly_list_event_types' },
     },
     // List Scheduled Events fields
@@ -175,7 +158,6 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
           'calendly_list_event_types',
           'calendly_list_scheduled_events',
           'calendly_list_event_invitees',
-          'calendly_list_webhooks',
         ],
       },
     },
@@ -190,7 +172,6 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
           'calendly_list_event_types',
           'calendly_list_scheduled_events',
           'calendly_list_event_invitees',
-          'calendly_list_webhooks',
         ],
       },
     },
@@ -208,66 +189,6 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
         ],
       },
     },
-    // Webhook fields
-    {
-      id: 'webhookUuid',
-      title: 'Webhook UUID',
-      type: 'short-input',
-      placeholder: 'Enter webhook UUID or URI',
-      required: true,
-      condition: { field: 'operation', value: 'calendly_delete_webhook' },
-    },
-    {
-      id: 'url',
-      title: 'Webhook URL',
-      type: 'short-input',
-      placeholder: 'HTTPS URL to receive webhooks',
-      required: true,
-      condition: { field: 'operation', value: 'calendly_create_webhook' },
-    },
-    {
-      id: 'events',
-      title: 'Events',
-      type: 'long-input',
-      placeholder: 'JSON array of events (e.g., ["invitee.created", "invitee.canceled"])',
-      required: true,
-      condition: { field: 'operation', value: 'calendly_create_webhook' },
-    },
-    {
-      id: 'scope',
-      title: 'Webhook Scope',
-      type: 'dropdown',
-      options: [
-        { label: 'Organization', id: 'organization' },
-        { label: 'User', id: 'user' },
-      ],
-      required: true,
-      condition: {
-        field: 'operation',
-        value: 'calendly_create_webhook',
-      },
-    },
-    {
-      id: 'scope',
-      title: 'Webhook Scope Filter',
-      type: 'dropdown',
-      options: [
-        { label: 'All', id: '' },
-        { label: 'Organization', id: 'organization' },
-        { label: 'User', id: 'user' },
-      ],
-      condition: {
-        field: 'operation',
-        value: 'calendly_list_webhooks',
-      },
-    },
-    {
-      id: 'signing_key',
-      title: 'Signing Key',
-      type: 'short-input',
-      placeholder: 'Optional signing key for verification',
-      condition: { field: 'operation', value: 'calendly_create_webhook' },
-    },
     // Trigger SubBlocks
     ...getTrigger('calendly_invitee_created').subBlocks,
     ...getTrigger('calendly_invitee_canceled').subBlocks,
@@ -283,9 +204,6 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
       'calendly_get_scheduled_event',
       'calendly_list_event_invitees',
       'calendly_cancel_event',
-      'calendly_list_webhooks',
-      'calendly_create_webhook',
-      'calendly_delete_webhook',
     ],
     config: {
       tool: (params) => {

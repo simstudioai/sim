@@ -172,10 +172,9 @@ export function DeploymentInfo({
           <ModalHeader>
             <ModalTitle>Undeploy API</ModalTitle>
             <ModalDescription>
-              Are you sure you want to undeploy this workflow? This will remove the API endpoint and
-              make it unavailable to external users.{' '}
+              Are you sure you want to undeploy this workflow?{' '}
               <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
+                This will remove the API endpoint and make it unavailable to external users.{' '}
               </span>
             </ModalDescription>
           </ModalHeader>

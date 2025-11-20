@@ -1,6 +1,6 @@
 import { CalendlyIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildInviteeOutputs, calendlySetupInstructions } from './utils'
+import { buildInviteeOutputs } from './utils'
 
 export const calendlyInviteeCanceledTrigger: TriggerConfig = {
   id: 'calendly_invitee_canceled',
@@ -12,13 +12,26 @@ export const calendlyInviteeCanceledTrigger: TriggerConfig = {
 
   subBlocks: [
     {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
+      id: 'apiKey',
+      title: 'Personal Access Token',
       type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
+      placeholder: 'Enter your Calendly personal access token',
+      password: true,
+      required: true,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'calendly_invitee_canceled',
+      },
+    },
+    {
+      id: 'organization',
+      title: 'Organization URI',
+      type: 'short-input',
+      placeholder: 'https://api.calendly.com/organizations/XXXXXX',
+      description:
+        'Organization URI for the webhook subscription. Get this from "Get Current User" operation.',
+      required: true,
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
@@ -30,10 +43,18 @@ export const calendlyInviteeCanceledTrigger: TriggerConfig = {
       title: 'Setup Instructions',
       hideFromPreview: true,
       type: 'text',
-      defaultValue: calendlySetupInstructions(
-        'invitee.canceled',
-        'This webhook will trigger when an invitee cancels an event. The payload includes cancellation details such as who canceled (host or invitee) and the reason if provided.'
-      ),
+      defaultValue: [
+        '<strong>Note:</strong> This trigger requires a paid Calendly subscription (Professional, Teams, or Enterprise plan).',
+        'Get your Personal Access Token from <strong>Settings > Integrations > API & Webhooks</strong> in your Calendly account.',
+        'Use the "Get Current User" operation in a Calendly block to retrieve your Organization URI.',
+        'The webhook will be automatically created in Calendly when you save this trigger.',
+        'This webhook triggers when an invitee cancels an event. The payload includes cancellation details and reason.',
+      ]
+        .map(
+          (instruction, index) =>
+            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+        )
+        .join(''),
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',

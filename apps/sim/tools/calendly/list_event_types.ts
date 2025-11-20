@@ -54,7 +54,8 @@ export const listEventTypesTool: ToolConfig<
       type: 'boolean',
       required: false,
       visibility: 'user-only',
-      description: 'Filter by active status (true for active, false for inactive)',
+      description:
+        'When true, show only active event types. When false or unchecked, show all event types (both active and inactive).',
     },
   },
 
@@ -83,8 +84,8 @@ export const listEventTypesTool: ToolConfig<
         queryParams.push(`sort=${encodeURIComponent(params.sort)}`)
       }
 
-      if (params.active !== undefined) {
-        queryParams.push(`active=${params.active}`)
+      if (params.active === true) {
+        queryParams.push('active=true')
       }
 
       return queryParams.length > 0 ? `${url}?${queryParams.join('&')}` : url

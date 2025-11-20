@@ -7,6 +7,7 @@ const teamsLogger = createLogger('TeamsSubscription')
 const telegramLogger = createLogger('TelegramWebhook')
 const airtableLogger = createLogger('AirtableWebhook')
 const typeformLogger = createLogger('TypeformWebhook')
+const calendlyLogger = createLogger('CalendlyWebhook')
 
 function getProviderConfig(webhook: any): Record<string, any> {
   return (webhook.providerConfig as Record<string, any>) || {}
@@ -612,8 +613,57 @@ export async function deleteTypeformWebhook(webhook: any, requestId: string): Pr
 }
 
 /**
+ * Delete a Calendly webhook subscription
+ * Don't fail webhook deletion if cleanup fails
+ */
+export async function deleteCalendlyWebhook(webhook: any, requestId: string): Promise<void> {
+  try {
+    const config = getProviderConfig(webhook)
+    const apiKey = config.apiKey as string | undefined
+    const externalId = config.externalId as string | undefined
+
+    if (!apiKey) {
+      calendlyLogger.warn(
+        `[${requestId}] Missing apiKey for Calendly webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    if (!externalId) {
+      calendlyLogger.warn(
+        `[${requestId}] Missing externalId for Calendly webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    const calendlyApiUrl = `https://api.calendly.com/webhook_subscriptions/${externalId}`
+
+    const calendlyResponse = await fetch(calendlyApiUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    })
+
+    if (!calendlyResponse.ok && calendlyResponse.status !== 404) {
+      const responseBody = await calendlyResponse.json().catch(() => ({}))
+      calendlyLogger.warn(
+        `[${requestId}] Failed to delete Calendly webhook (non-fatal): ${calendlyResponse.status}`,
+        { response: responseBody }
+      )
+    } else {
+      calendlyLogger.info(
+        `[${requestId}] Successfully deleted Calendly webhook subscription ${externalId}`
+      )
+    }
+  } catch (error) {
+    calendlyLogger.warn(`[${requestId}] Error deleting Calendly webhook (non-fatal)`, error)
+  }
+}
+
+/**
  * Clean up external webhook subscriptions for a webhook
- * Handles Airtable, Teams, Telegram, and Typeform cleanup
+ * Handles Airtable, Teams, Telegram, Typeform, and Calendly cleanup
  * Don't fail deletion if cleanup fails
  */
 export async function cleanupExternalWebhook(
@@ -629,5 +679,7 @@ export async function cleanupExternalWebhook(
     await deleteTelegramWebhook(webhook, requestId)
   } else if (webhook.provider === 'typeform') {
     await deleteTypeformWebhook(webhook, requestId)
+  } else if (webhook.provider === 'calendly') {
+    await deleteCalendlyWebhook(webhook, requestId)
   }
 }

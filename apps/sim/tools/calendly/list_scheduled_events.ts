@@ -24,13 +24,15 @@ export const listScheduledEventsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Return events that belong to this user (URI format)',
+      description:
+        'Return events that belong to this user (URI format). Either "user" or "organization" must be provided.',
     },
     organization: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Return events that belong to this organization (URI format)',
+      description:
+        'Return events that belong to this organization (URI format). Either "user" or "organization" must be provided.',
     },
     invitee_email: {
       type: 'string',
@@ -80,6 +82,12 @@ export const listScheduledEventsTool: ToolConfig<
     url: (params: CalendlyListScheduledEventsParams) => {
       const url = 'https://api.calendly.com/scheduled_events'
       const queryParams = []
+
+      if (!params.user && !params.organization) {
+        throw new Error(
+          'At least one of "user" or "organization" parameter is required. Please provide either a user URI or organization URI.'
+        )
+      }
 
       if (params.user) {
         queryParams.push(`user=${encodeURIComponent(params.user)}`)
