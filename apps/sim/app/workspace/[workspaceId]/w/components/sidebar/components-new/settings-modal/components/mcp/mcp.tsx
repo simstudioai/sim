@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { Alert, AlertDescription, Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
+import { createMcpToolId } from '@/lib/mcp/utils'
 import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
 import {
   useCreateMcpServer,
@@ -380,7 +381,7 @@ export function MCP() {
                       <div className='mt-1 ml-2 flex flex-wrap gap-1'>
                         {tools.map((tool) => (
                           <span
-                            key={tool.id}
+                            key={createMcpToolId(tool.serverId, tool.name)}
                             className='inline-flex h-5 items-center rounded bg-muted/50 px-2 text-muted-foreground text-xs'
                           >
                             {tool.name}
