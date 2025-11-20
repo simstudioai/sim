@@ -123,8 +123,6 @@ export async function POST(
     return authError
   }
 
-  // Wrap preprocessing in try-catch to handle unexpected exceptions that might prevent
-  // proper execution log completion (e.g., programming errors, out-of-memory, etc.)
   let preprocessError: NextResponse | null = null
   try {
     preprocessError = await checkWebhookPreprocessing(
@@ -137,7 +135,6 @@ export async function POST(
       return preprocessError
     }
   } catch (error) {
-    // Handle unexpected preprocessing failures to ensure proper error response
     logger.error(`[${requestId}] Unexpected error during webhook preprocessing`, {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
@@ -145,7 +142,6 @@ export async function POST(
       workflowId: foundWorkflow.id,
     })
 
-    // Return provider-specific error response
     if (foundWebhook.provider === 'microsoft-teams') {
       return NextResponse.json(
         {

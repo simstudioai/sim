@@ -381,11 +381,8 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
     if (!preprocessResult.success) {
       const statusCode = preprocessResult.error?.statusCode || 500
 
-      // Handle specific error types with appropriate retry/disable logic
       switch (statusCode) {
         case 401: {
-          // Authentication error - credentials invalid or expired
-          // Don't retry as authentication issues require manual intervention
           logger.warn(
             `[${requestId}] Authentication error during preprocessing, disabling schedule`
           )
@@ -405,8 +402,6 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
         }
 
         case 403: {
-          // Authorization error - typically workflow not deployed
-          // Don't retry as authorization issues (like undeployed workflows) require manual intervention
           logger.warn(
             `[${requestId}] Authorization error during preprocessing, disabling schedule: ${preprocessResult.error?.message}`
           )
@@ -426,7 +421,6 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
         }
 
         case 404: {
-          // Workflow not found - permanent error, disable schedule
           logger.warn(`[${requestId}] Workflow not found, disabling schedule`)
           await applyScheduleUpdate(
             payload.scheduleId,
@@ -443,7 +437,6 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
         }
 
         case 429: {
-          // Rate limit exceeded - temporary error, schedule retry after delay
           logger.warn(`[${requestId}] Rate limit exceeded, scheduling retry`)
           const retryDelay = 5 * 60 * 1000
           const nextRetryAt = new Date(now.getTime() + retryDelay)
@@ -462,7 +455,6 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
         }
 
         case 402: {
-          // Usage limit exceeded - schedule next run based on schedule configuration
           logger.warn(`[${requestId}] Usage limit exceeded, scheduling next run`)
           const nextRunAt = await calculateNextRunFromDeployment(payload, requestId)
           if (nextRunAt) {
@@ -481,7 +473,6 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
         }
 
         default: {
-          // Other errors (500, etc.) - track failures and disable after max consecutive failures
           logger.error(`[${requestId}] Preprocessing failed: ${preprocessResult.error?.message}`)
           const nextRunAt = await determineNextRunAfterError(payload, now, requestId)
           const newFailedCount = (payload.failedCount || 0) + 1

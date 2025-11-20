@@ -337,7 +337,6 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should return 503 when workflow is not available', async () => {
-      // Mock preprocessing to return workflow not deployed error
       const { preprocessExecution } = await import('@/lib/execution/preprocessing')
       const originalImplementation = vi.mocked(preprocessExecution).getMockImplementation()
 
