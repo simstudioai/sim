@@ -5,6 +5,7 @@ import { Badge } from '@/components/emcn/components/badge/badge'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { createMcpToolId } from '@/lib/mcp/utils'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useBlockCore } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
@@ -13,6 +14,7 @@ import {
   useBlockDimensions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
+import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth-credentials'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useKnowledgeBaseName } from '@/hooks/use-knowledge-base-name'
@@ -313,10 +315,31 @@ const SubBlockRow = ({
       ? (workflowMap[rawValue]?.name ?? null)
       : null
 
-  // Subscribe to variables store to reactively update when variables change
+  // Hydrate MCP server ID to name using TanStack Query
+  const { data: mcpServers = [] } = useMcpServers(workspaceId || '')
+  const mcpServerDisplayName = useMemo(() => {
+    if (subBlock?.type !== 'mcp-server-selector' || typeof rawValue !== 'string') {
+      return null
+    }
+    const server = mcpServers.find((s) => s.id === rawValue)
+    return server?.name ?? null
+  }, [subBlock?.type, rawValue, mcpServers])
+
+  const { data: mcpToolsData = [] } = useMcpToolsQuery(workspaceId || '')
+  const mcpToolDisplayName = useMemo(() => {
+    if (subBlock?.type !== 'mcp-tool-selector' || typeof rawValue !== 'string') {
+      return null
+    }
+
+    const tool = mcpToolsData.find((t) => {
+      const toolId = createMcpToolId(t.serverId, t.name)
+      return toolId === rawValue
+    })
+    return tool?.name ?? null
+  }, [subBlock?.type, rawValue, mcpToolsData])
+
   const allVariables = useVariablesStore((state) => state.variables)
 
-  // Special handling for variables-input to hydrate variable IDs to names from variables store
   const variablesDisplayValue = useMemo(() => {
     if (subBlock?.type !== 'variables-input' || !isVariableAssignmentsArray(rawValue)) {
       return null
@@ -354,6 +377,8 @@ const SubBlockRow = ({
     variablesDisplayValue ||
     knowledgeBaseDisplayName ||
     workflowSelectionName ||
+    mcpServerDisplayName ||
+    mcpToolDisplayName ||
     selectorDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
