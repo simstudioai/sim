@@ -396,7 +396,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     body: { type: 'string', description: 'Email content' },
     contentType: { type: 'string', description: 'Content type (Text or HTML)' },
     attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    attachments: { type: 'json', description: 'Files to attach (UserFile array)' },
+    attachments: { type: 'array', description: 'Files to attach (UserFile array)' },
     // Forward operation inputs
     messageId: { type: 'string', description: 'Message ID to forward' },
     comment: { type: 'string', description: 'Optional comment for forwarding' },

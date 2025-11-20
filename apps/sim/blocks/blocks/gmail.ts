@@ -462,7 +462,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     },
     cc: { type: 'string', description: 'CC recipients (comma-separated)' },
     bcc: { type: 'string', description: 'BCC recipients (comma-separated)' },
-    attachments: { type: 'json', description: 'Files to attach (UserFile array)' },
+    attachments: { type: 'array', description: 'Files to attach (UserFile array)' },
     // Read operation inputs
     folder: { type: 'string', description: 'Gmail folder' },
     manualFolder: { type: 'string', description: 'Manual folder name' },
