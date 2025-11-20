@@ -12,7 +12,6 @@ export interface Neo4jConnectionConfig {
 export interface Neo4jQueryParams extends Neo4jConnectionConfig {
   cypherQuery: string
   parameters?: Record<string, unknown>
-  limit?: number
 }
 
 export interface Neo4jCreateParams extends Neo4jConnectionConfig {

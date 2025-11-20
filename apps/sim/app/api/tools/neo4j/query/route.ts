@@ -19,15 +19,6 @@ const QuerySchema = z.object({
   encryption: z.enum(['enabled', 'disabled']).default('disabled'),
   cypherQuery: z.string().min(1, 'Cypher query is required'),
   parameters: z.record(z.unknown()).nullable().optional().default({}),
-  limit: z
-    .union([z.coerce.number().int().positive(), z.literal(''), z.undefined()])
-    .optional()
-    .transform((val) => {
-      if (val === '' || val === undefined || val === null) {
-        return undefined
-      }
-      return val
-    }),
 })
 
 export async function POST(request: NextRequest) {
@@ -63,14 +54,7 @@ export async function POST(request: NextRequest) {
 
     session = driver.session({ database: params.database })
 
-    let finalQuery = params.cypherQuery.trim()
-    const finalParameters = { ...params.parameters }
-    if (params.limit && !/\bLIMIT\s+\d+/i.test(finalQuery)) {
-      finalQuery = `${finalQuery} LIMIT $limitValue`
-      finalParameters.limitValue = params.limit
-    }
-
-    const result = await session.run(finalQuery, finalParameters)
+    const result = await session.run(params.cypherQuery, params.parameters)
 
     const records = result.records.map((record) => {
       const obj: Record<string, unknown> = {}

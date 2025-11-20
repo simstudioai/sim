@@ -100,21 +100,30 @@ Return ONLY the Cypher query. Do not include any explanations, markdown formatti
 2. **Filtering**: Use WHERE clauses for conditions
 3. **Return**: Specify what to return with RETURN
 4. **Performance**: Use indexes when possible
-5. **Limit Results**: Add LIMIT for large result sets
+5. **Limit Results**: ALWAYS include LIMIT to prevent large result sets
+
+### IMPORTANT: LIMIT Best Practices
+- Always include LIMIT in your queries to prevent performance issues
+- Use parameterized LIMIT for flexibility: LIMIT $limit
+- Place LIMIT at the end after ORDER BY and SKIP clauses
+- Example: MATCH (n:Person) RETURN n ORDER BY n.name LIMIT $limit
 
 ### CYPHER QUERY PATTERNS
 
-**Basic Node Match**:
+**Basic Node Match with LIMIT**:
 MATCH (n:Person) RETURN n LIMIT 25
+
+**Match with Parameterized LIMIT (Recommended)**:
+MATCH (n:Person) RETURN n LIMIT $limit
 
 **Match with Properties**:
 MATCH (n:Person {name: "Alice"}) RETURN n
 
 **Match with Parameters (Recommended)**:
-MATCH (n:Person {name: $name}) RETURN n
+MATCH (n:Person {name: $name}) RETURN n LIMIT 100
 
 **Match with WHERE and Parameters**:
-MATCH (n:Person) WHERE n.age > $minAge RETURN n.name, n.age
+MATCH (n:Person) WHERE n.age > $minAge RETURN n.name, n.age LIMIT $limit
 
 **Match Relationship**:
 MATCH (p:Person)-[:KNOWS]->(friend:Person) RETURN p.name, friend.name
@@ -571,13 +580,6 @@ Return ONLY valid JSON.`,
         generationType: 'neo4j-parameters',
       },
     },
-    {
-      id: 'limit',
-      title: 'Limit Results',
-      type: 'short-input',
-      placeholder: '100',
-      condition: { field: 'operation', value: 'query' },
-    },
   ],
   tools: {
     access: [
@@ -653,11 +655,6 @@ Return ONLY valid JSON.`,
           result.parameters = undefined
         }
 
-        if (rest.limit && rest.limit !== '') {
-          result.limit =
-            typeof rest.limit === 'string' ? Number.parseInt(rest.limit, 10) : rest.limit
-        }
-
         if (rest.detach !== undefined) {
           result.detach = rest.detach === 'true' || rest.detach === true
         }
@@ -676,7 +673,6 @@ Return ONLY valid JSON.`,
     encryption: { type: 'string', description: 'Connection encryption mode' },
     cypherQuery: { type: 'string', description: 'Cypher query to execute' },
     parameters: { type: 'json', description: 'Query parameters as JSON object' },
-    limit: { type: 'number', description: 'Limit number of records' },
     detach: { type: 'boolean', description: 'Use DETACH DELETE for delete operations' },
   },
   outputs: {

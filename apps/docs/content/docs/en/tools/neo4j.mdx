@@ -20,7 +20,7 @@ Integrate Neo4j graph database into the workflow. Can query, create, merge, upda
 
 ### `neo4j_query`
 
-Execute MATCH queries to read nodes and relationships from Neo4j graph database
+Execute MATCH queries to read nodes and relationships from Neo4j graph database. For best performance and to prevent large result sets, include LIMIT in your query (e.g., 
 
 #### Input
 
@@ -33,8 +33,8 @@ Execute MATCH queries to read nodes and relationships from Neo4j graph database
 | `password` | string | Yes | Neo4j password |
 | `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
 | `cypherQuery` | string | Yes | Cypher query to execute \(typically MATCH statements\) |
-| `parameters` | object | No | Parameters for the Cypher query as a JSON object |
-| `limit` | number | No | Maximum number of records to return |
+| `parameters` | object | No | Parameters for the Cypher query as a JSON object. Use for any dynamic values including LIMIT \(e.g., query: "MATCH \(n\) RETURN n LIMIT $limit", parameters: \{limit: 100\}\). |
+| `parameters` | string | No | No description |
 
 #### Output
 

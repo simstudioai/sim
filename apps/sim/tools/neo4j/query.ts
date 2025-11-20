@@ -4,7 +4,8 @@ import type { ToolConfig } from '@/tools/types'
 export const queryTool: ToolConfig<Neo4jQueryParams, Neo4jResponse> = {
   id: 'neo4j_query',
   name: 'Neo4j Query',
-  description: 'Execute MATCH queries to read nodes and relationships from Neo4j graph database',
+  description:
+    'Execute MATCH queries to read nodes and relationships from Neo4j graph database. For best performance and to prevent large result sets, include LIMIT in your query (e.g., "MATCH (n:User) RETURN n LIMIT 100") or use LIMIT $limit with a limit parameter.',
   version: '1.0',
 
   params: {
@@ -54,13 +55,8 @@ export const queryTool: ToolConfig<Neo4jQueryParams, Neo4jResponse> = {
       type: 'object',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Parameters for the Cypher query as a JSON object',
-    },
-    limit: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Maximum number of records to return',
+      description:
+        'Parameters for the Cypher query as a JSON object. Use for any dynamic values including LIMIT (e.g., query: "MATCH (n) RETURN n LIMIT $limit", parameters: {limit: 100}).',
     },
   },
 
@@ -79,7 +75,6 @@ export const queryTool: ToolConfig<Neo4jQueryParams, Neo4jResponse> = {
       encryption: params.encryption || 'disabled',
       cypherQuery: params.cypherQuery,
       parameters: params.parameters,
-      limit: params.limit ? Number(params.limit) : undefined,
     }),
   },
 

@@ -26,10 +26,11 @@ Add a new memory to the database or append to existing memory with the same ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | Yes | Conversation identifier \(e.g., user-123, session-abc\). If a memory with this conversationId already exists for this block, the new message will be appended to it. |
+| `conversationId` | string | No | Conversation identifier \(e.g., user-123, session-abc\). If a memory with this conversationId already exists for this block, the new message will be appended to it. |
+| `id` | string | No | Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility. |
 | `role` | string | Yes | Role for agent memory \(user, assistant, or system\) |
 | `content` | string | Yes | Content for agent memory |
-| `blockId` | string | No | Optional block ID. If not provided, uses the current block ID from execution context. |
+| `blockId` | string | No | Optional block ID. If not provided, uses the current block ID from execution context, or defaults to "default". |
 
 #### Output
 
@@ -48,6 +49,7 @@ Retrieve memory by conversationId, blockId, blockName, or a combination. Returns
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `conversationId` | string | No | Conversation identifier \(e.g., user-123, session-abc\). If provided alone, returns all memories for this conversation across all blocks. |
+| `id` | string | No | Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility. |
 | `blockId` | string | No | Block identifier. If provided alone, returns all memories for this block across all conversations. If provided with conversationId, returns memories for that specific conversation in this block. |
 | `blockName` | string | No | Block name. Alternative to blockId. If provided alone, returns all memories for blocks with this name. If provided with conversationId, returns memories for that conversation in blocks with this name. |
 
@@ -87,6 +89,7 @@ Delete memories by conversationId, blockId, blockName, or a combination. Support
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `conversationId` | string | No | Conversation identifier \(e.g., user-123, session-abc\). If provided alone, deletes all memories for this conversation across all blocks. |
+| `id` | string | No | Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility. |
 | `blockId` | string | No | Block identifier. If provided alone, deletes all memories for this block across all conversations. If provided with conversationId, deletes memories for that specific conversation in this block. |
 | `blockName` | string | No | Block name. Alternative to blockId. If provided alone, deletes all memories for blocks with this name. If provided with conversationId, deletes memories for that conversation in blocks with this name. |
 
