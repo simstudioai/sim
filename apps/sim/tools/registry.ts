@@ -605,6 +605,7 @@ import {
   stripeUpdateSubscriptionTool,
   stripeVoidInvoiceTool,
 } from '@/tools/stripe'
+import { deepgramSttTool, elevenLabsSttTool, whisperSttTool } from '@/tools/stt'
 import {
   supabaseCountTool,
   supabaseDeleteTool,
@@ -1050,6 +1051,9 @@ export const tools: Record<string, ToolConfig> = {
   knowledge_upload_chunk: knowledgeUploadChunkTool,
   knowledge_create_document: knowledgeCreateDocumentTool,
   elevenlabs_tts: elevenLabsTtsTool,
+  stt_whisper: whisperSttTool,
+  stt_deepgram: deepgramSttTool,
+  stt_elevenlabs: elevenLabsSttTool,
   s3_get_object: s3GetObjectTool,
   s3_put_object: s3PutObjectTool,
   s3_list_objects: s3ListObjectsTool,

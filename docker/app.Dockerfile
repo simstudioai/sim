@@ -78,7 +78,8 @@ FROM base AS runner
 WORKDIR /app
 
 # Install Python and dependencies for guardrails PII detection (cached separately)
-RUN apk add --no-cache python3 py3-pip bash
+# Also install ffmpeg for audio/video processing in STT
+RUN apk add --no-cache python3 py3-pip bash ffmpeg
 
 ENV NODE_ENV=production
 
