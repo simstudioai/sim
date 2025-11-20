@@ -16,6 +16,12 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       description:
         'Conversation identifier (e.g., user-123, session-abc). If provided alone, returns all memories for this conversation across all blocks.',
     },
+    id: {
+      type: 'string',
+      required: false,
+      description:
+        'Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility.',
+    },
     blockId: {
       type: 'string',
       required: false,
@@ -48,14 +54,18 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
         }
       }
 
-      if (!params.conversationId && !params.blockId && !params.blockName) {
+      // Use 'id' as fallback for 'conversationId' for backwards compatibility
+      const conversationId = params.conversationId || params.id
+
+      if (!conversationId && !params.blockId && !params.blockName) {
         return {
           _errorResponse: {
             status: 400,
             data: {
               success: false,
               error: {
-                message: 'At least one of conversationId, blockId, or blockName must be provided',
+                message:
+                  'At least one of conversationId, id, blockId, or blockName must be provided',
               },
             },
           },
@@ -64,10 +74,11 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
 
       let query = ''
 
-      if (params.conversationId && params.blockId) {
-        query = buildMemoryKey(params.conversationId, params.blockId)
-      } else if (params.conversationId) {
-        query = `${params.conversationId}:`
+      if (conversationId && params.blockId) {
+        query = buildMemoryKey(conversationId, params.blockId)
+      } else if (conversationId) {
+        // Also check for legacy format (conversationId without blockId)
+        query = `${conversationId}:`
       } else if (params.blockId) {
         query = `:${params.blockId}`
       }

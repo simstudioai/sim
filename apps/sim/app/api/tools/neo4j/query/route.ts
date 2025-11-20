@@ -64,11 +64,13 @@ export async function POST(request: NextRequest) {
     session = driver.session({ database: params.database })
 
     let finalQuery = params.cypherQuery.trim()
+    const finalParameters = { ...params.parameters }
     if (params.limit && !/\bLIMIT\s+\d+/i.test(finalQuery)) {
-      finalQuery = `${finalQuery} LIMIT ${params.limit}`
+      finalQuery = `${finalQuery} LIMIT $limitValue`
+      finalParameters.limitValue = params.limit
     }
 
-    const result = await session.run(finalQuery, params.parameters)
+    const result = await session.run(finalQuery, finalParameters)
 
     const records = result.records.map((record) => {
       const obj: Record<string, unknown> = {}

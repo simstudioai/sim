@@ -11,9 +11,15 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
   params: {
     conversationId: {
       type: 'string',
-      required: true,
+      required: false,
       description:
         'Conversation identifier (e.g., user-123, session-abc). If a memory with this conversationId already exists for this block, the new message will be appended to it.',
+    },
+    id: {
+      type: 'string',
+      required: false,
+      description:
+        'Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility.',
     },
     role: {
       type: 'string',
@@ -29,7 +35,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       type: 'string',
       required: false,
       description:
-        'Optional block ID. If not provided, uses the current block ID from execution context.',
+        'Optional block ID. If not provided, uses the current block ID from execution context, or defaults to "default".',
     },
   },
 
@@ -57,30 +63,20 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
         }
       }
 
-      const blockId = params.blockId || contextBlockId
-      if (!blockId) {
-        return {
-          _errorResponse: {
-            status: 400,
-            data: {
-              success: false,
-              error: {
-                message:
-                  'blockId is required. Either provide it as a parameter or ensure it is available in execution context.',
-              },
-            },
-          },
-        }
-      }
+      // Use 'id' as fallback for 'conversationId' for backwards compatibility
+      const conversationId = params.conversationId || params.id
 
-      if (!params.conversationId || params.conversationId.trim() === '') {
+      // Default blockId to 'default' if not provided in params or context
+      const blockId = params.blockId || contextBlockId || 'default'
+
+      if (!conversationId || conversationId.trim() === '') {
         return {
           _errorResponse: {
             status: 400,
             data: {
               success: false,
               error: {
-                message: 'conversationId is required',
+                message: 'conversationId or id is required',
               },
             },
           },
@@ -101,7 +97,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
         }
       }
 
-      const key = buildMemoryKey(params.conversationId, blockId)
+      const key = buildMemoryKey(conversationId, blockId)
 
       const body: Record<string, any> = {
         key,

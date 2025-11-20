@@ -15,6 +15,12 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
       description:
         'Conversation identifier (e.g., user-123, session-abc). If provided alone, deletes all memories for this conversation across all blocks.',
     },
+    id: {
+      type: 'string',
+      required: false,
+      description:
+        'Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility.',
+    },
     blockId: {
       type: 'string',
       required: false,
@@ -47,14 +53,18 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
         }
       }
 
-      if (!params.conversationId && !params.blockId && !params.blockName) {
+      // Use 'id' as fallback for 'conversationId' for backwards compatibility
+      const conversationId = params.conversationId || params.id
+
+      if (!conversationId && !params.blockId && !params.blockName) {
         return {
           _errorResponse: {
             status: 400,
             data: {
               success: false,
               error: {
-                message: 'At least one of conversationId, blockId, or blockName must be provided',
+                message:
+                  'At least one of conversationId, id, blockId, or blockName must be provided',
               },
             },
           },
@@ -64,8 +74,8 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
       const url = new URL('/api/memory', 'http://dummy')
       url.searchParams.set('workflowId', workflowId)
 
-      if (params.conversationId) {
-        url.searchParams.set('conversationId', params.conversationId)
+      if (conversationId) {
+        url.searchParams.set('conversationId', conversationId)
       }
       if (params.blockId) {
         url.searchParams.set('blockId', params.blockId)

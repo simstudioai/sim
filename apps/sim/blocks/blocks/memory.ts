@@ -31,7 +31,7 @@ export const MemoryBlock: BlockConfig = {
       value: () => 'add',
     },
     {
-      id: 'conversationId',
+      id: 'id',
       title: 'Conversation ID',
       type: 'short-input',
       placeholder: 'Enter conversation ID (e.g., user-123)',
@@ -53,7 +53,7 @@ export const MemoryBlock: BlockConfig = {
       required: false,
     },
     {
-      id: 'conversationId',
+      id: 'id',
       title: 'Conversation ID',
       type: 'short-input',
       placeholder: 'Enter conversation ID (e.g., user-123)',
@@ -86,7 +86,7 @@ export const MemoryBlock: BlockConfig = {
       required: false,
     },
     {
-      id: 'conversationId',
+      id: 'id',
       title: 'Conversation ID',
       type: 'short-input',
       placeholder: 'Enter conversation ID (e.g., user-123)',
@@ -171,8 +171,10 @@ export const MemoryBlock: BlockConfig = {
           errors.push('Operation is required')
         }
 
+        const conversationId = params.id || params.conversationId
+
         if (params.operation === 'add') {
-          if (!params.conversationId) {
+          if (!conversationId) {
             errors.push('Conversation ID is required for add operation')
           }
           if (!params.role) {
@@ -184,9 +186,9 @@ export const MemoryBlock: BlockConfig = {
         }
 
         if (params.operation === 'get' || params.operation === 'delete') {
-          if (!params.conversationId && !params.blockId && !params.blockName) {
+          if (!conversationId && !params.blockId && !params.blockName) {
             errors.push(
-              `At least one of conversationId, blockId, or blockName is required for ${params.operation} operation`
+              `At least one of ID, blockId, or blockName is required for ${params.operation} operation`
             )
           }
         }
@@ -200,7 +202,7 @@ export const MemoryBlock: BlockConfig = {
         if (params.operation === 'add') {
           const result: Record<string, any> = {
             ...baseResult,
-            conversationId: params.conversationId,
+            conversationId: conversationId,
             role: params.role,
             content: params.content,
           }
@@ -213,7 +215,7 @@ export const MemoryBlock: BlockConfig = {
 
         if (params.operation === 'get') {
           const result: Record<string, any> = { ...baseResult }
-          if (params.conversationId) result.conversationId = params.conversationId
+          if (conversationId) result.conversationId = conversationId
           if (params.blockId) result.blockId = params.blockId
           if (params.blockName) result.blockName = params.blockName
           return result
@@ -221,7 +223,7 @@ export const MemoryBlock: BlockConfig = {
 
         if (params.operation === 'delete') {
           const result: Record<string, any> = { ...baseResult }
-          if (params.conversationId) result.conversationId = params.conversationId
+          if (conversationId) result.conversationId = conversationId
           if (params.blockId) result.blockId = params.blockId
           if (params.blockName) result.blockName = params.blockName
           return result
