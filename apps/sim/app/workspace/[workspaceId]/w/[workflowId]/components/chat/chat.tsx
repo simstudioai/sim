@@ -2,7 +2,6 @@
 
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, ArrowDownToLine, ArrowUp, MoreVertical, Paperclip, X } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
@@ -14,24 +13,27 @@ import {
   PopoverTrigger,
   Trash,
 } from '@/components/emcn'
+import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   extractBlockIdFromOutputId,
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/response-format'
-// import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
-// import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
 import { cn } from '@/lib/utils'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
+import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
+import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
 import { useScrollManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import type { BlockLog, ExecutionResult } from '@/executor/types'
 import { getChatPosition, useChatStore } from '@/stores/chat/store'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useOperationQueue } from '@/stores/operation-queue/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-// import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-// import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ChatMessage, OutputSelect } from './components'
 import { useChatBoundarySync, useChatDrag, useChatFileUpload, useChatResize } from './hooks'
 
@@ -128,38 +130,13 @@ const formatOutputContent = (output: any): string => {
   return ''
 }
 
-// interface StartInputFormatField {
-//   id?: string
-//   name?: string
-//   type?: string
-//   value?: unknown
-//   collapsed?: boolean
-// }
-
-// /**
-//  * Normalizes an input format value into a list of valid fields.
-//  *
-//  * @param value - Raw input format value from subblock state.
-//  * @returns Array of fields with non-empty names.
-//  */
-// const normalizeStartInputFormat = (value: unknown): StartInputFormatField[] => {
-//   if (!Array.isArray(value)) {
-//     return []
-//   }
-
-//   return value.filter((field): field is StartInputFormatField => {
-//     if (!field || typeof field !== 'object') {
-//       return false
-//     }
-
-//     const name = (field as StartInputFormatField).name
-//     return typeof name === 'string' && name.trim() !== ''
-//   })
-// }
-
-const CHAT_START_EXAMPLE_JSON = `"input": string,
-"conversationId": string,
-"files": array<File>`
+interface StartInputFormatField {
+  id?: string
+  name?: string
+  type?: string
+  value?: unknown
+  collapsed?: boolean
+}
 
 /**
  * Floating chat modal component
@@ -174,12 +151,10 @@ const CHAT_START_EXAMPLE_JSON = `"input": string,
  * position across sessions using the floating chat store.
  */
 export function Chat() {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
   const { activeWorkflowId } = useWorkflowRegistry()
-  // const blocks = useWorkflowStore((state) => state.blocks)
-  // const triggerWorkflowUpdate = useWorkflowStore((state) => state.triggerUpdate)
-  // const setSubBlockValue = useSubBlockStore((state) => state.setValue)
+  const blocks = useWorkflowStore((state) => state.blocks)
+  const triggerWorkflowUpdate = useWorkflowStore((state) => state.triggerUpdate)
+  const setSubBlockValue = useSubBlockStore((state) => state.setValue)
 
   // Chat state (UI and messages from unified store)
   const {
@@ -204,6 +179,8 @@ export function Chat() {
   const { entries } = useTerminalConsoleStore()
   const { isExecuting } = useExecutionStore()
   const { handleRunWorkflow } = useWorkflowExecution()
+  const { data: session } = useSession()
+  const { addToQueue } = useOperationQueue()
 
   // Local state
   const [chatMessage, setChatMessage] = useState('')
@@ -233,65 +210,67 @@ export function Chat() {
   /**
    * Resolves the unified start block for chat execution, if available.
    */
-  // const startBlockCandidate = useMemo(() => {
-  //   if (!activeWorkflowId) {
-  //     return null
-  //   }
+  const startBlockCandidate = useMemo(() => {
+    if (!activeWorkflowId) {
+      return null
+    }
 
-  //   if (!blocks || Object.keys(blocks).length === 0) {
-  //     return null
-  //   }
+    if (!blocks || Object.keys(blocks).length === 0) {
+      return null
+    }
 
-  //   const candidate = TriggerUtils.findStartBlock(blocks, 'chat')
-  //   if (!candidate || candidate.path !== StartBlockPath.UNIFIED) {
-  //     return null
-  //   }
+    const candidate = TriggerUtils.findStartBlock(blocks, 'chat')
+    if (!candidate || candidate.path !== StartBlockPath.UNIFIED) {
+      return null
+    }
 
-  //   return candidate
-  // }, [activeWorkflowId, blocks])
+    return candidate
+  }, [activeWorkflowId, blocks])
 
-  // const startBlockId = startBlockCandidate?.blockId ?? null
+  const startBlockId = startBlockCandidate?.blockId ?? null
 
-  // /**
-  //  * Reads the current input format for the unified start block from the subblock store,
-  //  * falling back to the workflow store if no explicit value is stored yet.
-  //  */
-  // const startBlockInputFormat = useSubBlockStore((state) => {
-  //   if (!activeWorkflowId || !startBlockId) {
-  //     return null
-  //   }
+  /**
+   * Reads the current input format for the unified start block from the subblock store,
+   * falling back to the workflow store if no explicit value is stored yet.
+   */
+  const startBlockInputFormat = useSubBlockStore((state) => {
+    if (!activeWorkflowId || !startBlockId) {
+      return null
+    }
 
-  //   const workflowValues = state.workflowValues[activeWorkflowId]
-  //   const fromStore = workflowValues?.[startBlockId]?.inputFormat
-  //   if (fromStore !== undefined && fromStore !== null) {
-  //     return fromStore
-  //   }
+    const workflowValues = state.workflowValues[activeWorkflowId]
+    const fromStore = workflowValues?.[startBlockId]?.inputFormat
+    if (fromStore !== undefined && fromStore !== null) {
+      return fromStore
+    }
 
-  //   const startBlock = blocks[startBlockId]
-  //   return startBlock?.subBlocks?.inputFormat?.value ?? null
-  // })
+    const startBlock = blocks[startBlockId]
+    return startBlock?.subBlocks?.inputFormat?.value ?? null
+  })
 
-  // /**
-  //  * Determines which reserved start inputs are missing from the input format.
-  //  */
-  // const missingStartReservedFields = useMemo(() => {
-  //   if (!startBlockId) {
-  //     return START_BLOCK_RESERVED_FIELDS
-  //   }
+  /**
+   * Determines which reserved start inputs are missing from the input format.
+   */
+  const missingStartReservedFields = useMemo(() => {
+    if (!startBlockId) {
+      return START_BLOCK_RESERVED_FIELDS
+    }
 
-  //   const normalizedFields = normalizeStartInputFormat(startBlockInputFormat)
-  //   const existingNames = new Set(
-  //     normalizedFields
-  //       .map((field) => field.name)
-  //       .filter((name): name is string => typeof name === 'string' && name.trim() !== '')
-  //       .map((name) => name.trim())
-  //   )
+    const normalizedFields = normalizeInputFormatValue(startBlockInputFormat)
+    const existingNames = new Set(
+      normalizedFields
+        .map((field) => field.name)
+        .filter((name): name is string => typeof name === 'string' && name.trim() !== '')
+        .map((name) => name.trim().toLowerCase())
+    )
 
-  //   return START_BLOCK_RESERVED_FIELDS.filter((fieldName) => !existingNames.has(fieldName))
-  // }, [startBlockId, startBlockInputFormat])
+    return START_BLOCK_RESERVED_FIELDS.filter(
+      (fieldName) => !existingNames.has(fieldName.toLowerCase())
+    )
+  }, [startBlockId, startBlockInputFormat])
 
-  // const shouldShowConfigureStartInputsButton =
-  //   Boolean(startBlockId) && missingStartReservedFields.length > 0
+  const shouldShowConfigureStartInputsButton =
+    Boolean(startBlockId) && missingStartReservedFields.length > 0
 
   // Get actual position (default if not set)
   const actualPosition = useMemo(
@@ -667,61 +646,67 @@ export function Chat() {
     setIsChatOpen(false)
   }, [setIsChatOpen])
 
-  // /**
-  //  * Adds any missing reserved inputs (input, conversationId, files) to the unified start block.
-  //  */
-  // const handleConfigureStartInputs = useCallback(() => {
-  //   if (!activeWorkflowId || !startBlockId) {
-  //     logger.warn('Cannot configure start inputs: missing active workflow ID or start block ID')
-  //     return
-  //   }
+  /**
+   * Adds any missing reserved inputs (input, conversationId, files) to the unified start block.
+   */
+  const handleConfigureStartInputs = useCallback(() => {
+    if (!activeWorkflowId || !startBlockId) {
+      logger.warn('Cannot configure start inputs: missing active workflow ID or start block ID')
+      return
+    }
 
-  //   try {
-  //     const existingFields = Array.isArray(startBlockInputFormat)
-  //       ? [...startBlockInputFormat]
-  //       : []
+    try {
+      const normalizedExisting = normalizeInputFormatValue(startBlockInputFormat)
 
-  //     const normalizedExisting = normalizeStartInputFormat(existingFields)
-  //     const existingNames = new Set(
-  //       normalizedExisting
-  //         .map((field) => field.name)
-  //         .filter((name): name is string => typeof name === 'string' && name.trim() !== '')
-  //         .map((name) => name.trim())
-  //     )
+      const newReservedFields: StartInputFormatField[] = missingStartReservedFields.map(
+        (fieldName) => {
+          const defaultType = fieldName === 'files' ? 'files' : 'string'
 
-  //     const updatedFields: StartInputFormatField[] = [...existingFields]
+          return {
+            id: crypto.randomUUID(),
+            name: fieldName,
+            type: defaultType,
+            value: '',
+            collapsed: false,
+          }
+        }
+      )
 
-  //     missingStartReservedFields.forEach((fieldName) => {
-  //       if (existingNames.has(fieldName)) {
-  //         return
-  //       }
+      const updatedFields: StartInputFormatField[] = [...newReservedFields, ...normalizedExisting]
 
-  //       const defaultType = fieldName === 'files' ? 'files' : 'string'
+      setSubBlockValue(startBlockId, 'inputFormat', updatedFields)
 
-  //       updatedFields.push({
-  //         id: crypto.randomUUID(),
-  //         name: fieldName,
-  //         type: defaultType,
-  //         value: '',
-  //         collapsed: false,
-  //       })
-  //     })
+      const userId = session?.user?.id || 'unknown'
+      addToQueue({
+        id: crypto.randomUUID(),
+        operation: {
+          operation: 'subblock-update',
+          target: 'subblock',
+          payload: {
+            blockId: startBlockId,
+            subblockId: 'inputFormat',
+            value: updatedFields,
+          },
+        },
+        workflowId: activeWorkflowId,
+        userId,
+      })
 
-  //     setSubBlockValue(startBlockId, 'inputFormat', updatedFields)
-  //     triggerWorkflowUpdate()
-  //   } catch (error) {
-  //     logger.error('Failed to configure start block reserved inputs', error)
-  //   }
-  // }, [
-  //   activeWorkflowId,
-  //   missingStartReservedFields,
-  //   setSubBlockValue,
-  //   startBlockId,
-  //   startBlockInputFormat,
-  //   triggerWorkflowUpdate,
-  // ])
+      triggerWorkflowUpdate()
+    } catch (error) {
+      logger.error('Failed to configure start block reserved inputs', error)
+    }
+  }, [
+    activeWorkflowId,
+    missingStartReservedFields,
+    setSubBlockValue,
+    startBlockId,
+    startBlockInputFormat,
+    triggerWorkflowUpdate,
+    session,
+    addToQueue,
+  ])
 
-  // Don't render if not open
   if (!isChatOpen) return null
 
   return (
@@ -752,10 +737,10 @@ export function Chat() {
           className='ml-auto flex min-w-0 flex-shrink items-center gap-[6px]'
           onMouseDown={(e) => e.stopPropagation()}
         >
-          {/* {shouldShowConfigureStartInputsButton && (
+          {shouldShowConfigureStartInputsButton && (
             <Badge
               variant='outline'
-              className='cursor-pointer rounded-[6px] flex-none whitespace-nowrap'
+              className='flex-none cursor-pointer whitespace-nowrap rounded-[6px]'
               title='Add chat inputs to Start block'
               onMouseDown={(e) => {
                 e.stopPropagation()
@@ -764,7 +749,7 @@ export function Chat() {
             >
               <span className='whitespace-nowrap text-[12px]'>Add inputs</span>
             </Badge>
-          )} */}
+          )}
 
           <OutputSelect
             workflowId={activeWorkflowId}
