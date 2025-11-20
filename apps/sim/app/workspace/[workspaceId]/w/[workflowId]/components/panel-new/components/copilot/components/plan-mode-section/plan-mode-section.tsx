@@ -25,8 +25,10 @@
 'use client'
 
 import * as React from 'react'
-import { GripHorizontal, Save, X } from 'lucide-react'
+import { Check, GripHorizontal, Pencil, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
+import { Trash } from '@/components/emcn/icons/trash'
+import { Textarea } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/copilot-message/components/markdown-renderer'
 
@@ -70,6 +72,10 @@ export interface PlanModeSectionProps {
    * Receives the current content as parameter
    */
   onSave?: (content: string) => void
+  /**
+   * Callback when Build Plan button is clicked
+   */
+  onBuildPlan?: () => void
 }
 
 /**
@@ -79,15 +85,28 @@ export interface PlanModeSectionProps {
 const PlanModeSection: React.FC<PlanModeSectionProps> = ({
   content,
   className,
-  initialHeight = 180,
+  initialHeight,
   minHeight = 80,
   maxHeight = 600,
   onClear,
   onSave,
+  onBuildPlan,
 }) => {
-  const [height, setHeight] = React.useState(initialHeight)
+  // Default to 75% of max height
+  const defaultHeight = initialHeight ?? Math.floor(maxHeight * 0.75)
+  const [height, setHeight] = React.useState(defaultHeight)
   const [isResizing, setIsResizing] = React.useState(false)
+  const [isEditing, setIsEditing] = React.useState(false)
+  const [editedContent, setEditedContent] = React.useState(content)
   const resizeStartRef = React.useRef({ y: 0, startHeight: 0 })
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+
+  // Update edited content when content prop changes
+  React.useEffect(() => {
+    if (!isEditing) {
+      setEditedContent(content)
+    }
+  }, [content, isEditing])
 
   const handleResizeStart = React.useCallback(
     (e: React.MouseEvent) => {
@@ -135,6 +154,26 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
     }
   }, [isResizing, handleResizeMove, handleResizeEnd])
 
+  const handleEdit = React.useCallback(() => {
+    setIsEditing(true)
+    setEditedContent(content)
+    setTimeout(() => {
+      textareaRef.current?.focus()
+    }, 50)
+  }, [content])
+
+  const handleSave = React.useCallback(() => {
+    if (onSave && editedContent.trim() !== content.trim()) {
+      onSave(editedContent.trim())
+    }
+    setIsEditing(false)
+  }, [editedContent, content, onSave])
+
+  const handleCancel = React.useCallback(() => {
+    setEditedContent(content)
+    setIsEditing(false)
+  }, [content])
+
   if (!content || !content.trim()) {
     return null
   }
@@ -144,36 +183,84 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
       className={cn('relative flex flex-col rounded-[4px]', SURFACE_5, className)}
       style={{ height: `${height}px` }}
     >
-      {/* Action buttons */}
-      {(onClear || onSave) && (
-        <div className='absolute top-[8px] right-[8px] z-10 flex gap-[4px]'>
-          {onSave && (
-            <Button
-              variant='ghost'
-              onClick={() => onSave(content)}
-              className='h-[24px] w-[24px] p-0'
-              title='Save plan'
-            >
-              <Save className='h-[14px] w-[14px]' />
-            </Button>
-          )}
-          {onClear && (
-            <Button
-              variant='ghost'
-              onClick={onClear}
-              className='h-[24px] w-[24px] p-0'
-              title='Clear plan'
-            >
-              <X className='h-[14px] w-[14px]' />
-            </Button>
+      {/* Header with build/edit/save/clear buttons */}
+      <div className='flex flex-shrink-0 items-center justify-between border-[var(--border-strong)] border-b py-[6px] pr-[2px] pl-[12px] dark:border-[var(--border-strong)]'>
+        <span className='font-[500] text-[11px] text-[var(--text-secondary)] uppercase tracking-wide dark:text-[var(--text-secondary)]'>
+          Workflow Plan
+        </span>
+        <div className='ml-auto flex items-center gap-[4px]'>
+          {isEditing ? (
+            <>
+              <Button
+                variant='ghost'
+                className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
+                onClick={handleCancel}
+                aria-label='Cancel editing'
+              >
+                <X className='h-[11px] w-[11px]' />
+              </Button>
+              <Button
+                variant='ghost'
+                className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
+                onClick={handleSave}
+                aria-label='Save changes'
+              >
+                <Check className='h-[12px] w-[12px]' />
+              </Button>
+            </>
+          ) : (
+            <>
+              {onBuildPlan && (
+                <Button
+                  variant='default'
+                  onClick={onBuildPlan}
+                  className='h-[22px] px-[10px] text-[11px]'
+                  title='Build workflow from plan'
+                >
+                  Build Plan
+                </Button>
+              )}
+              {onSave && (
+                <Button
+                  variant='ghost'
+                  className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
+                  onClick={handleEdit}
+                  aria-label='Edit workflow plan'
+                >
+                  <Pencil className='h-[10px] w-[10px]' />
+                </Button>
+              )}
+              {onClear && (
+                <Button
+                  variant='ghost'
+                  className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
+                  onClick={onClear}
+                  aria-label='Clear workflow plan'
+                >
+                  <Trash className='h-[11px] w-[11px]' />
+                </Button>
+              )}
+            </>
           )}
         </div>
-      )}
-
-      <div className='flex-1 overflow-y-auto overflow-x-hidden px-[12px] py-[10px]'>
-        <CopilotMarkdownRenderer content={content.trim()} />
       </div>
 
+      {/* Scrollable content area */}
+      <div className='flex-1 overflow-y-auto overflow-x-hidden px-[12px] py-[10px]'>
+        {isEditing ? (
+          <Textarea
+            ref={textareaRef}
+            value={editedContent}
+            onChange={(e) => setEditedContent(e.target.value)}
+            className='h-full min-h-full w-full resize-none border-0 bg-transparent p-0 font-[470] font-season text-[13px] text-[var(--text-primary)] leading-[1.4rem] outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 dark:text-[var(--text-primary)]'
+            placeholder='Enter your workflow plan...'
+          />
+        ) : (
+          <CopilotMarkdownRenderer content={content.trim()} />
+        )}
+      </div>
+
+      {/* Resize handle */}
       <div
         className={cn(
           'group flex h-[20px] w-full cursor-ns-resize items-center justify-center border-t',
