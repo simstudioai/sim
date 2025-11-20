@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
-import fuzzysort from 'fuzzysort'
 import { BookOpen, Layout, RepeatIcon, ScrollText, Search, SplitIcon } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Dialog, DialogPortal, DialogTitle } from '@/components/ui/dialog'
@@ -11,6 +10,7 @@ import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/utils'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/trigger-utils'
 import { getAllBlocks } from '@/blocks'
+import { searchItems } from './search-utils'
 
 interface SearchModalProps {
   open: boolean
@@ -340,32 +340,21 @@ export function SearchModal({
       })
     }
 
-    const results = fuzzysort.go(searchQuery, allItems, {
-      keys: ['name', 'description'],
-      limit: 100,
-      threshold: -1000,
-      all: true,
-      scoreFn: (a) => {
-        const nameScore = a[0] ? a[0].score : Number.NEGATIVE_INFINITY
-        const descScore = a[1] ? a[1].score : Number.NEGATIVE_INFINITY
+    const searchResults = searchItems(searchQuery, allItems)
 
-        return Math.max(nameScore * 2, descScore)
-      },
-    })
-
-    return results
-      .map((result) => ({
-        item: result.obj,
-        score: result.score,
-      }))
+    return searchResults
       .sort((a, b) => {
-        if (Math.abs(a.score - b.score) > 100) {
+        if (a.score !== b.score) {
           return b.score - a.score
         }
 
         const aOrder = orderMap[a.item.type] ?? Number.MAX_SAFE_INTEGER
         const bOrder = orderMap[b.item.type] ?? Number.MAX_SAFE_INTEGER
-        return aOrder - bOrder
+        if (aOrder !== bOrder) {
+          return aOrder - bOrder
+        }
+
+        return a.item.name.localeCompare(b.item.name)
       })
       .map((result) => result.item)
   }, [allItems, searchQuery, sectionOrder])
