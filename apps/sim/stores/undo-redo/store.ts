@@ -15,6 +15,29 @@ import type {
 const logger = createLogger('UndoRedoStore')
 const DEFAULT_CAPACITY = 15
 
+let recordingSuspendDepth = 0
+
+function isRecordingSuspended(): boolean {
+  return recordingSuspendDepth > 0
+}
+
+/**
+ * Temporarily suspends undo/redo recording while the provided callback runs.
+ *
+ * @param callback - Function to execute while recording is disabled.
+ * @returns The callback result.
+ */
+export async function runWithUndoRedoRecordingSuspended<T>(
+  callback: () => Promise<T> | T
+): Promise<T> {
+  recordingSuspendDepth += 1
+  try {
+    return await Promise.resolve(callback())
+  } finally {
+    recordingSuspendDepth = Math.max(0, recordingSuspendDepth - 1)
+  }
+}
+
 function getStackKey(workflowId: string, userId: string): string {
   return `${workflowId}:${userId}`
 }
@@ -71,6 +94,15 @@ export const useUndoRedoStore = create<UndoRedoState>()(
       capacity: DEFAULT_CAPACITY,
 
       push: (workflowId: string, userId: string, entry: OperationEntry) => {
+        if (isRecordingSuspended()) {
+          logger.debug('Skipped push while undo/redo recording suspended', {
+            workflowId,
+            userId,
+            operationType: entry.operation.type,
+          })
+          return
+        }
+
         const key = getStackKey(workflowId, userId)
         const state = get()
         const stack = state.stacks[key] || { undo: [], redo: [] }
@@ -82,21 +114,25 @@ export const useUndoRedoStore = create<UndoRedoState>()(
             // Check if it's a duplicate by comparing the relevant state data
             const lastData = lastEntry.operation.data as any
             const newData = entry.operation.data as any
-            
+
             // For each diff operation type, check the relevant state
             let isDuplicate = false
             if (entry.operation.type === 'apply-diff') {
-              isDuplicate = 
-                JSON.stringify(lastData.baselineSnapshot?.blocks) === JSON.stringify(newData.baselineSnapshot?.blocks) &&
-                JSON.stringify(lastData.proposedState?.blocks) === JSON.stringify(newData.proposedState?.blocks)
+              isDuplicate =
+                JSON.stringify(lastData.baselineSnapshot?.blocks) ===
+                  JSON.stringify(newData.baselineSnapshot?.blocks) &&
+                JSON.stringify(lastData.proposedState?.blocks) ===
+                  JSON.stringify(newData.proposedState?.blocks)
             } else if (entry.operation.type === 'accept-diff') {
-              isDuplicate = 
-                JSON.stringify(lastData.afterAccept?.blocks) === JSON.stringify(newData.afterAccept?.blocks)
+              isDuplicate =
+                JSON.stringify(lastData.afterAccept?.blocks) ===
+                JSON.stringify(newData.afterAccept?.blocks)
             } else if (entry.operation.type === 'reject-diff') {
-              isDuplicate = 
-                JSON.stringify(lastData.afterReject?.blocks) === JSON.stringify(newData.afterReject?.blocks)
+              isDuplicate =
+                JSON.stringify(lastData.afterReject?.blocks) ===
+                JSON.stringify(newData.afterReject?.blocks)
             }
-            
+
             if (isDuplicate) {
               logger.debug('Skipping duplicate diff operation', {
                 type: entry.operation.type,
