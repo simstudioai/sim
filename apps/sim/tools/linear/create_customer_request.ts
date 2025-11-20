@@ -67,17 +67,17 @@ export const linearCreateCustomerRequestTool: ToolConfig<
     body: (params) => {
       const input: Record<string, any> = {
         customerId: params.customerId,
-        priority: params.priority !== undefined && params.priority !== null ? params.priority : 0,
+        priority: params.priority != null ? params.priority : 0,
       }
 
       // Optional fields with proper validation
-      if (params.body !== undefined && params.body !== null && params.body !== '') {
+      if (params.body != null && params.body !== '') {
         input.body = params.body
       }
-      if (params.issueId !== undefined && params.issueId !== null && params.issueId !== '') {
+      if (params.issueId != null && params.issueId !== '') {
         input.issueId = params.issueId
       }
-      if (params.projectId !== undefined && params.projectId !== null && params.projectId !== '') {
+      if (params.projectId != null && params.projectId !== '') {
         input.projectId = params.projectId
       }
 

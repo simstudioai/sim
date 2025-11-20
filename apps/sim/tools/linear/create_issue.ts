@@ -62,18 +62,10 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
           title: params.title,
         }
 
-        if (
-          params.projectId !== undefined &&
-          params.projectId !== null &&
-          params.projectId !== ''
-        ) {
+        if (params.projectId != null && params.projectId !== '') {
           input.projectId = params.projectId
         }
-        if (
-          params.description !== undefined &&
-          params.description !== null &&
-          params.description !== ''
-        ) {
+        if (params.description != null && params.description !== '') {
           input.description = params.description
         }
 

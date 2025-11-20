@@ -39,8 +39,11 @@ export const linearArchiveProjectTool: ToolConfig<
     body: (params) => ({
       query: `
         mutation ArchiveProject($id: String!) {
-          projectArchive(id: $id) {
+          projectDelete(id: $id) {
             success
+            entity {
+              id
+            }
           }
         }
       `,
@@ -61,7 +64,7 @@ export const linearArchiveProjectTool: ToolConfig<
       }
     }
 
-    const result = data.data.projectArchive
+    const result = data.data.projectDelete
     if (!result.success) {
       return {
         success: false,

@@ -60,21 +60,13 @@ export const linearUpdateProjectMilestoneTool: ToolConfig<
     body: (params) => {
       const input: Record<string, any> = {}
 
-      if (params.name !== undefined && params.name !== null && params.name !== '') {
+      if (params.name != null && params.name !== '') {
         input.name = params.name
       }
-      if (
-        params.description !== undefined &&
-        params.description !== null &&
-        params.description !== ''
-      ) {
+      if (params.description != null && params.description !== '') {
         input.description = params.description
       }
-      if (
-        params.targetDate !== undefined &&
-        params.targetDate !== null &&
-        params.targetDate !== ''
-      ) {
+      if (params.targetDate != null && params.targetDate !== '') {
         input.targetDate = params.targetDate
       }
 

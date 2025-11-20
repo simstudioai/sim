@@ -46,10 +46,10 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
     body: (params) => {
       const filter: Record<string, any> = {}
 
-      if (params.teamId !== undefined && params.teamId !== null && params.teamId !== '') {
+      if (params.teamId != null && params.teamId !== '') {
         filter.team = { id: { eq: params.teamId } }
       }
-      if (params.projectId !== undefined && params.projectId !== null && params.projectId !== '') {
+      if (params.projectId != null && params.projectId !== '') {
         filter.project = { id: { eq: params.projectId } }
       }
 
