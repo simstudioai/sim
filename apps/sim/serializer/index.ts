@@ -422,6 +422,7 @@ export class Serializer {
     const params: Record<string, any> = {}
     const isAdvancedMode = block.advancedMode ?? false
     const isStarterBlock = block.type === 'starter'
+    const isAgentBlock = block.type === 'agent'
 
     // First collect all current values from subBlocks, filtering by mode
     Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
@@ -435,9 +436,15 @@ export class Serializer {
         Array.isArray(subBlock.value) &&
         subBlock.value.length > 0
 
+      // Include legacy agent block fields (systemPrompt, userPrompt, memories) even if not in current config
+      // This ensures backward compatibility with old workflows that were exported before the messages array migration
+      const isLegacyAgentField =
+        isAgentBlock && ['systemPrompt', 'userPrompt', 'memories'].includes(id)
+
       if (
-        subBlockConfig &&
-        (shouldIncludeField(subBlockConfig, isAdvancedMode) || hasStarterInputFormatValues)
+        (subBlockConfig &&
+          (shouldIncludeField(subBlockConfig, isAdvancedMode) || hasStarterInputFormatValues)) ||
+        isLegacyAgentField
       ) {
         params[id] = subBlock.value
       }
