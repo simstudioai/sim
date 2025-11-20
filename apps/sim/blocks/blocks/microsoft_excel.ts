@@ -9,7 +9,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   description: 'Read, write, and update data',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Microsoft Excel into the workflow. Can read, write, update, and add to table.',
+    'Integrate Microsoft Excel into the workflow. Can read, write, update, add to table, and create new worksheets.',
   docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -23,6 +23,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         { label: 'Read Data', id: 'read' },
         { label: 'Write/Update Data', id: 'write' },
         { label: 'Add to Table', id: 'table_add' },
+        { label: 'Add Worksheet', id: 'worksheet_add' },
       ],
       value: () => 'read',
     },
@@ -81,6 +82,14 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       required: true,
     },
     {
+      id: 'worksheetName',
+      title: 'Worksheet Name',
+      type: 'short-input',
+      placeholder: 'Name of the new worksheet (max 31 characters)',
+      condition: { field: 'operation', value: ['worksheet_add'] },
+      required: true,
+    },
+    {
       id: 'values',
       title: 'Values',
       type: 'long-input',
@@ -129,7 +138,12 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
     },
   ],
   tools: {
-    access: ['microsoft_excel_read', 'microsoft_excel_write', 'microsoft_excel_table_add'],
+    access: [
+      'microsoft_excel_read',
+      'microsoft_excel_write',
+      'microsoft_excel_table_add',
+      'microsoft_excel_worksheet_add',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -139,13 +153,22 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
             return 'microsoft_excel_write'
           case 'table_add':
             return 'microsoft_excel_table_add'
+          case 'worksheet_add':
+            return 'microsoft_excel_worksheet_add'
           default:
             throw new Error(`Invalid Microsoft Excel operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { credential, values, spreadsheetId, manualSpreadsheetId, tableName, ...rest } =
-          params
+        const {
+          credential,
+          values,
+          spreadsheetId,
+          manualSpreadsheetId,
+          tableName,
+          worksheetName,
+          ...rest
+        } = params
 
         const effectiveSpreadsheetId = (spreadsheetId || manualSpreadsheetId || '').trim()
 
@@ -164,6 +187,10 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
           throw new Error('Table name is required for table operations.')
         }
 
+        if (params.operation === 'worksheet_add' && !worksheetName) {
+          throw new Error('Worksheet name is required for worksheet operations.')
+        }
+
         const baseParams = {
           ...rest,
           spreadsheetId: effectiveSpreadsheetId,
@@ -178,6 +205,13 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
           }
         }
 
+        if (params.operation === 'worksheet_add') {
+          return {
+            ...baseParams,
+            worksheetName,
+          }
+        }
+
         return baseParams
       },
     },
@@ -189,6 +223,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
     manualSpreadsheetId: { type: 'string', description: 'Manual spreadsheet identifier' },
     range: { type: 'string', description: 'Cell range' },
     tableName: { type: 'string', description: 'Table name' },
+    worksheetName: { type: 'string', description: 'Worksheet name' },
     values: { type: 'string', description: 'Cell values data' },
     valueInputOption: { type: 'string', description: 'Value input option' },
   },
@@ -207,5 +242,9 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
     },
     index: { type: 'number', description: 'Row index for table add operations' },
     values: { type: 'json', description: 'Cell values array for table add operations' },
+    worksheet: {
+      type: 'json',
+      description: 'Details of the newly created worksheet (worksheet_add operations)',
+    },
   },
 }

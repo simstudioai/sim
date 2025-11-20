@@ -48,6 +48,18 @@ export interface MicrosoftExcelTableAddResponse extends ToolResponse {
   }
 }
 
+export interface MicrosoftExcelWorksheetAddResponse extends ToolResponse {
+  output: {
+    worksheet: {
+      id: string
+      name: string
+      position: number
+      visibility: string
+    }
+    metadata: MicrosoftExcelMetadata
+  }
+}
+
 export interface MicrosoftExcelToolParams {
   accessToken: string
   spreadsheetId: string
@@ -68,7 +80,14 @@ export interface MicrosoftExcelTableToolParams {
   rowIndex?: number
 }
 
+export interface MicrosoftExcelWorksheetToolParams {
+  accessToken: string
+  spreadsheetId: string
+  worksheetName: string
+}
+
 export type MicrosoftExcelResponse =
   | MicrosoftExcelReadResponse
   | MicrosoftExcelWriteResponse
   | MicrosoftExcelTableAddResponse
+  | MicrosoftExcelWorksheetAddResponse

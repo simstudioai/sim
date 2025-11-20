@@ -348,6 +348,7 @@ import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from
 import {
   microsoftExcelReadTool,
   microsoftExcelTableAddTool,
+  microsoftExcelWorksheetAddTool,
   microsoftExcelWriteTool,
 } from '@/tools/microsoft_excel'
 import {
@@ -1172,6 +1173,7 @@ export const tools: Record<string, ToolConfig> = {
   microsoft_excel_read: microsoftExcelReadTool,
   microsoft_excel_write: microsoftExcelWriteTool,
   microsoft_excel_table_add: microsoftExcelTableAddTool,
+  microsoft_excel_worksheet_add: microsoftExcelWorksheetAddTool,
   microsoft_planner_create_task: microsoftPlannerCreateTaskTool,
   microsoft_planner_read_task: microsoftPlannerReadTaskTool,
   microsoft_planner_update_task: microsoftPlannerUpdateTaskTool,
