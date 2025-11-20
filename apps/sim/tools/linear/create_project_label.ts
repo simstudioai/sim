@@ -121,8 +121,16 @@ export const linearCreateProjectLabelTool: ToolConfig<
     }
 
     const result = data.data.projectLabelCreate
+    if (!result.success) {
+      return {
+        success: false,
+        error: 'Project label creation was not successful',
+        output: {},
+      }
+    }
+
     return {
-      success: result.success,
+      success: true,
       output: {
         projectLabel: result.projectLabel,
       },

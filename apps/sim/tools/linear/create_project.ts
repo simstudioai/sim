@@ -78,11 +78,29 @@ export const linearCreateProjectTool: ToolConfig<
         name: params.name,
       }
 
-      if (params.description !== undefined) input.description = params.description
-      if (params.leadId !== undefined) input.leadId = params.leadId
-      if (params.startDate !== undefined) input.startDate = params.startDate
-      if (params.targetDate !== undefined) input.targetDate = params.targetDate
-      if (params.priority !== undefined) input.priority = Number(params.priority)
+      if (
+        params.description !== undefined &&
+        params.description !== null &&
+        params.description !== ''
+      ) {
+        input.description = params.description
+      }
+      if (params.leadId !== undefined && params.leadId !== null && params.leadId !== '') {
+        input.leadId = params.leadId
+      }
+      if (params.startDate !== undefined && params.startDate !== null && params.startDate !== '') {
+        input.startDate = params.startDate
+      }
+      if (
+        params.targetDate !== undefined &&
+        params.targetDate !== null &&
+        params.targetDate !== ''
+      ) {
+        input.targetDate = params.targetDate
+      }
+      if (params.priority !== undefined && params.priority !== null) {
+        input.priority = Number(params.priority)
+      }
 
       return {
         query: `

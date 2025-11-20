@@ -93,6 +93,14 @@ export const linearListProjectUpdatesTool: ToolConfig<
       }
     }
 
+    if (!data.data?.project) {
+      return {
+        success: false,
+        error: 'Project not found',
+        output: {},
+      }
+    }
+
     const result = data.data.project.projectUpdates
     return {
       success: true,

@@ -66,10 +66,22 @@ export const linearUpdateWorkflowStateTool: ToolConfig<
     body: (params) => {
       const input: Record<string, any> = {}
 
-      if (params.name !== undefined) input.name = params.name
-      if (params.color !== undefined) input.color = params.color
-      if (params.description !== undefined) input.description = params.description
-      if (params.position !== undefined) input.position = Number(params.position)
+      if (params.name !== undefined && params.name !== null && params.name !== '') {
+        input.name = params.name
+      }
+      if (params.color !== undefined && params.color !== null && params.color !== '') {
+        input.color = params.color
+      }
+      if (
+        params.description !== undefined &&
+        params.description !== null &&
+        params.description !== ''
+      ) {
+        input.description = params.description
+      }
+      if (params.position !== undefined && params.position !== null) {
+        input.position = Number(params.position)
+      }
 
       return {
         query: `

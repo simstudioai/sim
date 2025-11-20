@@ -114,8 +114,16 @@ export const linearCreateProjectMilestoneTool: ToolConfig<
     }
 
     const result = data.data.projectMilestoneCreate
+    if (!result.success) {
+      return {
+        success: false,
+        error: 'Project milestone creation was not successful',
+        output: {},
+      }
+    }
+
     return {
-      success: result.success,
+      success: true,
       output: {
         projectMilestone: result.projectMilestone,
       },

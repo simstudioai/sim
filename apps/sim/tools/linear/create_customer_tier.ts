@@ -124,8 +124,16 @@ export const linearCreateCustomerTierTool: ToolConfig<
     }
 
     const result = data.data.customerTierCreate
+    if (!result.success) {
+      return {
+        success: false,
+        error: 'Customer tier creation was not successful',
+        output: {},
+      }
+    }
+
     return {
-      success: result.success,
+      success: true,
       output: {
         customerTier: result.customerTier,
       },
