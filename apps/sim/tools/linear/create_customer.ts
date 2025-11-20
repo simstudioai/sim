@@ -90,38 +90,32 @@ export const linearCreateCustomerTool: ToolConfig<
       }
 
       // Optional fields with proper validation
-      if (
-        params.domains !== undefined &&
-        params.domains !== null &&
-        Array.isArray(params.domains) &&
-        params.domains.length > 0
-      ) {
+      if (params.domains != null && Array.isArray(params.domains) && params.domains.length > 0) {
         input.domains = params.domains
       }
       if (
-        params.externalIds !== undefined &&
-        params.externalIds !== null &&
+        params.externalIds != null &&
         Array.isArray(params.externalIds) &&
         params.externalIds.length > 0
       ) {
         input.externalIds = params.externalIds
       }
-      if (params.logoUrl !== undefined && params.logoUrl !== null && params.logoUrl !== '') {
+      if (params.logoUrl != null && params.logoUrl !== '') {
         input.logoUrl = params.logoUrl
       }
-      if (params.ownerId !== undefined && params.ownerId !== null && params.ownerId !== '') {
+      if (params.ownerId != null && params.ownerId !== '') {
         input.ownerId = params.ownerId
       }
-      if (params.revenue !== undefined && params.revenue !== null) {
+      if (params.revenue != null) {
         input.revenue = params.revenue
       }
-      if (params.size !== undefined && params.size !== null) {
+      if (params.size != null) {
         input.size = params.size
       }
-      if (params.statusId !== undefined && params.statusId !== null && params.statusId !== '') {
+      if (params.statusId != null && params.statusId !== '') {
         input.statusId = params.statusId
       }
-      if (params.tierId !== undefined && params.tierId !== null && params.tierId !== '') {
+      if (params.tierId != null && params.tierId !== '') {
         input.tierId = params.tierId
       }
 

@@ -64,8 +64,7 @@ export const linearCreateAttachmentTool: ToolConfig<
         title: params.title,
       }
 
-      if (params.subtitle !== undefined && params.subtitle !== null && params.subtitle !== '')
-        input.subtitle = params.subtitle
+      if (params.subtitle != null && params.subtitle !== '') input.subtitle = params.subtitle
 
       return {
         query: `

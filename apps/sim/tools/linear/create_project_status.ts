@@ -69,17 +69,13 @@ export const linearCreateProjectStatusTool: ToolConfig<
         color: params.color,
       }
 
-      if (
-        params.description !== undefined &&
-        params.description !== null &&
-        params.description !== ''
-      ) {
+      if (params.description != null && params.description !== '') {
         input.description = params.description
       }
-      if (params.indefinite !== undefined && params.indefinite !== null) {
+      if (params.indefinite != null) {
         input.indefinite = params.indefinite
       }
-      if (params.position !== undefined && params.position !== null) {
+      if (params.position != null) {
         input.position = params.position
       }
 

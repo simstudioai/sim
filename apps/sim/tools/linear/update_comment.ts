@@ -45,8 +45,7 @@ export const linearUpdateCommentTool: ToolConfig<
     body: (params) => {
       const input: Record<string, any> = {}
 
-      if (params.body !== undefined && params.body !== null && params.body !== '')
-        input.body = params.body
+      if (params.body != null && params.body !== '') input.body = params.body
 
       return {
         query: `
