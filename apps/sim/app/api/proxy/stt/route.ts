@@ -32,7 +32,6 @@ export async function POST(request: NextRequest) {
   logger.info(`[${requestId}] STT transcription request started`)
 
   try {
-    // Authenticate
     const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
     if (!authResult.success) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -41,7 +40,6 @@ export async function POST(request: NextRequest) {
     const body: SttRequestBody = await request.json()
     const { provider, apiKey, model, language, timestamps, diarization, translateToEnglish } = body
 
-    // Validate required fields
     if (!provider || !apiKey) {
       return NextResponse.json(
         { error: 'Missing required fields: provider and apiKey' },
@@ -49,7 +47,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get audio file - from upload, reference, or URL
     let audioBuffer: Buffer
     let audioFileName: string
     let audioMimeType: string
@@ -73,7 +70,6 @@ export async function POST(request: NextRequest) {
     } else if (body.audioUrl) {
       logger.info(`[${requestId}] Downloading from URL: ${body.audioUrl}`)
 
-      // Download from external URL
       const response = await fetch(body.audioUrl)
       if (!response.ok) {
         throw new Error(`Failed to download audio from URL: ${response.statusText}`)
@@ -90,7 +86,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Extract audio from video if needed
     if (isVideoFile(audioMimeType)) {
       logger.info(`[${requestId}] Extracting audio from video file`)
       try {
@@ -115,7 +110,6 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Transcribing with ${provider}, file: ${audioFileName}`)
 
-    // Route to appropriate provider
     let transcript: string
     let segments: TranscriptSegment[] | undefined
     let detectedLanguage: string | undefined
@@ -173,7 +167,6 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Transcription completed successfully`)
 
-    // Return response
     return NextResponse.json({
       transcript,
       segments,
@@ -187,8 +180,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
-
-// Provider-specific transcription functions
 
 async function transcribeWithWhisper(
   audioBuffer: Buffer,
@@ -205,7 +196,6 @@ async function transcribeWithWhisper(
 }> {
   const formData = new FormData()
 
-  // Create a blob from the buffer
   const blob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mpeg' })
   formData.append('file', blob, 'audio.mp3')
   formData.append('model', model || 'whisper-1')
@@ -239,7 +229,6 @@ async function transcribeWithWhisper(
 
   const data = await response.json()
 
-  // Process response based on format
   if (timestamps === 'none') {
     return {
       transcript: data.text,
@@ -274,7 +263,6 @@ async function transcribeWithDeepgram(
   duration?: number
   confidence?: number
 }> {
-  // Build query parameters
   const params = new URLSearchParams({
     model: model || 'nova-3',
     smart_format: 'true',
@@ -319,7 +307,6 @@ async function transcribeWithDeepgram(
   const detectedLanguage = data.results?.channels?.[0]?.detected_language
   const confidence = result.confidence
 
-  // Process segments if timestamps requested
   let segments: TranscriptSegment[] | undefined
   if (timestamps !== 'none' && result.words) {
     segments = result.words.map((word: any) => ({
@@ -352,7 +339,6 @@ async function transcribeWithElevenLabs(
   language?: string
   duration?: number
 }> {
-  // ElevenLabs STT API endpoint
   const formData = new FormData()
   const blob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mpeg' })
   formData.append('file', blob, 'audio.mp3')
@@ -381,7 +367,6 @@ async function transcribeWithElevenLabs(
 
   const data = await response.json()
 
-  // Process response
   return {
     transcript: data.text || '',
     language: data.language,
