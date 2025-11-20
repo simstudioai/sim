@@ -162,8 +162,16 @@ export const linearCreateCustomerTool: ToolConfig<
     }
 
     const result = data.data.customerCreate
+    if (!result.success) {
+      return {
+        success: false,
+        error: 'Customer creation was not successful',
+        output: {},
+      }
+    }
+
     return {
-      success: result.success,
+      success: true,
       output: {
         customer: result.customer,
       },

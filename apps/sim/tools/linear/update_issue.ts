@@ -79,13 +79,39 @@ export const linearUpdateIssueTool: ToolConfig<LinearUpdateIssueParams, LinearUp
       body: (params) => {
         const input: Record<string, any> = {}
 
-        if (params.title !== undefined) input.title = params.title
-        if (params.description !== undefined) input.description = params.description
-        if (params.stateId !== undefined) input.stateId = params.stateId
-        if (params.assigneeId !== undefined) input.assigneeId = params.assigneeId
-        if (params.priority !== undefined) input.priority = Number(params.priority)
-        if (params.estimate !== undefined) input.estimate = Number(params.estimate)
-        if (params.labelIds !== undefined) input.labelIds = params.labelIds
+        if (params.title !== undefined && params.title !== null && params.title !== '') {
+          input.title = params.title
+        }
+        if (
+          params.description !== undefined &&
+          params.description !== null &&
+          params.description !== ''
+        ) {
+          input.description = params.description
+        }
+        if (params.stateId !== undefined && params.stateId !== null && params.stateId !== '') {
+          input.stateId = params.stateId
+        }
+        if (
+          params.assigneeId !== undefined &&
+          params.assigneeId !== null &&
+          params.assigneeId !== ''
+        ) {
+          input.assigneeId = params.assigneeId
+        }
+        if (params.priority !== undefined && params.priority !== null) {
+          input.priority = Number(params.priority)
+        }
+        if (params.estimate !== undefined && params.estimate !== null) {
+          input.estimate = Number(params.estimate)
+        }
+        if (
+          params.labelIds !== undefined &&
+          params.labelIds !== null &&
+          Array.isArray(params.labelIds)
+        ) {
+          input.labelIds = params.labelIds
+        }
 
         return {
           query: `

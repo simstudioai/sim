@@ -22,7 +22,7 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
       },
       projectId: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-only',
         description: 'Linear project ID',
       },
@@ -56,17 +56,31 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
         if (!params.title || !params.title.trim()) {
           throw new Error('Title is required to create a Linear issue')
         }
+
+        const input: Record<string, any> = {
+          teamId: params.teamId,
+          title: params.title,
+        }
+
+        if (
+          params.projectId !== undefined &&
+          params.projectId !== null &&
+          params.projectId !== ''
+        ) {
+          input.projectId = params.projectId
+        }
+        if (
+          params.description !== undefined &&
+          params.description !== null &&
+          params.description !== ''
+        ) {
+          input.description = params.description
+        }
+
         return {
           query: `
-        mutation CreateIssue($teamId: String!, $projectId: String!, $title: String!, $description: String) {
-          issueCreate(
-            input: {
-              teamId: $teamId
-              projectId: $projectId
-              title: $title
-              description: $description
-            }
-          ) {
+        mutation CreateIssue($input: IssueCreateInput!) {
+          issueCreate(input: $input) {
             issue {
               id
               title
@@ -79,12 +93,7 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
         }
       `,
           variables: {
-            teamId: params.teamId,
-            projectId: params.projectId,
-            title: params.title,
-            ...(params.description !== undefined &&
-              params.description !== null &&
-              params.description !== '' && { description: params.description }),
+            input,
           },
         }
       },
@@ -92,7 +101,25 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
 
     transformResponse: async (response) => {
       const data = await response.json()
-      const issue = data.data.issueCreate.issue
+
+      if (data.errors) {
+        return {
+          success: false,
+          error: data.errors[0]?.message || 'Failed to create issue',
+          output: {},
+        }
+      }
+
+      const result = data.data?.issueCreate
+      if (!result) {
+        return {
+          success: false,
+          error: 'Issue creation was not successful',
+          output: {},
+        }
+      }
+
+      const issue = result.issue
       return {
         success: true,
         output: {

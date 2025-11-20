@@ -61,11 +61,20 @@ export const linearArchiveProjectTool: ToolConfig<
       }
     }
 
+    const result = data.data.projectArchive
+    if (!result.success) {
+      return {
+        success: false,
+        error: 'Project archive was not successful',
+        output: {},
+      }
+    }
+
     return {
-      success: data.data.projectArchive.success,
+      success: true,
       output: {
-        success: data.data.projectArchive.success,
-        projectId: response.ok ? data.data.projectArchive.success : '',
+        success: result.success,
+        projectId: result.entity?.id || '',
       },
     }
   },

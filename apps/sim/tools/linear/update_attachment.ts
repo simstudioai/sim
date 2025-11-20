@@ -27,7 +27,7 @@ export const linearUpdateAttachmentTool: ToolConfig<
     },
     title: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description: 'New attachment title',
     },
@@ -52,10 +52,10 @@ export const linearUpdateAttachmentTool: ToolConfig<
       }
     },
     body: (params) => {
-      const input: Record<string, any> = {}
+      const input: Record<string, any> = {
+        title: params.title,
+      }
 
-      if (params.title !== undefined && params.title !== null && params.title !== '')
-        input.title = params.title
       if (params.subtitle !== undefined && params.subtitle !== null && params.subtitle !== '')
         input.subtitle = params.subtitle
 

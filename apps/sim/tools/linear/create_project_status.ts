@@ -120,8 +120,16 @@ export const linearCreateProjectStatusTool: ToolConfig<
     }
 
     const result = data.data.projectStatusCreate
+    if (!result.success) {
+      return {
+        success: false,
+        error: 'Project status creation was not successful',
+        output: {},
+      }
+    }
+
     return {
-      success: result.success,
+      success: true,
       output: {
         projectStatus: result.status,
       },
