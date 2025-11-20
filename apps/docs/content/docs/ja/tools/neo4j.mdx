@@ -1,0 +1,172 @@
+---
+title: Neo4j
+description: Neo4jグラフデータベースに接続する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="neo4j"
+  color="#FFFFFF"
+/>
+
+## 使用方法
+
+Neo4jグラフデータベースをワークフローに統合します。ノードとリレーションシップのクエリ、作成、マージ、更新、削除が可能です。
+
+## ツール
+
+### `neo4j_query`
+
+MATCHクエリを実行してNeo4jグラフデータベースからノードとリレーションシップを読み取ります。最適なパフォーマンスを得るため、また大きな結果セットを防ぐために、クエリにLIMITを含めてください（例：
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | Neo4jサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | Neo4jサーバーのポート（デフォルト：Boltプロトコル用に7687） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | Neo4jユーザー名 |
+| `password` | string | はい | Neo4jパスワード |
+| `encryption` | string | いいえ | 接続暗号化モード（enabled、disabled） |
+| `cypherQuery` | string | はい | 実行するCypherクエリ（通常はMATCH文） |
+| `parameters` | object | いいえ | CypherクエリのパラメータをJSONオブジェクトとして指定。LIMITを含む動的な値に使用します（例：query: "MATCH \(n\) RETURN n LIMIT $limit"、parameters: \{limit: 100\}） |
+| `parameters` | string | いいえ | 説明なし |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `records` | array | クエリから返されたレコードの配列 |
+| `recordCount` | number | 返されたレコード数 |
+| `summary` | json | タイミングとカウンターを含むクエリ実行の概要 |
+
+### `neo4j_create`
+
+CREATE文を実行してNeo4jグラフデータベースに新しいノードとリレーションシップを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | Neo4jサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | Neo4jサーバーのポート番号 \(デフォルト: Boltプロトコル用に7687\) |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | Neo4jのユーザー名 |
+| `password` | string | はい | Neo4jのパスワード |
+| `encryption` | string | いいえ | 接続の暗号化モード \(enabled, disabled\) |
+| `cypherQuery` | string | はい | 実行するCypher CREATE文 |
+| `parameters` | object | いいえ | CypherクエリのパラメータをJSONオブジェクトとして指定 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作のステータスメッセージ |
+| `summary` | json | 作成されたノードとリレーションシップの数を含む作成サマリー |
+
+### `neo4j_merge`
+
+MERGE文を実行してNeo4jでノードとリレーションシップを検索または作成する（アップサート操作）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | Neo4jサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | Neo4jサーバーのポート番号 \(デフォルト: Boltプロトコル用に7687\) |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | Neo4jのユーザー名 |
+| `password` | string | はい | Neo4jのパスワード |
+| `encryption` | string | いいえ | 接続の暗号化モード \(enabled, disabled\) |
+| `cypherQuery` | string | はい | 実行するCypher MERGE文 |
+| `parameters` | object | いいえ | CypherクエリのパラメータをJSONオブジェクトとして指定 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `summary` | json | 作成またはマッチしたノード/リレーションシップのカウンターを含むマージ概要 |
+
+### `neo4j_update`
+
+Neo4jの既存ノードとリレーションシップのプロパティを更新するためのSETステートメントを実行します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | Neo4jサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | Neo4jサーバーポート（デフォルト：Boltプロトコル用7687） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | Neo4jユーザー名 |
+| `password` | string | はい | Neo4jパスワード |
+| `encryption` | string | いいえ | 接続暗号化モード（enabled、disabled） |
+| `cypherQuery` | string | はい | プロパティを更新するためのMATCHとSETステートメントを含むCypherクエリ |
+| `parameters` | object | いいえ | JSONオブジェクトとしてのCypherクエリのパラメータ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `summary` | json | 設定されたプロパティのカウンターを含む更新概要 |
+
+### `neo4j_delete`
+
+Neo4jからノードとリレーションシップを削除するためのDELETEまたはDETACH DELETEステートメントを実行します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | Neo4jサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | Neo4jサーバーポート（デフォルト：Boltプロトコル用7687） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | Neo4jユーザー名 |
+| `password` | string | はい | Neo4jパスワード |
+| `encryption` | string | いいえ | 接続暗号化モード（enabled、disabled） |
+| `cypherQuery` | string | はい | MATCHとDELETE/DETACH DELETEステートメントを含むCypherクエリ |
+| `parameters` | object | いいえ | JSONオブジェクトとしてのCypherクエリのパラメータ |
+| `detach` | boolean | いいえ | ノードを削除する前にリレーションシップを削除するためにDETACH DELETEを使用するかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `summary` | json | 削除されたノードとリレーションシップのカウンターを含む削除サマリー |
+
+### `neo4j_execute`
+
+複雑な操作のためにNeo4jグラフデータベースで任意のCypherクエリを実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | Neo4jサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | Neo4jサーバーポート（デフォルト：Boltプロトコル用の7687） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | Neo4jユーザー名 |
+| `password` | string | はい | Neo4jパスワード |
+| `encryption` | string | いいえ | 接続暗号化モード（enabled、disabled） |
+| `cypherQuery` | string | はい | 実行するCypherクエリ（任意の有効なCypher文） |
+| `parameters` | object | いいえ | JSONオブジェクトとしてのCypherクエリのパラメータ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `records` | array | クエリから返されたレコードの配列 |
+| `recordCount` | number | 返されたレコードの数 |
+| `summary` | json | タイミングとカウンターを含む実行サマリー |
+
+## 注意事項
+
+- カテゴリ: `tools`
+- タイプ: `neo4j`

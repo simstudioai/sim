@@ -26,7 +26,7 @@ En Sim, la integración de Microsoft Excel proporciona acceso fluido a la funcio
 
 ## Instrucciones de uso
 
-Integra Microsoft Excel en el flujo de trabajo. Puede leer, escribir, actualizar y añadir a la tabla. Requiere OAuth.
+Integra Microsoft Excel en el flujo de trabajo. Puede leer, escribir, actualizar, añadir a tablas y crear nuevas hojas de cálculo.
 
 ## Herramientas
 
@@ -90,6 +90,23 @@ Añadir nuevas filas a una tabla de Microsoft Excel
 | `index` | number | Índice de la primera fila que fue añadida |
 | `values` | array | Matriz de filas que fueron añadidas a la tabla |
 | `metadata` | object | Metadatos de la hoja de cálculo |
+
+### `microsoft_excel_worksheet_add`
+
+Crear una nueva hoja de cálculo en un libro de Microsoft Excel
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Sí | El ID del libro de Excel al que añadir la hoja de cálculo |
+| `worksheetName` | string | Sí | El nombre de la nueva hoja de cálculo. Debe ser único dentro del libro y no puede exceder los 31 caracteres |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `worksheet` | object | Detalles de la hoja de cálculo recién creada |
 
 ## Notas
 

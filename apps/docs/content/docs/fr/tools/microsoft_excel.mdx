@@ -26,7 +26,7 @@ Dans Sim, l'intégration Microsoft Excel offre un accès transparent aux fonctio
 
 ## Instructions d'utilisation
 
-Intégrez Microsoft Excel dans le flux de travail. Peut lire, écrire, mettre à jour et ajouter au tableau. Nécessite OAuth.
+Intégrez Microsoft Excel dans le flux de travail. Peut lire, écrire, mettre à jour, ajouter au tableau et créer de nouvelles feuilles de calcul.
 
 ## Outils
 
@@ -90,6 +90,23 @@ Ajouter de nouvelles lignes à un tableau Microsoft Excel
 | `index` | number | Index de la première ligne qui a été ajoutée |
 | `values` | array | Tableau des lignes qui ont été ajoutées au tableau |
 | `metadata` | object | Métadonnées de la feuille de calcul |
+
+### `microsoft_excel_worksheet_add`
+
+Créer une nouvelle feuille de calcul dans un classeur Microsoft Excel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | chaîne | Oui | L'identifiant du classeur Excel dans lequel ajouter la feuille de calcul |
+| `worksheetName` | chaîne | Oui | Le nom de la nouvelle feuille de calcul. Doit être unique dans le classeur et ne peut pas dépasser 31 caractères |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `worksheet` | objet | Détails de la feuille de calcul nouvellement créée |
 
 ## Remarques
 
