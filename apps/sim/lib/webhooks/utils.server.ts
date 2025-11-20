@@ -1337,6 +1337,27 @@ export async function formatWebhookInput(
     }
   }
 
+  if (foundWebhook.provider === 'calendly') {
+    // Calendly webhook payload format matches the trigger outputs
+    return {
+      event: body.event,
+      created_at: body.created_at,
+      created_by: body.created_by,
+      payload: body.payload,
+      webhook: {
+        data: {
+          provider: 'calendly',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
   // Generic format for other providers
   return {
     webhook: {

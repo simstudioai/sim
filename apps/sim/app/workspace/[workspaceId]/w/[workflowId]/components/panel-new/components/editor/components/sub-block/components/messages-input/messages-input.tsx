@@ -461,7 +461,26 @@ export function MessagesInput({
                       fieldHandlers.onChange(e)
                       autoResizeTextarea(fieldId)
                     }}
-                    onKeyDown={fieldHandlers.onKeyDown}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Tab' && !isPreview && !disabled) {
+                        e.preventDefault()
+                        const direction = e.shiftKey ? -1 : 1
+                        const nextIndex = index + direction
+
+                        if (nextIndex >= 0 && nextIndex < currentMessages.length) {
+                          const nextFieldId = `message-${nextIndex}`
+                          const nextTextarea = textareaRefs.current[nextFieldId]
+                          if (nextTextarea) {
+                            nextTextarea.focus()
+                            nextTextarea.selectionStart = nextTextarea.value.length
+                            nextTextarea.selectionEnd = nextTextarea.value.length
+                          }
+                        }
+                        return
+                      }
+
+                      fieldHandlers.onKeyDown(e)
+                    }}
                     onDrop={fieldHandlers.onDrop}
                     onDragOver={fieldHandlers.onDragOver}
                     onScroll={(e) => {

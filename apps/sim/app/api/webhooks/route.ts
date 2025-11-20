@@ -297,6 +297,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (provider === 'calendly') {
+      logger.info(`[${requestId}] Creating Calendly subscription before saving to database`)
+      try {
+        externalSubscriptionId = await createCalendlyWebhookSubscription(
+          request,
+          userId,
+          createTempWebhookData(),
+          requestId
+        )
+        if (externalSubscriptionId) {
+          resolvedProviderConfig.externalId = externalSubscriptionId
+          externalSubscriptionCreated = true
+        }
+      } catch (err) {
+        logger.error(`[${requestId}] Error creating Calendly webhook subscription`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to create webhook in Calendly',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+
     if (provider === 'microsoft-teams') {
       const { createTeamsSubscription } = await import('@/lib/webhooks/webhook-helpers')
       logger.info(`[${requestId}] Creating Teams subscription before saving to database`)
@@ -635,6 +660,140 @@ async function createAirtableWebhookSubscription(
     throw error
   }
 }
+
+// Helper function to create the webhook subscription in Calendly
+async function createCalendlyWebhookSubscription(
+  request: NextRequest,
+  userId: string,
+  webhookData: any,
+  requestId: string
+): Promise<string | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const { apiKey, organization, triggerId } = providerConfig || {}
+
+    if (!apiKey) {
+      logger.warn(`[${requestId}] Missing apiKey for Calendly webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error(
+        'Personal Access Token is required to create Calendly webhook. Please provide your Calendly Personal Access Token.'
+      )
+    }
+
+    if (!organization) {
+      logger.warn(`[${requestId}] Missing organization URI for Calendly webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error(
+        'Organization URI is required to create Calendly webhook. Please provide your Organization URI from the "Get Current User" operation.'
+      )
+    }
+
+    if (!triggerId) {
+      logger.warn(`[${requestId}] Missing triggerId for Calendly webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error('Trigger ID is required to create Calendly webhook')
+    }
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+    // Map trigger IDs to Calendly event types
+    const eventTypeMap: Record<string, string[]> = {
+      calendly_invitee_created: ['invitee.created'],
+      calendly_invitee_canceled: ['invitee.canceled'],
+      calendly_routing_form_submitted: ['routing_form_submission.created'],
+      calendly_webhook: ['invitee.created', 'invitee.canceled', 'routing_form_submission.created'],
+    }
+
+    const events = eventTypeMap[triggerId] || ['invitee.created']
+
+    const calendlyApiUrl = 'https://api.calendly.com/webhook_subscriptions'
+
+    const requestBody = {
+      url: notificationUrl,
+      events,
+      organization,
+      scope: 'organization',
+    }
+
+    const calendlyResponse = await fetch(calendlyApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    if (!calendlyResponse.ok) {
+      const errorBody = await calendlyResponse.json().catch(() => ({}))
+      const errorMessage = errorBody.message || errorBody.title || 'Unknown Calendly API error'
+      logger.error(
+        `[${requestId}] Failed to create webhook in Calendly for webhook ${webhookData.id}. Status: ${calendlyResponse.status}`,
+        { response: errorBody }
+      )
+
+      let userFriendlyMessage = 'Failed to create webhook subscription in Calendly'
+      if (calendlyResponse.status === 401) {
+        userFriendlyMessage =
+          'Calendly authentication failed. Please verify your Personal Access Token is correct.'
+      } else if (calendlyResponse.status === 403) {
+        userFriendlyMessage =
+          'Calendly access denied. Please ensure you have appropriate permissions and a paid Calendly subscription.'
+      } else if (calendlyResponse.status === 404) {
+        userFriendlyMessage =
+          'Calendly organization not found. Please verify the Organization URI is correct.'
+      } else if (errorMessage && errorMessage !== 'Unknown Calendly API error') {
+        userFriendlyMessage = `Calendly error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+
+    const responseBody = await calendlyResponse.json()
+    const webhookUri = responseBody.resource?.uri
+
+    if (!webhookUri) {
+      logger.error(
+        `[${requestId}] Calendly webhook created but no webhook URI returned for webhook ${webhookData.id}`,
+        { response: responseBody }
+      )
+      throw new Error('Calendly webhook creation succeeded but no webhook URI was returned')
+    }
+
+    // Extract the webhook ID from the URI (e.g., https://api.calendly.com/webhook_subscriptions/WEBHOOK_ID)
+    const webhookId = webhookUri.split('/').pop()
+
+    if (!webhookId) {
+      logger.error(`[${requestId}] Could not extract webhook ID from Calendly URI: ${webhookUri}`, {
+        response: responseBody,
+      })
+      throw new Error('Failed to extract webhook ID from Calendly response')
+    }
+
+    logger.info(
+      `[${requestId}] Successfully created webhook in Calendly for webhook ${webhookData.id}.`,
+      {
+        calendlyWebhookUri: webhookUri,
+        calendlyWebhookId: webhookId,
+      }
+    )
+    return webhookId
+  } catch (error: any) {
+    logger.error(
+      `[${requestId}] Exception during Calendly webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    // Re-throw the error so it can be caught by the outer try-catch
+    throw error
+  }
+}
+
 // Helper function to create the webhook subscription in Webflow
 async function createWebflowWebhookSubscription(
   request: NextRequest,

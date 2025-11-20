@@ -359,7 +359,7 @@ export function OutputSelect({
         <div ref={triggerRef} className='min-w-0 max-w-full'>
           <Badge
             variant='outline'
-            className='min-w-0 max-w-full cursor-pointer rounded-[6px]'
+            className='min-w-0 max-w-full cursor-pointer rounded-[4px] border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)]'
             title='Select outputs'
             aria-expanded={open}
             onMouseDown={(e) => {
@@ -378,7 +378,7 @@ export function OutputSelect({
         align={align}
         sideOffset={4}
         maxHeight={maxHeight}
-        maxWidth={160}
+        maxWidth={300}
         minWidth={160}
         disablePortal={disablePopoverPortal}
         onKeyDown={handleKeyDown}
