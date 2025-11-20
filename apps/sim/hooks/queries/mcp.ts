@@ -43,7 +43,6 @@ export interface McpServerConfig {
 }
 
 export interface McpTool {
-  id: string
   serverId: string
   serverName: string
   name: string
