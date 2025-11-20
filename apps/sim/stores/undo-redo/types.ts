@@ -147,6 +147,7 @@ export interface UndoRedoState {
     {
       undo: OperationEntry[]
       redo: OperationEntry[]
+      lastUpdated?: number
     }
   >
   capacity: number
