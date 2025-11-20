@@ -43,11 +43,6 @@ export class GenericBlockHandler implements BlockHandler {
         }
       }
 
-      /**
-       * Parse stringified JSON for fields that expect arrays/objects
-       * This handles cases where variable resolution stringifies arrays/objects
-       * but the tool expects the actual array/object type
-       */
       if (blockConfig?.inputs) {
         for (const [key, inputSchema] of Object.entries(blockConfig.inputs)) {
           const value = finalInputs[key]
