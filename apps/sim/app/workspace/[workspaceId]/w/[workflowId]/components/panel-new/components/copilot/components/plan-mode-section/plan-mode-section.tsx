@@ -25,8 +25,9 @@
 'use client'
 
 import * as React from 'react'
-import { GripHorizontal } from 'lucide-react'
+import { GripHorizontal, X, Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/emcn'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/copilot-message/components/markdown-renderer'
 
 /**
@@ -60,6 +61,15 @@ export interface PlanModeSectionProps {
    * @default 600
    */
   maxHeight?: number
+  /**
+   * Callback function when clear button is clicked
+   */
+  onClear?: () => void
+  /**
+   * Callback function when save button is clicked
+   * Receives the current content as parameter
+   */
+  onSave?: (content: string) => void
 }
 
 /**
@@ -72,6 +82,8 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
   initialHeight = 180,
   minHeight = 80,
   maxHeight = 600,
+  onClear,
+  onSave,
 }) => {
   const [height, setHeight] = React.useState(initialHeight)
   const [isResizing, setIsResizing] = React.useState(false)
@@ -132,6 +144,32 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
       className={cn('relative flex flex-col rounded-[4px]', SURFACE_5, className)}
       style={{ height: `${height}px` }}
     >
+      {/* Action buttons */}
+      {(onClear || onSave) && (
+        <div className='absolute top-[8px] right-[8px] z-10 flex gap-[4px]'>
+          {onSave && (
+            <Button
+              variant='ghost'
+              onClick={() => onSave(content)}
+              className='h-[24px] w-[24px] p-0'
+              title='Save plan'
+            >
+              <Save className='h-[14px] w-[14px]' />
+            </Button>
+          )}
+          {onClear && (
+            <Button
+              variant='ghost'
+              onClick={onClear}
+              className='h-[24px] w-[24px] p-0'
+              title='Clear plan'
+            >
+              <X className='h-[14px] w-[14px]' />
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-[12px] py-[10px]'>
         <CopilotMarkdownRenderer content={content.trim()} />
       </div>
