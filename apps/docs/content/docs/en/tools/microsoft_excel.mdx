@@ -27,7 +27,7 @@ In Sim, the Microsoft Excel integration provides seamless access to spreadsheet 
 
 ## Usage Instructions
 
-Integrate Microsoft Excel into the workflow. Can read, write, update, and add to table.
+Integrate Microsoft Excel into the workflow. Can read, write, update, add to table, and create new worksheets.
 
 
 
@@ -93,6 +93,23 @@ Add new rows to a Microsoft Excel table
 | `index` | number | Index of the first row that was added |
 | `values` | array | Array of rows that were added to the table |
 | `metadata` | object | Spreadsheet metadata |
+
+### `microsoft_excel_worksheet_add`
+
+Create a new worksheet (sheet) in a Microsoft Excel workbook
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the Excel workbook to add the worksheet to |
+| `worksheetName` | string | Yes | The name of the new worksheet. Must be unique within the workbook and cannot exceed 31 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `worksheet` | object | Details of the newly created worksheet |
 
 
 
