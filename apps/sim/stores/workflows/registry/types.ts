@@ -16,18 +16,36 @@ export interface WorkflowMetadata {
   folderId?: string | null
 }
 
+export type HydrationPhase =
+  | 'idle'
+  | 'metadata-loading'
+  | 'metadata-ready'
+  | 'state-loading'
+  | 'ready'
+  | 'error'
+
+export interface HydrationState {
+  phase: HydrationPhase
+  workspaceId: string | null
+  workflowId: string | null
+  requestId: string | null
+  error: string | null
+}
+
 export interface WorkflowRegistryState {
   workflows: Record<string, WorkflowMetadata>
   activeWorkflowId: string | null
-  isLoading: boolean
   error: string | null
   deploymentStatuses: Record<string, DeploymentStatus>
+  hydration: HydrationState
 }
 
 export interface WorkflowRegistryActions {
-  setLoading: (loading: boolean) => void
-  setWorkflows: (workflows: WorkflowMetadata[]) => void
+  beginMetadataLoad: (workspaceId: string) => void
+  completeMetadataLoad: (workspaceId: string, workflows: WorkflowMetadata[]) => void
+  failMetadataLoad: (workspaceId: string | null, error: string) => void
   setActiveWorkflow: (id: string) => Promise<void>
+  loadWorkflowState: (workflowId: string) => Promise<void>
   switchToWorkspace: (id: string) => Promise<void>
   removeWorkflow: (id: string) => Promise<void>
   updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => Promise<void>
