@@ -81,12 +81,11 @@ export function Panel() {
   // Hooks
   const userPermissions = useUserPermissionsContext()
   const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
-  const {
-    workflows,
-    activeWorkflowId,
-    duplicateWorkflow,
-    isLoading: isRegistryLoading,
-  } = useWorkflowRegistry()
+  const { workflows, activeWorkflowId, duplicateWorkflow, hydration } = useWorkflowRegistry()
+  const isRegistryLoading =
+    hydration.phase === 'idle' ||
+    hydration.phase === 'metadata-loading' ||
+    hydration.phase === 'state-loading'
   const { getJson } = useWorkflowJsonStore()
   const { blocks } = useWorkflowStore()
 
