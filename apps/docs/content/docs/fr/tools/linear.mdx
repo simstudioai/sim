@@ -39,14 +39,24 @@ Récupérer et filtrer les tickets depuis Linear
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `teamId` | chaîne | Oui | ID de l'équipe Linear |
-| `projectId` | chaîne | Oui | ID du projet Linear |
+| `teamId` | chaîne | Non | ID de l'équipe Linear pour filtrer |
+| `projectId` | chaîne | Non | ID du projet Linear pour filtrer |
+| `assigneeId` | chaîne | Non | ID de l'utilisateur pour filtrer par assigné |
+| `stateId` | chaîne | Non | ID de l'état du flux de travail pour filtrer par statut |
+| `priority` | nombre | Non | Priorité pour filtrer \(0=Pas de priorité, 1=Urgent, 2=Élevée, 3=Normale, 4=Faible\) |
+| `labelIds` | tableau | Non | Tableau des IDs d'étiquettes pour filtrer |
+| `createdAfter` | chaîne | Non | Filtrer les tickets créés après cette date \(format ISO 8601\) |
+| `updatedAfter` | chaîne | Non | Filtrer les tickets mis à jour après cette date \(format ISO 8601\) |
+| `includeArchived` | booléen | Non | Inclure les tickets archivés \(par défaut : false\) |
+| `first` | nombre | Non | Nombre de tickets à retourner \(par défaut : 50, max : 250\) |
+| `after` | chaîne | Non | Curseur de pagination pour la page suivante |
+| `orderBy` | chaîne | Non | Ordre de tri : "createdAt" ou "updatedAt" \(par défaut : "updatedAt"\) |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `issues` | tableau | Tableau des tickets du projet et de l'équipe Linear spécifiés, chacun contenant id, titre, description, état, teamId et projectId |
+| `issues` | tableau | Tableau des tickets filtrés de Linear |
 
 ### `linear_get_issue`
 
@@ -73,15 +83,25 @@ Créer un nouveau ticket dans Linear
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
 | `teamId` | chaîne | Oui | ID de l'équipe Linear |
-| `projectId` | chaîne | Oui | ID du projet Linear |
+| `projectId` | chaîne | Non | ID du projet Linear |
 | `title` | chaîne | Oui | Titre du ticket |
 | `description` | chaîne | Non | Description du ticket |
+| `stateId` | chaîne | Non | ID de l'état du flux de travail \(statut\) |
+| `assigneeId` | chaîne | Non | ID de l'utilisateur à qui assigner le ticket |
+| `priority` | nombre | Non | Priorité \(0=Pas de priorité, 1=Urgent, 2=Élevée, 3=Normale, 4=Faible\) |
+| `estimate` | nombre | Non | Estimation en points |
+| `labelIds` | tableau | Non | Tableau des IDs d'étiquettes à définir sur le ticket |
+| `cycleId` | chaîne | Non | ID du cycle auquel assigner le ticket |
+| `parentId` | chaîne | Non | ID du ticket parent \(pour créer des sous-tickets\) |
+| `dueDate` | chaîne | Non | Date d'échéance au format ISO 8601 \(date uniquement : AAAA-MM-JJ\) |
+| `subscriberIds` | tableau | Non | Tableau des IDs d'utilisateurs à abonner au ticket |
+| `projectMilestoneId` | chaîne | Non | ID de l'étape clé du projet à associer au ticket |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `issue` | objet | Le ticket créé contenant id, titre, description, état, teamId et projectId |
+| `issue` | objet | Le ticket créé avec toutes ses propriétés |
 
 ### `linear_update_issue`
 
@@ -94,11 +114,17 @@ Mettre à jour un ticket existant dans Linear
 | `issueId` | chaîne | Oui | ID du ticket Linear à mettre à jour |
 | `title` | chaîne | Non | Nouveau titre du ticket |
 | `description` | chaîne | Non | Nouvelle description du ticket |
-| `stateId` | chaîne | Non | ID de l'état du flux de travail \(statut\) |
+| `stateId` | chaîne | Non | ID de l'état du workflow \(statut\) |
 | `assigneeId` | chaîne | Non | ID de l'utilisateur à qui assigner le ticket |
-| `priority` | nombre | Non | Priorité \(0=Pas de priorité, 1=Urgent, 2=Élevée, 3=Normale, 4=Faible\) |
+| `priority` | nombre | Non | Priorité \(0=Aucune priorité, 1=Urgent, 2=Élevée, 3=Normale, 4=Faible\) |
 | `estimate` | nombre | Non | Estimation en points |
-| `labelIds` | tableau | Non | Tableau des IDs d'étiquettes à définir sur le ticket |
+| `labelIds` | tableau | Non | Tableau des ID d'étiquettes à définir sur le ticket \(remplace toutes les étiquettes existantes\) |
+| `projectId` | chaîne | Non | ID du projet vers lequel déplacer le ticket |
+| `cycleId` | chaîne | Non | ID du cycle auquel assigner le ticket |
+| `parentId` | chaîne | Non | ID du ticket parent \(pour en faire un sous-ticket\) |
+| `dueDate` | chaîne | Non | Date d'échéance au format ISO 8601 \(date uniquement : AAAA-MM-JJ\) |
+| `addedLabelIds` | tableau | Non | Tableau des ID d'étiquettes à ajouter au ticket \(sans remplacer les étiquettes existantes\) |
+| `removedLabelIds` | tableau | Non | Tableau des ID d'étiquettes à supprimer du ticket |
 
 #### Sortie
 
@@ -237,7 +263,7 @@ Modifier un commentaire dans Linear
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
 | `commentId` | chaîne | Oui | ID du commentaire à mettre à jour |
-| `body` | chaîne | Oui | Nouveau texte du commentaire \(supporte le Markdown\) |
+| `body` | chaîne | Non | Nouveau texte du commentaire \(supporte le Markdown\) |
 
 #### Sortie
 
@@ -349,9 +375,9 @@ Mettre à jour un projet existant dans Linear
 | `description` | chaîne | Non | Nouvelle description du projet |
 | `state` | chaîne | Non | État du projet \(planned, started, completed, canceled\) |
 | `leadId` | chaîne | Non | ID de l'utilisateur responsable du projet |
-| `startDate` | chaîne | Non | Date de début du projet \(format ISO\) |
-| `targetDate` | chaîne | Non | Date cible du projet \(format ISO\) |
-| `priority` | nombre | Non | Priorité du projet \(0-4\) |
+| `startDate` | chaîne | Non | Date de début du projet \(format ISO : YYYY-MM-DD\) |
+| `targetDate` | chaîne | Non | Date cible du projet \(format ISO : YYYY-MM-DD\) |
+| `priority` | nombre | Non | Priorité du projet \(0=Pas de priorité, 1=Urgent, 2=Élevée, 3=Normale, 4=Faible\) |
 
 #### Sortie
 
@@ -526,11 +552,11 @@ Créer un nouvel état de workflow (statut) dans Linear
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
 | `teamId` | chaîne | Oui | ID de l'équipe dans laquelle créer l'état |
-| `name` | chaîne | Oui | Nom de l'état \(ex., "En révision"\) |
-| `color` | chaîne | Oui | Couleur de l'état \(format hexadécimal\) |
+| `name` | chaîne | Oui | Nom de l'état \(ex. : "En révision"\) |
+| `color` | chaîne | Non | Couleur de l'état \(format hexadécimal\) |
 | `type` | chaîne | Oui | Type d'état : "backlog", "unstarted", "started", "completed", ou "canceled" |
 | `description` | chaîne | Non | Description de l'état |
-| `position` | nombre | Non | Position dans le workflow |
+| `position` | nombre | Non | Position dans le flux de travail |
 
 #### Sortie
 
@@ -635,9 +661,9 @@ Ajouter une pièce jointe à un ticket dans Linear
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `issueId` | chaîne | Oui | ID du ticket auquel joindre la pièce |
+| `issueId` | chaîne | Oui | ID du ticket auquel joindre |
 | `url` | chaîne | Oui | URL de la pièce jointe |
-| `title` | chaîne | Non | Titre de la pièce jointe |
+| `title` | chaîne | Oui | Titre de la pièce jointe |
 | `subtitle` | chaîne | Non | Sous-titre/description de la pièce jointe |
 
 #### Sortie
@@ -673,7 +699,7 @@ Mettre à jour les métadonnées d'une pièce jointe dans Linear
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
 | `attachmentId` | chaîne | Oui | ID de la pièce jointe à mettre à jour |
-| `title` | chaîne | Non | Nouveau titre de la pièce jointe |
+| `title` | chaîne | Oui | Nouveau titre de la pièce jointe |
 | `subtitle` | chaîne | Non | Nouveau sous-titre de la pièce jointe |
 
 #### Sortie
@@ -708,7 +734,7 @@ Lier deux tickets ensemble dans Linear (bloque, est lié à, duplique)
 | --------- | ---- | ----------- | ----------- |
 | `issueId` | chaîne | Oui | ID du ticket source |
 | `relatedIssueId` | chaîne | Oui | ID du ticket cible à lier |
-| `type` | chaîne | Oui | Type de relation : "blocks", "blocked", "duplicate", "related" |
+| `type` | chaîne | Oui | Type de relation : "blocks", "duplicate", ou "related". Remarque : Lors de la création d'une relation "blocks" de A vers B, la relation inverse \(B bloqué par A\) est automatiquement créée. |
 
 #### Sortie
 
@@ -1217,6 +1243,7 @@ Créer une nouvelle étiquette de projet dans Linear
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | Le projet pour cette étiquette |
 | `name` | chaîne | Oui | Nom de l'étiquette de projet |
 | `color` | chaîne | Non | Couleur de l'étiquette \(code hexadécimal\) |
 | `description` | chaîne | Non | Description de l'étiquette |
@@ -1394,7 +1421,8 @@ Créer un nouveau statut de projet dans Linear
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `name` | chaîne | Oui | Nom du statut du projet |
+| `projectId` | chaîne | Oui | Le projet pour lequel créer le statut |
+| `name` | chaîne | Oui | Nom du statut de projet |
 | `color` | chaîne | Oui | Couleur du statut \(code hexadécimal\) |
 | `description` | chaîne | Non | Description du statut |
 | `indefinite` | booléen | Non | Indique si le statut est indéfini |

@@ -39,14 +39,24 @@ Tickets von Linear abrufen und filtern
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Ja | Linear Team-ID |
-| `projectId` | string | Ja | Linear Projekt-ID |
+| `teamId` | string | Nein | Linear Team-ID zum Filtern |
+| `projectId` | string | Nein | Linear Projekt-ID zum Filtern |
+| `assigneeId` | string | Nein | Benutzer-ID zum Filtern nach Zugewiesenem |
+| `stateId` | string | Nein | Workflow-Status-ID zum Filtern nach Status |
+| `priority` | number | Nein | Priorität zum Filtern \(0=Keine Priorität, 1=Dringend, 2=Hoch, 3=Normal, 4=Niedrig\) |
+| `labelIds` | array | Nein | Array von Label-IDs zum Filtern |
+| `createdAfter` | string | Nein | Tickets filtern, die nach diesem Datum erstellt wurden \(ISO 8601 Format\) |
+| `updatedAfter` | string | Nein | Tickets filtern, die nach diesem Datum aktualisiert wurden \(ISO 8601 Format\) |
+| `includeArchived` | boolean | Nein | Archivierte Tickets einschließen \(Standard: false\) |
+| `first` | number | Nein | Anzahl der zurückzugebenden Tickets \(Standard: 50, max: 250\) |
+| `after` | string | Nein | Paginierungscursor für die nächste Seite |
+| `orderBy` | string | Nein | Sortierreihenfolge: "createdAt" oder "updatedAt" \(Standard: "updatedAt"\) |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `issues` | array | Array von Tickets aus dem angegebenen Linear Team und Projekt, jedes enthält id, title, description, state, teamId und projectId |
+| `issues` | array | Array von gefilterten Tickets aus Linear |
 
 ### `linear_get_issue`
 
@@ -73,15 +83,25 @@ Ein neues Ticket in Linear erstellen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | Ja | Linear Team-ID |
-| `projectId` | string | Ja | Linear Projekt-ID |
+| `projectId` | string | Nein | Linear Projekt-ID |
 | `title` | string | Ja | Ticket-Titel |
 | `description` | string | Nein | Ticket-Beschreibung |
+| `stateId` | string | Nein | Workflow-Status-ID \(Status\) |
+| `assigneeId` | string | Nein | Benutzer-ID, dem das Ticket zugewiesen werden soll |
+| `priority` | number | Nein | Priorität \(0=Keine Priorität, 1=Dringend, 2=Hoch, 3=Normal, 4=Niedrig\) |
+| `estimate` | number | Nein | Schätzung in Punkten |
+| `labelIds` | array | Nein | Array von Label-IDs, die dem Ticket zugewiesen werden sollen |
+| `cycleId` | string | Nein | Zyklus-ID, dem das Ticket zugewiesen werden soll |
+| `parentId` | string | Nein | Übergeordnete Ticket-ID \(für die Erstellung von Untertickets\) |
+| `dueDate` | string | Nein | Fälligkeitsdatum im ISO 8601-Format \(nur Datum: JJJJ-MM-TT\) |
+| `subscriberIds` | array | Nein | Array von Benutzer-IDs, die das Ticket abonnieren sollen |
+| `projectMilestoneId` | string | Nein | Projektmeilenstein-ID, die mit dem Ticket verknüpft werden soll |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `issue` | object | Das erstellte Ticket mit id, title, description, state, teamId und projectId |
+| `issue` | object | Das erstellte Ticket mit allen seinen Eigenschaften |
 
 ### `linear_update_issue`
 
@@ -98,7 +118,13 @@ Ein bestehendes Ticket in Linear aktualisieren
 | `assigneeId` | string | Nein | Benutzer-ID, dem das Ticket zugewiesen werden soll |
 | `priority` | number | Nein | Priorität \(0=Keine Priorität, 1=Dringend, 2=Hoch, 3=Normal, 4=Niedrig\) |
 | `estimate` | number | Nein | Schätzung in Punkten |
-| `labelIds` | array | Nein | Array von Label-IDs, die dem Ticket zugewiesen werden sollen |
+| `labelIds` | array | Nein | Array von Label-IDs, die für das Ticket gesetzt werden sollen \(ersetzt alle vorhandenen Labels\) |
+| `projectId` | string | Nein | Projekt-ID, zu der das Ticket verschoben werden soll |
+| `cycleId` | string | Nein | Zyklus-ID, dem das Ticket zugewiesen werden soll |
+| `parentId` | string | Nein | Übergeordnete Ticket-ID \(um dieses zu einem Unterticket zu machen\) |
+| `dueDate` | string | Nein | Fälligkeitsdatum im ISO 8601-Format \(nur Datum: JJJJ-MM-TT\) |
+| `addedLabelIds` | array | Nein | Array von Label-IDs, die dem Ticket hinzugefügt werden sollen \(ohne vorhandene Labels zu ersetzen\) |
+| `removedLabelIds` | array | Nein | Array von Label-IDs, die vom Ticket entfernt werden sollen |
 
 #### Ausgabe
 
@@ -236,8 +262,8 @@ Einen Kommentar in Linear bearbeiten
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `commentId` | string | Ja | Kommentar-ID, die aktualisiert werden soll |
-| `body` | string | Ja | Neuer Kommentartext \(unterstützt Markdown\) |
+| `commentId` | string | Ja | Kommentar-ID zum Aktualisieren |
+| `body` | string | Nein | Neuer Kommentartext \(unterstützt Markdown\) |
 
 #### Ausgabe
 
@@ -344,14 +370,14 @@ Ein bestehendes Projekt in Linear aktualisieren
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Ja | Projekt-ID, die aktualisiert werden soll |
+| `projectId` | string | Ja | Projekt-ID zum Aktualisieren |
 | `name` | string | Nein | Neuer Projektname |
 | `description` | string | Nein | Neue Projektbeschreibung |
-| `state` | string | Nein | Projektstatus (geplant, gestartet, abgeschlossen, abgebrochen) |
+| `state` | string | Nein | Projektstatus \(planned, started, completed, canceled\) |
 | `leadId` | string | Nein | Benutzer-ID des Projektleiters |
-| `startDate` | string | Nein | Projektstartdatum (ISO-Format) |
-| `targetDate` | string | Nein | Projektzieldatum (ISO-Format) |
-| `priority` | number | Nein | Projektpriorität (0-4) |
+| `startDate` | string | Nein | Projektstartdatum \(ISO-Format: JJJJ-MM-TT\) |
+| `targetDate` | string | Nein | Projektzieldatum \(ISO-Format: JJJJ-MM-TT\) |
+| `priority` | number | Nein | Projektpriorität \(0=Keine Priorität, 1=Dringend, 2=Hoch, 3=Normal, 4=Niedrig\) |
 
 #### Ausgabe
 
@@ -525,11 +551,11 @@ Einen neuen Workflow-Status in Linear erstellen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Ja | Team-ID, in dem der Status erstellt werden soll |
-| `name` | string | Ja | Name des Status \(z.B. "In Prüfung"\) |
-| `color` | string | Ja | Farbe des Status \(Hex-Format\) |
+| `teamId` | string | Ja | Team-ID, in der der Status erstellt werden soll |
+| `name` | string | Ja | Statusname \(z.B. "In Prüfung"\) |
+| `color` | string | Nein | Statusfarbe \(Hex-Format\) |
 | `type` | string | Ja | Statustyp: "backlog", "unstarted", "started", "completed" oder "canceled" |
-| `description` | string | Nein | Beschreibung des Status |
+| `description` | string | Nein | Statusbeschreibung |
 | `position` | number | Nein | Position im Workflow |
 
 #### Ausgabe
@@ -635,9 +661,9 @@ Einen Anhang zu einem Ticket in Linear hinzufügen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `issueId` | string | Ja | Ticket-ID, an die der Anhang angehängt werden soll |
+| `issueId` | string | Ja | Ticket-ID, an die angehängt werden soll |
 | `url` | string | Ja | URL des Anhangs |
-| `title` | string | Nein | Titel des Anhangs |
+| `title` | string | Ja | Titel des Anhangs |
 | `subtitle` | string | Nein | Untertitel/Beschreibung des Anhangs |
 
 #### Ausgabe
@@ -673,7 +699,7 @@ Metadaten eines Anhangs in Linear aktualisieren
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `attachmentId` | string | Ja | Anhang-ID zum Aktualisieren |
-| `title` | string | Nein | Neuer Titel des Anhangs |
+| `title` | string | Ja | Neuer Titel des Anhangs |
 | `subtitle` | string | Nein | Neuer Untertitel des Anhangs |
 
 #### Ausgabe
@@ -707,8 +733,8 @@ Zwei Tickets in Linear miteinander verknüpfen (blockiert, bezieht sich auf, dup
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `issueId` | string | Ja | Quell-Ticket-ID |
-| `relatedIssueId` | string | Ja | Ziel-Ticket-ID für die Verknüpfung |
-| `type` | string | Ja | Beziehungstyp: "blocks", "blocked", "duplicate", "related" |
+| `relatedIssueId` | string | Ja | Ziel-Ticket-ID, mit der verknüpft werden soll |
+| `type` | string | Ja | Beziehungstyp: "blocks", "duplicate" oder "related". Hinweis: Wenn "blocks" von A nach B erstellt wird, wird die umgekehrte Beziehung \(B blockiert durch A\) automatisch erstellt. |
 
 #### Ausgabe
 
@@ -1217,7 +1243,8 @@ Ein neues Projekt-Label in Linear erstellen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `name` | string | Ja | Projekt-Label-Name |
+| `projectId` | string | Ja | Das Projekt für dieses Label |
+| `name` | string | Ja | Projektlabel-Name |
 | `color` | string | Nein | Label-Farbe \(Hex-Code\) |
 | `description` | string | Nein | Label-Beschreibung |
 | `isGroup` | boolean | Nein | Ob dies eine Label-Gruppe ist |
@@ -1394,6 +1421,7 @@ Einen neuen Projektstatus in Linear erstellen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Das Projekt, für das der Status erstellt werden soll |
 | `name` | string | Ja | Name des Projektstatus |
 | `color` | string | Ja | Statusfarbe \(Hex-Code\) |
 | `description` | string | Nein | Statusbeschreibung |
