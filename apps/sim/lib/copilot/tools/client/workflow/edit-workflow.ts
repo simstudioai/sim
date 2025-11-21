@@ -143,7 +143,7 @@ export class EditWorkflowClientTool extends BaseClientTool {
     // Read from the workflow store to get the actual state with diff applied
     const workflowStore = useWorkflowStore.getState()
     const currentState = workflowStore.getWorkflowState()
-    
+
     // Get the workflow state that was applied, merge subblocks, and sanitize
     // This matches what get_user_workflow would return
     const workflowJson = this.getSanitizedWorkflowJson(currentState)
@@ -263,7 +263,7 @@ export class EditWorkflowClientTool extends BaseClientTool {
             await diffStore.setProposedChanges(result.workflowState)
             logger.info('diff proposed changes set for edit_workflow with direct workflow state')
             this.hasAppliedDiff = true
-            
+
             // Read back the applied state from the workflow store
             const workflowStore = useWorkflowStore.getState()
             actualDiffWorkflow = workflowStore.getWorkflowState()

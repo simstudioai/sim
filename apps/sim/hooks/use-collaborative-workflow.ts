@@ -57,8 +57,16 @@ export function useCollaborativeWorkflow() {
     }
 
     const diffOperationHandler = (e: any) => {
-      const { type, baselineSnapshot, proposedState, diffAnalysis, beforeAccept, afterAccept, beforeReject, afterReject } =
-        e.detail || {}
+      const {
+        type,
+        baselineSnapshot,
+        proposedState,
+        diffAnalysis,
+        beforeAccept,
+        afterAccept,
+        beforeReject,
+        afterReject,
+      } = e.detail || {}
       // Don't record during undo/redo operations
       if (isUndoRedoInProgress.current) return
 
@@ -72,10 +80,10 @@ export function useCollaborativeWorkflow() {
       } else if (type === 'reject-diff') {
         stateForId = afterReject
       }
-      
+
       const blockKeys = stateForId?.blocks ? Object.keys(stateForId.blocks).sort().join(',') : ''
       const operationId = `${type}-${blockKeys}`
-      
+
       if (lastDiffOperationId.current === operationId) {
         logger.debug('Skipping duplicate diff operation', { type, operationId })
         return // Skip duplicate
@@ -445,7 +453,7 @@ export function useCollaborativeWorkflow() {
                   isShowingDiff,
                 })
                 workflowStore.replaceWorkflowState(payload.state)
-                
+
                 // Extract and apply subblock values
                 const subBlockValues: Record<string, Record<string, any>> = {}
                 Object.entries(payload.state.blocks || {}).forEach(
@@ -461,7 +469,7 @@ export function useCollaborativeWorkflow() {
                 if (activeWorkflowId) {
                   subBlockStore.setWorkflowValues(activeWorkflowId, subBlockValues)
                 }
-                
+
                 logger.info('Successfully applied remote workflow state replacement')
               }
               break
