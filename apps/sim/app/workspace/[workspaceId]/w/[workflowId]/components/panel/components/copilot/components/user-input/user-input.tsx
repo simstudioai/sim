@@ -16,16 +16,14 @@ import { Textarea } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
-import type { ChatContext } from '@/stores/panel/copilot/types'
 import {
   AttachedFilesDisplay,
   ContextPills,
   MentionMenu,
   ModelSelector,
   ModeSelector,
-} from './components'
-import { NEAR_TOP_THRESHOLD } from './constants'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components'
+import { NEAR_TOP_THRESHOLD } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
 import {
   useContextManagement,
   useFileAttachments,
@@ -35,8 +33,10 @@ import {
   useMentionMenu,
   useMentionTokens,
   useTextareaAutoResize,
-} from './hooks'
-import type { MessageFileAttachment } from './hooks/use-file-attachments'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
+import type { MessageFileAttachment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+import { useCopilotStore } from '@/stores/panel/copilot/store'
+import type { ChatContext } from '@/stores/panel/copilot/types'
 
 const logger = createLogger('CopilotUserInput')
 

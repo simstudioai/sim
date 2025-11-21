@@ -2,7 +2,7 @@ import { BookOpen, Github, Rss } from 'lucide-react'
 import Link from 'next/link'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
-import ChangelogList from './timeline-list'
+import ChangelogList from '@/app/changelog/components/timeline-list'
 
 export interface ChangelogEntry {
   tag: string

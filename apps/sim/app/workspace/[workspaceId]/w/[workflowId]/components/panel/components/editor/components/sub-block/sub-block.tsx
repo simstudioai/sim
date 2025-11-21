@@ -4,8 +4,6 @@ import { Label, Tooltip } from '@/components/emcn/components'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
-import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
-import type { SubBlockConfig } from '@/blocks/types'
 import {
   ChannelSelectorInput,
   CheckboxList,
@@ -42,7 +40,9 @@ import {
   ToolInput,
   TriggerSave,
   VariablesInput,
-} from './components'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
+import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
+import type { SubBlockConfig } from '@/blocks/types'
 
 /**
  * Interface for wand control handlers exposed by sub-block inputs

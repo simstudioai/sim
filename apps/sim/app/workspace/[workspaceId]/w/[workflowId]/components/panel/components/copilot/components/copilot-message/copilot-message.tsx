@@ -3,7 +3,6 @@
 import { type FC, memo, useMemo, useState } from 'react'
 import { Check, Copy, RotateCcw, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { Button } from '@/components/emcn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { InlineToolCall } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
 import {
   FileAttachmentDisplay,
@@ -12,17 +11,15 @@ import {
   ThinkingBlock,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
-import { UserInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
-import type { CopilotMessage as CopilotMessageType } from '@/stores/panel/copilot/types'
 import {
   useCheckpointManagement,
   useMessageEditing,
   useMessageFeedback,
   useSuccessTimers,
-} from './hooks'
-
-const logger = createLogger('CopilotMessage')
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/hooks'
+import { UserInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
+import { useCopilotStore } from '@/stores/panel/copilot/store'
+import type { CopilotMessage as CopilotMessageType } from '@/stores/panel/copilot/types'
 
 /**
  * Props for the CopilotMessage component

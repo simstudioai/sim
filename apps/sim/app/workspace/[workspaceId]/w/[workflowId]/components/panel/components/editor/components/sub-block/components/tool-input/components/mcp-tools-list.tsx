@@ -1,6 +1,6 @@
 import type React from 'react'
 import { PopoverSection } from '@/components/emcn'
-import { ToolCommand } from './tool-command/tool-command'
+import { ToolCommand } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tool-command/tool-command'
 
 const IconComponent = ({ icon: Icon, className }: { icon: any; className?: string }) => {
   if (!Icon) return null

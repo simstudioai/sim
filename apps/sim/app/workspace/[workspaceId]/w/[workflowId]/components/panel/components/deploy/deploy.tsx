@@ -3,11 +3,15 @@
 import { useCallback, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button, Rocket, Tooltip } from '@/components/emcn'
+import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
+import {
+  useChangeDetection,
+  useDeployedState,
+  useDeployment,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { DeployModal } from './components/deploy-modal/deploy-modal'
-import { useChangeDetection, useDeployedState, useDeployment } from './hooks'
 
 interface DeployProps {
   activeWorkflowId: string | null

@@ -1,8 +1,8 @@
 import * as yaml from 'js-yaml'
+import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getAccurateTokenCount } from '@/lib/tokenization'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
-import type { Chunk, ChunkerOptions } from './types'
 
 const logger = createLogger('JsonYamlChunker')
 

@@ -1,7 +1,7 @@
 import { type KeyboardEvent, useCallback } from 'react'
+import type { useMentionData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-data'
+import type { useMentionMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-menu'
 import { MENTION_OPTIONS } from '../constants'
-import type { useMentionData } from './use-mention-data'
-import type { useMentionMenu } from './use-mention-menu'
 
 /**
  * Chat item for mention insertion

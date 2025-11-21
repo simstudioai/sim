@@ -1,6 +1,6 @@
-import { useSubBlockValue } from '../../panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import type { WorkflowBlockProps } from '../types'
-import { useChildDeployment } from './use-child-deployment'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useChildDeployment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-child-deployment'
+import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
 
 /**
  * Return type for the useChildWorkflow hook

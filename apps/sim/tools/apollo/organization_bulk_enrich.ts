@@ -1,8 +1,8 @@
-import type { ToolConfig } from '@/tools/types'
 import type {
   ApolloOrganizationBulkEnrichParams,
   ApolloOrganizationBulkEnrichResponse,
-} from './types'
+} from '@/tools/apollo/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const apolloOrganizationBulkEnrichTool: ToolConfig<
   ApolloOrganizationBulkEnrichParams,

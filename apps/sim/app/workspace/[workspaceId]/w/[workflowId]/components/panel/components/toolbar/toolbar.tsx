@@ -17,11 +17,15 @@ import {
   getTriggersForSidebar,
   hasTriggerCapability,
 } from '@/lib/workflows/trigger-utils'
+import {
+  calculateTriggerHeights,
+  useToolbarItemInteractions,
+  useToolbarResize,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/hooks'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import type { BlockConfig } from '@/blocks/types'
 import { useToolbarStore } from '@/stores/panel/toolbar/store'
-import { calculateTriggerHeights, useToolbarItemInteractions, useToolbarResize } from './hooks'
 
 interface BlockItem {
   name: string
@@ -290,7 +294,6 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
     () => ({
       focusSearch: () => {
         setIsSearchActive(true)
-        // Use microtask to ensure input is present before focusing
         setTimeout(() => {
           searchInputRef.current?.focus()
         }, 0)
@@ -467,7 +470,6 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
         }
 
         if (region === 'none' || region === 'search') {
-          // Let ArrowUp behave normally when nothing in the toolbar is focused
           return
         }
       }

@@ -5,13 +5,17 @@ import clsx from 'clsx'
 import { ChevronDown, RepeatIcon, SplitIcon } from 'lucide-react'
 import { shallow } from 'zustand/shallow'
 import { createLogger } from '@/lib/logs/console/logger'
+import {
+  FieldItem,
+  type SchemaField,
+  TREE_SPACING,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { useBlockOutputFields } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields'
 import { getBlock } from '@/blocks/registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { FieldItem, type SchemaField, TREE_SPACING } from './components/field-item/field-item'
 
 const logger = createLogger('ConnectionBlocks')
 

@@ -1,5 +1,5 @@
+import type { ApolloOpportunityGetParams, ApolloOpportunityGetResponse } from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ApolloOpportunityGetParams, ApolloOpportunityGetResponse } from './types'
 
 export const apolloOpportunityGetTool: ToolConfig<
   ApolloOpportunityGetParams,

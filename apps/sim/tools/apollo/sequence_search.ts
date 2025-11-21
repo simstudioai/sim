@@ -1,5 +1,5 @@
+import type { ApolloSequenceSearchParams, ApolloSequenceSearchResponse } from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ApolloSequenceSearchParams, ApolloSequenceSearchResponse } from './types'
 
 export const apolloSequenceSearchTool: ToolConfig<
   ApolloSequenceSearchParams,

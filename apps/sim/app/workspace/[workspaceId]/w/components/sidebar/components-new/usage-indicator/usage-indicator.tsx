@@ -12,10 +12,10 @@ import {
   getUsage,
 } from '@/lib/subscription/helpers'
 import { isUsageAtLimit, USAGE_PILL_COLORS } from '@/lib/subscription/usage-visualization'
+import { RotatingDigit } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/usage-indicator/rotating-digit'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
-import { RotatingDigit } from './rotating-digit'
 
 const logger = createLogger('UsageIndicator')
 

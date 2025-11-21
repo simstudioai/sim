@@ -1,5 +1,5 @@
+import type { Chunk, StructuredDataOptions } from '@/lib/chunkers/types'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { Chunk, StructuredDataOptions } from './types'
 
 const logger = createLogger('StructuredDataChunker')
 

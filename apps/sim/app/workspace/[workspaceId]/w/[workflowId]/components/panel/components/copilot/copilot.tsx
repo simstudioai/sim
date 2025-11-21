@@ -22,15 +22,15 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
 import type { MessageFileAttachment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import type { UserInputRef } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
-import { useScrollManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import {
   useChatHistory,
   useCopilotInitialization,
   useLandingPrompt,
   useTodoManagement,
-} from './hooks'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/hooks'
+import { useScrollManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { useCopilotStore } from '@/stores/panel/copilot/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Copilot')
 

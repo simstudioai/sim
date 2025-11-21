@@ -24,6 +24,16 @@ import { cn } from '@/lib/utils'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
 import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
+import {
+  ChatMessage,
+  OutputSelect,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components'
+import {
+  useChatBoundarySync,
+  useChatDrag,
+  useChatFileUpload,
+  useChatResize,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/hooks'
 import { useScrollManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import type { BlockLog, ExecutionResult } from '@/executor/types'
@@ -34,8 +44,6 @@ import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { ChatMessage, OutputSelect } from './components'
-import { useChatBoundarySync, useChatDrag, useChatFileUpload, useChatResize } from './hooks'
 
 const logger = createLogger('FloatingChat')
 

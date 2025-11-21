@@ -1,6 +1,6 @@
+import type { JiraSearchIssuesParams, JiraSearchIssuesResponse } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
-import type { JiraSearchIssuesParams, JiraSearchIssuesResponse } from './types'
 
 export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearchIssuesResponse> = {
   id: 'jira_search_issues',

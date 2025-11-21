@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { PanelState, PanelTab } from './types'
+import type { PanelState, PanelTab } from '@/stores/panel/types'
 
 /**
  * Panel width constraints

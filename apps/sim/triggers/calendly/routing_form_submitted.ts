@@ -1,6 +1,6 @@
 import { CalendlyIcon } from '@/components/icons'
+import { buildRoutingFormOutputs } from '@/triggers/calendly/utils'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildRoutingFormOutputs } from './utils'
 
 export const calendlyRoutingFormSubmittedTrigger: TriggerConfig = {
   id: 'calendly_routing_form_submitted',

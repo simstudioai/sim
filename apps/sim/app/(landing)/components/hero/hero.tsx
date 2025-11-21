@@ -41,7 +41,7 @@ import {
   type LandingGroupData,
   type LandingManualBlock,
   type LandingViewportApi,
-} from './components'
+} from '@/app/(landing)/components/hero/components'
 
 /**
  * Service-specific template messages for the hero input

@@ -2,7 +2,7 @@ import type {
   WealthboxTaskRequestBody,
   WealthboxWriteParams,
   WealthboxWriteResponse,
-} from './types'
+} from '@/tools/wealthbox/types'
 
 // Utility function to safely convert to string and trim
 const safeStringify = (value: any): string => {

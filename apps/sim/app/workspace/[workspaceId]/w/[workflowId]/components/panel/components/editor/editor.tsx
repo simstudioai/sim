@@ -4,6 +4,17 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { BookOpen, Check, ChevronUp, Pencil, RepeatIcon, Settings, SplitIcon } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import {
+  ConnectionBlocks,
+  SubBlock,
+  SubflowEditor,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
+import {
+  useBlockConnections,
+  useConnectionsResize,
+  useEditorBlockProperties,
+  useEditorSubblockLayout,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { getBlock } from '@/blocks/registry'
@@ -12,13 +23,6 @@ import { useFocusOnBlock } from '@/hooks/use-focus-on-block'
 import { usePanelEditorStore } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { ConnectionBlocks, SubBlock, SubflowEditor } from './components'
-import {
-  useBlockConnections,
-  useConnectionsResize,
-  useEditorBlockProperties,
-  useEditorSubblockLayout,
-} from './hooks'
 
 /**
  * Icon component for rendering block icons.

@@ -27,6 +27,16 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import {
+  Copilot,
+  Deploy,
+  Editor,
+  Toolbar,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components'
+import {
+  usePanelResize,
+  useUsageLimits,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/variables/variables'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
@@ -38,8 +48,6 @@ import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { Copilot, Deploy, Editor, Toolbar } from './components'
-import { usePanelResize, useUsageLimits } from './hooks'
 
 const logger = createLogger('Panel')
 /**

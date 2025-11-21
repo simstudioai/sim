@@ -1,5 +1,5 @@
+import type { ApolloContactSearchParams, ApolloContactSearchResponse } from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ApolloContactSearchParams, ApolloContactSearchResponse } from './types'
 
 export const apolloContactSearchTool: ToolConfig<
   ApolloContactSearchParams,

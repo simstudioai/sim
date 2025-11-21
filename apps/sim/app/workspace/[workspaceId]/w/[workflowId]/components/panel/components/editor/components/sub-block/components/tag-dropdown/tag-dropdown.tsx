@@ -16,6 +16,12 @@ import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/respon
 import { cn } from '@/lib/utils'
 import { getBlockOutputPaths, getBlockOutputType } from '@/lib/workflows/block-outputs'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers'
+import { KeyboardNavigationHandler } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/components/keyboard-navigation-handler'
+import type {
+  BlockTagGroup,
+  NestedBlockTagGroup,
+  NestedTag,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/types'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
@@ -26,8 +32,6 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTool } from '@/tools/utils'
-import { KeyboardNavigationHandler } from './components/keyboard-navigation-handler'
-import type { BlockTagGroup, NestedBlockTagGroup, NestedTag } from './types'
 
 const logger = createLogger('TagDropdown')
 

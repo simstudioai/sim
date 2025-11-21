@@ -1,10 +1,10 @@
 import { HubspotIcon } from '@/components/icons'
-import type { TriggerConfig } from '@/triggers/types'
 import {
   buildTicketDeletedOutputs,
   hubspotSetupInstructions,
   hubspotTicketTriggerOptions,
-} from './utils'
+} from '@/triggers/hubspot/utils'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const hubspotTicketDeletedTrigger: TriggerConfig = {
   id: 'hubspot_ticket_deleted',

@@ -6,7 +6,7 @@ import type { NormalizedBlockOutput } from '@/executor/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from './types'
+import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from '@/stores/terminal/console/types'
 
 const logger = createLogger('TerminalConsoleStore')
 

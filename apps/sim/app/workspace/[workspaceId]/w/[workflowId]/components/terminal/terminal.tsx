@@ -28,6 +28,11 @@ import {
 } from '@/components/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import {
+  useOutputPanelResize,
+  useTerminalFilters,
+  useTerminalResize,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks'
 import { getBlock } from '@/blocks'
 import type { ConsoleEntry } from '@/stores/terminal'
 import {
@@ -36,8 +41,6 @@ import {
   useTerminalStore,
 } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-// import { PrettierOutput } from './components'
-import { useOutputPanelResize, useTerminalFilters, useTerminalResize } from './hooks'
 
 /**
  * Terminal height configuration constants
@@ -578,11 +581,7 @@ export function Terminal() {
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore when typing/navigating inside editable inputs/editors
       if (isEventFromEditableElement(e)) return
-      // When the toolbar search is active and focus is inside the toolbar,
-      // ArrowUp/ArrowDown are reserved for toolbar navigation. In that case,
-      // skip terminal navigation entirely.
       const activeElement = document.activeElement as HTMLElement | null
       const toolbarRoot = document.querySelector(
         '[data-toolbar-root][data-search-active=\"true\"]'
@@ -593,10 +592,8 @@ export function Terminal() {
 
       if (!selectedEntry || filteredEntries.length === 0) return
 
-      // Only handle arrow keys
       if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
 
-      // Prevent default scrolling behavior
       e.preventDefault()
 
       const currentIndex = filteredEntries.findIndex((entry) => entry.id === selectedEntry.id)
@@ -626,13 +623,10 @@ export function Terminal() {
 
       if (!selectedEntry) return
 
-      // Only handle left/right arrow keys
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
 
-      // Prevent default scrolling behavior
       e.preventDefault()
 
-      // Expand terminal if collapsed
       if (!isExpanded) {
         setIsToggling(true)
         const maxHeight = window.innerHeight * 0.7
@@ -641,12 +635,10 @@ export function Terminal() {
       }
 
       if (e.key === 'ArrowLeft') {
-        // Show output
         if (showInput) {
           setShowInput(false)
         }
       } else if (e.key === 'ArrowRight') {
-        // Show input (only if input data exists)
         if (!showInput && hasInputData) {
           setShowInput(true)
         }
@@ -663,7 +655,6 @@ export function Terminal() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && selectedEntry) {
-        // Escape unselects the current entry and re-enables auto-selection
         e.preventDefault()
         setSelectedEntry(null)
         setAutoSelectEnabled(true)
@@ -689,28 +680,22 @@ export function Terminal() {
         getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
       )
 
-      // Calculate max width: total terminal width minus block column width
       const terminalWidth = window.innerWidth - sidebarWidth - panelWidth
       const maxWidth = terminalWidth - BLOCK_COLUMN_WIDTH_PX
 
-      // If current output panel width exceeds max, clamp it
       if (outputPanelWidth > maxWidth && maxWidth >= MIN_OUTPUT_PANEL_WIDTH_PX) {
         setOutputPanelWidth(Math.max(maxWidth, MIN_OUTPUT_PANEL_WIDTH_PX))
       }
     }
 
-    // Initial check
     handleResize()
 
-    // Listen for window resize events
     window.addEventListener('resize', handleResize)
 
-    // Create a MutationObserver to watch for CSS variable changes
     const observer = new MutationObserver(() => {
       handleResize()
     })
 
-    // Observe style attribute changes on the document element
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['style'],

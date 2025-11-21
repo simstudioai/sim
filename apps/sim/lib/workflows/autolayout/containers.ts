@@ -1,8 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { BlockState } from '@/stores/workflows/workflow/types'
-import { assignLayers, groupByLayer } from './layering'
-import { calculatePositions } from './positioning'
-import type { Edge, LayoutOptions } from './types'
+import { assignLayers, groupByLayer } from '@/lib/workflows/autolayout/layering'
+import { calculatePositions } from '@/lib/workflows/autolayout/positioning'
+import type { Edge, LayoutOptions } from '@/lib/workflows/autolayout/types'
 import {
   CONTAINER_PADDING,
   CONTAINER_PADDING_X,
@@ -12,7 +11,8 @@ import {
   filterLayoutEligibleBlockIds,
   getBlocksByParent,
   prepareBlockMetrics,
-} from './utils'
+} from '@/lib/workflows/autolayout/utils'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('AutoLayout:Containers')
 

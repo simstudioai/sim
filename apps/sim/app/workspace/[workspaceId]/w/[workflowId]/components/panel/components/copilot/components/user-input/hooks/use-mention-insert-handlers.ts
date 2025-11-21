@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
+import type { useMentionMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-menu'
 import type { ChatContext } from '@/stores/panel/copilot/types'
-import type { useMentionMenu } from './use-mention-menu'
 
 interface UseMentionInsertHandlersProps {
   /** Mention menu hook instance */

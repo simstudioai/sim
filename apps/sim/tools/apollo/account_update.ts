@@ -1,5 +1,5 @@
+import type { ApolloAccountUpdateParams, ApolloAccountUpdateResponse } from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ApolloAccountUpdateParams, ApolloAccountUpdateResponse } from './types'
 
 export const apolloAccountUpdateTool: ToolConfig<
   ApolloAccountUpdateParams,
