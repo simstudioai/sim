@@ -4,12 +4,12 @@ import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/block-outputs'
 import { TriggerUtils } from '@/lib/workflows/triggers'
+import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { useSocket } from '@/contexts/socket-context'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
+import { usePanelEditorStore } from '@/stores/panel/editor/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
-import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -969,7 +969,7 @@ export function useCollaborativeWorkflow() {
       }
       findAllDescendants(id)
 
-      // If the currently edited block is among the blocks being removed, clear selection to restore the last tab
+      // If the currently edited block is among the blocks being removed, clear selection to reset the panel
       const currentEditedBlockId = usePanelEditorStore.getState().currentBlockId
       if (currentEditedBlockId && blocksToRemove.has(currentEditedBlockId)) {
         usePanelEditorStore.getState().clearCurrentBlock()

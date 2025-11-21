@@ -7,7 +7,7 @@ import {
   LinkedInIcon,
   xIcon as XIcon,
 } from '@/components/icons'
-import { inter } from '@/app/fonts/inter/inter'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 
 const blocks = [
   'Agent',

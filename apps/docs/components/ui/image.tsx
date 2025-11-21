@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import NextImage, { type ImageProps as NextImageProps } from 'next/image'
+import { Lightbox } from '@/components/ui/lightbox'
 import { cn } from '@/lib/utils'
-import { Lightbox } from './lightbox'
 
 interface ImageProps extends Omit<NextImageProps, 'className'> {
   className?: string

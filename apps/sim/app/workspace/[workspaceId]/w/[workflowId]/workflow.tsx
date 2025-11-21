@@ -34,8 +34,8 @@ import {
   useCurrentWorkflow,
   useNodeUtilities,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { useSocket } from '@/contexts/socket-context'
 import { isAnnotationOnlyBlock } from '@/executor/consts'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -43,8 +43,8 @@ import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { useCopilotStore } from '@/stores/panel-new/copilot/store'
-import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
+import { useCopilotStore } from '@/stores/panel/copilot/store'
+import { usePanelEditorStore } from '@/stores/panel/editor/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -67,6 +67,8 @@ const edgeTypes: EdgeTypes = {
 // Memoized ReactFlow props to prevent unnecessary re-renders
 const defaultEdgeOptions = { type: 'custom' }
 const snapGrid: [number, number] = [20, 20]
+const reactFlowFitViewOptions = { padding: 0.6 } as const
+const reactFlowProOptions = { hideAttribution: true } as const
 
 interface SelectedEdgeInfo {
   id: string
@@ -287,6 +289,7 @@ const WorkflowContent = React.memo(() => {
   const {
     collaborativeAddBlock: addBlock,
     collaborativeAddEdge: addEdge,
+    collaborativeRemoveBlock: removeBlock,
     collaborativeRemoveEdge: removeEdge,
     collaborativeUpdateBlockPosition,
     collaborativeUpdateParentId: updateParentId,
@@ -2068,6 +2071,56 @@ const WorkflowContent = React.memo(() => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedEdgeInfo, removeEdge])
 
+  /**
+   * Handle Delete / Backspace for removing selected blocks.
+   *
+   * This mirrors the behavior of clicking the ActionBar delete button by
+   * invoking the collaborative remove-block helper. The handler is disabled
+   * while focus is inside editable elements so it does not interfere with
+   * text editing.
+   */
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') {
+        return
+      }
+
+      // Ignore when typing/navigating inside editable inputs or editors
+      const activeElement = document.activeElement
+      const isEditableElement =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement?.hasAttribute('contenteditable')
+
+      if (isEditableElement) {
+        return
+      }
+
+      if (!effectivePermissions.canEdit) {
+        return
+      }
+
+      const selectedNodes = getNodes().filter((node) => node.selected)
+      if (selectedNodes.length === 0) {
+        return
+      }
+
+      // Prevent default browser behavior (e.g., page navigation) when we act
+      event.preventDefault()
+
+      try {
+        // For now, mirror edge behavior and delete the primary selected block
+        const primaryNode = selectedNodes[0]
+        removeBlock(primaryNode.id)
+      } catch (err) {
+        logger.error('Failed to delete block via keyboard', { err })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [getNodes, removeBlock, effectivePermissions.canEdit])
+
   // Handle sub-block value updates from custom events
   useEffect(() => {
     const handleSubBlockValueUpdate = (event: CustomEvent) => {
@@ -2123,19 +2176,19 @@ const WorkflowContent = React.memo(() => {
           onDrop={effectivePermissions.canEdit ? onDrop : undefined}
           onDragOver={effectivePermissions.canEdit ? onDragOver : undefined}
           fitView
-          fitViewOptions={{ padding: 0.6 }}
           onInit={(instance) => {
             requestAnimationFrame(() => {
               requestAnimationFrame(() => {
-                instance.fitView({ padding: 0.3 })
+                instance.fitView(reactFlowFitViewOptions)
               })
             })
           }}
           minZoom={0.1}
           maxZoom={1.3}
           panOnScroll
+          fitViewOptions={reactFlowFitViewOptions} // Not seen due to onInit
           defaultEdgeOptions={defaultEdgeOptions}
-          proOptions={{ hideAttribution: true }}
+          proOptions={reactFlowProOptions}
           connectionLineStyle={connectionLineStyle}
           connectionLineType={ConnectionLineType.SmoothStep}
           onNodeClick={(e, _node) => {

@@ -1,4 +1,4 @@
-import type { Chunk, ChunkerOptions } from './types'
+import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
 
 /**
  * Lightweight text chunker optimized for RAG applications

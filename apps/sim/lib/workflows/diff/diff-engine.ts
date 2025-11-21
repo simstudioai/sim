@@ -1,9 +1,9 @@
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { BlockWithDiff } from '@/lib/workflows/diff/types'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-import type { BlockWithDiff } from './types'
 
 const logger = createLogger('WorkflowDiffEngine')
 

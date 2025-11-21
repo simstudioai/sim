@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getEnv, isTruthy } from '@/lib/env'
-import SSOForm from './sso-form'
+import SSOForm from '@/app/(auth)/sso/sso-form'
 
 export const dynamic = 'force-dynamic'
 

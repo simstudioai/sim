@@ -4,7 +4,7 @@ import { memo, useMemo } from 'react'
 import { useViewport } from 'reactflow'
 import { useSession } from '@/lib/auth-client'
 import { getUserColor } from '@/app/workspace/[workspaceId]/w/utils/get-user-color'
-import { useSocket } from '@/contexts/socket-context'
+import { useSocket } from '@/app/workspace/providers/socket-provider'
 
 interface CursorPoint {
   x: number

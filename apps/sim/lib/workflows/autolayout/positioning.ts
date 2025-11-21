@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { GraphNode, LayoutOptions } from './types'
-import { boxesOverlap, createBoundingBox } from './utils'
+import type { GraphNode, LayoutOptions } from '@/lib/workflows/autolayout/types'
+import { boxesOverlap, createBoundingBox } from '@/lib/workflows/autolayout/utils'
 
 const logger = createLogger('AutoLayout:Positioning')
 

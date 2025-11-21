@@ -95,6 +95,19 @@ interface NotificationStore {
    * @returns Array of notifications for the workflow
    */
   getNotificationsForWorkflow: (workflowId: string) => Notification[]
+
+  /**
+   * Clears notifications.
+   *
+   * When a workflow ID is provided, this removes:
+   * - All notifications scoped to that workflow.
+   * - Global notifications (without a workflowId), since they are visible in all workflows.
+   *
+   * When omitted, all notifications are cleared.
+   *
+   * @param workflowId - Optional workflow ID to scope the clear operation.
+   */
+  clearNotifications: (workflowId?: string) => void
 }
 
 export const useNotificationStore = create<NotificationStore>()(
@@ -139,6 +152,22 @@ export const useNotificationStore = create<NotificationStore>()(
 
       getNotificationsForWorkflow: (workflowId: string) => {
         return get().notifications.filter((n) => !n.workflowId || n.workflowId === workflowId)
+      },
+
+      clearNotifications: (workflowId?: string) => {
+        set((state) => {
+          if (!workflowId) {
+            return { notifications: [] }
+          }
+
+          return {
+            notifications: state.notifications.filter(
+              (notification) =>
+                // Keep notifications for other workflows only.
+                notification.workflowId && notification.workflowId !== workflowId
+            ),
+          }
+        })
       },
     }),
     {

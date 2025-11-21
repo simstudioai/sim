@@ -1,4 +1,4 @@
-import type { FileParseResult } from './types'
+import type { FileParseResult } from '@/lib/file-parsers/types'
 
 /**
  * Parse JSON files

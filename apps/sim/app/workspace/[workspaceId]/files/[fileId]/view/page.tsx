@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
-import { FileViewer } from './file-viewer'
+import { FileViewer } from '@/app/workspace/[workspaceId]/files/[fileId]/view/file-viewer'
 
 interface FileViewerPageProps {
   params: Promise<{

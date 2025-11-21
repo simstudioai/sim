@@ -1,4 +1,4 @@
-import TemplateDetails from './template'
+import TemplateDetails from '@/app/templates/[id]/template'
 
 /**
  * Public template detail page for unauthenticated users.

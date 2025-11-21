@@ -1,7 +1,7 @@
 import type { Logger } from '@/lib/logs/console/logger'
 import type { StorageContext } from '@/lib/uploads'
+import { ACCEPTED_FILE_TYPES } from '@/lib/uploads/utils/validation'
 import type { UserFile } from '@/executor/types'
-import { ACCEPTED_FILE_TYPES } from './validation'
 
 export interface FileAttachment {
   id: string

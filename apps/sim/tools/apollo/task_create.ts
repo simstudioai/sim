@@ -1,5 +1,5 @@
+import type { ApolloTaskCreateParams, ApolloTaskCreateResponse } from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ApolloTaskCreateParams, ApolloTaskCreateResponse } from './types'
 
 export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTaskCreateResponse> = {
   id: 'apollo_task_create',

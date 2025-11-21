@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { workspaceKeys } from './workspace'
+import { workspaceKeys } from '@/hooks/queries/workspace'
 
 /**
  * Query key factories for API keys-related queries

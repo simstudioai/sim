@@ -1,8 +1,7 @@
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { BlockState } from '@/stores/workflows/workflow/types'
 import type {
   MoveBlockOperation,
   Operation,
@@ -10,10 +9,12 @@ import type {
   RemoveBlockOperation,
   RemoveEdgeOperation,
   UndoRedoState,
-} from './types'
+} from '@/stores/undo-redo/types'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('UndoRedoStore')
 const DEFAULT_CAPACITY = 100
+const MAX_STACKS = 5
 
 let recordingSuspendDepth = 0
 
@@ -40,6 +41,40 @@ export async function runWithUndoRedoRecordingSuspended<T>(
 
 function getStackKey(workflowId: string, userId: string): string {
   return `${workflowId}:${userId}`
+}
+
+/**
+ * Custom storage adapter for Zustand's persist middleware.
+ * We need this wrapper to gracefully handle 'QuotaExceededError' when localStorage is full.
+ * Without this, the default storage engine would throw and crash the application.
+ */
+const safeStorageAdapter = {
+  getItem: (name: string): string | null => {
+    if (typeof localStorage === 'undefined') return null
+    try {
+      return localStorage.getItem(name)
+    } catch (e) {
+      logger.warn('Failed to read from localStorage', e)
+      return null
+    }
+  },
+  setItem: (name: string, value: string): void => {
+    if (typeof localStorage === 'undefined') return
+    try {
+      localStorage.setItem(name, value)
+    } catch (e) {
+      // Log warning but don't crash - this handles QuotaExceededError
+      logger.warn('Failed to save to localStorage', e)
+    }
+  },
+  removeItem: (name: string): void => {
+    if (typeof localStorage === 'undefined') return
+    try {
+      localStorage.removeItem(name)
+    } catch (e) {
+      logger.warn('Failed to remove from localStorage', e)
+    }
+  },
 }
 
 function isOperationApplicable(
@@ -105,7 +140,28 @@ export const useUndoRedoStore = create<UndoRedoState>()(
 
         const key = getStackKey(workflowId, userId)
         const state = get()
-        const stack = state.stacks[key] || { undo: [], redo: [] }
+        const currentStacks = { ...state.stacks }
+
+        // Limit number of stacks
+        const stackKeys = Object.keys(currentStacks)
+        if (stackKeys.length >= MAX_STACKS && !currentStacks[key]) {
+          let oldestKey: string | null = null
+          let oldestTime = Number.POSITIVE_INFINITY
+
+          for (const k of stackKeys) {
+            const t = currentStacks[k].lastUpdated ?? 0
+            if (t < oldestTime) {
+              oldestTime = t
+              oldestKey = k
+            }
+          }
+
+          if (oldestKey) {
+            delete currentStacks[oldestKey]
+          }
+        }
+
+        const stack = currentStacks[key] || { undo: [], redo: [] }
 
         // Prevent duplicate diff operations (apply-diff, accept-diff, reject-diff)
         if (['apply-diff', 'accept-diff', 'reject-diff'].includes(entry.operation.type)) {
@@ -206,12 +262,13 @@ export const useUndoRedoStore = create<UndoRedoState>()(
                     return [...stack.undo.slice(0, -1), newEntry]
                   })()
 
-              set({
-                stacks: {
-                  ...state.stacks,
-                  [key]: { undo: newUndoCoalesced, redo: [] },
-                },
-              })
+              currentStacks[key] = {
+                undo: newUndoCoalesced,
+                redo: [],
+                lastUpdated: Date.now(),
+              }
+
+              set({ stacks: currentStacks })
 
               logger.debug('Coalesced consecutive move operations', {
                 workflowId,
@@ -229,12 +286,13 @@ export const useUndoRedoStore = create<UndoRedoState>()(
           newUndo.shift()
         }
 
-        set({
-          stacks: {
-            ...state.stacks,
-            [key]: { undo: newUndo, redo: [] },
-          },
-        })
+        currentStacks[key] = {
+          undo: newUndo,
+          redo: [],
+          lastUpdated: Date.now(),
+        }
+
+        set({ stacks: currentStacks })
 
         logger.debug('Pushed operation to undo stack', {
           workflowId,
@@ -264,7 +322,11 @@ export const useUndoRedoStore = create<UndoRedoState>()(
         set({
           stacks: {
             ...state.stacks,
-            [key]: { undo: newUndo, redo: newRedo },
+            [key]: {
+              undo: newUndo,
+              redo: newRedo,
+              lastUpdated: Date.now(),
+            },
           },
         })
 
@@ -299,7 +361,11 @@ export const useUndoRedoStore = create<UndoRedoState>()(
         set({
           stacks: {
             ...state.stacks,
-            [key]: { undo: newUndo, redo: newRedo },
+            [key]: {
+              undo: newUndo,
+              redo: newRedo,
+              lastUpdated: Date.now(),
+            },
           },
         })
 
@@ -364,6 +430,7 @@ export const useUndoRedoStore = create<UndoRedoState>()(
           newStacks[key] = {
             undo: stack.undo.slice(-capacity),
             redo: stack.redo.slice(-capacity),
+            lastUpdated: stack.lastUpdated,
           }
         }
 
@@ -399,7 +466,7 @@ export const useUndoRedoStore = create<UndoRedoState>()(
           set({
             stacks: {
               ...state.stacks,
-              [key]: { undo: validUndo, redo: validRedo },
+              [key]: { ...stack, undo: validUndo, redo: validRedo },
             },
           })
 
@@ -416,6 +483,7 @@ export const useUndoRedoStore = create<UndoRedoState>()(
     }),
     {
       name: 'workflow-undo-redo',
+      storage: createJSONStorage(() => safeStorageAdapter),
       partialize: (state) => ({
         stacks: state.stacks,
         capacity: state.capacity,

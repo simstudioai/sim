@@ -88,6 +88,35 @@ vi.mock('@/executor', () => ({
   })),
 }))
 
+vi.mock('@/lib/execution/preprocessing', () => ({
+  preprocessExecution: vi.fn().mockResolvedValue({
+    success: true,
+    actorUserId: 'test-user-id',
+    workflowRecord: {
+      id: 'test-workflow-id',
+      userId: 'test-user-id',
+      isDeployed: true,
+      workspaceId: 'test-workspace-id',
+    },
+    userSubscription: {
+      plan: 'pro',
+      status: 'active',
+    },
+    rateLimitInfo: {
+      allowed: true,
+      remaining: 100,
+      resetAt: new Date(),
+    },
+  }),
+}))
+
+vi.mock('@/lib/logs/execution/logging-session', () => ({
+  LoggingSession: vi.fn().mockImplementation(() => ({
+    safeStart: vi.fn().mockResolvedValue(undefined),
+    safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
+  })),
+}))
+
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 
 vi.mock('drizzle-orm/postgres-js', () => ({
@@ -190,19 +219,6 @@ describe('Webhook Trigger API Route', () => {
   })
 
   describe('Generic Webhook Authentication', () => {
-    beforeEach(() => {
-      vi.doMock('@/lib/billing/core/subscription', () => ({
-        getHighestPrioritySubscription: vi.fn().mockResolvedValue({
-          plan: 'pro',
-          status: 'active',
-        }),
-      }))
-
-      vi.doMock('@/lib/billing', () => ({
-        checkServerSideUsageLimits: vi.fn().mockResolvedValue(null),
-      }))
-    })
-
     it('should process generic webhook without authentication', async () => {
       globalMockData.webhooks.push({
         id: 'generic-webhook-id',

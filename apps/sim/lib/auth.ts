@@ -43,8 +43,8 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isBillingEnabled, isEmailVerificationEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SSO_TRUSTED_PROVIDERS } from '@/lib/sso/consts'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { SSO_TRUSTED_PROVIDERS } from './sso/consts'
 
 const logger = createLogger('Auth')
 

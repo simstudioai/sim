@@ -1,7 +1,6 @@
-import { inter } from '@/app/fonts/inter/inter'
-import LandingTemplatePreview from './components/landing-template-preview'
+import { inter } from '@/app/_styles/fonts/inter/inter'
+import LandingTemplatePreview from '@/app/(landing)/components/landing-templates/components/landing-template-preview'
 
-// Mock data for templates
 const templates = [
   {
     id: 1,

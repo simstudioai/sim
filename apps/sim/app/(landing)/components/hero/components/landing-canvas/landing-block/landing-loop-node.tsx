@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { LoopBlock } from './loop-block'
+import { LoopBlock } from '@/app/(landing)/components/hero/components/landing-canvas/landing-block/loop-block'
 
 /**
  * Data structure for the loop node

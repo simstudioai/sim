@@ -39,14 +39,24 @@ Obtener y filtrar incidencias de Linear
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
-| `teamId` | string | Sí | ID del equipo de Linear |
-| `projectId` | string | Sí | ID del proyecto de Linear |
+| `teamId` | string | No | ID del equipo de Linear para filtrar |
+| `projectId` | string | No | ID del proyecto de Linear para filtrar |
+| `assigneeId` | string | No | ID del usuario para filtrar por asignado |
+| `stateId` | string | No | ID del estado del flujo de trabajo para filtrar por estado |
+| `priority` | number | No | Prioridad para filtrar \(0=Sin prioridad, 1=Urgente, 2=Alta, 3=Normal, 4=Baja\) |
+| `labelIds` | array | No | Array de IDs de etiquetas para filtrar |
+| `createdAfter` | string | No | Filtrar incidencias creadas después de esta fecha \(formato ISO 8601\) |
+| `updatedAfter` | string | No | Filtrar incidencias actualizadas después de esta fecha \(formato ISO 8601\) |
+| `includeArchived` | boolean | No | Incluir incidencias archivadas \(predeterminado: false\) |
+| `first` | number | No | Número de incidencias a devolver \(predeterminado: 50, máximo: 250\) |
+| `after` | string | No | Cursor de paginación para la siguiente página |
+| `orderBy` | string | No | Orden de clasificación: "createdAt" o "updatedAt" \(predeterminado: "updatedAt"\) |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `issues` | array | Array de incidencias del equipo y proyecto de Linear especificados, cada una contiene id, título, descripción, estado, teamId y projectId |
+| `issues` | array | Array de incidencias filtradas de Linear |
 
 ### `linear_get_issue`
 
@@ -73,15 +83,25 @@ Crear una nueva incidencia en Linear
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
 | `teamId` | string | Sí | ID del equipo de Linear |
-| `projectId` | string | Sí | ID del proyecto de Linear |
+| `projectId` | string | No | ID del proyecto de Linear |
 | `title` | string | Sí | Título de la incidencia |
 | `description` | string | No | Descripción de la incidencia |
+| `stateId` | string | No | ID del estado del flujo de trabajo \(estado\) |
+| `assigneeId` | string | No | ID del usuario al que asignar la incidencia |
+| `priority` | number | No | Prioridad \(0=Sin prioridad, 1=Urgente, 2=Alta, 3=Normal, 4=Baja\) |
+| `estimate` | number | No | Estimación en puntos |
+| `labelIds` | array | No | Array de IDs de etiquetas para establecer en la incidencia |
+| `cycleId` | string | No | ID del ciclo al que asignar la incidencia |
+| `parentId` | string | No | ID de la incidencia padre \(para crear subincidencias\) |
+| `dueDate` | string | No | Fecha de vencimiento en formato ISO 8601 \(solo fecha: AAAA-MM-DD\) |
+| `subscriberIds` | array | No | Array de IDs de usuarios para suscribirse a la incidencia |
+| `projectMilestoneId` | string | No | ID del hito del proyecto para asociar con la incidencia |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `issue` | object | La incidencia creada que contiene id, título, descripción, estado, teamId y projectId |
+| `issue` | object | La incidencia creada con todas sus propiedades |
 
 ### `linear_update_issue`
 
@@ -91,14 +111,20 @@ Actualizar una incidencia existente en Linear
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
-| `issueId` | string | Sí | ID de la incidencia de Linear a actualizar |
+| `issueId` | string | Sí | ID de la incidencia de Linear para actualizar |
 | `title` | string | No | Nuevo título de la incidencia |
 | `description` | string | No | Nueva descripción de la incidencia |
 | `stateId` | string | No | ID del estado del flujo de trabajo \(estado\) |
 | `assigneeId` | string | No | ID del usuario al que asignar la incidencia |
 | `priority` | number | No | Prioridad \(0=Sin prioridad, 1=Urgente, 2=Alta, 3=Normal, 4=Baja\) |
 | `estimate` | number | No | Estimación en puntos |
-| `labelIds` | array | No | Array de IDs de etiquetas para establecer en la incidencia |
+| `labelIds` | array | No | Array de IDs de etiquetas para establecer en la incidencia \(reemplaza todas las etiquetas existentes\) |
+| `projectId` | string | No | ID del proyecto al que mover la incidencia |
+| `cycleId` | string | No | ID del ciclo al que asignar la incidencia |
+| `parentId` | string | No | ID de la incidencia padre \(para convertir esta en una subincidencia\) |
+| `dueDate` | string | No | Fecha de vencimiento en formato ISO 8601 \(solo fecha: AAAA-MM-DD\) |
+| `addedLabelIds` | array | No | Array de IDs de etiquetas para añadir a la incidencia \(sin reemplazar las etiquetas existentes\) |
+| `removedLabelIds` | array | No | Array de IDs de etiquetas para eliminar de la incidencia |
 
 #### Salida
 
@@ -237,7 +263,7 @@ Editar un comentario en Linear
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
 | `commentId` | string | Sí | ID del comentario a actualizar |
-| `body` | string | Sí | Nuevo texto del comentario \(admite Markdown\) |
+| `body` | string | No | Nuevo texto del comentario \(admite Markdown\) |
 
 #### Salida
 
@@ -347,11 +373,11 @@ Actualizar un proyecto existente en Linear
 | `projectId` | string | Sí | ID del proyecto a actualizar |
 | `name` | string | No | Nuevo nombre del proyecto |
 | `description` | string | No | Nueva descripción del proyecto |
-| `state` | string | No | Estado del proyecto (planned, started, completed, canceled) |
+| `state` | string | No | Estado del proyecto \(planned, started, completed, canceled\) |
 | `leadId` | string | No | ID del usuario líder del proyecto |
-| `startDate` | string | No | Fecha de inicio del proyecto (formato ISO) |
-| `targetDate` | string | No | Fecha objetivo del proyecto (formato ISO) |
-| `priority` | number | No | Prioridad del proyecto (0-4) |
+| `startDate` | string | No | Fecha de inicio del proyecto \(formato ISO: YYYY-MM-DD\) |
+| `targetDate` | string | No | Fecha objetivo del proyecto \(formato ISO: YYYY-MM-DD\) |
+| `priority` | number | No | Prioridad del proyecto \(0=Sin prioridad, 1=Urgente, 2=Alta, 3=Normal, 4=Baja\) |
 
 #### Salida
 
@@ -526,8 +552,8 @@ Crear un nuevo estado de flujo de trabajo (estado) en Linear
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
 | `teamId` | string | Sí | ID del equipo donde crear el estado |
-| `name` | string | Sí | Nombre del estado (p. ej., "En revisión") |
-| `color` | string | Sí | Color del estado (formato hex) |
+| `name` | string | Sí | Nombre del estado \(p. ej., "En revisión"\) |
+| `color` | string | No | Color del estado \(formato hex\) |
 | `type` | string | Sí | Tipo de estado: "backlog", "unstarted", "started", "completed", o "canceled" |
 | `description` | string | No | Descripción del estado |
 | `position` | number | No | Posición en el flujo de trabajo |
@@ -637,7 +663,7 @@ Añadir un adjunto a una incidencia en Linear
 | --------- | ---- | ----------- | ----------- |
 | `issueId` | string | Sí | ID de la incidencia a la que adjuntar |
 | `url` | string | Sí | URL del adjunto |
-| `title` | string | No | Título del adjunto |
+| `title` | string | Sí | Título del adjunto |
 | `subtitle` | string | No | Subtítulo/descripción del adjunto |
 
 #### Salida
@@ -673,7 +699,7 @@ Actualizar los metadatos de un adjunto en Linear
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
 | `attachmentId` | string | Sí | ID del adjunto a actualizar |
-| `title` | string | No | Nuevo título del adjunto |
+| `title` | string | Sí | Nuevo título del adjunto |
 | `subtitle` | string | No | Nuevo subtítulo del adjunto |
 
 #### Salida
@@ -707,8 +733,8 @@ Vincular dos incidencias en Linear (bloquea, se relaciona con, duplica)
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
 | `issueId` | string | Sí | ID de la incidencia de origen |
-| `relatedIssueId` | string | Sí | ID de la incidencia de destino a vincular |
-| `type` | string | Sí | Tipo de relación: "blocks", "blocked", "duplicate", "related" |
+| `relatedIssueId` | string | Sí | ID de la incidencia de destino a la que vincular |
+| `type` | string | Sí | Tipo de relación: "blocks", "duplicate", o "related". Nota: Al crear "blocks" de A a B, la relación inversa \(B bloqueada por A\) se crea automáticamente. |
 
 #### Salida
 
@@ -1217,10 +1243,11 @@ Crear una nueva etiqueta de proyecto en Linear
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
-| `name` | string | Sí | Nombre de la etiqueta de proyecto |
-| `color` | string | No | Color de la etiqueta (código hexadecimal) |
+| `projectId` | string | Sí | El proyecto para esta etiqueta |
+| `name` | string | Sí | Nombre de la etiqueta del proyecto |
+| `color` | string | No | Color de la etiqueta \(código hex\) |
 | `description` | string | No | Descripción de la etiqueta |
-| `isGroup` | boolean | No | Indica si es un grupo de etiquetas |
+| `isGroup` | boolean | No | Indica si esta es un grupo de etiquetas |
 | `parentId` | string | No | ID del grupo de etiquetas padre |
 
 #### Salida
@@ -1394,10 +1421,11 @@ Crear un nuevo estado de proyecto en Linear
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Sí | El proyecto para el que crear el estado |
 | `name` | string | Sí | Nombre del estado del proyecto |
-| `color` | string | Sí | Color del estado \(código hex\) |
+| `color` | string | Sí | Color del estado (código hex) |
 | `description` | string | No | Descripción del estado |
-| `indefinite` | boolean | No | Indica si el estado es indefinido |
+| `indefinite` | boolean | No | Si el estado es indefinido |
 | `position` | number | No | Posición en la lista de estados |
 
 #### Salida

@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { organizationKeys } from './organization'
+import { organizationKeys } from '@/hooks/queries/organization'
 
 /**
  * Query key factories for subscription-related queries

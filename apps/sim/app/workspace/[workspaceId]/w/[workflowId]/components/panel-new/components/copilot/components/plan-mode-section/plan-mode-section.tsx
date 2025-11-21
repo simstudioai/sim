@@ -30,7 +30,7 @@ import { Button } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { Textarea } from '@/components/ui'
 import { cn } from '@/lib/utils'
-import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/copilot-message/components/markdown-renderer'
+import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 
 /**
  * Shared border and background styles
