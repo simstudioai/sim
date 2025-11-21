@@ -544,9 +544,7 @@ export function InlineToolCall({
                     <input
                       type='text'
                       value={method || 'GET'}
-                      onChange={(e) =>
-                        setEditedParams({ ...editedParams, method: e.target.value })
-                      }
+                      onChange={(e) => setEditedParams({ ...editedParams, method: e.target.value })}
                       className='w-full bg-transparent font-mono text-muted-foreground text-xs outline-none focus:text-foreground'
                     />
                   </div>
@@ -629,11 +627,7 @@ export function InlineToolCall({
                               // Array format: update .name property
                               const idx = Number(originalKey)
                               const item = newVariables[idx]
-                              if (
-                                typeof item === 'object' &&
-                                item !== null &&
-                                'name' in item
-                              ) {
+                              if (typeof item === 'object' && item !== null && 'name' in item) {
                                 newVariables[idx] = { ...item, name: newName }
                               }
                             } else {
@@ -660,7 +654,8 @@ export function InlineToolCall({
                               ? [...variables]
                               : { ...variables }
 
-                            const currentVal = newVariables[originalKey as keyof typeof newVariables]
+                            const currentVal =
+                              newVariables[originalKey as keyof typeof newVariables]
 
                             if (
                               typeof currentVal === 'object' &&
@@ -762,7 +757,7 @@ export function InlineToolCall({
       // Get inputs - could be in multiple locations
       let inputs = editedParams.input || editedParams.inputs || editedParams.workflow_input
       let isNestedInWorkflowInput = false
-      
+
       // If input is a JSON string, parse it
       if (typeof inputs === 'string') {
         try {
@@ -771,19 +766,19 @@ export function InlineToolCall({
           inputs = {}
         }
       }
-      
+
       // Check if workflow_input exists and contains the actual inputs
       if (editedParams.workflow_input && typeof editedParams.workflow_input === 'object') {
         inputs = editedParams.workflow_input
         isNestedInWorkflowInput = true
       }
-      
+
       // If no inputs object found, treat base editedParams as inputs (excluding system fields)
       if (!inputs || typeof inputs !== 'object') {
         const { workflowId, workflow_input, ...rest } = editedParams
         inputs = rest
       }
-      
+
       const safeInputs = inputs && typeof inputs === 'object' ? inputs : {}
       const inputEntries = Object.entries(safeInputs)
 
@@ -825,7 +820,7 @@ export function InlineToolCall({
                           value={String(value)}
                           onChange={(e) => {
                             const newInputs = { ...safeInputs, [key]: e.target.value }
-                            
+
                             // Determine how to update based on original structure
                             if (isNestedInWorkflowInput) {
                               // Update workflow_input
@@ -833,10 +828,16 @@ export function InlineToolCall({
                             } else if (typeof editedParams.input === 'string') {
                               // Input was a JSON string, serialize back
                               setEditedParams({ ...editedParams, input: JSON.stringify(newInputs) })
-                            } else if (editedParams.input && typeof editedParams.input === 'object') {
+                            } else if (
+                              editedParams.input &&
+                              typeof editedParams.input === 'object'
+                            ) {
                               // Input is an object
                               setEditedParams({ ...editedParams, input: newInputs })
-                            } else if (editedParams.inputs && typeof editedParams.inputs === 'object') {
+                            } else if (
+                              editedParams.inputs &&
+                              typeof editedParams.inputs === 'object'
+                            ) {
                               // Inputs is an object
                               setEditedParams({ ...editedParams, inputs: newInputs })
                             } else {
