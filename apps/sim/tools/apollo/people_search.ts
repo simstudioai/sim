@@ -1,5 +1,5 @@
+import type { ApolloPeopleSearchParams, ApolloPeopleSearchResponse } from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ApolloPeopleSearchParams, ApolloPeopleSearchResponse } from './types'
 
 export const apolloPeopleSearchTool: ToolConfig<
   ApolloPeopleSearchParams,

@@ -20,10 +20,10 @@ import { getEnv, isFalsy, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
+import { inter } from '@/app/_styles/fonts/inter/inter'
+import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
-import { inter } from '@/app/fonts/inter/inter'
-import { soehne } from '@/app/fonts/soehne/soehne'
 
 const logger = createLogger('LoginForm')
 

@@ -1,4 +1,4 @@
-import type { Operation, OperationEntry } from './types'
+import type { Operation, OperationEntry } from '@/stores/undo-redo/types'
 
 export function createOperationEntry(operation: Operation, inverse: Operation): OperationEntry {
   return {

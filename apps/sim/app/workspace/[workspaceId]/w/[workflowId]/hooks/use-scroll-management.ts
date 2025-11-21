@@ -3,19 +3,37 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
- * Custom hook to manage scroll behavior in the copilot panel
- * Handles auto-scrolling during message streaming and user-initiated scrolling
+ * Options for configuring scroll behavior.
+ */
+interface UseScrollManagementOptions {
+  /**
+   * Scroll behavior for programmatic scrolls.
+   * - `smooth`: animated scroll (default, used by Copilot).
+   * - `auto`: immediate scroll to bottom (used by floating chat to avoid jitter).
+   */
+  behavior?: 'auto' | 'smooth'
+}
+
+/**
+ * Custom hook to manage scroll behavior in scrollable message panels.
+ * Handles auto-scrolling during message streaming and user-initiated scrolling.
  *
  * @param messages - Array of messages to track for scroll behavior
  * @param isSendingMessage - Whether a message is currently being sent/streamed
+ * @param options - Optional configuration for scroll behavior
  * @returns Scroll management utilities
  */
-export function useScrollManagement(messages: any[], isSendingMessage: boolean) {
+export function useScrollManagement(
+  messages: any[],
+  isSendingMessage: boolean,
+  options?: UseScrollManagementOptions
+) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [userHasScrolledDuringStream, setUserHasScrolledDuringStream] = useState(false)
   const programmaticScrollInProgressRef = useRef(false)
   const lastScrollTopRef = useRef(0)
+  const scrollBehavior: 'auto' | 'smooth' = options?.behavior ?? 'smooth'
 
   /**
    * Scrolls the container to the bottom with smooth animation
@@ -33,13 +51,13 @@ export function useScrollManagement(messages: any[], isSendingMessage: boolean) 
     programmaticScrollInProgressRef.current = true
     scrollContainer.scrollTo({
       top: scrollContainer.scrollHeight,
-      behavior: 'smooth',
+      behavior: scrollBehavior,
     })
     // Best-effort reset; not all browsers fire scrollend reliably
     window.setTimeout(() => {
       programmaticScrollInProgressRef.current = false
     }, 200)
-  }, [getScrollContainer])
+  }, [getScrollContainer, scrollBehavior])
 
   /**
    * Handles scroll events to track user position and show/hide scroll button

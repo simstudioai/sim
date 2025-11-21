@@ -1,6 +1,6 @@
 import { JiraIcon } from '@/components/icons'
+import { buildIssueOutputs, jiraSetupInstructions, jiraTriggerOptions } from '@/triggers/jira/utils'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildIssueOutputs, jiraSetupInstructions, jiraTriggerOptions } from './utils'
 
 /**
  * Jira Issue Created Trigger

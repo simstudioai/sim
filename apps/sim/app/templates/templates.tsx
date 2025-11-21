@@ -7,10 +7,10 @@ import { Button } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { CredentialRequirement } from '@/lib/workflows/credential-extractor'
+import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 import { TemplateCard, TemplateCardSkeleton } from '@/app/templates/components/template-card'
 import { useDebounce } from '@/hooks/use-debounce'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import type { CreatorProfileDetails } from '@/types/creator-profile'
 
 const logger = createLogger('TemplatesPage')
 

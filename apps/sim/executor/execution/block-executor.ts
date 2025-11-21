@@ -187,12 +187,19 @@ export class BlockExecutor {
   ): NormalizedBlockOutput {
     const duration = Date.now() - startTime
     const errorMessage = normalizeError(error)
+    const hasResolvedInputs =
+      resolvedInputs && typeof resolvedInputs === 'object' && Object.keys(resolvedInputs).length > 0
+    const input =
+      hasResolvedInputs && resolvedInputs
+        ? resolvedInputs
+        : ((block.config?.params as Record<string, any> | undefined) ?? {})
 
     if (blockLog) {
       blockLog.endedAt = new Date().toISOString()
       blockLog.durationMs = duration
       blockLog.success = false
       blockLog.error = errorMessage
+      blockLog.input = input
     }
 
     const errorOutput: NormalizedBlockOutput = {
@@ -215,7 +222,7 @@ export class BlockExecutor {
     )
 
     if (!isSentinel) {
-      this.callOnBlockComplete(ctx, node, block, resolvedInputs, errorOutput, duration)
+      this.callOnBlockComplete(ctx, node, block, input, errorOutput, duration)
     }
 
     const hasErrorPort = this.hasErrorPortEdge(node)

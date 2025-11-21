@@ -1,6 +1,9 @@
 import React from 'react'
 import { BookIcon } from 'lucide-react'
-import { Tag, type TagProps } from './tag'
+import {
+  Tag,
+  type TagProps,
+} from '@/app/(landing)/components/hero/components/landing-canvas/landing-block/tag'
 
 /**
  * Data structure for a landing card component

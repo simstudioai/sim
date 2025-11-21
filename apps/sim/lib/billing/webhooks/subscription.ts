@@ -3,8 +3,11 @@ import { subscription } from '@sim/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import {
+  getBilledOverageForSubscription,
+  resetUsageForSubscription,
+} from '@/lib/billing/webhooks/invoices'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getBilledOverageForSubscription, resetUsageForSubscription } from './invoices'
 
 const logger = createLogger('StripeSubscriptionWebhooks')
 

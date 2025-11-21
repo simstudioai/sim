@@ -1,5 +1,5 @@
+import type { ApolloTaskSearchParams, ApolloTaskSearchResponse } from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ApolloTaskSearchParams, ApolloTaskSearchResponse } from './types'
 
 export const apolloTaskSearchTool: ToolConfig<ApolloTaskSearchParams, ApolloTaskSearchResponse> = {
   id: 'apollo_task_search',

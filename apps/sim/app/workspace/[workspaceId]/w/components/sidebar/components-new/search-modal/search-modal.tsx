@@ -9,8 +9,8 @@ import { Dialog, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/utils'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/trigger-utils'
+import { searchItems } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/search-modal/search-utils'
 import { getAllBlocks } from '@/blocks'
-import { searchItems } from './search-utils'
 
 interface SearchModalProps {
   open: boolean

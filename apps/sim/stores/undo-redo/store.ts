@@ -2,7 +2,6 @@ import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { BlockState } from '@/stores/workflows/workflow/types'
 import type {
   MoveBlockOperation,
   Operation,
@@ -10,7 +9,8 @@ import type {
   RemoveBlockOperation,
   RemoveEdgeOperation,
   UndoRedoState,
-} from './types'
+} from '@/stores/undo-redo/types'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('UndoRedoStore')
 const DEFAULT_CAPACITY = 100

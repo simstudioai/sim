@@ -42,7 +42,7 @@ import {
   handleTagAndVectorSearch,
   handleTagOnlySearch,
   handleVectorOnlySearch,
-} from './utils'
+} from '@/app/api/knowledge/search/utils'
 
 describe('Knowledge Search Utils', () => {
   beforeEach(() => {

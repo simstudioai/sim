@@ -374,7 +374,7 @@ In addition, you will need to update the registries:
    Add your block to the blocks registry (`/apps/sim/blocks/registry.ts`):
 
    ```typescript:/apps/sim/blocks/registry.ts
-   import { PineconeBlock } from './blocks/pinecone'
+   import { PineconeBlock } from '@/blocks/blocks/pinecone'
 
    // Registry of all available blocks
    export const registry: Record<string, BlockConfig> = {

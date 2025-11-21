@@ -1,5 +1,5 @@
 import type { SVGProps } from 'react'
-import styles from './animate/copy.module.css'
+import styles from '@/components/emcn/icons/animate/copy.module.css'
 
 export interface CopyProps extends SVGProps<SVGSVGElement> {
   /**

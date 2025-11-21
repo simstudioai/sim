@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { CreatorProfileDetails } from '@/types/creator-profile'
+import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 
 const logger = createLogger('CreatorProfileQuery')
 

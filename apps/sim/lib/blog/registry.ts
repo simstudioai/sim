@@ -5,10 +5,10 @@ import { compileMDX } from 'next-mdx-remote/rsc'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
-import { mdxComponents } from './mdx'
-import type { BlogMeta, BlogPost, TagWithCount } from './schema'
-import { AuthorSchema, BlogFrontmatterSchema } from './schema'
-import { AUTHORS_DIR, BLOG_DIR, byDateDesc, ensureContentDirs, toIsoDate } from './utils'
+import { mdxComponents } from '@/lib/blog/mdx'
+import type { BlogMeta, BlogPost, TagWithCount } from '@/lib/blog/schema'
+import { AuthorSchema, BlogFrontmatterSchema } from '@/lib/blog/schema'
+import { AUTHORS_DIR, BLOG_DIR, byDateDesc, ensureContentDirs, toIsoDate } from '@/lib/blog/utils'
 
 let cachedMeta: BlogMeta[] | null = null
 let cachedAuthors: Record<string, any> | null = null

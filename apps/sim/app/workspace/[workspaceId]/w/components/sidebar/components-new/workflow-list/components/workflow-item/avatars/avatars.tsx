@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
 import { getUserColor } from '@/app/workspace/[workspaceId]/w/utils/get-user-color'
-import { useSocket } from '@/contexts/socket-context'
+import { useSocket } from '@/app/workspace/providers/socket-provider'
 
 interface AvatarsProps {
   workflowId: string

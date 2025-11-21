@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { getEnv, isTruthy } from '@/lib/env'
+import { TrainingFloatingButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-controls/training-floating-button'
+import { TrainingModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-controls/training-modal'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { TrainingFloatingButton } from './training-floating-button'
-import { TrainingModal } from './training-modal'
 
 /**
  * Main training controls component that manages the training UI

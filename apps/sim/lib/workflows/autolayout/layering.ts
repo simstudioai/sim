@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type { Edge, GraphNode } from '@/lib/workflows/autolayout/types'
+import { getBlockMetrics } from '@/lib/workflows/autolayout/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import type { Edge, GraphNode } from './types'
-import { getBlockMetrics } from './utils'
 
 const logger = createLogger('AutoLayout:Layering')
 

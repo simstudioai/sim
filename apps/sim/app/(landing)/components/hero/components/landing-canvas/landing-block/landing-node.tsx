@@ -2,7 +2,10 @@
 
 import React from 'react'
 import { Handle, Position } from 'reactflow'
-import { LandingBlock, type LandingCardData } from './landing-block'
+import {
+  LandingBlock,
+  type LandingCardData,
+} from '@/app/(landing)/components/hero/components/landing-canvas/landing-block/landing-block'
 
 /**
  * React Flow node component for the landing canvas

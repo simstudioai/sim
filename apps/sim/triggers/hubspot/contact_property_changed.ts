@@ -1,10 +1,10 @@
 import { HubspotIcon } from '@/components/icons'
-import type { TriggerConfig } from '@/triggers/types'
 import {
   buildContactPropertyChangedOutputs,
   hubspotContactTriggerOptions,
   hubspotSetupInstructions,
-} from './utils'
+} from '@/triggers/hubspot/utils'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const hubspotContactPropertyChangedTrigger: TriggerConfig = {
   id: 'hubspot_contact_property_changed',

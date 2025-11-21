@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { FAQ } from '@/lib/blog/faq'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
 import { buildArticleJsonLd, buildBreadcrumbJsonLd, buildPostMetadata } from '@/lib/blog/seo'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()

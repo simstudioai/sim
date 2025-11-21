@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 
 export const revalidate = 3600
 
