@@ -128,10 +128,10 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
             <MessageSquare className='h-3.5 w-3.5' />
             <span>Ask</span>
           </PopoverItem>
-          <PopoverItem active={mode === 'plan'} onClick={() => handleSelect('plan')}>
+          {/* <PopoverItem active={mode === 'plan'} onClick={() => handleSelect('plan')}>
             <ListTree className='h-3.5 w-3.5' />
             <span>Plan</span>
-          </PopoverItem>
+          </PopoverItem> */}
           <PopoverItem active={mode === 'build'} onClick={() => handleSelect('build')}>
             <Package className='h-3.5 w-3.5' />
             <span>Build</span>
