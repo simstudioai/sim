@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
           apiKey,
           model || 'veo-3',
           prompt,
-          Math.min(duration || 5, 8), // Max 8 seconds for Veo
+          duration || 8, // Default to 8 seconds (valid: 4, 6, or 8)
           aspectRatio || '16:9',
           resolution || '1080p',
           requestId,
@@ -268,31 +268,23 @@ async function generateWithRunway(
 
   // Convert aspect ratio to resolution format for 2024-11-06 API version
   const ratioMap: { [key: string]: string } = {
-    '16:9': '1280:768', // Landscape
-    '9:16': '768:1280', // Portrait
+    '16:9': '1280:720', // Landscape (720p)
+    '9:16': '720:1280', // Portrait (720p)
     '1:1': '960:960', // Square
   }
-  const runwayRatio = ratioMap[aspectRatio] || '1280:768'
+  const runwayRatio = ratioMap[aspectRatio] || '1280:720'
 
   const createPayload: any = {
     promptText: prompt,
     duration,
     ratio: runwayRatio, // Use resolution-based ratio for 2024-11-06 API
-    model: model === 'gen-4-turbo' ? 'gen4_turbo' : 'gen4', // Use underscore
+    model: 'gen4_turbo', // Only gen4_turbo supports image-to-video // Use underscore
   }
 
   if (visualReference) {
     const refBuffer = await downloadFileFromStorage(visualReference, requestId, logger)
     const refBase64 = refBuffer.toString('base64')
     createPayload.promptImage = `data:${visualReference.type};base64,${refBase64}` // Use promptImage
-  }
-
-  if (consistencyMode) {
-    createPayload.consistencyMode = consistencyMode
-  }
-
-  if (stylePreset) {
-    createPayload.stylePreset = stylePreset
   }
 
   const createResponse = await fetch('https://api.dev.runwayml.com/v1/image_to_video', {
@@ -378,7 +370,7 @@ async function generateWithVeo(
 
   const modelNameMap: Record<string, string> = {
     'veo-3': 'veo-3.0-generate-001',
-    'veo-3-fast': 'veo-3.1-fast-generate-preview',
+    'veo-3-fast': 'veo-3.0-fast-generate-001', // Fixed: was incorrectly mapped to 3.1
     'veo-3.1': 'veo-3.1-generate-preview',
   }
   const modelName = modelNameMap[model] || 'veo-3.1-generate-preview'
@@ -392,7 +384,7 @@ async function generateWithVeo(
     parameters: {
       aspectRatio: aspectRatio, // Keep as "16:9", don't convert
       resolution: resolution,
-      durationSeconds: String(duration), // Convert to string
+      durationSeconds: duration, // Keep as number
     },
   }
 

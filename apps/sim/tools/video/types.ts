@@ -10,9 +10,7 @@ export interface VideoParams {
   aspectRatio?: string
   resolution?: string
   // Provider-specific features
-  visualReference?: UserFile // Runway only
-  consistencyMode?: string // Runway only
-  stylePreset?: string // Runway only
+  visualReference?: UserFile // Runway only (required for Runway)
   cameraControl?: {
     // Luma only
     pan?: number
@@ -51,11 +49,9 @@ export interface VideoBlockResponse extends ToolResponse {
 }
 
 export interface RunwayParams extends Omit<VideoParams, 'provider'> {
-  model?: 'gen-4' | 'gen-4-turbo'
-  visualReference?: UserFile
-  consistencyMode?: 'character' | 'object' | 'style' | 'location'
-  stylePreset?: string
-  resolution?: '720p' | '1080p' | '4k'
+  model?: 'gen-4-turbo' // Only gen4_turbo supports image-to-video
+  visualReference: UserFile // REQUIRED for Gen-4
+  resolution?: '720p' // Gen-4 Turbo outputs at 720p
   duration?: 5 | 10
 }
 

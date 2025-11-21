@@ -62,7 +62,7 @@ Convert text to speech using OpenAI TTS models
 | `text` | string | Yes | The text to convert to speech |
 | `apiKey` | string | Yes | OpenAI API key |
 | `model` | string | No | TTS model to use \(tts-1, tts-1-hd, or gpt-4o-mini-tts\) |
-| `voice` | string | No | Voice to use \(alloy, echo, fable, onyx, nova, shimmer, ash, ballad, coral, sage, verse\) |
+| `voice` | string | No | Voice to use \(alloy, ash, ballad, cedar, coral, echo, marin, sage, shimmer, verse\) |
 | `responseFormat` | string | No | Audio format \(mp3, opus, aac, flac, wav, pcm\) |
 | `speed` | number | No | Speech speed \(0.25 to 4.0, default: 1.0\) |
 
@@ -172,10 +172,10 @@ Convert text to speech using Google Cloud Text-to-Speech
 | `text` | string | Yes | The text to convert to speech |
 | `apiKey` | string | Yes | Google Cloud API key |
 | `voiceId` | string | No | Voice ID \(e.g., en-US-Neural2-A, en-US-Wavenet-D\) |
-| `languageCode` | string | No | Language code \(e.g., en-US, es-ES, fr-FR\) |
+| `languageCode` | string | Yes | Language code \(e.g., en-US, es-ES, fr-FR\) |
 | `gender` | string | No | Voice gender \(MALE, FEMALE, NEUTRAL\) |
 | `audioEncoding` | string | No | Audio encoding \(LINEAR16, MP3, OGG_OPUS, MULAW, ALAW\) |
-| `speakingRate` | number | No | Speaking rate \(0.25 to 4.0, default: 1.0\) |
+| `speakingRate` | number | No | Speaking rate \(0.25 to 2.0, default: 1.0\) |
 | `pitch` | number | No | Voice pitch \(-20.0 to 20.0, default: 0.0\) |
 | `volumeGainDb` | number | No | Volume gain in dB \(-96.0 to 16.0\) |
 | `sampleRateHertz` | number | No | Sample rate in Hz |

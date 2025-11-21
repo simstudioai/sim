@@ -81,8 +81,8 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
       type: 'dropdown',
       condition: { field: 'provider', value: 'assemblyai' },
       options: [
-        { label: 'Best (Recommended)', id: 'best' },
-        { label: 'Nano (Fast)', id: 'nano' },
+        { label: 'Best', id: 'best' },
+        { label: 'Nano', id: 'nano' },
       ],
       value: () => 'best',
       required: true,
@@ -95,11 +95,13 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
       type: 'dropdown',
       condition: { field: 'provider', value: 'gemini' },
       options: [
-        { label: 'Gemini 2.0 Flash (Recommended)', id: 'gemini-2.0-flash-exp' },
-        { label: 'Gemini 2.5 Flash', id: 'gemini-2.5-flash' },
+        { label: 'Gemini 3 Pro', id: 'gemini-3-pro-preview' },
         { label: 'Gemini 2.5 Pro', id: 'gemini-2.5-pro' },
+        { label: 'Gemini 2.5 Flash', id: 'gemini-2.5-flash' },
+        { label: 'Gemini 2.5 Flash Lite', id: 'gemini-2.5-flash-lite' },
+        { label: 'Gemini 2.0 Flash', id: 'gemini-2.0-flash-exp' },
       ],
-      value: () => 'gemini-2.0-flash-exp',
+      value: () => 'gemini-2.5-flash',
       required: true,
     },
 
@@ -130,7 +132,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
     // Audio URL (alternative)
     {
       id: 'audioUrl',
-      title: 'Audio/Video URL (alternative)',
+      title: 'Audio/Video URL',
       type: 'short-input',
       placeholder: 'Or enter publicly accessible audio/video URL',
       required: false,

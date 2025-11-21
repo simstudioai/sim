@@ -56,10 +56,8 @@ Generate videos using Runway Gen-4 with world consistency and visual references
 | `prompt` | string | Yes | Text prompt describing the video to generate |
 | `duration` | number | No | Video duration in seconds \(5 or 10, default: 5\) |
 | `aspectRatio` | string | No | Aspect ratio: 16:9 \(landscape\), 9:16 \(portrait\), or 1:1 \(square\) |
-| `resolution` | string | No | Video resolution: 720p, 1080p, or 4k \(default: 1080p\) |
-| `visualReference` | json | No | Reference image for maintaining visual consistency \(UserFile object\) |
-| `consistencyMode` | string | No | Consistency mode: character, object, style, or location |
-| `stylePreset` | string | No | Style preset for consistent visual style |
+| `resolution` | string | No | Video resolution \(720p output\). Note: Gen-4 Turbo outputs at 720p natively |
+| `visualReference` | json | Yes | Reference image REQUIRED for Gen-4 \(UserFile object\). Gen-4 only supports image-to-video, not text-only generation |
 
 #### Output
 
@@ -86,8 +84,8 @@ Generate videos using Google Veo 3/3.1 with native audio generation
 | `apiKey` | string | Yes | Google Gemini API key |
 | `model` | string | No | Veo model: veo-3 \(default, highest quality\), veo-3-fast \(faster\), or veo-3.1 \(latest\) |
 | `prompt` | string | Yes | Text prompt describing the video to generate |
-| `duration` | number | No | Video duration in seconds \(5 or 8, default: 5, max: 8\) |
-| `aspectRatio` | string | No | Aspect ratio: 16:9 \(landscape\), 9:16 \(portrait\), or 1:1 \(square\) |
+| `duration` | number | No | Video duration in seconds \(4, 6, or 8, default: 8\) |
+| `aspectRatio` | string | No | Aspect ratio: 16:9 \(landscape\) or 9:16 \(portrait\) |
 | `resolution` | string | No | Video resolution: 720p or 1080p \(default: 1080p\) |
 
 #### Output
@@ -115,11 +113,10 @@ Generate videos using Luma Dream Machine with advanced camera controls
 | `apiKey` | string | Yes | Luma AI API key |
 | `model` | string | No | Luma model: ray-2 \(default\) |
 | `prompt` | string | Yes | Text prompt describing the video to generate |
-| `duration` | number | No | Video duration in seconds \(5 or 10, default: 5\) |
+| `duration` | number | No | Video duration in seconds \(5 or 9, default: 5\) |
 | `aspectRatio` | string | No | Aspect ratio: 16:9 \(landscape\), 9:16 \(portrait\), or 1:1 \(square\) |
 | `resolution` | string | No | Video resolution: 540p, 720p, or 1080p \(default: 1080p\) |
-| `cameraControl` | json | No | Camera controls: \{ pan: number, zoom: number, tilt: number, truck: number, tracking: boolean \} |
-| `controls` | string | No | No description |
+| `cameraControl` | json | No | Camera controls as array of concept objects. Format: \[\{ "key": "concept_name" \}\]. Valid keys: truck_left, truck_right, pan_left, pan_right, tilt_up, tilt_down, zoom_in, zoom_out, push_in, pull_out, orbit_left, orbit_right, crane_up, crane_down, static, handheld, and 20+ more predefined options |
 
 #### Output
 
@@ -145,7 +142,7 @@ Generate videos using MiniMax Hailuo 2.3 with advanced realism and camera contro
 | `provider` | string | Yes | Video provider \(minimax\) |
 | `apiKey` | string | Yes | Fal.ai API key \(for MiniMax Hailuo\) |
 | `model` | string | No | MiniMax model: hailuo-02 \(default\) |
-| `endpoint` | string | No | Endpoint quality: pro \(highest quality\), standard \(balanced\), or fast \(quickest\) |
+| `endpoint` | string | No | Endpoint quality: pro \(highest quality, 1080p\) or standard \(balanced, 768p\). Note: fast endpoint only exists for image-to-video |
 | `prompt` | string | Yes | Text prompt describing the video to generate |
 | `duration` | number | No | Video duration in seconds \(6 or 10, default: 6\) |
 | `promptOptimizer` | boolean | No | Enable prompt optimization for better results \(default: true\) |

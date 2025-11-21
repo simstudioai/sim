@@ -30,19 +30,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       required: true,
     },
 
-    // Runway Gen-4 model selection
-    {
-      id: 'model',
-      title: 'Model',
-      type: 'dropdown',
-      condition: { field: 'provider', value: 'runway' },
-      options: [
-        { label: 'Gen-4 (Higher Quality)', id: 'gen-4' },
-        { label: 'Gen-4 Turbo (Faster)', id: 'gen-4-turbo' },
-      ],
-      value: () => 'gen-4',
-      required: false,
-    },
+    // Note: Runway Gen-4 only supports Gen-4 Turbo for image-to-video (no model selection needed)
 
     // Google Veo model selection
     {
@@ -51,9 +39,9 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       type: 'dropdown',
       condition: { field: 'provider', value: 'veo' },
       options: [
-        { label: 'Veo 3 (Highest Quality)', id: 'veo-3' },
+        { label: 'Veo 3', id: 'veo-3' },
         { label: 'Veo 3 Fast', id: 'veo-3-fast' },
-        { label: 'Veo 3.1 (Latest)', id: 'veo-3.1' },
+        { label: 'Veo 3.1', id: 'veo-3.1' },
       ],
       value: () => 'veo-3',
       required: false,
@@ -87,8 +75,8 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       type: 'dropdown',
       condition: { field: 'provider', value: 'minimax' },
       options: [
-        { label: 'Pro (Highest Quality, 1080p)', id: 'pro' },
-        { label: 'Standard (Balanced, 768p)', id: 'standard' },
+        { label: 'Pro', id: 'pro' },
+        { label: 'Standard', id: 'standard' },
       ],
       value: () => 'standard',
       required: false,
@@ -103,17 +91,60 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       required: true,
     },
 
-    // Duration selection
+    // Duration selection - Runway (5 or 10 seconds)
     {
       id: 'duration',
       title: 'Duration (seconds)',
       type: 'dropdown',
+      condition: { field: 'provider', value: 'runway' },
       options: [
-        { label: '5 seconds', id: '5' },
-        { label: '8 seconds', id: '8' },
-        { label: '10 seconds', id: '10' },
+        { label: '5', id: '5' },
+        { label: '10', id: '10' },
       ],
       value: () => '5',
+      required: false,
+    },
+
+    // Duration selection - Veo (4, 6, or 8 seconds)
+    {
+      id: 'duration',
+      title: 'Duration (seconds)',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'veo' },
+      options: [
+        { label: '4', id: '4' },
+        { label: '6', id: '6' },
+        { label: '8', id: '8' },
+      ],
+      value: () => '8',
+      required: false,
+    },
+
+    // Duration selection - Luma (5 or 9 seconds)
+    {
+      id: 'duration',
+      title: 'Duration (seconds)',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'luma' },
+      options: [
+        { label: '5', id: '5' },
+        { label: '9', id: '9' },
+      ],
+      value: () => '5',
+      required: false,
+    },
+
+    // Duration selection - MiniMax (6 or 10 seconds)
+    {
+      id: 'duration',
+      title: 'Duration (seconds)',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'minimax' },
+      options: [
+        { label: '6', id: '6' },
+        { label: '10', id: '10' },
+      ],
+      value: () => '6',
       required: false,
     },
 
@@ -124,8 +155,8 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       type: 'dropdown',
       condition: { field: 'provider', value: 'veo' },
       options: [
-        { label: '16:9 (Landscape)', id: '16:9' },
-        { label: '9:16 (Portrait)', id: '9:16' },
+        { label: '16:9', id: '16:9' },
+        { label: '9:16', id: '9:16' },
       ],
       value: () => '16:9',
       required: false,
@@ -138,9 +169,9 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       type: 'dropdown',
       condition: { field: 'provider', value: 'runway' },
       options: [
-        { label: '16:9 (Landscape)', id: '16:9' },
-        { label: '9:16 (Portrait)', id: '9:16' },
-        { label: '1:1 (Square)', id: '1:1' },
+        { label: '16:9', id: '16:9' },
+        { label: '9:16', id: '9:16' },
+        { label: '1:1', id: '1:1' },
       ],
       value: () => '16:9',
       required: false,
@@ -153,9 +184,9 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       type: 'dropdown',
       condition: { field: 'provider', value: 'luma' },
       options: [
-        { label: '16:9 (Landscape)', id: '16:9' },
-        { label: '9:16 (Portrait)', id: '9:16' },
-        { label: '1:1 (Square)', id: '1:1' },
+        { label: '16:9', id: '16:9' },
+        { label: '9:16', id: '9:16' },
+        { label: '1:1', id: '1:1' },
       ],
       value: () => '16:9',
       required: false,
@@ -163,20 +194,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
 
     // Note: MiniMax aspect ratio is fixed at 16:9 (not configurable)
 
-    // Resolution selection - Runway (supports 4K)
-    {
-      id: 'resolution',
-      title: 'Resolution',
-      type: 'dropdown',
-      condition: { field: 'provider', value: 'runway' },
-      options: [
-        { label: '720p', id: '720p' },
-        { label: '1080p', id: '1080p' },
-        { label: '4K', id: '4k' },
-      ],
-      value: () => '1080p',
-      required: false,
-    },
+    // Note: Runway Gen-4 Turbo outputs at 720p natively (no resolution selector needed)
 
     // Resolution selection - Veo
     {
@@ -209,53 +227,26 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
 
     // Note: MiniMax resolution is fixed per endpoint (Pro=1080p, Standard=768p)
 
-    // Runway-specific: Visual reference
+    // Runway-specific: Visual reference (REQUIRED for Gen-4)
     {
       id: 'visualReference',
-      title: 'Visual Reference (Optional)',
+      title: 'Reference Image',
       type: 'file-upload',
       condition: { field: 'provider', value: 'runway' },
-      placeholder: 'Upload reference image for consistency',
+      placeholder: 'Upload reference image',
       mode: 'basic',
       multiple: false,
-      required: false,
+      required: true,
       acceptedTypes: '.jpg,.jpeg,.png,.webp',
-    },
-
-    // Runway-specific: Consistency mode
-    {
-      id: 'consistencyMode',
-      title: 'Consistency Mode',
-      type: 'dropdown',
-      condition: { field: 'provider', value: 'runway' },
-      options: [
-        { label: 'None', id: '' },
-        { label: 'Character', id: 'character' },
-        { label: 'Object', id: 'object' },
-        { label: 'Style', id: 'style' },
-        { label: 'Location', id: 'location' },
-      ],
-      value: () => '',
-      required: false,
-    },
-
-    // Runway-specific: Style preset
-    {
-      id: 'stylePreset',
-      title: 'Style Preset (Optional)',
-      type: 'short-input',
-      condition: { field: 'provider', value: 'runway' },
-      placeholder: 'e.g., cinematic, anime, photorealistic',
-      required: false,
     },
 
     // Luma-specific: Camera controls
     {
       id: 'cameraControl',
-      title: 'Camera Controls (Optional)',
+      title: 'Camera Controls',
       type: 'long-input',
       condition: { field: 'provider', value: 'luma' },
-      placeholder: 'JSON: { "pan": 0, "zoom": 0, "tilt": 0, "truck": 0, "tracking": false }',
+      placeholder: 'JSON: [{ "key": "pan_right" }, { "key": "zoom_in" }]',
       required: false,
     },
 
@@ -265,7 +256,6 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       title: 'Prompt Optimizer',
       type: 'switch',
       condition: { field: 'provider', value: 'minimax' },
-      description: 'Automatically optimize prompt for better results (recommended)',
     },
 
     // API Key

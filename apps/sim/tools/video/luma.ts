@@ -36,7 +36,7 @@ export const lumaVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Video duration in seconds (5 or 10, default: 5)',
+      description: 'Video duration in seconds (5 or 9, default: 5)',
     },
     aspectRatio: {
       type: 'string',
@@ -55,7 +55,7 @@ export const lumaVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Camera controls: { pan: number, zoom: number, tilt: number, truck: number, tracking: boolean }',
+        'Camera controls as array of concept objects. Format: [{ "key": "concept_name" }]. Valid keys: truck_left, truck_right, pan_left, pan_right, tilt_up, tilt_down, zoom_in, zoom_out, push_in, pull_out, orbit_left, orbit_right, crane_up, crane_down, static, handheld, and 20+ more predefined options',
     },
   },
 

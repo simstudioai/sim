@@ -92,7 +92,7 @@ export const playhtTtsTool: ToolConfig<PlayHtTtsParams, TtsBlockResponse> = {
       apiKey: params.apiKey,
       userId: params.userId,
       voice: params.voice,
-      quality: params.quality || 'medium',
+      quality: params.quality || 'standard',
       outputFormat: params.outputFormat || 'mp3',
       speed: params.speed ?? 1.0,
       temperature: params.temperature,

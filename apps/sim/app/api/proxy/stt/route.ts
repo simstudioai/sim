@@ -650,7 +650,7 @@ async function transcribeWithGemini(
   duration?: number
   confidence?: number
 }> {
-  const modelName = model || 'gemini-2.0-flash-exp'
+  const modelName = model || 'gemini-2.5-flash'
 
   const estimatedSize = audioBuffer.length * 1.34
   if (estimatedSize > 20 * 1024 * 1024) {
@@ -699,7 +699,7 @@ async function transcribeWithGemini(
     const error = await response.json()
     if (response.status === 404) {
       throw new Error(
-        `Model not found: ${modelName}. Use gemini-2.0-flash-exp, gemini-2.5-flash, or gemini-2.5-pro`
+        `Model not found: ${modelName}. Use gemini-3-pro-preview, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite, or gemini-2.0-flash-exp`
       )
     }
     const errorMessage = error.error?.message || JSON.stringify(error)

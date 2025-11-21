@@ -48,25 +48,14 @@ export const runwayVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Video resolution: 720p, 1080p, or 4k (default: 1080p)',
+      description: 'Video resolution (720p output). Note: Gen-4 Turbo outputs at 720p natively',
     },
     visualReference: {
       type: 'json',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Reference image for maintaining visual consistency (UserFile object)',
-    },
-    consistencyMode: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Consistency mode: character, object, style, or location',
-    },
-    stylePreset: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Style preset for consistent visual style',
+      description:
+        'Reference image REQUIRED for Gen-4 (UserFile object). Gen-4 only supports image-to-video, not text-only generation',
     },
   },
 
@@ -83,14 +72,12 @@ export const runwayVideoTool: ToolConfig<VideoParams, VideoResponse> = {
     ) => ({
       provider: 'runway',
       apiKey: params.apiKey,
-      model: params.model || 'gen-4',
+      model: 'gen-4-turbo', // Only gen4_turbo model is supported
       prompt: params.prompt,
       duration: params.duration || 5,
       aspectRatio: params.aspectRatio || '16:9',
-      resolution: params.resolution || '1080p',
+      resolution: params.resolution || '720p',
       visualReference: params.visualReference,
-      consistencyMode: params.consistencyMode,
-      stylePreset: params.stylePreset,
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,

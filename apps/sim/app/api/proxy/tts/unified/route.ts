@@ -365,7 +365,7 @@ async function synthesizeWithDeepgram(
     encoding: encoding,
   })
 
-  if (sampleRate) {
+  if (sampleRate && encoding === 'linear16') {
     queryParams.append('sample_rate', sampleRate.toString())
   }
 
@@ -418,7 +418,7 @@ async function synthesizeWithElevenLabs(
     text,
     apiKey,
     voiceId,
-    modelId = 'eleven_monolingual_v1',
+    modelId = 'eleven_turbo_v2_5',
     stability = 0.5,
     similarityBoost = 0.8,
     style,
@@ -531,7 +531,7 @@ async function synthesizeWithCartesia(
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      'Cartesia-Version': '2024-11-13',
+      'Cartesia-Version': '2025-04-16',
     },
     body: JSON.stringify(requestBody),
   })
@@ -573,9 +573,9 @@ async function synthesizeWithGoogle(
   const {
     text,
     apiKey,
-    voiceId = 'en-US-Neural2-A',
-    languageCode = 'en-US',
-    gender = 'NEUTRAL',
+    voiceId,
+    languageCode,
+    gender,
     audioEncoding = 'MP3',
     speakingRate = 1.0,
     pitch = 0.0,
@@ -584,8 +584,8 @@ async function synthesizeWithGoogle(
     effectsProfileId,
   } = params
 
-  if (!text || !apiKey) {
-    throw new Error('text and apiKey are required for Google Cloud TTS')
+  if (!text || !apiKey || !languageCode) {
+    throw new Error('text, apiKey, and languageCode are required for Google Cloud TTS')
   }
 
   const clampedSpeakingRate = Math.max(0.25, Math.min(2.0, speakingRate))
@@ -606,13 +606,29 @@ async function synthesizeWithGoogle(
     audioConfig.effectsProfileId = effectsProfileId
   }
 
+  // Build voice config based on what's provided
+  const voice: Record<string, unknown> = {
+    languageCode,
+  }
+
+  // If voiceId is provided, use it (it takes precedence over gender)
+  if (voiceId) {
+    voice.name = voiceId
+  }
+
+  // Only include gender if specified (don't default to NEUTRAL as it's not supported)
+  if (gender) {
+    voice.ssmlGender = gender
+  }
+
+  // If neither voiceId nor gender is provided, default to a specific voice
+  if (!voiceId && !gender) {
+    voice.name = 'en-US-Neural2-C'
+  }
+
   const requestBody: Record<string, unknown> = {
     input: { text },
-    voice: {
-      languageCode,
-      name: voiceId,
-      ssmlGender: gender,
-    },
+    voice,
     audioConfig,
   }
 
@@ -672,7 +688,7 @@ async function synthesizeWithAzure(
     throw new Error('text and apiKey are required for Azure TTS')
   }
 
-  let ssml = `<speak version='1.0' xml:lang='en-US' xmlns:mstts="https://www.w3.org/2001/mstts"><voice name='${voiceId}'>`
+  let ssml = `<speak version='1.0' xml:lang='en-US' xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts"><voice name='${voiceId}'>`
 
   if (style) {
     ssml += `<mstts:express-as style='${style}'`

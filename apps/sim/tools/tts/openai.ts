@@ -31,7 +31,7 @@ export const openaiTtsTool: ToolConfig<OpenAiTtsParams, TtsBlockResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Voice to use (alloy, echo, fable, onyx, nova, shimmer, ash, ballad, coral, sage, verse)',
+        'Voice to use (alloy, ash, ballad, cedar, coral, echo, marin, sage, shimmer, verse)',
     },
     responseFormat: {
       type: 'string',

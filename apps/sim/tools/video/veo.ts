@@ -37,13 +37,13 @@ export const veoVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Video duration in seconds (5 or 8, default: 5, max: 8)',
+      description: 'Video duration in seconds (4, 6, or 8, default: 8)',
     },
     aspectRatio: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Aspect ratio: 16:9 (landscape), 9:16 (portrait), or 1:1 (square)',
+      description: 'Aspect ratio: 16:9 (landscape) or 9:16 (portrait)',
     },
     resolution: {
       type: 'string',
@@ -68,7 +68,7 @@ export const veoVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       apiKey: params.apiKey,
       model: params.model || 'veo-3',
       prompt: params.prompt,
-      duration: Math.min(params.duration || 5, 8), // Max 8 seconds for Veo
+      duration: params.duration || 8, // Default 8 seconds (valid: 4, 6, or 8)
       aspectRatio: params.aspectRatio || '16:9',
       resolution: params.resolution || '1080p',
       workspaceId: params._context?.workspaceId,

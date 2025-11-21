@@ -31,7 +31,7 @@ export const minimaxVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Endpoint quality: pro (highest quality), standard (balanced), or fast (quickest)',
+        'Endpoint quality: pro (highest quality, 1080p) or standard (balanced, 768p). Note: fast endpoint only exists for image-to-video',
     },
     prompt: {
       type: 'string',

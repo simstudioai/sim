@@ -16,15 +16,14 @@ export interface OpenAiTtsParams {
   model?: 'tts-1' | 'tts-1-hd' | 'gpt-4o-mini-tts'
   voice?:
     | 'alloy'
-    | 'echo'
-    | 'fable'
-    | 'onyx'
-    | 'nova'
-    | 'shimmer'
     | 'ash'
     | 'ballad'
+    | 'cedar'
     | 'coral'
+    | 'echo'
+    | 'marin'
     | 'sage'
+    | 'shimmer'
     | 'verse'
   responseFormat?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
   speed?: number // 0.25 to 4.0
@@ -144,18 +143,16 @@ export interface TtsResponse {
 
 // Voice options for different providers
 export const OPENAI_VOICES = {
-  // Standard voices (tts-1, tts-1-hd)
+  // All voices work with all models
   alloy: 'Alloy (neutral, balanced)',
-  echo: 'Echo (warm, masculine)',
-  fable: 'Fable (soft, British accent)',
-  onyx: 'Onyx (deep, authoritative)',
-  nova: 'Nova (energetic, youthful)',
-  shimmer: 'Shimmer (warm, empathetic)',
-  // GPT-4o-mini-tts voices
   ash: 'Ash (masculine, clear)',
   ballad: 'Ballad (smooth, melodic)',
   coral: 'Coral (warm, friendly)',
+  echo: 'Echo (warm, masculine)',
+  marin: 'Marin (soft, gentle)',
+  cedar: 'Cedar (deep, resonant)',
   sage: 'Sage (calm, wise)',
+  shimmer: 'Shimmer (warm, empathetic)',
   verse: 'Verse (poetic, expressive)',
 } as const
 

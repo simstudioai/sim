@@ -24,7 +24,7 @@ export const geminiSttTool: ToolConfig<SttParams, SttResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Gemini model to use (default: gemini-2.0-flash-exp)',
+      description: 'Gemini model to use (default: gemini-2.5-flash)',
     },
     audioFile: {
       type: 'file',
