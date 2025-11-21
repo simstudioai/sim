@@ -18,8 +18,8 @@ vi.mock('@/lib/env', () => ({
     SUPABASE_CLIENT_SECRET: 'supabase_client_secret',
     NOTION_CLIENT_ID: 'notion_client_id',
     NOTION_CLIENT_SECRET: 'notion_client_secret',
-    DISCORD_CLIENT_ID: 'discord_client_id',
-    DISCORD_CLIENT_SECRET: 'discord_client_secret',
+    // DISCORD_CLIENT_ID: 'discord_client_id',
+    // DISCORD_CLIENT_SECRET: 'discord_client_secret',
     MICROSOFT_CLIENT_ID: 'microsoft_client_id',
     MICROSOFT_CLIENT_SECRET: 'microsoft_client_secret',
     LINEAR_CLIENT_ID: 'linear_client_id',
@@ -76,11 +76,11 @@ describe('OAuth Token Refresh', () => {
         endpoint: 'https://auth.atlassian.com/oauth/token',
       },
       { name: 'Jira', providerId: 'jira', endpoint: 'https://auth.atlassian.com/oauth/token' },
-      {
-        name: 'Discord',
-        providerId: 'discord',
-        endpoint: 'https://discord.com/api/v10/oauth2/token',
-      },
+      // {
+      //   name: 'Discord',
+      //   providerId: 'discord',
+      //   endpoint: 'https://discord.com/api/v10/oauth2/token',
+      // },
       { name: 'Linear', providerId: 'linear', endpoint: 'https://api.linear.app/oauth/token' },
       {
         name: 'Reddit',
@@ -154,11 +154,11 @@ describe('OAuth Token Refresh', () => {
         providerId: 'outlook',
         endpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
       },
-      {
-        name: 'Supabase',
-        providerId: 'supabase',
-        endpoint: 'https://api.supabase.com/v1/oauth/token',
-      },
+      // {
+      //   name: 'Supabase',
+      //   providerId: 'supabase',
+      //   endpoint: 'https://api.supabase.com/v1/oauth/token',
+      // },
       { name: 'Notion', providerId: 'notion', endpoint: 'https://api.notion.com/v1/oauth/token' },
       { name: 'Slack', providerId: 'slack', endpoint: 'https://slack.com/api/oauth.v2.access' },
     ]

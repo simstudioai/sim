@@ -605,7 +605,13 @@ import {
   stripeUpdateSubscriptionTool,
   stripeVoidInvoiceTool,
 } from '@/tools/stripe'
-import { deepgramSttTool, elevenLabsSttTool, whisperSttTool } from '@/tools/stt'
+import {
+  assemblyaiSttTool,
+  deepgramSttTool,
+  elevenLabsSttTool,
+  geminiSttTool,
+  whisperSttTool,
+} from '@/tools/stt'
 import {
   supabaseCountTool,
   supabaseDeleteTool,
@@ -648,6 +654,15 @@ import {
   trelloListListsTool,
   trelloUpdateCardTool,
 } from '@/tools/trello'
+import {
+  azureTtsTool,
+  cartesiaTtsTool,
+  deepgramTtsTool,
+  elevenLabsTtsUnifiedTool,
+  googleTtsTool,
+  openaiTtsTool,
+  playhtTtsTool,
+} from '@/tools/tts'
 import { sendSMSTool } from '@/tools/twilio'
 import { getRecordingTool, listCallsTool, makeCallTool } from '@/tools/twilio_voice'
 import {
@@ -661,6 +676,7 @@ import {
   typeformUpdateFormTool,
 } from '@/tools/typeform'
 import type { ToolConfig } from '@/tools/types'
+import { lumaVideoTool, minimaxVideoTool, runwayVideoTool, veoVideoTool } from '@/tools/video'
 import { visionTool } from '@/tools/vision'
 import {
   wealthboxReadContactTool,
@@ -1054,6 +1070,19 @@ export const tools: Record<string, ToolConfig> = {
   stt_whisper: whisperSttTool,
   stt_deepgram: deepgramSttTool,
   stt_elevenlabs: elevenLabsSttTool,
+  stt_assemblyai: assemblyaiSttTool,
+  stt_gemini: geminiSttTool,
+  tts_openai: openaiTtsTool,
+  tts_deepgram: deepgramTtsTool,
+  tts_elevenlabs: elevenLabsTtsUnifiedTool,
+  tts_cartesia: cartesiaTtsTool,
+  tts_google: googleTtsTool,
+  tts_azure: azureTtsTool,
+  tts_playht: playhtTtsTool,
+  video_runway: runwayVideoTool,
+  video_veo: veoVideoTool,
+  video_luma: lumaVideoTool,
+  video_minimax: minimaxVideoTool,
   s3_get_object: s3GetObjectTool,
   s3_put_object: s3PutObjectTool,
   s3_list_objects: s3ListObjectsTool,

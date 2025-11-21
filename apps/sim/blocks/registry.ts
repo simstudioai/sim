@@ -84,10 +84,12 @@ import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock } from '@/blocks/blocks/trello'
+import { TtsBlock } from '@/blocks/blocks/tts'
 import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
 import { VariablesBlock } from '@/blocks/blocks/variables'
+import { VideoGeneratorBlock } from '@/blocks/blocks/video_generator'
 import { VisionBlock } from '@/blocks/blocks/vision'
 import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
@@ -179,6 +181,7 @@ export const registry: Record<string, BlockConfig> = {
   slack: SlackBlock,
   starter: StarterBlock,
   stt: SttBlock,
+  tts: TtsBlock,
   start_trigger: StartTriggerBlock,
   input_trigger: InputTriggerBlock,
   chat_trigger: ChatTriggerBlock,
@@ -195,6 +198,7 @@ export const registry: Record<string, BlockConfig> = {
   twilio_voice: TwilioVoiceBlock,
   typeform: TypeformBlock,
   variables: VariablesBlock,
+  video_generator: VideoGeneratorBlock,
   vision: VisionBlock,
   wait: WaitBlock,
   wealthbox: WealthboxBlock,

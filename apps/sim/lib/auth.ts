@@ -146,7 +146,7 @@ export const auth = betterAuth({
         'github',
         'email-password',
         'confluence',
-        'supabase',
+        // 'supabase',
         'x',
         'notion',
         'microsoft',
@@ -866,55 +866,55 @@ export const auth = betterAuth({
           },
         },
 
-        // Supabase provider
-        {
-          providerId: 'supabase',
-          clientId: env.SUPABASE_CLIENT_ID as string,
-          clientSecret: env.SUPABASE_CLIENT_SECRET as string,
-          authorizationUrl: 'https://api.supabase.com/v1/oauth/authorize',
-          tokenUrl: 'https://api.supabase.com/v1/oauth/token',
-          userInfoUrl: 'https://dummy-not-used.supabase.co',
-          scopes: ['database.read', 'database.write', 'projects.read'],
-          responseType: 'code',
-          pkce: true,
-          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/supabase`,
-          getUserInfo: async (tokens) => {
-            try {
-              logger.info('Creating Supabase user profile from token data')
+        // Supabase provider (unused)
+        // {
+        //   providerId: 'supabase',
+        //   clientId: env.SUPABASE_CLIENT_ID as string,
+        //   clientSecret: env.SUPABASE_CLIENT_SECRET as string,
+        //   authorizationUrl: 'https://api.supabase.com/v1/oauth/authorize',
+        //   tokenUrl: 'https://api.supabase.com/v1/oauth/token',
+        //   userInfoUrl: 'https://dummy-not-used.supabase.co',
+        //   scopes: ['database.read', 'database.write', 'projects.read'],
+        //   responseType: 'code',
+        //   pkce: true,
+        //   redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/supabase`,
+        //   getUserInfo: async (tokens) => {
+        //     try {
+        //       logger.info('Creating Supabase user profile from token data')
 
-              let userId = 'supabase-user'
-              if (tokens.idToken) {
-                try {
-                  const decodedToken = JSON.parse(
-                    Buffer.from(tokens.idToken.split('.')[1], 'base64').toString()
-                  )
-                  if (decodedToken.sub) {
-                    userId = decodedToken.sub
-                  }
-                } catch (e) {
-                  logger.warn('Failed to decode Supabase ID token', {
-                    error: e,
-                  })
-                }
-              }
+        //       let userId = 'supabase-user'
+        //       if (tokens.idToken) {
+        //         try {
+        //           const decodedToken = JSON.parse(
+        //             Buffer.from(tokens.idToken.split('.')[1], 'base64').toString()
+        //           )
+        //           if (decodedToken.sub) {
+        //             userId = decodedToken.sub
+        //           }
+        //         } catch (e) {
+        //           logger.warn('Failed to decode Supabase ID token', {
+        //             error: e,
+        //           })
+        //         }
+        //       }
 
-              const uniqueId = `${userId}-${Date.now()}`
-              const now = new Date()
+        //       const uniqueId = `${userId}-${Date.now()}`
+        //       const now = new Date()
 
-              return {
-                id: uniqueId,
-                name: 'Supabase User',
-                email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@supabase.user`,
-                emailVerified: false,
-                createdAt: now,
-                updatedAt: now,
-              }
-            } catch (error) {
-              logger.error('Error creating Supabase user profile:', { error })
-              return null
-            }
-          },
-        },
+        //       return {
+        //         id: uniqueId,
+        //         name: 'Supabase User',
+        //         email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@supabase.user`,
+        //         emailVerified: false,
+        //         createdAt: now,
+        //         updatedAt: now,
+        //       }
+        //     } catch (error) {
+        //       logger.error('Error creating Supabase user profile:', { error })
+        //       return null
+        //     }
+        //   },
+        // },
 
         // X provider
         {
@@ -1049,56 +1049,56 @@ export const auth = betterAuth({
           },
         },
 
-        // Discord provider
-        {
-          providerId: 'discord',
-          clientId: env.DISCORD_CLIENT_ID as string,
-          clientSecret: env.DISCORD_CLIENT_SECRET as string,
-          authorizationUrl: 'https://discord.com/api/oauth2/authorize',
-          tokenUrl: 'https://discord.com/api/oauth2/token',
-          userInfoUrl: 'https://discord.com/api/users/@me',
-          scopes: ['identify', 'bot', 'messages.read', 'guilds', 'guilds.members.read'],
-          responseType: 'code',
-          accessType: 'offline',
-          authentication: 'basic',
-          prompt: 'consent',
-          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/discord`,
-          getUserInfo: async (tokens) => {
-            try {
-              const response = await fetch('https://discord.com/api/users/@me', {
-                headers: {
-                  Authorization: `Bearer ${tokens.accessToken}`,
-                },
-              })
+        // Discord provider (unused)
+        // {
+        //   providerId: 'discord',
+        //   clientId: env.DISCORD_CLIENT_ID as string,
+        //   clientSecret: env.DISCORD_CLIENT_SECRET as string,
+        //   authorizationUrl: 'https://discord.com/api/oauth2/authorize',
+        //   tokenUrl: 'https://discord.com/api/oauth2/token',
+        //   userInfoUrl: 'https://discord.com/api/users/@me',
+        //   scopes: ['identify', 'bot', 'messages.read', 'guilds', 'guilds.members.read'],
+        //   responseType: 'code',
+        //   accessType: 'offline',
+        //   authentication: 'basic',
+        //   prompt: 'consent',
+        //   redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/discord`,
+        //   getUserInfo: async (tokens) => {
+        //     try {
+        //       const response = await fetch('https://discord.com/api/users/@me', {
+        //         headers: {
+        //           Authorization: `Bearer ${tokens.accessToken}`,
+        //         },
+        //       })
 
-              if (!response.ok) {
-                logger.error('Error fetching Discord user info:', {
-                  status: response.status,
-                  statusText: response.statusText,
-                })
-                return null
-              }
+        //       if (!response.ok) {
+        //         logger.error('Error fetching Discord user info:', {
+        //           status: response.status,
+        //           statusText: response.statusText,
+        //         })
+        //         return null
+        //       }
 
-              const profile = await response.json()
-              const now = new Date()
+        //       const profile = await response.json()
+        //       const now = new Date()
 
-              return {
-                id: profile.id,
-                name: profile.username || 'Discord User',
-                email: profile.email || `${profile.id}@discord.user`,
-                image: profile.avatar
-                  ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`
-                  : undefined,
-                emailVerified: profile.verified || false,
-                createdAt: now,
-                updatedAt: now,
-              }
-            } catch (error) {
-              logger.error('Error in Discord getUserInfo:', { error })
-              return null
-            }
-          },
-        },
+        //       return {
+        //         id: profile.id,
+        //         name: profile.username || 'Discord User',
+        //         email: profile.email || `${profile.id}@discord.user`,
+        //         image: profile.avatar
+        //           ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`
+        //           : undefined,
+        //         emailVerified: profile.verified || false,
+        //         createdAt: now,
+        //         updatedAt: now,
+        //       }
+        //     } catch (error) {
+        //       logger.error('Error in Discord getUserInfo:', { error })
+        //       return null
+        //     }
+        //   },
+        // },
 
         // Jira provider
         {
