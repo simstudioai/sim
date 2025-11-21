@@ -13,7 +13,7 @@ const MAX_MESSAGES = 50
 /**
  * Floating chat dimensions
  */
-const DEFAULT_WIDTH = 330
+const DEFAULT_WIDTH = 305
 const DEFAULT_HEIGHT = 286
 
 /**

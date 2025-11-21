@@ -52,11 +52,33 @@ const formatFileSize = (bytes: number): string => {
 }
 
 /**
+ * Represents a chat file attachment before processing
+ */
+interface ChatFile {
+  id: string
+  name: string
+  type: string
+  size: number
+  file: File
+}
+
+/**
+ * Represents a processed file attachment with data URL for display
+ */
+interface ProcessedAttachment {
+  id: string
+  name: string
+  type: string
+  size: number
+  dataUrl: string
+}
+
+/**
  * Reads files and converts them to data URLs for image display
  * @param chatFiles - Array of chat files to process
  * @returns Promise resolving to array of files with data URLs for images
  */
-const processFileAttachments = async (chatFiles: any[]) => {
+const processFileAttachments = async (chatFiles: ChatFile[]): Promise<ProcessedAttachment[]> => {
   return Promise.all(
     chatFiles.map(async (file) => {
       let dataUrl = ''
@@ -89,7 +111,7 @@ const processFileAttachments = async (chatFiles: any[]) => {
  * @param outputId - Output identifier in format blockId or blockId.path
  * @returns Extracted output value or undefined if not found
  */
-const extractOutputFromLogs = (logs: BlockLog[] | undefined, outputId: string): any | undefined => {
+const extractOutputFromLogs = (logs: BlockLog[] | undefined, outputId: string): unknown => {
   const blockId = extractBlockIdFromOutputId(outputId)
   const path = extractPathFromOutputId(outputId, blockId)
   const log = logs?.find((l) => l.blockId === blockId)
@@ -120,7 +142,7 @@ const extractOutputFromLogs = (logs: BlockLog[] | undefined, outputId: string): 
  * @param output - Output value to format (string, object, or other)
  * @returns Formatted string, markdown code block for objects, or empty string
  */
-const formatOutputContent = (output: any): string => {
+const formatOutputContent = (output: unknown): string => {
   if (typeof output === 'string') {
     return output
   }
@@ -130,6 +152,9 @@ const formatOutputContent = (output: any): string => {
   return ''
 }
 
+/**
+ * Represents a field in the start block's input format configuration
+ */
 interface StartInputFormatField {
   id?: string
   name?: string
@@ -379,6 +404,7 @@ export function Chat() {
 
   /**
    * Focuses the input field with optional delay
+   * @param delay - Delay in milliseconds before focusing (default: 0)
    */
   const focusInput = useCallback((delay = 0) => {
     timeoutRef.current && clearTimeout(timeoutRef.current)
@@ -400,6 +426,9 @@ export function Chat() {
 
   /**
    * Processes streaming response from workflow execution
+   * Reads the stream chunk by chunk and updates the message content in real-time
+   * @param stream - ReadableStream containing the workflow execution response
+   * @param responseMessageId - ID of the message to update with streamed content
    */
   const processStreamingResponse = useCallback(
     async (stream: ReadableStream, responseMessageId: string) => {
@@ -462,10 +491,12 @@ export function Chat() {
 
   /**
    * Handles workflow execution response
+   * @param result - The workflow execution result containing stream or logs
    */
   const handleWorkflowResponse = useCallback(
-    (result: any) => {
+    (result: unknown) => {
       if (!result || !activeWorkflowId) return
+      if (typeof result !== 'object') return
 
       // Handle streaming response
       if ('stream' in result && result.stream instanceof ReadableStream) {
@@ -482,9 +513,9 @@ export function Chat() {
       }
 
       // Handle success with logs
-      if ('success' in result && result.success && 'logs' in result) {
+      if ('success' in result && result.success && 'logs' in result && Array.isArray(result.logs)) {
         selectedOutputs
-          .map((outputId) => extractOutputFromLogs(result.logs, outputId))
+          .map((outputId) => extractOutputFromLogs(result.logs as BlockLog[], outputId))
           .filter((output) => output !== undefined)
           .forEach((output) => {
             const content = formatOutputContent(output)
@@ -501,7 +532,10 @@ export function Chat() {
 
       // Handle error response
       if ('success' in result && !result.success) {
-        const errorMessage = 'error' in result ? result.error : 'Workflow execution failed.'
+        const errorMessage =
+          'error' in result && typeof result.error === 'string'
+            ? result.error
+            : 'Workflow execution failed.'
         addMessage({
           content: `Error: ${errorMessage}`,
           workflowId: activeWorkflowId,
@@ -514,6 +548,8 @@ export function Chat() {
 
   /**
    * Sends a chat message and executes the workflow
+   * Processes file attachments, adds the user message to the chat,
+   * and triggers workflow execution with the message as input
    */
   const handleSendMessage = useCallback(async () => {
     if ((!chatMessage.trim() && chatFiles.length === 0) || !activeWorkflowId || isExecuting) return
@@ -547,7 +583,12 @@ export function Chat() {
       })
 
       // Prepare workflow input
-      const workflowInput: any = {
+      const workflowInput: {
+        input: string
+        conversationId: string
+        files?: Array<{ name: string; size: number; type: string; file: File }>
+        onUploadError?: (message: string) => void
+      } = {
         input: sentMessage,
         conversationId,
       }
@@ -595,6 +636,8 @@ export function Chat() {
 
   /**
    * Handles keyboard input for chat
+   * Supports Enter to send, ArrowUp/Down to navigate prompt history
+   * @param e - Keyboard event from the input field
    */
   const handleKeyPress = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -628,6 +671,8 @@ export function Chat() {
 
   /**
    * Handles output selection changes
+   * Deduplicates and stores selected workflow outputs for the current workflow
+   * @param values - Array of selected output IDs or labels
    */
   const handleOutputSelection = useCallback(
     (values: string[]) => {
@@ -819,7 +864,7 @@ export function Chat() {
         <div className='flex-1 overflow-hidden'>
           {workflowMessages.length === 0 ? (
             <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
-              Workflow input: {'<start.input>'}
+              No messages yet
             </div>
           ) : (
             <div ref={scrollAreaRef} className='h-full overflow-y-auto overflow-x-hidden'>
