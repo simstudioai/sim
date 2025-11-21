@@ -287,8 +287,6 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       placeholder: 'Enter your provider API key',
       password: true,
       required: true,
-      helperText:
-        'Get keys from: MiniMax (platform.minimax.io), Fal.ai (fal.ai), Runway (runwayml.com), Google (cloud.google.com), Luma (lumalabs.ai)',
     },
   ],
 

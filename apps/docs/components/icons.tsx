@@ -4098,7 +4098,6 @@ export function STTIcon(props: SVGProps<SVGSVGElement>) {
       strokeWidth='2'
       strokeLinecap='round'
       strokeLinejoin='round'
-      className='lucide lucide-alarge-small-icon lucide-a-large-small'
     >
       <path d='m15 16 2.536-7.328a1.02 1.02 1 0 1 1.928 0L22 16' />
       <path d='M15.697 14h5.606' />
@@ -4145,7 +4144,6 @@ export function VideoIcon(props: SVGProps<SVGSVGElement>) {
       strokeWidth='2'
       strokeLinecap='round'
       strokeLinejoin='round'
-      className='lucide lucide-video-icon lucide-video'
     >
       <path d='m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5' />
       <rect x='2' y='6' width='14' height='12' rx='2' />
