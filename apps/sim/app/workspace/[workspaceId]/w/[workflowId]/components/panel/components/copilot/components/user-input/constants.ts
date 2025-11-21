@@ -20,16 +20,21 @@ export const MENTION_OPTIONS = [
  * Model configuration options
  */
 export const MODEL_OPTIONS = [
-  // { value: 'claude-4-sonnet', label: 'claude-4-sonnet' },
-  { value: 'claude-4.5-sonnet', label: 'claude-4.5-sonnet' },
-  { value: 'claude-4.5-haiku', label: 'claude-4.5-haiku' },
-  { value: 'claude-4.1-opus', label: 'claude-4.1-opus' },
-  // { value: 'gpt-5-fast', label: 'gpt-5-fast' },
-  // { value: 'gpt-5', label: 'gpt-5' },
-  { value: 'gpt-5-medium', label: 'gpt-5-medium' },
-  // { value: 'gpt-5-high', label: 'gpt-5-high' },
-  // { value: 'gpt-4o', label: 'gpt-4o' },
-  // { value: 'gpt-4.1', label: 'gpt-4.1' },
+  // { value: 'claude-4-sonnet', label: 'Claude 4 Sonnet' },
+  { value: 'claude-4.5-sonnet', label: 'Claude 4.5 Sonnet' },
+  { value: 'claude-4.5-haiku', label: 'Claude 4.5 Haiku' },
+  { value: 'claude-4.1-opus', label: 'Claude 4.1 Opus' },
+  // { value: 'gpt-5-fast', label: 'GPT 5 Fast' },
+  // { value: 'gpt-5', label: 'GPT 5' },
+  // { value: 'gpt-5.1-fast', label: 'GPT 5.1 Fast' },
+  // { value: 'gpt-5.1', label: 'GPT 5.1' },
+  { value: 'gpt-5.1-medium', label: 'GPT 5.1 Medium' },
+  // { value: 'gpt-5.1-high', label: 'GPT 5.1 High' },
+  // { value: 'gpt-5-codex', label: 'GPT 5 Codex' },
+  { value: 'gpt-5.1-codex', label: 'GPT 5.1 Codex' },
+  // { value: 'gpt-5-high', label: 'GPT 5 High' },
+  // { value: 'gpt-4o', label: 'GPT 4o' },
+  // { value: 'gpt-4.1', label: 'GPT 4.1' },
   { value: 'o3', label: 'o3' },
 ] as const
 

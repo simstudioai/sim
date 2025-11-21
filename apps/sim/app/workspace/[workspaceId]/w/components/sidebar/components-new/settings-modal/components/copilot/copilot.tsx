@@ -32,11 +32,17 @@ const logger = createLogger('CopilotSettings')
 //   { value: 'gpt-4o', label: 'gpt-4o', icon: 'zap' },
 //   { value: 'gpt-4.1', label: 'gpt-4.1', icon: 'zap' },
 //   { value: 'gpt-5-fast', label: 'gpt-5-fast', icon: 'zap' },
+//   { value: 'gpt-5.1-fast', label: 'gpt-5.1-fast', icon: 'zap' },
 //   // Brain models
 //   { value: 'gpt-5', label: 'gpt-5', icon: 'brain' },
 //   { value: 'gpt-5-medium', label: 'gpt-5-medium', icon: 'brain' },
+//   { value: 'gpt-5.1', label: 'gpt-5.1', icon: 'brain' },
+//   { value: 'gpt-5.1-medium', label: 'gpt-5.1-medium', icon: 'brain' },
 //   // BrainCircuit models
 //   { value: 'gpt-5-high', label: 'gpt-5-high', icon: 'brainCircuit' },
+//   { value: 'gpt-5.1-high', label: 'gpt-5.1-high', icon: 'brainCircuit' },
+//   { value: 'gpt-5-codex', label: 'gpt-5-codex', icon: 'brainCircuit' },
+//   { value: 'gpt-5.1-codex', label: 'gpt-5.1-codex', icon: 'brainCircuit' },
 //   { value: 'o3', label: 'o3', icon: 'brainCircuit' },
 // ]
 
@@ -58,8 +64,14 @@ const logger = createLogger('CopilotSettings')
 //   'gpt-4.1': false,
 //   'gpt-5-fast': false,
 //   'gpt-5': true,
-//   'gpt-5-medium': true,
+//   'gpt-5-medium': false,
 //   'gpt-5-high': false,
+//   'gpt-5.1-fast': false,
+//   'gpt-5.1': true,
+//   'gpt-5.1-medium': true,
+//   'gpt-5.1-high': false,
+//   'gpt-5-codex': false,
+//   'gpt-5.1-codex': true,
 //   o3: true,
 //   'claude-4-sonnet': false,
 //   'claude-4.5-haiku': true,
