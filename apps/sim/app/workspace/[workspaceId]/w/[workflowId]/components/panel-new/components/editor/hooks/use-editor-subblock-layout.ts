@@ -25,7 +25,7 @@ export function useEditorSubblockLayout(
   displayTriggerMode: boolean,
   activeWorkflowId: string | null,
   blockSubBlockValues: Record<string, any>,
-  isDiffMode: boolean
+  isSnapshotView: boolean
 ) {
   return useMemo(() => {
     // Guard against missing config or block selection
@@ -33,41 +33,34 @@ export function useEditorSubblockLayout(
       return { subBlocks: [] as SubBlockConfig[], stateToUse: {} }
     }
 
-    // Get the appropriate state for conditional evaluation
-    let stateToUse: Record<string, any> = {}
+    const diffStore = useWorkflowDiffStore.getState()
+    const workflowBlocks = useWorkflowStore.getState().blocks || {}
 
-    // Get blocks based on whether we're in diff mode
-    let blocks: Record<string, any>
-    if (isDiffMode) {
-      // In diff mode, get blocks from diff workflow
-      const diffStore = useWorkflowDiffStore.getState()
-      const diffWorkflow = diffStore.diffWorkflow
-      blocks = (diffWorkflow as any)?.blocks || {}
-    } else {
-      // In normal mode, get blocks from workflow store
-      blocks = useWorkflowStore.getState().blocks || {}
-    }
+    const sourceBlocks = isSnapshotView
+      ? (diffStore.baselineWorkflow?.blocks as Record<string, any>) || {}
+      : workflowBlocks
 
-    const mergedMap = mergeSubblockState(blocks, activeWorkflowId || undefined, blockId)
+    const mergedMap = isSnapshotView
+      ? { [blockId]: structuredClone(sourceBlocks[blockId]) }
+      : mergeSubblockState(sourceBlocks, activeWorkflowId || undefined, blockId)
+
     const mergedState = mergedMap ? mergedMap[blockId] : undefined
     const mergedSubBlocks = mergedState?.subBlocks || {}
 
-    // In diff mode, prioritize diff workflow values; in normal mode, prioritize live store values
-    stateToUse = Object.keys(mergedSubBlocks).reduce(
+    const stateToUse = Object.keys(mergedSubBlocks).reduce(
       (acc, key) => {
-        const value = isDiffMode
-          ? (mergedSubBlocks[key]?.value ?? null)
-          : blockSubBlockValues[key] !== undefined
-            ? blockSubBlockValues[key]
-            : (mergedSubBlocks[key]?.value ?? null)
-        acc[key] = { value }
+        const baselineValue = mergedSubBlocks[key]?.value ?? null
+        const liveValue =
+          blockSubBlockValues[key] !== undefined ? blockSubBlockValues[key] : baselineValue
+        acc[key] = {
+          value: isSnapshotView ? baselineValue : liveValue,
+        }
         return acc
       },
       {} as Record<string, { value: unknown }>
     )
 
-    // Only add live store values if not in diff mode
-    if (!isDiffMode) {
+    if (!isSnapshotView) {
       Object.keys(blockSubBlockValues).forEach((key) => {
         if (!(key in stateToUse)) {
           stateToUse[key] = { value: blockSubBlockValues[key] }
@@ -153,6 +146,6 @@ export function useEditorSubblockLayout(
     displayTriggerMode,
     blockSubBlockValues,
     activeWorkflowId,
-    isDiffMode,
+    isSnapshotView,
   ])
 }

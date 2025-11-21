@@ -183,6 +183,44 @@ export function setupOperationsHandlers(
         return
       }
 
+      if (target === 'workflow' && operation === 'replace-state') {
+        // Persist the workflow state replacement to database first
+        await persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        })
+
+        room.lastModified = Date.now()
+
+        const broadcastData = {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: {
+            workflowId,
+            operationId: crypto.randomUUID(),
+          },
+        }
+
+        socket.to(workflowId).emit('workflow-operation', broadcastData)
+
+        if (operationId) {
+          socket.emit('operation-confirmed', {
+            operationId,
+            serverTimestamp: Date.now(),
+          })
+        }
+
+        return
+      }
+
       // For non-position operations, persist first then broadcast
       await persistWorkflowOperation(workflowId, {
         operation,

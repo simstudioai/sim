@@ -64,7 +64,7 @@ const logger = createLogger('CopilotStore')
 // On module load, clear any lingering diff preview (fresh page refresh)
 try {
   const diffStore = useWorkflowDiffStore.getState()
-  if (diffStore?.isShowingDiff || diffStore?.diffWorkflow) {
+  if (diffStore?.hasActiveDiff) {
     diffStore.clearDiff()
   }
 } catch {}

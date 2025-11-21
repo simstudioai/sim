@@ -162,7 +162,20 @@ const WorkflowContent = React.memo(() => {
   }, [blocks])
 
   // Get diff analysis for edge reconstruction
-  const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore()
+  const { diffAnalysis, isShowingDiff, isDiffReady, reapplyDiffMarkers, hasActiveDiff } =
+    useWorkflowDiffStore()
+
+  // Re-apply diff markers when blocks change (e.g., after socket rehydration)
+  const blocksRef = useRef(blocks)
+  useEffect(() => {
+    if (hasActiveDiff && isDiffReady && blocks !== blocksRef.current) {
+      blocksRef.current = blocks
+      // Use setTimeout to ensure the store update has settled
+      setTimeout(() => {
+        reapplyDiffMarkers()
+      }, 0)
+    }
+  }, [blocks, hasActiveDiff, isDiffReady, reapplyDiffMarkers])
 
   // Reconstruct deleted edges when viewing original workflow and filter out invalid edges
   const edgesForDisplay = useMemo(() => {
@@ -253,18 +266,17 @@ const WorkflowContent = React.memo(() => {
 
   // Create diff-aware permissions that disable editing when in diff mode
   const effectivePermissions = useMemo(() => {
-    if (isDiffMode) {
-      // In diff mode, disable all editing regardless of user permissions
+    if (currentWorkflow.isSnapshotView) {
+      // Snapshot view is read-only
       return {
         ...userPermissions,
         canEdit: false,
         canAdmin: false,
-        // Keep canRead true so users can still view content
         canRead: userPermissions.canRead,
       }
     }
     return userPermissions
-  }, [userPermissions, isDiffMode])
+  }, [userPermissions, currentWorkflow.isSnapshotView])
 
   // Workspace permissions - get all users and their permissions for this workspace
   const { permissions: workspacePermissions, error: permissionsError } = useWorkspacePermissions(

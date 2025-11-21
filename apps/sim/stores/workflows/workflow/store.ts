@@ -522,6 +522,43 @@ export const useWorkflowStore = create<WorkflowStore>()(
           needsRedeployment: state.needsRedeployment,
         }
       },
+      replaceWorkflowState: (
+        workflowState: WorkflowState,
+        options?: { updateLastSaved?: boolean }
+      ) => {
+        set((state) => {
+          const nextBlocks = workflowState.blocks || {}
+          const nextEdges = workflowState.edges || []
+          const nextLoops =
+            Object.keys(workflowState.loops || {}).length > 0
+              ? workflowState.loops
+              : generateLoopBlocks(nextBlocks)
+          const nextParallels =
+            Object.keys(workflowState.parallels || {}).length > 0
+              ? workflowState.parallels
+              : generateParallelBlocks(nextBlocks)
+
+          return {
+            ...state,
+            blocks: nextBlocks,
+            edges: nextEdges,
+            loops: nextLoops,
+            parallels: nextParallels,
+            isDeployed:
+              workflowState.isDeployed !== undefined ? workflowState.isDeployed : state.isDeployed,
+            deployedAt: workflowState.deployedAt ?? state.deployedAt,
+            deploymentStatuses: workflowState.deploymentStatuses || state.deploymentStatuses,
+            needsRedeployment:
+              workflowState.needsRedeployment !== undefined
+                ? workflowState.needsRedeployment
+                : state.needsRedeployment,
+            lastSaved:
+              options?.updateLastSaved === true
+                ? Date.now()
+                : (workflowState.lastSaved ?? state.lastSaved),
+          }
+        })
+      },
 
       toggleBlockEnabled: (id: string) => {
         const newState = {

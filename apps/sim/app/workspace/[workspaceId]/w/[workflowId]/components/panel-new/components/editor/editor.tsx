@@ -68,7 +68,7 @@ export function Editor() {
   // Get block properties (advanced/trigger modes)
   const { advancedMode, triggerMode } = useEditorBlockProperties(
     currentBlockId,
-    currentWorkflow.isDiffMode
+    currentWorkflow.isSnapshotView
   )
 
   // Subscribe to block's subblock values
@@ -90,7 +90,7 @@ export function Editor() {
     triggerMode,
     activeWorkflowId,
     blockSubBlockValues,
-    currentWorkflow.isDiffMode
+    currentWorkflow.isSnapshotView
   )
 
   // Get block connections

@@ -5,8 +5,8 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
+import { stripWorkflowDiffMarkers } from '@/lib/workflows/diff'
 import { sanitizeForCopilot } from '@/lib/workflows/json-sanitizer'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -81,37 +81,31 @@ export class GetUserWorkflowClientTool extends BaseClientTool {
         includeMetadata: args?.includeMetadata,
       })
 
-      // Prefer diff/preview store if available; otherwise use main workflow store
+      // Always use main workflow store as the source of truth
+      const workflowStore = useWorkflowStore.getState()
+      const fullWorkflowState = workflowStore.getWorkflowState()
+
       let workflowState: any = null
 
-      const diffStore = useWorkflowDiffStore.getState()
-      if (diffStore.diffWorkflow && Object.keys(diffStore.diffWorkflow.blocks || {}).length > 0) {
-        workflowState = diffStore.diffWorkflow
-        logger.info('Using workflow from diff/preview store', { workflowId })
-      } else {
-        const workflowStore = useWorkflowStore.getState()
-        const fullWorkflowState = workflowStore.getWorkflowState()
+      if (!fullWorkflowState || !fullWorkflowState.blocks) {
+        const workflowRegistry = useWorkflowRegistry.getState()
+        const wfKey = String(workflowId)
+        const workflow = (workflowRegistry as any).workflows?.[wfKey]
 
-        if (!fullWorkflowState || !fullWorkflowState.blocks) {
-          const workflowRegistry = useWorkflowRegistry.getState()
-          const wfKey = String(workflowId)
-          const workflow = (workflowRegistry as any).workflows?.[wfKey]
-
-          if (!workflow) {
-            await this.markToolComplete(404, `Workflow ${workflowId} not found in any store`)
-            this.setState(ClientToolCallState.error)
-            return
-          }
-
-          logger.warn('No workflow state found, using workflow metadata only', { workflowId })
-          workflowState = workflow
-        } else {
-          workflowState = fullWorkflowState
-          logger.info('Using workflow state from workflow store', {
-            workflowId,
-            blockCount: Object.keys(fullWorkflowState.blocks || {}).length,
-          })
+        if (!workflow) {
+          await this.markToolComplete(404, `Workflow ${workflowId} not found in any store`)
+          this.setState(ClientToolCallState.error)
+          return
         }
+
+        logger.warn('No workflow state found, using workflow metadata only', { workflowId })
+        workflowState = workflow
+      } else {
+        workflowState = stripWorkflowDiffMarkers(fullWorkflowState)
+        logger.info('Using workflow state from workflow store', {
+          workflowId,
+          blockCount: Object.keys(fullWorkflowState.blocks || {}).length,
+        })
       }
 
       // Normalize required properties

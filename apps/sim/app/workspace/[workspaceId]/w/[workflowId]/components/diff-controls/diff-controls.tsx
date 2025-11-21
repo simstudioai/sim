@@ -12,20 +12,26 @@ const logger = createLogger('DiffControls')
 
 export const DiffControls = memo(function DiffControls() {
   // Optimized: Single diff store subscription
-  const { isShowingDiff, isDiffReady, diffWorkflow, toggleDiffView, acceptChanges, rejectChanges } =
-    useWorkflowDiffStore(
-      useCallback(
-        (state) => ({
-          isShowingDiff: state.isShowingDiff,
-          isDiffReady: state.isDiffReady,
-          diffWorkflow: state.diffWorkflow,
-          toggleDiffView: state.toggleDiffView,
-          acceptChanges: state.acceptChanges,
-          rejectChanges: state.rejectChanges,
-        }),
-        []
-      )
+  const {
+    isShowingDiff,
+    isDiffReady,
+    hasActiveDiff,
+    toggleDiffView,
+    acceptChanges,
+    rejectChanges,
+  } = useWorkflowDiffStore(
+    useCallback(
+      (state) => ({
+        isShowingDiff: state.isShowingDiff,
+        isDiffReady: state.isDiffReady,
+        hasActiveDiff: state.hasActiveDiff,
+        toggleDiffView: state.toggleDiffView,
+        acceptChanges: state.acceptChanges,
+        rejectChanges: state.rejectChanges,
+      }),
+      []
     )
+  )
 
   // Optimized: Single copilot store subscription for needed values
   const { updatePreviewToolCallState, clearPreviewYaml, currentChat, messages } = useCopilotStore(
@@ -297,7 +303,7 @@ export const DiffControls = memo(function DiffControls() {
   }, [clearPreviewYaml, updatePreviewToolCallState, rejectChanges])
 
   // Don't show anything if no diff is available or diff is not ready
-  if (!diffWorkflow || !isDiffReady) {
+  if (!hasActiveDiff || !isDiffReady) {
     return null
   }
 

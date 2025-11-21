@@ -6,6 +6,7 @@ import {
 } from '@/lib/copilot/tools/client/base-tool'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
 import { createLogger } from '@/lib/logs/console/logger'
+import { stripWorkflowDiffMarkers } from '@/lib/workflows/diff'
 import { sanitizeForCopilot } from '@/lib/workflows/json-sanitizer'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -139,16 +140,13 @@ export class EditWorkflowClientTool extends BaseClientTool {
     })
     this.setState(ClientToolCallState.success)
 
-    // Read from the diff store to get the exact state that get_user_workflow would return
-    // This ensures consistency between edit_workflow and get_user_workflow results
-    const diffStore = useWorkflowDiffStore.getState()
-    const actualDiffWorkflow = diffStore.diffWorkflow
-
+    // Read from the workflow store to get the actual state with diff applied
+    const workflowStore = useWorkflowStore.getState()
+    const currentState = workflowStore.getWorkflowState()
+    
     // Get the workflow state that was applied, merge subblocks, and sanitize
     // This matches what get_user_workflow would return
-    const workflowJson = actualDiffWorkflow
-      ? this.getSanitizedWorkflowJson(actualDiffWorkflow)
-      : undefined
+    const workflowJson = this.getSanitizedWorkflowJson(currentState)
     const sanitizedData = workflowJson ? { userWorkflow: workflowJson } : undefined
 
     await this.markToolComplete(200, 'Workflow edits accepted', sanitizedData)
@@ -198,54 +196,24 @@ export class EditWorkflowClientTool extends BaseClientTool {
 
       // Prepare currentUserWorkflow JSON from stores to preserve block IDs
       let currentUserWorkflow = args?.currentUserWorkflow
-      const diffStoreState = useWorkflowDiffStore.getState()
-      let usedDiffWorkflow = false
 
-      if (!currentUserWorkflow && diffStoreState.isDiffReady && diffStoreState.diffWorkflow) {
-        try {
-          const diffWorkflow = diffStoreState.diffWorkflow
-          const normalizedDiffWorkflow = {
-            ...diffWorkflow,
-            blocks: diffWorkflow.blocks || {},
-            edges: diffWorkflow.edges || [],
-            loops: diffWorkflow.loops || {},
-            parallels: diffWorkflow.parallels || {},
-          }
-          currentUserWorkflow = JSON.stringify(normalizedDiffWorkflow)
-          usedDiffWorkflow = true
-          logger.info('Using diff workflow state as base for edit_workflow operations', {
-            toolCallId: this.toolCallId,
-            blocksCount: Object.keys(normalizedDiffWorkflow.blocks).length,
-            edgesCount: normalizedDiffWorkflow.edges.length,
-          })
-        } catch (e) {
-          logger.warn(
-            'Failed to serialize diff workflow state; falling back to active workflow',
-            e as any
-          )
-        }
-      }
-
-      if (!currentUserWorkflow && !usedDiffWorkflow) {
+      if (!currentUserWorkflow) {
         try {
           const workflowStore = useWorkflowStore.getState()
           const fullState = workflowStore.getWorkflowState()
-          let merged = fullState
-          if (merged?.blocks) {
-            merged = { ...merged, blocks: mergeSubblockState(merged.blocks, workflowId as any) }
-          }
-          if (merged) {
-            if (!merged.loops) merged.loops = {}
-            if (!merged.parallels) merged.parallels = {}
-            if (!merged.edges) merged.edges = []
-            if (!merged.blocks) merged.blocks = {}
-            currentUserWorkflow = JSON.stringify(merged)
-          }
-        } catch (e) {
-          logger.warn(
-            'Failed to build currentUserWorkflow from stores; proceeding without it',
-            e as any
-          )
+          const mergedBlocks = mergeSubblockState(fullState.blocks, workflowId as any)
+          const payloadState = stripWorkflowDiffMarkers({
+            ...fullState,
+            blocks: mergedBlocks,
+            edges: fullState.edges || [],
+            loops: fullState.loops || {},
+            parallels: fullState.parallels || {},
+          })
+          currentUserWorkflow = JSON.stringify(payloadState)
+        } catch (error) {
+          logger.warn('Failed to build currentUserWorkflow from stores; proceeding without it', {
+            error,
+          })
         }
       }
 
@@ -291,20 +259,19 @@ export class EditWorkflowClientTool extends BaseClientTool {
         try {
           if (!this.hasAppliedDiff) {
             const diffStore = useWorkflowDiffStore.getState()
-            // setProposedChanges returns the actual proposedState that will be stored
-            actualDiffWorkflow = await diffStore.setProposedChanges(result.workflowState)
-            logger.info('diff proposed changes set for edit_workflow with direct workflow state', {
-              hasProposedState: !!actualDiffWorkflow,
-              blocksCount: actualDiffWorkflow
-                ? Object.keys(actualDiffWorkflow.blocks || {}).length
-                : 0,
-            })
+            // setProposedChanges applies the state directly to the workflow store
+            await diffStore.setProposedChanges(result.workflowState)
+            logger.info('diff proposed changes set for edit_workflow with direct workflow state')
             this.hasAppliedDiff = true
+            
+            // Read back the applied state from the workflow store
+            const workflowStore = useWorkflowStore.getState()
+            actualDiffWorkflow = workflowStore.getWorkflowState()
           } else {
             logger.info('skipping diff apply (already applied)')
-            // If we already applied, read from store
-            const diffStore = useWorkflowDiffStore.getState()
-            actualDiffWorkflow = diffStore.diffWorkflow
+            // If we already applied, read from workflow store
+            const workflowStore = useWorkflowStore.getState()
+            actualDiffWorkflow = workflowStore.getWorkflowState()
           }
         } catch (e) {
           logger.warn('Failed to set proposed changes in diff store', e as any)
