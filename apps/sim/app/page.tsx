@@ -1,10 +1,14 @@
 import type { Metadata } from 'next'
+import { getBaseUrl } from '@/lib/urls/utils'
 import Landing from '@/app/(landing)/landing'
 
+const baseUrl = getBaseUrl()
+
 export const metadata: Metadata = {
+  metadataBase: new URL(baseUrl),
   title: 'Sim - AI Agent Workflow Builder | Open Source Platform',
   description:
-    'Open-source AI agent workflow builder used by 50,000+ developers. Build and deploy agentic workflows with visual drag-and-drop interface. Connect 100+ apps. SOC2 and HIPAA compliant. Used by startups to Fortune 500 companies.',
+    'Open-source AI agent workflow builder used by 50,000+ developers. Build and deploy agentic workflows with a visual drag-and-drop canvas. Connect 100+ apps and ship SOC2 & HIPAA-ready AI automations from startups to Fortune 500.',
   keywords:
     'AI agent workflow builder, agentic workflows, open source AI, visual workflow builder, AI automation, LLM workflows, AI agents, workflow automation, no-code AI, SOC2 compliant, HIPAA compliant, enterprise AI',
   authors: [{ name: 'Sim Studio' }],
@@ -18,9 +22,9 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Sim - AI Agent Workflow Builder | Open Source',
     description:
-      'Open-source platform used by 50,000+ developers. Build and deploy agentic workflows with drag-and-drop interface. SOC2 & HIPAA compliant. Connect 100+ apps.',
+      'Open-source platform used by 50,000+ developers. Design, deploy, and monitor agentic workflows with a visual drag-and-drop interface, 100+ integrations, and enterprise-grade security.',
     type: 'website',
-    url: 'https://sim.ai',
+    url: baseUrl,
     siteName: 'Sim',
     locale: 'en_US',
     images: [
@@ -52,9 +56,9 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: 'https://sim.ai',
+    canonical: baseUrl,
     languages: {
-      'en-US': 'https://sim.ai',
+      'en-US': baseUrl,
     },
   },
   robots: {
@@ -77,10 +81,12 @@ export const metadata: Metadata = {
   other: {
     'llm:content-type': 'AI workflow builder, visual programming, no-code AI development',
     'llm:use-cases':
-      'email automation, slack bots, discord moderation, data analysis, customer support, content generation',
+      'email automation, Slack bots, Discord moderation, data analysis, customer support, content generation, agentic automations',
     'llm:integrations':
       'OpenAI, Anthropic, Google AI, Slack, Gmail, Discord, Notion, Airtable, Supabase',
     'llm:pricing': 'free tier available, pro $20/month, team $40/month, enterprise custom',
+    'llm:region': 'global',
+    'llm:languages': 'en',
   },
 }
 

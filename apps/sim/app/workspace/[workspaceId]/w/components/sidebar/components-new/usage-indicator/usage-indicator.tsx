@@ -12,7 +12,7 @@ import {
   getUsage,
 } from '@/lib/subscription/helpers'
 import { isUsageAtLimit, USAGE_PILL_COLORS } from '@/lib/subscription/usage-visualization'
-import { useSocket } from '@/contexts/socket-context'
+import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
 import { RotatingDigit } from './rotating-digit'

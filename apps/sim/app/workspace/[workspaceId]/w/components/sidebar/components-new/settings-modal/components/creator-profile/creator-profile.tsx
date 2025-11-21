@@ -11,13 +11,13 @@ import { AgentIcon } from '@/components/icons'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/account/hooks/use-profile-picture-upload'
 import {
   useCreatorProfile,
   useOrganizations,
   useSaveCreatorProfile,
 } from '@/hooks/queries/creator-profile'
-import type { CreatorProfileDetails } from '@/types/creator-profile'
 
 const logger = createLogger('CreatorProfile')
 

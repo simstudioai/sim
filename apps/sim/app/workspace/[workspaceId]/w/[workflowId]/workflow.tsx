@@ -34,8 +34,8 @@ import {
   useCurrentWorkflow,
   useNodeUtilities,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { useSocket } from '@/contexts/socket-context'
 import { isAnnotationOnlyBlock } from '@/executor/consts'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -275,6 +275,7 @@ const WorkflowContent = React.memo(() => {
   const {
     collaborativeAddBlock: addBlock,
     collaborativeAddEdge: addEdge,
+    collaborativeRemoveBlock: removeBlock,
     collaborativeRemoveEdge: removeEdge,
     collaborativeUpdateBlockPosition,
     collaborativeUpdateParentId: updateParentId,
@@ -2055,6 +2056,56 @@ const WorkflowContent = React.memo(() => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedEdgeInfo, removeEdge])
+
+  /**
+   * Handle Delete / Backspace for removing selected blocks.
+   *
+   * This mirrors the behavior of clicking the ActionBar delete button by
+   * invoking the collaborative remove-block helper. The handler is disabled
+   * while focus is inside editable elements so it does not interfere with
+   * text editing.
+   */
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') {
+        return
+      }
+
+      // Ignore when typing/navigating inside editable inputs or editors
+      const activeElement = document.activeElement
+      const isEditableElement =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement?.hasAttribute('contenteditable')
+
+      if (isEditableElement) {
+        return
+      }
+
+      if (!effectivePermissions.canEdit) {
+        return
+      }
+
+      const selectedNodes = getNodes().filter((node) => node.selected)
+      if (selectedNodes.length === 0) {
+        return
+      }
+
+      // Prevent default browser behavior (e.g., page navigation) when we act
+      event.preventDefault()
+
+      try {
+        // For now, mirror edge behavior and delete the primary selected block
+        const primaryNode = selectedNodes[0]
+        removeBlock(primaryNode.id)
+      } catch (err) {
+        logger.error('Failed to delete block via keyboard', { err })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [getNodes, removeBlock, effectivePermissions.canEdit])
 
   // Handle sub-block value updates from custom events
   useEffect(() => {

@@ -1,8 +1,9 @@
 import type { MetadataRoute } from 'next'
 import { getAllPostMeta } from '@/lib/blog/registry'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://sim.ai'
+  const baseUrl = getBaseUrl()
 
   const now = new Date()
 

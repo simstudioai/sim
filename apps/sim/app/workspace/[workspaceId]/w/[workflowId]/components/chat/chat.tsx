@@ -339,7 +339,14 @@ export function Chat() {
   }, [workflowMessages])
 
   // Scroll management hook - reuse copilot's implementation
-  const { scrollAreaRef, scrollToBottom } = useScrollManagement(messagesForScrollHook, isStreaming)
+  // Use immediate scroll behavior to keep the view pinned to the bottom during streaming
+  const { scrollAreaRef, scrollToBottom } = useScrollManagement(
+    messagesForScrollHook,
+    isStreaming,
+    {
+      behavior: 'auto',
+    }
+  )
 
   // Memoize user messages for performance
   const userMessages = useMemo(() => {
@@ -406,6 +413,7 @@ export function Chat() {
       const reader = stream.getReader()
       const decoder = new TextDecoder()
       let accumulatedContent = ''
+      let buffer = ''
 
       try {
         while (true) {
@@ -415,8 +423,19 @@ export function Chat() {
             break
           }
 
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n\n')
+          const chunk = decoder.decode(value, { stream: true })
+          buffer += chunk
+
+          // Process only complete SSE messages; keep any partial trailing data in buffer
+          const separatorIndex = buffer.lastIndexOf('\n\n')
+          if (separatorIndex === -1) {
+            continue
+          }
+
+          const processable = buffer.slice(0, separatorIndex)
+          buffer = buffer.slice(separatorIndex + 2)
+
+          const lines = processable.split('\n\n')
 
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue

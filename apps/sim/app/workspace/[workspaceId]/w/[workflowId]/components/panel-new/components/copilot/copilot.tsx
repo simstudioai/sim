@@ -50,6 +50,8 @@ interface CopilotRef {
   createNewChat: () => void
   /** Sets the input value and focuses the textarea */
   setInputValueAndFocus: (value: string) => void
+  /** Focuses the copilot user input without changing its value */
+  focusInput: () => void
 }
 
 /**
@@ -231,8 +233,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     () => ({
       createNewChat: handleStartNewChat,
       setInputValueAndFocus: handleSetInputValueAndFocus,
+      focusInput,
     }),
-    [handleStartNewChat, handleSetInputValueAndFocus]
+    [handleStartNewChat, handleSetInputValueAndFocus, focusInput]
   )
 
   /**

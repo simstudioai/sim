@@ -26,6 +26,7 @@ import { VariableIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/variables/variables'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
@@ -69,7 +70,11 @@ export function Panel() {
   const copilotRef = useRef<{
     createNewChat: () => void
     setInputValueAndFocus: (value: string) => void
+    focusInput: () => void
   }>(null)
+  const toolbarRef = useRef<{
+    focusSearch: () => void
+  } | null>(null)
 
   // State
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -157,6 +162,18 @@ export function Panel() {
   useEffect(() => {
     setHasHydrated(true)
   }, [setHasHydrated])
+
+  /**
+   * Focus Copilot user input when the Copilot tab becomes active or when
+   * the panel loads with Copilot already selected, after hydration.
+   */
+  useEffect(() => {
+    if (!_hasHydrated || activeTab !== 'copilot') {
+      return
+    }
+
+    copilotRef.current?.focusInput()
+  }, [_hasHydrated, activeTab])
 
   /**
    * Handles tab click events
@@ -276,22 +293,73 @@ export function Panel() {
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
 
-  // Register global keyboard shortcuts
-  useRegisterGlobalCommands(() => [
-    {
-      id: 'run-workflow',
-      shortcut: 'Mod+Enter',
-      allowInEditable: false,
-      handler: () => {
-        // Do exactly what the Run button does
-        if (isExecuting) {
-          cancelWorkflow()
-        } else {
-          runWorkflow()
-        }
+  /**
+   * Register global keyboard shortcuts using the central commands registry.
+   *
+   * - Mod+Enter: Run / cancel workflow (matches the Run button behavior)
+   * - C: Focus Copilot tab
+   * - T: Focus Toolbar tab
+   * - E: Focus Editor tab
+   * - Mod+F: Focus Toolbar tab and search input
+   *
+   * The tab-switching commands are disabled inside editable elements so typing
+   * in inputs or textareas is not interrupted.
+   */
+  useRegisterGlobalCommands(() =>
+    createCommands([
+      {
+        id: 'run-workflow',
+        handler: () => {
+          // Do exactly what the Run button does
+          if (isExecuting) {
+            void cancelWorkflow()
+          } else {
+            void runWorkflow()
+          }
+        },
+        overrides: {
+          allowInEditable: false,
+        },
       },
-    },
-  ])
+      {
+        id: 'focus-copilot-tab',
+        handler: () => {
+          setActiveTab('copilot')
+        },
+        overrides: {
+          allowInEditable: false,
+        },
+      },
+      {
+        id: 'focus-toolbar-tab',
+        handler: () => {
+          setActiveTab('toolbar')
+        },
+        overrides: {
+          allowInEditable: false,
+        },
+      },
+      {
+        id: 'focus-editor-tab',
+        handler: () => {
+          setActiveTab('editor')
+        },
+        overrides: {
+          allowInEditable: false,
+        },
+      },
+      {
+        id: 'focus-toolbar-search',
+        handler: () => {
+          setActiveTab('toolbar')
+          toolbarRef.current?.focusSearch()
+        },
+        overrides: {
+          allowInEditable: false,
+        },
+      },
+    ])
+  )
 
   return (
     <>
@@ -456,7 +524,7 @@ export function Panel() {
               }
               data-tab-content='toolbar'
             >
-              <Toolbar isActive={activeTab === 'toolbar'} />
+              <Toolbar ref={toolbarRef} isActive={activeTab === 'toolbar'} />
             </div>
           </div>
         </div>

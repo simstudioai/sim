@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import posthog from 'posthog-js'
 import { PostHogProvider as PHProvider } from 'posthog-js/react'
-import { getEnv, isTruthy } from '../env'
+import { getEnv, isTruthy } from '../../../lib/env'
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {

@@ -25,6 +25,8 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { getBlock } from '@/blocks'
 import type { ConsoleEntry } from '@/stores/terminal'
 import {
@@ -445,17 +447,47 @@ export function Terminal() {
   }, [selectedEntry, outputData, shouldShowCodeDisplay])
 
   /**
-   * Handle clear console for current workflow
+   * Clears the console for the active workflow.
+   *
+   * Extracted so it can be reused both by click handlers and global commands.
+   */
+  const clearCurrentWorkflowConsole = useCallback(() => {
+    if (activeWorkflowId) {
+      clearWorkflowConsole(activeWorkflowId)
+      setSelectedEntry(null)
+    }
+  }, [activeWorkflowId, clearWorkflowConsole])
+
+  /**
+   * Handle clear console for current workflow via mouse interaction.
    */
   const handleClearConsole = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      if (activeWorkflowId) {
-        clearWorkflowConsole(activeWorkflowId)
-        setSelectedEntry(null)
-      }
+      clearCurrentWorkflowConsole()
     },
-    [activeWorkflowId, clearWorkflowConsole]
+    [clearCurrentWorkflowConsole]
+  )
+
+  /**
+   * Register global keyboard shortcuts for the terminal:
+   * - Mod+D: Clear terminal console for the active workflow
+   *
+   * The command is disabled in editable contexts so it does not interfere
+   * with typing inside inputs, textareas, or editors.
+   */
+  useRegisterGlobalCommands(() =>
+    createCommands([
+      {
+        id: 'clear-terminal-console',
+        handler: () => {
+          clearCurrentWorkflowConsole()
+        },
+        overrides: {
+          allowInEditable: false,
+        },
+      },
+    ])
   )
 
   /**
@@ -532,6 +564,16 @@ export function Terminal() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore when typing/navigating inside editable inputs/editors
       if (isEventFromEditableElement(e)) return
+      // When the toolbar search is active and focus is inside the toolbar,
+      // ArrowUp/ArrowDown are reserved for toolbar navigation. In that case,
+      // skip terminal navigation entirely.
+      const activeElement = document.activeElement as HTMLElement | null
+      const toolbarRoot = document.querySelector(
+        '[data-toolbar-root][data-search-active=\"true\"]'
+      ) as HTMLElement | null
+      if (toolbarRoot && activeElement && toolbarRoot.contains(activeElement)) {
+        return
+      }
 
       if (!selectedEntry || filteredEntries.length === 0) return
 

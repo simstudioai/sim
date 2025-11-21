@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { inter } from '@/app/fonts/inter/inter'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 
 interface Testimonial {
   text: string

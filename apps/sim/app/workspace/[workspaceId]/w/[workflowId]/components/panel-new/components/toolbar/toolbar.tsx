@@ -1,6 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import clsx from 'clsx'
 import { Search } from 'lucide-react'
 import { Button } from '@/components/emcn'
@@ -123,6 +131,16 @@ interface ToolbarProps {
 }
 
 /**
+ * Imperative handle exposed by the Toolbar component.
+ */
+export interface ToolbarRef {
+  /**
+   * Focuses the search input and ensures search mode is active.
+   */
+  focusSearch: () => void
+}
+
+/**
  * Toolbar component displaying triggers and blocks in a resizable split view.
  * Top half shows triggers, bottom half shows blocks, with a resizable divider between them.
  *
@@ -136,12 +154,18 @@ interface ToolbarProps {
  */
 const TRIGGERS_MIN_THRESHOLD = 50
 
-export function Toolbar({ isActive = true }: ToolbarProps) {
+export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
+  { isActive = true }: ToolbarProps,
+  ref
+) {
+  const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const triggersContentRef = useRef<HTMLDivElement>(null)
   const triggersHeaderRef = useRef<HTMLDivElement>(null)
   const blocksHeaderRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const triggerItemRefs = useRef<Array<HTMLDivElement | null>>([])
+  const blockItemRefs = useRef<Array<HTMLDivElement | null>>([])
 
   // Search state
   const [isSearchActive, setIsSearchActive] = useState(false)
@@ -259,12 +283,31 @@ export function Toolbar({ isActive = true }: ToolbarProps) {
   }
 
   /**
-   * Handle search input blur - deactivate search mode if empty
+   * Expose imperative handle for focusing the search input.
+   */
+  useImperativeHandle(
+    ref,
+    () => ({
+      focusSearch: () => {
+        setIsSearchActive(true)
+        // Use microtask to ensure input is present before focusing
+        setTimeout(() => {
+          searchInputRef.current?.focus()
+        }, 0)
+      },
+    }),
+    []
+  )
+
+  /**
+   * Handle search input blur.
+   *
+   * We intentionally keep search mode active after blur so that ArrowUp/Down
+   * navigation continues to work after the first move from the search input
+   * into the triggers/blocks list (e.g. when initiated via Mod+F).
    */
   const handleSearchBlur = () => {
-    if (!searchQuery.trim()) {
-      setIsSearchActive(false)
-    }
+    // No-op by design
   }
 
   /**
@@ -292,8 +335,155 @@ export function Toolbar({ isActive = true }: ToolbarProps) {
     setIsToggling(false)
   }, [])
 
+  /**
+   * Handle keyboard navigation with ArrowUp / ArrowDown when the toolbar tab
+   * is active and search is open (e.g. after Mod+F). Navigation order:
+   * - From search input or no current focus: first trigger, then subsequent triggers
+   * - After the last trigger: first block
+   * - Within blocks: linear navigation
+   * - ArrowUp from first trigger: moves focus back to search input
+   *
+   * This is designed to work seamlessly when the toolbar is opened via the
+   * Mod+F shortcut, and to take precedence over other global ArrowUp/Down
+   * handlers (e.g. terminal navigation) while the toolbar tab is active.
+   */
+  useEffect(() => {
+    if (!isActive || !isSearchActive) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+        return
+      }
+
+      const activeEl = document.activeElement as HTMLElement | null
+
+      // Only handle navigation when focus is currently inside the toolbar UI
+      const toolbarRoot = rootRef.current
+      if (!toolbarRoot || !activeEl || !toolbarRoot.contains(activeEl)) {
+        return
+      }
+
+      const triggers = triggerItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
+      const blocks = blockItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
+
+      type Region = 'search' | 'trigger' | 'block' | 'none'
+      let region: Region = 'none'
+      let index = -1
+
+      if (activeEl && searchInputRef.current && activeEl === searchInputRef.current) {
+        region = 'search'
+      } else if (activeEl) {
+        const triggerIndex = triggers.findIndex((el) => el === activeEl || el.contains(activeEl))
+        if (triggerIndex !== -1) {
+          region = 'trigger'
+          index = triggerIndex
+        } else {
+          const blockIndex = blocks.findIndex((el) => el === activeEl || el.contains(activeEl))
+          if (blockIndex !== -1) {
+            region = 'block'
+            index = blockIndex
+          }
+        }
+      }
+
+      const focusTrigger = (i: number) => {
+        const el = triggers[i]
+        if (el) {
+          event.preventDefault()
+          event.stopPropagation()
+          el.focus()
+        }
+      }
+
+      const focusBlock = (i: number) => {
+        const el = blocks[i]
+        if (el) {
+          event.preventDefault()
+          event.stopPropagation()
+          el.focus()
+        }
+      }
+
+      const focusSearchInput = () => {
+        if (searchInputRef.current) {
+          event.preventDefault()
+          event.stopPropagation()
+          searchInputRef.current.focus()
+        }
+      }
+
+      if (event.key === 'ArrowDown') {
+        if (region === 'none' || region === 'search') {
+          if (triggers.length > 0) {
+            focusTrigger(0)
+            return
+          }
+          if (blocks.length > 0) {
+            focusBlock(0)
+          }
+          return
+        }
+
+        if (region === 'trigger') {
+          if (index < triggers.length - 1) {
+            focusTrigger(index + 1)
+            return
+          }
+          if (index === triggers.length - 1 && blocks.length > 0) {
+            focusBlock(0)
+          }
+          return
+        }
+
+        if (region === 'block') {
+          if (index < blocks.length - 1) {
+            focusBlock(index + 1)
+          }
+          return
+        }
+      } else if (event.key === 'ArrowUp') {
+        if (region === 'block') {
+          if (index > 0) {
+            focusBlock(index - 1)
+            return
+          }
+          if (index === 0 && triggers.length > 0) {
+            focusTrigger(triggers.length - 1)
+          }
+          return
+        }
+
+        if (region === 'trigger') {
+          if (index > 0) {
+            focusTrigger(index - 1)
+            return
+          }
+          if (index === 0) {
+            focusSearchInput()
+          }
+          return
+        }
+
+        if (region === 'none' || region === 'search') {
+          // Let ArrowUp behave normally when nothing in the toolbar is focused
+          return
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isActive, isSearchActive])
+
   return (
-    <div className='flex h-full flex-col'>
+    <div
+      ref={rootRef}
+      data-toolbar-root
+      data-search-active={isSearchActive ? 'true' : 'false'}
+      className='flex h-full flex-col'
+    >
       {/* Header */}
       <div
         className='flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px] dark:bg-[#2A2A2A]'
@@ -343,12 +533,16 @@ export function Toolbar({ isActive = true }: ToolbarProps) {
           </div>
           <div className='flex-1 overflow-y-auto overflow-x-hidden px-[6px]'>
             <div ref={triggersContentRef} className='space-y-[4px] pb-[8px]'>
-              {filteredTriggers.map((trigger) => {
+              {filteredTriggers.map((trigger, index) => {
                 const Icon = trigger.icon
                 const isTriggerCapable = hasTriggerCapability(trigger)
                 return (
                   <div
+                    ref={(el) => {
+                      triggerItemRefs.current[index] = el
+                    }}
                     key={trigger.type}
+                    tabIndex={-1}
                     draggable
                     onDragStart={(e) => {
                       const iconElement = e.currentTarget.querySelector('.toolbar-item-icon')
@@ -361,8 +555,16 @@ export function Toolbar({ isActive = true }: ToolbarProps) {
                     onClick={() => handleItemClick(trigger.type, isTriggerCapable)}
                     className={clsx(
                       'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5px] text-[14px]',
-                      'cursor-pointer hover:bg-[var(--border)] active:cursor-grabbing dark:hover:bg-[var(--border)]'
+                      'cursor-pointer hover:bg-[var(--border)] active:cursor-grabbing dark:hover:bg-[var(--border)]',
+                      'focus-visible:bg-[var(--border)] focus-visible:outline-none dark:focus-visible:bg-[var(--border)]'
                     )}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        handleItemClick(trigger.type, isTriggerCapable)
+                      }
+                    }}
                   >
                     <div
                       className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
@@ -381,7 +583,8 @@ export function Toolbar({ isActive = true }: ToolbarProps) {
                     <span
                       className={clsx(
                         'truncate font-medium',
-                        'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
+                        'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]',
+                        'group-focus-visible:text-[var(--text-primary)] dark:group-focus-visible:text-[var(--text-primary)]'
                       )}
                     >
                       {trigger.name}
@@ -412,11 +615,15 @@ export function Toolbar({ isActive = true }: ToolbarProps) {
           </div>
           <div className='flex-1 overflow-y-auto overflow-x-hidden px-[6px]'>
             <div className='space-y-[4px] pb-[8px]'>
-              {filteredBlocks.map((block) => {
+              {filteredBlocks.map((block, index) => {
                 const Icon = block.icon
                 return (
                   <div
+                    ref={(el) => {
+                      blockItemRefs.current[index] = el
+                    }}
                     key={block.type}
+                    tabIndex={-1}
                     draggable
                     onDragStart={(e) => {
                       // Mark subflow drag explicitly so canvas can reliably detect and suppress highlight
@@ -437,8 +644,16 @@ export function Toolbar({ isActive = true }: ToolbarProps) {
                     onClick={() => handleItemClick(block.type, false)}
                     className={clsx(
                       'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px]',
-                      'cursor-pointer hover:bg-[var(--border)] active:cursor-grabbing dark:hover:bg-[var(--border)]'
+                      'cursor-pointer hover:bg-[var(--border)] active:cursor-grabbing dark:hover:bg-[var(--border)]',
+                      'focus-visible:bg-[var(--border)] focus-visible:outline-none dark:focus-visible:bg-[var(--border)]'
                     )}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        handleItemClick(block.type, false)
+                      }
+                    }}
                   >
                     <div
                       className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
@@ -457,7 +672,8 @@ export function Toolbar({ isActive = true }: ToolbarProps) {
                     <span
                       className={clsx(
                         'truncate font-medium',
-                        'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
+                        'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]',
+                        'group-focus-visible:text-[var(--text-primary)] dark:group-focus-visible:text-[var(--text-primary)]'
                       )}
                     >
                       {block.name}
@@ -471,4 +687,4 @@ export function Toolbar({ isActive = true }: ToolbarProps) {
       </div>
     </div>
   )
-}
+})
