@@ -48,6 +48,30 @@ export class SetEnvironmentVariablesClientTool extends BaseClientTool {
       accept: { text: 'Apply', icon: Settings2 },
       reject: { text: 'Skip', icon: XCircle },
     },
+    getDynamicText: (params, state) => {
+      if (params?.variables && typeof params.variables === 'object') {
+        const count = Object.keys(params.variables).length
+        const varText = count === 1 ? 'variable' : 'variables'
+
+        switch (state) {
+          case ClientToolCallState.success:
+            return `Set ${count} ${varText}`
+          case ClientToolCallState.executing:
+            return `Setting ${count} ${varText}`
+          case ClientToolCallState.generating:
+            return `Preparing to set ${count} ${varText}`
+          case ClientToolCallState.pending:
+            return `Set ${count} ${varText}?`
+          case ClientToolCallState.error:
+            return `Failed to set ${count} ${varText}`
+          case ClientToolCallState.aborted:
+            return `Aborted setting ${count} ${varText}`
+          case ClientToolCallState.rejected:
+            return `Skipped setting ${count} ${varText}`
+        }
+      }
+      return undefined
+    },
   }
 
   async handleReject(): Promise<void> {

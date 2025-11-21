@@ -19,6 +19,7 @@ describe('Chat Edit API Route', () => {
   const mockCreateErrorResponse = vi.fn()
   const mockEncryptSecret = vi.fn()
   const mockCheckChatAccess = vi.fn()
+  const mockGetSession = vi.fn()
 
   beforeEach(() => {
     vi.resetModules()
@@ -40,6 +41,10 @@ describe('Chat Edit API Route', () => {
 
     vi.doMock('@sim/db/schema', () => ({
       chat: { id: 'id', identifier: 'identifier', userId: 'userId' },
+    }))
+
+    vi.doMock('@/lib/auth', () => ({
+      getSession: mockGetSession,
     }))
 
     vi.doMock('@/lib/logs/console/logger', () => ({
@@ -89,9 +94,7 @@ describe('Chat Edit API Route', () => {
 
   describe('GET', () => {
     it('should return 401 when user is not authenticated', async () => {
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue(null),
-      }))
+      mockGetSession.mockResolvedValueOnce(null)
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123')
       const { GET } = await import('@/app/api/chat/manage/[id]/route')
@@ -102,11 +105,9 @@ describe('Chat Edit API Route', () => {
     })
 
     it('should return 404 when chat not found or access denied', async () => {
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-id' },
-        }),
-      }))
+      mockGetSession.mockResolvedValueOnce({
+        user: { id: 'user-id' },
+      })
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: false })
 

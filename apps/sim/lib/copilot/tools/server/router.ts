@@ -7,8 +7,7 @@ import { listGDriveFilesServerTool } from '@/lib/copilot/tools/server/gdrive/lis
 import { readGDriveFileServerTool } from '@/lib/copilot/tools/server/gdrive/read-file'
 import { makeApiRequestServerTool } from '@/lib/copilot/tools/server/other/make-api-request'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
-import { getEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/get-environment-variables'
-import { getOAuthCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-oauth-credentials'
+import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { getWorkflowConsoleServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-console'
@@ -39,11 +38,10 @@ serverToolRegistry[editWorkflowServerTool.name] = editWorkflowServerTool
 serverToolRegistry[getWorkflowConsoleServerTool.name] = getWorkflowConsoleServerTool
 serverToolRegistry[searchDocumentationServerTool.name] = searchDocumentationServerTool
 serverToolRegistry[searchOnlineServerTool.name] = searchOnlineServerTool
-serverToolRegistry[getEnvironmentVariablesServerTool.name] = getEnvironmentVariablesServerTool
 serverToolRegistry[setEnvironmentVariablesServerTool.name] = setEnvironmentVariablesServerTool
 serverToolRegistry[listGDriveFilesServerTool.name] = listGDriveFilesServerTool
 serverToolRegistry[readGDriveFileServerTool.name] = readGDriveFileServerTool
-serverToolRegistry[getOAuthCredentialsServerTool.name] = getOAuthCredentialsServerTool
+serverToolRegistry[getCredentialsServerTool.name] = getCredentialsServerTool
 serverToolRegistry[makeApiRequestServerTool.name] = makeApiRequestServerTool
 
 export async function routeExecution(

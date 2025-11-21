@@ -23,19 +23,41 @@ export class GetWorkflowConsoleClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Fetching workflow console', icon: Loader2 },
-      [ClientToolCallState.executing]: { text: 'Fetching workflow console', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Workflow console fetched', icon: TerminalSquare },
-      [ClientToolCallState.error]: { text: 'Failed to read workflow console', icon: XCircle },
+      [ClientToolCallState.generating]: { text: 'Fetching execution logs', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Fetching execution logs', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Fetched execution logs', icon: TerminalSquare },
+      [ClientToolCallState.error]: { text: 'Failed to fetch execution logs', icon: XCircle },
       [ClientToolCallState.rejected]: {
-        text: 'Skipped reading workflow console',
+        text: 'Skipped fetching execution logs',
         icon: MinusCircle,
       },
       [ClientToolCallState.aborted]: {
-        text: 'Aborted reading workflow console',
+        text: 'Aborted fetching execution logs',
         icon: MinusCircle,
       },
-      [ClientToolCallState.pending]: { text: 'Fetching workflow console', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Fetching execution logs', icon: Loader2 },
+    },
+    getDynamicText: (params, state) => {
+      const limit = params?.limit
+      if (limit && typeof limit === 'number') {
+        const logText = limit === 1 ? 'execution log' : 'execution logs'
+
+        switch (state) {
+          case ClientToolCallState.success:
+            return `Fetched last ${limit} ${logText}`
+          case ClientToolCallState.executing:
+          case ClientToolCallState.generating:
+          case ClientToolCallState.pending:
+            return `Fetching last ${limit} ${logText}`
+          case ClientToolCallState.error:
+            return `Failed to fetch last ${limit} ${logText}`
+          case ClientToolCallState.rejected:
+            return `Skipped fetching last ${limit} ${logText}`
+          case ClientToolCallState.aborted:
+            return `Aborted fetching last ${limit} ${logText}`
+        }
+      }
+      return undefined
     },
   }
 

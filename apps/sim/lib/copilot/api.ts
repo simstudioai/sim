@@ -24,6 +24,14 @@ export interface CopilotMessage {
 }
 
 /**
+ * Chat config stored in database
+ */
+export interface CopilotChatConfig {
+  mode?: 'ask' | 'build' | 'plan'
+  model?: string
+}
+
+/**
  * Chat interface for copilot conversations
  */
 export interface CopilotChat {
@@ -33,6 +41,8 @@ export interface CopilotChat {
   messages: CopilotMessage[]
   messageCount: number
   previewYaml: string | null
+  planArtifact: string | null
+  config: CopilotChatConfig | null
   createdAt: Date
   updatedAt: Date
 }
@@ -56,12 +66,18 @@ export interface SendMessageRequest {
   userMessageId?: string // ID from frontend for the user message
   chatId?: string
   workflowId?: string
-  mode?: 'ask' | 'agent'
+  mode?: 'ask' | 'agent' | 'plan'
   model?:
     | 'gpt-5-fast'
     | 'gpt-5'
     | 'gpt-5-medium'
     | 'gpt-5-high'
+    | 'gpt-5.1-fast'
+    | 'gpt-5.1'
+    | 'gpt-5.1-medium'
+    | 'gpt-5.1-high'
+    | 'gpt-5-codex'
+    | 'gpt-5.1-codex'
     | 'gpt-4o'
     | 'gpt-4.1'
     | 'o3'

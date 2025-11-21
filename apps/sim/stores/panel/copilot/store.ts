@@ -23,17 +23,22 @@ import {
   registerClientTool,
   registerToolStateSync,
 } from '@/lib/copilot/tools/client/manager'
+import { NavigateUIClientTool } from '@/lib/copilot/tools/client/navigation/navigate-ui'
 import { CheckoffTodoClientTool } from '@/lib/copilot/tools/client/other/checkoff-todo'
 import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client/other/make-api-request'
 import { MarkTodoInProgressClientTool } from '@/lib/copilot/tools/client/other/mark-todo-in-progress'
 import { OAuthRequestAccessClientTool } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
+import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/remember-debug'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
+import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
+import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
-import { GetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/get-environment-variables'
-import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-oauth-credentials'
+import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
+import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
+import { DeployWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/deploy-workflow'
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
 import { GetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/get-global-workflow-variables'
 import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
@@ -59,7 +64,7 @@ const logger = createLogger('CopilotStore')
 // On module load, clear any lingering diff preview (fresh page refresh)
 try {
   const diffStore = useWorkflowDiffStore.getState()
-  if (diffStore?.isShowingDiff || diffStore?.diffWorkflow) {
+  if (diffStore?.hasActiveDiff) {
     diffStore.clearDiff()
   }
 } catch {}
@@ -73,11 +78,13 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_trigger_blocks: (id) => new GetTriggerBlocksClientTool(id),
   search_online: (id) => new SearchOnlineClientTool(id),
   search_documentation: (id) => new SearchDocumentationClientTool(id),
-  get_environment_variables: (id) => new GetEnvironmentVariablesClientTool(id),
+  search_patterns: (id) => new SearchPatternsClientTool(id),
+  search_errors: (id) => new SearchErrorsClientTool(id),
+  remember_debug: (id) => new RememberDebugClientTool(id),
   set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
   list_gdrive_files: (id) => new ListGDriveFilesClientTool(id),
   read_gdrive_file: (id) => new ReadGDriveFileClientTool(id),
-  get_oauth_credentials: (id) => new GetOAuthCredentialsClientTool(id),
+  get_credentials: (id) => new GetCredentialsClientTool(id),
   make_api_request: (id) => new MakeApiRequestClientTool(id),
   plan: (id) => new PlanClientTool(id),
   checkoff_todo: (id) => new CheckoffTodoClientTool(id),
@@ -94,6 +101,9 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_examples_rag: (id) => new GetExamplesRagClientTool(id),
   get_operations_examples: (id) => new GetOperationsExamplesClientTool(id),
   summarize_conversation: (id) => new SummarizeClientTool(id),
+  deploy_workflow: (id) => new DeployWorkflowClientTool(id),
+  check_deployment_status: (id) => new CheckDeploymentStatusClientTool(id),
+  navigate_ui: (id) => new NavigateUIClientTool(id),
 }
 
 // Read-only static metadata for class-based tools (no instances)
@@ -105,11 +115,13 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   get_trigger_blocks: (GetTriggerBlocksClientTool as any)?.metadata,
   search_online: (SearchOnlineClientTool as any)?.metadata,
   search_documentation: (SearchDocumentationClientTool as any)?.metadata,
-  get_environment_variables: (GetEnvironmentVariablesClientTool as any)?.metadata,
+  search_patterns: (SearchPatternsClientTool as any)?.metadata,
+  search_errors: (SearchErrorsClientTool as any)?.metadata,
+  remember_debug: (RememberDebugClientTool as any)?.metadata,
   set_environment_variables: (SetEnvironmentVariablesClientTool as any)?.metadata,
   list_gdrive_files: (ListGDriveFilesClientTool as any)?.metadata,
   read_gdrive_file: (ReadGDriveFileClientTool as any)?.metadata,
-  get_oauth_credentials: (GetOAuthCredentialsClientTool as any)?.metadata,
+  get_credentials: (GetCredentialsClientTool as any)?.metadata,
   make_api_request: (MakeApiRequestClientTool as any)?.metadata,
   plan: (PlanClientTool as any)?.metadata,
   checkoff_todo: (CheckoffTodoClientTool as any)?.metadata,
@@ -126,6 +138,9 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   oauth_request_access: (OAuthRequestAccessClientTool as any)?.metadata,
   get_operations_examples: (GetOperationsExamplesClientTool as any)?.metadata,
   summarize_conversation: (SummarizeClientTool as any)?.metadata,
+  deploy_workflow: (DeployWorkflowClientTool as any)?.metadata,
+  check_deployment_status: (CheckDeploymentStatusClientTool as any)?.metadata,
+  navigate_ui: (NavigateUIClientTool as any)?.metadata,
 }
 
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {
@@ -156,10 +171,27 @@ function resolveToolDisplay(
   try {
     if (!toolName) return undefined
     const def = getTool(toolName) as any
-    const meta = def?.metadata?.displayNames || CLASS_TOOL_METADATA[toolName]?.displayNames || {}
+    const toolMetadata = def?.metadata || CLASS_TOOL_METADATA[toolName]
+    const meta = toolMetadata?.displayNames || {}
+
     // Exact state first
     const ds = meta?.[state]
-    if (ds?.text || ds?.icon) return { text: ds.text, icon: ds.icon }
+    if (ds?.text || ds?.icon) {
+      // Check if tool has a dynamic text formatter
+      const getDynamicText = toolMetadata?.getDynamicText
+      if (getDynamicText && params) {
+        try {
+          const dynamicText = getDynamicText(params, state)
+          if (dynamicText) {
+            return { text: dynamicText, icon: ds.icon }
+          }
+        } catch (e) {
+          // Fall back to static text if formatter fails
+        }
+      }
+      return { text: ds.text, icon: ds.icon }
+    }
+
     // Fallback order (prefer pre-execution states for unknown states like pending)
     const fallbackOrder: ClientToolCallState[] = [
       (ClientToolCallState as any).generating,
@@ -328,6 +360,12 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
                 },
               }
             }
+            if (b?.type === TEXT_BLOCK_TYPE && typeof b.content === 'string') {
+              return {
+                ...b,
+                content: stripTodoTags(b.content),
+              }
+            }
             return b
           })
         : []
@@ -366,13 +404,20 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
           })
         : (message as any).toolCalls
 
+      const sanitizedContent = stripTodoTags(message.content || '')
+
       return {
         ...message,
+        content: sanitizedContent,
         ...(updatedToolCalls && { toolCalls: updatedToolCalls }),
         ...(blocks.length > 0
           ? { contentBlocks: blocks }
-          : message.content?.trim()
-            ? { contentBlocks: [{ type: 'text', content: message.content, timestamp: Date.now() }] }
+          : sanitizedContent.trim()
+            ? {
+                contentBlocks: [
+                  { type: TEXT_BLOCK_TYPE, content: sanitizedContent, timestamp: Date.now() },
+                ],
+              }
             : {}),
       }
     })
@@ -487,6 +532,16 @@ function createErrorMessage(messageId: string, content: string): CopilotMessage 
   }
 }
 
+function stripTodoTags(text: string): string {
+  if (!text) return text
+  return text
+    .replace(/<marktodo>[\s\S]*?<\/marktodo>/g, '')
+    .replace(/<checkofftodo>[\s\S]*?<\/checkofftodo>/g, '')
+    .replace(/<design_workflow>[\s\S]*?<\/design_workflow>/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+}
+
 function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
   return messages
     .map((msg) => {
@@ -500,9 +555,13 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
           .trim()
       }
 
-      // Strip thinking tags from content
+      // Strip thinking, design_workflow, and todo tags from content
       if (content) {
-        content = content.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim()
+        content = stripTodoTags(
+          content
+            .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
+            .replace(/<design_workflow>[\s\S]*?<\/design_workflow>/g, '')
+        ).trim()
       }
 
       return {
@@ -549,6 +608,8 @@ interface StreamingContext {
   currentTextBlock: any | null
   isInThinkingBlock: boolean
   currentThinkingBlock: any | null
+  isInDesignWorkflowBlock: boolean
+  designWorkflowContent: string
   pendingContent: string
   newChatId?: string
   doneEventCount: number
@@ -772,6 +833,7 @@ const sseHandlers: Record<string, SSEHandler> = {
     const name: string | undefined = toolData.name || data?.toolName
     if (!id) return
     const args = toolData.arguments
+    const isPartial = toolData.partial === true
     const { toolCallsById } = get()
 
     // Ensure class-based client tool instances are registered (for interrupts/display)
@@ -1003,7 +1065,7 @@ const sseHandlers: Record<string, SSEHandler> = {
     context.currentTextBlock = null
     updateStreamingMessage(set, context)
   },
-  content: (data, context, _get, set) => {
+  content: (data, context, get, set) => {
     if (!data.data) return
     context.pendingContent += data.data
 
@@ -1012,8 +1074,149 @@ const sseHandlers: Record<string, SSEHandler> = {
 
     const thinkingStartRegex = /<thinking>/
     const thinkingEndRegex = /<\/thinking>/
+    const designWorkflowStartRegex = /<design_workflow>/
+    const designWorkflowEndRegex = /<\/design_workflow>/
+
+    const appendTextToContent = (text: string) => {
+      if (!text) return
+      context.accumulatedContent.append(text)
+      if (context.currentTextBlock && context.contentBlocks.length > 0) {
+        const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
+        if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
+          lastBlock.content += text
+          return
+        }
+      }
+      context.currentTextBlock = contentBlockPool.get()
+      context.currentTextBlock.type = TEXT_BLOCK_TYPE
+      context.currentTextBlock.content = text
+      context.currentTextBlock.timestamp = Date.now()
+      context.contentBlocks.push(context.currentTextBlock)
+    }
 
     while (contentToProcess.length > 0) {
+      // Handle design_workflow tags (takes priority over other content processing)
+      if (context.isInDesignWorkflowBlock) {
+        const endMatch = designWorkflowEndRegex.exec(contentToProcess)
+        if (endMatch) {
+          const designContent = contentToProcess.substring(0, endMatch.index)
+          context.designWorkflowContent += designContent
+          context.isInDesignWorkflowBlock = false
+
+          // Update store with complete design workflow content (available in all modes)
+          logger.info('[design_workflow] Tag complete, setting plan content', {
+            contentLength: context.designWorkflowContent.length,
+          })
+          set({ streamingPlanContent: context.designWorkflowContent })
+
+          contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
+          hasProcessedContent = true
+        } else {
+          // Still in design_workflow block, accumulate content
+          context.designWorkflowContent += contentToProcess
+
+          // Update store with partial content for streaming effect (available in all modes)
+          set({ streamingPlanContent: context.designWorkflowContent })
+
+          contentToProcess = ''
+          hasProcessedContent = true
+        }
+        continue
+      }
+
+      if (!context.isInThinkingBlock && !context.isInDesignWorkflowBlock) {
+        // Check for design_workflow start tag first
+        const designStartMatch = designWorkflowStartRegex.exec(contentToProcess)
+        if (designStartMatch) {
+          const textBeforeDesign = contentToProcess.substring(0, designStartMatch.index)
+          if (textBeforeDesign) {
+            appendTextToContent(textBeforeDesign)
+            hasProcessedContent = true
+          }
+          context.isInDesignWorkflowBlock = true
+          context.designWorkflowContent = ''
+          contentToProcess = contentToProcess.substring(
+            designStartMatch.index + designStartMatch[0].length
+          )
+          hasProcessedContent = true
+          continue
+        }
+
+        const nextMarkIndex = contentToProcess.indexOf('<marktodo>')
+        const nextCheckIndex = contentToProcess.indexOf('<checkofftodo>')
+        const hasMark = nextMarkIndex >= 0
+        const hasCheck = nextCheckIndex >= 0
+
+        const nextTagIndex =
+          hasMark && hasCheck
+            ? Math.min(nextMarkIndex, nextCheckIndex)
+            : hasMark
+              ? nextMarkIndex
+              : hasCheck
+                ? nextCheckIndex
+                : -1
+
+        if (nextTagIndex >= 0) {
+          const isMarkTodo = hasMark && nextMarkIndex === nextTagIndex
+          const tagStart = isMarkTodo ? '<marktodo>' : '<checkofftodo>'
+          const tagEnd = isMarkTodo ? '</marktodo>' : '</checkofftodo>'
+          const closingIndex = contentToProcess.indexOf(tagEnd, nextTagIndex + tagStart.length)
+
+          if (closingIndex === -1) {
+            // Partial tag; wait for additional content
+            break
+          }
+
+          const todoId = contentToProcess
+            .substring(nextTagIndex + tagStart.length, closingIndex)
+            .trim()
+          logger.info(
+            isMarkTodo ? '[TODO] Detected marktodo tag' : '[TODO] Detected checkofftodo tag',
+            { todoId }
+          )
+
+          if (todoId) {
+            try {
+              get().updatePlanTodoStatus(todoId, isMarkTodo ? 'executing' : 'completed')
+              logger.info(
+                isMarkTodo
+                  ? '[TODO] Successfully marked todo in progress'
+                  : '[TODO] Successfully checked off todo',
+                { todoId }
+              )
+            } catch (e) {
+              logger.error(
+                isMarkTodo
+                  ? '[TODO] Failed to mark todo in progress'
+                  : '[TODO] Failed to checkoff todo',
+                { todoId, error: e }
+              )
+            }
+          } else {
+            logger.warn('[TODO] Empty todoId extracted from todo tag', { tagType: tagStart })
+          }
+
+          // Remove the tag AND newlines around it, but preserve ONE newline if both sides had them
+          let beforeTag = contentToProcess.substring(0, nextTagIndex)
+          let afterTag = contentToProcess.substring(closingIndex + tagEnd.length)
+
+          const hadNewlineBefore = /(\r?\n)+$/.test(beforeTag)
+          const hadNewlineAfter = /^(\r?\n)+/.test(afterTag)
+
+          // Strip trailing newlines before the tag
+          beforeTag = beforeTag.replace(/(\r?\n)+$/, '')
+          // Strip leading newlines after the tag
+          afterTag = afterTag.replace(/^(\r?\n)+/, '')
+
+          // If there were newlines on both sides, add back ONE to preserve paragraph breaks
+          contentToProcess =
+            beforeTag + (hadNewlineBefore && hadNewlineAfter ? '\n' : '') + afterTag
+          context.currentTextBlock = null
+          hasProcessedContent = true
+          continue
+        }
+      }
+
       if (context.isInThinkingBlock) {
         const endMatch = thinkingEndRegex.exec(contentToProcess)
         if (endMatch) {
@@ -1082,10 +1285,23 @@ const sseHandlers: Record<string, SSEHandler> = {
           contentToProcess = contentToProcess.substring(startMatch.index + startMatch[0].length)
           hasProcessedContent = true
         } else {
-          const partialTagIndex = contentToProcess.lastIndexOf('<')
+          // Check if content might contain partial todo tags and hold them back
+          let partialTagIndex = contentToProcess.lastIndexOf('<')
+
+          // Also check for partial marktodo or checkofftodo tags
+          const partialMarkTodo = contentToProcess.lastIndexOf('<marktodo')
+          const partialCheckoffTodo = contentToProcess.lastIndexOf('<checkofftodo')
+
+          if (partialMarkTodo > partialTagIndex) {
+            partialTagIndex = partialMarkTodo
+          }
+          if (partialCheckoffTodo > partialTagIndex) {
+            partialTagIndex = partialCheckoffTodo
+          }
+
           let textToAdd = contentToProcess
           let remaining = ''
-          if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 10) {
+          if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 50) {
             textToAdd = contentToProcess.substring(0, partialTagIndex)
             remaining = contentToProcess.substring(partialTagIndex)
           }
@@ -1315,6 +1531,7 @@ const initialState = {
   inputValue: '',
   planTodos: [] as Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>,
   showPlanTodos: false,
+  streamingPlanContent: '',
   toolCallsById: {} as Record<string, CopilotToolCall>,
   suppressAutoSelect: false,
   contextUsage: null,
@@ -1327,7 +1544,7 @@ export const useCopilotStore = create<CopilotStore>()(
     // Basic mode controls
     setMode: (mode) => set({ mode }),
 
-    // Clear messages
+    // Clear messages (don't clear streamingPlanContent - let it persist)
     clearMessages: () => set({ messages: [], contextUsage: null }),
 
     // Workflow selection
@@ -1377,9 +1594,24 @@ export const useCopilotStore = create<CopilotStore>()(
         useWorkflowDiffStore.getState().clearDiff()
       } catch {}
 
+      // Restore plan content and config (mode/model) from selected chat
+      const planArtifact = chat.planArtifact || ''
+      const chatConfig = chat.config || {}
+      const chatMode = chatConfig.mode || get().mode
+      const chatModel = chatConfig.model || get().selectedModel
+
+      logger.info('[Chat] Restoring chat config', {
+        chatId: chat.id,
+        mode: chatMode,
+        model: chatModel,
+        hasPlanArtifact: !!planArtifact,
+      })
+
       // Capture previous chat/messages for optimistic background save
       const previousChat = currentChat
       const previousMessages = get().messages
+      const previousMode = get().mode
+      const previousModel = get().selectedModel
 
       // Optimistically set selected chat and normalize messages for UI
       set({
@@ -1387,18 +1619,30 @@ export const useCopilotStore = create<CopilotStore>()(
         messages: normalizeMessagesForUI(chat.messages || []),
         planTodos: [],
         showPlanTodos: false,
+        streamingPlanContent: planArtifact,
+        mode: chatMode,
+        selectedModel: chatModel as CopilotStore['selectedModel'],
         suppressAutoSelect: false,
         contextUsage: null,
       })
 
-      // Background-save the previous chat's latest messages before switching (optimistic)
+      // Background-save the previous chat's latest messages, plan artifact, and config before switching (optimistic)
       try {
         if (previousChat && previousChat.id !== chat.id) {
           const dbMessages = validateMessagesForLLM(previousMessages)
+          const previousPlanArtifact = get().streamingPlanContent
           fetch('/api/copilot/chat/update-messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId: previousChat.id, messages: dbMessages }),
+            body: JSON.stringify({
+              chatId: previousChat.id,
+              messages: dbMessages,
+              planArtifact: previousPlanArtifact || null,
+              config: {
+                mode: previousMode,
+                model: previousModel,
+              },
+            }),
           }).catch(() => {})
         }
       } catch {}
@@ -1457,14 +1701,22 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Background-save the current chat before clearing (optimistic)
       try {
-        const { currentChat } = get()
+        const { currentChat, streamingPlanContent, mode, selectedModel } = get()
         if (currentChat) {
           const currentMessages = get().messages
           const dbMessages = validateMessagesForLLM(currentMessages)
           fetch('/api/copilot/chat/update-messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
+            body: JSON.stringify({
+              chatId: currentChat.id,
+              messages: dbMessages,
+              planArtifact: streamingPlanContent || null,
+              config: {
+                mode,
+                model: selectedModel,
+              },
+            }),
           }).catch(() => {})
         }
       } catch {}
@@ -1476,6 +1728,7 @@ export const useCopilotStore = create<CopilotStore>()(
         messageCheckpoints: {},
         planTodos: [],
         showPlanTodos: false,
+        streamingPlanContent: '',
         suppressAutoSelect: true,
         contextUsage: null,
       })
@@ -1549,6 +1802,12 @@ export const useCopilotStore = create<CopilotStore>()(
               } else {
                 const normalizedMessages = normalizeMessagesForUI(updatedCurrentChat.messages || [])
 
+                // Restore plan artifact and config from refreshed chat
+                const refreshedPlanArtifact = updatedCurrentChat.planArtifact || ''
+                const refreshedConfig = updatedCurrentChat.config || {}
+                const refreshedMode = refreshedConfig.mode || get().mode
+                const refreshedModel = refreshedConfig.model || get().selectedModel
+
                 // Build toolCallsById map from all tool calls in normalized messages
                 const toolCallsById: Record<string, CopilotToolCall> = {}
                 for (const msg of normalizedMessages) {
@@ -1565,6 +1824,9 @@ export const useCopilotStore = create<CopilotStore>()(
                   currentChat: updatedCurrentChat,
                   messages: normalizedMessages,
                   toolCallsById,
+                  streamingPlanContent: refreshedPlanArtifact,
+                  mode: refreshedMode,
+                  selectedModel: refreshedModel as CopilotStore['selectedModel'],
                 })
               }
               try {
@@ -1573,6 +1835,19 @@ export const useCopilotStore = create<CopilotStore>()(
             } else if (!isSendingMessage && !suppressAutoSelect) {
               const mostRecentChat: CopilotChat = data.chats[0]
               const normalizedMessages = normalizeMessagesForUI(mostRecentChat.messages || [])
+
+              // Restore plan artifact and config from most recent chat
+              const planArtifact = mostRecentChat.planArtifact || ''
+              const chatConfig = mostRecentChat.config || {}
+              const chatMode = chatConfig.mode || get().mode
+              const chatModel = chatConfig.model || get().selectedModel
+
+              logger.info('[Chat] Auto-selecting most recent chat with config', {
+                chatId: mostRecentChat.id,
+                mode: chatMode,
+                model: chatModel,
+                hasPlanArtifact: !!planArtifact,
+              })
 
               // Build toolCallsById map from all tool calls in normalized messages
               const toolCallsById: Record<string, CopilotToolCall> = {}
@@ -1590,6 +1865,9 @@ export const useCopilotStore = create<CopilotStore>()(
                 currentChat: mostRecentChat,
                 messages: normalizedMessages,
                 toolCallsById,
+                streamingPlanContent: planArtifact,
+                mode: chatMode,
+                selectedModel: chatModel as CopilotStore['selectedModel'],
               })
               try {
                 await get().loadMessageCheckpoints(mostRecentChat.id)
@@ -1682,12 +1960,26 @@ export const useCopilotStore = create<CopilotStore>()(
           })
         } catch {}
 
+        // Prepend design document to message if available
+        const { streamingPlanContent } = get()
+        let messageToSend = message
+        if (streamingPlanContent?.trim()) {
+          messageToSend = `Design Document:\n\n${streamingPlanContent}\n\n==============\n\nUser Query:\n\n${message}`
+          logger.info('[DesignDocument] Prepending plan content to message', {
+            planLength: streamingPlanContent.length,
+            originalMessageLength: message.length,
+            finalMessageLength: messageToSend.length,
+          })
+        }
+
+        const apiMode: 'ask' | 'agent' | 'plan' =
+          mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
         const result = await sendStreamingMessage({
-          message,
+          message: messageToSend,
           userMessageId: userMessage.id,
           chatId: currentChat?.id,
           workflowId,
-          mode: mode === 'ask' ? 'ask' : 'agent',
+          mode: apiMode,
           model: get().selectedModel,
           prefetch: get().agentPrefetch,
           createNewChat: !currentChat,
@@ -1776,14 +2068,18 @@ export const useCopilotStore = create<CopilotStore>()(
             abortController: null,
           }))
         } else {
-          set({ isSendingMessage: false, isAborting: false, abortController: null })
+          set({
+            isSendingMessage: false,
+            isAborting: false,
+            abortController: null,
+          })
         }
 
         // Immediately put all in-progress tools into aborted state
         abortAllInProgressTools(set, get)
 
         // Persist whatever contentBlocks/text we have to keep ordering for reloads
-        const { currentChat } = get()
+        const { currentChat, streamingPlanContent, mode, selectedModel } = get()
         if (currentChat) {
           try {
             const currentMessages = get().messages
@@ -1791,7 +2087,15 @@ export const useCopilotStore = create<CopilotStore>()(
             fetch('/api/copilot/chat/update-messages', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
+              body: JSON.stringify({
+                chatId: currentChat.id,
+                messages: dbMessages,
+                planArtifact: streamingPlanContent || null,
+                config: {
+                  mode,
+                  model: selectedModel,
+                },
+              }),
             }).catch(() => {})
           } catch {}
         }
@@ -1817,11 +2121,13 @@ export const useCopilotStore = create<CopilotStore>()(
       const newAssistantMessage = createStreamingMessage()
       set((state) => ({ messages: [...state.messages, newAssistantMessage] }))
       try {
+        const apiMode: 'ask' | 'agent' | 'plan' =
+          mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
         const result = await sendStreamingMessage({
           message: 'Please continue your response.',
           chatId: currentChat?.id,
           workflowId,
-          mode: mode === 'ask' ? 'ask' : 'agent',
+          mode: apiMode,
           model: selectedModel,
           prefetch: get().agentPrefetch,
           createNewChat: !currentChat,
@@ -2131,6 +2437,8 @@ export const useCopilotStore = create<CopilotStore>()(
         currentTextBlock: null,
         isInThinkingBlock: false,
         currentThinkingBlock: null,
+        isInDesignWorkflowBlock: false,
+        designWorkflowContent: '',
         pendingContent: '',
         doneEventCount: 0,
       }
@@ -2169,6 +2477,16 @@ export const useCopilotStore = create<CopilotStore>()(
         }
         streamingUpdateQueue.clear()
 
+        let sanitizedContentBlocks: any[] = []
+        if (context.contentBlocks && context.contentBlocks.length > 0) {
+          const optimizedBlocks = createOptimizedContentBlocks(context.contentBlocks)
+          sanitizedContentBlocks = optimizedBlocks.map((block: any) =>
+            block.type === TEXT_BLOCK_TYPE && typeof block.content === 'string'
+              ? { ...block, content: stripTodoTags(block.content) }
+              : block
+          )
+        }
+
         if (context.contentBlocks) {
           context.contentBlocks.forEach((block) => {
             if (block.type === TEXT_BLOCK_TYPE || block.type === THINKING_BLOCK_TYPE) {
@@ -2177,14 +2495,14 @@ export const useCopilotStore = create<CopilotStore>()(
           })
         }
 
-        const finalContent = context.accumulatedContent.toString()
+        const finalContent = stripTodoTags(context.accumulatedContent.toString())
         set((state) => ({
           messages: state.messages.map((msg) =>
             msg.id === assistantMessageId
               ? {
                   ...msg,
                   content: finalContent,
-                  contentBlocks: context.contentBlocks,
+                  contentBlocks: sanitizedContentBlocks,
                 }
               : msg
           ),
@@ -2197,16 +2515,35 @@ export const useCopilotStore = create<CopilotStore>()(
           await get().handleNewChatCreation(context.newChatId)
         }
 
-        // Persist full message state (including contentBlocks) to database
-        const { currentChat } = get()
+        // Persist full message state (including contentBlocks), plan artifact, and config to database
+        const { currentChat, streamingPlanContent, mode, selectedModel } = get()
         if (currentChat) {
           try {
             const currentMessages = get().messages
             const dbMessages = validateMessagesForLLM(currentMessages)
+            const config = {
+              mode,
+              model: selectedModel,
+            }
+
             await fetch('/api/copilot/chat/update-messages', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
+              body: JSON.stringify({
+                chatId: currentChat.id,
+                messages: dbMessages,
+                planArtifact: streamingPlanContent || null,
+                config,
+              }),
+            })
+
+            // Update local chat object with plan artifact and config
+            set({
+              currentChat: {
+                ...currentChat,
+                planArtifact: streamingPlanContent || null,
+                config,
+              },
             })
           } catch {}
         }
@@ -2226,13 +2563,19 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Handle new chat creation from stream
     handleNewChatCreation: async (newChatId: string) => {
+      const { mode, selectedModel, streamingPlanContent } = get()
       const newChat: CopilotChat = {
         id: newChatId,
         title: null,
-        model: 'gpt-4',
+        model: selectedModel,
         messages: get().messages,
         messageCount: get().messages.length,
         previewYaml: null,
+        planArtifact: streamingPlanContent || null,
+        config: {
+          mode,
+          model: selectedModel,
+        },
         createdAt: new Date(),
         updatedAt: new Date(),
       }
@@ -2297,6 +2640,93 @@ export const useCopilotStore = create<CopilotStore>()(
       })
     },
     closePlanTodos: () => set({ showPlanTodos: false }),
+
+    clearPlanArtifact: async () => {
+      const { currentChat } = get()
+
+      // Clear from local state
+      set({ streamingPlanContent: '' })
+
+      // Update database if we have a current chat
+      if (currentChat) {
+        try {
+          const currentMessages = get().messages
+          const dbMessages = validateMessagesForLLM(currentMessages)
+          const { mode, selectedModel } = get()
+
+          await fetch('/api/copilot/chat/update-messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chatId: currentChat.id,
+              messages: dbMessages,
+              planArtifact: null,
+              config: {
+                mode,
+                model: selectedModel,
+              },
+            }),
+          })
+
+          // Update local chat object
+          set({
+            currentChat: {
+              ...currentChat,
+              planArtifact: null,
+            },
+          })
+
+          logger.info('[PlanArtifact] Cleared plan artifact', { chatId: currentChat.id })
+        } catch (error) {
+          logger.error('[PlanArtifact] Failed to clear plan artifact', error)
+        }
+      }
+    },
+
+    savePlanArtifact: async (content: string) => {
+      const { currentChat } = get()
+
+      // Update local state
+      set({ streamingPlanContent: content })
+
+      // Update database if we have a current chat
+      if (currentChat) {
+        try {
+          const currentMessages = get().messages
+          const dbMessages = validateMessagesForLLM(currentMessages)
+          const { mode, selectedModel } = get()
+
+          await fetch('/api/copilot/chat/update-messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chatId: currentChat.id,
+              messages: dbMessages,
+              planArtifact: content,
+              config: {
+                mode,
+                model: selectedModel,
+              },
+            }),
+          })
+
+          // Update local chat object
+          set({
+            currentChat: {
+              ...currentChat,
+              planArtifact: content,
+            },
+          })
+
+          logger.info('[PlanArtifact] Saved plan artifact', {
+            chatId: currentChat.id,
+            contentLength: content.length,
+          })
+        } catch (error) {
+          logger.error('[PlanArtifact] Failed to save plan artifact', error)
+        }
+      }
+    },
 
     // Diff updates are out of scope for minimal store
     updateDiffStore: async (_yamlContent: string) => {},

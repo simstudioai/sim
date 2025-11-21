@@ -1,5 +1,6 @@
 export { AttachedFilesDisplay } from './attached-files-display/attached-files-display'
 export { ContextPills } from './context-pills/context-pills'
+export { ContextUsageIndicator } from './context-usage-indicator/context-usage-indicator'
 export { MentionMenu } from './mention-menu/mention-menu'
 export { ModeSelector } from './mode-selector/mode-selector'
 export { ModelSelector } from './model-selector/model-selector'

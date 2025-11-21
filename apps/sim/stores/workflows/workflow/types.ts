@@ -226,6 +226,10 @@ export interface WorkflowActions {
   setDragStartPosition: (position: DragStartPosition | null) => void
   getDragStartPosition: () => DragStartPosition | null
   getWorkflowState: () => WorkflowState
+  replaceWorkflowState: (
+    workflowState: WorkflowState,
+    options?: { updateLastSaved?: boolean }
+  ) => void
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions

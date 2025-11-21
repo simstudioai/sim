@@ -76,6 +76,7 @@ describe('OAuth Token Refresh', () => {
         endpoint: 'https://auth.atlassian.com/oauth/token',
       },
       { name: 'Jira', providerId: 'jira', endpoint: 'https://auth.atlassian.com/oauth/token' },
+      // Discord is currently disabled
       // {
       //   name: 'Discord',
       //   providerId: 'discord',
@@ -154,6 +155,7 @@ describe('OAuth Token Refresh', () => {
         providerId: 'outlook',
         endpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
       },
+      // Supabase is currently disabled
       // {
       //   name: 'Supabase',
       //   providerId: 'supabase',

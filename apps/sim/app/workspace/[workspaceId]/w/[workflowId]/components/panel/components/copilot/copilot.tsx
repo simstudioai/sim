@@ -1,7 +1,15 @@
 'use client'
 
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { History, Plus } from 'lucide-react'
 import {
   Button,
@@ -16,6 +24,7 @@ import { Trash } from '@/components/emcn/icons/trash'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   CopilotMessage,
+  PlanModeSection,
   TodoList,
   UserInput,
   Welcome,
@@ -79,6 +88,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     inputValue,
     planTodos,
     showPlanTodos,
+    streamingPlanContent,
     sendMessage,
     abortMessage,
     createNewChat,
@@ -95,6 +105,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     areChatsFresh,
     workflowId: copilotWorkflowId,
     setPlanTodos,
+    clearPlanArtifact,
+    savePlanArtifact,
   } = useCopilotStore()
 
   // Initialize copilot
@@ -131,6 +143,22 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     planTodos,
     setPlanTodos,
   })
+
+  /**
+   * Get markdown content for design document section
+   * Available in all modes once created
+   */
+  const designDocumentContent = useMemo(() => {
+    // Use streaming content if available
+    if (streamingPlanContent) {
+      logger.info('[DesignDocument] Using streaming plan content', {
+        contentLength: streamingPlanContent.length,
+      })
+      return streamingPlanContent
+    }
+
+    return ''
+  }, [streamingPlanContent])
 
   /**
    * Helper function to focus the copilot input
@@ -454,15 +482,27 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     value={inputValue}
                     onChange={setInputValue}
                     panelWidth={panelWidth}
+                    hasPlanArtifact={Boolean(designDocumentContent)}
                   />
                 </div>
                 <div className='flex-shrink-0 pt-[8px]'>
-                  <Welcome onQuestionClick={handleSubmit} mode={mode === 'ask' ? 'ask' : 'build'} />
+                  <Welcome onQuestionClick={handleSubmit} mode={mode} />
                 </div>
               </div>
             ) : (
               /* Normal messages view */
               <div className='relative flex flex-1 flex-col overflow-hidden'>
+                {/* Design Document Section - Pinned at top, shown in all modes when available */}
+                {designDocumentContent && (
+                  <div className='flex-shrink-0 px-[8px] pt-[8px]'>
+                    <PlanModeSection
+                      content={designDocumentContent}
+                      onClear={clearPlanArtifact}
+                      onSave={savePlanArtifact}
+                    />
+                  </div>
+                )}
+
                 <div className='relative flex-1 overflow-hidden'>
                   <div
                     ref={scrollAreaRef}
@@ -549,6 +589,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     value={inputValue}
                     onChange={setInputValue}
                     panelWidth={panelWidth}
+                    hasPlanArtifact={Boolean(designDocumentContent)}
                   />
                 </div>
               </div>

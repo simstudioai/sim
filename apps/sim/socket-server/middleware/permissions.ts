@@ -21,6 +21,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'update-trigger-mode',
     'toggle-handles',
     'duplicate',
+    'replace-state',
   ],
   write: [
     'add',
@@ -35,6 +36,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'update-trigger-mode',
     'toggle-handles',
     'duplicate',
+    'replace-state',
   ],
   read: ['update-position'],
 }
