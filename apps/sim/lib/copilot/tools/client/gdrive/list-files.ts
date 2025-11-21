@@ -32,6 +32,27 @@ export class ListGDriveFilesClientTool extends BaseClientTool {
       [ClientToolCallState.error]: { text: 'Failed to list GDrive files', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped listing GDrive files', icon: MinusCircle },
     },
+    getDynamicText: (params, state) => {
+      const searchQuery = params?.search_query || params?.searchQuery
+      if (searchQuery && typeof searchQuery === 'string') {
+        const query = searchQuery
+        const truncated = query.length > 40 ? `${query.slice(0, 40)}...` : query
+
+        switch (state) {
+          case ClientToolCallState.success:
+            return `Listed files matching ${truncated}`
+          case ClientToolCallState.executing:
+          case ClientToolCallState.generating:
+          case ClientToolCallState.pending:
+            return `Listing files matching ${truncated}`
+          case ClientToolCallState.error:
+            return `Failed to list files matching ${truncated}`
+          case ClientToolCallState.rejected:
+            return `Skipped listing files matching ${truncated}`
+        }
+      }
+      return undefined
+    },
   }
 
   async execute(args?: ListGDriveFilesArgs): Promise<void> {

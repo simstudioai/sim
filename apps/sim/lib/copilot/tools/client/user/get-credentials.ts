@@ -8,41 +8,44 @@ import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas
 import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-interface GetOAuthCredentialsArgs {
+interface GetCredentialsArgs {
   userId?: string
   workflowId?: string
 }
 
-export class GetOAuthCredentialsClientTool extends BaseClientTool {
-  static readonly id = 'get_oauth_credentials'
+export class GetCredentialsClientTool extends BaseClientTool {
+  static readonly id = 'get_credentials'
 
   constructor(toolCallId: string) {
-    super(toolCallId, GetOAuthCredentialsClientTool.id, GetOAuthCredentialsClientTool.metadata)
+    super(toolCallId, GetCredentialsClientTool.id, GetCredentialsClientTool.metadata)
   }
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Fetching OAuth credentials', icon: Loader2 },
-      [ClientToolCallState.pending]: { text: 'Fetching OAuth credentials', icon: Loader2 },
-      [ClientToolCallState.executing]: { text: 'Retrieving login IDs', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Retrieved login IDs', icon: Key },
-      [ClientToolCallState.error]: { text: 'Failed to retrieve login IDs', icon: XCircle },
+      [ClientToolCallState.generating]: { text: 'Fetching connected integrations', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Fetching connected integrations', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Fetching connected integrations', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Fetched connected integrations', icon: Key },
+      [ClientToolCallState.error]: {
+        text: 'Failed to fetch connected integrations',
+        icon: XCircle,
+      },
       [ClientToolCallState.aborted]: {
-        text: 'Aborted fetching OAuth credentials',
+        text: 'Aborted fetching connected integrations',
         icon: MinusCircle,
       },
       [ClientToolCallState.rejected]: {
-        text: 'Skipped fetching OAuth credentials',
+        text: 'Skipped fetching connected integrations',
         icon: MinusCircle,
       },
     },
   }
 
-  async execute(args?: GetOAuthCredentialsArgs): Promise<void> {
-    const logger = createLogger('GetOAuthCredentialsClientTool')
+  async execute(args?: GetCredentialsArgs): Promise<void> {
+    const logger = createLogger('GetCredentialsClientTool')
     try {
       this.setState(ClientToolCallState.executing)
-      const payload: GetOAuthCredentialsArgs = { ...(args || {}) }
+      const payload: GetCredentialsArgs = { ...(args || {}) }
       if (!payload.workflowId && !payload.userId) {
         const { activeWorkflowId } = useWorkflowRegistry.getState()
         if (activeWorkflowId) payload.workflowId = activeWorkflowId
@@ -50,7 +53,7 @@ export class GetOAuthCredentialsClientTool extends BaseClientTool {
       const res = await fetch('/api/copilot/execute-copilot-server-tool', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'get_oauth_credentials', payload }),
+        body: JSON.stringify({ toolName: 'get_credentials', payload }),
       })
       if (!res.ok) {
         const txt = await res.text().catch(() => '')
@@ -59,12 +62,12 @@ export class GetOAuthCredentialsClientTool extends BaseClientTool {
       const json = await res.json()
       const parsed = ExecuteResponseSuccessSchema.parse(json)
       this.setState(ClientToolCallState.success)
-      await this.markToolComplete(200, 'Retrieved login IDs', parsed.result)
+      await this.markToolComplete(200, 'Connected integrations fetched', parsed.result)
       this.setState(ClientToolCallState.success)
     } catch (e: any) {
       logger.error('execute failed', { message: e?.message })
       this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Failed to retrieve login IDs')
+      await this.markToolComplete(500, e?.message || 'Failed to fetch connected integrations')
     }
   }
 }

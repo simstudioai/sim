@@ -319,15 +319,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           eventHandlers.current.workflowReverted?.(data)
         })
 
-        // Workflow update events (external changes like LLM edits)
-        socketInstance.on('workflow-updated', (data) => {
-          logger.info(`Workflow ${data.workflowId} has been updated externally - requesting sync`)
-          // Request fresh workflow state to sync with external changes
-          if (data.workflowId === urlWorkflowId) {
-            socketInstance.emit('request-sync', { workflowId: data.workflowId })
-          }
-        })
-
         // Shared function to rehydrate workflow stores
         const rehydrateWorkflowStores = async (
           workflowId: string,
@@ -340,11 +331,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             { useWorkflowRegistry },
             { useWorkflowStore },
             { useSubBlockStore },
+            { useWorkflowDiffStore },
           ] = await Promise.all([
             import('@/stores/operation-queue/store'),
             import('@/stores/workflows/registry/store'),
             import('@/stores/workflows/workflow/store'),
             import('@/stores/workflows/subblock/store'),
+            import('@/stores/workflow-diff/store'),
           ])
 
           // Only proceed if this is the active workflow

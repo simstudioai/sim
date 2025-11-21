@@ -4,24 +4,23 @@ import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import { getEnvironmentVariableKeys } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
-interface GetOAuthCredentialsParams {
+interface GetCredentialsParams {
   userId?: string
   workflowId?: string
 }
 
-export const getOAuthCredentialsServerTool: BaseServerTool<GetOAuthCredentialsParams, any> = {
-  name: 'get_oauth_credentials',
-  async execute(params: GetOAuthCredentialsParams, context?: { userId: string }): Promise<any> {
-    const logger = createLogger('GetOAuthCredentialsServerTool')
+export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any> = {
+  name: 'get_credentials',
+  async execute(params: GetCredentialsParams, context?: { userId: string }): Promise<any> {
+    const logger = createLogger('GetCredentialsServerTool')
 
     if (!context?.userId) {
-      logger.error(
-        'Unauthorized attempt to access OAuth credentials - no authenticated user context'
-      )
+      logger.error('Unauthorized attempt to access credentials - no authenticated user context')
       throw new Error('Authentication required')
     }
 
@@ -32,7 +31,7 @@ export const getOAuthCredentialsServerTool: BaseServerTool<GetOAuthCredentialsPa
 
       if (!hasAccess) {
         const errorMessage = createPermissionError('access credentials in')
-        logger.error('Unauthorized attempt to access OAuth credentials', {
+        logger.error('Unauthorized attempt to access credentials', {
           workflowId: params.workflowId,
           authenticatedUserId,
         })
@@ -42,10 +41,12 @@ export const getOAuthCredentialsServerTool: BaseServerTool<GetOAuthCredentialsPa
 
     const userId = authenticatedUserId
 
-    logger.info('Fetching OAuth credentials for authenticated user', {
+    logger.info('Fetching credentials for authenticated user', {
       userId,
       hasWorkflowId: !!params?.workflowId,
     })
+
+    // Fetch OAuth credentials
     const accounts = await db.select().from(account).where(eq(account.userId, userId))
     const userRecord = await db
       .select({ email: user.email })
@@ -54,7 +55,7 @@ export const getOAuthCredentialsServerTool: BaseServerTool<GetOAuthCredentialsPa
       .limit(1)
     const userEmail = userRecord.length > 0 ? userRecord[0]?.email : null
 
-    const credentials: Array<{
+    const oauthCredentials: Array<{
       id: string
       name: string
       provider: string
@@ -85,7 +86,7 @@ export const getOAuthCredentialsServerTool: BaseServerTool<GetOAuthCredentialsPa
         )
         accessToken = refreshedToken || accessToken
       } catch {}
-      credentials.push({
+      oauthCredentials.push({
         id: acc.id,
         name: displayName,
         provider: providerId,
@@ -94,7 +95,25 @@ export const getOAuthCredentialsServerTool: BaseServerTool<GetOAuthCredentialsPa
         accessToken,
       })
     }
-    logger.info('Fetched OAuth credentials', { userId, count: credentials.length })
-    return { credentials, total: credentials.length }
+
+    // Fetch environment variables
+    const envResult = await getEnvironmentVariableKeys(userId)
+
+    logger.info('Fetched credentials', {
+      userId,
+      oauthCount: oauthCredentials.length,
+      envVarCount: envResult.count,
+    })
+
+    return {
+      oauth: {
+        credentials: oauthCredentials,
+        total: oauthCredentials.length,
+      },
+      environment: {
+        variableNames: envResult.variableNames,
+        count: envResult.count,
+      },
+    }
   },
 }

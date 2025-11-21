@@ -53,18 +53,11 @@ export type ChatContext =
   | { kind: 'templates'; templateId?: string; label: string }
   | { kind: 'docs'; label: string }
 
-export interface CopilotChat {
-  id: string
-  title: string | null
-  model: string
-  messages: CopilotMessage[]
-  messageCount: number
-  previewYaml: string | null
-  createdAt: Date
-  updatedAt: Date
-}
+import type { CopilotChat as ApiCopilotChat } from '@/lib/copilot/api'
 
-export type CopilotMode = 'ask' | 'build'
+export type CopilotChat = ApiCopilotChat
+
+export type CopilotMode = 'ask' | 'build' | 'plan'
 
 export interface CopilotState {
   mode: CopilotMode
@@ -114,6 +107,9 @@ export interface CopilotState {
 
   planTodos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>
   showPlanTodos: boolean
+
+  // Streaming plan content from design_workflow tool (for plan mode section)
+  streamingPlanContent: string
 
   // Map of toolCallId -> CopilotToolCall for quick access during streaming
   toolCallsById: Record<string, CopilotToolCall>
@@ -198,6 +194,8 @@ export interface CopilotActions {
   ) => void
   updatePlanTodoStatus: (id: string, status: 'executing' | 'completed') => void
   closePlanTodos: () => void
+  clearPlanArtifact: () => Promise<void>
+  savePlanArtifact: (content: string) => Promise<void>
 
   handleStreamingResponse: (
     stream: ReadableStream,

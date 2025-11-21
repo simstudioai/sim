@@ -70,7 +70,7 @@ export function OutputSelect({
   const popoverRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const blocks = useWorkflowStore((state) => state.blocks)
-  const { isShowingDiff, isDiffReady, diffWorkflow } = useWorkflowDiffStore()
+  const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore()
   const subBlockValues = useSubBlockStore((state) =>
     workflowId ? state.workflowValues[workflowId] : null
   )
@@ -78,7 +78,9 @@ export function OutputSelect({
   /**
    * Uses diff blocks when in diff mode, otherwise main blocks
    */
-  const workflowBlocks = isShowingDiff && isDiffReady && diffWorkflow ? diffWorkflow.blocks : blocks
+  const shouldUseBaseline = hasActiveDiff && isDiffReady && !isShowingDiff && baselineWorkflow
+  const workflowBlocks =
+    shouldUseBaseline && baselineWorkflow ? baselineWorkflow.blocks : (blocks as any)
 
   /**
    * Extracts all available workflow outputs for the dropdown
@@ -100,7 +102,7 @@ export function OutputSelect({
     const blockArray = Object.values(workflowBlocks)
     if (blockArray.length === 0) return outputs
 
-    blockArray.forEach((block) => {
+    blockArray.forEach((block: any) => {
       if (block.type === 'starter' || !block?.id || !block?.type) return
 
       const blockName =
@@ -110,8 +112,8 @@ export function OutputSelect({
 
       const blockConfig = getBlock(block.type)
       const responseFormatValue =
-        isShowingDiff && isDiffReady && diffWorkflow
-          ? diffWorkflow.blocks[block.id]?.subBlocks?.responseFormat?.value
+        shouldUseBaseline && baselineWorkflow
+          ? baselineWorkflow.blocks?.[block.id]?.subBlocks?.responseFormat?.value
           : subBlockValues?.[block.id]?.responseFormat
       const responseFormat = parseResponseFormatSafely(responseFormatValue, block.id)
 
@@ -164,7 +166,16 @@ export function OutputSelect({
     })
 
     return outputs
-  }, [workflowBlocks, workflowId, isShowingDiff, isDiffReady, diffWorkflow, blocks, subBlockValues])
+  }, [
+    workflowBlocks,
+    workflowId,
+    isShowingDiff,
+    isDiffReady,
+    baselineWorkflow,
+    blocks,
+    subBlockValues,
+    shouldUseBaseline,
+  ])
 
   /**
    * Checks if an output is currently selected by comparing both ID and label

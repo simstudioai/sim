@@ -8,8 +8,8 @@ import { Button } from '@/components/emcn'
 interface WelcomeProps {
   /** Callback when a suggested question is clicked */
   onQuestionClick?: (question: string) => void
-  /** Current copilot mode ('ask' for Q&A, 'build' for workflow building) */
-  mode?: 'ask' | 'build'
+  /** Current copilot mode ('ask' for Q&A, 'plan' for planning, 'build' for workflow building) */
+  mode?: 'ask' | 'build' | 'plan'
 }
 
 /**

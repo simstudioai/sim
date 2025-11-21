@@ -38,6 +38,33 @@ export class RunWorkflowClientTool extends BaseClientTool {
       accept: { text: 'Run', icon: Play },
       reject: { text: 'Skip', icon: MinusCircle },
     },
+    getDynamicText: (params, state) => {
+      const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
+      if (workflowId) {
+        const workflowName = useWorkflowRegistry.getState().workflows[workflowId]?.name
+        if (workflowName) {
+          switch (state) {
+            case ClientToolCallState.success:
+              return `Ran ${workflowName}`
+            case ClientToolCallState.executing:
+              return `Running ${workflowName}`
+            case ClientToolCallState.generating:
+              return `Preparing to run ${workflowName}`
+            case ClientToolCallState.pending:
+              return `Run ${workflowName}?`
+            case ClientToolCallState.error:
+              return `Failed to run ${workflowName}`
+            case ClientToolCallState.rejected:
+              return `Skipped running ${workflowName}`
+            case ClientToolCallState.aborted:
+              return `Aborted running ${workflowName}`
+            case ClientToolCallState.background:
+              return `Running ${workflowName} in background`
+          }
+        }
+      }
+      return undefined
+    },
   }
 
   async handleReject(): Promise<void> {

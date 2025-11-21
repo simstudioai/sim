@@ -1250,6 +1250,8 @@ export const copilotChats = pgTable(
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
     conversationId: text('conversation_id'),
     previewYaml: text('preview_yaml'), // YAML content for pending workflow preview
+    planArtifact: text('plan_artifact'), // Plan/design document artifact for the chat
+    config: jsonb('config'), // JSON config storing model and mode settings { model, mode }
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

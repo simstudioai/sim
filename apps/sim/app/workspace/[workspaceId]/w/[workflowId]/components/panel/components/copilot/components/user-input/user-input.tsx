@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils'
 import {
   AttachedFilesDisplay,
   ContextPills,
+  ContextUsageIndicator,
   MentionMenu,
   ModelSelector,
   ModeSelector,
@@ -52,12 +53,13 @@ interface UserInputProps {
   isAborting?: boolean
   placeholder?: string
   className?: string
-  mode?: 'ask' | 'build'
-  onModeChange?: (mode: 'ask' | 'build') => void
+  mode?: 'ask' | 'build' | 'plan'
+  onModeChange?: (mode: 'ask' | 'build' | 'plan') => void
   value?: string
   onChange?: (value: string) => void
   panelWidth?: number
   clearOnSubmit?: boolean
+  hasPlanArtifact?: boolean
 }
 
 interface UserInputRef {
@@ -88,6 +90,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       onChange: onControlledChange,
       panelWidth = 308,
       clearOnSubmit = true,
+      hasPlanArtifact = false,
     },
     ref
   ) => {
@@ -97,7 +100,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const workspaceId = params.workspaceId as string
 
     // Store hooks
-    const { workflowId, selectedModel, setSelectedModel } = useCopilotStore()
+    const { workflowId, selectedModel, setSelectedModel, contextUsage } = useCopilotStore()
 
     // Internal state
     const [internalMessage, setInternalMessage] = useState('')
@@ -112,7 +115,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     // Effective placeholder
     const effectivePlaceholder =
-      placeholder || (mode === 'ask' ? 'Ask about your workflow' : 'Plan, search, build anything')
+      placeholder ||
+      (mode === 'ask'
+        ? 'Ask about your workflow'
+        : mode === 'plan'
+          ? 'Plan your workflow'
+          : 'Plan, search, build anything')
 
     // Custom hooks - order matters for ref sharing
     // Context management (manages selectedContexts state)
@@ -271,51 +279,73 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }, [mentionMenu.openSubmenuFor])
 
     // Handlers
-    const handleSubmit = useCallback(async () => {
-      const trimmedMessage = message.trim()
-      if (!trimmedMessage || disabled || isLoading) return
+    const handleSubmit = useCallback(
+      async (overrideMessage?: string, options: { preserveInput?: boolean } = {}) => {
+        const targetMessage = overrideMessage ?? message
+        const trimmedMessage = targetMessage.trim()
+        if (!trimmedMessage || disabled || isLoading) return
 
-      const failedUploads = fileAttachments.attachedFiles.filter((f) => !f.uploading && !f.key)
-      if (failedUploads.length > 0) {
-        logger.error(`Some files failed to upload: ${failedUploads.map((f) => f.name).join(', ')}`)
+        const failedUploads = fileAttachments.attachedFiles.filter((f) => !f.uploading && !f.key)
+        if (failedUploads.length > 0) {
+          logger.error(
+            `Some files failed to upload: ${failedUploads.map((f) => f.name).join(', ')}`
+          )
+        }
+
+        const fileAttachmentsForApi = fileAttachments.attachedFiles
+          .filter((f) => !f.uploading && f.key)
+          .map((f) => ({
+            id: f.id,
+            key: f.key!,
+            filename: f.name,
+            media_type: f.type,
+            size: f.size,
+          }))
+
+        onSubmit(trimmedMessage, fileAttachmentsForApi, contextManagement.selectedContexts as any)
+
+        const shouldClearInput = clearOnSubmit && !options.preserveInput && !overrideMessage
+        if (shouldClearInput) {
+          fileAttachments.attachedFiles.forEach((f) => {
+            if (f.previewUrl) {
+              URL.revokeObjectURL(f.previewUrl)
+            }
+          })
+
+          setMessage('')
+          fileAttachments.clearAttachedFiles()
+          contextManagement.clearContexts()
+          mentionMenu.setOpenSubmenuFor(null)
+        } else {
+          mentionMenu.setOpenSubmenuFor(null)
+        }
+
+        mentionMenu.setShowMentionMenu(false)
+      },
+      [
+        message,
+        disabled,
+        isLoading,
+        fileAttachments,
+        onSubmit,
+        contextManagement,
+        clearOnSubmit,
+        setMessage,
+        mentionMenu,
+      ]
+    )
+
+    const handleBuildWorkflow = useCallback(() => {
+      if (!hasPlanArtifact || !onModeChange) {
+        return
+      }
+      if (disabled || isLoading) {
+        return
       }
 
-      const fileAttachmentsForApi = fileAttachments.attachedFiles
-        .filter((f) => !f.uploading && f.key)
-        .map((f) => ({
-          id: f.id,
-          key: f.key!,
-          filename: f.name,
-          media_type: f.type,
-          size: f.size,
-        }))
-
-      onSubmit(trimmedMessage, fileAttachmentsForApi, contextManagement.selectedContexts as any)
-
-      if (clearOnSubmit) {
-        fileAttachments.attachedFiles.forEach((f) => {
-          if (f.previewUrl) {
-            URL.revokeObjectURL(f.previewUrl)
-          }
-        })
-
-        setMessage('')
-        fileAttachments.clearAttachedFiles()
-        contextManagement.clearContexts()
-        mentionMenu.setOpenSubmenuFor(null)
-      }
-      mentionMenu.setShowMentionMenu(false)
-    }, [
-      message,
-      disabled,
-      isLoading,
-      fileAttachments,
-      onSubmit,
-      contextManagement,
-      clearOnSubmit,
-      setMessage,
-      mentionMenu,
-    ])
+      onModeChange('build')
+      void handleSubmit('build the workflow according to the design plan', { preserveInput: true })
+    }, [hasPlanArtifact, onModeChange, disabled, isLoading, handleSubmit])
 
     const handleAbort = useCallback(() => {
       if (onAbort && isLoading) {
@@ -576,25 +606,47 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           onDragOver={fileAttachments.handleDragOver}
           onDrop={fileAttachments.handleDrop}
         >
-          {/* Top Row: @ Button + Context Pills + Context Usage Pill */}
-          <div className='mb-[6px] flex flex-wrap items-center gap-[6px]'>
-            <Badge
-              variant='outline'
-              onClick={handleOpenMentionMenuWithAt}
-              title='Insert @'
-              className={cn(
-                'cursor-pointer rounded-[6px] p-[4.5px]',
-                (disabled || isLoading) && 'cursor-not-allowed'
-              )}
-            >
-              <AtSign className='h-3 w-3' strokeWidth={1.75} />
-            </Badge>
+          {/* Top Row: Context controls + Build Workflow button */}
+          <div className='mb-[6px] flex flex-wrap items-center justify-between gap-[6px]'>
+            <div className='flex flex-wrap items-center gap-[6px]'>
+              <Badge
+                variant='outline'
+                onClick={handleOpenMentionMenuWithAt}
+                title='Insert @'
+                className={cn(
+                  'cursor-pointer rounded-[6px] p-[4.5px]',
+                  (disabled || isLoading) && 'cursor-not-allowed'
+                )}
+              >
+                <AtSign className='h-3 w-3' strokeWidth={1.75} />
+              </Badge>
 
-            {/* Selected Context Pills */}
-            <ContextPills
-              contexts={contextManagement.selectedContexts}
-              onRemoveContext={contextManagement.removeContext}
-            />
+              {/* Context Usage Indicator */}
+              {contextUsage && contextUsage.percentage > 0 && (
+                <ContextUsageIndicator
+                  percentage={contextUsage.percentage}
+                  size={18}
+                  strokeWidth={2.5}
+                />
+              )}
+
+              {/* Selected Context Pills */}
+              <ContextPills
+                contexts={contextManagement.selectedContexts}
+                onRemoveContext={contextManagement.removeContext}
+              />
+            </div>
+
+            {hasPlanArtifact && (
+              <Button
+                type='button'
+                variant='outline'
+                onClick={handleBuildWorkflow}
+                disabled={disabled || isLoading}
+              >
+                Build Plan
+              </Button>
+            )}
           </div>
 
           {/* Attached Files Display */}
@@ -709,7 +761,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                 </Button>
               ) : (
                 <Button
-                  onClick={handleSubmit}
+                  onClick={() => {
+                    void handleSubmit()
+                  }}
                   disabled={!canSubmit}
                   className={cn(
                     'h-[22px] w-[22px] rounded-full p-0 transition-colors',
