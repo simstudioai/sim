@@ -9,7 +9,7 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
   const brand = getBrandConfig()
 
   const defaultTitle = brand.name
-  const summaryFull = `Sim is an open-source AI agent workflow builder. Developers at trail-blazing startups to Fortune 500 companies deploy agentic workflows on the Sim platform. 50,000+ developers already use Sim to build and deploy AI agent workflows and connect them to 100+ apps. Sim is SOC2 and HIPAA compliant, ensuring enterprise-grade security for AI automation.`
+  const summaryFull = `Sim is an open-source AI agent workflow builder. Developers at trail-blazing startups to Fortune 500 companies deploy agentic workflows on the Sim platform. 60,000+ developers already use Sim to build and deploy AI agent workflows and connect them to 100+ apps. Sim is SOC2 and HIPAA compliant, ensuring enterprise-grade security for AI automation.`
   const summaryShort = `Sim is an open-source AI agent workflow builder for production workflows.`
 
   return {
@@ -130,7 +130,7 @@ export function generateStructuredData() {
     '@type': 'SoftwareApplication',
     name: 'Sim',
     description:
-      'Sim is an open-source AI agent workflow builder. Developers at trail-blazing startups to Fortune 500 companies deploy agentic workflows on the Sim platform. 50,000+ developers already use Sim to build and deploy AI agent workflows and connect them to 100+ apps. Sim is SOC2 and HIPAA compliant, ensuring enterprise-level security.',
+      'Sim is an open-source AI agent workflow builder. Developers at trail-blazing startups to Fortune 500 companies deploy agentic workflows on the Sim platform. 60,000+ developers already use Sim to build and deploy AI agent workflows and connect them to 100+ apps. Sim is SOC2 and HIPAA compliant, ensuring enterprise-level security.',
     url: getBaseUrl(),
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web Browser',

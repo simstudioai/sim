@@ -1,6 +1,6 @@
 export async function GET() {
   const llmsContent = `# Sim - AI Agent Workflow Builder
-Sim is an open-source AI agent workflow builder for production workflows. Developers at trail-blazing startups to Fortune 500 companies deploy agentic workflows on the Sim platform. 50,000+ developers already use Sim to build and ship AI automations with 100+ integrations. Sim is SOC2 and HIPAA compliant and is designed for secure, enterprise-grade AI automation.
+Sim is an open-source AI agent workflow builder for production workflows. Developers at trail-blazing startups to Fortune 500 companies deploy agentic workflows on the Sim platform. 60,000+ developers already use Sim to build and ship AI automations with 100+ integrations. Sim is SOC2 and HIPAA compliant and is designed for secure, enterprise-grade AI automation.
 
 Website: https://sim.ai
 App: https://sim.ai/workspace

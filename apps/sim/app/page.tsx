@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
   title: 'Sim - AI Agent Workflow Builder | Open Source Platform',
   description:
-    'Open-source AI agent workflow builder used by 50,000+ developers. Build and deploy agentic workflows with a visual drag-and-drop canvas. Connect 100+ apps and ship SOC2 & HIPAA-ready AI automations from startups to Fortune 500.',
+    'Open-source AI agent workflow builder used by 60,000+ developers. Build and deploy agentic workflows with a visual drag-and-drop canvas. Connect 100+ apps and ship SOC2 & HIPAA-ready AI automations from startups to Fortune 500.',
   keywords:
     'AI agent workflow builder, agentic workflows, open source AI, visual workflow builder, AI automation, LLM workflows, AI agents, workflow automation, no-code AI, SOC2 compliant, HIPAA compliant, enterprise AI',
   authors: [{ name: 'Sim Studio' }],
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Sim - AI Agent Workflow Builder | Open Source',
     description:
-      'Open-source platform used by 50,000+ developers. Design, deploy, and monitor agentic workflows with a visual drag-and-drop interface, 100+ integrations, and enterprise-grade security.',
+      'Open-source platform used by 60,000+ developers. Design, deploy, and monitor agentic workflows with a visual drag-and-drop interface, 100+ integrations, and enterprise-grade security.',
     type: 'website',
     url: baseUrl,
     siteName: 'Sim',
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     creator: '@simdotai',
     title: 'Sim - AI Agent Workflow Builder | Open Source',
     description:
-      'Open-source platform for agentic workflows. 50,000+ developers. Visual builder. 100+ integrations. SOC2 & HIPAA compliant.',
+      'Open-source platform for agentic workflows. 60,000+ developers. Visual builder. 100+ integrations. SOC2 & HIPAA compliant.',
     images: {
       url: '/social/twitter-image.png',
       alt: 'Sim - Visual AI Workflow Builder',
