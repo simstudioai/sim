@@ -95,7 +95,7 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   },
   'clear-notifications': {
     id: 'clear-notifications',
-    shortcut: 'N',
+    shortcut: 'Mod+E',
     allowInEditable: false,
   },
 }

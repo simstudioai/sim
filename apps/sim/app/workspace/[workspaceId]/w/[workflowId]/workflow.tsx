@@ -67,6 +67,8 @@ const edgeTypes: EdgeTypes = {
 // Memoized ReactFlow props to prevent unnecessary re-renders
 const defaultEdgeOptions = { type: 'custom' }
 const snapGrid: [number, number] = [20, 20]
+const reactFlowFitViewOptions = { padding: 0.6 } as const
+const reactFlowProOptions = { hideAttribution: true } as const
 
 interface SelectedEdgeInfo {
   id: string
@@ -2162,19 +2164,19 @@ const WorkflowContent = React.memo(() => {
           onDrop={effectivePermissions.canEdit ? onDrop : undefined}
           onDragOver={effectivePermissions.canEdit ? onDragOver : undefined}
           fitView
-          fitViewOptions={{ padding: 0.6 }}
           onInit={(instance) => {
             requestAnimationFrame(() => {
               requestAnimationFrame(() => {
-                instance.fitView({ padding: 0.3 })
+                instance.fitView(reactFlowFitViewOptions)
               })
             })
           }}
           minZoom={0.1}
           maxZoom={1.3}
           panOnScroll
+          fitViewOptions={reactFlowFitViewOptions} // Not seen due to onInit
           defaultEdgeOptions={defaultEdgeOptions}
-          proOptions={{ hideAttribution: true }}
+          proOptions={reactFlowProOptions}
           connectionLineStyle={connectionLineStyle}
           connectionLineType={ConnectionLineType.SmoothStep}
           onNodeClick={(e, _node) => {

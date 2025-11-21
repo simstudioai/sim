@@ -1,5 +1,4 @@
 export { CommandList } from './command-list/command-list'
-export { ControlBar } from './control-bar/control-bar'
 export { Cursors } from './cursors/cursors'
 export { DiffControls } from './diff-controls/diff-controls'
 export { ErrorBoundary } from './error/index'

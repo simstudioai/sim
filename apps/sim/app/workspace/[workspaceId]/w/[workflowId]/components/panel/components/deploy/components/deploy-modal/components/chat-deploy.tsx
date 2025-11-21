@@ -18,11 +18,11 @@ import { Alert, AlertDescription, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
-import { AuthSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/components/auth-selector'
-import { IdentifierInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/components/identifier-input'
-import { SuccessView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/components/success-view'
-import { useChatDeployment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/hooks/use-chat-deployment'
-import { useChatForm } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/hooks/use-chat-form'
+import { AuthSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/auth-selector'
+import { IdentifierInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/identifier-input'
+import { SuccessView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/success-view'
+import { useChatDeployment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/hooks/use-chat-deployment'
+import { useChatForm } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/hooks/use-chat-form'
 
 const logger = createLogger('ChatDeploy')
 

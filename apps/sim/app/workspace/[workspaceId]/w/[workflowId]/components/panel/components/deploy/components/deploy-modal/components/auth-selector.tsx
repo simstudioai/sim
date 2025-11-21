@@ -5,7 +5,7 @@ import { Trash } from '@/components/emcn/icons/trash'
 import { Card, CardContent } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/env'
 import { cn, generatePassword } from '@/lib/utils'
-import type { AuthType } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/hooks/use-chat-form'
+import type { AuthType } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/hooks/use-chat-form'
 
 interface AuthSelectorProps {
   authType: AuthType

@@ -12,12 +12,10 @@ import {
   ModalTitle,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import {
-  ApiEndpoint,
-  DeployStatus,
-  ExampleCommand,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deployment-info/components'
-import { DeployedWorkflowModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deployment-controls/components/deployed-workflow-modal'
+import { ApiEndpoint } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/api-endpoint'
+import { DeployStatus } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/deploy-status'
+import { DeployedWorkflowModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/deployed-workflow-modal'
+import { ExampleCommand } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/example-command'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 interface WorkflowDeploymentInfo {

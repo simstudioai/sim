@@ -15,12 +15,10 @@ import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/db-helpers'
 import { resolveStartCandidates, StartBlockPath } from '@/lib/workflows/triggers'
-import {
-  DeploymentInfo,
-  TemplateDeploy,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components'
-import { ChatDeploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/chat-deploy'
-import { DeployedWorkflowModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deployment-controls/components/deployed-workflow-modal'
+import { ChatDeploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/chat-deploy'
+import { DeployedWorkflowModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/deployed-workflow-modal'
+import { DeploymentInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/deployment-info'
+import { TemplateDeploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/template-deploy'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
