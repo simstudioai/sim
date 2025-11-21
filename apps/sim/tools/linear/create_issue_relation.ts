@@ -35,7 +35,8 @@ export const linearCreateIssueRelationTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Relation type: "blocks", "blocked", "duplicate", "related"',
+      description:
+        'Relation type: "blocks", "duplicate", or "related". Note: When creating "blocks" from A to B, the inverse relation (B blocked by A) is automatically created.',
     },
   },
 

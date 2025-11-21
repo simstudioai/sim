@@ -60,7 +60,43 @@ export const linearUpdateIssueTool: ToolConfig<LinearUpdateIssueParams, LinearUp
         type: 'array',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Array of label IDs to set on the issue',
+        description: 'Array of label IDs to set on the issue (replaces all existing labels)',
+      },
+      projectId: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Project ID to move the issue to',
+      },
+      cycleId: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Cycle ID to assign the issue to',
+      },
+      parentId: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Parent issue ID (for making this a sub-issue)',
+      },
+      dueDate: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Due date in ISO 8601 format (date only: YYYY-MM-DD)',
+      },
+      addedLabelIds: {
+        type: 'array',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Array of label IDs to add to the issue (without replacing existing labels)',
+      },
+      removedLabelIds: {
+        type: 'array',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Array of label IDs to remove from the issue',
       },
     },
 
@@ -100,6 +136,24 @@ export const linearUpdateIssueTool: ToolConfig<LinearUpdateIssueParams, LinearUp
         if (params.labelIds != null && Array.isArray(params.labelIds)) {
           input.labelIds = params.labelIds
         }
+        if (params.projectId != null && params.projectId !== '') {
+          input.projectId = params.projectId
+        }
+        if (params.cycleId != null && params.cycleId !== '') {
+          input.cycleId = params.cycleId
+        }
+        if (params.parentId != null && params.parentId !== '') {
+          input.parentId = params.parentId
+        }
+        if (params.dueDate != null && params.dueDate !== '') {
+          input.dueDate = params.dueDate
+        }
+        if (params.addedLabelIds != null && Array.isArray(params.addedLabelIds)) {
+          input.addedLabelIds = params.addedLabelIds
+        }
+        if (params.removedLabelIds != null && Array.isArray(params.removedLabelIds)) {
+          input.removedLabelIds = params.removedLabelIds
+        }
 
         return {
           query: `
@@ -114,6 +168,7 @@ export const linearUpdateIssueTool: ToolConfig<LinearUpdateIssueParams, LinearUp
                 estimate
                 url
                 updatedAt
+                dueDate
                 state {
                   id
                   name
@@ -129,6 +184,15 @@ export const linearUpdateIssueTool: ToolConfig<LinearUpdateIssueParams, LinearUp
                 }
                 project {
                   id
+                }
+                cycle {
+                  id
+                  number
+                  name
+                }
+                parent {
+                  id
+                  title
                 }
                 labels {
                   nodes {
@@ -181,10 +245,16 @@ export const linearUpdateIssueTool: ToolConfig<LinearUpdateIssueParams, LinearUp
             estimate: issue.estimate,
             url: issue.url,
             updatedAt: issue.updatedAt,
+            dueDate: issue.dueDate,
             state: issue.state,
             assignee: issue.assignee,
             teamId: issue.team?.id,
             projectId: issue.project?.id,
+            cycleId: issue.cycle?.id,
+            cycleNumber: issue.cycle?.number,
+            cycleName: issue.cycle?.name,
+            parentId: issue.parent?.id,
+            parentTitle: issue.parent?.title,
             labels: issue.labels?.nodes || [],
           },
         },
@@ -205,6 +275,13 @@ export const linearUpdateIssueTool: ToolConfig<LinearUpdateIssueParams, LinearUp
           assignee: { type: 'object', description: 'Assigned user' },
           labels: { type: 'array', description: 'Issue labels' },
           updatedAt: { type: 'string', description: 'Last update timestamp' },
+          dueDate: { type: 'string', description: 'Due date (YYYY-MM-DD)' },
+          projectId: { type: 'string', description: 'Project ID' },
+          cycleId: { type: 'string', description: 'Cycle ID' },
+          cycleNumber: { type: 'number', description: 'Cycle number' },
+          cycleName: { type: 'string', description: 'Cycle name' },
+          parentId: { type: 'string', description: 'Parent issue ID' },
+          parentTitle: { type: 'string', description: 'Parent issue title' },
         },
       },
     },
