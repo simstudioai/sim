@@ -39,7 +39,7 @@ export const linearArchiveLabelTool: ToolConfig<
     body: (params) => ({
       query: `
         mutation ArchiveLabel($id: String!) {
-          issueLabelDelete(id: $id) {
+          issueLabelArchive(id: $id) {
             success
           }
         }
@@ -62,9 +62,9 @@ export const linearArchiveLabelTool: ToolConfig<
     }
 
     return {
-      success: data.data.issueLabelDelete.success,
+      success: data.data.issueLabelArchive.success,
       output: {
-        success: data.data.issueLabelDelete.success,
+        success: data.data.issueLabelArchive.success,
         labelId: params?.labelId,
       },
     }

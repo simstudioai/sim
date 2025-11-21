@@ -36,6 +36,44 @@ export class MakeApiRequestClientTool extends BaseClientTool {
       accept: { text: 'Execute', icon: Globe2 },
       reject: { text: 'Skip', icon: MinusCircle },
     },
+    getDynamicText: (params, state) => {
+      if (params?.url && typeof params.url === 'string') {
+        const method = params.method || 'GET'
+        let url = params.url
+
+        // Extract domain from URL for cleaner display
+        try {
+          const urlObj = new URL(url)
+          url = urlObj.hostname + urlObj.pathname
+          if (url.length > 40) {
+            url = `${url.slice(0, 40)}...`
+          }
+        } catch {
+          // If URL parsing fails, just truncate
+          if (url.length > 40) {
+            url = `${url.slice(0, 40)}...`
+          }
+        }
+
+        switch (state) {
+          case ClientToolCallState.success:
+            return `${method} ${url} complete`
+          case ClientToolCallState.executing:
+            return `${method} ${url}`
+          case ClientToolCallState.generating:
+            return `Preparing ${method} ${url}`
+          case ClientToolCallState.pending:
+            return `Review ${method} ${url}`
+          case ClientToolCallState.error:
+            return `Failed ${method} ${url}`
+          case ClientToolCallState.rejected:
+            return `Skipped ${method} ${url}`
+          case ClientToolCallState.aborted:
+            return `Aborted ${method} ${url}`
+        }
+      }
+      return undefined
+    },
   }
 
   async handleReject(): Promise<void> {

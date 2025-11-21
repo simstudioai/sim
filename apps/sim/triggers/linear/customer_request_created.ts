@@ -1,6 +1,6 @@
 import { LinearIcon } from '@/components/icons'
+import { buildCustomerRequestOutputs, linearSetupInstructions } from '@/triggers/linear/utils'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildCustomerRequestOutputs, linearSetupInstructions } from './utils'
 
 export const linearCustomerRequestCreatedTrigger: TriggerConfig = {
   id: 'linear_customer_request_created',

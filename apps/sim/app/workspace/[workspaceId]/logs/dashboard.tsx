@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
 import KPIs from '@/app/workspace/[workspaceId]/logs/components/dashboard/kpis'
 import WorkflowDetails from '@/app/workspace/[workspaceId]/logs/components/dashboard/workflow-details'

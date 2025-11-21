@@ -3,7 +3,7 @@ import {
   AirtableIcon,
   AsanaIcon,
   ConfluenceIcon,
-  DiscordIcon,
+  // DiscordIcon,
   GithubIcon,
   GmailIcon,
   GoogleCalendarIcon,
@@ -27,7 +27,7 @@ import {
   RedditIcon,
   SalesforceIcon,
   SlackIcon,
-  SupabaseIcon,
+  // SupabaseIcon,
   TrelloIcon,
   WealthboxIcon,
   WebflowIcon,
@@ -42,12 +42,12 @@ export type OAuthProvider =
   | 'google'
   | 'github'
   | 'x'
-  | 'supabase'
+  // | 'supabase'
   | 'confluence'
   | 'airtable'
   | 'notion'
   | 'jira'
-  | 'discord'
+  // | 'discord'
   | 'microsoft'
   | 'linear'
   | 'slack'
@@ -72,12 +72,12 @@ export type OAuthService =
   | 'google-forms'
   | 'github'
   | 'x'
-  | 'supabase'
+  // | 'supabase'
   | 'confluence'
   | 'airtable'
   | 'notion'
   | 'jira'
-  | 'discord'
+  // | 'discord'
   | 'microsoft-excel'
   | 'microsoft-teams'
   | 'microsoft-planner'
@@ -354,23 +354,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'x',
   },
-  supabase: {
-    id: 'supabase',
-    name: 'Supabase',
-    icon: (props) => SupabaseIcon(props),
-    services: {
-      supabase: {
-        id: 'supabase',
-        name: 'Supabase',
-        description: 'Connect to your Supabase projects and manage data.',
-        providerId: 'supabase',
-        icon: (props) => SupabaseIcon(props),
-        baseProviderIcon: (props) => SupabaseIcon(props),
-        scopes: ['database.read', 'database.write', 'projects.read'],
-      },
-    },
-    defaultService: 'supabase',
-  },
+  // supabase: {
+  //   id: 'supabase',
+  //   name: 'Supabase',
+  //   icon: (props) => SupabaseIcon(props),
+  //   services: {
+  //     supabase: {
+  //       id: 'supabase',
+  //       name: 'Supabase',
+  //       description: 'Connect to your Supabase projects and manage data.',
+  //       providerId: 'supabase',
+  //       icon: (props) => SupabaseIcon(props),
+  //       baseProviderIcon: (props) => SupabaseIcon(props),
+  //       scopes: ['database.read', 'database.write', 'projects.read'],
+  //     },
+  //   },
+  //   defaultService: 'supabase',
+  // },
   confluence: {
     id: 'confluence',
     name: 'Confluence',
@@ -484,23 +484,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'airtable',
   },
-  discord: {
-    id: 'discord',
-    name: 'Discord',
-    icon: (props) => DiscordIcon(props),
-    services: {
-      discord: {
-        id: 'discord',
-        name: 'Discord',
-        description: 'Read and send messages to Discord channels and interact with servers.',
-        providerId: 'discord',
-        icon: (props) => DiscordIcon(props),
-        baseProviderIcon: (props) => DiscordIcon(props),
-        scopes: ['identify', 'bot', 'messages.read', 'guilds', 'guilds.members.read'],
-      },
-    },
-    defaultService: 'discord',
-  },
+  // discord: {
+  //   id: 'discord',
+  //   name: 'Discord',
+  //   icon: (props) => DiscordIcon(props),
+  //   services: {
+  //     discord: {
+  //       id: 'discord',
+  //       name: 'Discord',
+  //       description: 'Read and send messages to Discord channels and interact with servers.',
+  //       providerId: 'discord',
+  //       icon: (props) => DiscordIcon(props),
+  //       baseProviderIcon: (props) => DiscordIcon(props),
+  //       scopes: ['identify', 'bot', 'messages.read', 'guilds', 'guilds.members.read'],
+  //     },
+  //   },
+  //   defaultService: 'discord',
+  // },
   notion: {
     id: 'notion',
     name: 'Notion',
@@ -1033,18 +1033,18 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         supportsRefreshTokenRotation: true,
       }
     }
-    case 'supabase': {
-      const { clientId, clientSecret } = getCredentials(
-        env.SUPABASE_CLIENT_ID,
-        env.SUPABASE_CLIENT_SECRET
-      )
-      return {
-        tokenEndpoint: 'https://api.supabase.com/v1/oauth/token',
-        clientId,
-        clientSecret,
-        useBasicAuth: false,
-      }
-    }
+    // case 'supabase': {
+    //   const { clientId, clientSecret } = getCredentials(
+    //     env.SUPABASE_CLIENT_ID,
+    //     env.SUPABASE_CLIENT_SECRET
+    //   )
+    //   return {
+    //     tokenEndpoint: 'https://api.supabase.com/v1/oauth/token',
+    //     clientId,
+    //     clientSecret,
+    //     useBasicAuth: false,
+    //   }
+    // }
     case 'notion': {
       const { clientId, clientSecret } = getCredentials(
         env.NOTION_CLIENT_ID,
@@ -1057,18 +1057,18 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         useBasicAuth: false,
       }
     }
-    case 'discord': {
-      const { clientId, clientSecret } = getCredentials(
-        env.DISCORD_CLIENT_ID,
-        env.DISCORD_CLIENT_SECRET
-      )
-      return {
-        tokenEndpoint: 'https://discord.com/api/v10/oauth2/token',
-        clientId,
-        clientSecret,
-        useBasicAuth: true,
-      }
-    }
+    // case 'discord': {
+    //   const { clientId, clientSecret } = getCredentials(
+    //     env.DISCORD_CLIENT_ID,
+    //     env.DISCORD_CLIENT_SECRET
+    //   )
+    //   return {
+    //     tokenEndpoint: 'https://discord.com/api/v10/oauth2/token',
+    //     clientId,
+    //     clientSecret,
+    //     useBasicAuth: true,
+    //   }
+    // }
     case 'microsoft': {
       const { clientId, clientSecret } = getCredentials(
         env.MICROSOFT_CLIENT_ID,

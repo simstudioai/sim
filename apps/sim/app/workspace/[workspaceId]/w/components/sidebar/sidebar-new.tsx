@@ -8,6 +8,7 @@ import { useSession } from '@/lib/auth-client'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
   FooterNavigation,
   SearchModal,
@@ -31,7 +32,6 @@ import { useSearchModalStore } from '@/stores/search-modal/store'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('SidebarNew')
-
 // Feature flag: Billing usage indicator visibility (matches legacy sidebar behavior)
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
@@ -377,90 +377,84 @@ export function SidebarNew() {
   )
 
   /**
-   * Register global commands:
-   * - Mod+Shift+A: Add an Agent block to the canvas
-   * - Mod+Y: Navigate to Templates (attempts to override browser history)
-   * - Mod+L: Navigate to Logs (attempts to override browser location bar)
-   * - Mod+K: Search (placeholder; no-op for now)
+   * Resolve a workspace id from either params or the current URL path.
+   *
+   * This mirrors existing behavior but is wrapped in a helper to keep command
+   * handlers small and focused.
    */
-  useRegisterGlobalCommands(() => [
-    {
-      id: 'add-agent',
-      shortcut: 'Mod+Shift+A',
-      allowInEditable: true,
-      handler: () => {
-        try {
-          const event = new CustomEvent('add-block-from-toolbar', {
-            detail: { type: 'agent', enableTriggerMode: false },
-          })
-          window.dispatchEvent(event)
-          logger.info('Dispatched add-agent command')
-        } catch (err) {
-          logger.error('Failed to dispatch add-agent command', { err })
-        }
-      },
-    },
-    {
-      id: 'goto-templates',
-      shortcut: 'Mod+Y',
-      allowInEditable: true,
-      handler: () => {
-        try {
-          const pathWorkspaceId =
-            workspaceId ||
-            (typeof window !== 'undefined'
-              ? (() => {
-                  const parts = window.location.pathname.split('/')
-                  const idx = parts.indexOf('workspace')
-                  return idx !== -1 ? parts[idx + 1] : undefined
-                })()
-              : undefined)
-          if (pathWorkspaceId) {
-            router.push(`/workspace/${pathWorkspaceId}/templates`)
-            logger.info('Navigated to templates', { workspaceId: pathWorkspaceId })
-          } else {
-            logger.warn('No workspace ID found, cannot navigate to templates')
+  const resolveWorkspaceIdFromPath = useCallback((): string | undefined => {
+    if (workspaceId) return workspaceId
+    if (typeof window === 'undefined') return undefined
+
+    const parts = window.location.pathname.split('/')
+    const idx = parts.indexOf('workspace')
+    if (idx === -1) return undefined
+
+    return parts[idx + 1]
+  }, [workspaceId])
+
+  /**
+   * Register global sidebar commands using the central commands registry.
+   *
+   * Only commands declared in the registry can be registered here. The
+   * registry owns ids and shortcut strings; this component supplies handlers.
+   */
+  useRegisterGlobalCommands(() =>
+    createCommands([
+      {
+        id: 'add-agent',
+        handler: () => {
+          try {
+            const event = new CustomEvent('add-block-from-toolbar', {
+              detail: { type: 'agent', enableTriggerMode: false },
+            })
+            window.dispatchEvent(event)
+            logger.info('Dispatched add-agent command')
+          } catch (err) {
+            logger.error('Failed to dispatch add-agent command', { err })
           }
-        } catch (err) {
-          logger.error('Failed to navigate to templates', { err })
-        }
+        },
       },
-    },
-    {
-      id: 'goto-logs',
-      shortcut: 'Mod+L',
-      allowInEditable: true,
-      handler: () => {
-        try {
-          const pathWorkspaceId =
-            workspaceId ||
-            (typeof window !== 'undefined'
-              ? (() => {
-                  const parts = window.location.pathname.split('/')
-                  const idx = parts.indexOf('workspace')
-                  return idx !== -1 ? parts[idx + 1] : undefined
-                })()
-              : undefined)
-          if (pathWorkspaceId) {
-            router.push(`/workspace/${pathWorkspaceId}/logs`)
-            logger.info('Navigated to logs', { workspaceId: pathWorkspaceId })
-          } else {
-            logger.warn('No workspace ID found, cannot navigate to logs')
+      {
+        id: 'goto-templates',
+        handler: () => {
+          try {
+            const pathWorkspaceId = resolveWorkspaceIdFromPath()
+            if (pathWorkspaceId) {
+              router.push(`/workspace/${pathWorkspaceId}/templates`)
+              logger.info('Navigated to templates', { workspaceId: pathWorkspaceId })
+            } else {
+              logger.warn('No workspace ID found, cannot navigate to templates')
+            }
+          } catch (err) {
+            logger.error('Failed to navigate to templates', { err })
           }
-        } catch (err) {
-          logger.error('Failed to navigate to logs', { err })
-        }
+        },
       },
-    },
-    {
-      id: 'open-search',
-      shortcut: 'Mod+K',
-      allowInEditable: true,
-      handler: () => {
-        openSearchModal()
+      {
+        id: 'goto-logs',
+        handler: () => {
+          try {
+            const pathWorkspaceId = resolveWorkspaceIdFromPath()
+            if (pathWorkspaceId) {
+              router.push(`/workspace/${pathWorkspaceId}/logs`)
+              logger.info('Navigated to logs', { workspaceId: pathWorkspaceId })
+            } else {
+              logger.warn('No workspace ID found, cannot navigate to logs')
+            }
+          } catch (err) {
+            logger.error('Failed to navigate to logs', { err })
+          }
+        },
       },
-    },
-  ])
+      {
+        id: 'open-search',
+        handler: () => {
+          openSearchModal()
+        },
+      },
+    ])
+  )
 
   return (
     <>

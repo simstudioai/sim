@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getSelectorDefinition, mergeOption } from './registry'
-import type { SelectorKey, SelectorOption, SelectorQueryArgs } from './types'
+import { getSelectorDefinition, mergeOption } from '@/hooks/selectors/registry'
+import type { SelectorKey, SelectorOption, SelectorQueryArgs } from '@/hooks/selectors/types'
 
 interface SelectorHookArgs extends Omit<SelectorQueryArgs, 'key'> {
   search?: string

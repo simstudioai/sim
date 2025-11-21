@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect } from 'react'
+import AuthBackground from '@/app/(auth)/components/auth-background'
 import Nav from '@/app/(landing)/components/nav/nav'
-import AuthBackground from './components/auth-background'
 
 // Helper to detect if a color is dark
 function isColorDark(hexColor: string): boolean {

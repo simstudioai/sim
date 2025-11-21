@@ -3,10 +3,13 @@
 import React from 'react'
 import ReactFlow, { applyNodeChanges, type NodeChange, useReactFlow } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { LandingLoopNode } from './landing-block/landing-loop-node'
-import { LandingNode } from './landing-block/landing-node'
-import { CARD_WIDTH, type LandingCanvasProps } from './landing-canvas'
-import { LandingEdge } from './landing-edge/landing-edge'
+import { LandingLoopNode } from '@/app/(landing)/components/hero/components/landing-canvas/landing-block/landing-loop-node'
+import { LandingNode } from '@/app/(landing)/components/hero/components/landing-canvas/landing-block/landing-node'
+import {
+  CARD_WIDTH,
+  type LandingCanvasProps,
+} from '@/app/(landing)/components/hero/components/landing-canvas/landing-canvas'
+import { LandingEdge } from '@/app/(landing)/components/hero/components/landing-canvas/landing-edge/landing-edge'
 
 /**
  * Props for the LandingFlow component

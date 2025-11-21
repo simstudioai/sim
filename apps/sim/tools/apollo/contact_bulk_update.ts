@@ -1,5 +1,8 @@
+import type {
+  ApolloContactBulkUpdateParams,
+  ApolloContactBulkUpdateResponse,
+} from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ApolloContactBulkUpdateParams, ApolloContactBulkUpdateResponse } from './types'
 
 export const apolloContactBulkUpdateTool: ToolConfig<
   ApolloContactBulkUpdateParams,

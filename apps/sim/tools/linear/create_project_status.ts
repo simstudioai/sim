@@ -19,6 +19,12 @@ export const linearCreateProjectStatusTool: ToolConfig<
   },
 
   params: {
+    projectId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The project to create the status for',
+    },
     name: {
       type: 'string',
       required: true,
@@ -65,6 +71,7 @@ export const linearCreateProjectStatusTool: ToolConfig<
     },
     body: (params) => {
       const input: Record<string, any> = {
+        projectId: params.projectId,
         name: params.name,
         color: params.color,
       }

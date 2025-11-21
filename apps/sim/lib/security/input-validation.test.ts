@@ -8,7 +8,7 @@ import {
   validateNumericId,
   validatePathSegment,
   validateUUID,
-} from './input-validation'
+} from '@/lib/security/input-validation'
 
 describe('validatePathSegment', () => {
   describe('valid inputs', () => {

@@ -142,7 +142,10 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
             JSON.stringify(op.operation.payload) === JSON.stringify(operation.operation.payload)))
     )
 
-    if (duplicateContent) {
+    const isReplaceStateWorkflowOp =
+      operation.operation.target === 'workflow' && operation.operation.operation === 'replace-state'
+
+    if (duplicateContent && !isReplaceStateWorkflowOp) {
       logger.debug('Skipping duplicate operation content', {
         operationId: operation.id,
         existingOperationId: duplicateContent.id,

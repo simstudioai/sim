@@ -3,7 +3,7 @@
 import { memo, useMemo, useState } from 'react'
 import { Check, Copy, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
-import MarkdownRenderer from './components/markdown-renderer'
+import MarkdownRenderer from '@/app/chat/components/message/components/markdown-renderer'
 
 export interface ChatAttachment {
   id: string

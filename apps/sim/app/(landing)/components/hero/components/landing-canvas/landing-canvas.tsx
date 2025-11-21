@@ -3,9 +3,9 @@
 import React from 'react'
 import type { Edge, Node } from 'reactflow'
 import { ReactFlowProvider } from 'reactflow'
-import { DotPattern } from './dot-pattern'
-import type { LandingCardData } from './landing-block/landing-block'
-import { LandingFlow } from './landing-flow'
+import { DotPattern } from '@/app/(landing)/components/hero/components/landing-canvas/dot-pattern'
+import type { LandingCardData } from '@/app/(landing)/components/hero/components/landing-canvas/landing-block/landing-block'
+import { LandingFlow } from '@/app/(landing)/components/hero/components/landing-canvas/landing-flow'
 
 /**
  * Visual constants for landing node dimensions

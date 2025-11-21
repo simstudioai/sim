@@ -1,6 +1,10 @@
 import { LinearIcon } from '@/components/icons'
+import {
+  buildIssueOutputs,
+  linearSetupInstructions,
+  linearTriggerOptions,
+} from '@/triggers/linear/utils'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildIssueOutputs, linearSetupInstructions, linearTriggerOptions } from './utils'
 
 export const linearIssueCreatedTrigger: TriggerConfig = {
   id: 'linear_issue_created',

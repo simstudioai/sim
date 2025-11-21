@@ -1,7 +1,7 @@
 'use client'
 
 import type * as React from 'react'
-import { blockTypeToIconMap } from './icon-mapping'
+import { blockTypeToIconMap } from '@/components/ui/icon-mapping'
 
 interface BlockInfoCardProps {
   type: string

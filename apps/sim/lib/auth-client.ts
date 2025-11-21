@@ -11,8 +11,8 @@ import { createAuthClient } from 'better-auth/react'
 import type { auth } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { isBillingEnabled } from '@/lib/environment'
-import { SessionContext, type SessionHookResult } from '@/lib/session/session-context'
 import { getBaseUrl } from '@/lib/urls/utils'
+import { SessionContext, type SessionHookResult } from '@/app/_shell/providers/session-provider'
 
 export const client = createAuthClient({
   baseURL: getBaseUrl(),

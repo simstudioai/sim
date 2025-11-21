@@ -7,8 +7,8 @@ on:
 jobs:
   process-docs-embeddings:
     name: Process Documentation Embeddings
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code
@@ -41,6 +41,6 @@ jobs:
       - name: Process docs embeddings
         working-directory: ./apps/sim
         env:
-          DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || secrets.STAGING_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: bun run scripts/process-docs.ts --clear 

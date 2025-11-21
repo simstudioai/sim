@@ -1,4 +1,4 @@
-import TemplatesLayoutClient from './layout-client'
+import TemplatesLayoutClient from '@/app/templates/layout-client'
 
 /**
  * Templates layout - server component wrapper for client layout.

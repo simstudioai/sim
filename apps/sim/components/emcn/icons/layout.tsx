@@ -1,5 +1,5 @@
 import type { SVGProps } from 'react'
-import styles from './animate/layout.module.css'
+import styles from '@/components/emcn/icons/animate/layout.module.css'
 
 export type LayoutAnimationVariant = 'clockwise' | 'counterclockwise'
 

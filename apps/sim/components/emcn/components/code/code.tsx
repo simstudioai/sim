@@ -333,7 +333,7 @@ function Viewer({
                     {idx + 1}
                   </div>
                   <pre
-                    className='m-0 min-w-0 whitespace-pre-wrap pr-2 pl-2 font-mono text-[#eeeeee] text-[13px] leading-[21px]'
+                    className='m-0 min-w-0 whitespace-pre-wrap break-words pr-2 pl-2 font-mono text-[#eeeeee] text-[13px] leading-[21px]'
                     // Using per-line highlighting keeps the gutter height in sync with wrapped content
                     dangerouslySetInnerHTML={{ __html: perLineHighlighted || '&nbsp;' }}
                   />

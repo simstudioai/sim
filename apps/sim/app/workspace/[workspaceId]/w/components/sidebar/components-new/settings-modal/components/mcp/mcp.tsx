@@ -7,7 +7,9 @@ import { Button } from '@/components/emcn'
 import { Alert, AlertDescription, Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
-import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
+import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
+import { AddServerForm } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/mcp/components/add-server-form'
+import type { McpServerFormData } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/mcp/types'
 import {
   useCreateMcpServer,
   useDeleteMcpServer,
@@ -15,8 +17,6 @@ import {
   useMcpToolsQuery,
 } from '@/hooks/queries/mcp'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
-import { AddServerForm } from './components/add-server-form'
-import type { McpServerFormData } from './types'
 
 const logger = createLogger('McpSettings')
 

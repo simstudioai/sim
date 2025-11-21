@@ -6,6 +6,36 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
+vi.mock('@/lib/execution/preprocessing', () => ({
+  preprocessExecution: vi.fn().mockResolvedValue({
+    success: true,
+    actorUserId: 'test-user-id',
+    workflowRecord: {
+      id: 'test-workflow-id',
+      userId: 'test-user-id',
+      isDeployed: true,
+      workspaceId: 'test-workspace-id',
+      variables: {},
+    },
+    userSubscription: {
+      plan: 'pro',
+      status: 'active',
+    },
+    rateLimitInfo: {
+      allowed: true,
+      remaining: 100,
+      resetAt: new Date(),
+    },
+  }),
+}))
+
+vi.mock('@/lib/logs/execution/logging-session', () => ({
+  LoggingSession: vi.fn().mockImplementation(() => ({
+    safeStart: vi.fn().mockResolvedValue(undefined),
+    safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
+  })),
+}))
+
 describe('Chat Identifier API Route', () => {
   const createMockStream = () => {
     return new ReadableStream({
@@ -307,48 +337,16 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should return 503 when workflow is not available', async () => {
-      // Override the default workflow result to return non-deployed
-      vi.doMock('@sim/db', () => {
-        // Track call count to return different results
-        let callCount = 0
+      const { preprocessExecution } = await import('@/lib/execution/preprocessing')
+      const originalImplementation = vi.mocked(preprocessExecution).getMockImplementation()
 
-        const mockLimit = vi.fn().mockImplementation(() => {
-          callCount++
-          if (callCount === 1) {
-            // First call - chat query
-            return [
-              {
-                id: 'chat-id',
-                workflowId: 'unavailable-workflow',
-                userId: 'user-id',
-                isActive: true,
-                authType: 'public',
-                outputConfigs: [{ blockId: 'block-1', path: 'output' }],
-              },
-            ]
-          }
-          if (callCount === 2) {
-            // Second call - workflow query
-            return [
-              {
-                isDeployed: false,
-              },
-            ]
-          }
-          return []
-        })
-
-        const mockWhere = vi.fn().mockReturnValue({ limit: mockLimit })
-        const mockFrom = vi.fn().mockReturnValue({ where: mockWhere })
-        const mockSelect = vi.fn().mockReturnValue({ from: mockFrom })
-
-        return {
-          db: {
-            select: mockSelect,
-          },
-          chat: {},
-          workflow: {},
-        }
+      vi.mocked(preprocessExecution).mockResolvedValueOnce({
+        success: false,
+        error: {
+          message: 'Workflow is not deployed',
+          statusCode: 403,
+          logCreated: true,
+        },
       })
 
       const req = createMockRequest('POST', { input: 'Hello' })
@@ -358,11 +356,15 @@ describe('Chat Identifier API Route', () => {
 
       const response = await POST(req, { params })
 
-      expect(response.status).toBe(503)
+      expect(response.status).toBe(403)
 
       const data = await response.json()
       expect(data).toHaveProperty('error')
-      expect(data).toHaveProperty('message', 'Chat workflow is not available')
+      expect(data).toHaveProperty('message', 'Workflow is not deployed')
+
+      if (originalImplementation) {
+        vi.mocked(preprocessExecution).mockImplementation(originalImplementation)
+      }
     })
 
     it('should return streaming response for valid chat messages', async () => {
@@ -378,7 +380,6 @@ describe('Chat Identifier API Route', () => {
       expect(response.headers.get('Cache-Control')).toBe('no-cache')
       expect(response.headers.get('Connection')).toBe('keep-alive')
 
-      // Verify createStreamingResponse was called with correct workflow info
       expect(mockCreateStreamingResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           workflow: expect.objectContaining({
@@ -408,7 +409,6 @@ describe('Chat Identifier API Route', () => {
       expect(response.status).toBe(200)
       expect(response.body).toBeInstanceOf(ReadableStream)
 
-      // Test that we can read from the response stream
       if (response.body) {
         const reader = response.body.getReader()
         const { value, done } = await reader.read()
@@ -447,7 +447,6 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should handle invalid JSON in request body', async () => {
-      // Create a request with invalid JSON
       const req = {
         method: 'POST',
         headers: new Headers(),

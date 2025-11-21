@@ -1,6 +1,6 @@
 import { LinearIcon } from '@/components/icons'
+import { buildCommentOutputs, linearSetupInstructions } from '@/triggers/linear/utils'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildCommentOutputs, linearSetupInstructions } from './utils'
 
 export const linearCommentUpdatedTrigger: TriggerConfig = {
   id: 'linear_comment_updated',

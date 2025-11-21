@@ -1,11 +1,11 @@
-import { fetchJson, fetchOAuthToken } from './helpers'
+import { fetchJson, fetchOAuthToken } from '@/hooks/selectors/helpers'
 import type {
   SelectorContext,
   SelectorDefinition,
   SelectorKey,
   SelectorOption,
   SelectorQueryArgs,
-} from './types'
+} from '@/hooks/selectors/types'
 
 const SELECTOR_STALE = 60 * 1000
 

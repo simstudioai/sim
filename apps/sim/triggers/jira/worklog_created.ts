@@ -1,6 +1,6 @@
 import { JiraIcon } from '@/components/icons'
+import { buildWorklogOutputs, jiraSetupInstructions } from '@/triggers/jira/utils'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildWorklogOutputs, jiraSetupInstructions } from './utils'
 
 /**
  * Jira Worklog Created Trigger

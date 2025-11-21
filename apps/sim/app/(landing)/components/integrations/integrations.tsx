@@ -1,5 +1,5 @@
 import * as Icons from '@/components/icons'
-import { inter } from '@/app/fonts/inter/inter'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 
 const modelProviderIcons = [
   { icon: Icons.OpenAIIcon, label: 'OpenAI' },

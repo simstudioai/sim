@@ -128,8 +128,18 @@ export interface LinearCycle {
 // ===== Request Params =====
 
 export interface LinearReadIssuesParams {
-  teamId: string
-  projectId: string
+  teamId?: string
+  projectId?: string
+  assigneeId?: string
+  stateId?: string
+  priority?: number
+  labelIds?: string[]
+  createdAfter?: string
+  updatedAfter?: string
+  includeArchived?: boolean
+  first?: number
+  after?: string
+  orderBy?: 'createdAt' | 'updatedAt'
   accessToken?: string
 }
 
@@ -140,9 +150,19 @@ export interface LinearGetIssueParams {
 
 export interface LinearCreateIssueParams {
   teamId: string
-  projectId: string
+  projectId?: string
   title: string
   description?: string
+  stateId?: string
+  assigneeId?: string
+  priority?: number
+  estimate?: number
+  labelIds?: string[]
+  cycleId?: string
+  parentId?: string
+  dueDate?: string
+  subscriberIds?: string[]
+  projectMilestoneId?: string
   accessToken?: string
 }
 
@@ -155,6 +175,12 @@ export interface LinearUpdateIssueParams {
   priority?: number
   estimate?: number
   labelIds?: string[]
+  projectId?: string
+  cycleId?: string
+  parentId?: string
+  dueDate?: string
+  addedLabelIds?: string[]
+  removedLabelIds?: string[]
   accessToken?: string
 }
 
@@ -313,7 +339,7 @@ export interface LinearListWorkflowStatesParams {
 export interface LinearCreateWorkflowStateParams {
   teamId: string
   name: string
-  color: string
+  color?: string
   type: string
   description?: string
   position?: number
@@ -371,7 +397,7 @@ export interface LinearListAttachmentsParams {
 
 export interface LinearUpdateAttachmentParams {
   attachmentId: string
-  title?: string
+  title: string
   subtitle?: string
   accessToken?: string
 }
@@ -1179,6 +1205,7 @@ export interface LinearProjectLabel {
 }
 
 export interface LinearCreateProjectLabelParams {
+  projectId: string
   name: string
   color?: string
   description?: string
@@ -1331,6 +1358,7 @@ export interface LinearProjectStatus {
 }
 
 export interface LinearCreateProjectStatusParams {
+  projectId: string
   name: string
   color: string
   description?: string

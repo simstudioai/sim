@@ -1,6 +1,6 @@
 import { CalendlyIcon } from '@/components/icons'
+import { buildInviteeOutputs, calendlyTriggerOptions } from '@/triggers/calendly/utils'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildInviteeOutputs, calendlyTriggerOptions } from './utils'
 
 export const calendlyInviteeCreatedTrigger: TriggerConfig = {
   id: 'calendly_invitee_created',

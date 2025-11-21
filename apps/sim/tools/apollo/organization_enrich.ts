@@ -1,5 +1,8 @@
+import type {
+  ApolloOrganizationEnrichParams,
+  ApolloOrganizationEnrichResponse,
+} from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ApolloOrganizationEnrichParams, ApolloOrganizationEnrichResponse } from './types'
 
 export const apolloOrganizationEnrichTool: ToolConfig<
   ApolloOrganizationEnrichParams,

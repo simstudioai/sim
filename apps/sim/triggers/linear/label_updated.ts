@@ -1,6 +1,6 @@
 import { LinearIcon } from '@/components/icons'
+import { buildLabelOutputs, linearSetupInstructions } from '@/triggers/linear/utils'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildLabelOutputs, linearSetupInstructions } from './utils'
 
 export const linearLabelUpdatedTrigger: TriggerConfig = {
   id: 'linear_label_updated',

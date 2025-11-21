@@ -3,10 +3,10 @@ import { useParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { getBlock } from '@/blocks'
+import { populateTriggerFieldsFromConfig } from '@/hooks/use-trigger-config-aggregation'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getTrigger, isTriggerValid } from '@/triggers'
-import { populateTriggerFieldsFromConfig } from './use-trigger-config-aggregation'
 
 const logger = createLogger('useWebhookManagement')
 

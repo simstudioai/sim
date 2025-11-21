@@ -1,7 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type { AdjustmentOptions, Edge } from '@/lib/workflows/autolayout/types'
+import {
+  boxesOverlap,
+  createBoundingBox,
+  getBlockMetrics,
+  shouldSkipAutoLayout,
+} from '@/lib/workflows/autolayout/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import type { AdjustmentOptions, Edge } from './types'
-import { boxesOverlap, createBoundingBox, getBlockMetrics, shouldSkipAutoLayout } from './utils'
 
 const logger = createLogger('AutoLayout:Incremental')
 

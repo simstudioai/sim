@@ -23,12 +23,28 @@ export interface ClientToolDisplay {
   icon: LucideIcon
 }
 
+/**
+ * Function to generate dynamic display text based on tool parameters and state
+ * @param params - The tool call parameters
+ * @param state - The current tool call state
+ * @returns The dynamic text to display, or undefined to use the default text
+ */
+export type DynamicTextFormatter = (
+  params: Record<string, any>,
+  state: ClientToolCallState
+) => string | undefined
+
 export interface BaseClientToolMetadata {
   displayNames: Partial<Record<ClientToolCallState, ClientToolDisplay>>
   interrupt?: {
     accept: ClientToolDisplay
     reject: ClientToolDisplay
   }
+  /**
+   * Optional function to generate dynamic display text based on parameters
+   * If provided, this will override the default text in displayNames
+   */
+  getDynamicText?: DynamicTextFormatter
 }
 
 export class BaseClientTool {
