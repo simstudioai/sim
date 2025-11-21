@@ -661,7 +661,12 @@ export function useWorkflowExecution() {
     overrideTriggerType?: 'chat' | 'manual' | 'api'
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use diff workflow for execution when available, regardless of canvas view state
-    const executionWorkflowState = null
+    const executionWorkflowState = null as {
+      blocks?: any
+      edges?: any
+      loops?: any
+      parallels?: any
+    } | null
     const usingDiffForExecution = false
 
     // Read blocks and edges directly from store to ensure we get the latest state,

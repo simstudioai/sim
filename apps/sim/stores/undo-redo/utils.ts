@@ -113,6 +113,38 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       }
 
+    case 'apply-diff':
+      return {
+        ...operation,
+        data: {
+          baselineSnapshot: operation.data.proposedState,
+          proposedState: operation.data.baselineSnapshot,
+          diffAnalysis: operation.data.diffAnalysis,
+        },
+      }
+
+    case 'accept-diff':
+      return {
+        ...operation,
+        data: {
+          beforeAccept: operation.data.afterAccept,
+          afterAccept: operation.data.beforeAccept,
+          diffAnalysis: operation.data.diffAnalysis,
+          baselineSnapshot: operation.data.baselineSnapshot,
+        },
+      }
+
+    case 'reject-diff':
+      return {
+        ...operation,
+        data: {
+          beforeReject: operation.data.afterReject,
+          afterReject: operation.data.beforeReject,
+          diffAnalysis: operation.data.diffAnalysis,
+          baselineSnapshot: operation.data.baselineSnapshot,
+        },
+      }
+
     default: {
       const exhaustiveCheck: never = operation
       throw new Error(`Unhandled operation type: ${(exhaustiveCheck as any).type}`)
@@ -210,6 +242,33 @@ export function operationToCollaborativePayload(operation: Operation): {
           parentId: operation.data.newParentId,
           x: operation.data.newPosition.x,
           y: operation.data.newPosition.y,
+        },
+      }
+
+    case 'apply-diff':
+      return {
+        operation: 'apply-diff',
+        target: 'workflow',
+        payload: {
+          diffAnalysis: operation.data.diffAnalysis,
+        },
+      }
+
+    case 'accept-diff':
+      return {
+        operation: 'accept-diff',
+        target: 'workflow',
+        payload: {
+          diffAnalysis: operation.data.diffAnalysis,
+        },
+      }
+
+    case 'reject-diff':
+      return {
+        operation: 'reject-diff',
+        target: 'workflow',
+        payload: {
+          diffAnalysis: operation.data.diffAnalysis,
         },
       }
 
