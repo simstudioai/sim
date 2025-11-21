@@ -7,7 +7,7 @@ import { Button } from '@/components/emcn'
 import { Alert, AlertDescription, Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
-import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
+import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
   useCreateMcpServer,
   useDeleteMcpServer,

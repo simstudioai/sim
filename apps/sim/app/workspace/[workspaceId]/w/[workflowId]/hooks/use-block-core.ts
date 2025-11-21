@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useExecutionStore } from '@/stores/execution/store'
-import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
+import { usePanelEditorStore } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useBlockState } from '../components/workflow-block/hooks'
 import type { WorkflowBlockProps } from '../components/workflow-block/types'

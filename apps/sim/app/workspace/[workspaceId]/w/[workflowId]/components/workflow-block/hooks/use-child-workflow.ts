@@ -1,4 +1,4 @@
-import { useSubBlockValue } from '../../panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useSubBlockValue } from '../../panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WorkflowBlockProps } from '../types'
 import { useChildDeployment } from './use-child-deployment'
 

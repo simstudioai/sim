@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   ArrowDown,
+  ArrowDownToLine,
   ArrowUp,
   Check,
   ChevronDown,
@@ -263,6 +264,7 @@ export function Terminal() {
   } = useTerminalStore()
   const entries = useTerminalConsoleStore((state) => state.entries)
   const clearWorkflowConsole = useTerminalConsoleStore((state) => state.clearWorkflowConsole)
+  const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
   const [isToggling, setIsToggling] = useState(false)
@@ -467,6 +469,20 @@ export function Terminal() {
       clearCurrentWorkflowConsole()
     },
     [clearCurrentWorkflowConsole]
+  )
+
+  /**
+   * Handle export of console entries for the current workflow via mouse interaction.
+   * Mirrors the visibility and interaction behavior of the clear console action.
+   */
+  const handleExportConsole = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (activeWorkflowId) {
+        exportConsoleCSV(activeWorkflowId)
+      }
+    },
+    [activeWorkflowId, exportConsoleCSV]
   )
 
   /**
@@ -957,21 +973,38 @@ export function Terminal() {
                     </Tooltip.Root>
                   )}
                   {filteredEntries.length > 0 && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={handleClearConsole}
-                          aria-label='Clear console'
-                          className='!p-1.5 -m-1.5'
-                        >
-                          <Trash2 className='h-3 w-3' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Clear console</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
+                    <>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            variant='ghost'
+                            onClick={handleExportConsole}
+                            aria-label='Download console CSV'
+                            className='!p-1.5 -m-1.5'
+                          >
+                            <ArrowDownToLine className='h-3 w-3' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          <span>Download CSV</span>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            variant='ghost'
+                            onClick={handleClearConsole}
+                            aria-label='Clear console'
+                            className='!p-1.5 -m-1.5'
+                          >
+                            <Trash2 className='h-3 w-3' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          <span>Clear console</span>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    </>
                   )}
                   <Popover open={mainOptionsOpen} onOpenChange={setMainOptionsOpen}>
                     <PopoverTrigger asChild>
@@ -1223,6 +1256,23 @@ export function Terminal() {
                       <span>{showCopySuccess ? 'Copied' : 'Copy output'}</span>
                     </Tooltip.Content>
                   </Tooltip.Root>
+                  {filteredEntries.length > 0 && (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={handleExportConsole}
+                          aria-label='Download console CSV'
+                          className='!p-1.5 -m-1.5'
+                        >
+                          <ArrowDownToLine className='h-3 w-3' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Download CSV</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
                   {hasActiveFilters && (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
