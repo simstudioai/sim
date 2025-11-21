@@ -1,4 +1,4 @@
-import { AudioWaveformIcon } from '@/components/icons'
+import { STTIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { SttBlockResponse } from '@/tools/stt/types'
 
@@ -12,7 +12,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
   docsLink: 'https://docs.sim.ai/tools/stt',
   category: 'tools',
   bgColor: '#181C1E',
-  icon: AudioWaveformIcon,
+  icon: STTIcon,
 
   subBlocks: [
     // Provider selection

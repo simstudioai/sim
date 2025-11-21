@@ -1,4 +1,4 @@
-import { AudioWaveformIcon } from '@/components/icons'
+import { TTSIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { TtsBlockResponse } from '@/tools/tts/types'
 
@@ -11,8 +11,8 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
     'Generate natural-sounding speech from text using state-of-the-art AI voices from OpenAI, Deepgram, ElevenLabs, Cartesia, Google Cloud, Azure, and PlayHT. Supports multiple voices, languages, and audio formats.',
   docsLink: 'https://docs.sim.ai/blocks/tts',
   category: 'tools',
-  bgColor: '#1E1C28',
-  icon: AudioWaveformIcon,
+  bgColor: '#181C1E',
+  icon: TTSIcon,
 
   subBlocks: [
     // Provider selection

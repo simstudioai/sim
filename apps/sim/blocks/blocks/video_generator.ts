@@ -1,4 +1,4 @@
-import { ImageIcon } from '@/components/icons' // Using ImageIcon temporarily - can create VideoIcon later
+import { VideoIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { VideoBlockResponse } from '@/tools/video/types'
 
@@ -11,8 +11,8 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
     'Generate high-quality videos from text prompts using leading AI providers. Supports multiple models, aspect ratios, resolutions, and provider-specific features like world consistency, camera controls, and audio generation.',
   docsLink: 'https://docs.sim.ai/tools/video-generator',
   category: 'tools',
-  bgColor: '#1E1B4B', // Deep purple for video
-  icon: ImageIcon,
+  bgColor: '#181C1E',
+  icon: VideoIcon,
 
   subBlocks: [
     // Provider selection
