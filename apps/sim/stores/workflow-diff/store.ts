@@ -431,7 +431,26 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           const afterAccept = cloneWorkflowState(stateToApply)
           const diffAnalysisForUndo = get().diffAnalysis
           const baselineForUndo = get().baselineWorkflow
+          const triggerMessageId = get()._triggerMessageId
 
+          // Clear diff state FIRST to prevent flash of colors
+          // This must happen synchronously before applying the cleaned state
+          set({
+            hasActiveDiff: false,
+            isShowingDiff: false,
+            isDiffReady: false,
+            baselineWorkflow: null,
+            baselineWorkflowId: null,
+            diffAnalysis: null,
+            diffMetadata: null,
+            diffError: null,
+            _triggerMessageId: null,
+          })
+
+          // Clear the diff engine
+          diffEngine.clearDiff()
+
+          // Now apply the cleaned state
           applyWorkflowStateToStores(activeWorkflowId, stateToApply)
 
           // Emit event for undo/redo recording (unless we're in an undo/redo operation)
@@ -449,7 +468,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             )
           }
 
-          const triggerMessageId = get()._triggerMessageId
           if (triggerMessageId) {
             fetch('/api/copilot/stats', {
               method: 'POST',
@@ -470,8 +488,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               logger.warn('Failed to notify tool accept state', { error })
             }
           }
-
-          get().clearDiff({ restoreBaseline: false })
         },
 
         rejectChanges: async () => {

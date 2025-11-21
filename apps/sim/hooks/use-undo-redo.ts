@@ -1483,6 +1483,20 @@ export function useUndoRedo() {
 
           ;(window as any).__skipDiffRecording = true
           try {
+            // Clear diff state FIRST to prevent flash of colors (local UI only)
+            // Use setState directly to ensure synchronous clearing
+            useWorkflowDiffStore.setState({
+              hasActiveDiff: false,
+              isShowingDiff: false,
+              isDiffReady: false,
+              baselineWorkflow: null,
+              baselineWorkflowId: null,
+              diffAnalysis: null,
+              diffMetadata: null,
+              diffError: null,
+              _triggerMessageId: null,
+            })
+
             // Apply the after-accept state (without markers) and broadcast
             useWorkflowStore.getState().replaceWorkflowState(afterAccept)
 
@@ -1504,9 +1518,6 @@ export function useUndoRedo() {
               state: afterAccept,
               operationId: opId,
             })
-
-            // Clear diff state (local UI only)
-            await useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
           } finally {
             ;(window as any).__skipDiffRecording = false
           }
@@ -1524,6 +1535,20 @@ export function useUndoRedo() {
 
           ;(window as any).__skipDiffRecording = true
           try {
+            // Clear diff state FIRST to prevent flash of colors (local UI only)
+            // Use setState directly to ensure synchronous clearing
+            useWorkflowDiffStore.setState({
+              hasActiveDiff: false,
+              isShowingDiff: false,
+              isDiffReady: false,
+              baselineWorkflow: null,
+              baselineWorkflowId: null,
+              diffAnalysis: null,
+              diffMetadata: null,
+              diffError: null,
+              _triggerMessageId: null,
+            })
+
             // Apply the after-reject state (baseline) and broadcast
             useWorkflowStore.getState().replaceWorkflowState(afterReject)
 
@@ -1545,9 +1570,6 @@ export function useUndoRedo() {
               state: afterReject,
               operationId: opId,
             })
-
-            // Clear diff state (local UI only)
-            await useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
           } finally {
             ;(window as any).__skipDiffRecording = false
           }
