@@ -5,7 +5,7 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useCopilotStore } from '@/stores/panel-new/copilot/store'
+import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 type NavigationDestination = 'workflow' | 'logs' | 'templates' | 'vector_db' | 'settings'

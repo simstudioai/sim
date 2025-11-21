@@ -102,7 +102,7 @@ async function persistWorkflowStateToServer(
 
 async function getLatestUserMessageId(): Promise<string | null> {
   try {
-    const { useCopilotStore } = await import('@/stores/panel-new/copilot/store')
+    const { useCopilotStore } = await import('@/stores/panel/copilot/store')
     const { messages } = useCopilotStore.getState() as any
     if (!Array.isArray(messages) || messages.length === 0) {
       return null
@@ -122,7 +122,7 @@ async function getLatestUserMessageId(): Promise<string | null> {
 
 async function findLatestEditWorkflowToolCallId(): Promise<string | undefined> {
   try {
-    const { useCopilotStore } = await import('@/stores/panel-new/copilot/store')
+    const { useCopilotStore } = await import('@/stores/panel/copilot/store')
     const { messages, toolCallsById } = useCopilotStore.getState() as any
 
     for (let mi = messages.length - 1; mi >= 0; mi--) {

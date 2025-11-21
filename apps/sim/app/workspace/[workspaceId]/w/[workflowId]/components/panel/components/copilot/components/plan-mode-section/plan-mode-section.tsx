@@ -5,7 +5,7 @@
  *
  * @example
  * ```tsx
- * import { PlanModeSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components'
+ * import { PlanModeSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
  *
  * function CopilotPanel() {
  *   const plan = "# My Plan\n\nThis is a plan description..."
