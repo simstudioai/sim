@@ -76,11 +76,12 @@ describe('OAuth Token Refresh', () => {
         endpoint: 'https://auth.atlassian.com/oauth/token',
       },
       { name: 'Jira', providerId: 'jira', endpoint: 'https://auth.atlassian.com/oauth/token' },
-      {
-        name: 'Discord',
-        providerId: 'discord',
-        endpoint: 'https://discord.com/api/v10/oauth2/token',
-      },
+      // Discord is currently disabled
+      // {
+      //   name: 'Discord',
+      //   providerId: 'discord',
+      //   endpoint: 'https://discord.com/api/v10/oauth2/token',
+      // },
       { name: 'Linear', providerId: 'linear', endpoint: 'https://api.linear.app/oauth/token' },
       {
         name: 'Reddit',
@@ -154,11 +155,12 @@ describe('OAuth Token Refresh', () => {
         providerId: 'outlook',
         endpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
       },
-      {
-        name: 'Supabase',
-        providerId: 'supabase',
-        endpoint: 'https://api.supabase.com/v1/oauth/token',
-      },
+      // Supabase is currently disabled
+      // {
+      //   name: 'Supabase',
+      //   providerId: 'supabase',
+      //   endpoint: 'https://api.supabase.com/v1/oauth/token',
+      // },
       { name: 'Notion', providerId: 'notion', endpoint: 'https://api.notion.com/v1/oauth/token' },
       { name: 'Slack', providerId: 'slack', endpoint: 'https://slack.com/api/oauth.v2.access' },
     ]
