@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const validProviders = ['runway', 'veo', 'luma', 'minimax']
+    const validProviders = ['runway', 'veo', 'luma', 'minimax', 'falai']
     if (!validProviders.includes(provider)) {
       return NextResponse.json(
         { error: `Invalid provider. Must be one of: ${validProviders.join(', ')}` },
@@ -60,7 +60,8 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         )
       }
-    } else if (duration !== undefined && (duration < 5 || duration > 10)) {
+    } else if (provider !== 'falai' && duration !== undefined && (duration < 5 || duration > 10)) {
+      // Fal.ai has variable duration constraints per model, skip validation
       return NextResponse.json(
         { error: 'Duration must be between 5 and 10 seconds' },
         { status: 400 }
@@ -95,8 +96,6 @@ export async function POST(request: NextRequest) {
           aspectRatio || '16:9',
           resolution || '1080p',
           body.visualReference,
-          body.consistencyMode,
-          body.stylePreset,
           requestId,
           logger
         )
@@ -142,10 +141,32 @@ export async function POST(request: NextRequest) {
         const result = await generateWithMiniMax(
           apiKey,
           model || 'hailuo-02',
-          body.endpoint || 'standard',
           prompt,
           duration || 6,
           body.promptOptimizer !== false, // Default true
+          requestId,
+          logger
+        )
+        videoBuffer = result.buffer
+        width = result.width
+        height = result.height
+        jobId = result.jobId
+        actualDuration = result.duration
+      } else if (provider === 'falai') {
+        if (!model) {
+          return NextResponse.json(
+            { error: 'Model is required for Fal.ai provider' },
+            { status: 400 }
+          )
+        }
+        const result = await generateWithFalAI(
+          apiKey,
+          model,
+          prompt,
+          duration,
+          aspectRatio,
+          resolution,
+          body.promptOptimizer,
           requestId,
           logger
         )
@@ -257,8 +278,6 @@ async function generateWithRunway(
   aspectRatio: string,
   resolution: string,
   visualReference: UserFile | undefined,
-  consistencyMode: string | undefined,
-  stylePreset: string | undefined,
   requestId: string,
   logger: ReturnType<typeof createLogger>
 ): Promise<{ buffer: Buffer; width: number; height: number; jobId: string; duration: number }> {
@@ -579,19 +598,233 @@ async function generateWithLuma(
 async function generateWithMiniMax(
   apiKey: string,
   model: string,
-  endpoint: string,
   prompt: string,
   duration: number,
   promptOptimizer: boolean,
   requestId: string,
   logger: ReturnType<typeof createLogger>
 ): Promise<{ buffer: Buffer; width: number; height: number; jobId: string; duration: number }> {
-  logger.info(`[${requestId}] Starting MiniMax Hailuo generation via Fal.ai`)
+  logger.info(`[${requestId}] Starting MiniMax Hailuo generation via MiniMax Platform API`)
+  logger.info(
+    `[${requestId}] Request params - model: ${model}, duration: ${duration}, promptOptimizer: ${promptOptimizer}`
+  )
 
-  const dimensions =
-    endpoint === 'pro' ? { width: 1920, height: 1080 } : { width: 1360, height: 768 }
+  // Determine resolution and dimensions based on duration
+  // MiniMax-Hailuo-02 supports 768P (6s) or 1080P (10s)
+  const resolution = duration === 10 ? '1080P' : '768P'
+  const dimensions = duration === 10 ? { width: 1920, height: 1080 } : { width: 1360, height: 768 }
 
-  const falModelId = `fal-ai/minimax/hailuo-02/${endpoint}/text-to-video`
+  logger.info(
+    `[${requestId}] Using resolution: ${resolution}, dimensions: ${dimensions.width}x${dimensions.height}`
+  )
+
+  // Map our model ID to MiniMax model name
+  const minimaxModel = model === 'hailuo-02' ? 'MiniMax-Hailuo-02' : 'MiniMax-Hailuo-2.3'
+
+  // Create video generation request via MiniMax Platform API
+  const createResponse = await fetch('https://api.minimax.io/v1/video_generation', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: minimaxModel,
+      prompt: prompt,
+      duration: duration,
+      resolution: resolution,
+      prompt_optimizer: promptOptimizer,
+    }),
+  })
+
+  if (!createResponse.ok) {
+    const errorText = await createResponse.text()
+    if (createResponse.status === 401 || createResponse.status === 1004) {
+      throw new Error(
+        `MiniMax API authentication failed (${createResponse.status}). Please ensure you're using a valid MiniMax API key from platform.minimax.io. Error: ${errorText}`
+      )
+    }
+    throw new Error(`MiniMax API error: ${createResponse.status} - ${errorText}`)
+  }
+
+  const createData = await createResponse.json()
+
+  // Check for error in response
+  if (createData.base_resp?.status_code !== 0) {
+    throw new Error(`MiniMax API error: ${createData.base_resp?.status_msg || 'Unknown error'}`)
+  }
+
+  const taskId = createData.task_id
+
+  logger.info(`[${requestId}] MiniMax task created: ${taskId}`)
+
+  // Poll for completion (6-10 minutes typical)
+  const maxAttempts = 120 // 10 minutes with 5-second intervals
+  let attempts = 0
+
+  while (attempts < maxAttempts) {
+    await sleep(5000)
+
+    // Query task status
+    const statusResponse = await fetch(
+      `https://api.minimax.io/v1/query/video_generation?task_id=${taskId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      }
+    )
+
+    if (!statusResponse.ok) {
+      throw new Error(`MiniMax status check failed: ${statusResponse.status}`)
+    }
+
+    const statusData = await statusResponse.json()
+
+    if (
+      statusData.base_resp?.status_code !== 0 &&
+      statusData.base_resp?.status_code !== undefined
+    ) {
+      throw new Error(
+        `MiniMax status query error: ${statusData.base_resp?.status_msg || 'Unknown error'}`
+      )
+    }
+
+    if (statusData.status === 'Success' || statusData.status === 'success') {
+      logger.info(`[${requestId}] MiniMax generation completed after ${attempts * 5}s`)
+
+      const fileId = statusData.file_id
+      if (!fileId) {
+        throw new Error('No file_id in response')
+      }
+
+      // Download the video using file_id
+      const fileResponse = await fetch(
+        `https://api.minimax.io/v1/files/retrieve?file_id=${fileId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+          },
+        }
+      )
+
+      if (!fileResponse.ok) {
+        throw new Error(`Failed to download video: ${fileResponse.status}`)
+      }
+
+      const fileData = await fileResponse.json()
+      const videoUrl = fileData.file?.download_url
+
+      if (!videoUrl) {
+        throw new Error('No download URL in file response')
+      }
+
+      // Download the actual video file
+      const videoResponse = await fetch(videoUrl)
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to download video from URL: ${videoResponse.status}`)
+      }
+
+      const arrayBuffer = await videoResponse.arrayBuffer()
+      return {
+        buffer: Buffer.from(arrayBuffer),
+        width: dimensions.width,
+        height: dimensions.height,
+        jobId: taskId,
+        duration,
+      }
+    }
+
+    if (statusData.status === 'Failed' || statusData.status === 'failed') {
+      throw new Error(`MiniMax generation failed: ${statusData.error || 'Unknown error'}`)
+    }
+
+    // Status is still "Processing" or "Queueing", continue polling
+    attempts++
+  }
+
+  throw new Error('MiniMax generation timed out after 10 minutes')
+}
+
+// Helper function to strip subpaths from Fal.ai model IDs for status/result endpoints
+function getBaseModelId(fullModelId: string): string {
+  const parts = fullModelId.split('/')
+  // Keep only the first two parts (e.g., "fal-ai/sora-2" from "fal-ai/sora-2/text-to-video")
+  if (parts.length > 2) {
+    return parts.slice(0, 2).join('/')
+  }
+  return fullModelId
+}
+
+// Helper function to format duration based on model requirements
+function formatDuration(model: string, duration: number | undefined): string | number | undefined {
+  if (duration === undefined) return undefined
+
+  // Veo 3.1 requires duration with "s" suffix (e.g., "8s")
+  if (model === 'veo-3.1') {
+    return `${duration}s`
+  }
+
+  // Sora 2 requires numeric duration
+  if (model === 'sora-2') {
+    return duration
+  }
+
+  // Other models use string format
+  return String(duration)
+}
+
+async function generateWithFalAI(
+  apiKey: string,
+  model: string,
+  prompt: string,
+  duration: number | undefined,
+  aspectRatio: string | undefined,
+  resolution: string | undefined,
+  promptOptimizer: boolean | undefined,
+  requestId: string,
+  logger: ReturnType<typeof createLogger>
+): Promise<{ buffer: Buffer; width: number; height: number; jobId: string; duration: number }> {
+  logger.info(`[${requestId}] Starting Fal.ai generation with model: ${model}`)
+
+  // Map our model IDs to Fal.ai model paths
+  const modelMap: { [key: string]: string } = {
+    'veo-3.1': 'fal-ai/veo3.1',
+    'sora-2': 'fal-ai/sora-2/text-to-video',
+    'kling-2.5-turbo-pro': 'fal-ai/kling-video/v2.5-turbo/pro/text-to-video',
+    'kling-2.1-pro': 'fal-ai/kling-video/v2.1/master/text-to-video',
+    'minimax-hailuo-2.3-pro': 'fal-ai/minimax/hailuo-02/pro/text-to-video',
+    'minimax-hailuo-2.3-standard': 'fal-ai/minimax/hailuo-02/standard/text-to-video',
+    'wan-2.1': 'fal-ai/wan-t2v',
+    'ltxv-0.9.8': 'fal-ai/ltxv-13b-098-distilled',
+  }
+
+  const falModelId = modelMap[model]
+  if (!falModelId) {
+    throw new Error(`Unknown Fal.ai model: ${model}`)
+  }
+
+  // Build request body based on model requirements
+  const requestBody: any = { prompt }
+
+  // Format duration based on model requirements
+  const formattedDuration = formatDuration(model, duration)
+  if (formattedDuration !== undefined) {
+    requestBody.duration = formattedDuration
+  }
+
+  if (aspectRatio) {
+    requestBody.aspect_ratio = aspectRatio
+  }
+
+  if (resolution) {
+    requestBody.resolution = resolution
+  }
+
+  // MiniMax models support prompt optimizer
+  if (model.startsWith('minimax-hailuo') && promptOptimizer !== undefined) {
+    requestBody.prompt_optimizer = promptOptimizer
+  }
 
   const createResponse = await fetch(`https://queue.fal.run/${falModelId}`, {
     method: 'POST',
@@ -599,11 +832,7 @@ async function generateWithMiniMax(
       Authorization: `Key ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      prompt,
-      duration: String(duration),
-      prompt_optimizer: promptOptimizer,
-    }),
+    body: JSON.stringify(requestBody),
   })
 
   if (!createResponse.ok) {
@@ -614,7 +843,10 @@ async function generateWithMiniMax(
   const createData = await createResponse.json()
   const requestIdFal = createData.request_id
 
-  logger.info(`[${requestId}] MiniMax request created: ${requestIdFal}`)
+  logger.info(`[${requestId}] Fal.ai request created: ${requestIdFal}`)
+
+  // Get base model ID (without subpath) for status and result endpoints
+  const baseModelId = getBaseModelId(falModelId)
 
   const maxAttempts = 96 // 8 minutes with 5-second intervals
   let attempts = 0
@@ -623,7 +855,7 @@ async function generateWithMiniMax(
     await sleep(5000)
 
     const statusResponse = await fetch(
-      `https://queue.fal.run/${falModelId}/requests/${requestIdFal}/status`,
+      `https://queue.fal.run/${baseModelId}/requests/${requestIdFal}/status`,
       {
         headers: {
           Authorization: `Key ${apiKey}`,
@@ -638,10 +870,10 @@ async function generateWithMiniMax(
     const statusData = await statusResponse.json()
 
     if (statusData.status === 'COMPLETED') {
-      logger.info(`[${requestId}] MiniMax generation completed after ${attempts * 5}s`)
+      logger.info(`[${requestId}] Fal.ai generation completed after ${attempts * 5}s`)
 
       const resultResponse = await fetch(
-        `https://queue.fal.run/${falModelId}/requests/${requestIdFal}`,
+        `https://queue.fal.run/${baseModelId}/requests/${requestIdFal}`,
         {
           headers: {
             Authorization: `Key ${apiKey}`,
@@ -655,7 +887,7 @@ async function generateWithMiniMax(
 
       const resultData = await resultResponse.json()
 
-      const videoUrl = resultData.video?.url
+      const videoUrl = resultData.video?.url || resultData.output?.url
       if (!videoUrl) {
         throw new Error('No video URL in response')
       }
@@ -666,23 +898,34 @@ async function generateWithMiniMax(
       }
 
       const arrayBuffer = await videoResponse.arrayBuffer()
+
+      // Try to get dimensions from response, or calculate from aspect ratio
+      let width = resultData.video?.width || 1920
+      let height = resultData.video?.height || 1080
+
+      if (!resultData.video?.width && aspectRatio) {
+        const dims = getVideoDimensions(aspectRatio, resolution || '1080p')
+        width = dims.width
+        height = dims.height
+      }
+
       return {
         buffer: Buffer.from(arrayBuffer),
-        width: dimensions.width,
-        height: dimensions.height,
+        width,
+        height,
         jobId: requestIdFal,
-        duration,
+        duration: duration || 5,
       }
     }
 
     if (statusData.status === 'FAILED') {
-      throw new Error(`MiniMax generation failed: ${statusData.error || 'Unknown error'}`)
+      throw new Error(`Fal.ai generation failed: ${statusData.error || 'Unknown error'}`)
     }
 
     attempts++
   }
 
-  throw new Error('MiniMax generation timed out after 8 minutes')
+  throw new Error('Fal.ai generation timed out after 8 minutes')
 }
 
 function getVideoDimensions(

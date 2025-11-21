@@ -133,16 +133,15 @@ Generate videos using Luma Dream Machine with advanced camera controls
 
 ### `video_minimax`
 
-Generate videos using MiniMax Hailuo 2.3 with advanced realism and camera control
+Generate videos using MiniMax Hailuo through MiniMax Platform API with advanced realism and prompt optimization
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `provider` | string | Yes | Video provider \(minimax\) |
-| `apiKey` | string | Yes | Fal.ai API key \(for MiniMax Hailuo\) |
+| `apiKey` | string | Yes | MiniMax API key from platform.minimax.io |
 | `model` | string | No | MiniMax model: hailuo-02 \(default\) |
-| `endpoint` | string | No | Endpoint quality: pro \(highest quality, 1080p\) or standard \(balanced, 768p\). Note: fast endpoint only exists for image-to-video |
 | `prompt` | string | Yes | Text prompt describing the video to generate |
 | `duration` | number | No | Video duration in seconds \(6 or 10, default: 6\) |
 | `promptOptimizer` | boolean | No | Enable prompt optimization for better results \(default: true\) |
@@ -159,6 +158,36 @@ Generate videos using MiniMax Hailuo 2.3 with advanced realism and camera contro
 | `provider` | string | Provider used \(minimax\) |
 | `model` | string | Model used |
 | `jobId` | string | MiniMax job ID |
+
+### `video_falai`
+
+Generate videos using Fal.ai platform with access to multiple models including Veo 3.1, Sora 2, Kling 2.5, MiniMax Hailuo, and more
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Yes | Video provider \(falai\) |
+| `apiKey` | string | Yes | Fal.ai API key |
+| `model` | string | Yes | Fal.ai model: veo-3.1 \(Google Veo 3.1\), sora-2 \(OpenAI Sora 2\), kling-2.5-turbo-pro \(Kling 2.5 Turbo Pro\), kling-2.1-pro \(Kling 2.1 Master\), minimax-hailuo-2.3-pro \(MiniMax Hailuo Pro\), minimax-hailuo-2.3-standard \(MiniMax Hailuo Standard\), wan-2.1 \(WAN T2V\), ltxv-0.9.8 \(LTXV 13B\) |
+| `prompt` | string | Yes | Text prompt describing the video to generate |
+| `duration` | number | No | Video duration in seconds \(varies by model\) |
+| `aspectRatio` | string | No | Aspect ratio \(varies by model\): 16:9, 9:16, 1:1 |
+| `resolution` | string | No | Video resolution \(varies by model\): 540p, 720p, 1080p |
+| `promptOptimizer` | boolean | No | Enable prompt optimization for MiniMax models \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | Generated video URL |
+| `videoFile` | json | Video file object with metadata |
+| `duration` | number | Video duration in seconds |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `provider` | string | Provider used \(falai\) |
+| `model` | string | Model used |
+| `jobId` | string | Job ID |
 
 
 

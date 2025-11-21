@@ -25,6 +25,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: 'Google Veo 3', id: 'veo' },
         { label: 'Luma Dream Machine', id: 'luma' },
         { label: 'MiniMax Hailuo', id: 'minimax' },
+        { label: 'Fal.ai (Multi-Model)', id: 'falai' },
       ],
       value: () => 'runway',
       required: true,
@@ -80,6 +81,26 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       ],
       value: () => 'standard',
       required: false,
+    },
+
+    // Fal.ai model selection
+    {
+      id: 'model',
+      title: 'Model',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'falai' },
+      options: [
+        { label: 'Google Veo 3.1', id: 'veo-3.1' },
+        { label: 'OpenAI Sora 2', id: 'sora-2' },
+        { label: 'Kling 2.5 Turbo Pro', id: 'kling-2.5-turbo-pro' },
+        { label: 'Kling 2.1 Pro', id: 'kling-2.1-pro' },
+        { label: 'MiniMax Hailuo 2.3 Pro', id: 'minimax-hailuo-2.3-pro' },
+        { label: 'MiniMax Hailuo 2.3 Standard', id: 'minimax-hailuo-2.3-standard' },
+        { label: 'WAN 2.1', id: 'wan-2.1' },
+        { label: 'LTXV 0.9.8', id: 'ltxv-0.9.8' },
+      ],
+      value: () => 'veo-3.1',
+      required: true,
     },
 
     // Prompt input (required)
@@ -266,11 +287,13 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       placeholder: 'Enter your provider API key',
       password: true,
       required: true,
+      helperText:
+        'Get keys from: MiniMax (platform.minimax.io), Fal.ai (fal.ai), Runway (runwayml.com), Google (cloud.google.com), Luma (lumalabs.ai)',
     },
   ],
 
   tools: {
-    access: ['video_runway', 'video_veo', 'video_luma', 'video_minimax'],
+    access: ['video_runway', 'video_veo', 'video_luma', 'video_minimax', 'video_falai'],
     config: {
       tool: (params) => {
         // Select tool based on provider
@@ -283,6 +306,8 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
             return 'video_luma'
           case 'minimax':
             return 'video_minimax'
+          case 'falai':
+            return 'video_falai'
           default:
             return 'video_runway'
         }

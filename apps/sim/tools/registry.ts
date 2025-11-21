@@ -676,7 +676,13 @@ import {
   typeformUpdateFormTool,
 } from '@/tools/typeform'
 import type { ToolConfig } from '@/tools/types'
-import { lumaVideoTool, minimaxVideoTool, runwayVideoTool, veoVideoTool } from '@/tools/video'
+import {
+  falaiVideoTool,
+  lumaVideoTool,
+  minimaxVideoTool,
+  runwayVideoTool,
+  veoVideoTool,
+} from '@/tools/video'
 import { visionTool } from '@/tools/vision'
 import {
   wealthboxReadContactTool,
@@ -1083,6 +1089,7 @@ export const tools: Record<string, ToolConfig> = {
   video_veo: veoVideoTool,
   video_luma: lumaVideoTool,
   video_minimax: minimaxVideoTool,
+  video_falai: falaiVideoTool,
   s3_get_object: s3GetObjectTool,
   s3_put_object: s3PutObjectTool,
   s3_list_objects: s3ListObjectsTool,
