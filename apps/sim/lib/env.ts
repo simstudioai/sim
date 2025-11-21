@@ -174,6 +174,13 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET:                  z.string().optional(),                  // Google OAuth client secret
     GITHUB_CLIENT_ID:                      z.string().optional(),                  // GitHub OAuth client ID for GitHub integration
     GITHUB_CLIENT_SECRET:                  z.string().optional(),                  // GitHub OAuth client secret
+    OAUTH_CLIENT_ID:                       z.string().optional(),                  // OAuth client ID
+    OAUTH_CLIENT_SECRET:                   z.string().optional(),                  // OAuth client secret
+    OAUTH_AUTHORIZATION_URL:               z.string().optional(),                  // OAuth authorization URL
+    OAUTH_TOKEN_URL:                       z.string().optional(),                  // OAuth token URL
+    OAUTH_USERINFO_URL:                    z.string().optional(),                  // OAuth userinfo URL
+    OAUTH_SCOPES:                          z.string().optional(),                  // OAuth scopes
+    OAUTH_PROVIDER_ID:                     z.string().optional(),                  // OAuth provider ID
     GITHUB_REPO_CLIENT_ID:                 z.string().optional(),                  // GitHub OAuth client ID for repo access
     GITHUB_REPO_CLIENT_SECRET:             z.string().optional(),                  // GitHub OAuth client secret for repo access
     X_CLIENT_ID:                           z.string().optional(),                  // X (Twitter) OAuth client ID

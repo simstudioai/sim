@@ -151,6 +151,34 @@
               "type": "string",
               "description": "GitHub OAuth client secret"
             },
+            "OAUTH_CLIENT_ID": {
+              "type": "string",
+              "description": "OAuth client ID"
+            },
+            "OAUTH_CLIENT_SECRET": {
+              "type": "string",
+              "description": "OAuth client secret"
+            },
+            "OAUTH_AUTHORIZATION_URL": {
+              "type": "string",
+              "description": "OAuth authorization URL"
+            },
+            "OAUTH_TOKEN_URL": {
+              "type": "string",
+              "description": "OAuth token URL"
+            },
+            "OAUTH_USERINFO_URL": {
+              "type": "string",
+              "description": "OAuth userinfo URL"
+            },
+            "OAUTH_SCOPES": {
+              "type": "string",
+              "description": "OAuth scopes (default: openid profile email)"
+            },
+            "OAUTH_PROVIDER_ID": {
+              "type": "string",
+              "description": "OAuth provider ID"
+            },
             "OPENAI_API_KEY": {
               "type": "string",
               "description": "Primary OpenAI API key"

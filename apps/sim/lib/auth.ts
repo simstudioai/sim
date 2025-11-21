@@ -159,6 +159,8 @@ export const auth = betterAuth({
 
         // Common SSO provider patterns
         ...SSO_TRUSTED_PROVIDERS,
+        // Generic OAuth provider (if configured)
+        ...(env.OAUTH_PROVIDER_ID ? [env.OAUTH_PROVIDER_ID] : []),
       ],
     },
   },
@@ -1584,6 +1586,28 @@ export const auth = betterAuth({
             }
           },
         },
+        // Generic OAuth provider (Auth0, Okta, Keycloak, custom OIDC, etc.)
+        ...(env.OAUTH_CLIENT_ID &&
+        env.OAUTH_CLIENT_SECRET &&
+        env.OAUTH_AUTHORIZATION_URL &&
+        env.OAUTH_TOKEN_URL &&
+        env.OAUTH_USERINFO_URL &&
+        env.OAUTH_PROVIDER_ID
+          ? [
+              {
+                providerId: env.OAUTH_PROVIDER_ID,
+                clientId: env.OAUTH_CLIENT_ID,
+                clientSecret: env.OAUTH_CLIENT_SECRET,
+                authorizationUrl: env.OAUTH_AUTHORIZATION_URL,
+                tokenUrl: env.OAUTH_TOKEN_URL,
+                userInfoUrl: env.OAUTH_USERINFO_URL,
+                scopes: env.OAUTH_SCOPES
+                  ? env.OAUTH_SCOPES.split(' ').filter(Boolean)
+                  : ['openid', 'profile', 'email'],
+                redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/${env.OAUTH_PROVIDER_ID}`,
+              },
+            ]
+          : []),
       ],
     }),
     // Include SSO plugin when enabled
