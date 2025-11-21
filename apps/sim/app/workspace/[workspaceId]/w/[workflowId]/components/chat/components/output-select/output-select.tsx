@@ -16,22 +16,43 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
+/**
+ * Props for the OutputSelect component
+ */
 interface OutputSelectProps {
+  /** The workflow ID to fetch outputs from */
   workflowId: string | null
+  /** Array of currently selected output IDs or labels */
   selectedOutputs: string[]
+  /** Callback fired when output selection changes */
   onOutputSelect: (outputIds: string[]) => void
+  /** Whether the select is disabled */
   disabled?: boolean
+  /** Placeholder text when no outputs are selected */
   placeholder?: string
+  /** Whether to emit output IDs or labels in onOutputSelect callback */
   valueMode?: 'id' | 'label'
   /**
    * When true, renders the underlying popover content inline instead of in a portal.
    * Useful when used inside dialogs or other portalled components that manage scroll locking.
    */
   disablePopoverPortal?: boolean
+  /** Alignment of the popover relative to the trigger */
   align?: 'start' | 'end' | 'center'
+  /** Maximum height of the popover content in pixels */
   maxHeight?: number
 }
 
+/**
+ * OutputSelect component for selecting workflow block outputs
+ *
+ * Displays a dropdown menu of all available workflow outputs grouped by block.
+ * Supports multi-selection, keyboard navigation, and shows visual indicators
+ * for selected outputs.
+ *
+ * @param props - Component props
+ * @returns The OutputSelect component
+ */
 export function OutputSelect({
   workflowId,
   selectedOutputs = [],
@@ -94,7 +115,7 @@ export function OutputSelect({
           : subBlockValues?.[block.id]?.responseFormat
       const responseFormat = parseResponseFormatSafely(responseFormatValue, block.id)
 
-      let outputsToProcess: Record<string, any> = {}
+      let outputsToProcess: Record<string, unknown> = {}
 
       if (responseFormat) {
         const schemaFields = extractFieldsFromSchema(responseFormat)
@@ -111,7 +132,7 @@ export function OutputSelect({
 
       if (Object.keys(outputsToProcess).length === 0) return
 
-      const addOutput = (path: string, outputObj: any, prefix = '') => {
+      const addOutput = (path: string, outputObj: unknown, prefix = '') => {
         const fullPath = prefix ? `${prefix}.${path}` : path
         const createOutput = () => ({
           id: `${block.id}_${fullPath}`,
@@ -146,7 +167,9 @@ export function OutputSelect({
   }, [workflowBlocks, workflowId, isShowingDiff, isDiffReady, diffWorkflow, blocks, subBlockValues])
 
   /**
-   * Checks if output is selected by id or label
+   * Checks if an output is currently selected by comparing both ID and label
+   * @param o - The output object to check
+   * @returns True if the output is selected, false otherwise
    */
   const isSelectedValue = (o: { id: string; label: string }) =>
     selectedOutputs.includes(o.id) || selectedOutputs.includes(o.label)
@@ -234,7 +257,10 @@ export function OutputSelect({
   }, [workflowOutputs, blocks])
 
   /**
-   * Gets block color for an output
+   * Gets the background color for a block output based on its type
+   * @param blockId - The block ID (unused but kept for future extensibility)
+   * @param blockType - The type of the block
+   * @returns The hex color code for the block
    */
   const getOutputColor = (blockId: string, blockType: string) => {
     const blockConfig = getBlock(blockType)
@@ -249,7 +275,8 @@ export function OutputSelect({
   }, [groupedOutputs])
 
   /**
-   * Handles output selection - toggle selection
+   * Handles output selection by toggling the selected state
+   * @param value - The output label to toggle
    */
   const handleOutputSelection = (value: string) => {
     const emittedValue =
@@ -265,7 +292,9 @@ export function OutputSelect({
   }
 
   /**
-   * Keyboard navigation handler
+   * Handles keyboard navigation within the output list
+   * Supports ArrowUp, ArrowDown, Enter, and Escape keys
+   * @param e - Keyboard event
    */
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (flattenedOutputs.length === 0) return
@@ -359,7 +388,7 @@ export function OutputSelect({
         <div ref={triggerRef} className='min-w-0 max-w-full'>
           <Badge
             variant='outline'
-            className='min-w-0 max-w-full cursor-pointer rounded-[4px] border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)]'
+            className='flex-none cursor-pointer whitespace-nowrap rounded-[6px]'
             title='Select outputs'
             aria-expanded={open}
             onMouseDown={(e) => {
@@ -368,7 +397,7 @@ export function OutputSelect({
               setOpen((prev) => !prev)
             }}
           >
-            <span className='min-w-0 flex-1 truncate'>{selectedOutputsDisplayText}</span>
+            <span className='whitespace-nowrap text-[12px]'>{selectedOutputsDisplayText}</span>
           </Badge>
         </div>
       </PopoverTrigger>
