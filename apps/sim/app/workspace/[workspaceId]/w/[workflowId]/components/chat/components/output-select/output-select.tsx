@@ -81,7 +81,7 @@ export function OutputSelect({
     const blockArray = Object.values(workflowBlocks)
     if (blockArray.length === 0) return outputs
 
-    blockArray.forEach((block) => {
+    blockArray.forEach((block: any) => {
       if (block.type === 'starter' || !block?.id || !block?.type) return
 
       const blockName =
