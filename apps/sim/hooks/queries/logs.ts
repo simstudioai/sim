@@ -1,4 +1,5 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import type { LogsResponse, WorkflowLog } from '@/stores/logs/filters/types'
 
 export const logKeys = {
@@ -126,7 +127,12 @@ function buildQueryParams(workspaceId: string, filters: LogFilters, page: number
   }
 
   if (filters.searchQuery.trim()) {
-    params.set('search', filters.searchQuery.trim())
+    const parsedQuery = parseQuery(filters.searchQuery.trim())
+    const searchParams = queryToApiParams(parsedQuery)
+
+    for (const [key, value] of Object.entries(searchParams)) {
+      params.set(key, value)
+    }
   }
 
   return params.toString()
