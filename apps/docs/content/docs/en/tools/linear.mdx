@@ -44,12 +44,22 @@ Fetch and filter issues from Linear
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | No | Linear team ID to filter by |
 | `projectId` | string | No | Linear project ID to filter by |
+| `assigneeId` | string | No | User ID to filter by assignee |
+| `stateId` | string | No | Workflow state ID to filter by status |
+| `priority` | number | No | Priority to filter by \(0=No priority, 1=Urgent, 2=High, 3=Normal, 4=Low\) |
+| `labelIds` | array | No | Array of label IDs to filter by |
+| `createdAfter` | string | No | Filter issues created after this date \(ISO 8601 format\) |
+| `updatedAfter` | string | No | Filter issues updated after this date \(ISO 8601 format\) |
+| `includeArchived` | boolean | No | Include archived issues \(default: false\) |
+| `first` | number | No | Number of issues to return \(default: 50, max: 250\) |
+| `after` | string | No | Pagination cursor for next page |
+| `orderBy` | string | No | Sort order: "createdAt" or "updatedAt" \(default: "updatedAt"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `issues` | array | Array of issues from the specified Linear team and project, each containing id, title, description, state, teamId, and projectId |
+| `issues` | array | Array of filtered issues from Linear |
 
 ### `linear_get_issue`
 
@@ -79,12 +89,22 @@ Create a new issue in Linear
 | `projectId` | string | No | Linear project ID |
 | `title` | string | Yes | Issue title |
 | `description` | string | No | Issue description |
+| `stateId` | string | No | Workflow state ID \(status\) |
+| `assigneeId` | string | No | User ID to assign the issue to |
+| `priority` | number | No | Priority \(0=No priority, 1=Urgent, 2=High, 3=Normal, 4=Low\) |
+| `estimate` | number | No | Estimate in points |
+| `labelIds` | array | No | Array of label IDs to set on the issue |
+| `cycleId` | string | No | Cycle ID to assign the issue to |
+| `parentId` | string | No | Parent issue ID \(for creating sub-issues\) |
+| `dueDate` | string | No | Due date in ISO 8601 format \(date only: YYYY-MM-DD\) |
+| `subscriberIds` | array | No | Array of user IDs to subscribe to the issue |
+| `projectMilestoneId` | string | No | Project milestone ID to associate with the issue |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `issue` | object | The created issue containing id, title, description, state, teamId, and projectId |
+| `issue` | object | The created issue with all its properties |
 
 ### `linear_update_issue`
 
@@ -101,7 +121,13 @@ Update an existing issue in Linear
 | `assigneeId` | string | No | User ID to assign the issue to |
 | `priority` | number | No | Priority \(0=No priority, 1=Urgent, 2=High, 3=Normal, 4=Low\) |
 | `estimate` | number | No | Estimate in points |
-| `labelIds` | array | No | Array of label IDs to set on the issue |
+| `labelIds` | array | No | Array of label IDs to set on the issue \(replaces all existing labels\) |
+| `projectId` | string | No | Project ID to move the issue to |
+| `cycleId` | string | No | Cycle ID to assign the issue to |
+| `parentId` | string | No | Parent issue ID \(for making this a sub-issue\) |
+| `dueDate` | string | No | Due date in ISO 8601 format \(date only: YYYY-MM-DD\) |
+| `addedLabelIds` | array | No | Array of label IDs to add to the issue \(without replacing existing labels\) |
+| `removedLabelIds` | array | No | Array of label IDs to remove from the issue |
 
 #### Output
 
@@ -352,9 +378,9 @@ Update an existing project in Linear
 | `description` | string | No | New project description |
 | `state` | string | No | Project state \(planned, started, completed, canceled\) |
 | `leadId` | string | No | User ID of the project lead |
-| `startDate` | string | No | Project start date \(ISO format\) |
-| `targetDate` | string | No | Project target date \(ISO format\) |
-| `priority` | number | No | Project priority \(0-4\) |
+| `startDate` | string | No | Project start date \(ISO format: YYYY-MM-DD\) |
+| `targetDate` | string | No | Project target date \(ISO format: YYYY-MM-DD\) |
+| `priority` | number | No | Project priority \(0=No priority, 1=Urgent, 2=High, 3=Normal, 4=Low\) |
 
 #### Output
 
@@ -530,7 +556,7 @@ Create a new workflow state (status) in Linear
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | Yes | Team ID to create the state in |
 | `name` | string | Yes | State name \(e.g., "In Review"\) |
-| `color` | string | Yes | State color \(hex format\) |
+| `color` | string | No | State color \(hex format\) |
 | `type` | string | Yes | State type: "backlog", "unstarted", "started", "completed", or "canceled" |
 | `description` | string | No | State description |
 | `position` | number | No | Position in the workflow |
@@ -711,7 +737,7 @@ Link two issues together in Linear (blocks, relates to, duplicates)
 | --------- | ---- | -------- | ----------- |
 | `issueId` | string | Yes | Source issue ID |
 | `relatedIssueId` | string | Yes | Target issue ID to link to |
-| `type` | string | Yes | Relation type: "blocks", "blocked", "duplicate", "related" |
+| `type` | string | Yes | Relation type: "blocks", "duplicate", or "related". Note: When creating "blocks" from A to B, the inverse relation \(B blocked by A\) is automatically created. |
 
 #### Output
 
@@ -1220,6 +1246,7 @@ Create a new project label in Linear
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | The project for this label |
 | `name` | string | Yes | Project label name |
 | `color` | string | No | Label color \(hex code\) |
 | `description` | string | No | Label description |
@@ -1397,6 +1424,7 @@ Create a new project status in Linear
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | The project to create the status for |
 | `name` | string | Yes | Project status name |
 | `color` | string | Yes | Status color \(hex code\) |
 | `description` | string | No | Status description |

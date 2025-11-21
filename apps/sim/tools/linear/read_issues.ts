@@ -1,8 +1,4 @@
-import type {
-  LinearIssue,
-  LinearReadIssuesParams,
-  LinearReadIssuesResponse,
-} from '@/tools/linear/types'
+import type { LinearReadIssuesParams, LinearReadIssuesResponse } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearReadIssuesResponse> = {
@@ -29,6 +25,66 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
       visibility: 'user-only',
       description: 'Linear project ID to filter by',
     },
+    assigneeId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'User ID to filter by assignee',
+    },
+    stateId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Workflow state ID to filter by status',
+    },
+    priority: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Priority to filter by (0=No priority, 1=Urgent, 2=High, 3=Normal, 4=Low)',
+    },
+    labelIds: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Array of label IDs to filter by',
+    },
+    createdAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter issues created after this date (ISO 8601 format)',
+    },
+    updatedAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter issues updated after this date (ISO 8601 format)',
+    },
+    includeArchived: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Include archived issues (default: false)',
+    },
+    first: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of issues to return (default: 50, max: 250)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor for next page',
+    },
+    orderBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Sort order: "createdAt" or "updatedAt" (default: "updatedAt")',
+    },
   },
 
   request: {
@@ -52,25 +108,107 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
       if (params.projectId != null && params.projectId !== '') {
         filter.project = { id: { eq: params.projectId } }
       }
+      if (params.assigneeId != null && params.assigneeId !== '') {
+        filter.assignee = { id: { eq: params.assigneeId } }
+      }
+      if (params.stateId != null && params.stateId !== '') {
+        filter.state = { id: { eq: params.stateId } }
+      }
+      if (params.priority != null) {
+        filter.priority = { eq: Number(params.priority) }
+      }
+      if (params.labelIds != null && Array.isArray(params.labelIds) && params.labelIds.length > 0) {
+        filter.labels = { some: { id: { in: params.labelIds } } }
+      }
+      if (params.createdAfter != null && params.createdAfter !== '') {
+        filter.createdAt = { gte: params.createdAfter }
+      }
+      if (params.updatedAfter != null && params.updatedAfter !== '') {
+        filter.updatedAt = { gte: params.updatedAfter }
+      }
+
+      const variables: Record<string, any> = {}
+      if (Object.keys(filter).length > 0) {
+        variables.filter = filter
+      }
+      if (params.first != null) {
+        variables.first = Math.min(Number(params.first), 250)
+      }
+      if (params.after != null && params.after !== '') {
+        variables.after = params.after
+      }
+      if (params.includeArchived != null) {
+        variables.includeArchived = params.includeArchived
+      }
+      if (params.orderBy != null) {
+        variables.orderBy = params.orderBy
+      }
 
       return {
         query: `
-        query Issues($filter: IssueFilter) {
-          issues(filter: $filter) {
+        query Issues(
+          $filter: IssueFilter
+          $first: Int
+          $after: String
+          $includeArchived: Boolean
+          $orderBy: PaginationOrderBy
+        ) {
+          issues(
+            filter: $filter
+            first: $first
+            after: $after
+            includeArchived: $includeArchived
+            orderBy: $orderBy
+          ) {
             nodes {
               id
               title
               description
-              state { name }
-              team { id }
-              project { id }
+              priority
+              estimate
+              url
+              dueDate
+              createdAt
+              updatedAt
+              state {
+                id
+                name
+                type
+              }
+              assignee {
+                id
+                name
+                email
+              }
+              team {
+                id
+                name
+              }
+              project {
+                id
+                name
+              }
+              cycle {
+                id
+                number
+                name
+              }
+              labels {
+                nodes {
+                  id
+                  name
+                  color
+                }
+              }
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
             }
           }
         }
       `,
-        variables: {
-          filter: Object.keys(filter).length > 0 ? filter : undefined,
-        },
+        variables,
       }
     },
   },
@@ -94,17 +232,35 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
       }
     }
 
+    const issues = data.data.issues.nodes || []
+    const pageInfo = data.data.issues.pageInfo || {}
+
     return {
       success: true,
       output: {
-        issues: (data.data.issues.nodes as LinearIssue[]).map((issue) => ({
+        issues: issues.map((issue: any) => ({
           id: issue.id,
           title: issue.title,
           description: issue.description,
+          priority: issue.priority,
+          estimate: issue.estimate,
+          url: issue.url,
+          dueDate: issue.dueDate,
+          createdAt: issue.createdAt,
+          updatedAt: issue.updatedAt,
           state: issue.state,
-          teamId: issue.teamId,
-          projectId: issue.projectId,
+          assignee: issue.assignee,
+          teamId: issue.team?.id,
+          teamName: issue.team?.name,
+          projectId: issue.project?.id,
+          projectName: issue.project?.name,
+          cycleId: issue.cycle?.id,
+          cycleNumber: issue.cycle?.number,
+          cycleName: issue.cycle?.name,
+          labels: issue.labels?.nodes || [],
         })),
+        hasNextPage: pageInfo.hasNextPage,
+        endCursor: pageInfo.endCursor,
       },
     }
   },
@@ -112,19 +268,39 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
   outputs: {
     issues: {
       type: 'array',
-      description:
-        'Array of issues from the specified Linear team and project, each containing id, title, description, state, teamId, and projectId',
+      description: 'Array of filtered issues from Linear',
       items: {
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Issue ID' },
           title: { type: 'string', description: 'Issue title' },
           description: { type: 'string', description: 'Issue description' },
-          state: { type: 'string', description: 'Issue state' },
+          priority: { type: 'number', description: 'Issue priority' },
+          estimate: { type: 'number', description: 'Issue estimate' },
+          url: { type: 'string', description: 'Issue URL' },
+          dueDate: { type: 'string', description: 'Due date (YYYY-MM-DD)' },
+          createdAt: { type: 'string', description: 'Creation timestamp' },
+          updatedAt: { type: 'string', description: 'Last update timestamp' },
+          state: { type: 'object', description: 'Issue state' },
+          assignee: { type: 'object', description: 'Assigned user' },
           teamId: { type: 'string', description: 'Team ID' },
+          teamName: { type: 'string', description: 'Team name' },
           projectId: { type: 'string', description: 'Project ID' },
+          projectName: { type: 'string', description: 'Project name' },
+          cycleId: { type: 'string', description: 'Cycle ID' },
+          cycleNumber: { type: 'number', description: 'Cycle number' },
+          cycleName: { type: 'string', description: 'Cycle name' },
+          labels: { type: 'array', description: 'Issue labels' },
         },
       },
+    },
+    hasNextPage: {
+      type: 'boolean',
+      description: 'Whether there are more results available',
+    },
+    endCursor: {
+      type: 'string',
+      description: 'Cursor for fetching the next page (use as "after" parameter)',
     },
   },
 }

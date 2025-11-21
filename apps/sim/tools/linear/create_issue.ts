@@ -38,6 +38,66 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
         visibility: 'user-or-llm',
         description: 'Issue description',
       },
+      stateId: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Workflow state ID (status)',
+      },
+      assigneeId: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'User ID to assign the issue to',
+      },
+      priority: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Priority (0=No priority, 1=Urgent, 2=High, 3=Normal, 4=Low)',
+      },
+      estimate: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Estimate in points',
+      },
+      labelIds: {
+        type: 'array',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Array of label IDs to set on the issue',
+      },
+      cycleId: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Cycle ID to assign the issue to',
+      },
+      parentId: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Parent issue ID (for creating sub-issues)',
+      },
+      dueDate: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Due date in ISO 8601 format (date only: YYYY-MM-DD)',
+      },
+      subscriberIds: {
+        type: 'array',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Array of user IDs to subscribe to the issue',
+      },
+      projectMilestoneId: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Project milestone ID to associate with the issue',
+      },
     },
 
     request: {
@@ -68,6 +128,36 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
         if (params.description != null && params.description !== '') {
           input.description = params.description
         }
+        if (params.stateId != null && params.stateId !== '') {
+          input.stateId = params.stateId
+        }
+        if (params.assigneeId != null && params.assigneeId !== '') {
+          input.assigneeId = params.assigneeId
+        }
+        if (params.priority != null) {
+          input.priority = Number(params.priority)
+        }
+        if (params.estimate != null) {
+          input.estimate = Number(params.estimate)
+        }
+        if (params.labelIds != null && Array.isArray(params.labelIds)) {
+          input.labelIds = params.labelIds
+        }
+        if (params.cycleId != null && params.cycleId !== '') {
+          input.cycleId = params.cycleId
+        }
+        if (params.parentId != null && params.parentId !== '') {
+          input.parentId = params.parentId
+        }
+        if (params.dueDate != null && params.dueDate !== '') {
+          input.dueDate = params.dueDate
+        }
+        if (params.subscriberIds != null && Array.isArray(params.subscriberIds)) {
+          input.subscriberIds = params.subscriberIds
+        }
+        if (params.projectMilestoneId != null && params.projectMilestoneId !== '') {
+          input.projectMilestoneId = params.projectMilestoneId
+        }
 
         return {
           query: `
@@ -77,9 +167,42 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
               id
               title
               description
-              state { name }
+              priority
+              estimate
+              url
+              dueDate
+              state {
+                id
+                name
+                type
+              }
+              assignee {
+                id
+                name
+                email
+              }
               team { id }
               project { id }
+              cycle {
+                id
+                number
+                name
+              }
+              parent {
+                id
+                title
+              }
+              projectMilestone {
+                id
+                name
+              }
+              labels {
+                nodes {
+                  id
+                  name
+                  color
+                }
+              }
             }
           }
         }
@@ -119,9 +242,22 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
             id: issue.id,
             title: issue.title,
             description: issue.description,
-            state: issue.state?.name,
+            priority: issue.priority,
+            estimate: issue.estimate,
+            url: issue.url,
+            dueDate: issue.dueDate,
+            state: issue.state,
+            assignee: issue.assignee,
             teamId: issue.team?.id,
             projectId: issue.project?.id,
+            cycleId: issue.cycle?.id,
+            cycleNumber: issue.cycle?.number,
+            cycleName: issue.cycle?.name,
+            parentId: issue.parent?.id,
+            parentTitle: issue.parent?.title,
+            projectMilestoneId: issue.projectMilestone?.id,
+            projectMilestoneName: issue.projectMilestone?.name,
+            labels: issue.labels?.nodes || [],
           },
         },
       }
@@ -130,15 +266,27 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
     outputs: {
       issue: {
         type: 'object',
-        description:
-          'The created issue containing id, title, description, state, teamId, and projectId',
+        description: 'The created issue with all its properties',
         properties: {
           id: { type: 'string', description: 'Issue ID' },
           title: { type: 'string', description: 'Issue title' },
           description: { type: 'string', description: 'Issue description' },
-          state: { type: 'string', description: 'Issue state' },
+          priority: { type: 'number', description: 'Issue priority' },
+          estimate: { type: 'number', description: 'Issue estimate' },
+          url: { type: 'string', description: 'Issue URL' },
+          dueDate: { type: 'string', description: 'Due date (YYYY-MM-DD)' },
+          state: { type: 'object', description: 'Issue state' },
+          assignee: { type: 'object', description: 'Assigned user' },
           teamId: { type: 'string', description: 'Team ID' },
           projectId: { type: 'string', description: 'Project ID' },
+          cycleId: { type: 'string', description: 'Cycle ID' },
+          cycleNumber: { type: 'number', description: 'Cycle number' },
+          cycleName: { type: 'string', description: 'Cycle name' },
+          parentId: { type: 'string', description: 'Parent issue ID' },
+          parentTitle: { type: 'string', description: 'Parent issue title' },
+          projectMilestoneId: { type: 'string', description: 'Project milestone ID' },
+          projectMilestoneName: { type: 'string', description: 'Project milestone name' },
+          labels: { type: 'array', description: 'Issue labels' },
         },
       },
     },
