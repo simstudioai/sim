@@ -5,10 +5,10 @@ global:
   # Use registry for all images, not just simstudioai/* images
   useRegistryForAllImages: false
   imagePullSecrets: []
-
+  
   # Common labels applied to all resources
   commonLabels: {}
-
+  
   # Storage class for persistent volumes
   storageClass: ""
 
@@ -16,16 +16,16 @@ global:
 app:
   # Enable/disable the main application
   enabled: true
-
+  
   # Image configuration
   image:
     repository: simstudioai/simstudio
     tag: latest
     pullPolicy: Always
-
+  
   # Number of replicas
   replicaCount: 1
-
+  
   # Resource limits and requests
   resources:
     limits:
@@ -34,19 +34,19 @@ app:
     requests:
       memory: "2Gi"
       cpu: "1000m"
-
+  
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
-
+  
   # Pod security context
   podSecurityContext:
     fsGroup: 1001
-
+  
   # Container security context
   securityContext:
     runAsNonRoot: true
     runAsUser: 1001
-
+  
   # Environment variables
   env:
     # Application URLs
@@ -54,11 +54,11 @@ app:
     BETTER_AUTH_URL: "http://localhost:3000"
     SOCKET_SERVER_URL: "http://localhost:3002"
     NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"
-
+    
     # Node environment
     NODE_ENV: "production"
     NEXT_TELEMETRY_DISABLED: "1"
-
+    
     # Authentication and encryption secrets (REQUIRED for production)
     # Generate secure 32-character secrets using: openssl rand -hex 32
     BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
@@ -72,17 +72,17 @@ app:
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate 64-character hex string using: openssl rand -hex 32 (outputs 64 hex chars = 32 bytes)
     API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest, must be exactly 64 hex characters, if not set keys stored in plain text
-
+    
     # Email & Communication
     EMAIL_VERIFICATION_ENABLED: "false"                   # Enable email verification for user registration and login (defaults to false)
     RESEND_API_KEY: ""                                    # Resend API key for transactional emails
     FROM_EMAIL_ADDRESS: ""                                # Complete from address (e.g., "Sim <noreply@domain.com>" or "DoNotReply@domain.com")
     EMAIL_DOMAIN: ""                                      # Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
-
+    
     # OAuth Integration Credentials (leave empty if not using)
     GOOGLE_CLIENT_ID: ""                                  # Google OAuth client ID
     GOOGLE_CLIENT_SECRET: ""                              # Google OAuth client secret
-    GITHUB_CLIENT_ID: ""                                  # GitHub OAuth client ID
+    GITHUB_CLIENT_ID: ""                                  # GitHub OAuth client ID  
     GITHUB_CLIENT_SECRET: ""                              # GitHub OAuth client secret
 
     # Generic OAuth Provider Configuration (for Auth0, Okta, Keycloak, custom OIDC providers, etc.)
@@ -105,19 +105,19 @@ app:
     ANTHROPIC_API_KEY_3: ""                               # Additional Anthropic API key for load balancing
     OLLAMA_URL: ""                                        # Ollama local LLM server URL
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
-
+    
     # Rate Limiting Configuration (per minute)
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
     RATE_LIMIT_FREE_SYNC: "10"                            # Free tier sync API executions
     RATE_LIMIT_PRO_SYNC: "25"                             # Pro tier sync API executions
     RATE_LIMIT_TEAM_SYNC: "75"                            # Team tier sync API executions
     RATE_LIMIT_ENTERPRISE_SYNC: "150"                     # Enterprise tier sync API executions
-    RATE_LIMIT_FREE_ASYNC: "50"                           # Free tier async API executions
+    RATE_LIMIT_FREE_ASYNC: "50"                           # Free tier async API executions  
     RATE_LIMIT_PRO_ASYNC: "200"                           # Pro tier async API executions
     RATE_LIMIT_TEAM_ASYNC: "500"                          # Team tier async API executions
     RATE_LIMIT_ENTERPRISE_ASYNC: "1000"                   # Enterprise tier async API executions
     MANUAL_EXECUTION_LIMIT: "999999"                      # Manual execution bypass value
-
+    
     # UI Branding & Whitelabeling Configuration
     NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
     NEXT_PUBLIC_BRAND_LOGO_URL: ""                        # Custom logo URL (leave empty for default)
@@ -127,18 +127,18 @@ app:
     NEXT_PUBLIC_DOCUMENTATION_URL: ""                    # Documentation URL (leave empty for none)
     NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
     NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)
-
+    
     # Access Control (leave empty if not restricting login)
     ALLOWED_LOGIN_EMAILS: ""                             # Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS: ""                            # Comma-separated list of allowed email domains for login
-
-
+    
+  
   # Service configuration
   service:
     type: ClusterIP
     port: 3000
     targetPort: 3000
-
+  
   # Health checks
   livenessProbe:
     httpGet:
@@ -148,7 +148,7 @@ app:
     periodSeconds: 90
     timeoutSeconds: 5
     failureThreshold: 3
-
+  
   readinessProbe:
     httpGet:
       path: /
@@ -162,16 +162,16 @@ app:
 realtime:
   # Enable/disable the realtime service
   enabled: true
-
+  
   # Image configuration
   image:
     repository: simstudioai/realtime
     tag: latest
     pullPolicy: Always
-
+  
   # Number of replicas
   replicaCount: 1
-
+  
   # Resource limits and requests
   resources:
     limits:
@@ -180,42 +180,42 @@ realtime:
     requests:
       memory: "1Gi"
       cpu: "500m"
-
+  
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
-
+  
   # Pod security context
   podSecurityContext:
     fsGroup: 1001
-
+  
   # Container security context
   securityContext:
     runAsNonRoot: true
     runAsUser: 1001
-
+  
   # Environment variables
   env:
     # Application URLs
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     BETTER_AUTH_URL: "http://localhost:3000"
     NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"
-
+    
     # Authentication secret (REQUIRED for production)
     # Must match the BETTER_AUTH_SECRET value from the main app configuration
     BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
-
+    
     # Cross-Origin Resource Sharing (CORS) allowed origins
     ALLOWED_ORIGINS: "http://localhost:3000"
-
+    
     # Node environment
     NODE_ENV: "production"
-
+  
   # Service configuration
   service:
     type: ClusterIP
     port: 3002
     targetPort: 3002
-
+  
   # Health checks
   livenessProbe:
     httpGet:
@@ -225,7 +225,7 @@ realtime:
     periodSeconds: 90
     timeoutSeconds: 5
     failureThreshold: 3
-
+  
   readinessProbe:
     httpGet:
       path: /health
@@ -239,13 +239,13 @@ realtime:
 migrations:
   # Enable/disable migrations job
   enabled: true
-
+  
   # Image configuration
   image:
     repository: simstudioai/migrations
     tag: latest
     pullPolicy: Always
-
+  
   # Resource limits and requests
   resources:
     limits:
@@ -253,11 +253,11 @@ migrations:
     requests:
       memory: "512Mi"
       cpu: "100m"
-
+  
   # Pod security context
   podSecurityContext:
     fsGroup: 1001
-
+  
   # Container security context
   securityContext:
     runAsNonRoot: true
@@ -267,22 +267,22 @@ migrations:
 postgresql:
   # Enable/disable internal PostgreSQL deployment
   enabled: true
-
+  
   # Image configuration
   image:
     repository: pgvector/pgvector
     tag: pg17
     pullPolicy: IfNotPresent
-
+  
   # Authentication configuration
   auth:
     username: postgres
     password: ""  # REQUIRED - set via --set flag or external secret manager
     database: sim
-
+  
   # Node selector for database pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
-
+  
   # Resource limits and requests
   resources:
     limits:
@@ -290,15 +290,15 @@ postgresql:
     requests:
       memory: "1Gi"
       cpu: "500m"
-
+  
   # Pod security context
   podSecurityContext:
     fsGroup: 999
-
+  
   # Container security context
   securityContext:
     runAsUser: 999
-
+  
   # Persistence configuration
   persistence:
     enabled: true
@@ -306,7 +306,7 @@ postgresql:
     size: 10Gi
     accessModes:
       - ReadWriteOnce
-
+  
   # SSL/TLS configuration (enable for production deployments with certificates)
   # Requires cert-manager to be installed in the cluster
   tls:
@@ -330,27 +330,27 @@ postgresql:
     # additionalDnsNames:
     #   - postgres.example.com
     #   - db.example.com
-
+  
   # PostgreSQL configuration
   config:
     maxConnections: 1000
     sharedBuffers: "1280MB"
     maxWalSize: "4GB"
     minWalSize: "80MB"
-
+  
   # Service configuration
   service:
     type: ClusterIP
     port: 5432
     targetPort: 5432
-
+  
   # Health checks
   livenessProbe:
     exec:
       command: ["pg_isready", "-U", "postgres", "-d", "sim"]
     initialDelaySeconds: 10
     periodSeconds: 5
-
+  
   readinessProbe:
     exec:
       command: ["pg_isready", "-U", "postgres", "-d", "sim"]
@@ -361,14 +361,14 @@ postgresql:
 externalDatabase:
   # Enable to use an external database instead of the internal PostgreSQL instance
   enabled: false
-
+  
   # Database connection details
   host: "external-db.example.com"
   port: 5432
   username: postgres
   password: ""
   database: sim
-
+  
   # SSL configuration
   sslMode: require
 
@@ -376,32 +376,32 @@ externalDatabase:
 ollama:
   # Enable/disable Ollama deployment
   enabled: false
-
+  
   # Image configuration
   image:
     repository: ollama/ollama
     tag: latest
     pullPolicy: Always
-
+  
   # Number of replicas
   replicaCount: 1
-
+  
   # GPU configuration
   gpu:
     enabled: false
     count: 1
-
+  
   # Node selector for GPU workloads (adjust labels based on your cluster configuration)
   nodeSelector:
     accelerator: nvidia
-
+  
   # Tolerations for GPU nodes (adjust based on your cluster's GPU node taints)
   tolerations:
     - key: "sku"
       operator: "Equal"
       value: "gpu"
       effect: "NoSchedule"
-
+  
   # Resource limits and requests
   resources:
     limits:
@@ -410,14 +410,14 @@ ollama:
     requests:
       memory: "4Gi"
       cpu: "1000m"
-
+  
   # Environment variables
   env:
     NVIDIA_DRIVER_CAPABILITIES: "all"
     OLLAMA_LOAD_TIMEOUT: "-1"
     OLLAMA_KEEP_ALIVE: "-1"
     OLLAMA_DEBUG: "1"
-
+  
   # Persistence configuration
   persistence:
     enabled: true
@@ -425,13 +425,13 @@ ollama:
     size: 100Gi
     accessModes:
       - ReadWriteOnce
-
+  
   # Service configuration
   service:
     type: ClusterIP
     port: 11434
     targetPort: 11434
-
+  
   # Health checks
   startupProbe:
     httpGet:
@@ -441,7 +441,7 @@ ollama:
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 10
-
+  
   livenessProbe:
     httpGet:
       path: /
@@ -450,7 +450,7 @@ ollama:
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 5
-
+  
   readinessProbe:
     httpGet:
       path: /
@@ -464,28 +464,28 @@ ollama:
 ingress:
   # Enable/disable ingress
   enabled: false
-
+  
   # Ingress class name
   className: nginx
-
+  
   # Annotations
   annotations:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-
+  
   # Main application host configuration
   app:
     host: sim.local
     paths:
       - path: /
         pathType: Prefix
-
+  
   # Realtime service host configuration
   realtime:
     host: sim-ws.local
     paths:
       - path: /
         pathType: Prefix
-
+  
   # TLS configuration
   tls:
     enabled: false
@@ -495,10 +495,10 @@ ingress:
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
-
+  
   # Annotations to add to the service account
   annotations: {}
-
+  
   # The name of the service account to use
   name: ""
 
@@ -572,11 +572,11 @@ monitoring:
 # Network policies
 networkPolicy:
   enabled: false
-
+  
   # Custom ingress rules
   ingress: []
-
-  # Custom egress rules
+  
+  # Custom egress rules  
   egress: []
 
 # Shared storage for enterprise workflows requiring data sharing between pods
@@ -632,7 +632,7 @@ tolerations: []
 cronjobs:
   # Enable/disable all cron jobs
   enabled: true
-
+  
   # Individual job configurations
   jobs:
     scheduleExecution:
@@ -643,7 +643,7 @@ cronjobs:
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
-
+      
     gmailWebhookPoll:
       enabled: true
       name: gmail-webhook-poll
@@ -652,7 +652,7 @@ cronjobs:
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
-
+      
     outlookWebhookPoll:
       enabled: true
       name: outlook-webhook-poll
@@ -661,7 +661,7 @@ cronjobs:
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
-
+      
     renewSubscriptions:
       enabled: true
       name: renew-subscriptions
@@ -670,14 +670,14 @@ cronjobs:
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
-
+      
 
   # Global CronJob settings
   image:
     repository: curlimages/curl
     tag: 8.5.0
     pullPolicy: IfNotPresent
-
+    
   resources:
     limits:
       memory: "128Mi"
@@ -685,15 +685,15 @@ cronjobs:
     requests:
       memory: "64Mi"
       cpu: "50m"
-
+      
   restartPolicy: OnFailure
   activeDeadlineSeconds: 300
   startingDeadlineSeconds: 60
-
+  
   # Pod security context
   podSecurityContext:
     fsGroup: 1001
-
+  
   # Container security context
   securityContext:
     runAsNonRoot: true
@@ -703,16 +703,16 @@ cronjobs:
 telemetry:
   # Enable/disable telemetry collection
   enabled: false
-
+  
   # OpenTelemetry Collector image
   image:
     repository: otel/opentelemetry-collector-contrib
     tag: 0.91.0
     pullPolicy: IfNotPresent
-
+  
   # Number of collector replicas
   replicaCount: 1
-
+  
   # Resource limits and requests
   resources:
     limits:
@@ -721,33 +721,33 @@ telemetry:
     requests:
       memory: "256Mi"
       cpu: "100m"
-
+  
   # Node selector for telemetry pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
-
+  
   # Tolerations for telemetry workloads
   tolerations: []
-
+  
   # Affinity for telemetry workloads
   affinity: {}
-
+  
   # Service configuration
   service:
     type: ClusterIP
-
+  
   # Jaeger tracing backend
   jaeger:
     enabled: false
     endpoint: "http://jaeger-collector:14250"
     tls:
       enabled: false
-
+  
   # Prometheus metrics backend
   prometheus:
     enabled: false
     endpoint: "http://prometheus-server/api/v1/write"
     auth: ""
-
+  
   # Generic OTLP backend
   otlp:
     enabled: false
@@ -759,7 +759,7 @@ telemetry:
 copilot:
   # Enable/disable the copilot service
   enabled: false
-
+  
   # Server deployment configuration
   server:
     # Image configuration
@@ -767,10 +767,10 @@ copilot:
       repository: simstudioai/copilot
       tag: latest
       pullPolicy: Always
-
+    
     # Number of replicas
     replicaCount: 1
-
+    
     # Resource limits and requests
     resources:
       limits:
@@ -779,21 +779,21 @@ copilot:
       requests:
         memory: "1Gi"
         cpu: "500m"
-
+    
     # Node selector for pod scheduling
     # Leave empty to run on same infrastructure as main Sim platform
     # Or specify labels to isolate on dedicated nodes: { "workload-type": "copilot" }
     nodeSelector: {}
-
+    
     # Pod security context
     podSecurityContext:
       fsGroup: 1001
-
+    
     # Container security context
     securityContext:
       runAsNonRoot: true
       runAsUser: 1001
-
+    
     # Environment variables (required and optional)
     env:
       PORT: "8080"
@@ -811,25 +811,25 @@ copilot:
       LOG_LEVEL: "info"
       CORS_ALLOWED_ORIGINS: ""
       OTEL_EXPORTER_OTLP_ENDPOINT: ""
-
+    
     # Optional: additional static environment variables
     extraEnv: []
-
+    
     # Optional: references to existing ConfigMaps/Secrets
     extraEnvFrom: []
-
+    
     # Secret generation configuration (set create=false to use an existing secret)
     secret:
       create: true
       name: ""
       annotations: {}
-
+    
     # Service configuration
     service:
       type: ClusterIP
       port: 8080
       targetPort: 8080
-
+    
     # Health checks
     readinessProbe:
       httpGet:
@@ -839,7 +839,7 @@ copilot:
       periodSeconds: 10
       timeoutSeconds: 5
       failureThreshold: 3
-
+    
     livenessProbe:
       httpGet:
         path: /healthz
@@ -858,24 +858,24 @@ copilot:
   postgresql:
     # Enable/disable internal PostgreSQL for copilot
     enabled: true
-
+    
     # Image configuration
     image:
       repository: postgres
       tag: 16-alpine
       pullPolicy: IfNotPresent
-
+    
     # Authentication configuration
     auth:
       username: copilot
       password: ""  # REQUIRED - set via --set flag or external secret manager
       database: copilot
-
+    
     # Node selector for database pod scheduling
     # Leave empty to run on same infrastructure as main Sim platform
     # Or specify labels to isolate on dedicated nodes: { "workload-type": "copilot" }
     nodeSelector: {}
-
+    
     # Resource limits and requests
     resources:
       limits:
@@ -884,15 +884,15 @@ copilot:
       requests:
         memory: "512Mi"
         cpu: "250m"
-
+    
     # Pod security context
     podSecurityContext:
       fsGroup: 999
-
+    
     # Container security context
     securityContext:
       runAsUser: 999
-
+    
     # Persistence configuration
     persistence:
       enabled: true
@@ -900,13 +900,13 @@ copilot:
       size: 10Gi
       accessModes:
         - ReadWriteOnce
-
+    
     # Service configuration
     service:
       type: ClusterIP
       port: 5432
       targetPort: 5432
-
+    
     # Health checks
     livenessProbe:
       exec:
@@ -915,7 +915,7 @@ copilot:
       periodSeconds: 5
       timeoutSeconds: 5
       failureThreshold: 10
-
+    
     readinessProbe:
       exec:
         command: ["pg_isready", "-U", "copilot", "-d", "copilot"]
@@ -923,24 +923,24 @@ copilot:
       periodSeconds: 3
       timeoutSeconds: 5
       failureThreshold: 10
-
+  
   # External database configuration (use when connecting to a managed database)
   database:
     existingSecretName: ""
     secretKey: DATABASE_URL
     url: ""
-
+  
   # Migration job configuration
   migrations:
     # Enable/disable migrations job
     enabled: true
-
+    
     # Image configuration (same as server)
     image:
       repository: simstudioai/copilot
       tag: latest
       pullPolicy: Always
-
+    
     # Resource limits and requests
     resources:
       limits:
@@ -949,16 +949,16 @@ copilot:
       requests:
         memory: "256Mi"
         cpu: "100m"
-
+    
     # Pod security context
     podSecurityContext:
       fsGroup: 1001
-
+    
     # Container security context
     securityContext:
       runAsNonRoot: true
       runAsUser: 1001
-
+    
     # Job configuration
     backoffLimit: 3
     restartPolicy: OnFailure
