@@ -1,10 +1,10 @@
 import type { SttParams, SttResponse } from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
-  id: 'stt_whisper',
-  name: 'OpenAI Whisper STT',
-  description: 'Transcribe audio to text using OpenAI Whisper',
+export const geminiSttTool: ToolConfig<SttParams, SttResponse> = {
+  id: 'stt_gemini',
+  name: 'Google Gemini STT',
+  description: 'Transcribe audio to text using Google Gemini with multimodal capabilities',
   version: '1.0.0',
 
   params: {
@@ -12,19 +12,19 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'STT provider (whisper)',
+      description: 'STT provider (gemini)',
     },
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'OpenAI API key',
+      description: 'Google API key',
     },
     model: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whisper model to use (default: whisper-1)',
+      description: 'Gemini model to use (default: gemini-2.5-flash)',
     },
     audioFile: {
       type: 'file',
@@ -56,26 +56,6 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
       visibility: 'user-only',
       description: 'Timestamp granularity: none, sentence, or word',
     },
-    translateToEnglish: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-only',
-      description: 'Translate audio to English',
-    },
-    prompt: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        "Optional text to guide the model's style or continue a previous audio segment. Helps with proper nouns and context.",
-    },
-    temperature: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Sampling temperature between 0 and 1. Higher values make output more random, lower values more focused and deterministic.',
-    },
   },
 
   request: {
@@ -89,7 +69,7 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
         _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
       }
     ) => ({
-      provider: 'whisper',
+      provider: 'gemini',
       apiKey: params.apiKey,
       model: params.model,
       audioFile: params.audioFile,
@@ -97,9 +77,6 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
       audioUrl: params.audioUrl,
       language: params.language || 'auto',
       timestamps: params.timestamps || 'none',
-      translateToEnglish: params.translateToEnglish || false,
-      prompt: (params as any).prompt,
-      temperature: (params as any).temperature,
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,
@@ -126,6 +103,7 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
         segments: data.segments,
         language: data.language,
         duration: data.duration,
+        confidence: data.confidence,
       },
     }
   },
@@ -135,5 +113,6 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
     segments: { type: 'array', description: 'Timestamped segments' },
     language: { type: 'string', description: 'Detected or specified language' },
     duration: { type: 'number', description: 'Audio duration in seconds' },
+    confidence: { type: 'number', description: 'Overall confidence score' },
   },
 }
