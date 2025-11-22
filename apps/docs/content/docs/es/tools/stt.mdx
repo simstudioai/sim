@@ -11,20 +11,37 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-Transcribe voz a texto utilizando modelos de IA de vanguardia de proveedores líderes. Las herramientas de Sim de voz a texto (STT) te permiten convertir archivos de audio y video en transcripciones precisas, con soporte para múltiples idiomas, marcas de tiempo y traducción opcional.
+Transcribe voz a texto utilizando los modelos de IA más avanzados de proveedores de clase mundial. Las herramientas de reconocimiento de voz (STT) de Sim te permiten convertir audio y video en transcripciones precisas, con marcas de tiempo y opcionalmente traducidas, compatibles con una diversidad de idiomas y mejoradas con características avanzadas como la diarización e identificación de hablantes.
 
-Proveedores compatibles:
+**Proveedores y modelos compatibles:**
 
-- **[OpenAI Whisper](https://platform.openai.com/docs/guides/speech-to-text/overview)**: Modelo STT avanzado de código abierto de OpenAI. Compatible con modelos como `whisper-1` y maneja una amplia variedad de idiomas y formatos de audio.
-- **[Deepgram](https://deepgram.com/)**: API de STT en tiempo real y por lotes con modelos de aprendizaje profundo como `nova-3`, `nova-2` y `whisper-large`. Ofrece características como diarización, reconocimiento de intención y ajuste específico para industrias.
-- **[ElevenLabs](https://elevenlabs.io/)**: Conocido por su IA de voz de alta calidad, ElevenLabs proporciona modelos STT enfocados en precisión y comprensión del lenguaje natural para numerosos idiomas y dialectos.
+- **[OpenAI Whisper](https://platform.openai.com/docs/guides/speech-to-text/overview)** (OpenAI):  
+  Whisper de OpenAI es un modelo de aprendizaje profundo de código abierto reconocido por su robustez en diferentes idiomas y condiciones de audio. Admite modelos avanzados como `whisper-1`, destacándose en transcripción, traducción y tareas que exigen alta generalización del modelo. Respaldado por OpenAI—la empresa conocida por ChatGPT e investigación líder en IA—Whisper es ampliamente utilizado en investigación y como referencia para evaluación comparativa.
 
-Elige el proveedor y modelo que mejor se adapte a tu tarea, ya sea transcripción rápida de nivel de producción (Deepgram), capacidad multilingüe altamente precisa (Whisper) o comprensión avanzada y cobertura de idiomas (ElevenLabs).
+- **[Deepgram](https://deepgram.com/)** (Deepgram Inc.):  
+  Con sede en San Francisco, Deepgram ofrece APIs de reconocimiento de voz escalables y de nivel de producción para desarrolladores y empresas. Los modelos de Deepgram incluyen `nova-3`, `nova-2` y `whisper-large`, ofreciendo transcripción en tiempo real y por lotes con precisión líder en la industria, soporte multilingüe, puntuación automática, diarización inteligente, análisis de llamadas y características para casos de uso que van desde telefonía hasta producción de medios.
+
+- **[ElevenLabs](https://elevenlabs.io/)** (ElevenLabs):  
+  Líder en IA de voz, ElevenLabs es especialmente conocido por su síntesis y reconocimiento de voz premium. Su producto STT ofrece alta precisión y comprensión natural de numerosos idiomas, dialectos y acentos. Los modelos recientes de STT de ElevenLabs están optimizados para claridad, distinción de hablantes y son adecuados tanto para escenarios creativos como de accesibilidad. ElevenLabs es reconocido por sus avances de vanguardia en tecnologías de voz impulsadas por IA.
+
+- **[AssemblyAI](https://www.assemblyai.com/)** (AssemblyAI Inc.):  
+  AssemblyAI proporciona reconocimiento de voz altamente preciso basado en API, con características como capítulos automáticos, detección de temas, resúmenes, análisis de sentimientos y moderación de contenido junto con la transcripción. Su modelo propietario, incluyendo el aclamado `Conformer-2`, impulsa algunas de las aplicaciones más grandes de medios, centros de llamadas y cumplimiento normativo en la industria. AssemblyAI cuenta con la confianza de empresas Fortune 500 y startups líderes en IA a nivel mundial.
+
+- **[Google Cloud Speech-to-Text](https://cloud.google.com/speech-to-text)** (Google Cloud):  
+  La API Speech-to-Text de nivel empresarial de Google admite más de 125 idiomas y variantes, ofreciendo alta precisión y características como transmisión en tiempo real, confianza a nivel de palabra, diarización de hablantes, puntuación automática, vocabulario personalizado y ajuste específico por dominio. Modelos como `latest_long`, `video`, y modelos optimizados por dominio están disponibles, impulsados por años de investigación de Google y desplegados para escalabilidad global.
+
+- **[AWS Transcribe](https://aws.amazon.com/transcribe/)** (Amazon Web Services):  
+  AWS Transcribe aprovecha la infraestructura en la nube de Amazon para ofrecer un robusto reconocimiento de voz como API. Admite múltiples idiomas y características como identificación de hablantes, vocabulario personalizado, identificación de canales (para audio de centros de llamadas) y transcripción específica para medicina. Los modelos populares incluyen `standard` y variaciones específicas por dominio. AWS Transcribe es ideal para organizaciones que ya utilizan la nube de Amazon.
+
+**Cómo elegir:**  
+Selecciona el proveedor y modelo que se adapte a tu aplicación—ya sea que necesites transcripción rápida y lista para empresas con análisis adicionales (Deepgram, AssemblyAI, Google, AWS), alta versatilidad y acceso de código abierto (OpenAI Whisper), o comprensión avanzada de hablantes/contextual (ElevenLabs). Considera el precio, la cobertura de idiomas, la precisión y cualquier característica especial (como resúmenes, capítulos o análisis de sentimiento) que puedas necesitar.
+
+Para más detalles sobre capacidades, precios, características destacadas y opciones de ajuste fino, consulta la documentación oficial de cada proveedor a través de los enlaces anteriores.
 {/* MANUAL-CONTENT-END */}
 
 ## Instrucciones de uso
 
-Transcribe archivos de audio y video a texto utilizando proveedores de IA líderes. Compatible con múltiples idiomas, marcas de tiempo y diarización de hablantes.
+Transcribe archivos de audio y video a texto utilizando proveedores líderes de IA. Compatible con múltiples idiomas, marcas de tiempo y diarización de hablantes.
 
 ## Herramientas
 
@@ -38,13 +55,15 @@ Transcribe audio a texto usando OpenAI Whisper
 | --------- | ---- | -------- | ----------- |
 | `provider` | string | Sí | Proveedor STT \(whisper\) |
 | `apiKey` | string | Sí | Clave API de OpenAI |
-| `model` | string | No | Modelo Whisper a utilizar \(predeterminado: whisper-1\) |
+| `model` | string | No | Modelo de Whisper a utilizar \(predeterminado: whisper-1\) |
 | `audioFile` | file | No | Archivo de audio o video para transcribir |
-| `audioFileReference` | file | No | Referencia a archivo de audio/video de bloques anteriores |
+| `audioFileReference` | file | No | Referencia al archivo de audio/video de bloques anteriores |
 | `audioUrl` | string | No | URL al archivo de audio o video |
 | `language` | string | No | Código de idioma \(p.ej., "en", "es", "fr"\) o "auto" para detección automática |
-| `timestamps` | string | No | Granularidad de marcas de tiempo: none, sentence, o word |
+| `timestamps` | string | No | Granularidad de marca de tiempo: none, sentence, o word |
 | `translateToEnglish` | boolean | No | Traducir audio a inglés |
+| `prompt` | string | No | Texto opcional para guiar el estilo del modelo o continuar un segmento de audio anterior. Ayuda con nombres propios y contexto. |
+| `temperature` | number | No | Temperatura de muestreo entre 0 y 1. Valores más altos hacen que la salida sea más aleatoria, valores más bajos más enfocada y determinista. |
 
 #### Salida
 
@@ -54,11 +73,10 @@ Transcribe audio a texto usando OpenAI Whisper
 | `segments` | array | Segmentos con marcas de tiempo |
 | `language` | string | Idioma detectado o especificado |
 | `duration` | number | Duración del audio en segundos |
-| `confidence` | number | Puntuación de confianza general |
 
 ### `stt_deepgram`
 
-Transcribe audio a texto usando Deepgram
+Transcribir audio a texto usando Deepgram
 
 #### Entrada
 
@@ -86,11 +104,11 @@ Transcribe audio a texto usando Deepgram
 
 ### `stt_elevenlabs`
 
-Transcribe audio a texto usando ElevenLabs
+Transcribir audio a texto usando ElevenLabs
 
 #### Entrada
 
-| Parámetro | Tipo | Requerido | Descripción |
+| Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `provider` | string | Sí | Proveedor STT \(elevenlabs\) |
 | `apiKey` | string | Sí | Clave API de ElevenLabs |
@@ -99,7 +117,69 @@ Transcribe audio a texto usando ElevenLabs
 | `audioFileReference` | file | No | Referencia al archivo de audio/video de bloques anteriores |
 | `audioUrl` | string | No | URL al archivo de audio o video |
 | `language` | string | No | Código de idioma \(p.ej., "en", "es", "fr"\) o "auto" para detección automática |
-| `timestamps` | string | No | Granularidad de marca de tiempo: none, sentence, o word |
+| `timestamps` | string | No | Granularidad de marcas de tiempo: none, sentence, o word |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `transcript` | string | Texto transcrito completo |
+| `segments` | array | Segmentos con marcas de tiempo |
+| `language` | string | Idioma detectado o especificado |
+| `duration` | number | Duración del audio en segundos |
+| `confidence` | number | Puntuación de confianza general |
+
+### `stt_assemblyai`
+
+Transcribir audio a texto usando AssemblyAI con funciones avanzadas de PLN
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Sí | Proveedor STT \(assemblyai\) |
+| `apiKey` | string | Sí | Clave API de AssemblyAI |
+| `model` | string | No | Modelo de AssemblyAI a utilizar \(predeterminado: best\) |
+| `audioFile` | file | No | Archivo de audio o video para transcribir |
+| `audioFileReference` | file | No | Referencia al archivo de audio/video de bloques anteriores |
+| `audioUrl` | string | No | URL al archivo de audio o video |
+| `language` | string | No | Código de idioma \(p.ej., "en", "es", "fr"\) o "auto" para detección automática |
+| `timestamps` | string | No | Granularidad de marcas de tiempo: none, sentence, o word |
+| `diarization` | boolean | No | Habilitar diarización de hablantes |
+| `sentiment` | boolean | No | Habilitar análisis de sentimiento |
+| `entityDetection` | boolean | No | Habilitar detección de entidades |
+| `piiRedaction` | boolean | No | Habilitar redacción de IIP |
+| `summarization` | boolean | No | Habilitar resumen automático |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `transcript` | string | Texto transcrito completo |
+| `segments` | array | Segmentos con marcas de tiempo y etiquetas de hablantes |
+| `language` | string | Idioma detectado o especificado |
+| `duration` | number | Duración del audio en segundos |
+| `confidence` | number | Puntuación de confianza general |
+| `sentiment` | array | Resultados del análisis de sentimiento |
+| `entities` | array | Entidades detectadas |
+| `summary` | string | Resumen generado automáticamente |
+
+### `stt_gemini`
+
+Transcribe audio a texto usando Google Gemini con capacidades multimodales
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Sí | Proveedor STT \(gemini\) |
+| `apiKey` | string | Sí | Clave API de Google |
+| `model` | string | No | Modelo de Gemini a utilizar \(predeterminado: gemini-2.5-flash\) |
+| `audioFile` | file | No | Archivo de audio o video para transcribir |
+| `audioFileReference` | file | No | Referencia al archivo de audio/video de bloques anteriores |
+| `audioUrl` | string | No | URL al archivo de audio o video |
+| `language` | string | No | Código de idioma \(p.ej., "en", "es", "fr"\) o "auto" para detección automática |
+| `timestamps` | string | No | Granularidad de marcas de tiempo: none, sentence, o word |
 
 #### Salida
 
