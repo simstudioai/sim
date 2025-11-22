@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
+import { webhook, workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -13,6 +13,7 @@ import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { getTrigger } from '@/triggers'
 
 const logger = createLogger('WorkflowStateAPI')
 
@@ -202,6 +203,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
+    await syncWorkflowWebhooks(workflowId, workflowState.blocks)
+
     // Extract and persist custom tools to database
     try {
       const workspaceId = workflowData.workspaceId
@@ -285,5 +288,98 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+function getSubBlockValue<T = unknown>(block: BlockState, subBlockId: string): T | undefined {
+  const value = block.subBlocks?.[subBlockId]?.value
+  if (value === undefined || value === null) {
+    return undefined
+  }
+  return value as T
+}
+
+async function syncWorkflowWebhooks(
+  workflowId: string,
+  blocks: Record<string, BlockState | undefined>
+): Promise<void> {
+  const blocksEntries = Object.values(blocks || {}).filter(Boolean) as BlockState[]
+  if (blocksEntries.length === 0) {
+    return
+  }
+
+  for (const block of blocksEntries) {
+    const webhookId = getSubBlockValue<string>(block, 'webhookId')
+    if (!webhookId) continue
+
+    const triggerId =
+      getSubBlockValue<string>(block, 'triggerId') ||
+      getSubBlockValue<string>(block, 'selectedTriggerId')
+    const triggerConfig = getSubBlockValue<Record<string, any>>(block, 'triggerConfig') || {}
+    const triggerCredentials = getSubBlockValue<string>(block, 'triggerCredentials')
+    const triggerPath = getSubBlockValue<string>(block, 'triggerPath') || block.id
+
+    const triggerDef = triggerId ? getTrigger(triggerId) : undefined
+    const provider = triggerDef?.provider
+
+    const providerConfig = {
+      ...(typeof triggerConfig === 'object' ? triggerConfig : {}),
+      ...(triggerCredentials ? { credentialId: triggerCredentials } : {}),
+      ...(triggerId ? { triggerId } : {}),
+    }
+
+    const [existing] = await db.select().from(webhook).where(eq(webhook.id, webhookId)).limit(1)
+
+    if (existing) {
+      const needsUpdate =
+        existing.blockId !== block.id ||
+        existing.workflowId !== workflowId ||
+        existing.path !== triggerPath
+
+      if (needsUpdate) {
+        await db
+          .update(webhook)
+          .set({
+            workflowId,
+            blockId: block.id,
+            path: triggerPath,
+            provider: provider || existing.provider,
+            providerConfig: Object.keys(providerConfig).length
+              ? providerConfig
+              : existing.providerConfig,
+            isActive: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(webhook.id, webhookId))
+      }
+      continue
+    }
+
+    try {
+      await db.insert(webhook).values({
+        id: webhookId,
+        workflowId,
+        blockId: block.id,
+        path: triggerPath,
+        provider: provider || null,
+        providerConfig: providerConfig,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+
+      logger.info('Recreated missing webhook after workflow save', {
+        workflowId,
+        blockId: block.id,
+        webhookId,
+      })
+    } catch (error) {
+      logger.error('Failed to recreate webhook during workflow sync', {
+        workflowId,
+        blockId: block.id,
+        webhookId,
+        error,
+      })
+    }
   }
 }
