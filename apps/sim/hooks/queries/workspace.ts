@@ -104,7 +104,6 @@ async function fetchAdminWorkspaces(userId: string | undefined): Promise<AdminWo
     return []
   }
 
-  // Fetch all user workspaces
   const workspacesResponse = await fetch('/api/workspaces')
   if (!workspacesResponse.ok) {
     throw new Error('Failed to fetch workspaces')
@@ -113,23 +112,23 @@ async function fetchAdminWorkspaces(userId: string | undefined): Promise<AdminWo
   const workspacesData = await workspacesResponse.json()
   const allUserWorkspaces = workspacesData.workspaces || []
 
-  // Fetch permissions for all workspaces in parallel
-  const permissionPromises = allUserWorkspaces.map(async (workspace: any) => {
-    try {
-      const permissionResponse = await fetch(`/api/workspaces/${workspace.id}/permissions`)
-      if (!permissionResponse.ok) {
+  const permissionPromises = allUserWorkspaces.map(
+    async (workspace: { id: string; name: string; isOwner?: boolean; ownerId?: string }) => {
+      try {
+        const permissionResponse = await fetch(`/api/workspaces/${workspace.id}/permissions`)
+        if (!permissionResponse.ok) {
+          return null
+        }
+        const permissionData = await permissionResponse.json()
+        return { workspace, permissionData }
+      } catch (error) {
         return null
       }
-      const permissionData = await permissionResponse.json()
-      return { workspace, permissionData }
-    } catch (error) {
-      return null
     }
-  })
+  )
 
   const results = await Promise.all(permissionPromises)
 
-  // Filter to admin workspaces
   const adminWorkspaces: AdminWorkspace[] = []
   for (const result of results) {
     if (!result) continue
@@ -139,7 +138,8 @@ async function fetchAdminWorkspaces(userId: string | undefined): Promise<AdminWo
 
     if (permissionData.users) {
       const currentUserPermission = permissionData.users.find(
-        (user: any) => user.id === userId || user.userId === userId
+        (user: { id: string; userId?: string; permissionType: string }) =>
+          user.id === userId || user.userId === userId
       )
       hasAdminAccess = currentUserPermission?.permissionType === 'admin'
     }
