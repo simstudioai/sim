@@ -140,10 +140,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'google-drive',
         icon: (props) => GoogleDriveIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
-        scopes: [
-          'https://www.googleapis.com/auth/drive.readonly',
-          'https://www.googleapis.com/auth/drive.file',
-        ],
+        scopes: ['https://www.googleapis.com/auth/drive.file'],
         scopeHints: ['drive'],
       },
       'google-docs': {
@@ -153,10 +150,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'google-docs',
         icon: (props) => GoogleDocsIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
-        scopes: [
-          'https://www.googleapis.com/auth/drive.readonly',
-          'https://www.googleapis.com/auth/drive.file',
-        ],
+        scopes: ['https://www.googleapis.com/auth/drive.file'],
         scopeHints: ['docs'],
       },
       'google-sheets': {
@@ -166,10 +160,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'google-sheets',
         icon: (props) => GoogleSheetsIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
-        scopes: [
-          'https://www.googleapis.com/auth/drive.readonly',
-          'https://www.googleapis.com/auth/drive.file',
-        ],
+        scopes: ['https://www.googleapis.com/auth/drive.file'],
         scopeHints: ['sheets'],
       },
       'google-forms': {
