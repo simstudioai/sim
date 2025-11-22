@@ -84,7 +84,16 @@ app:
     GOOGLE_CLIENT_SECRET: ""                              # Google OAuth client secret
     GITHUB_CLIENT_ID: ""                                  # GitHub OAuth client ID  
     GITHUB_CLIENT_SECRET: ""                              # GitHub OAuth client secret
-    
+
+    # Generic OAuth Provider Configuration (for Auth0, Okta, Keycloak, custom OIDC providers, etc.)
+    OAUTH_CLIENT_ID: ""                                   # OAuth client ID for generic OAuth provider
+    OAUTH_CLIENT_SECRET: ""                               # OAuth client secret for generic OAuth provider
+    OAUTH_AUTHORIZATION_URL: ""                           # Authorization endpoint URL (e.g., https://your-domain.auth0.com/authorize)
+    OAUTH_TOKEN_URL: ""                                   # Token endpoint URL (e.g., https://your-domain.auth0.com/oauth/token)
+    OAUTH_USERINFO_URL: ""                                # User info endpoint URL (e.g., https://your-domain.auth0.com/userinfo)
+    OAUTH_SCOPES: "openid profile email"                  # OAuth scopes (default: openid profile email)
+    OAUTH_PROVIDER_ID: ""                                 # Provider identifier for Better Auth's genericOAuth plugin (e.g., auth0, okta, custom)
+
     # AI Provider API Keys (leave empty if not using)
     OPENAI_API_KEY: ""                                    # Primary OpenAI API key
     OPENAI_API_KEY_1: ""                                  # Additional OpenAI API key for load balancing
