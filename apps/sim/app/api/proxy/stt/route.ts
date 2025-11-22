@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes for large files
 
 interface SttRequestBody {
-  provider: 'whisper' | 'deepgram' | 'elevenlabs'
+  provider: 'whisper' | 'deepgram' | 'elevenlabs' | 'assemblyai' | 'gemini'
   apiKey: string
   model?: string
   audioFile?: UserFile | UserFile[]
@@ -22,6 +22,14 @@ interface SttRequestBody {
   timestamps?: 'none' | 'sentence' | 'word'
   diarization?: boolean
   translateToEnglish?: boolean
+  // Whisper-specific options
+  prompt?: string
+  temperature?: number
+  // AssemblyAI-specific options
+  sentiment?: boolean
+  entityDetection?: boolean
+  piiRedaction?: boolean
+  summarization?: boolean
   workspaceId?: string
   workflowId?: string
   executionId?: string
@@ -38,7 +46,19 @@ export async function POST(request: NextRequest) {
     }
 
     const body: SttRequestBody = await request.json()
-    const { provider, apiKey, model, language, timestamps, diarization, translateToEnglish } = body
+    const {
+      provider,
+      apiKey,
+      model,
+      language,
+      timestamps,
+      diarization,
+      translateToEnglish,
+      sentiment,
+      entityDetection,
+      piiRedaction,
+      summarization,
+    } = body
 
     if (!provider || !apiKey) {
       return NextResponse.json(
@@ -115,6 +135,9 @@ export async function POST(request: NextRequest) {
     let detectedLanguage: string | undefined
     let duration: number | undefined
     let confidence: number | undefined
+    let sentimentResults: any[] | undefined
+    let entities: any[] | undefined
+    let summary: string | undefined
 
     try {
       if (provider === 'whisper') {
@@ -124,7 +147,9 @@ export async function POST(request: NextRequest) {
           language,
           timestamps,
           translateToEnglish,
-          model
+          model,
+          body.prompt,
+          body.temperature
         )
         transcript = result.transcript
         segments = result.segments
@@ -156,6 +181,41 @@ export async function POST(request: NextRequest) {
         segments = result.segments
         detectedLanguage = result.language
         duration = result.duration
+      } else if (provider === 'assemblyai') {
+        const result = await transcribeWithAssemblyAI(
+          audioBuffer,
+          apiKey,
+          language,
+          timestamps,
+          diarization,
+          sentiment,
+          entityDetection,
+          piiRedaction,
+          summarization,
+          model
+        )
+        transcript = result.transcript
+        segments = result.segments
+        detectedLanguage = result.language
+        duration = result.duration
+        confidence = result.confidence
+        sentimentResults = result.sentiment
+        entities = result.entities
+        summary = result.summary
+      } else if (provider === 'gemini') {
+        const result = await transcribeWithGemini(
+          audioBuffer,
+          apiKey,
+          audioMimeType,
+          language,
+          timestamps,
+          model
+        )
+        transcript = result.transcript
+        segments = result.segments
+        detectedLanguage = result.language
+        duration = result.duration
+        confidence = result.confidence
       } else {
         return NextResponse.json({ error: `Unknown provider: ${provider}` }, { status: 400 })
       }
@@ -173,6 +233,9 @@ export async function POST(request: NextRequest) {
       language: detectedLanguage,
       duration,
       confidence,
+      sentiment: sentimentResults,
+      entities,
+      summary,
     })
   } catch (error) {
     logger.error(`[${requestId}] STT proxy error:`, error)
@@ -187,7 +250,9 @@ async function transcribeWithWhisper(
   language?: string,
   timestamps?: 'none' | 'sentence' | 'word',
   translate?: boolean,
-  model?: string
+  model?: string,
+  prompt?: string,
+  temperature?: number
 ): Promise<{
   transcript: string
   segments?: TranscriptSegment[]
@@ -204,12 +269,20 @@ async function transcribeWithWhisper(
     formData.append('language', language)
   }
 
+  if (prompt) {
+    formData.append('prompt', prompt)
+  }
+
+  if (temperature !== undefined) {
+    formData.append('temperature', temperature.toString())
+  }
+
   if (timestamps === 'word') {
     formData.append('response_format', 'verbose_json')
-    formData.append('timestamp_granularities[]', 'word')
+    formData.append('timestamp_granularities', 'word')
   } else if (timestamps === 'sentence') {
     formData.append('response_format', 'verbose_json')
-    formData.append('timestamp_granularities[]', 'segment')
+    formData.append('timestamp_granularities', 'segment')
   }
 
   const endpoint = translate ? 'translations' : 'transcriptions'
@@ -271,9 +344,11 @@ async function transcribeWithDeepgram(
 
   if (language && language !== 'auto') {
     params.append('language', language)
+  } else if (language === 'auto') {
+    params.append('detect_language', 'true')
   }
 
-  if (timestamps !== 'none') {
+  if (timestamps === 'sentence') {
     params.append('utterances', 'true')
   }
 
@@ -308,13 +383,21 @@ async function transcribeWithDeepgram(
   const confidence = result.confidence
 
   let segments: TranscriptSegment[] | undefined
-  if (timestamps !== 'none' && result.words) {
+  if (result.words && timestamps === 'word') {
     segments = result.words.map((word: any) => ({
       text: word.word,
       start: word.start,
       end: word.end,
       speaker: word.speaker !== undefined ? `Speaker ${word.speaker}` : undefined,
       confidence: word.confidence,
+    }))
+  } else if (data.results?.utterances && timestamps === 'sentence') {
+    segments = data.results.utterances.map((utterance: any) => ({
+      text: utterance.transcript,
+      start: utterance.start,
+      end: utterance.end,
+      speaker: utterance.speaker !== undefined ? `Speaker ${utterance.speaker}` : undefined,
+      confidence: utterance.confidence,
     }))
   }
 
@@ -345,7 +428,14 @@ async function transcribeWithElevenLabs(
   formData.append('model_id', model || 'scribe_v1')
 
   if (language && language !== 'auto') {
-    formData.append('language', language)
+    formData.append('language_code', language)
+  }
+
+  if (timestamps && timestamps !== 'none') {
+    const granularity = timestamps === 'word' ? 'word' : 'word'
+    formData.append('timestamps_granularity', granularity)
+  } else {
+    formData.append('timestamps_granularity', 'word')
   }
 
   const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
@@ -367,9 +457,269 @@ async function transcribeWithElevenLabs(
 
   const data = await response.json()
 
+  const words = data.words || []
+  const segments: TranscriptSegment[] = words
+    .filter((w: any) => w.type === 'word')
+    .map((w: any) => ({
+      text: w.text,
+      start: w.start,
+      end: w.end,
+      speaker: w.speaker_id,
+    }))
+
   return {
     transcript: data.text || '',
-    language: data.language,
-    duration: data.duration,
+    segments: segments.length > 0 ? segments : undefined,
+    language: data.language_code,
+    duration: undefined, // ElevenLabs doesn't return duration in response
+  }
+}
+
+async function transcribeWithAssemblyAI(
+  audioBuffer: Buffer,
+  apiKey: string,
+  language?: string,
+  timestamps?: 'none' | 'sentence' | 'word',
+  diarization?: boolean,
+  sentiment?: boolean,
+  entityDetection?: boolean,
+  piiRedaction?: boolean,
+  summarization?: boolean,
+  model?: string
+): Promise<{
+  transcript: string
+  segments?: TranscriptSegment[]
+  language?: string
+  duration?: number
+  confidence?: number
+  sentiment?: any[]
+  entities?: any[]
+  summary?: string
+}> {
+  const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
+    method: 'POST',
+    headers: {
+      authorization: apiKey,
+      'content-type': 'application/octet-stream',
+    },
+    body: new Uint8Array(audioBuffer),
+  })
+
+  if (!uploadResponse.ok) {
+    const error = await uploadResponse.json()
+    throw new Error(`AssemblyAI upload error: ${error.error || JSON.stringify(error)}`)
+  }
+
+  const { upload_url } = await uploadResponse.json()
+
+  const transcriptRequest: any = {
+    audio_url: upload_url,
+  }
+
+  if (model === 'best' || model === 'nano') {
+    transcriptRequest.speech_model = model
+  }
+
+  if (language && language !== 'auto') {
+    transcriptRequest.language_code = language
+  } else if (language === 'auto') {
+    transcriptRequest.language_detection = true
+  }
+
+  if (diarization) {
+    transcriptRequest.speaker_labels = true
+  }
+
+  if (sentiment) {
+    transcriptRequest.sentiment_analysis = true
+  }
+
+  if (entityDetection) {
+    transcriptRequest.entity_detection = true
+  }
+
+  if (piiRedaction) {
+    transcriptRequest.redact_pii = true
+    transcriptRequest.redact_pii_policies = [
+      'us_social_security_number',
+      'email_address',
+      'phone_number',
+    ]
+  }
+
+  if (summarization) {
+    transcriptRequest.summarization = true
+    transcriptRequest.summary_model = 'informative'
+    transcriptRequest.summary_type = 'bullets'
+  }
+
+  const transcriptResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
+    method: 'POST',
+    headers: {
+      authorization: apiKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(transcriptRequest),
+  })
+
+  if (!transcriptResponse.ok) {
+    const error = await transcriptResponse.json()
+    throw new Error(`AssemblyAI transcript error: ${error.error || JSON.stringify(error)}`)
+  }
+
+  const { id } = await transcriptResponse.json()
+
+  let transcript: any
+  let attempts = 0
+  const maxAttempts = 60 // 5 minutes with 5-second intervals
+
+  while (attempts < maxAttempts) {
+    const statusResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${id}`, {
+      headers: {
+        authorization: apiKey,
+      },
+    })
+
+    if (!statusResponse.ok) {
+      const error = await statusResponse.json()
+      throw new Error(`AssemblyAI status error: ${error.error || JSON.stringify(error)}`)
+    }
+
+    transcript = await statusResponse.json()
+
+    if (transcript.status === 'completed') {
+      break
+    }
+    if (transcript.status === 'error') {
+      throw new Error(`AssemblyAI transcription failed: ${transcript.error}`)
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 5000))
+    attempts++
+  }
+
+  if (transcript.status !== 'completed') {
+    throw new Error('AssemblyAI transcription timed out')
+  }
+
+  let segments: TranscriptSegment[] | undefined
+  if (timestamps !== 'none' && transcript.words) {
+    segments = transcript.words.map((word: any) => ({
+      text: word.text,
+      start: word.start / 1000,
+      end: word.end / 1000,
+      speaker: word.speaker ? `Speaker ${word.speaker}` : undefined,
+      confidence: word.confidence,
+    }))
+  }
+
+  const result: any = {
+    transcript: transcript.text,
+    segments,
+    language: transcript.language_code,
+    duration: transcript.audio_duration,
+    confidence: transcript.confidence,
+  }
+
+  if (sentiment && transcript.sentiment_analysis_results) {
+    result.sentiment = transcript.sentiment_analysis_results
+  }
+
+  if (entityDetection && transcript.entities) {
+    result.entities = transcript.entities
+  }
+
+  if (summarization && transcript.summary) {
+    result.summary = transcript.summary
+  }
+
+  return result
+}
+
+async function transcribeWithGemini(
+  audioBuffer: Buffer,
+  apiKey: string,
+  mimeType: string,
+  language?: string,
+  timestamps?: 'none' | 'sentence' | 'word',
+  model?: string
+): Promise<{
+  transcript: string
+  segments?: TranscriptSegment[]
+  language?: string
+  duration?: number
+  confidence?: number
+}> {
+  const modelName = model || 'gemini-2.5-flash'
+
+  const estimatedSize = audioBuffer.length * 1.34
+  if (estimatedSize > 20 * 1024 * 1024) {
+    throw new Error('Audio file exceeds 20MB limit for inline data')
+  }
+
+  const base64Audio = audioBuffer.toString('base64')
+
+  const languagePrompt = language && language !== 'auto' ? ` The audio is in ${language}.` : ''
+
+  const timestampPrompt =
+    timestamps === 'sentence' || timestamps === 'word'
+      ? ' Include timestamps in MM:SS format for each sentence.'
+      : ''
+
+  const requestBody = {
+    contents: [
+      {
+        parts: [
+          {
+            inline_data: {
+              mime_type: mimeType,
+              data: base64Audio,
+            },
+          },
+          {
+            text: `Please transcribe this audio file.${languagePrompt}${timestampPrompt} Provide the full transcript.`,
+          },
+        ],
+      },
+    ],
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    }
+  )
+
+  if (!response.ok) {
+    const error = await response.json()
+    if (response.status === 404) {
+      throw new Error(
+        `Model not found: ${modelName}. Use gemini-3-pro-preview, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite, or gemini-2.0-flash-exp`
+      )
+    }
+    const errorMessage = error.error?.message || JSON.stringify(error)
+    throw new Error(`Gemini API error: ${errorMessage}`)
+  }
+
+  const data = await response.json()
+
+  if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+    const candidate = data.candidates?.[0]
+    if (candidate?.finishReason === 'SAFETY') {
+      throw new Error('Content was blocked by safety filters')
+    }
+    throw new Error('Invalid response structure from Gemini API')
+  }
+
+  const transcript = data.candidates[0].content.parts[0].text
+
+  return {
+    transcript,
+    language: language !== 'auto' ? language : undefined,
   }
 }

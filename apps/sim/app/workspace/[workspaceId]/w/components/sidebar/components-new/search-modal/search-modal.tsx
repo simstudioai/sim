@@ -359,9 +359,42 @@ export function SearchModal({
       .map((result) => result.item)
   }, [allItems, searchQuery, sectionOrder])
 
+  const groupedItems = useMemo(() => {
+    const groups: Record<string, SearchItem[]> = {
+      workspace: [],
+      workflow: [],
+      page: [],
+      trigger: [],
+      block: [],
+      tool: [],
+      doc: [],
+    }
+
+    filteredItems.forEach((item) => {
+      if (groups[item.type]) {
+        groups[item.type].push(item)
+      }
+    })
+
+    return groups
+  }, [filteredItems])
+
+  const displayedItemsInVisualOrder = useMemo(() => {
+    const visualOrder: SearchItem[] = []
+
+    sectionOrder.forEach((type) => {
+      const items = groupedItems[type] || []
+      items.forEach((item) => {
+        visualOrder.push(item)
+      })
+    })
+
+    return visualOrder
+  }, [groupedItems, sectionOrder])
+
   useEffect(() => {
     setSelectedIndex(0)
-  }, [filteredItems])
+  }, [displayedItemsInVisualOrder])
 
   useEffect(() => {
     if (!open) {
@@ -413,7 +446,7 @@ export function SearchModal({
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
-          setSelectedIndex((prev) => Math.min(prev + 1, filteredItems.length - 1))
+          setSelectedIndex((prev) => Math.min(prev + 1, displayedItemsInVisualOrder.length - 1))
           break
         case 'ArrowUp':
           e.preventDefault()
@@ -421,8 +454,8 @@ export function SearchModal({
           break
         case 'Enter':
           e.preventDefault()
-          if (filteredItems[selectedIndex]) {
-            handleItemClick(filteredItems[selectedIndex])
+          if (displayedItemsInVisualOrder[selectedIndex]) {
+            handleItemClick(displayedItemsInVisualOrder[selectedIndex])
           }
           break
         case 'Escape':
@@ -434,7 +467,7 @@ export function SearchModal({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, selectedIndex, filteredItems, handleItemClick, onOpenChange])
+  }, [open, selectedIndex, displayedItemsInVisualOrder, handleItemClick, onOpenChange])
 
   useEffect(() => {
     if (open && selectedIndex >= 0) {
@@ -447,26 +480,6 @@ export function SearchModal({
       }
     }
   }, [selectedIndex, open])
-
-  const groupedItems = useMemo(() => {
-    const groups: Record<string, SearchItem[]> = {
-      workspace: [],
-      workflow: [],
-      page: [],
-      trigger: [],
-      block: [],
-      tool: [],
-      doc: [],
-    }
-
-    filteredItems.forEach((item) => {
-      if (groups[item.type]) {
-        groups[item.type].push(item)
-      }
-    })
-
-    return groups
-  }, [filteredItems])
 
   const sectionTitles: Record<string, string> = {
     workspace: 'Workspaces',
@@ -501,7 +514,7 @@ export function SearchModal({
           </div>
 
           {/* Floating results container */}
-          {filteredItems.length > 0 ? (
+          {displayedItemsInVisualOrder.length > 0 ? (
             <div className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto rounded-[10px] py-[10px] shadow-sm'>
               {sectionOrder.map((type) => {
                 const items = groupedItems[type] || []
@@ -518,8 +531,8 @@ export function SearchModal({
                     <div className='space-y-[2px]'>
                       {items.map((item, itemIndex) => {
                         const Icon = item.icon
-                        const globalIndex = filteredItems.indexOf(item)
-                        const isSelected = globalIndex === selectedIndex
+                        const visualIndex = displayedItemsInVisualOrder.indexOf(item)
+                        const isSelected = visualIndex === selectedIndex
                         const showColoredIcon =
                           item.type === 'block' || item.type === 'trigger' || item.type === 'tool'
                         const isWorkflow = item.type === 'workflow'
@@ -528,7 +541,7 @@ export function SearchModal({
                         return (
                           <button
                             key={`${item.type}-${item.id}`}
-                            data-search-item-index={globalIndex}
+                            data-search-item-index={visualIndex}
                             onClick={() => handleItemClick(item)}
                             onMouseDown={(e) => e.preventDefault()}
                             className={cn(

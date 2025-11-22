@@ -1,4 +1,4 @@
-import { AudioWaveformIcon } from '@/components/icons'
+import { STTIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { SttBlockResponse } from '@/tools/stt/types'
 
@@ -12,7 +12,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
   docsLink: 'https://docs.sim.ai/tools/stt',
   category: 'tools',
   bgColor: '#181C1E',
-  icon: AudioWaveformIcon,
+  icon: STTIcon,
 
   subBlocks: [
     // Provider selection
@@ -24,6 +24,8 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
         { label: 'OpenAI Whisper', id: 'whisper' },
         { label: 'Deepgram', id: 'deepgram' },
         { label: 'ElevenLabs', id: 'elevenlabs' },
+        { label: 'AssemblyAI', id: 'assemblyai' },
+        { label: 'Google Gemini', id: 'gemini' },
       ],
       value: () => 'whisper',
       required: true,
@@ -37,7 +39,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
       condition: { field: 'provider', value: 'whisper' },
       options: [{ label: 'Whisper-1', id: 'whisper-1' }],
       value: () => 'whisper-1',
-      required: false,
+      required: true,
     },
 
     // ElevenLabs model selection
@@ -51,7 +53,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
         { label: 'Scribe v1 Experimental', id: 'scribe_v1_experimental' },
       ],
       value: () => 'scribe_v1',
-      required: false,
+      required: true,
     },
 
     // Deepgram model selection
@@ -69,7 +71,38 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
         { label: 'Base', id: 'base' },
       ],
       value: () => 'nova-3',
-      required: false,
+      required: true,
+    },
+
+    // AssemblyAI model selection
+    {
+      id: 'model',
+      title: 'Model',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'assemblyai' },
+      options: [
+        { label: 'Best', id: 'best' },
+        { label: 'Nano', id: 'nano' },
+      ],
+      value: () => 'best',
+      required: true,
+    },
+
+    // Gemini model selection
+    {
+      id: 'model',
+      title: 'Model',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'gemini' },
+      options: [
+        { label: 'Gemini 3 Pro', id: 'gemini-3-pro-preview' },
+        { label: 'Gemini 2.5 Pro', id: 'gemini-2.5-pro' },
+        { label: 'Gemini 2.5 Flash', id: 'gemini-2.5-flash' },
+        { label: 'Gemini 2.5 Flash Lite', id: 'gemini-2.5-flash-lite' },
+        { label: 'Gemini 2.0 Flash', id: 'gemini-2.0-flash-exp' },
+      ],
+      value: () => 'gemini-2.5-flash',
+      required: true,
     },
 
     // Audio/Video file upload (basic mode)
@@ -81,7 +114,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
       placeholder: 'Upload an audio or video file',
       mode: 'basic',
       multiple: false,
-      required: false,
+      required: true,
       acceptedTypes: '.mp3,.m4a,.wav,.webm,.ogg,.flac,.aac,.opus,.mp4,.mov,.avi,.mkv',
     },
 
@@ -93,13 +126,13 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
       canonicalParamId: 'audioFile',
       placeholder: 'Reference audio/video from previous blocks',
       mode: 'advanced',
-      required: false,
+      required: true,
     },
 
     // Audio URL (alternative)
     {
       id: 'audioUrl',
-      title: 'Audio/Video URL (alternative)',
+      title: 'Audio/Video URL',
       type: 'short-input',
       placeholder: 'Or enter publicly accessible audio/video URL',
       required: false,
@@ -133,6 +166,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
         { label: 'Finnish', id: 'fi' },
       ],
       value: () => 'auto',
+      required: true,
     },
 
     // Timestamps (word-level, sentence-level, or none)
@@ -146,6 +180,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
         { label: 'Word-level', id: 'word' },
       ],
       value: () => 'none',
+      required: true,
     },
 
     // Speaker diarization (Deepgram/AssemblyAI only)
@@ -153,7 +188,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
       id: 'diarization',
       title: 'Speaker Diarization',
       type: 'switch',
-      condition: { field: 'provider', value: ['deepgram'] },
+      condition: { field: 'provider', value: ['deepgram', 'assemblyai'] },
     },
 
     // Translate to English (Whisper only)
@@ -162,6 +197,35 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
       title: 'Translate to English',
       type: 'switch',
       condition: { field: 'provider', value: 'whisper' },
+    },
+
+    // AssemblyAI-specific features
+    {
+      id: 'sentiment',
+      title: 'Sentiment Analysis',
+      type: 'switch',
+      condition: { field: 'provider', value: 'assemblyai' },
+    },
+
+    {
+      id: 'entityDetection',
+      title: 'Entity Detection',
+      type: 'switch',
+      condition: { field: 'provider', value: 'assemblyai' },
+    },
+
+    {
+      id: 'piiRedaction',
+      title: 'PII Redaction',
+      type: 'switch',
+      condition: { field: 'provider', value: 'assemblyai' },
+    },
+
+    {
+      id: 'summarization',
+      title: 'Auto Summarization',
+      type: 'switch',
+      condition: { field: 'provider', value: 'assemblyai' },
     },
 
     // API Key
@@ -176,7 +240,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
   ],
 
   tools: {
-    access: ['stt_whisper', 'stt_deepgram', 'stt_elevenlabs'],
+    access: ['stt_whisper', 'stt_deepgram', 'stt_elevenlabs', 'stt_assemblyai', 'stt_gemini'],
     config: {
       tool: (params) => {
         // Select tool based on provider
@@ -187,6 +251,10 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
             return 'stt_deepgram'
           case 'elevenlabs':
             return 'stt_elevenlabs'
+          case 'assemblyai':
+            return 'stt_assemblyai'
+          case 'gemini':
+            return 'stt_gemini'
           default:
             return 'stt_whisper'
         }
@@ -202,16 +270,24 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
         timestamps: params.timestamps,
         diarization: params.diarization,
         translateToEnglish: params.translateToEnglish,
+        sentiment: params.sentiment,
+        entityDetection: params.entityDetection,
+        piiRedaction: params.piiRedaction,
+        summarization: params.summarization,
       }),
     },
   },
 
   inputs: {
-    provider: { type: 'string', description: 'STT provider (whisper, deepgram, elevenlabs)' },
+    provider: {
+      type: 'string',
+      description: 'STT provider (whisper, deepgram, elevenlabs, assemblyai, gemini)',
+    },
     apiKey: { type: 'string', description: 'Provider API key' },
     model: {
       type: 'string',
-      description: 'Provider-specific model (e.g., scribe_v1 for ElevenLabs, nova-3 for Deepgram)',
+      description:
+        'Provider-specific model (e.g., scribe_v1 for ElevenLabs, nova-3 for Deepgram, best for AssemblyAI, gemini-2.0-flash-exp for Gemini)',
     },
     audioFile: { type: 'json', description: 'Audio/video file (UserFile)' },
     audioFileReference: { type: 'json', description: 'Audio/video file reference' },
@@ -220,6 +296,10 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
     timestamps: { type: 'string', description: 'Timestamp granularity (none, sentence, word)' },
     diarization: { type: 'boolean', description: 'Enable speaker diarization' },
     translateToEnglish: { type: 'boolean', description: 'Translate to English (Whisper only)' },
+    sentiment: { type: 'boolean', description: 'Enable sentiment analysis (AssemblyAI only)' },
+    entityDetection: { type: 'boolean', description: 'Enable entity detection (AssemblyAI only)' },
+    piiRedaction: { type: 'boolean', description: 'Enable PII redaction (AssemblyAI only)' },
+    summarization: { type: 'boolean', description: 'Enable auto summarization (AssemblyAI only)' },
   },
 
   outputs: {
@@ -227,6 +307,12 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
     segments: { type: 'array', description: 'Timestamped segments with speaker labels' },
     language: { type: 'string', description: 'Detected or specified language' },
     duration: { type: 'number', description: 'Audio duration in seconds' },
-    confidence: { type: 'number', description: 'Overall confidence score' },
+    confidence: {
+      type: 'number',
+      description: 'Overall confidence score (Deepgram, AssemblyAI only)',
+    },
+    sentiment: { type: 'array', description: 'Sentiment analysis results (AssemblyAI only)' },
+    entities: { type: 'array', description: 'Detected entities (AssemblyAI only)' },
+    summary: { type: 'string', description: 'Auto-generated summary (AssemblyAI only)' },
   },
 }

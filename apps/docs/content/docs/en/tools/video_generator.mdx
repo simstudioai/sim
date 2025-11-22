@@ -1,0 +1,197 @@
+---
+title: Video Generator
+description: Generate videos from text using AI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="video_generator"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Create videos from text prompts using cutting-edge AI models from top providers. Sim's Video Generator brings powerful, creative video synthesis capabilities to your workflow—supporting diverse models, aspect ratios, resolutions, camera controls, native audio, and advanced style and consistency features.
+
+**Supported Providers & Models:**
+
+- **[Runway Gen-4](https://research.runwayml.com/gen2/)** (Runway ML):  
+  Runway is a pioneer in text-to-video generation, known for powerful models like Gen-2, Gen-3, and Gen-4. The latest [Gen-4](https://research.runwayml.com/gen2/) model (and Gen-4 Turbo for faster results) supports more realistic motion, greater world consistency, and visual references for character, object, style, and location. Supports 16:9, 9:16, and 1:1 aspect ratios, 5–10 second durations, up to 4K resolution, style presets, and direct upload of reference images for consistent generations. Runway powers creative tools for filmmakers, studios, and content creators worldwide.
+
+- **[Google Veo](https://deepmind.google/technologies/veo/)** (Google DeepMind):  
+  [Veo](https://deepmind.google/technologies/veo/) is Google’s next-generation video generation model, offering high-quality, native-audio videos up to 1080p and 16 seconds. Supports advanced motion, cinematic effects, and nuanced text understanding. Veo can generate videos with built-in sound—activating native audio as well as silent clips. Options include 16:9 aspect, variable duration, different models (veo-3, veo-3.1), and prompt-based controls. Ideal for storytelling, advertising, research, and ideation.
+
+- **[Luma Dream Machine](https://lumalabs.ai/dream-machine)** (Luma AI):  
+  [Dream Machine](https://lumalabs.ai/dream-machine) delivers jaw-droppingly realistic and fluid video from text. It incorporates advanced camera control, cinematography prompts, and supports both ray-1 and ray-2 models. Dream Machine supports precise aspect ratios (16:9, 9:16, 1:1), variable durations, and the specification of camera paths for intricate visual direction. Luma is renowned for breakthrough visual fidelity and is backed by leading AI vision researchers.
+
+- **[MiniMax Hailuo-02](https://minimax.chat/)** (via [Fal.ai](https://fal.ai/)):  
+  [MiniMax Hailuo-02](https://minimax.chat/) is a sophisticated Chinese generative video model, available globally through [Fal.ai](https://fal.ai/). Generate videos up to 16 seconds in landscape or portrait format, with options for prompt optimization to improve clarity and creativity. Pro and standard endpoints available, supporting high resolutions (up to 1920×1080). Well-suited for creative projects needing prompt translation and optimization, commercial storytelling, and rapid prototyping of visual ideas.
+
+**How to Choose:**  
+Pick your provider and model based on your needs for quality, speed, duration, audio, cost, and unique features. Runway and Veo offer world-leading realism and cinematic capabilities; Luma excels in fluid motion and camera control; MiniMax is ideal for Chinese-language prompts and offers fast, affordable access. Consider reference support, style presets, audio requirements, and pricing when selecting your tool.
+
+For more details on features, restrictions, pricing, and model advances, see each provider’s official documentation above.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Generate high-quality videos from text prompts using leading AI providers. Supports multiple models, aspect ratios, resolutions, and provider-specific features like world consistency, camera controls, and audio generation.
+
+
+
+## Tools
+
+### `video_runway`
+
+Generate videos using Runway Gen-4 with world consistency and visual references
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Yes | Video provider \(runway\) |
+| `apiKey` | string | Yes | Runway API key |
+| `model` | string | No | Runway model: gen-4 \(default, higher quality\) or gen-4-turbo \(faster\) |
+| `prompt` | string | Yes | Text prompt describing the video to generate |
+| `duration` | number | No | Video duration in seconds \(5 or 10, default: 5\) |
+| `aspectRatio` | string | No | Aspect ratio: 16:9 \(landscape\), 9:16 \(portrait\), or 1:1 \(square\) |
+| `resolution` | string | No | Video resolution \(720p output\). Note: Gen-4 Turbo outputs at 720p natively |
+| `visualReference` | json | Yes | Reference image REQUIRED for Gen-4 \(UserFile object\). Gen-4 only supports image-to-video, not text-only generation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | Generated video URL |
+| `videoFile` | json | Video file object with metadata |
+| `duration` | number | Video duration in seconds |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `provider` | string | Provider used \(runway\) |
+| `model` | string | Model used |
+| `jobId` | string | Runway job ID |
+
+### `video_veo`
+
+Generate videos using Google Veo 3/3.1 with native audio generation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Yes | Video provider \(veo\) |
+| `apiKey` | string | Yes | Google Gemini API key |
+| `model` | string | No | Veo model: veo-3 \(default, highest quality\), veo-3-fast \(faster\), or veo-3.1 \(latest\) |
+| `prompt` | string | Yes | Text prompt describing the video to generate |
+| `duration` | number | No | Video duration in seconds \(4, 6, or 8, default: 8\) |
+| `aspectRatio` | string | No | Aspect ratio: 16:9 \(landscape\) or 9:16 \(portrait\) |
+| `resolution` | string | No | Video resolution: 720p or 1080p \(default: 1080p\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | Generated video URL |
+| `videoFile` | json | Video file object with metadata |
+| `duration` | number | Video duration in seconds |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `provider` | string | Provider used \(veo\) |
+| `model` | string | Model used |
+| `jobId` | string | Veo job ID |
+
+### `video_luma`
+
+Generate videos using Luma Dream Machine with advanced camera controls
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Yes | Video provider \(luma\) |
+| `apiKey` | string | Yes | Luma AI API key |
+| `model` | string | No | Luma model: ray-2 \(default\) |
+| `prompt` | string | Yes | Text prompt describing the video to generate |
+| `duration` | number | No | Video duration in seconds \(5 or 9, default: 5\) |
+| `aspectRatio` | string | No | Aspect ratio: 16:9 \(landscape\), 9:16 \(portrait\), or 1:1 \(square\) |
+| `resolution` | string | No | Video resolution: 540p, 720p, or 1080p \(default: 1080p\) |
+| `cameraControl` | json | No | Camera controls as array of concept objects. Format: \[\{ "key": "concept_name" \}\]. Valid keys: truck_left, truck_right, pan_left, pan_right, tilt_up, tilt_down, zoom_in, zoom_out, push_in, pull_out, orbit_left, orbit_right, crane_up, crane_down, static, handheld, and 20+ more predefined options |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | Generated video URL |
+| `videoFile` | json | Video file object with metadata |
+| `duration` | number | Video duration in seconds |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `provider` | string | Provider used \(luma\) |
+| `model` | string | Model used |
+| `jobId` | string | Luma job ID |
+
+### `video_minimax`
+
+Generate videos using MiniMax Hailuo through MiniMax Platform API with advanced realism and prompt optimization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Yes | Video provider \(minimax\) |
+| `apiKey` | string | Yes | MiniMax API key from platform.minimax.io |
+| `model` | string | No | MiniMax model: hailuo-02 \(default\) |
+| `prompt` | string | Yes | Text prompt describing the video to generate |
+| `duration` | number | No | Video duration in seconds \(6 or 10, default: 6\) |
+| `promptOptimizer` | boolean | No | Enable prompt optimization for better results \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | Generated video URL |
+| `videoFile` | json | Video file object with metadata |
+| `duration` | number | Video duration in seconds |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `provider` | string | Provider used \(minimax\) |
+| `model` | string | Model used |
+| `jobId` | string | MiniMax job ID |
+
+### `video_falai`
+
+Generate videos using Fal.ai platform with access to multiple models including Veo 3.1, Sora 2, Kling 2.5, MiniMax Hailuo, and more
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Yes | Video provider \(falai\) |
+| `apiKey` | string | Yes | Fal.ai API key |
+| `model` | string | Yes | Fal.ai model: veo-3.1 \(Google Veo 3.1\), sora-2 \(OpenAI Sora 2\), kling-2.5-turbo-pro \(Kling 2.5 Turbo Pro\), kling-2.1-pro \(Kling 2.1 Master\), minimax-hailuo-2.3-pro \(MiniMax Hailuo Pro\), minimax-hailuo-2.3-standard \(MiniMax Hailuo Standard\), wan-2.1 \(WAN T2V\), ltxv-0.9.8 \(LTXV 13B\) |
+| `prompt` | string | Yes | Text prompt describing the video to generate |
+| `duration` | number | No | Video duration in seconds \(varies by model\) |
+| `aspectRatio` | string | No | Aspect ratio \(varies by model\): 16:9, 9:16, 1:1 |
+| `resolution` | string | No | Video resolution \(varies by model\): 540p, 720p, 1080p |
+| `promptOptimizer` | boolean | No | Enable prompt optimization for MiniMax models \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | Generated video URL |
+| `videoFile` | json | Video file object with metadata |
+| `duration` | number | Video duration in seconds |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `provider` | string | Provider used \(falai\) |
+| `model` | string | Model used |
+| `jobId` | string | Job ID |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `video_generator`

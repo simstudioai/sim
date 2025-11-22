@@ -2,7 +2,7 @@ import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface SttParams {
-  provider: 'whisper' | 'deepgram' | 'elevenlabs'
+  provider: 'whisper' | 'deepgram' | 'elevenlabs' | 'assemblyai' | 'gemini'
   apiKey: string
   model?: string
   audioFile?: UserFile | UserFile[]
@@ -12,6 +12,11 @@ export interface SttParams {
   timestamps?: 'none' | 'sentence' | 'word'
   diarization?: boolean
   translateToEnglish?: boolean
+  // AssemblyAI-specific options
+  sentiment?: boolean
+  entityDetection?: boolean
+  piiRedaction?: boolean
+  summarization?: boolean
 }
 
 export interface TranscriptSegment {
@@ -29,6 +34,10 @@ export interface SttResponse extends ToolResponse {
     language?: string
     duration?: number
     confidence?: number
+    // AssemblyAI-specific outputs
+    sentiment?: any[]
+    entities?: any[]
+    summary?: string
   }
 }
 
@@ -39,6 +48,10 @@ export interface SttBlockResponse extends ToolResponse {
     language?: string
     duration?: number
     confidence?: number
+    // AssemblyAI-specific outputs
+    sentiment?: any[]
+    entities?: any[]
+    summary?: string
   }
 }
 
@@ -58,5 +71,17 @@ export interface DeepgramParams extends Omit<SttParams, 'provider'> {
 }
 
 export interface ElevenLabsSttParams extends Omit<SttParams, 'provider'> {
+  model?: string
+}
+
+export interface AssemblyAIParams extends Omit<SttParams, 'provider'> {
+  model?: string
+  sentiment?: boolean
+  entityDetection?: boolean
+  piiRedaction?: boolean
+  summarization?: boolean
+}
+
+export interface GeminiParams extends Omit<SttParams, 'provider'> {
   model?: string
 }
