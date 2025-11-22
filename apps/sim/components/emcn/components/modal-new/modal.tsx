@@ -44,6 +44,20 @@ import { cn } from '@/lib/utils'
 import { Button } from '../button/button'
 
 /**
+ * Shared animation classes for modal transitions.
+ * Mirrors the legacy `Modal` component to ensure consistent behavior.
+ */
+const ANIMATION_CLASSES =
+  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in'
+
+/**
+ * Modal content animation classes.
+ * We keep only the slide animations (no zoom) to stabilize positioning while avoiding scale effects.
+ */
+const CONTENT_ANIMATION_CLASSES =
+  'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[50%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[50%]'
+
+/**
  * Root modal component. Manages open state.
  */
 const Modal = DialogPrimitive.Root
@@ -64,7 +78,7 @@ const ModalPortal = DialogPrimitive.Portal
 const ModalClose = DialogPrimitive.Close
 
 /**
- * Modal overlay component with stability handling.
+ * Modal overlay component with stability handling and fade transition.
  */
 const ModalOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
@@ -80,7 +94,11 @@ const ModalOverlay = React.forwardRef<
   return (
     <DialogPrimitive.Overlay
       ref={ref}
-      className={cn('fixed inset-0 z-50', className)}
+      className={cn(
+        'fixed inset-0 z-50 light:bg-[#E4E4E4]/50 backdrop-blur-[0.75px] dark:bg-[#0D0D0D]/50',
+        ANIMATION_CLASSES,
+        className
+      )}
       style={style}
       onPointerDown={(e) => {
         if (!isStable) {
@@ -128,7 +146,9 @@ const ModalContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          '-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 z-50 flex max-h-[80vh] min-w-[30vw] flex-col rounded-[8px] border bg-[#1E1E1E]',
+          ANIMATION_CLASSES,
+          CONTENT_ANIMATION_CLASSES,
+          'fixed top-[50%] left-[50%] z-50 flex max-h-[80vh] min-w-[30vw] translate-x-[-50%] translate-y-[-50%] flex-col rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
           className
         )}
         style={style}
@@ -224,24 +244,6 @@ const ModalDescription = React.forwardRef<
 ModalDescription.displayName = 'ModalDescription'
 
 /**
- * Modal body/content area with background and padding.
- */
-const ModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        'flex-1 overflow-y-auto rounded-t-[8px] border-t bg-[#232323] px-[14px] pt-[10px] pb-[20px]',
-        className
-      )}
-      {...props}
-    />
-  )
-)
-
-ModalBody.displayName = 'ModalBody'
-
-/**
  * Modal tabs root component. Wraps tab list and content panels.
  */
 const ModalTabs = TabsPrimitive.Root
@@ -292,6 +294,24 @@ const ModalTabsContent = React.forwardRef<
 ModalTabsContent.displayName = 'ModalTabsContent'
 
 /**
+ * Modal body/content area with background and padding.
+ */
+const ModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn(
+        'flex-1 overflow-y-auto rounded-t-[8px] border-t bg-[#232323] px-[14px] pt-[10px] pb-[20px]',
+        className
+      )}
+      {...props}
+    />
+  )
+)
+
+ModalBody.displayName = 'ModalBody'
+
+/**
  * Modal footer component for action buttons.
  */
 const ModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
@@ -311,10 +331,7 @@ ModalFooter.displayName = 'ModalFooter'
 
 export {
   Modal,
-  ModalPortal,
-  ModalOverlay,
   ModalTrigger,
-  ModalClose,
   ModalContent,
   ModalSidebar,
   ModalHeader,
@@ -326,4 +343,7 @@ export {
   ModalTabsTrigger,
   ModalTabsContent,
   ModalFooter,
+  ModalPortal,
+  ModalOverlay,
+  ModalClose,
 }
