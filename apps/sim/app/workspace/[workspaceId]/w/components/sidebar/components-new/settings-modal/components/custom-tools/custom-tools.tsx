@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertCircle, Plus, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -13,7 +13,7 @@ import {
   ModalHeader,
   ModalTitle,
 } from '@/components/emcn'
-import { Alert, AlertDescription, Input, Skeleton } from '@/components/ui'
+import { Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
@@ -84,7 +84,6 @@ export function CustomTools() {
     setShowDeleteDialog(false)
 
     try {
-      // Pass null workspaceId for user-scoped tools (legacy tools without workspaceId)
       await deleteToolMutation.mutateAsync({
         workspaceId: tool.workspaceId ?? null,
         toolId: toolToDelete.id,
@@ -105,7 +104,6 @@ export function CustomTools() {
   const handleToolSaved = () => {
     setShowAddForm(false)
     setEditingTool(null)
-    // React Query will automatically refetch via cache invalidation
     refetchTools()
   }
 
@@ -113,16 +111,6 @@ export function CustomTools() {
     <div className='relative flex h-full flex-col'>
       {/* Fixed Header with Search */}
       <div className='px-6 pt-4 pb-2'>
-        {/* Error Alert - only show when modal is not open */}
-        {error && !showAddForm && !editingTool && (
-          <Alert variant='destructive' className='mb-4'>
-            <AlertCircle className='h-4 w-4' />
-            <AlertDescription>
-              {error instanceof Error ? error.message : 'An error occurred'}
-            </AlertDescription>
-          </Alert>
-        )}
-
         {/* Search Input */}
         {isLoading ? (
           <Skeleton className='h-9 w-56 rounded-[8px]' />
@@ -147,6 +135,12 @@ export function CustomTools() {
               <CustomToolSkeleton />
               <CustomToolSkeleton />
               <CustomToolSkeleton />
+            </div>
+          ) : error ? (
+            <div className='flex h-full flex-col items-center justify-center gap-2'>
+              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                {error instanceof Error ? error.message : 'Failed to load tools'}
+              </p>
             </div>
           ) : tools.length === 0 && !showAddForm && !editingTool ? (
             <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
