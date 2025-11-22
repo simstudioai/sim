@@ -1,0 +1,256 @@
+---
+title: Text-zu-Sprache
+description: Text mit KI-Stimmen in Sprache umwandeln
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tts"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Wandeln Sie Text in natürlich klingende Sprache mit den neuesten KI-Stimmen um. Die Text-zu-Sprache (TTS)-Tools von Sim ermöglichen es Ihnen, Audio aus geschriebenem Text in Dutzenden von Sprachen zu generieren, mit einer Auswahl an ausdrucksstarken Stimmen, Formaten und erweiterten Steuerungsmöglichkeiten wie Geschwindigkeit, Stil, Emotion und mehr.
+
+**Unterstützte Anbieter & Modelle:**
+
+- **[OpenAI Text-to-Speech](https://platform.openai.com/docs/guides/text-to-speech/voice-options)** (OpenAI):  
+  OpenAIs TTS-API bietet ultra-realistische Stimmen mit fortschrittlichen KI-Modellen wie `tts-1`, `tts-1-hd` und `gpt-4o-mini-tts`. Die Stimmen umfassen sowohl männliche als auch weibliche Optionen wie alloy, echo, fable, onyx, nova, shimmer, ash, ballad, coral, sage und verse. Unterstützt werden verschiedene Audioformate (mp3, opus, aac, flac, wav, pcm), einstellbare Geschwindigkeit und Streaming-Synthese.
+
+- **[Deepgram Aura](https://deepgram.com/products/text-to-speech)** (Deepgram Inc.):  
+  Deepgrams Aura bietet ausdrucksstarke englische und mehrsprachige KI-Stimmen, optimiert für Gesprächsklarheit, geringe Latenz und Anpassungsfähigkeit. Modelle wie `aura-asteria-en`, `aura-luna-en` und andere stehen zur Verfügung. Unterstützt werden verschiedene Kodierungsformate (linear16, mp3, opus, aac, flac) und Feinabstimmung bei Geschwindigkeit, Abtastrate und Stil.
+
+- **[ElevenLabs Text-to-Speech](https://elevenlabs.io/text-to-speech)** (ElevenLabs):  
+  ElevenLabs führt im Bereich lebensechter, emotional reicher TTS und bietet Dutzende von Stimmen in über 29 Sprachen sowie die Möglichkeit, benutzerdefinierte Stimmen zu klonen. Die Modelle unterstützen Stimmdesign, Sprachsynthese und direkten API-Zugriff mit erweiterten Steuerungsmöglichkeiten für Stil, Emotion, Stabilität und Ähnlichkeit. Geeignet für Hörbücher, Content-Erstellung, Barrierefreiheit und mehr.
+
+- **[Cartesia TTS](https://docs.cartesia.ai/)** (Cartesia):  
+  Cartesia bietet hochwertige, schnelle und sichere Text-zu-Sprache-Umwandlung mit Fokus auf Datenschutz und flexibler Bereitstellung. Es ermöglicht sofortiges Streaming, Echtzeit-Synthese und unterstützt mehrere internationale Stimmen und Akzente, zugänglich über eine einfache API.
+
+- **[Google Cloud Text-to-Speech](https://cloud.google.com/text-to-speech)** (Google Cloud):  
+  Google nutzt DeepMind WaveNet und Neural2-Modelle für hochwertige Stimmen in über 50 Sprachen und Varianten. Zu den Funktionen gehören Stimmauswahl, Tonhöhe, Sprechgeschwindigkeit, Lautstärkeregelung, SSML-Tags und Zugriff auf Standard- und Premium-Stimmen in Studioqualität. Wird häufig für Barrierefreiheit, IVR und Medien verwendet.
+
+- **[Microsoft Azure Speech](https://azure.microsoft.com/en-us/products/ai-services/text-to-speech)** (Microsoft Azure):  
+  Azure bietet über 400 neuronale Stimmen in mehr als 140 Sprachen und Regionen mit einzigartiger Stimmanpassung, Stil, Emotion, Rolle und Echtzeit-Steuerung. Unterstützt SSML für Aussprache, Intonation und mehr. Ideal für globale, Unternehmens- oder kreative TTS-Anforderungen.
+
+- **[PlayHT](https://play.ht/)** (PlayHT):  
+  PlayHT spezialisiert sich auf realistische Sprachsynthese, Stimmklonen und sofortige Streaming-Wiedergabe mit über 800 Stimmen in mehr als 100 Sprachen. Zu den Funktionen gehören Emotions-, Tonhöhen- und Geschwindigkeitssteuerung, Mehrfachstimmen-Audio und benutzerdefinierte Stimmerstellung über die API oder das Online-Studio.
+
+**Auswahlkriterien:**  
+Wählen Sie Ihren Anbieter und das Modell, indem Sie Sprachen, unterstützte Stimmtypen, gewünschte Formate (mp3, wav usw.), Steuerungsgranularität (Geschwindigkeit, Emotion usw.) und spezielle Funktionen (Stimmklonen, Akzent, Streaming) priorisieren. Stellen Sie für kreative, Barrierefreiheits- oder Entwickleranwendungsfälle die Kompatibilität mit den Anforderungen Ihrer Anwendung sicher und vergleichen Sie die Kosten.
+
+Besuchen Sie die offizielle Website jedes Anbieters für aktuelle Informationen zu Funktionen, Preisen und Dokumentation!
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Erzeugen Sie natürlich klingende Sprache aus Text mit modernsten KI-Stimmen von OpenAI, Deepgram, ElevenLabs, Cartesia, Google Cloud, Azure und PlayHT. Unterstützt mehrere Stimmen, Sprachen und Audioformate.
+
+## Tools
+
+### `tts_openai`
+
+Text in Sprache umwandeln mit OpenAI TTS-Modellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Ja | Der in Sprache umzuwandelnde Text |
+| `apiKey` | string | Ja | OpenAI API-Schlüssel |
+| `model` | string | Nein | Zu verwendendes TTS-Modell \(tts-1, tts-1-hd oder gpt-4o-mini-tts\) |
+| `voice` | string | Nein | Zu verwendende Stimme \(alloy, ash, ballad, cedar, coral, echo, marin, sage, shimmer, verse\) |
+| `responseFormat` | string | Nein | Audioformat \(mp3, opus, aac, flac, wav, pcm\) |
+| `speed` | number | Nein | Sprechgeschwindigkeit \(0,25 bis 4,0, Standard: 1,0\) |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | URL zur generierten Audiodatei |
+| `audioFile` | file | Generiertes Audiodateiobjekt |
+| `duration` | number | Audiodauer in Sekunden |
+| `characterCount` | number | Anzahl der verarbeiteten Zeichen |
+| `format` | string | Audioformat |
+| `provider` | string | Verwendeter TTS-Anbieter |
+
+### `tts_deepgram`
+
+Text in Sprache umwandeln mit Deepgram Aura
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Ja | Der in Sprache umzuwandelnde Text |
+| `apiKey` | string | Ja | Deepgram API-Schlüssel |
+| `model` | string | Nein | Deepgram Modell/Stimme \(z.B. aura-asteria-en, aura-luna-en\) |
+| `voice` | string | Nein | Stimmenkennung \(Alternative zum Modellparameter\) |
+| `encoding` | string | Nein | Audiokodierung \(linear16, mp3, opus, aac, flac\) |
+| `sampleRate` | number | Nein | Abtastrate \(8000, 16000, 24000, 48000\) |
+| `bitRate` | number | Nein | Bitrate für komprimierte Formate |
+| `container` | string | Nein | Container-Format \(none, wav, ogg\) |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | URL zur generierten Audiodatei |
+| `audioFile` | file | Generiertes Audiodateiobjekt |
+| `duration` | number | Audiodauer in Sekunden |
+| `characterCount` | number | Anzahl der verarbeiteten Zeichen |
+| `format` | string | Audioformat |
+| `provider` | string | Verwendeter TTS-Anbieter |
+
+### `tts_elevenlabs`
+
+Text in Sprache umwandeln mit ElevenLabs-Stimmen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Ja | Der in Sprache umzuwandelnde Text |
+| `voiceId` | string | Ja | Die ID der zu verwendenden Stimme |
+| `apiKey` | string | Ja | ElevenLabs API-Schlüssel |
+| `modelId` | string | Nein | Zu verwendendes Modell \(z.B. eleven_monolingual_v1, eleven_turbo_v2_5, eleven_flash_v2_5\) |
+| `stability` | number | Nein | Stimmstabilität \(0.0 bis 1.0, Standard: 0.5\) |
+| `similarityBoost` | number | Nein | Ähnlichkeitsverstärkung \(0.0 bis 1.0, Standard: 0.8\) |
+| `style` | number | Nein | Stilübertreibung \(0.0 bis 1.0\) |
+| `useSpeakerBoost` | boolean | Nein | Sprecherverstärkung verwenden \(Standard: true\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | URL zur generierten Audiodatei |
+| `audioFile` | file | Generiertes Audiodateiobjekt |
+| `duration` | number | Audiodauer in Sekunden |
+| `characterCount` | number | Anzahl der verarbeiteten Zeichen |
+| `format` | string | Audioformat |
+| `provider` | string | Verwendeter TTS-Anbieter |
+
+### `tts_cartesia`
+
+Text in Sprache umwandeln mit Cartesia Sonic (extrem geringe Latenz)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Ja | Der in Sprache umzuwandelnde Text |
+| `apiKey` | string | Ja | Cartesia API-Schlüssel |
+| `modelId` | string | Nein | Modell-ID \(sonic-english, sonic-multilingual\) |
+| `voice` | string | Nein | Stimm-ID oder Embedding |
+| `language` | string | Nein | Sprachcode \(en, es, fr, de, it, pt, usw.\) |
+| `outputFormat` | json | Nein | Ausgabeformatkonfiguration \(Container, Kodierung, Abtastrate\) |
+| `speed` | number | Nein | Geschwindigkeitsmultiplikator |
+| `emotion` | array | Nein | Emotions-Tags für Sonic-3 \(z.B. \['positivity:high'\]\) |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | URL zur generierten Audiodatei |
+| `audioFile` | file | Generiertes Audiodateiobjekt |
+| `duration` | number | Audiodauer in Sekunden |
+| `characterCount` | number | Anzahl der verarbeiteten Zeichen |
+| `format` | string | Audioformat |
+| `provider` | string | Verwendeter TTS-Anbieter |
+
+### `tts_google`
+
+Text in Sprache umwandeln mit Google Cloud Text-to-Speech
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Ja | Der in Sprache umzuwandelnde Text |
+| `apiKey` | string | Ja | Google Cloud API-Schlüssel |
+| `voiceId` | string | Nein | Stimm-ID (z.B. en-US-Neural2-A, en-US-Wavenet-D) |
+| `languageCode` | string | Ja | Sprachcode (z.B. en-US, es-ES, fr-FR) |
+| `gender` | string | Nein | Stimmgeschlecht (MALE, FEMALE, NEUTRAL) |
+| `audioEncoding` | string | Nein | Audiokodierung (LINEAR16, MP3, OGG_OPUS, MULAW, ALAW) |
+| `speakingRate` | number | Nein | Sprechgeschwindigkeit (0,25 bis 2,0, Standard: 1,0) |
+| `pitch` | number | Nein | Stimmhöhe (-20,0 bis 20,0, Standard: 0,0) |
+| `volumeGainDb` | number | Nein | Lautstärkeverstärkung in dB (-96,0 bis 16,0) |
+| `sampleRateHertz` | number | Nein | Abtastrate in Hz |
+| `effectsProfileId` | array | Nein | Effektprofil (z.B. ['headphone-class-device']) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | URL zur generierten Audiodatei |
+| `audioFile` | file | Generiertes Audiodateiobjekt |
+| `duration` | number | Audiodauer in Sekunden |
+| `characterCount` | number | Anzahl der verarbeiteten Zeichen |
+| `format` | string | Audioformat |
+| `provider` | string | Verwendeter TTS-Anbieter |
+
+### `tts_azure`
+
+Text in Sprache umwandeln mit Azure Cognitive Services
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Ja | Der in Sprache umzuwandelnde Text |
+| `apiKey` | string | Ja | Azure Speech Services API-Schlüssel |
+| `voiceId` | string | Nein | Stimm-ID \(z.B. en-US-JennyNeural, en-US-GuyNeural\) |
+| `region` | string | Nein | Azure-Region \(z.B. eastus, westus, westeurope\) |
+| `outputFormat` | string | Nein | Ausgabe-Audioformat |
+| `rate` | string | Nein | Sprechgeschwindigkeit \(z.B. +10%, -20%, 1.5\) |
+| `pitch` | string | Nein | Stimmhöhe \(z.B. +5Hz, -2st, low\) |
+| `style` | string | Nein | Sprechstil \(z.B. cheerful, sad, angry - nur für neurale Stimmen\) |
+| `styleDegree` | number | Nein | Stilintensität \(0.01 bis 2.0\) |
+| `role` | string | Nein | Rolle \(z.B. Girl, Boy, YoungAdultFemale\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | URL zur generierten Audiodatei |
+| `audioFile` | file | Generiertes Audiodateiobjekt |
+| `duration` | number | Audiodauer in Sekunden |
+| `characterCount` | number | Anzahl der verarbeiteten Zeichen |
+| `format` | string | Audioformat |
+| `provider` | string | Verwendeter TTS-Anbieter |
+
+### `tts_playht`
+
+Text in Sprache umwandeln mit PlayHT (Stimmklonen)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Ja | Der in Sprache umzuwandelnde Text |
+| `apiKey` | string | Ja | PlayHT API-Schlüssel \(AUTHORIZATION-Header\) |
+| `userId` | string | Ja | PlayHT Benutzer-ID \(X-USER-ID-Header\) |
+| `voice` | string | Nein | Stimm-ID oder Manifest-URL |
+| `quality` | string | Nein | Qualitätsstufe \(draft, standard, premium\) |
+| `outputFormat` | string | Nein | Ausgabeformat \(mp3, wav, ogg, flac, mulaw\) |
+| `speed` | number | Nein | Geschwindigkeitsmultiplikator \(0,5 bis 2,0\) |
+| `temperature` | number | Nein | Kreativität/Zufälligkeit \(0,0 bis 2,0\) |
+| `voiceGuidance` | number | Nein | Stimmstabilität \(1,0 bis 6,0\) |
+| `textGuidance` | number | Nein | Texttreue \(1,0 bis 6,0\) |
+| `sampleRate` | number | Nein | Abtastrate \(8000, 16000, 22050, 24000, 44100, 48000\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | URL zur generierten Audiodatei |
+| `audioFile` | file | Generiertes Audiodateiobjekt |
+| `duration` | number | Audiodauer in Sekunden |
+| `characterCount` | number | Anzahl der verarbeiteten Zeichen |
+| `format` | string | Audioformat |
+| `provider` | string | Verwendeter TTS-Anbieter |
+
+## Notizen
+
+- Kategorie: `tools`
+- Typ: `tts`

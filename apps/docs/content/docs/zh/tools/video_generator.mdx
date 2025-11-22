@@ -1,0 +1,192 @@
+---
+title: 视频生成器
+description: 使用 AI 从文本生成视频
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="video_generator"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+使用顶级提供商的尖端 AI 模型，通过文本提示生成视频。Sim 的视频生成器为您的工作流程带来了强大的创意视频合成功能——支持多种模型、纵横比、分辨率、摄像机控制、原生音频以及高级风格和一致性功能。
+
+**支持的提供商和模型：**
+
+- **[Runway Gen-4](https://research.runwayml.com/gen2/)** (Runway ML)：  
+  Runway 是文本生成视频领域的先驱，以强大的模型（如 Gen-2、Gen-3 和 Gen-4）而闻名。最新的 [Gen-4](https://research.runwayml.com/gen2/) 模型（以及 Gen-4 Turbo，用于更快的结果）支持更逼真的运动、更高的世界一致性，以及角色、物体、风格和位置的视觉参考。支持 16:9、9:16 和 1:1 的纵横比，5–10 秒的时长，最高 4K 分辨率，风格预设，以及直接上传参考图像以实现一致的生成。Runway 为全球的电影制作人、工作室和内容创作者提供创意工具。
+
+- **[Google Veo](https://deepmind.google/technologies/veo/)** (Google DeepMind)：  
+  [Veo](https://deepmind.google/technologies/veo/) 是 Google 的下一代视频生成模型，提供高质量、原生音频的视频，分辨率高达 1080p，时长最长 16 秒。支持高级运动、电影效果和细腻的文本理解。Veo 可以生成带有内置声音的视频——激活原生音频以及无声片段。选项包括 16:9 的纵横比、可变时长、不同的模型（veo-3、veo-3.1）以及基于提示的控制。非常适合讲故事、广告、研究和创意构思。
+
+- **[Luma Dream Machine](https://lumalabs.ai/dream-machine)** (Luma AI)：  
+  [Dream Machine](https://lumalabs.ai/dream-machine) 能够从文本生成令人惊叹的逼真流畅视频。它结合了高级摄像机控制、电影摄影提示，并支持 ray-1 和 ray-2 模型。Dream Machine 支持精确的纵横比（16:9、9:16、1:1）、可变时长，以及摄像机路径的指定以实现复杂的视觉指导。Luma 因其突破性的视觉保真度而闻名，并得到了顶尖 AI 视觉研究人员的支持。
+
+- **[MiniMax Hailuo-02](https://minimax.chat/)**（通过 [Fal.ai](https://fal.ai/)）：  
+  [MiniMax Hailuo-02](https://minimax.chat/) 是一个先进的中文生成视频模型，可通过 [Fal.ai](https://fal.ai/) 在全球范围内使用。支持生成最长 16 秒的视频，可选择横屏或竖屏格式，并提供提示优化选项以提高清晰度和创造力。提供专业版和标准版接口，支持高分辨率（最高 1920×1080）。非常适合需要提示翻译和优化的创意项目、商业叙事以及快速原型设计视觉创意。
+
+**如何选择：**  
+根据您对质量、速度、时长、音频、成本和独特功能的需求选择提供商和模型。Runway 和 Veo 提供世界领先的真实感和电影级能力；Luma 擅长流畅的运动和摄像机控制；MiniMax 非常适合中文提示，并提供快速且经济实惠的访问。在选择工具时，请考虑参考支持、风格预设、音频需求和定价。
+
+有关功能、限制、定价和模型进展的更多详细信息，请参阅上述每个提供商的官方文档。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用领先的 AI 提供商从文本提示生成高质量视频。支持多种模型、纵横比、分辨率以及提供商特定功能，如世界一致性、摄像机控制和音频生成。
+
+## 工具
+
+### `video_runway`
+
+使用 Runway Gen-4 生成具有世界一致性和视觉参考的视频
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | 是 | 视频提供商 \(runway\) |
+| `apiKey` | string | 是 | Runway API 密钥 |
+| `model` | string | 否 | Runway 模型：gen-4 \(默认，更高质量\) 或 gen-4-turbo \(更快\) |
+| `prompt` | string | 是 | 描述要生成视频的文本提示 |
+| `duration` | number | 否 | 视频时长（秒）\(5 或 10，默认：5\) |
+| `aspectRatio` | string | 否 | 纵横比：16:9 \(横屏\)、9:16 \(竖屏\) 或 1:1 \(方形\) |
+| `resolution` | string | 否 | 视频分辨率 \(720p 输出\)。注意：Gen-4 Turbo 本身以 720p 输出 |
+| `visualReference` | json | 是 | Gen-4 所需的参考图像 \(UserFile 对象\)。Gen-4 仅支持图像到视频，不支持仅文本生成 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | 生成的视频 URL |
+| `videoFile` | json | 带有元数据的视频文件对象 |
+| `duration` | number | 视频时长（秒） |
+| `width` | number | 视频宽度（像素） |
+| `height` | number | 视频高度（像素） |
+| `provider` | string | 使用的提供商 \(runway\) |
+| `model` | string | 使用的模型 |
+| `jobId` | string | Runway 作业 ID |
+
+### `video_veo`
+
+使用 Google Veo 3/3.1 生成带有原生音频的视频
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | 是 | 视频提供商 \(veo\) |
+| `apiKey` | string | 是 | Google Gemini API 密钥 |
+| `model` | string | 否 | Veo 模型：veo-3 \(默认，最高质量\)、veo-3-fast \(更快\) 或 veo-3.1 \(最新\) |
+| `prompt` | string | 是 | 描述要生成视频的文本提示 |
+| `duration` | number | 否 | 视频时长（秒）\(4、6 或 8，默认：8\) |
+| `aspectRatio` | string | 否 | 纵横比：16:9 \(横向\) 或 9:16 \(纵向\) |
+| `resolution` | string | 否 | 视频分辨率：720p 或 1080p \(默认：1080p\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | 生成的视频 URL |
+| `videoFile` | json | 带有元数据的视频文件对象 |
+| `duration` | number | 视频时长（秒） |
+| `width` | number | 视频宽度（像素） |
+| `height` | number | 视频高度（像素） |
+| `provider` | string | 使用的提供商 \(veo\) |
+| `model` | string | 使用的模型 |
+| `jobId` | string | Veo 作业 ID |
+
+### `video_luma`
+
+使用 Luma Dream Machine 和高级摄像机控制生成视频
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | 是 | 视频提供者 \(luma\) |
+| `apiKey` | string | 是 | Luma AI API 密钥 |
+| `model` | string | 否 | Luma 模型：ray-2 \(默认\) |
+| `prompt` | string | 是 | 描述要生成视频的文本提示 |
+| `duration` | number | 否 | 视频时长（以秒为单位）\(5 或 9，默认：5\) |
+| `aspectRatio` | string | 否 | 纵横比：16:9 \(横向\)，9:16 \(纵向\)，或 1:1 \(正方形\) |
+| `resolution` | string | 否 | 视频分辨率：540p、720p 或 1080p \(默认：1080p\) |
+| `cameraControl` | json | 否 | 摄像机控制作为概念对象数组。格式：\[\{ "key": "concept_name" \}\]。有效键：truck_left、truck_right、pan_left、pan_right、tilt_up、tilt_down、zoom_in、zoom_out、push_in、pull_out、orbit_left、orbit_right、crane_up、crane_down、static、handheld，以及 20 多种预定义选项 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | 生成的视频 URL |
+| `videoFile` | json | 带有元数据的视频文件对象 |
+| `duration` | number | 视频时长（以秒为单位） |
+| `width` | number | 视频宽度（以像素为单位） |
+| `height` | number | 视频高度（以像素为单位） |
+| `provider` | string | 使用的提供者 \(luma\) |
+| `model` | string | 使用的模型 |
+| `jobId` | string | Luma 作业 ID |
+
+### `video_minimax`
+
+通过 MiniMax 平台 API 使用 MiniMax Hailuo 生成具有高级真实感和提示优化的视频
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | 是 | 视频提供商 \(minimax\) |
+| `apiKey` | string | 是 | 来自 platform.minimax.io 的 MiniMax API 密钥 |
+| `model` | string | 否 | MiniMax 模型：hailuo-02 \(默认\) |
+| `prompt` | string | 是 | 描述要生成视频的文本提示 |
+| `duration` | number | 否 | 视频时长（秒）\(6 或 10，默认：6\) |
+| `promptOptimizer` | boolean | 否 | 启用提示优化以获得更好的结果 \(默认：true\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | 生成的视频 URL |
+| `videoFile` | json | 带有元数据的视频文件对象 |
+| `duration` | number | 视频时长（秒） |
+| `width` | number | 视频宽度（像素） |
+| `height` | number | 视频高度（像素） |
+| `provider` | string | 使用的提供商 \(minimax\) |
+| `model` | string | 使用的模型 |
+| `jobId` | string | MiniMax 作业 ID |
+
+### `video_falai`
+
+通过 Fal.ai 平台生成视频，可访问多个模型，包括 Veo 3.1、Sora 2、Kling 2.5、MiniMax Hailuo 等
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | 是 | 视频提供商 \(falai\) |
+| `apiKey` | string | 是 | Fal.ai API 密钥 |
+| `model` | string | 是 | Fal.ai 模型：veo-3.1 \(Google Veo 3.1\)、sora-2 \(OpenAI Sora 2\)、kling-2.5-turbo-pro \(Kling 2.5 Turbo Pro\)、kling-2.1-pro \(Kling 2.1 Master\)、minimax-hailuo-2.3-pro \(MiniMax Hailuo Pro\)、minimax-hailuo-2.3-standard \(MiniMax Hailuo Standard\)、wan-2.1 \(WAN T2V\)、ltxv-0.9.8 \(LTXV 13B\) |
+| `prompt` | string | 是 | 描述要生成视频的文本提示 |
+| `duration` | number | 否 | 视频时长（秒）\(因模型而异\) |
+| `aspectRatio` | string | 否 | 纵横比 \(因模型而异\)：16:9、9:16、1:1 |
+| `resolution` | string | 否 | 视频分辨率 \(因模型而异\)：540p、720p、1080p |
+| `promptOptimizer` | boolean | 否 | 启用 MiniMax 模型的提示优化 \(默认：true\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | 生成的视频 URL |
+| `videoFile` | json | 带有元数据的视频文件对象 |
+| `duration` | number | 视频时长（秒） |
+| `width` | number | 视频宽度（像素） |
+| `height` | number | 视频高度（像素） |
+| `provider` | string | 使用的提供者 \(falai\) |
+| `model` | string | 使用的模型 |
+| `jobId` | string | 任务 ID |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `video_generator`

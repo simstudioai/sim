@@ -1,0 +1,192 @@
+---
+title: ビデオジェネレーター
+description: AIを使用してテキストから動画を生成
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="video_generator"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+最先端のAIモデルを使用してテキストプロンプトから動画を作成します。Simのビデオジェネレーターはパワフルで創造的な動画合成機能をワークフローにもたらし、多様なモデル、アスペクト比、解像度、カメラコントロール、ネイティブオーディオ、高度なスタイルと一貫性機能をサポートします。
+
+**対応プロバイダーとモデル：**
+
+- **[Runway Gen-4](https://research.runwayml.com/gen2/)** (Runway ML):  
+  Runwayはテキストから動画生成の先駆者で、Gen-2、Gen-3、Gen-4などの強力なモデルで知られています。最新の[Gen-4](https://research.runwayml.com/gen2/)モデル（および高速処理のためのGen-4 Turbo）は、よりリアルな動き、優れた世界の一貫性、キャラクター、オブジェクト、スタイル、場所のビジュアルリファレンスをサポートしています。16:9、9:16、1:1のアスペクト比、5～10秒の動画長、最大4K解像度、スタイルプリセット、一貫した生成のための参照画像の直接アップロードに対応しています。Runwayは世界中の映画製作者、スタジオ、コンテンツクリエイターのためのクリエイティブツールを提供しています。
+
+- **[Google Veo](https://deepmind.google/technologies/veo/)** (Google DeepMind):  
+  [Veo](https://deepmind.google/technologies/veo/)はGoogleの次世代ビデオ生成モデルで、最大1080pおよび16秒の高品質なネイティブオーディオ動画を提供します。高度な動き、映画的効果、ニュアンスのあるテキスト理解をサポートしています。Veoは内蔵サウンドで動画を生成できます—ネイティブオーディオと無音クリップの両方に対応。オプションには16:9アスペクト、可変長の動画時間、異なるモデル（veo-3、veo-3.1）、プロンプトベースのコントロールが含まれます。ストーリーテリング、広告、研究、アイデア創出に最適です。
+
+- **[Luma Dream Machine](https://lumalabs.ai/dream-machine)** (Luma AI):  
+  [Dream Machine](https://lumalabs.ai/dream-machine)はテキストから驚くほどリアルで流動的な動画を提供します。高度なカメラコントロール、撮影技法プロンプトを組み込み、ray-1とray-2の両モデルをサポートしています。Dream Machineは正確なアスペクト比（16:9、9:16、1:1）、可変長の動画時間、複雑な視覚的方向性のためのカメラパスの指定をサポートしています。Lumaは画期的な視覚的忠実度で知られ、主要なAIビジョン研究者によってサポートされています。
+
+- **[MiniMax Hailuo-02](https://minimax.chat/)** (via [Fal.ai](https://fal.ai/)):  
+  [MiniMax Hailuo-02](https://minimax.chat/)は高度な中国の生成ビデオモデルで、[Fal.ai](https://fal.ai/)を通じて世界中で利用可能です。横向きまたは縦向き形式で最大16秒のビデオを生成でき、明確さと創造性を向上させるためのプロンプト最適化オプションがあります。プロ版と標準版のエンドポイントが利用可能で、高解像度（最大1920×1080）をサポートしています。プロンプト翻訳と最適化、商業的なストーリーテリング、視覚的アイデアの迅速なプロトタイピングが必要な創造的プロジェクトに適しています。
+
+**選び方：**  
+品質、速度、時間、音声、コスト、独自機能に関するニーズに基づいてプロバイダーとモデルを選択してください。RunwayとVeoは世界をリードするリアリズムと映画的な機能を提供しています。Lumaは流動的な動きとカメラコントロールに優れています。MiniMaxは中国語のプロンプトに最適で、迅速で手頃な価格のアクセスを提供します。ツールを選択する際には、リファレンスサポート、スタイルプリセット、音声要件、価格を考慮してください。
+
+機能、制限、価格、モデルの進歩についての詳細は、上記の各プロバイダーの公式ドキュメントを参照してください。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+主要なAIプロバイダーを使用してテキストプロンプトから高品質のビデオを生成します。複数のモデル、アスペクト比、解像度、およびワールドの一貫性、カメラコントロール、音声生成などのプロバイダー固有の機能をサポートしています。
+
+## ツール
+
+### `video_runway`
+
+ワールドの一貫性と視覚的参照を使用してRunway Gen-4でビデオを生成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | はい | ビデオプロバイダー（runway） |
+| `apiKey` | string | はい | Runway APIキー |
+| `model` | string | いいえ | Runwayモデル：gen-4（デフォルト、高品質）またはgen-4-turbo（より速い） |
+| `prompt` | string | はい | 生成するビデオを説明するテキストプロンプト |
+| `duration` | number | いいえ | ビデオの長さ（秒）（5または10、デフォルト：5） |
+| `aspectRatio` | string | いいえ | アスペクト比：16:9（横向き）、9:16（縦向き）、または1:1（正方形） |
+| `resolution` | string | いいえ | ビデオ解像度（720p出力）。注：Gen-4 Turboはネイティブで720p出力 |
+| `visualReference` | json | はい | Gen-4には参照画像が必須（UserFileオブジェクト）。Gen-4はイメージからビデオへの変換のみをサポートし、テキストのみの生成はサポートしていません |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | 生成された動画URL |
+| `videoFile` | json | メタデータを含む動画ファイルオブジェクト |
+| `duration` | number | 動画の長さ（秒） |
+| `width` | number | 動画の幅（ピクセル） |
+| `height` | number | 動画の高さ（ピクセル） |
+| `provider` | string | 使用されたプロバイダー（runway） |
+| `model` | string | 使用されたモデル |
+| `jobId` | string | Runwayジョブ ID |
+
+### `video_veo`
+
+ネイティブ音声生成機能を備えたGoogle Veo 3/3.1を使用して動画を生成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | はい | 動画プロバイダー（veo） |
+| `apiKey` | string | はい | Google Gemini APIキー |
+| `model` | string | いいえ | Veoモデル: veo-3（デフォルト、最高品質）、veo-3-fast（より速い）、またはveo-3.1（最新） |
+| `prompt` | string | はい | 生成する動画を説明するテキストプロンプト |
+| `duration` | number | いいえ | 動画の長さ（秒）（4、6、または8、デフォルト: 8） |
+| `aspectRatio` | string | いいえ | アスペクト比: 16:9（横向き）または9:16（縦向き） |
+| `resolution` | string | いいえ | 動画解像度: 720pまたは1080p（デフォルト: 1080p） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | 生成された動画URL |
+| `videoFile` | json | メタデータを含む動画ファイルオブジェクト |
+| `duration` | number | 動画の長さ（秒） |
+| `width` | number | 動画の幅（ピクセル） |
+| `height` | number | 動画の高さ（ピクセル） |
+| `provider` | string | 使用されたプロバイダー（veo） |
+| `model` | string | 使用されたモデル |
+| `jobId` | string | Veoジョブ ID |
+
+### `video_luma`
+
+高度なカメラコントロールを使用してLuma Dream Machineで動画を生成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | はい | 動画プロバイダー（luma） |
+| `apiKey` | string | はい | Luma AI APIキー |
+| `model` | string | いいえ | Lumaモデル: ray-2（デフォルト） |
+| `prompt` | string | はい | 生成する動画を説明するテキストプロンプト |
+| `duration` | number | いいえ | 動画の長さ（秒）（5または9、デフォルト: 5） |
+| `aspectRatio` | string | いいえ | アスペクト比: 16:9（横向き）、9:16（縦向き）、または1:1（正方形） |
+| `resolution` | string | いいえ | 動画解像度: 540p、720p、または1080p（デフォルト: 1080p） |
+| `cameraControl` | json | いいえ | コンセプトオブジェクトの配列としてのカメラコントロール。形式: \[\{ "key": "concept_name" \}\]。有効なキー: truck_left, truck_right, pan_left, pan_right, tilt_up, tilt_down, zoom_in, zoom_out, push_in, pull_out, orbit_left, orbit_right, crane_up, crane_down, static, handheldなど20以上の事前定義オプション |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | 生成された動画URL |
+| `videoFile` | json | メタデータを含む動画ファイルオブジェクト |
+| `duration` | number | 動画の長さ（秒） |
+| `width` | number | 動画の幅（ピクセル） |
+| `height` | number | 動画の高さ（ピクセル） |
+| `provider` | string | 使用されたプロバイダー（luma） |
+| `model` | string | 使用されたモデル |
+| `jobId` | string | LumaジョブID |
+
+### `video_minimax`
+
+MiniMax PlatformのAPIを通じてMiniMax Hailuoを使用し、高度なリアリズムとプロンプト最適化で動画を生成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | はい | 動画プロバイダー（minimax） |
+| `apiKey` | string | はい | platform.minimax.ioから取得したMiniMax APIキー |
+| `model` | string | いいえ | MiniMaxモデル：hailuo-02（デフォルト） |
+| `prompt` | string | はい | 生成する動画を説明するテキストプロンプト |
+| `duration` | number | いいえ | 動画の長さ（秒）（6または10、デフォルト：6） |
+| `promptOptimizer` | boolean | いいえ | より良い結果を得るためのプロンプト最適化を有効にする（デフォルト：true） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | 生成された動画のURL |
+| `videoFile` | json | メタデータを含む動画ファイルオブジェクト |
+| `duration` | number | 動画の長さ（秒） |
+| `width` | number | 動画の幅（ピクセル） |
+| `height` | number | 動画の高さ（ピクセル） |
+| `provider` | string | 使用されたプロバイダー（minimax） |
+| `model` | string | 使用されたモデル |
+| `jobId` | string | MiniMaxジョブID |
+
+### `video_falai`
+
+Fal.aiプラットフォームを使用して、Veo 3.1、Sora 2、Kling 2.5、MiniMax Hailuoなど複数のモデルにアクセスして動画を生成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | はい | 動画プロバイダー（falai） |
+| `apiKey` | string | はい | Fal.ai APIキー |
+| `model` | string | はい | Fal.aiモデル：veo-3.1（Google Veo 3.1）、sora-2（OpenAI Sora 2）、kling-2.5-turbo-pro（Kling 2.5 Turbo Pro）、kling-2.1-pro（Kling 2.1 Master）、minimax-hailuo-2.3-pro（MiniMax Hailuo Pro）、minimax-hailuo-2.3-standard（MiniMax Hailuo Standard）、wan-2.1（WAN T2V）、ltxv-0.9.8（LTXV 13B） |
+| `prompt` | string | はい | 生成する動画を説明するテキストプロンプト |
+| `duration` | number | いいえ | 動画の長さ（秒）（モデルによって異なる） |
+| `aspectRatio` | string | いいえ | アスペクト比（モデルによって異なる）：16:9、9:16、1:1 |
+| `resolution` | string | いいえ | 動画解像度（モデルによって異なる）：540p、720p、1080p |
+| `promptOptimizer` | boolean | いいえ | MiniMaxモデル用のプロンプト最適化を有効にする（デフォルト：true） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `videoUrl` | string | 生成された動画URL |
+| `videoFile` | json | メタデータを含む動画ファイルオブジェクト |
+| `duration` | number | 動画の長さ（秒） |
+| `width` | number | 動画の幅（ピクセル） |
+| `height` | number | 動画の高さ（ピクセル） |
+| `provider` | string | 使用されたプロバイダー（falai） |
+| `model` | string | 使用されたモデル |
+| `jobId` | string | ジョブID |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `video_generator`
