@@ -512,9 +512,9 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                 autoFocus
               />
               {createError && (
-                <div className='text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
                   {createError}
-                </div>
+                </p>
               )}
             </div>
           </div>

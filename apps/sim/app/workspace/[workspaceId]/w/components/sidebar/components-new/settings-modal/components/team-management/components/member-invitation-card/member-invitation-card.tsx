@@ -1,7 +1,13 @@
 import React, { useMemo, useState } from 'react'
 import { CheckCircle, ChevronDown } from 'lucide-react'
-import { Button, Input, Label } from '@/components/emcn'
-import { Badge } from '@/components/ui/badge'
+import {
+  Button,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+} from '@/components/emcn'
 import { Checkbox } from '@/components/ui/checkbox'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { cn } from '@/lib/utils'
@@ -27,28 +33,19 @@ const PermissionSelector = React.memo<PermissionSelectorProps>(
     )
 
     return (
-      <div
-        className={cn('inline-flex rounded-[12px] border border-input bg-background', className)}
-      >
-        {permissionOptions.map((option, index) => (
-          <button
+      <div className={cn('inline-flex gap-[2px]', className)}>
+        {permissionOptions.map((option) => (
+          <Button
             key={option.value}
             type='button'
+            variant={value === option.value ? 'active' : 'ghost'}
             onClick={() => !disabled && onChange(option.value)}
             disabled={disabled}
             title={option.description}
-            className={cn(
-              'px-2.5 py-1.5 font-medium text-xs transition-colors focus:outline-none',
-              'first:rounded-l-[11px] last:rounded-r-[11px]',
-              disabled && 'cursor-not-allowed opacity-50',
-              value === option.value
-                ? 'bg-foreground text-background'
-                : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
-              index > 0 && 'border-input border-l'
-            )}
+            className='h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]'
           >
             {option.label}
-          </button>
+          </Button>
         ))}
       </div>
     )
@@ -71,12 +68,8 @@ interface MemberInvitationCardProps {
   inviteSuccess: boolean
   availableSeats?: number
   maxSeats?: number
-}
-
-function ButtonSkeleton() {
-  return (
-    <div className='h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary' />
-  )
+  invitationError?: Error | null
+  isLoadingWorkspaces?: boolean
 }
 
 export function MemberInvitationCard({
@@ -93,12 +86,13 @@ export function MemberInvitationCard({
   inviteSuccess,
   availableSeats = 0,
   maxSeats = 0,
+  invitationError = null,
+  isLoadingWorkspaces = false,
 }: MemberInvitationCardProps) {
   const selectedCount = selectedWorkspaces.length
   const hasAvailableSeats = availableSeats > 0
   const [emailError, setEmailError] = useState<string>('')
 
-  // Email validation function using existing lib
   const validateEmailInput = (email: string) => {
     if (!email.trim()) {
       setEmailError('')
@@ -116,14 +110,12 @@ export function MemberInvitationCard({
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setInviteEmail(value)
-    // Clear error when user starts typing again
     if (emailError) {
       setEmailError('')
     }
   }
 
   const handleInviteClick = () => {
-    // Validate email before proceeding
     if (inviteEmail.trim()) {
       validateEmailInput(inviteEmail)
       const validation = quickValidateEmail(inviteEmail.trim())
@@ -132,7 +124,6 @@ export function MemberInvitationCard({
       }
     }
 
-    // If validation passes or email is empty, proceed with original invite
     onInviteMember()
   }
 
@@ -163,114 +154,118 @@ export function MemberInvitationCard({
               </p>
             )}
           </div>
-          <Button
-            variant='ghost'
-            onClick={() => {
-              setShowWorkspaceInvite(!showWorkspaceInvite)
-              if (!showWorkspaceInvite) {
+          <Popover
+            open={showWorkspaceInvite}
+            onOpenChange={(open) => {
+              setShowWorkspaceInvite(open)
+              if (open) {
                 onLoadUserWorkspaces()
               }
             }}
-            disabled={isInviting || !hasAvailableSeats}
           >
-            <ChevronDown
-              className={cn(
-                'h-3.5 w-3.5 transition-transform',
-                showWorkspaceInvite && 'rotate-180'
+            <PopoverTrigger asChild>
+              <Button
+                variant='ghost'
+                disabled={isInviting || !hasAvailableSeats}
+                className='min-w-[110px]'
+              >
+                <span className='flex-1 text-left'>
+                  Workspaces
+                  {selectedCount > 0 && ` (${selectedCount})`}
+                </span>
+                <ChevronDown
+                  className={cn(
+                    'h-3.5 w-3.5 transition-transform',
+                    showWorkspaceInvite && 'rotate-180'
+                  )}
+                />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              side='bottom'
+              align='end'
+              maxHeight={320}
+              sideOffset={4}
+              className='w-[240px] border border-[var(--border-muted)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+              style={{ minWidth: '240px', maxWidth: '240px' }}
+            >
+              {isLoadingWorkspaces ? (
+                <div className='px-[6px] py-[16px] text-center'>
+                  <p className='text-[12px] text-[var(--text-tertiary)]'>Loading...</p>
+                </div>
+              ) : userWorkspaces.length === 0 ? (
+                <div className='px-[6px] py-[16px] text-center'>
+                  <p className='text-[12px] text-[var(--text-tertiary)]'>No workspaces available</p>
+                </div>
+              ) : (
+                <div className='flex flex-col gap-[2px]'>
+                  {userWorkspaces.map((workspace) => {
+                    const isSelected = selectedWorkspaces.some(
+                      (w) => w.workspaceId === workspace.id
+                    )
+                    const selectedWorkspace = selectedWorkspaces.find(
+                      (w) => w.workspaceId === workspace.id
+                    )
+
+                    return (
+                      <div key={workspace.id} className='flex flex-col gap-[4px]'>
+                        <PopoverItem
+                          onClick={() => {
+                            if (isSelected) {
+                              onWorkspaceToggle(workspace.id, '')
+                            } else {
+                              onWorkspaceToggle(workspace.id, 'read')
+                            }
+                          }}
+                          active={isSelected}
+                          disabled={isInviting}
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            disabled={isInviting}
+                            className='pointer-events-none'
+                          />
+                          <span className='flex-1 truncate'>{workspace.name}</span>
+                        </PopoverItem>
+                        {isSelected && (
+                          <div className='ml-[31px] flex items-center gap-[6px] pb-[4px]'>
+                            <span className='text-[11px] text-[var(--text-tertiary)]'>Access:</span>
+                            <PermissionSelector
+                              value={
+                                (['read', 'write', 'admin'].includes(
+                                  selectedWorkspace?.permission ?? ''
+                                )
+                                  ? selectedWorkspace?.permission
+                                  : 'read') as PermissionType
+                              }
+                              onChange={(permission) => onWorkspaceToggle(workspace.id, permission)}
+                              disabled={isInviting}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               )}
-            />
-            Workspaces
-          </Button>
+            </PopoverContent>
+          </Popover>
           <Button
             variant='secondary'
             onClick={handleInviteClick}
             disabled={!inviteEmail || isInviting || !hasAvailableSeats}
           >
-            {isInviting ? <ButtonSkeleton /> : hasAvailableSeats ? 'Invite' : 'No Seats'}
+            {isInviting ? 'Inviting...' : hasAvailableSeats ? 'Invite' : 'No Seats'}
           </Button>
         </div>
 
-        {/* Workspace selection - collapsible */}
-        {showWorkspaceInvite && (
-          <div className='space-y-3 rounded-md border border-[var(--border-muted)] bg-[var(--surface-2)] p-3'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <h5 className='font-medium text-xs'>Workspace Access</h5>
-                <span className='text-[11px] text-muted-foreground'>(Optional)</span>
-              </div>
-              {selectedCount > 0 && (
-                <span className='text-muted-foreground text-xs'>{selectedCount} selected</span>
-              )}
-            </div>
-
-            {userWorkspaces.length === 0 ? (
-              <div className='py-4 text-center'>
-                <p className='text-muted-foreground text-xs'>No workspaces available</p>
-              </div>
-            ) : (
-              <div className='max-h-48 space-y-1.5 overflow-y-auto'>
-                {userWorkspaces.map((workspace) => {
-                  const isSelected = selectedWorkspaces.some((w) => w.workspaceId === workspace.id)
-                  const selectedWorkspace = selectedWorkspaces.find(
-                    (w) => w.workspaceId === workspace.id
-                  )
-
-                  return (
-                    <div
-                      key={workspace.id}
-                      className='flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--surface-3)]'
-                    >
-                      <div className='min-w-0 flex-1'>
-                        <div className='flex items-center gap-2'>
-                          <Checkbox
-                            id={`workspace-${workspace.id}`}
-                            checked={isSelected}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                onWorkspaceToggle(workspace.id, 'read')
-                              } else {
-                                onWorkspaceToggle(workspace.id, '')
-                              }
-                            }}
-                            disabled={isInviting}
-                          />
-                          <Label
-                            htmlFor={`workspace-${workspace.id}`}
-                            className='cursor-pointer text-xs'
-                          >
-                            {workspace.name}
-                          </Label>
-                          {workspace.isOwner && (
-                            <Badge
-                              variant='outline'
-                              className='h-[1.125rem] rounded-[6px] px-2 py-0 text-[10px]'
-                            >
-                              Owner
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-
-                      {isSelected && (
-                        <PermissionSelector
-                          value={
-                            (['read', 'write', 'admin'].includes(
-                              selectedWorkspace?.permission ?? ''
-                            )
-                              ? selectedWorkspace?.permission
-                              : 'read') as PermissionType
-                          }
-                          onChange={(permission) => onWorkspaceToggle(workspace.id, permission)}
-                          disabled={isInviting}
-                          className='w-auto'
-                        />
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+        {/* Invitation error - inline */}
+        {invitationError && (
+          <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+            {invitationError instanceof Error && invitationError.message
+              ? invitationError.message
+              : String(invitationError)}
+          </p>
         )}
 
         {/* Success message */}

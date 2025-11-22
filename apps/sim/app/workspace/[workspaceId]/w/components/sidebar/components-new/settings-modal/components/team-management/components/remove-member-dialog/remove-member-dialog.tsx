@@ -13,6 +13,7 @@ interface RemoveMemberDialogProps {
   memberName: string
   shouldReduceSeats: boolean
   isSelfRemoval?: boolean
+  error?: Error | null
   onOpenChange: (open: boolean) => void
   onShouldReduceSeatsChange: (shouldReduce: boolean) => void
   onConfirmRemove: (shouldReduceSeats: boolean) => Promise<void>
@@ -23,6 +24,7 @@ export function RemoveMemberDialog({
   open,
   memberName,
   shouldReduceSeats,
+  error,
   onOpenChange,
   onShouldReduceSeatsChange,
   onConfirmRemove,
@@ -60,6 +62,14 @@ export function RemoveMemberDialog({
             </div>
             <p className='mt-1 text-muted-foreground text-xs'>
               If selected, your team seat count will be reduced by 1, lowering your monthly billing.
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <div className='pb-2'>
+            <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+              {error instanceof Error && error.message ? error.message : String(error)}
             </p>
           </div>
         )}

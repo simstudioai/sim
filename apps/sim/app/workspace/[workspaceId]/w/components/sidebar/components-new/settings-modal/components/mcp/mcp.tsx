@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { AlertCircle, Plus, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
-import { Alert, AlertDescription, Input, Skeleton } from '@/components/ui'
+import { Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
@@ -24,7 +24,6 @@ export function MCP() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  // React Query hooks
   const {
     data: servers = [],
     isLoading: serversLoading,
@@ -42,7 +41,7 @@ export function MCP() {
     transport: 'streamable-http',
     url: '',
     timeout: 30000,
-    headers: {}, // Start with no headers
+    headers: {},
   })
 
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -207,7 +206,6 @@ export function MCP() {
 
       try {
         await deleteServerMutation.mutateAsync({ workspaceId, serverId })
-        // TanStack Query mutations automatically invalidate and refetch tools
 
         logger.info(`Removed MCP server: ${serverId}`)
       } catch (error) {
@@ -264,27 +262,23 @@ export function MCP() {
             />
           </div>
         )}
-
-        {/* Error Alert */}
-        {(toolsError || serversError) && (
-          <Alert variant='destructive' className='mt-4'>
-            <AlertCircle className='h-4 w-4' />
-            <AlertDescription>
-              {toolsError instanceof Error
-                ? toolsError.message
-                : serversError instanceof Error
-                  ? serversError.message
-                  : 'An error occurred'}
-            </AlertDescription>
-          </Alert>
-        )}
       </div>
 
       {/* Scrollable Content */}
       <div className='min-h-0 flex-1 overflow-y-auto px-6'>
         <div className='space-y-2 pt-2 pb-6'>
           {/* Server List */}
-          {serversLoading ? (
+          {toolsError || serversError ? (
+            <div className='flex h-full flex-col items-center justify-center gap-2'>
+              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                {toolsError instanceof Error
+                  ? toolsError.message
+                  : serversError instanceof Error
+                    ? serversError.message
+                    : 'Failed to load MCP servers'}
+              </p>
+            </div>
+          ) : serversLoading ? (
             <div className='space-y-2'>
               <McpServerSkeleton />
               <McpServerSkeleton />
@@ -342,7 +336,6 @@ export function MCP() {
           ) : (
             <div className='space-y-2'>
               {filteredServers.map((server: any) => {
-                // Add defensive checks for server properties
                 if (!server || !server.id) {
                   return null
                 }

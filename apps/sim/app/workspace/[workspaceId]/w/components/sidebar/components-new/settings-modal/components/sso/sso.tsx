@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { Check, ChevronDown, Copy, Eye, EyeOff } from 'lucide-react'
-import { Button, Combobox } from '@/components/emcn'
-import { Alert, AlertDescription, Input, Label } from '@/components/ui'
+import { Button, Combobox, Input, Label } from '@/components/emcn'
+import { Alert, AlertDescription } from '@/components/ui'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth-client'
 import { isBillingEnabled } from '@/lib/environment'
@@ -79,7 +79,6 @@ export function SSO() {
   const { data: subscriptionData } = useSubscriptionData()
   const activeOrganization = orgsData?.activeOrganization
 
-  // Determine if we should fetch SSO providers
   const userEmail = session?.user?.email
   const userId = session?.user?.id
   const userRole = getUserRole(activeOrganization, userEmail)
@@ -89,14 +88,12 @@ export function SSO() {
   const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
   const hasEnterprisePlan = subscriptionStatus.isEnterprise
 
-  // Use React Query to fetch SSO providers
   const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders()
 
   const providers = providersData?.providers || []
   const isSSOProviderOwner =
     !isBillingEnabled && userId ? providers.some((p: any) => p.userId === userId) : null
 
-  // Use mutation hook for configuring SSO
   const configureSSOMutation = useConfigureSSO()
 
   const [error, setError] = useState<string | null>(null)
@@ -331,12 +328,10 @@ export function SSO() {
         }
       }
 
-      // Use the mutation hook - this will automatically invalidate the cache
       await configureSSOMutation.mutateAsync(requestBody)
 
       logger.info('SSO provider configured', { providerId: formData.providerId })
 
-      // Reset form
       setFormData({
         providerType: 'oidc',
         providerId: '',
@@ -408,7 +403,6 @@ export function SSO() {
 
   const handleReconfigure = (provider: SSOProvider) => {
     try {
-      // Parse config based on provider type
       let clientId = ''
       let clientSecret = ''
       let scopes = 'openid,profile,email'
@@ -480,14 +474,7 @@ export function SSO() {
       />
       <div className='flex-1 overflow-y-auto px-6 pt-4 pb-4'>
         <div className='space-y-6'>
-          {error && (
-            <Alert variant='destructive' className='rounded-[8px]'>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
           {showStatus ? (
-            // SSO Provider Status View
             <div className='space-y-4'>
               {providers.map((provider: SSOProvider) => (
                 <div key={provider.id} className='rounded-[8px] bg-muted/30 p-4'>
@@ -558,7 +545,6 @@ export function SSO() {
               ))}
             </div>
           ) : (
-            // SSO Configuration Form
             <>
               {hasProviders && (
                 <div className='mb-4'>
@@ -631,9 +617,9 @@ export function SSO() {
                     )}
                   />
                   {showErrors && errors.providerId.length > 0 && (
-                    <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
-                      <p>{errors.providerId.join(' ')}</p>
-                    </div>
+                    <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                      {errors.providerId.join(' ')}
+                    </p>
                   )}
                   <p className='text-muted-foreground text-xs'>
                     Select a pre-configured provider ID from the trusted providers list
@@ -662,9 +648,9 @@ export function SSO() {
                     )}
                   />
                   {showErrors && errors.issuerUrl.length > 0 && (
-                    <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
-                      <p>{errors.issuerUrl.join(' ')}</p>
-                    </div>
+                    <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                      {errors.issuerUrl.join(' ')}
+                    </p>
                   )}
                   <p className='text-muted-foreground text-xs' />
                 </div>
@@ -691,9 +677,9 @@ export function SSO() {
                     )}
                   />
                   {showErrors && errors.domain.length > 0 && (
-                    <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
-                      <p>{errors.domain.join(' ')}</p>
-                    </div>
+                    <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                      {errors.domain.join(' ')}
+                    </p>
                   )}
                 </div>
 
@@ -722,9 +708,9 @@ export function SSO() {
                         )}
                       />
                       {showErrors && errors.clientId.length > 0 && (
-                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
-                          <p>{errors.clientId.join(' ')}</p>
-                        </div>
+                        <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                          {errors.clientId.join(' ')}
+                        </p>
                       )}
                     </div>
 
@@ -775,9 +761,9 @@ export function SSO() {
                         </Button>
                       </div>
                       {showErrors && errors.clientSecret.length > 0 && (
-                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
-                          <p>{errors.clientSecret.join(' ')}</p>
-                        </div>
+                        <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                          {errors.clientSecret.join(' ')}
+                        </p>
                       )}
                     </div>
 
@@ -800,9 +786,9 @@ export function SSO() {
                         )}
                       />
                       {showErrors && errors.scopes.length > 0 && (
-                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
-                          <p>{errors.scopes.join(' ')}</p>
-                        </div>
+                        <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                          {errors.scopes.join(' ')}
+                        </p>
                       )}
                       <p className='text-muted-foreground text-xs'>
                         Comma-separated list of OIDC scopes to request
@@ -830,9 +816,9 @@ export function SSO() {
                         )}
                       />
                       {showErrors && errors.entryPoint.length > 0 && (
-                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
-                          <p>{errors.entryPoint.join(' ')}</p>
-                        </div>
+                        <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                          {errors.entryPoint.join(' ')}
+                        </p>
                       )}
                       <p className='text-muted-foreground text-xs' />
                     </div>
@@ -856,9 +842,9 @@ export function SSO() {
                         rows={4}
                       />
                       {showErrors && errors.cert.length > 0 && (
-                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
-                          <p>{errors.cert.join(' ')}</p>
-                        </div>
+                        <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                          {errors.cert.join(' ')}
+                        </p>
                       )}
                       <p className='text-muted-foreground text-xs' />
                     </div>
@@ -962,6 +948,12 @@ export function SSO() {
                       )}
                     </div>
                   </>
+                )}
+
+                {error && (
+                  <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                    {error}
+                  </p>
                 )}
 
                 <Button

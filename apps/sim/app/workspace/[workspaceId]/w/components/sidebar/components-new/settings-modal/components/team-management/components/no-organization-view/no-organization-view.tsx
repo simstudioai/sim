@@ -8,7 +8,6 @@ import {
   ModalHeader,
   ModalTitle,
 } from '@/components/emcn'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -87,22 +86,22 @@ export function NoOrganizationView({
               </div>
             </div>
 
-            {error && (
-              <Alert variant='destructive' className='rounded-[8px]'>
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className='flex justify-end'>
-              <Button
-                onClick={onCreateOrganization}
-                disabled={!orgName || !orgSlug || isCreatingOrg}
-                className='h-[32px] px-[12px]'
-              >
-                {isCreatingOrg && <RefreshCw className='mr-2 h-4 w-4 animate-spin' />}
-                Create Team Workspace
-              </Button>
+            <div className='flex flex-col gap-2'>
+              {error && (
+                <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                  {error}
+                </p>
+              )}
+              <div className='flex justify-end'>
+                <Button
+                  onClick={onCreateOrganization}
+                  disabled={!orgName || !orgSlug || isCreatingOrg}
+                  className='h-[32px] px-[12px]'
+                >
+                  {isCreatingOrg && <RefreshCw className='mr-2 h-4 w-4 animate-spin' />}
+                  Create Team Workspace
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -117,13 +116,6 @@ export function NoOrganizationView({
             </ModalHeader>
 
             <div className='space-y-4'>
-              {error && (
-                <Alert variant='destructive' className='rounded-[8px]'>
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
               <div>
                 <Label htmlFor='org-name' className='font-medium text-sm'>
                   Organization Name
@@ -152,6 +144,12 @@ export function NoOrganizationView({
                 />
               </div>
             </div>
+
+            {error && (
+              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                {error}
+              </p>
+            )}
 
             <ModalFooter>
               <Button
@@ -188,7 +186,6 @@ export function NoOrganizationView({
 
         <Button
           onClick={() => {
-            // Open the subscription tab
             const event = new CustomEvent('open-settings', {
               detail: { tab: 'subscription' },
             })

@@ -23,6 +23,7 @@ interface TeamSeatsProps {
   currentSeats?: number
   initialSeats?: number
   isLoading: boolean
+  error?: Error | null
   onConfirm: (seats: number) => Promise<void>
   confirmButtonText: string
   showCostBreakdown?: boolean
@@ -37,6 +38,7 @@ export function TeamSeats({
   currentSeats,
   initialSeats = 1,
   isLoading,
+  error,
   onConfirm,
   confirmButtonText,
   showCostBreakdown = false,
@@ -102,6 +104,12 @@ export function TeamSeats({
                 </span>
               </div>
             </div>
+          )}
+
+          {error && (
+            <p className='mt-3 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+              {error instanceof Error && error.message ? error.message : String(error)}
+            </p>
           )}
         </div>
 

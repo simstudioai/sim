@@ -1,6 +1,4 @@
 import { useRef } from 'react'
-import { AlertCircle } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization } from '@/lib/auth-client'
 import { getSubscriptionStatus } from '@/lib/subscription/helpers'
@@ -53,13 +51,11 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
 
   if (error) {
     return (
-      <Alert variant='destructive'>
-        <AlertCircle className='h-4 w-4' />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>
+      <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
+        <p className='text-center text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
           {error instanceof Error ? error.message : 'Failed to load billing data'}
-        </AlertDescription>
-      </Alert>
+        </p>
+      </div>
     )
   }
 
