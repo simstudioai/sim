@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Search, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button, Popover, PopoverAnchor, PopoverContent } from '@/components/emcn'
+import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { type ParsedFilter, parseQuery } from '@/lib/logs/query-parser'
 import {
   type FolderData,
   SearchSuggestions,
+  type TriggerData,
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
 import { cn } from '@/lib/utils'
@@ -29,8 +32,11 @@ export function AutocompleteSearch({
   className,
   onOpenChange,
 }: AutocompleteSearchProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const workflows = useWorkflowRegistry((state) => state.workflows)
   const folders = useFolderStore((state) => state.folders)
+  const [triggersData, setTriggersData] = useState<TriggerData[]>([])
 
   const workflowsData = useMemo<WorkflowData[]>(() => {
     return Object.values(workflows).map((w) => ({
@@ -47,9 +53,36 @@ export function AutocompleteSearch({
     }))
   }, [folders])
 
+  useEffect(() => {
+    if (!workspaceId) return
+
+    const fetchTriggers = async () => {
+      try {
+        const response = await fetch(`/api/logs/triggers?workspaceId=${workspaceId}`)
+        if (!response.ok) return
+
+        const data = await response.json()
+        const triggers: TriggerData[] = data.triggers.map((trigger: string) => {
+          const metadata = getIntegrationMetadata(trigger)
+          return {
+            value: trigger,
+            label: metadata.label,
+            color: metadata.color,
+          }
+        })
+
+        setTriggersData(triggers)
+      } catch (error) {
+        console.error('Failed to fetch triggers:', error)
+      }
+    }
+
+    fetchTriggers()
+  }, [workspaceId])
+
   const suggestionEngine = useMemo(() => {
-    return new SearchSuggestions(workflowsData, foldersData)
-  }, [workflowsData, foldersData])
+    return new SearchSuggestions(workflowsData, foldersData, triggersData)
+  }, [workflowsData, foldersData, triggersData])
 
   const handleFiltersChange = (filters: ParsedFilter[], textSearch: string) => {
     const filterStrings = filters.map(
@@ -84,7 +117,6 @@ export function AutocompleteSearch({
     getSuggestions: (input) => suggestionEngine.getSuggestions(input),
   })
 
-  // Initialize from external value (URL params) - only on mount
   useEffect(() => {
     if (value) {
       const parsed = parseQuery(value)
@@ -269,8 +301,16 @@ export function AutocompleteSearch({
                           }}
                         >
                           <div className='flex items-center justify-between gap-3'>
-                            <div className='min-w-0 flex-1 truncate text-[13px]'>
-                              {suggestion.label}
+                            <div className='flex min-w-0 flex-1 items-center gap-2'>
+                              {suggestion.category === 'trigger' && suggestion.color && (
+                                <div
+                                  className='h-2 w-2 flex-shrink-0 rounded-full'
+                                  style={{ backgroundColor: suggestion.color }}
+                                />
+                              )}
+                              <div className='min-w-0 flex-1 truncate text-[13px]'>
+                                {suggestion.label}
+                              </div>
                             </div>
                             {suggestion.value !== suggestion.label && (
                               <div className='flex-shrink-0 font-mono text-[11px] text-[var(--text-muted)]'>
@@ -313,7 +353,15 @@ export function AutocompleteSearch({
                     }}
                   >
                     <div className='flex items-center justify-between gap-3'>
-                      <div className='min-w-0 flex-1 text-[13px]'>{suggestion.label}</div>
+                      <div className='flex min-w-0 flex-1 items-center gap-2'>
+                        {suggestion.category === 'trigger' && suggestion.color && (
+                          <div
+                            className='h-2 w-2 flex-shrink-0 rounded-full'
+                            style={{ backgroundColor: suggestion.color }}
+                          />
+                        )}
+                        <div className='min-w-0 flex-1 text-[13px]'>{suggestion.label}</div>
+                      </div>
                       {suggestion.description && (
                         <div className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
                           {suggestion.value}

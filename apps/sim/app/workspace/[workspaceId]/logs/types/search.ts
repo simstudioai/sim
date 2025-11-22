@@ -3,6 +3,7 @@ export interface Suggestion {
   value: string
   label: string
   description?: string
+  color?: string
   category?:
     | 'filters'
     | 'level'

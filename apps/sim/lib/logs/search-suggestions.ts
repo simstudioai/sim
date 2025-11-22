@@ -22,6 +22,12 @@ export interface FolderData {
   name: string
 }
 
+export interface TriggerData {
+  value: string
+  label: string
+  color: string
+}
+
 export const FILTER_DEFINITIONS: FilterDefinition[] = [
   {
     key: 'level',
@@ -32,18 +38,8 @@ export const FILTER_DEFINITIONS: FilterDefinition[] = [
       { value: 'info', label: 'Info', description: 'Info logs only' },
     ],
   },
-  {
-    key: 'trigger',
-    label: 'Trigger',
-    description: 'Filter by trigger type',
-    options: [
-      { value: 'api', label: 'API', description: 'API-triggered executions' },
-      { value: 'manual', label: 'Manual', description: 'Manually triggered executions' },
-      { value: 'webhook', label: 'Webhook', description: 'Webhook-triggered executions' },
-      { value: 'chat', label: 'Chat', description: 'Chat-triggered executions' },
-      { value: 'schedule', label: 'Schedule', description: 'Scheduled executions' },
-    ],
-  },
+  // Note: Trigger options are now dynamically populated from active logs
+  // Core types are included by default, integration triggers are added from actual log data
   {
     key: 'cost',
     label: 'Cost',
@@ -86,18 +82,45 @@ export const FILTER_DEFINITIONS: FilterDefinition[] = [
   },
 ]
 
+// Core trigger types that are always available
+const CORE_TRIGGERS: TriggerData[] = [
+  { value: 'api', label: 'API', color: '#3b82f6' }, // blue-500
+  { value: 'manual', label: 'Manual', color: '#6b7280' }, // gray-500
+  { value: 'webhook', label: 'Webhook', color: '#f97316' }, // orange-500
+  { value: 'chat', label: 'Chat', color: '#8b5cf6' }, // purple-500
+  { value: 'schedule', label: 'Schedule', color: '#10b981' }, // green-500
+]
+
 export class SearchSuggestions {
   private workflowsData: WorkflowData[]
   private foldersData: FolderData[]
+  private triggersData: TriggerData[]
 
-  constructor(workflowsData: WorkflowData[] = [], foldersData: FolderData[] = []) {
+  constructor(
+    workflowsData: WorkflowData[] = [],
+    foldersData: FolderData[] = [],
+    triggersData: TriggerData[] = []
+  ) {
     this.workflowsData = workflowsData
     this.foldersData = foldersData
+    this.triggersData = triggersData
   }
 
-  updateData(workflowsData: WorkflowData[] = [], foldersData: FolderData[] = []) {
+  updateData(
+    workflowsData: WorkflowData[] = [],
+    foldersData: FolderData[] = [],
+    triggersData: TriggerData[] = []
+  ) {
     this.workflowsData = workflowsData
     this.foldersData = foldersData
+    this.triggersData = triggersData
+  }
+
+  /**
+   * Get all triggers (core + integrations)
+   */
+  private getAllTriggers(): TriggerData[] {
+    return [...CORE_TRIGGERS, ...this.triggersData]
   }
 
   /**
@@ -143,6 +166,15 @@ export class SearchSuggestions {
         category: 'filters',
       })
     }
+
+    // Add trigger key (always available - core types + integrations)
+    suggestions.push({
+      id: 'filter-key-trigger',
+      value: 'trigger:',
+      label: 'Trigger',
+      description: 'Filter by trigger type',
+      category: 'filters',
+    })
 
     // Add workflow and folder keys
     if (this.workflowsData.length > 0) {
@@ -213,6 +245,30 @@ export class SearchSuggestions {
         ? {
             type: 'filter-values',
             filterKey: key,
+            suggestions,
+          }
+        : null
+    }
+
+    // Trigger filter values (core + integrations)
+    if (key === 'trigger') {
+      const allTriggers = this.getAllTriggers()
+      const suggestions = allTriggers
+        .filter((t) => !partial || t.label.toLowerCase().includes(partial.toLowerCase()))
+        .slice(0, 15) // Show more since we have core + integrations
+        .map((t) => ({
+          id: `filter-value-trigger-${t.value}`,
+          value: `trigger:${t.value}`,
+          label: t.label,
+          description: `${t.label}-triggered executions`,
+          category: 'trigger' as const,
+          color: t.color,
+        }))
+
+      return suggestions.length > 0
+        ? {
+            type: 'filter-values',
+            filterKey: 'trigger',
             suggestions,
           }
         : null
@@ -290,6 +346,16 @@ export class SearchSuggestions {
       allSuggestions.push(...matchingFilterValues)
     }
 
+    // Match triggers
+    const matchingTriggers = this.getMatchingTriggers(query)
+    if (matchingTriggers.length > 0) {
+      sections.push({
+        title: 'TRIGGERS',
+        suggestions: matchingTriggers,
+      })
+      allSuggestions.push(...matchingTriggers)
+    }
+
     // Match workflows
     const matchingWorkflows = this.getMatchingWorkflows(query)
     if (matchingWorkflows.length > 0) {
@@ -313,6 +379,7 @@ export class SearchSuggestions {
     // Add filter keys if no specific matches
     if (
       matchingFilterValues.length === 0 &&
+      matchingTriggers.length === 0 &&
       matchingWorkflows.length === 0 &&
       matchingFolders.length === 0
     ) {
@@ -362,6 +429,40 @@ export class SearchSuggestions {
     }
 
     return matches.slice(0, 5)
+  }
+
+  /**
+   * Match triggers by label (core + integrations)
+   */
+  private getMatchingTriggers(query: string): Suggestion[] {
+    if (!query.trim()) return []
+
+    const lowerQuery = query.toLowerCase()
+    const allTriggers = this.getAllTriggers()
+
+    const matches = allTriggers
+      .filter((trigger) => trigger.label.toLowerCase().includes(lowerQuery))
+      .sort((a, b) => {
+        const aLabel = a.label.toLowerCase()
+        const bLabel = b.label.toLowerCase()
+
+        if (aLabel === lowerQuery) return -1
+        if (bLabel === lowerQuery) return 1
+        if (aLabel.startsWith(lowerQuery) && !bLabel.startsWith(lowerQuery)) return -1
+        if (bLabel.startsWith(lowerQuery) && !aLabel.startsWith(lowerQuery)) return 1
+        return aLabel.localeCompare(bLabel)
+      })
+      .slice(0, 8)
+      .map((trigger) => ({
+        id: `trigger-match-${trigger.value}`,
+        value: `trigger:${trigger.value}`,
+        label: trigger.label,
+        description: `${trigger.label}-triggered executions`,
+        category: 'trigger' as const,
+        color: trigger.color,
+      }))
+
+    return matches
   }
 
   /**
