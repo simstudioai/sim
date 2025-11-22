@@ -8,6 +8,7 @@ import { deepseekProvider } from '@/providers/deepseek'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
 import { mistralProvider } from '@/providers/mistral'
+import { vllmProvider } from '@/providers/vllm'
 import {
   getComputerUseModels,
   getEmbeddingModelPricing,
@@ -85,6 +86,11 @@ export const providers: Record<
     ...groqProvider,
     models: getProviderModelsFromDefinitions('groq'),
     modelPatterns: PROVIDER_DEFINITIONS.groq.modelPatterns,
+  },
+  vllm: {
+    ...vllmProvider,
+    models: getProviderModelsFromDefinitions('vllm'),
+    modelPatterns: PROVIDER_DEFINITIONS.vllm.modelPatterns,
   },
   mistral: {
     ...mistralProvider,

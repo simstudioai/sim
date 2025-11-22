@@ -82,6 +82,30 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     contextInformationAvailable: false,
     models: [],
   },
+  vllm: {
+    id: 'vllm',
+    name: 'vLLM',
+    description: 'Self-hosted vLLM with an OpenAI-compatible API',
+    defaultModel: 'vllm/generic',
+    modelPatterns: [/^vllm\//],
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'vllm/generic',
+        pricing: {
+          input: 0,
+          output: 0,
+          updatedAt: '2025-11-13',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+      },
+    ],
+  },
   openai: {
     id: 'openai',
     name: 'OpenAI',
