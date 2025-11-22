@@ -7,15 +7,14 @@ import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { Button, Combobox, Input, Textarea } from '@/components/emcn'
 import {
-  Button,
-  Combobox,
-  Input,
   Modal,
+  ModalBody,
   ModalContent,
-  ModalTitle,
-  Textarea,
-} from '@/components/emcn'
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn/components/modal-new/modal'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -60,13 +59,10 @@ interface HelpModalProps {
 export function HelpModal({ open, onOpenChange }: HelpModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const dropZoneRef = useRef<HTMLDivElement>(null)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null)
-  const [errorMessage, setErrorMessage] = useState('')
   const [images, setImages] = useState<ImageWithPreview[]>([])
-  const [imageError, setImageError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
 
@@ -93,8 +89,6 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
   useEffect(() => {
     if (open) {
       setSubmitStatus(null)
-      setErrorMessage('')
-      setImageError(null)
       setImages([])
       setIsDragging(false)
       setIsProcessing(false)
@@ -262,8 +256,6 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
    */
   const processFiles = useCallback(
     async (files: FileList | File[]) => {
-      setImageError(null)
-
       if (!files || files.length === 0) return
 
       setIsProcessing(true)
@@ -275,16 +267,12 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
         for (const file of Array.from(files)) {
           // Validate file size
           if (file.size > MAX_FILE_SIZE) {
-            setImageError(`File ${file.name} is too large. Maximum size is 20MB.`)
             hasError = true
             continue
           }
 
           // Validate file type
           if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-            setImageError(
-              `File ${file.name} has an unsupported format. Please use JPEG, PNG, WebP, or GIF.`
-            )
             hasError = true
             continue
           }
@@ -303,7 +291,6 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
         }
       } catch (error) {
         logger.error('Error processing images:', { error })
-        setImageError('An error occurred while processing images. Please try again.')
       } finally {
         setIsProcessing(false)
 
@@ -378,7 +365,6 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
     async (data: FormValues) => {
       setIsSubmitting(true)
       setSubmitStatus(null)
-      setErrorMessage('')
 
       try {
         // Prepare form data with images
@@ -413,7 +399,6 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
       } catch (error) {
         logger.error('Error submitting help request:', { error })
         setSubmitStatus('error')
-        setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred')
       } finally {
         setIsSubmitting(false)
       }
@@ -430,213 +415,156 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent className='flex h-[75vh] max-h-[75vh] w-full max-w-[700px] flex-col gap-0 p-0'>
-        {/* Modal Header */}
-        <div className='flex-shrink-0 px-6 py-5'>
-          <ModalTitle className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-            Help & Support
-          </ModalTitle>
-        </div>
+      <ModalContent>
+        <ModalHeader>Help &amp; Support</ModalHeader>
 
-        {/* Modal Body */}
-        <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
-          <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-            {/* Scrollable Form Content */}
-            <div
-              ref={scrollContainerRef}
-              className='scrollbar-hide min-h-0 flex-1 overflow-y-auto pb-20'
-            >
-              <div className='px-6'>
-                <div className='space-y-[12px]'>
-                  {/* Request Type Field */}
-                  <div className='space-y-[8px]'>
-                    <Label
-                      htmlFor='type'
-                      className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
-                    >
-                      Request
-                    </Label>
-                    <Combobox
-                      id='type'
-                      options={REQUEST_TYPE_OPTIONS}
-                      value={watch('type') || DEFAULT_REQUEST_TYPE}
-                      selectedValue={watch('type') || DEFAULT_REQUEST_TYPE}
-                      onChange={(value) => setValue('type', value as FormValues['type'])}
-                      placeholder='Select a request type'
-                      editable={false}
-                      filterOptions={false}
-                      className={cn(
-                        errors.type && 'border-[var(--text-error)] dark:border-[var(--text-error)]'
-                      )}
-                    />
-                    {errors.type && (
-                      <p className='mt-[4px] text-[12px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                        {errors.type.message}
-                      </p>
+        <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
+          <ModalBody>
+            <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
+              <div className='space-y-[12px]'>
+                <div>
+                  <Label
+                    htmlFor='type'
+                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+                  >
+                    Request
+                  </Label>
+                  <Combobox
+                    id='type'
+                    options={REQUEST_TYPE_OPTIONS}
+                    value={watch('type') || DEFAULT_REQUEST_TYPE}
+                    selectedValue={watch('type') || DEFAULT_REQUEST_TYPE}
+                    onChange={(value) => setValue('type', value as FormValues['type'])}
+                    placeholder='Select a request type'
+                    editable={false}
+                    filterOptions={false}
+                    className={cn(
+                      errors.type && 'border-[var(--text-error)] dark:border-[var(--text-error)]'
                     )}
-                  </div>
-
-                  {/* Subject Field */}
-                  <div className='space-y-[8px]'>
-                    <Label
-                      htmlFor='subject'
-                      className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
-                    >
-                      Subject
-                    </Label>
-                    <Input
-                      id='subject'
-                      placeholder='Brief description of your request'
-                      {...register('subject')}
-                      className={cn(
-                        'h-9 rounded-[4px] border-[var(--surface-11)] bg-[var(--surface-6)] text-[13px] dark:bg-[var(--surface-9)]',
-                        errors.subject &&
-                          'border-[var(--text-error)] dark:border-[var(--text-error)]'
-                      )}
-                    />
-                    {errors.subject && (
-                      <p className='mt-[4px] text-[12px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                        {errors.subject.message}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Message Field */}
-                  <div className='space-y-[8px]'>
-                    <Label
-                      htmlFor='message'
-                      className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
-                    >
-                      Message
-                    </Label>
-                    <Textarea
-                      id='message'
-                      placeholder='Please provide details about your request...'
-                      rows={6}
-                      {...register('message')}
-                      className={cn(
-                        'rounded-[4px] border-[var(--surface-11)] bg-[var(--surface-6)] text-[13px] dark:bg-[var(--surface-9)]',
-                        errors.message &&
-                          'border-[var(--text-error)] dark:border-[var(--text-error)]'
-                      )}
-                    />
-                    {errors.message && (
-                      <p className='mt-[4px] text-[12px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                        {errors.message.message}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Image Upload Section */}
-                  <div className='space-y-[8px]'>
-                    <Label className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-                      Attach Images (Optional)
-                    </Label>
-                    <div
-                      ref={dropZoneRef}
-                      onDragEnter={handleDragEnter}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      className={cn(
-                        'cursor-pointer rounded-[4px] border-[1.5px] border-[var(--surface-11)] border-dashed bg-[var(--surface-3)] p-6 text-center transition-colors hover:bg-[var(--surface-5)] dark:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-5)]',
-                        isDragging &&
-                          'border-[var(--brand-primary-hex)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
-                      )}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <input
-                        ref={fileInputRef}
-                        type='file'
-                        accept={ACCEPTED_IMAGE_TYPES.join(',')}
-                        onChange={handleFileChange}
-                        className='hidden'
-                        multiple
-                      />
-                      <p className='text-[13px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
-                        {isDragging ? 'Drop images here!' : 'Drop images here or click to browse'}
-                      </p>
-                      <p className='mt-[4px] text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
-                        JPEG, PNG, WebP, GIF (max 20MB each)
-                      </p>
-                    </div>
-                    {imageError && (
-                      <p className='mt-[4px] text-[12px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                        {imageError}
-                      </p>
-                    )}
-                    {isProcessing && (
-                      <div className='flex items-center gap-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
-                        <Loader2 className='h-4 w-4 animate-spin' />
-                        <p className='text-[12px]'>Processing images...</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Image Preview Grid */}
-                  {images.length > 0 && (
-                    <div className='space-y-[8px]'>
-                      <Label className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-                        Uploaded Images
-                      </Label>
-                      <div className='grid grid-cols-2 gap-3'>
-                        {images.map((image, index) => (
-                          <div
-                            key={index}
-                            className='group relative overflow-hidden rounded-[4px] border border-[var(--surface-11)]'
-                          >
-                            <div className='relative flex max-h-[120px] min-h-[80px] w-full items-center justify-center bg-[var(--surface-2)]'>
-                              <Image
-                                src={image.preview}
-                                alt={`Preview ${index + 1}`}
-                                fill
-                                className='object-contain'
-                              />
-                              <button
-                                type='button'
-                                className='absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'
-                                onClick={() => removeImage(index)}
-                              >
-                                <X className='h-5 w-5 text-white' />
-                              </button>
-                            </div>
-                            <div className='truncate bg-[var(--surface-5)] p-1.5 text-[12px] text-[var(--text-secondary)] dark:bg-[var(--surface-5)] dark:text-[var(--text-secondary)]'>
-                              {image.name}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  />
                 </div>
-              </div>
-            </div>
 
-            {/* Fixed Footer with Actions */}
-            <div className='absolute inset-x-0 bottom-0 bg-[var(--surface-1)] dark:bg-[var(--surface-1)]'>
-              <div className='flex w-full items-center justify-between gap-[8px] px-6 py-4'>
-                <Button
-                  variant='default'
-                  onClick={handleClose}
-                  type='button'
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button type='submit' variant='primary' disabled={isSubmitting || isProcessing}>
-                  {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
-                  {isSubmitting
-                    ? 'Submitting...'
-                    : submitStatus === 'error'
-                      ? 'Error'
-                      : submitStatus === 'success'
-                        ? 'Success'
-                        : 'Submit'}
-                </Button>
+                <div>
+                  <Label
+                    htmlFor='subject'
+                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+                  >
+                    Subject
+                  </Label>
+                  <Input
+                    id='subject'
+                    placeholder='Brief description of your request'
+                    {...register('subject')}
+                    className={cn(
+                      errors.subject && 'border-[var(--text-error)] dark:border-[var(--text-error)]'
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <Label
+                    htmlFor='message'
+                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+                  >
+                    Message
+                  </Label>
+                  <Textarea
+                    id='message'
+                    placeholder='Please provide details about your request...'
+                    rows={6}
+                    {...register('message')}
+                    className={cn(
+                      errors.message && 'border-[var(--text-error)] dark:border-[var(--text-error)]'
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                    Attach Images (Optional)
+                  </Label>
+                  <Button
+                    type='button'
+                    variant='default'
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragEnter={handleDragEnter}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={cn(
+                      'w-full justify-center border border-[var(--c-575757)] border-dashed',
+                      {
+                        'border-[var(--brand-primary-hex)]': isDragging,
+                      }
+                    )}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type='file'
+                      accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                      onChange={handleFileChange}
+                      className='hidden'
+                      multiple
+                    />
+                    <div className='flex flex-col text-center'>
+                      <span className='text-[var(--text-primary)]'>
+                        {isDragging ? 'Drop images here' : 'Drop images here or click to browse'}
+                      </span>
+                      <span className='text-[11px]'>PNG, JPEG, WebP, GIF (max 20MB each)</span>
+                    </div>
+                  </Button>
+                </div>
+
+                {images.length > 0 && (
+                  <div className='space-y-2'>
+                    <Label>Uploaded Images</Label>
+                    <div className='grid grid-cols-2 gap-3'>
+                      {images.map((image, index) => (
+                        <div
+                          className='group relative overflow-hidden rounded-[4px] border'
+                          key={index}
+                        >
+                          <div className='relative flex max-h-[120px] min-h-[80px] w-full items-center justify-center'>
+                            <Image
+                              src={image.preview}
+                              alt={`Preview ${index + 1}`}
+                              fill
+                              className='object-contain'
+                            />
+                            <button
+                              type='button'
+                              className='absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'
+                              onClick={() => removeImage(index)}
+                            >
+                              <X className='h-[18px] w-[18px] text-white' />
+                            </button>
+                          </div>
+                          <div className='truncate p-[6px] text-[12px]'>{image.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </form>
-        </div>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant='default' onClick={handleClose} type='button' disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type='submit' variant='primary' disabled={isSubmitting || isProcessing}>
+              {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
+              {isSubmitting
+                ? 'Submitting...'
+                : submitStatus === 'error'
+                  ? 'Error'
+                  : submitStatus === 'success'
+                    ? 'Success'
+                    : 'Submit'}
+            </Button>
+          </ModalFooter>
+        </form>
       </ModalContent>
     </Modal>
   )

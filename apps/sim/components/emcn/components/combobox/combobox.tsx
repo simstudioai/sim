@@ -13,7 +13,7 @@ import {
   useState,
 } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Check, ChevronDown, Loader2 } from 'lucide-react'
+import { ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
@@ -432,7 +432,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
             side='bottom'
             align='start'
             sideOffset={4}
-            className='w-[var(--radix-popover-trigger-width)] rounded-[4px] p-0'
+            className='w-[var(--radix-popover-trigger-width)] rounded-[6px] border border-[var(--surface-11)] p-0'
             onOpenAutoFocus={(e) => {
               e.preventDefault()
             }}
@@ -483,39 +483,40 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                     {editable && value ? 'No matching options found' : 'No options available'}
                   </div>
                 ) : (
-                  filteredOptions.map((option, index) => {
-                    const isSelected = multiSelect
-                      ? multiSelectValues?.includes(option.value)
-                      : effectiveSelectedValue === option.value
-                    const isHighlighted = index === highlightedIndex
-                    const OptionIcon = option.icon
+                  <div className='space-y-[2px]'>
+                    {filteredOptions.map((option, index) => {
+                      const isSelected = multiSelect
+                        ? multiSelectValues?.includes(option.value)
+                        : effectiveSelectedValue === option.value
+                      const isHighlighted = index === highlightedIndex
+                      const OptionIcon = option.icon
 
-                    return (
-                      <div
-                        key={option.value}
-                        role='option'
-                        aria-selected={isSelected}
-                        data-option-index={index}
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleSelect(option.value)
-                        }}
-                        onMouseEnter={() => setHighlightedIndex(index)}
-                        className={cn(
-                          'relative flex cursor-pointer select-none items-center rounded-[4px] px-[8px] py-[6px] font-medium font-sans text-sm',
-                          isHighlighted && 'bg-[var(--surface-11)]',
-                          !isHighlighted && 'hover:bg-[var(--surface-11)]'
-                        )}
-                      >
-                        {OptionIcon && <OptionIcon className='mr-[8px] h-3 w-3 opacity-60' />}
-                        <span className='flex-1 truncate text-[var(--text-primary)]'>
-                          {option.label}
-                        </span>
-                        {isSelected && <Check className='ml-[8px] h-4 w-4 flex-shrink-0' />}
-                      </div>
-                    )
-                  })
+                      return (
+                        <div
+                          key={option.value}
+                          role='option'
+                          aria-selected={isSelected}
+                          data-option-index={index}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleSelect(option.value)
+                          }}
+                          onMouseEnter={() => setHighlightedIndex(index)}
+                          className={cn(
+                            'relative flex cursor-pointer select-none items-center rounded-[4px] px-[8px] py-[6px] font-medium font-sans text-sm',
+                            'hover:bg-[var(--surface-11)]',
+                            (isHighlighted || isSelected) && 'bg-[var(--surface-11)]'
+                          )}
+                        >
+                          {OptionIcon && <OptionIcon className='mr-[8px] h-3 w-3 opacity-60' />}
+                          <span className='flex-1 truncate text-[var(--text-primary)]'>
+                            {option.label}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
             </PopoverScrollArea>
