@@ -1492,6 +1492,64 @@ export const idempotencyKey = pgTable(
   })
 )
 
+export const mcpServerProjectVisibilityEnum = pgEnum('mcp_server_project_visibility', [
+  'private',
+  'workspace',
+  'public',
+])
+
+export const mcpServerProjectStatusEnum = pgEnum('mcp_server_project_status', [
+  'draft',
+  'building',
+  'deploying',
+  'active',
+  'failed',
+  'archived',
+])
+
+export const mcpServerProject = pgTable(
+  'mcp_server_project',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    description: text('description'),
+    visibility: mcpServerProjectVisibilityEnum('visibility').notNull().default('workspace'),
+    runtime: text('runtime').notNull().default('node'),
+    entryPoint: text('entry_point').notNull().default('index.ts'),
+    template: text('template'),
+    sourceType: text('source_type').notNull().default('inline'),
+    repositoryUrl: text('repository_url'),
+    repositoryBranch: text('repository_branch'),
+    environmentVariables: jsonb('environment_variables').notNull().default('{}'),
+    metadata: jsonb('metadata').notNull().default('{}'),
+    status: mcpServerProjectStatusEnum('status').notNull().default('draft'),
+    currentVersionNumber: integer('current_version_number'),
+    lastDeployedVersionId: text('last_deployed_version_id'),
+    lastDeployedAt: timestamp('last_deployed_at'),
+    deletedAt: timestamp('deleted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceSlugUnique: uniqueIndex('mcp_server_project_workspace_slug_unique').on(
+      table.workspaceId,
+      table.slug
+    ),
+    workspaceStatusIdx: index('mcp_server_project_workspace_status_idx').on(
+      table.workspaceId,
+      table.status
+    ),
+    visibilityIdx: index('mcp_server_project_visibility_idx').on(table.visibility),
+  })
+)
+
+export const mcpServerKindEnum = pgEnum('mcp_server_kind', ['external', 'hosted'])
+
 export const mcpServers = pgTable(
   'mcp_servers',
   {
@@ -1499,6 +1557,7 @@ export const mcpServers = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
+    projectId: text('project_id').references(() => mcpServerProject.id, { onDelete: 'set null' }),
 
     // Track who created the server, but workspace owns it
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
@@ -1523,6 +1582,8 @@ export const mcpServers = pgTable(
     totalRequests: integer('total_requests').default(0),
     lastUsed: timestamp('last_used'),
 
+    kind: mcpServerKindEnum('kind').notNull().default('external'),
+
     deletedAt: timestamp('deleted_at'),
 
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -1540,6 +1601,118 @@ export const mcpServers = pgTable(
       table.workspaceId,
       table.deletedAt
     ),
+  })
+)
+
+export const mcpServerVersionStatusEnum = pgEnum('mcp_server_version_status', [
+  'queued',
+  'building',
+  'ready',
+  'failed',
+  'deprecated',
+])
+
+export const mcpServerVersion = pgTable(
+  'mcp_server_version',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => mcpServerProject.id, { onDelete: 'cascade' }),
+    versionNumber: integer('version_number').notNull(),
+    sourceHash: text('source_hash'),
+    manifest: jsonb('manifest').notNull().default('{}'),
+    buildConfig: jsonb('build_config').notNull().default('{}'),
+    artifactUrl: text('artifact_url'),
+    runtimeMetadata: jsonb('runtime_metadata').notNull().default('{}'),
+    status: mcpServerVersionStatusEnum('status').notNull().default('queued'),
+    buildLogsUrl: text('build_logs_url'),
+    changelog: text('changelog'),
+    promotedBy: text('promoted_by').references(() => user.id, { onDelete: 'set null' }),
+    promotedAt: timestamp('promoted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    projectVersionUnique: uniqueIndex('mcp_server_version_project_version_unique').on(
+      table.projectId,
+      table.versionNumber
+    ),
+    projectStatusIdx: index('mcp_server_version_project_status_idx').on(
+      table.projectId,
+      table.status
+    ),
+  })
+)
+
+export const mcpServerDeploymentStatusEnum = pgEnum('mcp_server_deployment_status', [
+  'pending',
+  'deploying',
+  'active',
+  'failed',
+  'decommissioned',
+])
+
+export const mcpServerDeployment = pgTable(
+  'mcp_server_deployment',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => mcpServerProject.id, { onDelete: 'cascade' }),
+    versionId: text('version_id').references(() => mcpServerVersion.id, { onDelete: 'set null' }),
+    serverId: text('server_id').references(() => mcpServers.id, { onDelete: 'set null' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    environment: text('environment').notNull().default('production'),
+    region: text('region'),
+    endpointUrl: text('endpoint_url'),
+    status: mcpServerDeploymentStatusEnum('status').notNull().default('pending'),
+    logsUrl: text('logs_url'),
+    deployedBy: text('deployed_by').references(() => user.id, { onDelete: 'set null' }),
+    deployedAt: timestamp('deployed_at'),
+    rolledBackAt: timestamp('rolled_back_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceEnvironmentIdx: index('mcp_server_deployment_workspace_environment_idx').on(
+      table.workspaceId,
+      table.environment
+    ),
+    projectStatusIdx: index('mcp_server_deployment_project_status_idx').on(
+      table.projectId,
+      table.status
+    ),
+  })
+)
+
+export const mcpServerTokenScopeEnum = pgEnum('mcp_server_token_scope', [
+  'deploy',
+  'runtime',
+  'logs',
+])
+
+export const mcpServerToken = pgTable(
+  'mcp_server_token',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => mcpServerProject.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    hashedToken: text('hashed_token').notNull(),
+    scope: mcpServerTokenScopeEnum('scope').notNull().default('runtime'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    lastUsedAt: timestamp('last_used_at'),
+    expiresAt: timestamp('expires_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    projectScopeIdx: index('mcp_server_token_project_scope_idx').on(table.projectId, table.scope),
+    tokenLookupIdx: uniqueIndex('mcp_server_token_hash_unique').on(table.hashedToken),
   })
 )
 
