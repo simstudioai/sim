@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, ArrowUpRight, Info, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
@@ -32,6 +32,20 @@ const selectedRowAnimation = `
     border-left-color: hsl(var(--primary) / 0.5)
   }
 `
+
+const TriggerBadge = React.memo(({ trigger }: { trigger: string }) => {
+  const metadata = getIntegrationMetadata(trigger)
+  return (
+    <div
+      className='inline-flex items-center rounded-[6px] px-[8px] py-[2px] font-medium text-[12px] text-white'
+      style={{ backgroundColor: metadata.color }}
+    >
+      {metadata.label}
+    </div>
+  )
+})
+
+TriggerBadge.displayName = 'TriggerBadge'
 
 export default function Logs() {
   const params = useParams()
@@ -513,17 +527,7 @@ export default function Logs() {
                           {/* Trigger */}
                           <div className='hidden xl:block'>
                             {log.trigger ? (
-                              (() => {
-                                const metadata = getIntegrationMetadata(log.trigger)
-                                return (
-                                  <div
-                                    className='inline-flex items-center rounded-[6px] px-[8px] py-[2px] font-medium text-[12px] text-white'
-                                    style={{ backgroundColor: metadata.color }}
-                                  >
-                                    {metadata.label}
-                                  </div>
-                                )
-                              })()
+                              <TriggerBadge trigger={log.trigger} />
                             ) : (
                               <div className='font-medium text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
                                 —
