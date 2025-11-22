@@ -3,14 +3,20 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  Button,
-  Modal,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTitle,
-} from '@/components/emcn'
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { useSession, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getSubscriptionStatus } from '@/lib/subscription/helpers'
@@ -137,8 +143,9 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
         let subscriptionId: string | undefined
 
         if ((subscriptionStatus.isTeam || subscriptionStatus.isEnterprise) && activeOrgId) {
+          const orgSubscription = useOrganizationStore.getState().subscriptionData
           referenceId = activeOrgId
-          subscriptionId = subData?.data?.id
+          subscriptionId = orgSubscription?.id
         } else {
           // For personal subscriptions, use user ID and let better-auth find the subscription
           referenceId = session.user.id
@@ -152,12 +159,24 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
         if (subscriptionId) {
           restoreParams.subscriptionId = subscriptionId
         }
+      }
+
+        logger.info('Restoring subscription', { referenceId, subscriptionId })
+
+        // Build restore params - only include subscriptionId if we have one (team/enterprise)
+        const restoreParams: any = { referenceId }
+        if (subscriptionId) {
+          restoreParams.subscriptionId = subscriptionId
+        }
+        }
 
         const result = await betterAuthSubscription.restore(restoreParams)
 
         logger.info('Subscription restored successfully', result)
       }
 
+      // Refresh state and close
+      await refresh()
       // Invalidate queries to refresh data
       await queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
       if (activeOrgId) {
@@ -225,8 +244,12 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
           onClick={() => setIsDialogOpen(true)}
           disabled={isLoading}
           className={cn(
-            'h-8 rounded-[8px] font-medium text-xs',
-            error && 'border-red-500 text-red-500 dark:border-red-500 dark:text-red-500'
+            'h-8 rounded-[8px] font-medium text-xs transition-all duration-200',
+            error
+              ? 'border-red-500 text-red-500 dark:border-red-500 dark:text-red-500'
+              : isCancelAtPeriodEnd
+                ? 'text-muted-foreground hover:border-green-500 hover:bg-green-500 hover:text-white dark:hover:border-green-500 dark:hover:bg-green-500'
+                : 'text-muted-foreground hover:border-red-500 hover:bg-red-500 hover:text-white dark:hover:border-red-500 dark:hover:bg-red-500'
           )}
         >
           {error ? 'Error' : isCancelAtPeriodEnd ? 'Restore' : 'Manage'}
@@ -280,13 +303,13 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
               const subscriptionStatus = currentSubscriptionStatus
               if (subscriptionStatus.isPaid && isCancelAtPeriodEnd) {
                 return (
-                  <Button
+                  <AlertDialogAction
                     onClick={handleKeep}
-                    className='h-[32px] bg-green-500 px-[12px] text-white hover:bg-green-600 dark:bg-green-500 dark:hover:bg-green-600'
+                    className='h-9 w-full rounded-[8px] bg-green-500 text-white transition-all duration-200 hover:bg-green-600 dark:bg-green-500 dark:hover:bg-green-600'
                     disabled={isLoading}
                   >
                     {isLoading ? 'Restoring...' : 'Restore Subscription'}
-                  </Button>
+                  </AlertDialogAction>
                 )
               }
               return (
