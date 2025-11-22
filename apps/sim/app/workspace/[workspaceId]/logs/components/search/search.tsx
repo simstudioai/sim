@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Popover, PopoverAnchor, PopoverContent } from '@/components/emcn'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { type ParsedFilter, parseQuery } from '@/lib/logs/query-parser'
 import {
@@ -16,6 +17,8 @@ import { cn } from '@/lib/utils'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+const logger = createLogger('AutocompleteSearch')
 
 interface AutocompleteSearchProps {
   value: string
@@ -73,7 +76,7 @@ export function AutocompleteSearch({
 
         setTriggersData(triggers)
       } catch (error) {
-        console.error('Failed to fetch triggers:', error)
+        logger.error('Failed to fetch triggers:', error)
       }
     }
 
