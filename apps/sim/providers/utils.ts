@@ -30,6 +30,7 @@ import { ollamaProvider } from '@/providers/ollama'
 import { openaiProvider } from '@/providers/openai'
 import { openRouterProvider } from '@/providers/openrouter'
 import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
+import { vllmProvider } from '@/providers/vllm'
 import { xAIProvider } from '@/providers/xai'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useProvidersStore } from '@/stores/providers/store'
@@ -86,6 +87,11 @@ export const providers: Record<
     models: getProviderModelsFromDefinitions('groq'),
     modelPatterns: PROVIDER_DEFINITIONS.groq.modelPatterns,
   },
+  vllm: {
+    ...vllmProvider,
+    models: getProviderModelsFromDefinitions('vllm'),
+    modelPatterns: PROVIDER_DEFINITIONS.vllm.modelPatterns,
+  },
   mistral: {
     ...mistralProvider,
     models: getProviderModelsFromDefinitions('mistral'),
@@ -123,6 +129,12 @@ export function updateOllamaProviderModels(models: string[]): void {
   providers.ollama.models = getProviderModelsFromDefinitions('ollama')
 }
 
+export function updateVLLMProviderModels(models: string[]): void {
+  const { updateVLLMModels } = require('@/providers/models')
+  updateVLLMModels(models)
+  providers.vllm.models = getProviderModelsFromDefinitions('vllm')
+}
+
 export async function updateOpenRouterProviderModels(models: string[]): Promise<void> {
   const { updateOpenRouterModels } = await import('@/providers/models')
   updateOpenRouterModels(models)
@@ -131,7 +143,10 @@ export async function updateOpenRouterProviderModels(models: string[]): Promise<
 
 export function getBaseModelProviders(): Record<string, ProviderId> {
   const allProviders = Object.entries(providers)
-    .filter(([providerId]) => providerId !== 'ollama' && providerId !== 'openrouter')
+    .filter(
+      ([providerId]) =>
+        providerId !== 'ollama' && providerId !== 'vllm' && providerId !== 'openrouter'
+    )
     .reduce(
       (map, [providerId, config]) => {
         config.models.forEach((model) => {
