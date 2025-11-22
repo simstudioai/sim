@@ -11,26 +11,43 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-Transkribiere Sprache zu Text mit modernsten KI-Modellen führender Anbieter. Die Sim Speech-to-Text (STT)-Tools ermöglichen es dir, Audio- und Videodateien in präzise Transkripte umzuwandeln, mit Unterstützung für mehrere Sprachen, Zeitstempel und optionaler Übersetzung.
+Transkribieren Sie Sprache zu Text mit den neuesten KI-Modellen von erstklassigen Anbietern. Die Speech-to-Text (STT)-Tools von Sim ermöglichen es Ihnen, Audio und Video in genaue, mit Zeitstempeln versehene und optional übersetzte Transkripte umzuwandeln – mit Unterstützung für verschiedene Sprachen und erweitert durch fortschrittliche Funktionen wie Sprechertrennung und Sprecheridentifikation.
 
-Unterstützte Anbieter:
+**Unterstützte Anbieter & Modelle:**
 
-- **[OpenAI Whisper](https://platform.openai.com/docs/guides/speech-to-text/overview)**: Fortschrittliches Open-Source-STT-Modell von OpenAI. Unterstützt Modelle wie `whisper-1` und verarbeitet eine Vielzahl von Sprachen und Audioformaten.
-- **[Deepgram](https://deepgram.com/)**: Echtzeit- und Batch-STT-API mit Deep-Learning-Modellen wie `nova-3`, `nova-2` und `whisper-large`. Bietet Funktionen wie Sprechererkennung, Intentionserkennung und branchenspezifische Anpassungen.
-- **[ElevenLabs](https://elevenlabs.io/)**: Bekannt für hochwertige Sprach-KI, bietet ElevenLabs STT-Modelle mit Fokus auf Genauigkeit und natürlichem Sprachverständnis für zahlreiche Sprachen und Dialekte.
+- **[OpenAI Whisper](https://platform.openai.com/docs/guides/speech-to-text/overview)** (OpenAI):  
+  OpenAIs Whisper ist ein Open-Source-Deep-Learning-Modell, das für seine Robustheit in verschiedenen Sprachen und Audiobedingungen bekannt ist. Es unterstützt fortschrittliche Modelle wie `whisper-1` und zeichnet sich bei Transkription, Übersetzung und Aufgaben aus, die eine hohe Modellgeneralisierung erfordern. Unterstützt von OpenAI – dem Unternehmen hinter ChatGPT und führender KI-Forschung – wird Whisper häufig in der Forschung und als Basis für vergleichende Bewertungen eingesetzt.
 
-Wähle den Anbieter und das Modell, das am besten zu deiner Aufgabe passt – sei es schnelle, produktionsreife Transkription (Deepgram), hochpräzise Mehrsprachenfähigkeit (Whisper) oder fortschrittliches Verständnis und Sprachabdeckung (ElevenLabs).
+- **[Deepgram](https://deepgram.com/)** (Deepgram Inc.):  
+  Das in San Francisco ansässige Unternehmen Deepgram bietet skalierbare, produktionsreife Spracherkennungs-APIs für Entwickler und Unternehmen. Zu den Modellen von Deepgram gehören `nova-3`, `nova-2` und `whisper-large`. Sie bieten Echtzeit- und Batch-Transkription mit branchenführender Genauigkeit, Unterstützung mehrerer Sprachen, automatische Zeichensetzung, intelligente Sprechertrennung, Anrufanalysen und Funktionen für Anwendungsfälle von der Telefonie bis zur Medienproduktion.
+
+- **[ElevenLabs](https://elevenlabs.io/)** (ElevenLabs):  
+  Als führendes Unternehmen im Bereich Sprach-KI ist ElevenLabs besonders für hochwertige Sprachsynthese und -erkennung bekannt. Sein STT-Produkt bietet hochpräzises, natürliches Verständnis zahlreicher Sprachen, Dialekte und Akzente. Die neuesten STT-Modelle von ElevenLabs sind für Klarheit und Sprecherunterscheidung optimiert und eignen sich sowohl für kreative als auch für Barrierefreiheitsszenarien. ElevenLabs ist bekannt für bahnbrechende Fortschritte bei KI-gestützten Sprachtechnologien.
+
+- **[AssemblyAI](https://www.assemblyai.com/)** (AssemblyAI Inc.):  
+  AssemblyAI bietet API-gesteuerte, hochpräzise Spracherkennung mit Funktionen wie automatischer Kapitelbildung, Themenerkennung, Zusammenfassung, Stimmungsanalyse und Inhaltsmoderation neben der Transkription. Sein proprietäres Modell, einschließlich des gefeierten `Conformer-2`, unterstützt einige der größten Medien-, Call-Center- und Compliance-Anwendungen der Branche. AssemblyAI wird weltweit von Fortune-500-Unternehmen und führenden KI-Startups vertraut.
+
+- **[Google Cloud Speech-to-Text](https://cloud.google.com/speech-to-text)** (Google Cloud):  
+  Googles Speech-to-Text API für Unternehmen unterstützt über 125 Sprachen und Varianten und bietet hohe Genauigkeit sowie Funktionen wie Echtzeit-Streaming, Wort-für-Wort-Konfidenz, Sprechererkennung, automatische Zeichensetzung, benutzerdefiniertes Vokabular und domänenspezifische Anpassungen. Modelle wie `latest_long`, `video` und domänenoptimierte Modelle stehen zur Verfügung, basierend auf Googles jahrelanger Forschung und für globale Skalierbarkeit entwickelt.
+
+- **[AWS Transcribe](https://aws.amazon.com/transcribe/)** (Amazon Web Services):  
+  AWS Transcribe nutzt Amazons Cloud-Infrastruktur, um robuste Spracherkennung als API bereitzustellen. Es unterstützt mehrere Sprachen und Funktionen wie Sprecheridentifikation, benutzerdefiniertes Vokabular, Kanalidentifikation (für Call-Center-Audio) und medizinspezifische Transkription. Zu den beliebten Modellen gehören `standard` und domänenspezifische Varianten. AWS Transcribe ist ideal für Organisationen, die bereits Amazons Cloud nutzen.
+
+**Wie man wählt:**  
+Wählen Sie den Anbieter und das Modell, das zu Ihrer Anwendung passt – ob Sie schnelle, unternehmenstaugliche Transkription mit zusätzlicher Analytik benötigen (Deepgram, AssemblyAI, Google, AWS), hohe Vielseitigkeit und Open-Source-Zugang (OpenAI Whisper) oder fortschrittliches Sprecher-/Kontextverständnis (ElevenLabs). Berücksichtigen Sie die Preisgestaltung, Sprachabdeckung, Genauigkeit und alle speziellen Funktionen (wie Zusammenfassung, Kapitelunterteilung oder Stimmungsanalyse), die Sie möglicherweise benötigen.
+
+Weitere Details zu Funktionen, Preisen, Funktionshighlights und Feinabstimmungsoptionen finden Sie in der offiziellen Dokumentation jedes Anbieters über die oben genannten Links.
 {/* MANUAL-CONTENT-END */}
 
 ## Nutzungsanleitung
 
-Transkribiere Audio- und Videodateien zu Text mit führenden KI-Anbietern. Unterstützt mehrere Sprachen, Zeitstempel und Sprechererkennung.
+Transkribieren Sie Audio- und Videodateien mit führenden KI-Anbietern in Text. Unterstützt mehrere Sprachen, Zeitstempel und Sprechererkennung.
 
 ## Tools
 
 ### `stt_whisper`
 
-Transkribiere Audio zu Text mit OpenAI Whisper
+Transkribieren Sie Audio in Text mit OpenAI Whisper
 
 #### Eingabe
 
@@ -39,22 +56,23 @@ Transkribiere Audio zu Text mit OpenAI Whisper
 | `provider` | string | Ja | STT-Anbieter \(whisper\) |
 | `apiKey` | string | Ja | OpenAI API-Schlüssel |
 | `model` | string | Nein | Zu verwendendes Whisper-Modell \(Standard: whisper-1\) |
-| `audioFile` | file | Nein | Zu transkribierende Audio- oder Videodatei |
-| `audioFileReference` | file | Nein | Verweis auf Audio-/Videodatei aus vorherigen Blöcken |
+| `audioFile` | file | Nein | Audio- oder Videodatei zur Transkription |
+| `audioFileReference` | file | Nein | Referenz zu Audio-/Videodatei aus vorherigen Blöcken |
 | `audioUrl` | string | Nein | URL zu Audio- oder Videodatei |
 | `language` | string | Nein | Sprachcode \(z.B. "en", "es", "fr"\) oder "auto" für automatische Erkennung |
 | `timestamps` | string | Nein | Zeitstempel-Granularität: none, sentence oder word |
 | `translateToEnglish` | boolean | Nein | Audio ins Englische übersetzen |
+| `prompt` | string | Nein | Optionaler Text, um den Stil des Modells zu leiten oder ein vorheriges Audiosegment fortzusetzen. Hilft bei Eigennamen und Kontext. |
+| `temperature` | number | Nein | Sampling-Temperatur zwischen 0 und 1. Höhere Werte machen die Ausgabe zufälliger, niedrigere Werte fokussierter und deterministischer. |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `transcript` | string | Vollständig transkribierter Text |
+| `transcript` | string | Vollständiger transkribierter Text |
 | `segments` | array | Segmente mit Zeitstempeln |
 | `language` | string | Erkannte oder angegebene Sprache |
 | `duration` | number | Audiodauer in Sekunden |
-| `confidence` | number | Gesamter Konfidenzwert |
 
 ### `stt_deepgram`
 
@@ -78,7 +96,7 @@ Audio mit Deepgram in Text transkribieren
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `transcript` | string | Vollständig transkribierter Text |
+| `transcript` | string | Vollständiger transkribierter Text |
 | `segments` | array | Segmente mit Zeitstempeln und Sprecherkennungen |
 | `language` | string | Erkannte oder angegebene Sprache |
 | `duration` | number | Audiodauer in Sekunden |
@@ -86,7 +104,7 @@ Audio mit Deepgram in Text transkribieren
 
 ### `stt_elevenlabs`
 
-Audio in Text transkribieren mit ElevenLabs
+Audio mit ElevenLabs in Text transkribieren
 
 #### Eingabe
 
@@ -94,9 +112,71 @@ Audio in Text transkribieren mit ElevenLabs
 | --------- | ---- | -------- | ----------- |
 | `provider` | string | Ja | STT-Anbieter \(elevenlabs\) |
 | `apiKey` | string | Ja | ElevenLabs API-Schlüssel |
-| `model` | string | Nein | Zu verwendenes ElevenLabs-Modell \(scribe_v1, scribe_v1_experimental\) |
-| `audioFile` | file | Nein | Audio- oder Videodatei zur Transkription |
-| `audioFileReference` | file | Nein | Referenz zu Audio-/Videodatei aus vorherigen Blöcken |
+| `model` | string | Nein | Zu verwendendes ElevenLabs-Modell \(scribe_v1, scribe_v1_experimental\) |
+| `audioFile` | file | Nein | Zu transkribierendes Audio- oder Videodatei |
+| `audioFileReference` | file | Nein | Referenz auf Audio-/Videodatei aus vorherigen Blöcken |
+| `audioUrl` | string | Nein | URL zu Audio- oder Videodatei |
+| `language` | string | Nein | Sprachcode \(z.B. "en", "es", "fr"\) oder "auto" für automatische Erkennung |
+| `timestamps` | string | Nein | Zeitstempel-Granularität: none, sentence oder word |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `transcript` | string | Vollständig transkribierter Text |
+| `segments` | array | Segmente mit Zeitstempeln |
+| `language` | string | Erkannte oder angegebene Sprache |
+| `duration` | number | Audiodauer in Sekunden |
+| `confidence` | number | Gesamter Konfidenzwert |
+
+### `stt_assemblyai`
+
+Audio mit AssemblyAI und erweiterten NLP-Funktionen in Text transkribieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Ja | STT-Anbieter \(assemblyai\) |
+| `apiKey` | string | Ja | AssemblyAI API-Schlüssel |
+| `model` | string | Nein | Zu verwendendes AssemblyAI-Modell \(Standard: best\) |
+| `audioFile` | file | Nein | Zu transkribierendes Audio- oder Videodatei |
+| `audioFileReference` | file | Nein | Referenz auf Audio-/Videodatei aus vorherigen Blöcken |
+| `audioUrl` | string | Nein | URL zu Audio- oder Videodatei |
+| `language` | string | Nein | Sprachcode \(z.B. "en", "es", "fr"\) oder "auto" für automatische Erkennung |
+| `timestamps` | string | Nein | Zeitstempel-Granularität: none, sentence oder word |
+| `diarization` | boolean | Nein | Sprechererkennung aktivieren |
+| `sentiment` | boolean | Nein | Stimmungsanalyse aktivieren |
+| `entityDetection` | boolean | Nein | Entitätserkennung aktivieren |
+| `piiRedaction` | boolean | Nein | PII-Schwärzung aktivieren |
+| `summarization` | boolean | Nein | Automatische Zusammenfassung aktivieren |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `transcript` | string | Vollständig transkribierter Text |
+| `segments` | array | Segmente mit Zeitstempeln und Sprecherkennungen |
+| `language` | string | Erkannte oder angegebene Sprache |
+| `duration` | number | Audiodauer in Sekunden |
+| `confidence` | number | Gesamter Konfidenzwert |
+| `sentiment` | array | Ergebnisse der Stimmungsanalyse |
+| `entities` | array | Erkannte Entitäten |
+| `summary` | string | Automatisch generierte Zusammenfassung |
+
+### `stt_gemini`
+
+Audio mit Google Gemini und multimodalen Fähigkeiten in Text transkribieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `provider` | string | Ja | STT-Anbieter \(gemini\) |
+| `apiKey` | string | Ja | Google API-Schlüssel |
+| `model` | string | Nein | Zu verwendendes Gemini-Modell \(Standard: gemini-2.5-flash\) |
+| `audioFile` | file | Nein | Zu transkribierendes Audio- oder Videodatei |
+| `audioFileReference` | file | Nein | Referenz auf Audio-/Videodatei aus vorherigen Blöcken |
 | `audioUrl` | string | Nein | URL zu Audio- oder Videodatei |
 | `language` | string | Nein | Sprachcode \(z.B. "en", "es", "fr"\) oder "auto" für automatische Erkennung |
 | `timestamps` | string | Nein | Zeitstempel-Granularität: none, sentence oder word |
