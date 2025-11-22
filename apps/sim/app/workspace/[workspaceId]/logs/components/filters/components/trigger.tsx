@@ -14,6 +14,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import {
   commandListClass,
   dropdownContentClass,
@@ -26,15 +27,9 @@ import type { TriggerType } from '@/stores/logs/filters/types'
 export default function Trigger() {
   const { triggers, toggleTrigger, setTriggers } = useFilterStore()
   const [search, setSearch] = useState('')
-  const triggerOptions: { value: TriggerType; label: string; color?: string }[] = [
-    { value: 'manual', label: 'Manual', color: 'bg-gray-500' },
-    { value: 'api', label: 'API', color: 'bg-blue-500' },
-    { value: 'webhook', label: 'Webhook', color: 'bg-orange-500' },
-    { value: 'schedule', label: 'Schedule', color: 'bg-green-500' },
-    { value: 'chat', label: 'Chat', color: 'bg-purple-500' },
-  ]
 
-  // Get display text for the dropdown button
+  const triggerOptions = useMemo(() => getTriggerOptions(), [])
+
   const getSelectedTriggersText = () => {
     if (triggers.length === 0) return 'All triggers'
     if (triggers.length === 1) {
@@ -44,12 +39,10 @@ export default function Trigger() {
     return `${triggers.length} triggers selected`
   }
 
-  // Check if a trigger is selected
   const isTriggerSelected = (trigger: TriggerType) => {
     return triggers.includes(trigger)
   }
 
-  // Clear all selections
   const clearSelections = () => {
     setTriggers([])
   }
@@ -98,7 +91,10 @@ export default function Trigger() {
                   >
                     <div className='flex items-center'>
                       {triggerItem.color && (
-                        <div className={`mr-2 h-2 w-2 rounded-full ${triggerItem.color}`} />
+                        <div
+                          className='mr-2 h-2 w-2 rounded-full'
+                          style={{ backgroundColor: triggerItem.color }}
+                        />
                       )}
                       {triggerItem.label}
                     </div>

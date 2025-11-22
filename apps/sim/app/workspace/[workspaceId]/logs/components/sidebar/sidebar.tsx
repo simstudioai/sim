@@ -10,6 +10,7 @@ import { Button, Tooltip } from '@/components/emcn'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
+import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { FrozenCanvasModal } from '@/app/workspace/[workspaceId]/logs/components/frozen-canvas/frozen-canvas-modal'
 import { FileDownload } from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/file-download'
 import LogMarkdownRenderer from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/markdown-renderer'
@@ -470,9 +471,9 @@ export function Sidebar({
                     <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
                       Trigger
                     </h3>
-                    <div className='group relative text-[13px] capitalize'>
+                    <div className='group relative text-[13px]'>
                       <CopyButton text={log.trigger} />
-                      {log.trigger}
+                      {getIntegrationMetadata(log.trigger).label}
                     </div>
                   </div>
                 )}

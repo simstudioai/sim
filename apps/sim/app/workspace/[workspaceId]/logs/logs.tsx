@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, ArrowUpRight, Info, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import { cn } from '@/lib/utils'
 import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
@@ -19,31 +20,6 @@ import { useFilterStore } from '@/stores/logs/filters/store'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 
 const LOGS_PER_PAGE = 50
-
-/**
- * Returns the background color for a trigger type badge.
- *
- * @param trigger - The trigger type (manual, schedule, webhook, chat, api)
- * @returns Hex color code for the trigger type
- */
-const getTriggerColor = (trigger: string | null | undefined): string => {
-  if (!trigger) return '#9ca3af'
-
-  switch (trigger.toLowerCase()) {
-    case 'manual':
-      return '#9ca3af' // gray-400 (matches secondary styling better)
-    case 'schedule':
-      return '#10b981' // green (emerald-500)
-    case 'webhook':
-      return '#f97316' // orange (orange-500)
-    case 'chat':
-      return '#8b5cf6' // purple (violet-500)
-    case 'api':
-      return '#3b82f6' // blue (blue-500)
-    default:
-      return '#9ca3af' // gray-400
-  }
-}
 
 const selectedRowAnimation = `
   @keyframes borderPulse {
@@ -537,12 +513,17 @@ export default function Logs() {
                           {/* Trigger */}
                           <div className='hidden xl:block'>
                             {log.trigger ? (
-                              <div
-                                className='inline-flex items-center rounded-[6px] px-[8px] py-[2px] font-medium text-[12px] text-white'
-                                style={{ backgroundColor: getTriggerColor(log.trigger) }}
-                              >
-                                {log.trigger}
-                              </div>
+                              (() => {
+                                const metadata = getIntegrationMetadata(log.trigger)
+                                return (
+                                  <div
+                                    className='inline-flex items-center rounded-[6px] px-[8px] py-[2px] font-medium text-[12px] text-white'
+                                    style={{ backgroundColor: metadata.color }}
+                                  >
+                                    {metadata.label}
+                                  </div>
+                                )
+                              })()
                             ) : (
                               <div className='font-medium text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
                                 —
