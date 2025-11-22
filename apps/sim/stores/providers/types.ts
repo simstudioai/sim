@@ -1,4 +1,4 @@
-export type ProviderName = 'ollama' | 'openrouter' | 'base'
+export type ProviderName = 'ollama' | 'vllm' | 'openrouter' | 'base'
 
 export interface ProviderState {
   models: string[]

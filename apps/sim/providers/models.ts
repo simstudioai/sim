@@ -19,6 +19,7 @@ import {
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
+  VllmIcon,
   xAIIcon,
 } from '@/components/icons'
 
@@ -85,6 +86,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   vllm: {
     id: 'vllm',
     name: 'vLLM',
+    icon: VllmIcon,
     description: 'Self-hosted vLLM with an OpenAI-compatible API',
     defaultModel: 'vllm/generic',
     modelPatterns: [/^vllm\//],
@@ -92,19 +94,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       temperature: { min: 0, max: 2 },
       toolUsageControl: true,
     },
-    models: [
-      {
-        id: 'vllm/generic',
-        pricing: {
-          input: 0,
-          output: 0,
-          updatedAt: '2025-11-13',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 2 },
-        },
-      },
-    ],
+    models: [],
   },
   openai: {
     id: 'openai',
@@ -1380,6 +1370,21 @@ export function supportsToolUsageControl(providerId: string): boolean {
  */
 export function updateOllamaModels(models: string[]): void {
   PROVIDER_DEFINITIONS.ollama.models = models.map((modelId) => ({
+    id: modelId,
+    pricing: {
+      input: 0,
+      output: 0,
+      updatedAt: new Date().toISOString().split('T')[0],
+    },
+    capabilities: {},
+  }))
+}
+
+/**
+ * Update vLLM models dynamically
+ */
+export function updateVLLMModels(models: string[]): void {
+  PROVIDER_DEFINITIONS.vllm.models = models.map((modelId) => ({
     id: modelId,
     pricing: {
       input: 0,

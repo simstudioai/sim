@@ -8,6 +8,7 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
   providers: {
     base: { models: [], isLoading: false },
     ollama: { models: [], isLoading: false },
+    vllm: { models: [], isLoading: false },
     openrouter: { models: [], isLoading: false },
   },
 

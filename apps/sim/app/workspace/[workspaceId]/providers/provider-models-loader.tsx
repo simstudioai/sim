@@ -3,7 +3,11 @@
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useProviderModels } from '@/hooks/queries/providers'
-import { updateOllamaProviderModels, updateOpenRouterProviderModels } from '@/providers/utils'
+import {
+  updateOllamaProviderModels,
+  updateOpenRouterProviderModels,
+  updateVLLMProviderModels,
+} from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import type { ProviderName } from '@/stores/providers/types'
 
@@ -24,6 +28,8 @@ function useSyncProvider(provider: ProviderName) {
     try {
       if (provider === 'ollama') {
         updateOllamaProviderModels(data)
+      } else if (provider === 'vllm') {
+        updateVLLMProviderModels(data)
       } else if (provider === 'openrouter') {
         void updateOpenRouterProviderModels(data)
       }
@@ -44,6 +50,7 @@ function useSyncProvider(provider: ProviderName) {
 export function ProviderModelsLoader() {
   useSyncProvider('base')
   useSyncProvider('ollama')
+  useSyncProvider('vllm')
   useSyncProvider('openrouter')
   return null
 }
