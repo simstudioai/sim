@@ -41,6 +41,14 @@ const ssoRegistrationSchema = z.discriminatedUnion('providerType', [
       ])
       .default(['openid', 'profile', 'email']),
     pkce: z.boolean().default(true),
+    discoveryEndpoint: z.string().url().optional(),
+    authorizationEndpoint: z.string().url().optional(),
+    tokenEndpoint: z.string().url().optional(),
+    userInfoEndpoint: z.string().url().optional(),
+    jwksEndpoint: z.string().url().optional(),
+    tokenEndpointAuthentication: z
+      .union([z.literal('client_secret_post'), z.literal('client_secret_basic')])
+      .optional(),
   }),
   z.object({
     providerType: z.literal('saml'),
@@ -89,6 +97,77 @@ export async function POST(request: NextRequest) {
     const body = parseResult.data
     const { providerId, issuer, domain, providerType, mapping } = body
 
+    let resolvedAuthorizationEndpoint: string | undefined
+    let resolvedTokenEndpoint: string | undefined
+    let resolvedUserInfoEndpoint: string | undefined
+    let resolvedJwksEndpoint: string | undefined
+    let resolvedDiscoveryEndpoint: string | undefined
+    let hasExplicitOidcEndpoints = false
+    let normalizedScopes: string[] = []
+    let normalizedPkce = true
+
+    if (providerType === 'oidc') {
+      const {
+        clientId,
+        clientSecret,
+        scopes,
+        pkce,
+        discoveryEndpoint,
+        authorizationEndpoint,
+        tokenEndpoint,
+        userInfoEndpoint,
+        jwksEndpoint,
+        tokenEndpointAuthentication,
+      } = body
+
+      if (!clientId || !clientSecret) {
+        return NextResponse.json(
+          { error: 'Missing required OIDC fields: clientId, clientSecret' },
+          { status: 400 }
+        )
+      }
+
+      normalizedScopes = Array.isArray(scopes)
+        ? scopes.filter((s: string) => s !== 'offline_access')
+        : ['openid', 'profile', 'email']
+
+      normalizedPkce = pkce ?? true
+
+      resolvedAuthorizationEndpoint =
+        authorizationEndpoint || env.SSO_OIDC_AUTHORIZATION_ENDPOINT || undefined
+      resolvedTokenEndpoint = tokenEndpoint || env.SSO_OIDC_TOKEN_ENDPOINT || undefined
+      resolvedUserInfoEndpoint = userInfoEndpoint || env.SSO_OIDC_USERINFO_ENDPOINT || undefined
+      resolvedJwksEndpoint = jwksEndpoint || env.SSO_OIDC_JWKS_ENDPOINT || undefined
+      resolvedDiscoveryEndpoint =
+        discoveryEndpoint ||
+        env.SSO_OIDC_DISCOVERY_ENDPOINT ||
+        `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
+
+      hasExplicitOidcEndpoints =
+        !!resolvedAuthorizationEndpoint ||
+        !!resolvedTokenEndpoint ||
+        !!resolvedUserInfoEndpoint ||
+        !!resolvedJwksEndpoint ||
+        !!discoveryEndpoint ||
+        !!env.SSO_OIDC_DISCOVERY_ENDPOINT
+
+      if (!Array.isArray(normalizedScopes) || normalizedScopes.length === 0) {
+        normalizedScopes = ['openid', 'profile', 'email']
+      }
+
+      // attach tokenEndpointAuthentication to body so it's available when we build the config
+      body.tokenEndpointAuthentication = tokenEndpointAuthentication
+    } else if (providerType === 'saml') {
+      const { entryPoint, cert } = body
+
+      if (!entryPoint || !cert) {
+        return NextResponse.json(
+          { error: 'Missing required SAML fields: entryPoint, cert' },
+          { status: 400 }
+        )
+      }
+    }
+
     const headers: Record<string, string> = {}
     request.headers.forEach((value, key) => {
       headers[key] = value
@@ -102,59 +181,85 @@ export async function POST(request: NextRequest) {
     }
 
     if (providerType === 'oidc') {
-      const { clientId, clientSecret, scopes, pkce } = body
+      const {
+        clientId,
+        clientSecret,
+        scopes,
+        pkce,
+        tokenEndpointAuthentication,
+      } = body
 
       const oidcConfig: any = {
         clientId,
         clientSecret,
-        scopes: Array.isArray(scopes)
-          ? scopes.filter((s: string) => s !== 'offline_access')
-          : ['openid', 'profile', 'email'].filter((s: string) => s !== 'offline_access'),
-        pkce: pkce ?? true,
+        scopes: normalizedScopes,
+        pkce: normalizedPkce,
+      }
+
+      if (resolvedDiscoveryEndpoint) {
+        oidcConfig.discoveryEndpoint = resolvedDiscoveryEndpoint
+      }
+
+      if (resolvedAuthorizationEndpoint) {
+        oidcConfig.authorizationEndpoint = resolvedAuthorizationEndpoint
+      }
+      if (resolvedTokenEndpoint) {
+        oidcConfig.tokenEndpoint = resolvedTokenEndpoint
+      }
+      if (resolvedUserInfoEndpoint) {
+        oidcConfig.userInfoEndpoint = resolvedUserInfoEndpoint
+      }
+      if (resolvedJwksEndpoint) {
+        oidcConfig.jwksEndpoint = resolvedJwksEndpoint
+      }
+      if (tokenEndpointAuthentication) {
+        oidcConfig.tokenEndpointAuthentication = tokenEndpointAuthentication
       }
 
       // Add manual endpoints for providers that might need them
       // Common patterns for OIDC providers that don't support discovery properly
-      if (
-        issuer.includes('okta.com') ||
-        issuer.includes('auth0.com') ||
-        issuer.includes('identityserver')
-      ) {
-        const baseUrl = issuer.includes('/oauth2/default')
-          ? issuer.replace('/oauth2/default', '')
-          : issuer.replace('/oauth', '').replace('/v2.0', '').replace('/oauth2', '')
+      if (!hasExplicitOidcEndpoints) {
+        if (
+          issuer.includes('okta.com') ||
+          issuer.includes('auth0.com') ||
+          issuer.includes('identityserver')
+        ) {
+          const baseUrl = issuer.includes('/oauth2/default')
+            ? issuer.replace('/oauth2/default', '')
+            : issuer.replace('/oauth', '').replace('/v2.0', '').replace('/oauth2', '')
 
-        // Okta-style endpoints
-        if (issuer.includes('okta.com')) {
-          oidcConfig.authorizationEndpoint = `${baseUrl}/oauth2/default/v1/authorize`
-          oidcConfig.tokenEndpoint = `${baseUrl}/oauth2/default/v1/token`
-          oidcConfig.userInfoEndpoint = `${baseUrl}/oauth2/default/v1/userinfo`
-          oidcConfig.jwksEndpoint = `${baseUrl}/oauth2/default/v1/keys`
-        }
-        // Auth0-style endpoints
-        else if (issuer.includes('auth0.com')) {
-          oidcConfig.authorizationEndpoint = `${baseUrl}/authorize`
-          oidcConfig.tokenEndpoint = `${baseUrl}/oauth/token`
-          oidcConfig.userInfoEndpoint = `${baseUrl}/userinfo`
-          oidcConfig.jwksEndpoint = `${baseUrl}/.well-known/jwks.json`
-        }
-        // Generic OIDC endpoints (IdentityServer, etc.)
-        else {
-          oidcConfig.authorizationEndpoint = `${baseUrl}/connect/authorize`
-          oidcConfig.tokenEndpoint = `${baseUrl}/connect/token`
-          oidcConfig.userInfoEndpoint = `${baseUrl}/connect/userinfo`
-          oidcConfig.jwksEndpoint = `${baseUrl}/.well-known/jwks`
-        }
+          // Okta-style endpoints
+          if (issuer.includes('okta.com')) {
+            oidcConfig.authorizationEndpoint = `${baseUrl}/oauth2/default/v1/authorize`
+            oidcConfig.tokenEndpoint = `${baseUrl}/oauth2/default/v1/token`
+            oidcConfig.userInfoEndpoint = `${baseUrl}/oauth2/default/v1/userinfo`
+            oidcConfig.jwksEndpoint = `${baseUrl}/oauth2/default/v1/keys`
+          }
+          // Auth0-style endpoints
+          else if (issuer.includes('auth0.com')) {
+            oidcConfig.authorizationEndpoint = `${baseUrl}/authorize`
+            oidcConfig.tokenEndpoint = `${baseUrl}/oauth/token`
+            oidcConfig.userInfoEndpoint = `${baseUrl}/userinfo`
+            oidcConfig.jwksEndpoint = `${baseUrl}/.well-known/jwks.json`
+          }
+          // Generic OIDC endpoints (IdentityServer, etc.)
+          else {
+            oidcConfig.authorizationEndpoint = `${baseUrl}/connect/authorize`
+            oidcConfig.tokenEndpoint = `${baseUrl}/connect/token`
+            oidcConfig.userInfoEndpoint = `${baseUrl}/connect/userinfo`
+            oidcConfig.jwksEndpoint = `${baseUrl}/.well-known/jwks`
+          }
 
-        logger.info('Using manual OIDC endpoints for provider', {
-          providerId,
-          provider: issuer.includes('okta.com')
-            ? 'Okta'
-            : issuer.includes('auth0.com')
-              ? 'Auth0'
-              : 'Generic',
-          authEndpoint: oidcConfig.authorizationEndpoint,
-        })
+          logger.info('Using manual OIDC endpoints for provider', {
+            providerId,
+            provider: issuer.includes('okta.com')
+              ? 'Okta'
+              : issuer.includes('auth0.com')
+                ? 'Auth0'
+                : 'Generic',
+            authEndpoint: oidcConfig.authorizationEndpoint,
+          })
+        }
       }
 
       providerConfig.oidcConfig = oidcConfig
@@ -227,6 +332,14 @@ export async function POST(request: NextRequest) {
     logger.info('Calling Better Auth registerSSOProvider with config:', {
       providerId: providerConfig.providerId,
       domain: providerConfig.domain,
+      hasDiscoveryEndpoint: !!providerConfig.oidcConfig?.discoveryEndpoint,
+      hasManualOidcEndpoints: !!(
+        providerConfig.oidcConfig &&
+        (providerConfig.oidcConfig.authorizationEndpoint ||
+          providerConfig.oidcConfig.tokenEndpoint ||
+          providerConfig.oidcConfig.userInfoEndpoint ||
+          providerConfig.oidcConfig.jwksEndpoint)
+      ),
       hasOidcConfig: !!providerConfig.oidcConfig,
       hasSamlConfig: !!providerConfig.samlConfig,
       samlConfigKeys: providerConfig.samlConfig ? Object.keys(providerConfig.samlConfig) : [],
