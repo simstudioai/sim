@@ -5,6 +5,7 @@ title: Human in the Loop
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
 The Human in the Loop block pauses workflow execution and waits for human intervention before continuing. Use it to add approval gates, collect feedback, or gather additional input at critical decision points.
 
@@ -76,7 +77,7 @@ Defines the fields approvers fill in when responding. This data becomes availabl
 }
 ```
 
-Access resume data in downstream blocks using `<blockId.resumeInput.fieldName>`.
+Access resume data in downstream blocks using `<blockId.resumeInput.fieldName>`. 
 
 ## Approval Methods
 
@@ -164,6 +165,11 @@ Access using `<blockId.resumeInput.fieldName>`.
 // Condition block
 <approval1.resumeInput.approved> === true
 ```
+The example below shows an approval portal as seen by an approver after the workflow is paused. Approvers can review the data and provide inputs as a part of the workflow resumption. The approval portal can be accessed directly via the unique URL, `<blockId.url>`.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="hitl-resume.mp4" width={700} height={450} />
+</div>
 
 ## Related Blocks
 
