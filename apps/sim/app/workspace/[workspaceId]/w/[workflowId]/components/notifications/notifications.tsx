@@ -1,4 +1,5 @@
 import { memo, useCallback } from 'react'
+import clsx from 'clsx'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
@@ -10,6 +11,7 @@ import {
   openCopilotWithMessage,
   useNotificationStore,
 } from '@/stores/notifications'
+import { useTerminalStore } from '@/stores/terminal'
 
 const logger = createLogger('Notifications')
 const MAX_VISIBLE_NOTIFICATIONS = 4
@@ -29,6 +31,7 @@ export const Notifications = memo(function Notifications() {
   const removeNotification = useNotificationStore((state) => state.removeNotification)
   const clearNotifications = useNotificationStore((state) => state.clearNotifications)
   const visibleNotifications = notifications.slice(0, MAX_VISIBLE_NOTIFICATIONS)
+  const isTerminalResizing = useTerminalStore((state) => state.isResizing)
 
   /**
    * Executes a notification action and handles side effects.
@@ -95,7 +98,12 @@ export const Notifications = memo(function Notifications() {
   }
 
   return (
-    <div className='fixed right-[calc(var(--panel-width)+16px)] bottom-[calc(var(--terminal-height)+16px)] z-30 flex flex-col items-end'>
+    <div
+      className={clsx(
+        'fixed right-[calc(var(--panel-width)+16px)] bottom-[calc(var(--terminal-height)+16px)] z-30 flex flex-col items-end',
+        !isTerminalResizing && 'transition-[bottom] duration-100 ease-out'
+      )}
+    >
       {[...visibleNotifications].reverse().map((notification, index, stacked) => {
         const depth = stacked.length - index - 1
         const xOffset = depth * 3
