@@ -42,7 +42,8 @@ async function fetchWorkflows(workspaceId: string): Promise<WorkflowMetadata[]> 
   return data.map(mapWorkflow)
 }
 
-export function useWorkflows(workspaceId?: string) {
+export function useWorkflows(workspaceId?: string, options?: { syncRegistry?: boolean }) {
+  const { syncRegistry = true } = options || {}
   const beginMetadataLoad = useWorkflowRegistry((state) => state.beginMetadataLoad)
   const completeMetadataLoad = useWorkflowRegistry((state) => state.completeMetadataLoad)
   const failMetadataLoad = useWorkflowRegistry((state) => state.failMetadataLoad)
@@ -56,24 +57,24 @@ export function useWorkflows(workspaceId?: string) {
   })
 
   useEffect(() => {
-    if (workspaceId && query.status === 'pending') {
+    if (syncRegistry && workspaceId && query.status === 'pending') {
       beginMetadataLoad(workspaceId)
     }
-  }, [workspaceId, query.status, beginMetadataLoad])
+  }, [syncRegistry, workspaceId, query.status, beginMetadataLoad])
 
   useEffect(() => {
-    if (workspaceId && query.status === 'success' && query.data) {
+    if (syncRegistry && workspaceId && query.status === 'success' && query.data) {
       completeMetadataLoad(workspaceId, query.data)
     }
-  }, [workspaceId, query.status, query.data, completeMetadataLoad])
+  }, [syncRegistry, workspaceId, query.status, query.data, completeMetadataLoad])
 
   useEffect(() => {
-    if (workspaceId && query.status === 'error') {
+    if (syncRegistry && workspaceId && query.status === 'error') {
       const message =
         query.error instanceof Error ? query.error.message : 'Failed to fetch workflows'
       failMetadataLoad(workspaceId, message)
     }
-  }, [workspaceId, query.status, query.error, failMetadataLoad])
+  }, [syncRegistry, workspaceId, query.status, query.error, failMetadataLoad])
 
   return query
 }

@@ -1,8 +1,5 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WorkflowExecutorParams, WorkflowExecutorResponse } from '@/tools/workflow/types'
-
-const logger = createLogger('WorkflowExecutorTool')
 
 /**
  * Tool for executing workflows as blocks within other workflows.
@@ -14,38 +11,46 @@ export const workflowExecutorTool: ToolConfig<
 > = {
   id: 'workflow_executor',
   name: 'Workflow Executor',
-  description: 'Execute another workflow inline as a block',
+  description:
+    'Execute another workflow as a sub-workflow. Pass inputs as a JSON object with field names matching the child workflow\'s input format. Example: if child expects "name" and "email", pass {"name": "John", "email": "john@example.com"}',
   version: '1.0.0',
   params: {
     workflowId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The ID of the workflow to execute',
     },
     inputMapping: {
       type: 'object',
       required: false,
-      description: 'JSON object mapping parent data to child workflow inputs',
+      visibility: 'user-or-llm',
+      description:
+        'JSON object with keys matching the child workflow\'s input field names. Each key should map to the value you want to pass for that input field. Example: {"fieldName": "value", "otherField": 123}',
     },
   },
   request: {
-    url: '/api/tools/workflow-executor',
+    url: (params: WorkflowExecutorParams) => `/api/workflows/${params.workflowId}/execute`,
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => params,
+    body: (params: WorkflowExecutorParams) => ({
+      input: params.inputMapping || {},
+      triggerType: 'api',
+      useDraftState: false,
+    }),
   },
-  transformResponse: async (response: any) => {
-    logger.info('Workflow executor tool response received', { response })
-
-    // Extract success state from response, default to false if not present
-    const success = response?.success ?? false
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    const outputData = data?.output ?? {}
 
     return {
-      success,
-      duration: response?.duration ?? 0,
-      childWorkflowId: response?.childWorkflowId ?? '',
-      childWorkflowName: response?.childWorkflowName ?? '',
-      ...response,
+      success: data?.success ?? false,
+      duration: data?.metadata?.duration ?? 0,
+      childWorkflowId: data?.workflowId ?? '',
+      childWorkflowName: data?.workflowName ?? '',
+      output: outputData, // For OpenAI provider
+      result: outputData, // For backwards compatibility
+      error: data?.error,
     }
   },
 }

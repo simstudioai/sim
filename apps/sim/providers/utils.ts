@@ -491,7 +491,7 @@ export async function transformBlockTool(
   const userProvidedParams = block.params || {}
 
   // Create LLM schema that excludes user-provided parameters
-  const llmSchema = createLLMToolSchema(toolConfig, userProvidedParams)
+  const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
 
   // Return formatted tool config
   return {
