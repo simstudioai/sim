@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 
-interface UseChatBoundarySyncProps {
+interface UseFloatBoundarySyncProps {
   isOpen: boolean
   position: { x: number; y: number }
   width: number
@@ -9,17 +9,17 @@ interface UseChatBoundarySyncProps {
 }
 
 /**
- * Hook to synchronize chat position with layout boundary changes
- * Keeps chat within bounds when sidebar, panel, or terminal resize
+ * Hook to synchronize floats position with layout boundary changes.
+ * Keeps the float within bounds when sidebar, panel, or terminal resize.
  * Uses requestAnimationFrame for smooth real-time updates
  */
-export function useChatBoundarySync({
+export function useFloatBoundarySync({
   isOpen,
   position,
   width,
   height,
   onPositionChange,
-}: UseChatBoundarySyncProps) {
+}: UseFloatBoundarySyncProps) {
   const rafIdRef = useRef<number | null>(null)
   const positionRef = useRef(position)
   const previousDimensionsRef = useRef({ sidebarWidth: 0, panelWidth: 0, terminalHeight: 0 })

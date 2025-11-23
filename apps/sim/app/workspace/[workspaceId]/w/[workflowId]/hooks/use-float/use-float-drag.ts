@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { constrainChatPosition } from '@/stores/chat/store'
 
-interface UseChatDragProps {
+interface UseFloatDragProps {
   position: { x: number; y: number }
   width: number
   height: number
@@ -9,10 +9,10 @@ interface UseChatDragProps {
 }
 
 /**
- * Hook for handling drag functionality of floating chat modal
+ * Hook for handling drag functionality of floats.
  * Provides mouse event handlers and manages drag state
  */
-export function useChatDrag({ position, width, height, onPositionChange }: UseChatDragProps) {
+export function useFloatDrag({ position, width, height, onPositionChange }: UseFloatDragProps) {
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
   const initialPositionRef = useRef({ x: 0, y: 0 })
