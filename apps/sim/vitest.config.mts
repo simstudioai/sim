@@ -17,6 +17,9 @@ export default defineConfig({
     include: ['**/*.test.{ts,tsx}'],
     exclude: [...configDefaults.exclude, '**/node_modules/**', '**/dist/**'],
     setupFiles: ['./vitest.setup.ts'],
+    // Allow slower API route/unit tests that set up many mocks
+    testTimeout: 15000,
+    hookTimeout: 15000,
     alias: {
       '@sim/db': resolve(__dirname, '../../packages/db'),
     },
