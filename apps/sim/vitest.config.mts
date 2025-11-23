@@ -3,11 +3,10 @@ import path, { resolve } from 'path'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import { configDefaults, defineConfig } from 'vitest/config'
-
-const nextEnv = require('@next/env')
-const { loadEnvConfig } = nextEnv.default || nextEnv
+import nextEnv from '@next/env'
 
 const projectDir = process.cwd()
+const { loadEnvConfig } = nextEnv as { loadEnvConfig: (dir: string) => void }
 loadEnvConfig(projectDir)
 
 export default defineConfig({
