@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import imageCompression from 'browser-image-compression'
-import { Loader2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import Image from 'next/image'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -419,7 +419,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
         <ModalHeader>Help &amp; Support</ModalHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-          <ModalBody>
+          <ModalBody className='!pb-[16px]'>
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
               <div className='space-y-[12px]'>
                 <div>
@@ -554,7 +554,6 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
               Cancel
             </Button>
             <Button type='submit' variant='primary' disabled={isSubmitting || isProcessing}>
-              {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
               {isSubmitting
                 ? 'Submitting...'
                 : submitStatus === 'error'
