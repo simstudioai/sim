@@ -8,7 +8,7 @@ ENSURE that you use the logger.info and logger.warn and logger.error instead of 
 
 ## Comments
 
-You must use TSDOC for comments. Do not use ==== for comments to separate sections.
+You must use TSDOC for comments. Do not use ==== for comments to separate sections. Do not leave any comments that are not TSDOC. 
 
 ## Globals styles
 

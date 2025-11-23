@@ -25,7 +25,12 @@ interface TemplateCardProps {
 
 export function TemplateCardSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn('h-[268px] w-full rounded-[8px] bg-[#202020] p-[8px]', className)}>
+    <div
+      className={cn(
+        'h-[268px] w-full rounded-[8px] bg-[var(--surface-elevated)] p-[8px]',
+        className
+      )}
+    >
       <div className='h-[180px] w-full animate-pulse rounded-[6px] bg-gray-700' />
 
       <div className='mt-[14px] flex items-center justify-between'>
@@ -193,7 +198,10 @@ function TemplateCardInner({
   return (
     <div
       onClick={handleCardClick}
-      className={cn('w-full cursor-pointer rounded-[8px] bg-[#202020] p-[8px]', className)}
+      className={cn(
+        'w-full cursor-pointer rounded-[8px] bg-[var(--surface-elevated)] p-[8px]',
+        className
+      )}
     >
       <div
         ref={previewRef}
@@ -238,7 +246,7 @@ function TemplateCardInner({
                 )
               })}
               <div
-                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[#4A4A4A]'
+                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-14)]'
                 style={{ marginLeft: '-4px' }}
               >
                 <span className='font-medium text-[10px] text-white'>+{blockTypes.length - 3}</span>
@@ -273,7 +281,7 @@ function TemplateCardInner({
               <img src={authorImageUrl} alt={author} className='h-full w-full object-cover' />
             </div>
           ) : (
-            <div className='flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-full bg-[#4A4A4A]'>
+            <div className='flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-14)]'>
               <User className='h-[18px] w-[18px] text-[#888888]' />
             </div>
           )}

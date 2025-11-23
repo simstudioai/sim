@@ -109,11 +109,11 @@ export function TeamSeatsOverview({
             )}
           </div>
           <div className='flex items-center gap-[4px] text-xs tabular-nums'>
-            <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
+            <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
               {usedSeats} used
             </span>
-            <span className='font-medium text-[#B1B1B1] text-[12px]'>/</span>
-            <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
+            <span className='font-medium text-[12px] text-[var(--text-secondary)]'>/</span>
+            <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
               {totalSeats} total
             </span>
           </div>
@@ -128,7 +128,7 @@ export function TeamSeatsOverview({
                 key={i}
                 className={cn(
                   'h-[6px] flex-1 rounded-full transition-colors',
-                  isFilled ? 'bg-[#34B5FF]' : 'bg-[#2C2C2C]'
+                  isFilled ? 'bg-[#34B5FF]' : 'bg-[var(--border)]'
                 )}
               />
             )

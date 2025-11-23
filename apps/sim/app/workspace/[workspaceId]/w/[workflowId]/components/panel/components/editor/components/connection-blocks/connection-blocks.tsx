@@ -25,7 +25,7 @@ interface ConnectionBlocksProps {
 }
 
 const TREE_STYLES = {
-  LINE_COLOR: '#2C2C2C',
+  LINE_COLOR: 'var(--border)',
   LINE_OFFSET: 4,
 } as const
 

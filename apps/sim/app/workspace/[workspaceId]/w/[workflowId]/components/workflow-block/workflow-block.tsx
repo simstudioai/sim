@@ -867,15 +867,15 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                         className={!childIsDeployed || childNeedsRedeploy ? 'cursor-pointer' : ''}
                         style={{
                           borderColor: !childIsDeployed
-                            ? '#EF4444'
+                            ? 'var(--text-error)'
                             : childNeedsRedeploy
-                              ? '#FF6600'
-                              : '#22C55E',
+                              ? 'var(--warning)'
+                              : 'var(--brand-tertiary)',
                           color: !childIsDeployed
-                            ? '#EF4444'
+                            ? 'var(--text-error)'
                             : childNeedsRedeploy
-                              ? '#FF6600'
-                              : '#22C55E',
+                              ? 'var(--warning)'
+                              : 'var(--brand-tertiary)',
                         }}
                         onClick={(e) => {
                           e.stopPropagation()
@@ -923,8 +923,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                         variant='outline'
                         className={scheduleInfo?.isDisabled ? 'cursor-pointer' : ''}
                         style={{
-                          borderColor: scheduleInfo?.isDisabled ? '#FF6600' : '#22C55E',
-                          color: scheduleInfo?.isDisabled ? '#FF6600' : '#22C55E',
+                          borderColor: scheduleInfo?.isDisabled
+                            ? 'var(--warning)'
+                            : 'var(--brand-tertiary)',
+                          color: scheduleInfo?.isDisabled
+                            ? 'var(--warning)'
+                            : 'var(--brand-tertiary)',
                         }}
                         onClick={(e) => {
                           e.stopPropagation()
