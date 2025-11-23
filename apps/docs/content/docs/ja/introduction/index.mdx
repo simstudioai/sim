@@ -5,6 +5,7 @@ title: はじめに
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
 Simはオープンソースのビジュアルワークフロービルダーで、AIエージェントワークフローの構築とデプロイに使用できます。ノーコードインターフェースを使用してインテリジェントな自動化システムを設計し、直感的なドラッグアンドドロップキャンバスを通じてAIモデル、データベース、API、ビジネスツールを接続できます。チャットボットの構築、ビジネスプロセスの自動化、複雑なデータパイプラインのオーケストレーションなど、SimはあなたのAIワークフローを実現するためのツールを提供します。
 
@@ -32,44 +33,73 @@ Simはオープンソースのビジュアルワークフロービルダーで�
 **API統合ワークフロー**  
 複雑なマルチサービス間の相互作用をオーケストレーションします。統一されたAPIエンドポイントを作成し、高度なビジネスロジックを実装し、イベント駆動型の自動化システムを構築します。
 
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/chat-workflow.mp4" width={700} height={450} />
+</div>
+
 ## 仕組み
 
 **ビジュアルワークフローエディタ**  
-直感的なドラッグアンドドロップキャンバスを使用してワークフローを設計します。複雑な自動化ロジックを理解しやすく維持しやすくするビジュアルなノーコードインターフェースを通じて、AIモデル、データベース、API、サードパーティサービスを接続します。
+直感的なドラッグ＆ドロップキャンバスを使用してワークフローを設計します。AIモデル、データベース、API、サードパーティサービスをビジュアルなノーコードインターフェースで接続し、複雑な自動化ロジックを理解しやすく、保守しやすくします。
 
 **モジュラーブロックシステム**  
-専門化されたコンポーネントで構築します：処理ブロック（AIエージェント、API呼び出し、カスタム関数）、ロジックブロック（条件分岐、ループ、ルーター）、出力ブロック（レスポンス、評価器）。各ブロックはワークフロー内の特定のタスクを処理します。
+専門化されたコンポーネントで構築：処理ブロック（AIエージェント、API呼び出し、カスタム関数）、ロジックブロック（条件分岐、ループ、ルーター）、出力ブロック（レスポンス、評価器）。各ブロックはワークフロー内の特定のタスクを処理します。
 
 **柔軟な実行トリガー**  
-チャットインターフェース、REST API、ウェブフック、スケジュールされたcronジョブ、SlackやGitHubなどのプラットフォームからの外部イベントなど、複数のチャネルを通じてワークフローを起動します。
+チャットインターフェース、REST API、ウェブフック、スケジュールされたcronジョブ、SlackやGitHubなどのプラットフォームからの外部イベントなど、複数のチャネルを通じてワークフローを起動できます。
 
 **リアルタイムコラボレーション**  
-チームが一緒に構築できるようにします。複数のユーザーがリアルタイム更新と詳細な権限コントロールで同時にワークフローを編集できます。
+チームが一緒に構築できるようにします。複数のユーザーがリアルタイム更新と詳細な権限コントロールにより、同時にワークフローを編集できます。
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/build-workflow.mp4" width={700} height={450} />
+</div>
 
 ## 連携機能
 
-Simは複数のカテゴリーにわたる80以上のサービスとネイティブ連携を提供しています：
+Simは複数のカテゴリにわたる80以上のサービスとネイティブ連携を提供します：
 
-- **AIモデル**: OpenAI、Anthropic、Google Gemini、Groq、Cerebras、Ollamaを通じたローカルモデル
+- **AIモデル**: OpenAI、Anthropic、Google Gemini、Groq、Cerebras、Ollamaを介したローカルモデル
 - **コミュニケーション**: Gmail、Slack、Microsoft Teams、Telegram、WhatsApp  
-- **生産性向上**: Notion、Google Workspace、Airtable、Monday.com
+- **生産性**: Notion、Google Workspace、Airtable、Monday.com
 - **開発**: GitHub、Jira、Linear、自動ブラウザテスト
 - **検索とデータ**: Google検索、Perplexity、Firecrawl、Exa AI
 - **データベース**: PostgreSQL、MySQL、Supabase、Pinecone、Qdrant
 
-カスタム連携については、[MCP（Model Context Protocol）サポート](/mcp)を活用して、あらゆる外部サービスやツールと接続できます。
+カスタム連携については、[MCP（Model Context Protocol）サポート](/mcp)を活用して、任意の外部サービスやツールに接続できます。
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/integrations-sidebar.mp4" width={700} height={450} />
+</div>
+
+## AI搭載コパイロット
+
+**質問と指導を受ける**  
+コパイロットはSimに関する質問に答え、ワークフローを説明し、改善のための提案を提供します。`@`記号を使用してワークフロー、ブロック、ドキュメント、ナレッジ、ログを参照し、文脈に応じたサポートを受けられます。
+
+**ワークフローの構築と編集**  
+エージェントモードに切り替えると、コパイロットが変更を提案し、キャンバスに直接適用できます。自然言語コマンドでブロックの追加、設定の構成、変数の接続、ワークフローの再構築が可能です。
+
+**適応型推論レベル**  
+タスクの複雑さに応じて、高速、自動、高度、または超大型モードから選択できます。簡単な質問には高速モードから始め、複雑なアーキテクチャの変更や深いデバッグには超大型モードにスケールアップします。
+
+[コパイロット機能](/copilot)の詳細とAIアシスタンスで生産性を最大化する方法についてもっと学びましょう。
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/copilot-workflow.mp4" width={700} height={450} />
+</div>
 
 ## デプロイメントオプション
 
 **クラウドホスティング**  
-[sim.ai](https://sim.ai)ですぐに起動でき、完全に管理されたインフラストラクチャ、自動スケーリング、組み込みの可観測性を備えています。運用は私たちが処理するので、ワークフローの構築に集中できます。
+[sim.ai](https://sim.ai)ですぐに開始できます。完全に管理されたインフラストラクチャ、自動スケーリング、組み込みの可観測性を備えています。運用は私たちが処理するので、ワークフローの構築に集中できます。
 
 **セルフホスティング**  
 Docker ComposeまたはKubernetesを使用して独自のインフラストラクチャにデプロイできます。Ollama連携を通じてローカルAIモデルをサポートし、データを完全に制御できます。
 
 ## 次のステップ
 
-最初のAIワークフローを構築する準備はできていますか？
+最初のAIワークフローを構築する準備はできましたか？
 
 <Cards>
   <Card title="はじめに" href="/getting-started">
@@ -78,8 +108,8 @@ Docker ComposeまたはKubernetesを使用して独自のインフラストラ�
   <Card title="ワークフローブロック" href="/blocks">
     構成要素について学ぶ
   </Card>
-  <Card title="ツールと連携機能" href="/tools">
-    80以上の組み込み連携機能を探索
+  <Card title="ツールと連携" href="/tools">
+    80以上の組み込み連携を探索
   </Card>
   <Card title="チーム権限" href="/permissions/roles-and-permissions">
     ワークスペースの役割と権限を設定

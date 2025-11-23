@@ -5,6 +5,7 @@ title: Introduction
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
 Sim est un constructeur de flux de travail visuel open-source pour créer et déployer des flux de travail d'agents IA. Concevez des systèmes d'automatisation intelligents à l'aide d'une interface sans code—connectez des modèles d'IA, des bases de données, des API et des outils professionnels via un canevas intuitif par glisser-déposer. Que vous construisiez des chatbots, automatisiez des processus métier ou orchestriez des pipelines de données complexes, Sim fournit les outils nécessaires pour donner vie à vos flux de travail IA.
 
@@ -32,19 +33,27 @@ Transformez les données brutes en informations exploitables. Extrayez des infor
 **Flux de travail d'intégration API**  
 Orchestrez des interactions complexes entre plusieurs services. Créez des points de terminaison API unifiés, implémentez une logique métier sophistiquée et construisez des systèmes d'automatisation pilotés par événements.
 
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/chat-workflow.mp4" width={700} height={450} />
+</div>
+
 ## Comment ça fonctionne
 
-**Éditeur de flux de travail visuel**  
-Concevez des flux de travail à l'aide d'un canevas intuitif par glisser-déposer. Connectez des modèles d'IA, des bases de données, des API et des services tiers via une interface visuelle sans code qui rend la logique d'automatisation complexe facile à comprendre et à maintenir.
+**Éditeur visuel de flux de travail**  
+Concevez des flux de travail à l'aide d'un canevas intuitif de glisser-déposer. Connectez des modèles d'IA, des bases de données, des API et des services tiers via une interface visuelle sans code qui rend la logique d'automatisation complexe facile à comprendre et à maintenir.
 
 **Système de blocs modulaires**  
 Construisez avec des composants spécialisés : blocs de traitement (agents IA, appels API, fonctions personnalisées), blocs logiques (branchements conditionnels, boucles, routeurs) et blocs de sortie (réponses, évaluateurs). Chaque bloc gère une tâche spécifique dans votre flux de travail.
 
 **Déclencheurs d'exécution flexibles**  
-Lancez des flux de travail via plusieurs canaux, notamment des interfaces de chat, des API REST, des webhooks, des tâches cron planifiées ou des événements externes provenant de plateformes comme Slack et GitHub.
+Lancez des flux de travail via plusieurs canaux, notamment des interfaces de chat, des API REST, des webhooks, des tâches cron programmées ou des événements externes provenant de plateformes comme Slack et GitHub.
 
 **Collaboration en temps réel**  
 Permettez à votre équipe de construire ensemble. Plusieurs utilisateurs peuvent modifier les flux de travail simultanément avec des mises à jour en direct et des contrôles d'autorisation granulaires.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/build-workflow.mp4" width={700} height={450} />
+</div>
 
 ## Intégrations
 
@@ -57,25 +66,46 @@ Sim fournit des intégrations natives avec plus de 80 services dans plusieurs ca
 - **Recherche et données** : Google Search, Perplexity, Firecrawl, Exa AI
 - **Bases de données** : PostgreSQL, MySQL, Supabase, Pinecone, Qdrant
 
-Pour des intégrations personnalisées, utilisez notre [support MCP (Model Context Protocol)](/mcp) pour connecter n'importe quel service ou outil externe.
+Pour les intégrations personnalisées, utilisez notre [support MCP (Model Context Protocol)](/mcp) pour connecter n'importe quel service ou outil externe.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/integrations-sidebar.mp4" width={700} height={450} />
+</div>
+
+## Copilote propulsé par l'IA
+
+**Posez des questions et obtenez des conseils**  
+Le copilote répond aux questions sur Sim, explique vos flux de travail et propose des suggestions d'amélioration. Utilisez le symbole `@` pour référencer les flux de travail, les blocs, la documentation, les connaissances et les journaux pour une assistance contextuelle.
+
+**Créez et modifiez des flux de travail**  
+Passez en mode Agent pour permettre au copilote de proposer et d'appliquer des modifications directement sur votre canevas. Ajoutez des blocs, configurez des paramètres, connectez des variables et restructurez les flux de travail avec des commandes en langage naturel.
+
+**Niveaux de raisonnement adaptatifs**  
+Choisissez parmi les modes Rapide, Auto, Avancé ou Mastodonte selon la complexité de la tâche. Commencez par Rapide pour des questions simples, passez à Mastodonte pour des changements architecturaux complexes et un débogage approfondi.
+
+En savoir plus sur les [capacités du copilote](/copilot) et comment maximiser la productivité avec l'assistance IA.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/copilot-workflow.mp4" width={700} height={450} />
+</div>
 
 ## Options de déploiement
 
 **Hébergé dans le cloud**  
-Lancez immédiatement sur [sim.ai](https://sim.ai) avec une infrastructure entièrement gérée, une mise à l'échelle automatique et une observabilité intégrée. Concentrez-vous sur la création de workflows pendant que nous gérons les opérations.
+Lancez immédiatement sur [sim.ai](https://sim.ai) avec une infrastructure entièrement gérée, une mise à l'échelle automatique et une observabilité intégrée. Concentrez-vous sur la création de flux de travail pendant que nous gérons les opérations.
 
 **Auto-hébergé**  
 Déployez sur votre propre infrastructure en utilisant Docker Compose ou Kubernetes. Gardez un contrôle total sur vos données avec la prise en charge des modèles d'IA locaux grâce à l'intégration d'Ollama.
 
 ## Prochaines étapes
 
-Prêt à construire votre premier flux de travail IA ?
+Prêt à créer votre premier flux de travail IA ?
 
 <Cards>
   <Card title="Premiers pas" href="/getting-started">
-    Créez votre premier workflow en 10 minutes
+    Créez votre premier flux de travail en 10 minutes
   </Card>
-  <Card title="Blocs de workflow" href="/blocks">
+  <Card title="Blocs de flux de travail" href="/blocks">
     Découvrez les éléments constitutifs
   </Card>
   <Card title="Outils et intégrations" href="/tools">

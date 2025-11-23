@@ -5,6 +5,7 @@ title: 简介
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
 Sim 是一个开源的可视化工作流构建器，用于构建和部署 AI 代理工作流。通过无代码界面设计智能自动化系统——通过直观的拖放画布连接 AI 模型、数据库、API 和业务工具。无论是构建聊天机器人、自动化业务流程，还是协调复杂的数据管道，Sim 都提供了将 AI 工作流变为现实的工具。
 
@@ -32,6 +33,10 @@ Sim 是一个开源的可视化工作流构建器，用于构建和部署 AI 代
 **API 集成工作流**  
 协调复杂的多服务交互。创建统一的 API 端点，实施复杂的业务逻辑，并构建事件驱动的自动化系统。
 
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/chat-workflow.mp4" width={700} height={450} />
+</div>
+
 ## 工作原理
 
 **可视化工作流编辑器**  
@@ -44,41 +49,66 @@ Sim 是一个开源的可视化工作流构建器，用于构建和部署 AI 代
 通过多种渠道启动工作流，包括聊天界面、REST API、webhook、计划的 cron 作业或来自 Slack 和 GitHub 等平台的外部事件。
 
 **实时协作**  
-让您的团队共同构建。多位用户可以同时编辑工作流，支持实时更新和细粒度的权限控制。
+让您的团队共同构建。多个用户可以同时编辑工作流，支持实时更新和细粒度的权限控制。
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/build-workflow.mp4" width={700} height={450} />
+</div>
 
 ## 集成
 
 Sim 提供了跨多个类别的 80 多种服务的原生集成：
 
-- **AI 模型**：OpenAI、Anthropic、Google Gemini、Groq、Cerebras、通过 Ollama 的本地模型
+- **AI 模型**：OpenAI、Anthropic、Google Gemini、Groq、Cerebras、本地模型（通过 Ollama）
 - **通信**：Gmail、Slack、Microsoft Teams、Telegram、WhatsApp  
 - **生产力**：Notion、Google Workspace、Airtable、Monday.com
 - **开发**：GitHub、Jira、Linear、自动化浏览器测试
-- **搜索与数据**：Google 搜索、Perplexity、Firecrawl、Exa AI
+- **搜索与数据**：Google Search、Perplexity、Firecrawl、Exa AI
 - **数据库**：PostgreSQL、MySQL、Supabase、Pinecone、Qdrant
 
-对于自定义集成，可以利用我们的 [MCP（模型上下文协议）支持](/mcp) 来连接任何外部服务或工具。
+对于自定义集成，请利用我们的 [MCP（模型上下文协议）支持](/mcp) 来连接任何外部服务或工具。
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/integrations-sidebar.mp4" width={700} height={450} />
+</div>
+
+## AI 驱动的 Copilot
+
+**提问并获取指导**  
+Copilot 回答关于 Sim 的问题，解释您的工作流程，并提供改进建议。使用 `@` 符号引用工作流程、模块、文档、知识和日志，以获得上下文帮助。
+
+**构建和编辑工作流程**  
+切换到代理模式，让 Copilot 直接在您的画布上提出并应用更改。通过自然语言命令添加模块、配置设置、连接变量并重组工作流程。
+
+**自适应推理级别**  
+根据任务复杂性选择快速、自动、高级或巨兽模式。对于简单问题，从快速模式开始；对于复杂的架构更改和深度调试，升级到巨兽模式。
+
+了解更多关于 [Copilot 功能](/copilot) 的信息，以及如何通过 AI 辅助最大化生产力。
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/copilot-workflow.mp4" width={700} height={450} />
+</div>
 
 ## 部署选项
 
 **云托管**  
-通过完全托管的基础设施、自动扩展和内置可观测性，立即在 [sim.ai](https://sim.ai) 启动。专注于构建工作流，我们负责运营。
+在 [sim.ai](https://sim.ai) 上立即启动，享受完全托管的基础设施、自动扩展和内置可观测性。在我们处理运营的同时，专注于构建工作流程。
 
 **自托管**  
 使用 Docker Compose 或 Kubernetes 部署在您自己的基础设施上。通过 Ollama 集成支持本地 AI 模型，完全掌控您的数据。
 
 ## 下一步
 
-准备好构建您的第一个 AI 工作流了吗？
+准备好构建您的第一个 AI 工作流程了吗？
 
 <Cards>
-  <Card title="快速入门" href="/getting-started">
-    在 10 分钟内创建您的第一个工作流
+  <Card title="入门指南" href="/getting-started">
+    在 10 分钟内创建您的第一个工作流程
   </Card>
-  <Card title="工作流模块" href="/blocks">
+  <Card title="工作流程模块" href="/blocks">
     了解构建模块
   </Card>
-  <Card title="工具与集成" href="/tools">
+  <Card title="工具和集成" href="/tools">
     探索 80 多种内置集成
   </Card>
   <Card title="团队权限" href="/permissions/roles-and-permissions">
