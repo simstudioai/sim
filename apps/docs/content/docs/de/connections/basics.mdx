@@ -4,6 +4,7 @@ title: Grundlagen
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Video } from '@/components/ui/video'
 
 ## Wie Verbindungen funktionieren
 
@@ -28,7 +29,11 @@ Verbindungen sind die Pfade, die den Datenfluss zwischen Blöcken in Ihrem Workf
   </Step>
 </Steps>
 
-### Verbindungsfluss
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="connections-build.mp4" width={700} height={450} />
+</div>
+
+### Verbindungsablauf
 
 Der Datenfluss durch Verbindungen folgt diesen Prinzipien:
 

@@ -4,6 +4,7 @@ title: 基本
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Video } from '@/components/ui/video'
 
 ## 接続の仕組み
 
@@ -27,14 +28,18 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
   </Step>
 </Steps>
 
-### 接続のフロー
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="connections-build.mp4" width={700} height={450} />
+</div>
 
-接続を通じたデータの流れは以下の原則に従います：
+### 接続フロー
 
-1. **方向性のある流れ**: データは常に出力から入力へと流れます
-2. **実行順序**: ブロックは接続に基づいて順番に実行されます
-3. **データ変換**: データはブロック間を移動する際に変換される場合があります
-4. **条件付きパス**: 一部のブロック（RouterやConditionなど）は異なるパスにフローを向けることができます
+接続を通じたデータの流れは、以下の原則に従います：
+
+1. **方向性のある流れ**：データは常に出力から入力へと流れます
+2. **実行順序**：ブロックは接続に基づいて順番に実行されます
+3. **データ変換**：データはブロック間を移動する際に変換される場合があります
+4. **条件付きパス**：一部のブロック（ルーターや条件など）は異なるパスにフローを誘導できます
 
 <Callout type="warning">
   接続を削除すると、ブロック間のデータフローが即座に停止します。接続を削除する前に、これが意図した操作であることを確認してください。

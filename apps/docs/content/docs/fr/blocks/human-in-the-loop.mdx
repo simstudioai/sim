@@ -5,6 +5,7 @@ title: Intervention humaine
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
 Le bloc Intervention humaine met en pause l'exécution du workflow et attend l'intervention humaine avant de continuer. Utilisez-le pour ajouter des points d'approbation, recueillir des commentaires ou obtenir des informations supplémentaires à des points de décision critiques.
 
@@ -76,7 +77,7 @@ Définit les champs que les approbateurs remplissent lors de leur réponse. Ces 
 }
 ```
 
-Accédez aux données de reprise dans les blocs en aval en utilisant `<blockId.resumeInput.fieldName>`.
+Accédez aux données de reprise dans les blocs en aval en utilisant `<blockId.resumeInput.fieldName>`. 
 
 ## Méthodes d'approbation
 
@@ -174,8 +175,14 @@ Accédez-y en utilisant `<blockId.resumeInput.fieldName>`.
 <approval1.resumeInput.approved> === true
 ```
 
+L'exemple ci-dessous montre un portail d'approbation tel que vu par un approbateur après la mise en pause du workflow. Les approbateurs peuvent examiner les données et fournir des entrées dans le cadre de la reprise du workflow. Le portail d'approbation peut être accédé directement via l'URL unique, `<blockId.url>`.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="hitl-resume.mp4" width={700} height={450} />
+</div>
+
 ## Blocs associés
 
-- **[Condition](/blocks/condition)** - Créez des branches basées sur les décisions d'approbation
-- **[Variables](/blocks/variables)** - Stockez l'historique d'approbation et les métadonnées
-- **[Réponse](/blocks/response)** - Renvoyez les résultats du workflow aux appelants API
+- **[Condition](/blocks/condition)** - Branchement basé sur les décisions d'approbation
+- **[Variables](/blocks/variables)** - Stockage de l'historique d'approbation et des métadonnées
+- **[Response](/blocks/response)** - Retour des résultats du workflow aux appelants API

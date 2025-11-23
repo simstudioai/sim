@@ -5,6 +5,7 @@ title: Human in the Loop
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
 El bloque Human in the Loop pausa la ejecución del flujo de trabajo y espera la intervención humana antes de continuar. Úsalo para añadir puntos de aprobación, recopilar comentarios o reunir información adicional en puntos críticos de decisión.
 
@@ -76,7 +77,7 @@ Define los campos que los aprobadores completan al responder. Estos datos estar�
 }
 ```
 
-Accede a los datos de reanudación en bloques posteriores usando `<blockId.resumeInput.fieldName>`.
+Accede a los datos del resumen en bloques posteriores usando `<blockId.resumeInput.fieldName>`. 
 
 ## Métodos de aprobación
 
@@ -174,8 +175,14 @@ Accede usando `<blockId.resumeInput.fieldName>`.
 <approval1.resumeInput.approved> === true
 ```
 
+El ejemplo a continuación muestra un portal de aprobación como lo ve un aprobador después de que el flujo de trabajo se pausa. Los aprobadores pueden revisar los datos y proporcionar entradas como parte de la reanudación del flujo de trabajo. Se puede acceder al portal de aprobación directamente a través de la URL única, `<blockId.url>`.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="hitl-resume.mp4" width={700} height={450} />
+</div>
+
 ## Bloques relacionados
 
-- **[Condición](/blocks/condition)** - Ramifica basado en decisiones de aprobación
-- **[Variables](/blocks/variables)** - Almacena historial de aprobaciones y metadatos
-- **[Respuesta](/blocks/response)** - Devuelve resultados del flujo de trabajo a los llamantes de API
+- **[Condición](/blocks/condition)** - Ramificación basada en decisiones de aprobación
+- **[Variables](/blocks/variables)** - Almacenar historial de aprobación y metadatos
+- **[Respuesta](/blocks/response)** - Devolver resultados del flujo de trabajo a los solicitantes de API
