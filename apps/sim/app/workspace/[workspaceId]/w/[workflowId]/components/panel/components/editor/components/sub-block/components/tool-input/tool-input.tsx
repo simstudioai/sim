@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -672,6 +672,29 @@ export function ToolInput({
     error: mcpError,
     refreshTools,
   } = useMcpTools(workspaceId)
+
+  const commandRef = useRef<HTMLDivElement>(null)
+
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Allow arrow keys and Enter to be handled by ToolCommand
+    if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
+      // Dispatch the keyboard event to the ToolCommand component
+      commandRef.current?.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: e.key,
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    }
+  }, [])
+
+  // Reset search query when popover opens
+  useEffect(() => {
+    if (open) {
+      setSearchQuery('')
+    }
+  }, [open])
 
   const modelValue = useSubBlockStore.getState().getValue(blockId, 'model')
   const model = typeof modelValue === 'string' ? modelValue : ''
@@ -1532,9 +1555,13 @@ export function ToolInput({
             align='start'
             sideOffset={6}
           >
-            <PopoverSearch placeholder='Search tools...' onValueChange={setSearchQuery} />
+            <PopoverSearch
+              placeholder='Search tools...'
+              onValueChange={setSearchQuery}
+              onKeyDown={handleSearchKeyDown}
+            />
             <PopoverScrollArea>
-              <ToolCommand.Root filter={customFilter} searchQuery={searchQuery}>
+              <ToolCommand.Root ref={commandRef} filter={customFilter} searchQuery={searchQuery}>
                 <ToolCommand.List>
                   <ToolCommand.Empty>No tools found</ToolCommand.Empty>
 
@@ -2072,9 +2099,13 @@ export function ToolInput({
               align='start'
               sideOffset={6}
             >
-              <PopoverSearch placeholder='Search tools...' onValueChange={setSearchQuery} />
+              <PopoverSearch
+                placeholder='Search tools...'
+                onValueChange={setSearchQuery}
+                onKeyDown={handleSearchKeyDown}
+              />
               <PopoverScrollArea>
-                <ToolCommand.Root filter={customFilter} searchQuery={searchQuery}>
+                <ToolCommand.Root ref={commandRef} filter={customFilter} searchQuery={searchQuery}>
                   <ToolCommand.List>
                     <ToolCommand.Empty>No tools found</ToolCommand.Empty>
 
