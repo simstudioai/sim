@@ -7,7 +7,6 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from '@/stores/terminal/console/types'
-import { DEFAULT_TERMINAL_HEIGHT, MIN_TERMINAL_HEIGHT, useTerminalStore } from '../store'
 
 const logger = createLogger('TerminalConsoleStore')
 
@@ -128,16 +127,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
                 })
               }
             }
-          }
-
-          // Auto-expand terminal when new entries are appended and it is minimized
-          try {
-            const { openOnRun, terminalHeight, setTerminalHeight } = useTerminalStore.getState()
-            if (openOnRun && terminalHeight <= MIN_TERMINAL_HEIGHT) {
-              setTerminalHeight(DEFAULT_TERMINAL_HEIGHT)
-            }
-          } catch (error) {
-            logger.error('Failed to auto-expand terminal on new console entry', { error })
           }
 
           return newEntry

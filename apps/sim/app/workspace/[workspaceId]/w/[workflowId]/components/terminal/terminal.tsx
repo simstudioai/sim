@@ -35,11 +35,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks'
 import { getBlock } from '@/blocks'
 import type { ConsoleEntry } from '@/stores/terminal'
-import {
-  DEFAULT_TERMINAL_HEIGHT,
-  useTerminalConsoleStore,
-  useTerminalStore,
-} from '@/stores/terminal'
+import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
@@ -254,9 +250,11 @@ const isEventFromEditableElement = (e: KeyboardEvent): boolean => {
 export function Terminal() {
   const terminalRef = useRef<HTMLElement>(null)
   const prevEntriesLengthRef = useRef(0)
+  const prevWorkflowEntriesLengthRef = useRef(0)
   const {
     terminalHeight,
     setTerminalHeight,
+    lastExpandedHeight,
     outputPanelWidth,
     setOutputPanelWidth,
     openOnRun,
@@ -300,6 +298,22 @@ export function Terminal() {
   } = useTerminalFilters()
 
   const isExpanded = terminalHeight > NEAR_MIN_THRESHOLD
+
+  /**
+   * Expands the terminal to its last meaningful height, with safeguards:
+   * - Never expands below {@link DEFAULT_EXPANDED_HEIGHT}.
+   * - Never exceeds 70% of the viewport height.
+   */
+  const expandToLastHeight = useCallback(() => {
+    setIsToggling(true)
+    const maxHeight = window.innerHeight * 0.7
+    const desiredHeight = Math.max(
+      lastExpandedHeight || DEFAULT_EXPANDED_HEIGHT,
+      DEFAULT_EXPANDED_HEIGHT
+    )
+    const targetHeight = Math.min(desiredHeight, maxHeight)
+    setTerminalHeight(targetHeight)
+  }, [lastExpandedHeight, setTerminalHeight])
 
   /**
    * Get all entries for current workflow (before filtering) for filter options
@@ -405,6 +419,28 @@ export function Terminal() {
   }, [selectedEntry, showInput])
 
   /**
+   * Auto-open the terminal on new entries when "Open on run" is enabled.
+   * This mirrors the header toggle behavior by using expandToLastHeight,
+   * ensuring we always get the same smooth height transition.
+   */
+  useEffect(() => {
+    if (!openOnRun) {
+      prevWorkflowEntriesLengthRef.current = allWorkflowEntries.length
+      return
+    }
+
+    const previousLength = prevWorkflowEntriesLengthRef.current
+    const currentLength = allWorkflowEntries.length
+
+    // Only react when new entries are added for the active workflow
+    if (currentLength > previousLength && terminalHeight <= MIN_HEIGHT) {
+      expandToLastHeight()
+    }
+
+    prevWorkflowEntriesLengthRef.current = currentLength
+  }, [allWorkflowEntries.length, expandToLastHeight, openOnRun, terminalHeight])
+
+  /**
    * Handle row click - toggle if clicking same entry
    * Disables auto-selection when user manually selects, re-enables when deselecting
    */
@@ -421,14 +457,13 @@ export function Terminal() {
    * Handle header click - toggle between expanded and collapsed
    */
   const handleHeaderClick = useCallback(() => {
-    setIsToggling(true)
-
     if (isExpanded) {
+      setIsToggling(true)
       setTerminalHeight(MIN_HEIGHT)
     } else {
-      setTerminalHeight(DEFAULT_TERMINAL_HEIGHT)
+      expandToLastHeight()
     }
-  }, [isExpanded, setTerminalHeight])
+  }, [expandToLastHeight, isExpanded, setTerminalHeight])
 
   /**
    * Handle transition end - reset toggling state
@@ -628,10 +663,7 @@ export function Terminal() {
       e.preventDefault()
 
       if (!isExpanded) {
-        setIsToggling(true)
-        const maxHeight = window.innerHeight * 0.7
-        const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
-        setTerminalHeight(targetHeight)
+        expandToLastHeight()
       }
 
       if (e.key === 'ArrowLeft') {
@@ -647,7 +679,7 @@ export function Terminal() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEntry, showInput, hasInputData, isExpanded])
+  }, [expandToLastHeight, selectedEntry, showInput, hasInputData, isExpanded])
 
   /**
    * Handle Escape to unselect and Enter to re-enable auto-selection
@@ -1188,10 +1220,7 @@ export function Terminal() {
                     onClick={(e) => {
                       e.stopPropagation()
                       if (!isExpanded) {
-                        setIsToggling(true)
-                        const maxHeight = window.innerHeight * 0.7
-                        const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
-                        setTerminalHeight(targetHeight)
+                        expandToLastHeight()
                       }
                       if (showInput) setShowInput(false)
                     }}
@@ -1209,10 +1238,7 @@ export function Terminal() {
                       onClick={(e) => {
                         e.stopPropagation()
                         if (!isExpanded) {
-                          setIsToggling(true)
-                          const maxHeight = window.innerHeight * 0.7
-                          const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
-                          setTerminalHeight(targetHeight)
+                          expandToLastHeight()
                         }
                         setShowInput(true)
                       }}
