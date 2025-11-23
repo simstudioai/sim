@@ -11,9 +11,9 @@ export const PermissionsTableSkeleton = React.memo(() => (
       </div>
       <div className='flex flex-shrink-0 items-center'>
         <div className='inline-flex gap-[2px]'>
-          <Skeleton className='h-[28px] w-[52px] rounded-[4px]' />
-          <Skeleton className='h-[28px] w-[52px] rounded-[4px]' />
-          <Skeleton className='h-[28px] w-[52px] rounded-[4px]' />
+          <Skeleton className='h-[26px] w-[44px] rounded-[4px]' />
+          <Skeleton className='h-[26px] w-[44px] rounded-[4px]' />
+          <Skeleton className='h-[26px] w-[44px] rounded-[4px]' />
         </div>
       </div>
     </div>
