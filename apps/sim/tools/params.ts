@@ -11,7 +11,8 @@ export interface Option {
 
 export interface ComponentCondition {
   field: string
-  value: string
+  value: string | number | boolean | Array<string | number | boolean>
+  not?: boolean
 }
 
 export interface UIComponentConfig {
@@ -35,6 +36,7 @@ export interface UIComponentConfig {
   generationType?: string
   acceptedTypes?: string[]
   multiple?: boolean
+  multiSelect?: boolean
   maxSize?: number
   dependsOn?: string[]
 }
@@ -108,6 +110,13 @@ export interface ToolWithParameters {
 
 let blockConfigCache: Record<string, BlockConfig> | null = null
 
+// Cache for workflow input fields to avoid repeated API calls
+const workflowInputFieldsCache = new Map<
+  string,
+  { fields: Array<{ name: string; type: string }>; timestamp: number }
+>()
+const WORKFLOW_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
 function getBlockConfigurations(): Record<string, BlockConfig> {
   if (!blockConfigCache) {
     try {
@@ -144,6 +153,151 @@ export function getToolParametersConfig(
     if (!toolConfig.params || typeof toolConfig.params !== 'object') {
       logger.warn(`Tool ${toolId} has invalid params configuration`)
       return null
+    }
+
+    // Special handling for workflow_executor tool
+    if (toolId === 'workflow_executor') {
+      const parameters: ToolParameterConfig[] = [
+        {
+          id: 'workflowId',
+          type: 'string',
+          required: true,
+          visibility: 'user-or-llm',
+          description: 'The ID of the workflow to execute',
+          uiComponent: {
+            type: 'workflow-selector',
+            placeholder: 'Select workflow to execute',
+          },
+        },
+        {
+          id: 'inputMapping',
+          type: 'object',
+          required: false,
+          visibility: 'user-or-llm',
+          description: 'Map inputs to the selected workflow',
+          uiComponent: {
+            type: 'workflow-input-mapper',
+            title: 'Workflow Inputs',
+            condition: {
+              field: 'workflowId',
+              value: '',
+              not: true, // Show when workflowId is not empty
+            },
+          },
+        },
+      ]
+
+      return {
+        toolConfig,
+        allParameters: parameters,
+        userInputParameters: parameters.filter(
+          (param) => param.visibility === 'user-or-llm' || param.visibility === 'user-only'
+        ),
+        requiredParameters: parameters.filter((param) => param.required),
+        optionalParameters: parameters.filter(
+          (param) => param.visibility === 'user-only' && !param.required
+        ),
+      }
+    }
+
+    // Special handling for knowledge base tools
+    if (toolId.startsWith('knowledge_')) {
+      const params = Object.entries(toolConfig.params).map(([paramId, param]) => {
+        const toolParam: ToolParameterConfig = {
+          id: paramId,
+          type: param.type,
+          required: param.required ?? false,
+          visibility: param.visibility ?? (param.required ? 'user-or-llm' : 'user-only'),
+          description: param.description,
+          default: param.default,
+        }
+
+        // Use knowledge-base-selector for knowledgeBaseId parameter
+        if (paramId === 'knowledgeBaseId') {
+          toolParam.uiComponent = {
+            type: 'knowledge-base-selector',
+            placeholder: 'Select knowledge base',
+          }
+        } else if (paramId === 'tagFilters') {
+          toolParam.uiComponent = {
+            type: 'knowledge-tag-filters',
+            placeholder: 'Add tag filters',
+          }
+        } else if (paramId === 'query') {
+          toolParam.uiComponent = {
+            type: 'long-input',
+            placeholder: 'Enter search query',
+          }
+        } else if (paramId === 'topK') {
+          toolParam.uiComponent = {
+            type: 'short-input',
+            placeholder: 'Number of results (default: 10)',
+          }
+        }
+
+        return toolParam
+      })
+
+      return {
+        toolConfig,
+        allParameters: params,
+        userInputParameters: params.filter(
+          (param) => param.visibility === 'user-or-llm' || param.visibility === 'user-only'
+        ),
+        requiredParameters: params.filter((param) => param.required),
+        optionalParameters: params.filter(
+          (param) => param.visibility === 'user-only' && !param.required
+        ),
+      }
+    }
+
+    // Special handling for function_execute tool
+    if (toolId === 'function_execute') {
+      const params = Object.entries(toolConfig.params)
+        .filter(([, param]) => param.visibility !== 'hidden') // Skip hidden parameters
+        .map(([paramId, param]) => {
+          const toolParam: ToolParameterConfig = {
+            id: paramId,
+            type: param.type,
+            required: param.required ?? false,
+            visibility: param.visibility ?? (param.required ? 'user-or-llm' : 'user-only'),
+            description: param.description,
+            default: param.default,
+          }
+
+          // Map parameters to appropriate UI components
+          if (paramId === 'language') {
+            toolParam.uiComponent = {
+              type: 'dropdown',
+              options: [
+                { label: 'JavaScript', value: 'javascript' },
+                { label: 'Python', value: 'python' },
+              ],
+              placeholder: 'Select language',
+            }
+          } else if (paramId === 'code') {
+            toolParam.uiComponent = {
+              type: 'code',
+              language: 'javascript',
+              generationType: 'javascript-function-body',
+              placeholder: 'Enter your code here',
+            }
+          }
+
+          return toolParam
+        })
+
+      return {
+        toolConfig,
+        allParameters: params,
+        userInputParameters: params.filter(
+          (param) => param.visibility === 'user-or-llm' || param.visibility === 'user-only'
+        ),
+        requiredParameters: params.filter((param) => param.required),
+        optionalParameters: params.filter(
+          (param) => param.visibility === 'user-only' && !param.required
+        ),
+      }
     }
 
     // Get block configuration for UI component information
@@ -276,10 +430,10 @@ export function getToolParametersConfig(
 /**
  * Creates a tool schema for LLM with user-provided parameters excluded
  */
-export function createLLMToolSchema(
+export async function createLLMToolSchema(
   toolConfig: ToolConfig,
   userProvidedParams: Record<string, unknown>
-): ToolSchema {
+): Promise<ToolSchema> {
   const schema: ToolSchema = {
     type: 'object',
     properties: {},
@@ -287,7 +441,7 @@ export function createLLMToolSchema(
   }
 
   // Only include parameters that the LLM should/can provide
-  Object.entries(toolConfig.params).forEach(([paramId, param]) => {
+  for (const [paramId, param] of Object.entries(toolConfig.params)) {
     const isUserProvided =
       userProvidedParams[paramId] !== undefined &&
       userProvidedParams[paramId] !== null &&
@@ -295,17 +449,17 @@ export function createLLMToolSchema(
 
     // Skip parameters that user has already provided
     if (isUserProvided) {
-      return
+      continue
     }
 
     // Skip parameters that are user-only (never shown to LLM)
     if (param.visibility === 'user-only') {
-      return
+      continue
     }
 
     // Skip hidden parameters
     if (param.visibility === 'hidden') {
-      return
+      continue
     }
 
     // Add parameter to LLM schema
@@ -314,18 +468,124 @@ export function createLLMToolSchema(
       schemaType = 'object'
     }
 
-    schema.properties[paramId] = {
+    const propertySchema: any = {
       type: schemaType,
       description: param.description || '',
     }
+
+    // Special handling for workflow_executor's inputMapping parameter
+    if (toolConfig.id === 'workflow_executor' && paramId === 'inputMapping') {
+      const workflowId = userProvidedParams.workflowId as string
+      if (workflowId) {
+        await applyDynamicSchemaForWorkflow(propertySchema, workflowId)
+      }
+    }
+
+    schema.properties[paramId] = propertySchema
 
     // Add to required if LLM must provide it and it's originally required
     if ((param.visibility === 'user-or-llm' || param.visibility === 'llm-only') && param.required) {
       schema.required.push(paramId)
     }
-  })
+  }
 
   return schema
+}
+
+/**
+ * Apply dynamic schema enrichment for workflow_executor's inputMapping parameter
+ */
+async function applyDynamicSchemaForWorkflow(
+  propertySchema: any,
+  workflowId: string
+): Promise<void> {
+  try {
+    const workflowInputFields = await fetchWorkflowInputFields(workflowId)
+
+    if (workflowInputFields && workflowInputFields.length > 0) {
+      propertySchema.type = 'object'
+      propertySchema.properties = {}
+      propertySchema.required = []
+
+      // Convert workflow input fields to JSON schema properties
+      for (const field of workflowInputFields) {
+        propertySchema.properties[field.name] = {
+          type: field.type || 'string',
+          description: `Input field: ${field.name}`,
+        }
+        propertySchema.required.push(field.name)
+      }
+
+      // Update description to be more specific
+      propertySchema.description = `Input values for the workflow. Required fields: ${workflowInputFields.map((f) => f.name).join(', ')}`
+    }
+  } catch (error) {
+    logger.error('Failed to fetch workflow input fields for LLM schema:', error)
+  }
+}
+
+/**
+ * Helper function to fetch workflow input fields with caching
+ */
+async function fetchWorkflowInputFields(
+  workflowId: string
+): Promise<Array<{ name: string; type: string }>> {
+  // Check cache first
+  const cached = workflowInputFieldsCache.get(workflowId)
+  const now = Date.now()
+
+  if (cached && now - cached.timestamp < WORKFLOW_CACHE_TTL) {
+    return cached.fields
+  }
+
+  try {
+    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+
+    const headers = await buildAuthHeaders()
+    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
+
+    const response = await fetch(url.toString(), { headers })
+    if (!response.ok) {
+      throw new Error('Failed to fetch workflow')
+    }
+
+    const { data } = await response.json()
+    if (!data?.state?.blocks) {
+      return []
+    }
+
+    const blocks = data.state.blocks as Record<string, any>
+    const triggerEntry = Object.entries(blocks).find(
+      ([, block]) =>
+        block.type === 'start_trigger' || block.type === 'input_trigger' || block.type === 'starter'
+    )
+
+    if (!triggerEntry) {
+      return []
+    }
+
+    const triggerBlock = triggerEntry[1]
+    const inputFormat = triggerBlock.subBlocks?.inputFormat?.value
+
+    let fields: Array<{ name: string; type: string }> = []
+
+    if (Array.isArray(inputFormat)) {
+      fields = inputFormat
+        .filter((field: any) => field.name && typeof field.name === 'string')
+        .map((field: any) => ({
+          name: field.name,
+          type: field.type || 'string',
+        }))
+    }
+
+    // Cache the result
+    workflowInputFieldsCache.set(workflowId, { fields, timestamp: now })
+
+    return fields
+  } catch (error) {
+    logger.error('Error fetching workflow input fields:', error)
+    return []
+  }
 }
 
 /**

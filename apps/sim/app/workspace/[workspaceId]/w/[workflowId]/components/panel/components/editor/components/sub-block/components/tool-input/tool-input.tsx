@@ -1,6 +1,7 @@
 import type React from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Loader2, PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Popover,
@@ -41,6 +42,7 @@ import {
   Table,
   TimeInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
+import { KnowledgeBaseSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/knowledge-base-selector/knowledge-base-selector'
 import {
   type CustomTool,
   CustomToolModal,
@@ -51,6 +53,7 @@ import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflo
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { getAllBlocks } from '@/blocks'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
+import { useWorkflows } from '@/hooks/queries/workflows'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -311,38 +314,6 @@ function CheckboxListSyncWrapper({
   )
 }
 
-function CodeSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-}) {
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <Code
-        blockId={blockId}
-        subBlockId={paramId}
-        language={uiComponent.language}
-        generationType={uiComponent.generationType}
-        disabled={disabled}
-        wandConfig={{
-          enabled: false,
-          prompt: '',
-        }}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
 function ComboboxSyncWrapper({
   blockId,
   paramId,
@@ -448,6 +419,222 @@ function ChannelSelectorSyncWrapper({
   )
 }
 
+function WorkflowSelectorSyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  uiComponent,
+  disabled,
+  workspaceId,
+  currentWorkflowId,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  uiComponent: any
+  disabled: boolean
+  workspaceId: string
+  currentWorkflowId?: string
+}) {
+  const { data: workflows = [], isLoading } = useWorkflows(workspaceId, { syncRegistry: false })
+
+  const availableWorkflows = workflows.filter(
+    (w) => !currentWorkflowId || w.id !== currentWorkflowId
+  )
+
+  const options = availableWorkflows.map((workflow) => ({
+    label: workflow.name,
+    id: workflow.id,
+  }))
+
+  return (
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <ComboBox
+        blockId={blockId}
+        subBlockId={paramId}
+        options={options}
+        value={value}
+        placeholder={uiComponent.placeholder || 'Select workflow'}
+        disabled={disabled || isLoading}
+        config={{
+          id: paramId,
+          type: 'combobox',
+          options: options,
+          placeholder: uiComponent.placeholder || 'Select workflow',
+        }}
+      />
+    </GenericSyncWrapper>
+  )
+}
+
+function WorkflowInputMapperSyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  disabled,
+  workflowId,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  disabled: boolean
+  workflowId: string
+}) {
+  const { data: workflowData, isLoading } = useQuery({
+    queryKey: ['workflow-input-fields', workflowId],
+    queryFn: async () => {
+      const response = await fetch(`/api/workflows/${workflowId}`)
+      if (!response.ok) throw new Error('Failed to fetch workflow')
+      const { data } = await response.json()
+      return data
+    },
+    enabled: Boolean(workflowId),
+    staleTime: 60 * 1000,
+  })
+
+  const inputFields = useMemo(() => {
+    if (!workflowData?.state?.blocks) return []
+
+    const blocks = workflowData.state.blocks as Record<string, any>
+
+    const triggerEntry = Object.entries(blocks).find(
+      ([, block]) =>
+        block.type === 'start_trigger' || block.type === 'input_trigger' || block.type === 'starter'
+    )
+
+    if (!triggerEntry) return []
+
+    const triggerBlock = triggerEntry[1]
+
+    const inputFormat = triggerBlock.subBlocks?.inputFormat?.value
+
+    if (Array.isArray(inputFormat)) {
+      return inputFormat
+        .filter((field: any) => field.name && typeof field.name === 'string')
+        .map((field: any) => ({
+          name: field.name,
+          type: field.type || 'string',
+        }))
+    }
+
+    const legacyFormat = triggerBlock.config?.params?.inputFormat
+
+    if (Array.isArray(legacyFormat)) {
+      return legacyFormat
+        .filter((field: any) => field.name && typeof field.name === 'string')
+        .map((field: any) => ({
+          name: field.name,
+          type: field.type || 'string',
+        }))
+    }
+
+    return []
+  }, [workflowData])
+
+  const parsedValue = useMemo(() => {
+    try {
+      return value ? JSON.parse(value) : {}
+    } catch {
+      return {}
+    }
+  }, [value])
+
+  const handleFieldChange = useCallback(
+    (fieldName: string, fieldValue: any) => {
+      const newValue = { ...parsedValue, [fieldName]: fieldValue }
+      onChange(JSON.stringify(newValue))
+    },
+    [parsedValue, onChange]
+  )
+
+  if (!workflowId) {
+    return (
+      <div className='rounded-md border border-gray-600/50 border-dashed bg-gray-900/20 p-4 text-center text-gray-400 text-sm'>
+        Select a workflow to configure its inputs
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className='flex items-center justify-center rounded-md border border-gray-600/50 bg-gray-900/20 p-8'>
+        <Loader2 className='h-5 w-5 animate-spin text-gray-400' />
+      </div>
+    )
+  }
+
+  if (inputFields.length === 0) {
+    return (
+      <div className='rounded-md border border-gray-600/50 border-dashed bg-gray-900/20 p-4 text-center text-gray-400 text-sm'>
+        This workflow has no custom input fields
+      </div>
+    )
+  }
+
+  return (
+    <div className='space-y-3'>
+      {inputFields.map((field: any) => (
+        <ShortInput
+          key={field.name}
+          blockId={blockId}
+          subBlockId={`${paramId}-${field.name}`}
+          placeholder={`Enter ${field.name}${field.type !== 'string' ? ` (${field.type})` : ''}`}
+          value={String(parsedValue[field.name] ?? '')}
+          onChange={(newValue: string) => handleFieldChange(field.name, newValue)}
+          disabled={disabled}
+          config={{
+            id: `${paramId}-${field.name}`,
+            type: 'short-input',
+            title: field.name,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function CodeEditorSyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  disabled,
+  uiComponent,
+  currentToolParams,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  disabled: boolean
+  uiComponent: any
+  currentToolParams?: Record<string, any>
+}) {
+  const language = (currentToolParams?.language as 'javascript' | 'python') || 'javascript'
+
+  return (
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <Code
+        blockId={blockId}
+        subBlockId={paramId}
+        placeholder={uiComponent.placeholder || 'Write JavaScript...'}
+        language={language}
+        generationType={uiComponent.generationType || 'javascript-function-body'}
+        value={value}
+        disabled={disabled}
+        wandConfig={{
+          enabled: false,
+          prompt: '',
+        }}
+      />
+    </GenericSyncWrapper>
+  )
+}
+
 /**
  * Tool input component for selecting and configuring LLM tools in workflows
  *
@@ -469,6 +656,7 @@ export function ToolInput({
 }: ToolInputProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const workflowId = params.workflowId as string
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
@@ -477,9 +665,7 @@ export function ToolInput({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const { data: customTools = [] } = useCustomTools(workspaceId)
-  const subBlockStore = useSubBlockStore()
 
-  // MCP tools integration
   const {
     mcpTools,
     isLoading: mcpLoading,
@@ -487,36 +673,35 @@ export function ToolInput({
     refreshTools,
   } = useMcpTools(workspaceId)
 
-  // Get the current model from the 'model' subblock
   const modelValue = useSubBlockStore.getState().getValue(blockId, 'model')
   const model = typeof modelValue === 'string' ? modelValue : ''
   const provider = model ? getProviderFromModel(model) : ''
   const supportsToolControl = provider ? supportsToolUsageControl(provider) : false
 
   const toolBlocks = getAllBlocks().filter(
-    (block) => block.category === 'tools' && block.type !== 'evaluator'
+    (block) =>
+      (block.category === 'tools' ||
+        block.type === 'workflow' ||
+        block.type === 'knowledge' ||
+        block.type === 'function') &&
+      block.type !== 'evaluator' &&
+      block.type !== 'mcp'
   )
 
-  // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
-  // Custom filter function for the Command component
   const customFilter = useCallback((value: string, search: string) => {
     if (!search.trim()) return 1
 
     const normalizedValue = value.toLowerCase()
     const normalizedSearch = search.toLowerCase()
 
-    // Exact match gets highest priority
     if (normalizedValue === normalizedSearch) return 1
 
-    // Starts with search term gets high priority
     if (normalizedValue.startsWith(normalizedSearch)) return 0.8
 
-    // Contains search term gets medium priority
     if (normalizedValue.includes(normalizedSearch)) return 0.6
 
-    // No match
     return 0
   }, [])
 
@@ -644,17 +829,13 @@ export function ToolInput({
       const toolId = getToolIdForOperation(toolBlock.type, defaultOperation)
       if (!toolId) return
 
-      // Check if tool is already selected
       if (isToolAlreadySelected(toolId, toolBlock.type)) return
 
-      // Get tool parameters using the new utility with block type for UI components
       const toolParams = getToolParametersConfig(toolId, toolBlock.type)
       if (!toolParams) return
 
-      // Initialize parameters with auto-fill and default values
       const initialParams = initializeToolParams(toolId, toolParams.userInputParameters, blockId)
 
-      // Add default values from UI component configurations
       toolParams.userInputParameters.forEach((param) => {
         if (param.uiComponent?.value && !initialParams[param.id]) {
           const defaultValue =
@@ -675,7 +856,6 @@ export function ToolInput({
         usageControl: 'auto',
       }
 
-      // Add tool to selection
       setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
 
       setOpen(false)
@@ -711,7 +891,6 @@ export function ToolInput({
         usageControl: 'auto',
       }
 
-      // Add tool to selection
       setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
     },
     [isPreview, disabled, selectedTools, setStoreValue]
@@ -733,7 +912,6 @@ export function ToolInput({
       if (isPreview || disabled) return
 
       if (editingToolIndex !== null) {
-        // Update existing tool
         setStoreValue(
           selectedTools.map((tool, index) =>
             index === editingToolIndex
@@ -748,7 +926,6 @@ export function ToolInput({
         )
         setEditingToolIndex(null)
       } else {
-        // Add new tool
         handleAddCustomTool(customTool)
       }
     },
@@ -765,9 +942,7 @@ export function ToolInput({
 
   const handleDeleteTool = useCallback(
     (toolId: string) => {
-      // Find any instances of this tool in the current workflow and remove them
       const updatedTools = selectedTools.filter((tool) => {
-        // For custom tools, check if it matches the deleted tool
         if (
           tool.type === 'custom-tool' &&
           tool.schema?.function?.name &&
@@ -782,7 +957,6 @@ export function ToolInput({
         return true
       })
 
-      // Update the workflow value if any tools were removed
       if (updatedTools.length !== selectedTools.length) {
         setStoreValue(updatedTools)
       }
@@ -794,7 +968,6 @@ export function ToolInput({
     (toolIndex: number, paramId: string, paramValue: string) => {
       if (isPreview || disabled) return
 
-      // Update the value in the workflow
       setStoreValue(
         selectedTools.map((tool, index) =>
           index === toolIndex
@@ -826,23 +999,18 @@ export function ToolInput({
         return
       }
 
-      // Get parameters for the new tool
       const toolParams = getToolParametersConfig(newToolId, tool.type)
 
       if (!toolParams) {
         return
       }
 
-      // Initialize parameters for the new operation
       const initialParams = initializeToolParams(newToolId, toolParams.userInputParameters, blockId)
 
-      // Preserve ALL existing parameters that also exist in the new tool configuration
-      // This mimics how regular blocks work - each field maintains its state independently
       const oldToolParams = getToolParametersConfig(tool.toolId, tool.type)
       const oldParamIds = new Set(oldToolParams?.userInputParameters.map((p) => p.id) || [])
       const newParamIds = new Set(toolParams.userInputParameters.map((p) => p.id))
 
-      // Preserve any parameter that exists in both configurations and has a value
       const preservedParams: Record<string, string> = {}
       Object.entries(tool.params).forEach(([paramId, value]) => {
         if (newParamIds.has(paramId) && value) {
@@ -850,10 +1018,8 @@ export function ToolInput({
         }
       })
 
-      // Clear fields when operation changes for Jira (special case)
       if (tool.type === 'jira') {
         const subBlockStore = useSubBlockStore.getState()
-        // Clear all fields that might be shared between operations
         subBlockStore.setValue(blockId, 'summary', '')
         subBlockStore.setValue(blockId, 'description', '')
         subBlockStore.setValue(blockId, 'issueKey', '')
@@ -903,7 +1069,6 @@ export function ToolInput({
     [isPreview, disabled, selectedTools, setStoreValue]
   )
 
-  // Local expansion overrides for preview/diff mode
   const [previewExpanded, setPreviewExpanded] = useState<Record<number, boolean>>({})
 
   const toggleToolExpansion = (toolIndex: number) => {
@@ -983,13 +1148,11 @@ export function ToolInput({
     return <Icon className={className} />
   }
 
-  // Check if tool has OAuth requirements
   const toolRequiresOAuth = (toolId: string): boolean => {
     const toolParams = getToolParametersConfig(toolId)
     return toolParams?.toolConfig?.oauth?.required || false
   }
 
-  // Get OAuth configuration for tool
   const getToolOAuthConfig = (toolId: string) => {
     const toolParams = getToolParametersConfig(toolId)
     return toolParams?.toolConfig?.oauth
@@ -1023,7 +1186,6 @@ export function ToolInput({
       result = !result
     }
 
-    // Handle 'and' conditions
     if (condition.and) {
       const andFieldValue = currentValues[condition.and.field]
       let andResult = false
@@ -1060,15 +1222,12 @@ export function ToolInput({
     toolIndex?: number,
     currentToolParams?: Record<string, string>
   ) => {
-    // Create unique subBlockId for tool parameters to avoid conflicts
-    // Use real blockId so tag dropdown and drag-drop work correctly
     const uniqueSubBlockId =
       toolIndex !== undefined
         ? `${subBlockId}-tool-${toolIndex}-${param.id}`
         : `${subBlockId}-${param.id}`
     const uiComponent = param.uiComponent
 
-    // If no UI component info, fall back to basic input
     if (!uiComponent) {
       return (
         <ShortInput
@@ -1087,7 +1246,6 @@ export function ToolInput({
       )
     }
 
-    // Render based on UI component type
     switch (uiComponent.type) {
       case 'dropdown':
         return (
@@ -1246,18 +1404,6 @@ export function ToolInput({
           />
         )
 
-      case 'code':
-        return (
-          <CodeSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-          />
-        )
-
       case 'checkbox-list':
         return (
           <CheckboxListSyncWrapper
@@ -1290,6 +1436,61 @@ export function ToolInput({
             value={value}
             onChange={onChange}
             uiComponent={uiComponent}
+            disabled={disabled}
+          />
+        )
+
+      case 'workflow-selector':
+        return (
+          <WorkflowSelectorSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            uiComponent={uiComponent}
+            disabled={disabled}
+            workspaceId={workspaceId}
+            currentWorkflowId={workflowId}
+          />
+        )
+
+      case 'workflow-input-mapper': {
+        const selectedWorkflowId = currentToolParams?.workflowId || ''
+        return (
+          <WorkflowInputMapperSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            workflowId={selectedWorkflowId}
+          />
+        )
+      }
+
+      case 'code':
+        return (
+          <CodeEditorSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            uiComponent={uiComponent}
+            currentToolParams={currentToolParams}
+          />
+        )
+
+      case 'knowledge-base-selector':
+        return (
+          <KnowledgeBaseSelector
+            blockId={blockId}
+            subBlock={{
+              id: uniqueSubBlockId,
+              type: 'knowledge-base-selector',
+              placeholder: uiComponent.placeholder || param.description,
+              multiSelect: uiComponent.multiSelect,
+            }}
             disabled={disabled}
           />
         )
@@ -1541,15 +1742,9 @@ export function ToolInput({
                   draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
                   dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
                     ? 'translate-y-1 transform border-t-2 border-t-muted-foreground/40'
-                    : '',
-                  selectedTools.length > 1 && !isPreview && !disabled
-                    ? 'cursor-grab active:cursor-grabbing'
                     : ''
                 )}
-                draggable={!isPreview && !disabled}
-                onDragStart={(e) => handleDragStart(e, toolIndex)}
                 onDragOver={(e) => handleDragOver(e, toolIndex)}
-                onDragEnd={handleDragEnd}
                 onDrop={(e) => handleDrop(e, toolIndex)}
               >
                 <div
@@ -1558,8 +1753,14 @@ export function ToolInput({
                     isExpandedForDisplay &&
                       !isCustomTool &&
                       'border-[var(--border-strong)] border-b',
-                    'cursor-pointer'
+                    'cursor-pointer',
+                    selectedTools.length > 1 && !isPreview && !disabled
+                      ? 'cursor-grab active:cursor-grabbing'
+                      : ''
                   )}
+                  draggable={selectedTools.length > 1 && !isPreview && !disabled}
+                  onDragStart={(e) => handleDragStart(e, toolIndex)}
+                  onDragEnd={handleDragEnd}
                   onClick={() => {
                     if (isCustomTool) {
                       handleEditCustomTool(toolIndex)
