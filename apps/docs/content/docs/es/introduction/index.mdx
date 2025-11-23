@@ -5,6 +5,7 @@ title: Introducción
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
 Sim es un constructor de flujos de trabajo visuales de código abierto para crear e implementar flujos de trabajo de agentes de IA. Diseña sistemas de automatización inteligentes utilizando una interfaz sin código—conecta modelos de IA, bases de datos, APIs y herramientas empresariales a través de un lienzo intuitivo de arrastrar y soltar. Ya sea que estés creando chatbots, automatizando procesos empresariales u orquestando complejos flujos de datos, Sim proporciona las herramientas para dar vida a tus flujos de trabajo de IA.
 
@@ -32,19 +33,27 @@ Transforma datos brutos en información procesable. Extrae información de docum
 **Flujos de trabajo de integración de API**  
 Orquesta interacciones complejas entre múltiples servicios. Crea puntos de conexión API unificados, implementa lógica empresarial sofisticada y construye sistemas de automatización basados en eventos.
 
-## Cómo Funciona
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/chat-workflow.mp4" width={700} height={450} />
+</div>
+
+## Cómo funciona
 
 **Editor visual de flujos de trabajo**  
 Diseña flujos de trabajo utilizando un lienzo intuitivo de arrastrar y soltar. Conecta modelos de IA, bases de datos, APIs y servicios de terceros a través de una interfaz visual sin código que hace que la lógica de automatización compleja sea fácil de entender y mantener.
 
-**Sistema modular de bloques**  
-Construye con componentes especializados: bloques de procesamiento (agentes de IA, llamadas API, funciones personalizadas), bloques lógicos (ramificación condicional, bucles, enrutadores) y bloques de salida (respuestas, evaluadores). Cada bloque maneja una tarea específica en tu flujo de trabajo.
+**Sistema de bloques modulares**  
+Construye con componentes especializados: bloques de procesamiento (agentes de IA, llamadas a API, funciones personalizadas), bloques lógicos (ramificación condicional, bucles, enrutadores) y bloques de salida (respuestas, evaluadores). Cada bloque maneja una tarea específica en tu flujo de trabajo.
 
 **Activadores de ejecución flexibles**  
 Inicia flujos de trabajo a través de múltiples canales, incluyendo interfaces de chat, APIs REST, webhooks, trabajos cron programados o eventos externos de plataformas como Slack y GitHub.
 
 **Colaboración en tiempo real**  
 Permite que tu equipo construya juntos. Múltiples usuarios pueden editar flujos de trabajo simultáneamente con actualizaciones en vivo y controles de permisos granulares.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/build-workflow.mp4" width={700} height={450} />
+</div>
 
 ## Integraciones
 
@@ -59,17 +68,38 @@ Sim proporciona integraciones nativas con más de 80 servicios en múltiples cat
 
 Para integraciones personalizadas, aprovecha nuestro [soporte MCP (Protocolo de Contexto de Modelo)](/mcp) para conectar cualquier servicio o herramienta externa.
 
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/integrations-sidebar.mp4" width={700} height={450} />
+</div>
+
+## Copiloto potenciado por IA
+
+**Haz preguntas y recibe orientación**  
+Copiloto responde preguntas sobre Sim, explica tus flujos de trabajo y proporciona sugerencias para mejorarlos. Usa el símbolo `@` para hacer referencia a flujos de trabajo, bloques, documentación, conocimiento y registros para obtener asistencia contextual.
+
+**Construye y edita flujos de trabajo**  
+Cambia al modo Agente para permitir que Copiloto proponga y aplique cambios directamente en tu lienzo. Añade bloques, configura ajustes, conecta variables y reestructura flujos de trabajo con comandos en lenguaje natural.
+
+**Niveles de razonamiento adaptativo**  
+Elige entre los modos Rápido, Automático, Avanzado o Behemoth según la complejidad de la tarea. Comienza con Rápido para preguntas simples, y escala hasta Behemoth para cambios arquitectónicos complejos y depuración profunda.
+
+Aprende más sobre las [capacidades de Copiloto](/copilot) y cómo maximizar la productividad con asistencia de IA.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/copilot-workflow.mp4" width={700} height={450} />
+</div>
+
 ## Opciones de implementación
 
 **Alojado en la nube**  
-Inicia inmediatamente en [sim.ai](https://sim.ai) con infraestructura completamente gestionada, escalado automático y observabilidad integrada. Concéntrate en crear flujos de trabajo mientras nosotros nos encargamos de las operaciones.
+Comienza inmediatamente en [sim.ai](https://sim.ai) con infraestructura totalmente gestionada, escalado automático y observabilidad integrada. Concéntrate en construir flujos de trabajo mientras nosotros nos encargamos de las operaciones.
 
 **Autoalojado**  
 Implementa en tu propia infraestructura usando Docker Compose o Kubernetes. Mantén control completo sobre tus datos con soporte para modelos de IA locales a través de la integración con Ollama.
 
 ## Próximos pasos
 
-¿Listo para construir tu primer flujo de trabajo de IA?
+¿Listo para construir tu primer flujo de trabajo con IA?
 
 <Cards>
   <Card title="Primeros pasos" href="/getting-started">

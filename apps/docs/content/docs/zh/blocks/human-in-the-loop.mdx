@@ -5,6 +5,7 @@ title: 人工干预
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
 “人工干预”模块会暂停工作流的执行，等待人工干预后再继续。可用于添加审批关卡、收集反馈或在关键决策点获取额外输入。
 
@@ -76,7 +77,7 @@ import { Image } from '@/components/ui/image'
 }
 ```
 
-在下游模块中使用 `<blockId.resumeInput.fieldName>` 访问恢复数据。
+在下游模块中使用 `<blockId.resumeInput.fieldName>` 访问简历数据。
 
 ## 审批方法
 
@@ -174,8 +175,14 @@ Agent (Generate) → Human in the Loop (QA) → Gmail (Send)
 <approval1.resumeInput.approved> === true
 ```
 
+下面的示例展示了一个审批门户，显示了工作流暂停后审批者的视图。审批者可以审查数据并提供输入，作为工作流恢复的一部分。审批门户可以通过唯一的 URL `<blockId.url>` 直接访问。
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="hitl-resume.mp4" width={700} height={450} />
+</div>
+
 ## 相关模块
 
-- **[条件](/blocks/condition)** - 根据审批决策进行分支
-- **[变量](/blocks/variables)** - 存储审批历史和元数据
-- **[响应](/blocks/response)** - 将工作流结果返回给 API 调用方
+- **[Condition](/blocks/condition)** - 基于审批决策进行分支
+- **[Variables](/blocks/variables)** - 存储审批历史和元数据
+- **[Response](/blocks/response)** - 将工作流结果返回给 API 调用者
