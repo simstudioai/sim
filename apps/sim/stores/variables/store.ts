@@ -16,10 +16,10 @@ const logger = createLogger('VariablesModalStore')
 
 /**
  * Floating variables modal default dimensions.
- * Matches the chat modal baseline for visual consistency.
+ * Slightly larger than the chat modal for more comfortable editing.
  */
-const DEFAULT_WIDTH = 250
-const DEFAULT_HEIGHT = 286
+const DEFAULT_WIDTH = 320
+const DEFAULT_HEIGHT = 320
 
 /**
  * Minimum and maximum modal dimensions.

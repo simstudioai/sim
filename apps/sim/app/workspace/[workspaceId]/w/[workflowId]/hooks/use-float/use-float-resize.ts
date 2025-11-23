@@ -6,12 +6,20 @@ import {
   MIN_CHAT_WIDTH,
 } from '@/stores/chat/store'
 
-interface UseChatResizeProps {
+interface UseFloatResizeProps {
   position: { x: number; y: number }
   width: number
   height: number
   onPositionChange: (position: { x: number; y: number }) => void
   onDimensionsChange: (dimensions: { width: number; height: number }) => void
+  /**
+   * Optional dimension constraints.
+   * If omitted, chat defaults are used for backward compatibility.
+   */
+  minWidth?: number
+  minHeight?: number
+  maxWidth?: number
+  maxHeight?: number
 }
 
 /**
@@ -34,16 +42,20 @@ type ResizeDirection =
 const EDGE_THRESHOLD = 8
 
 /**
- * Hook for handling multi-directional resize functionality of floating chat modal
- * Supports resizing from all 8 directions: 4 corners and 4 edges
+ * Hook for handling multi-directional resize functionality of floating panels.
+ * Supports resizing from all 8 directions: 4 corners and 4 edges.
  */
-export function useChatResize({
+export function useFloatResize({
   position,
   width,
   height,
   onPositionChange,
   onDimensionsChange,
-}: UseChatResizeProps) {
+  minWidth,
+  minHeight,
+  maxWidth,
+  maxHeight,
+}: UseFloatResizeProps) {
   const [cursor, setCursor] = useState<string>('')
   const isResizingRef = useRef(false)
   const activeDirectionRef = useRef<ResizeDirection>(null)
@@ -285,9 +297,18 @@ export function useChatResize({
           break
       }
 
-      // Constrain dimensions to min/max
-      const constrainedWidth = Math.max(MIN_CHAT_WIDTH, Math.min(MAX_CHAT_WIDTH, newWidth))
-      const constrainedHeight = Math.max(MIN_CHAT_HEIGHT, Math.min(MAX_CHAT_HEIGHT, newHeight))
+      // Constrain dimensions to min/max. If explicit constraints are not provided,
+      // fall back to the chat defaults for backward compatibility.
+      const effectiveMinWidth = typeof minWidth === 'number' ? minWidth : MIN_CHAT_WIDTH
+      const effectiveMaxWidth = typeof maxWidth === 'number' ? maxWidth : MAX_CHAT_WIDTH
+      const effectiveMinHeight = typeof minHeight === 'number' ? minHeight : MIN_CHAT_HEIGHT
+      const effectiveMaxHeight = typeof maxHeight === 'number' ? maxHeight : MAX_CHAT_HEIGHT
+
+      const constrainedWidth = Math.max(effectiveMinWidth, Math.min(effectiveMaxWidth, newWidth))
+      const constrainedHeight = Math.max(
+        effectiveMinHeight,
+        Math.min(effectiveMaxHeight, newHeight)
+      )
 
       // Adjust position if dimensions were constrained on left/top edges
       if (direction === 'top-left' || direction === 'bottom-left' || direction === 'left') {
