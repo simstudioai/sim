@@ -148,7 +148,7 @@ const ModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] left-[50%] z-50 flex max-h-[80vh] min-w-[30vw] translate-x-[-50%] translate-y-[-50%] flex-col rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
+          'fixed top-[50%] left-[50%] z-50 flex max-h-[80vh] w-[30vw] min-w-[400px] translate-x-[-50%] translate-y-[-50%] flex-col rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
           className
         )}
         style={style}
@@ -301,7 +301,7 @@ const ModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivE
     <div
       ref={ref}
       className={cn(
-        'flex-1 overflow-y-auto rounded-t-[8px] border-t bg-[#232323] px-[14px] pt-[10px] pb-[20px]',
+        'flex-1 overflow-y-auto rounded-t-[8px] border-t bg-[#232323] px-[14px] py-[10px]',
         className
       )}
       {...props}
