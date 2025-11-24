@@ -894,11 +894,10 @@ export function ToolInput({
   )
 
   const handleAddCustomTool = useCallback(
-    (customTool: CustomTool | any) => {
+    (customTool: CustomTool) => {
       if (isPreview || disabled) return
 
-      // Use database ID with underscore prefix for unique identification across workspaces
-      const customToolId = `custom_${customTool.id}`
+      const customToolId = `custom-${customTool.schema?.function?.name || 'unknown'}`
 
       const newTool: StoredTool = {
         type: 'custom-tool',
@@ -1611,8 +1610,7 @@ export function ToolInput({
                                 const newTool: StoredTool = {
                                   type: 'custom-tool',
                                   title: customTool.title,
-                                  // Use database ID with underscore prefix for unique identification across workspaces
-                                  toolId: `custom_${customTool.id}`,
+                                  toolId: `custom-${customTool.schema?.function?.name || 'unknown'}`,
                                   params: {},
                                   isExpanded: true,
                                   schema: customTool.schema,
@@ -2148,8 +2146,7 @@ export function ToolInput({
                                   const newTool: StoredTool = {
                                     type: 'custom-tool',
                                     title: customTool.title,
-                                    // Use database ID with underscore prefix for unique identification across workspaces
-                                    toolId: `custom_${customTool.id}`,
+                                    toolId: `custom-${customTool.schema?.function?.name || 'unknown'}`,
                                     params: {},
                                     isExpanded: true,
                                     schema: customTool.schema,
