@@ -178,7 +178,7 @@ export const PermissionsTable = ({
                       {user.email}
                     </span>
                     {isPendingInvitation && (
-                      <Badge variant='default' className='gap-[4px]'>
+                      <Badge variant='default' className='gap-[4px] text-[12px]'>
                         {resendingInvitationIds &&
                         user.invitationId &&
                         resendingInvitationIds[user.invitationId] ? (
@@ -195,7 +195,11 @@ export const PermissionsTable = ({
                         )}
                       </Badge>
                     )}
-                    {hasChanges && <Badge variant='default'>Modified</Badge>}
+                    {hasChanges && (
+                      <Badge variant='default' className='text-[12px]'>
+                        Modified
+                      </Badge>
+                    )}
 
                     {isPendingInvitation &&
                       currentUserIsAdmin &&

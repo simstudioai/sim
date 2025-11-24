@@ -672,7 +672,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         onOpenChange(newOpen)
       }}
     >
-      <ModalContent className='w-[600px]'>
+      <ModalContent className='w-[500px]'>
         <ModalHeader>Invite members to {workspaceName || 'Workspace'}</ModalHeader>
 
         <form ref={formRef} onSubmit={handleSubmit} className='flex min-h-0 flex-1 flex-col'>
@@ -786,10 +786,10 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               disabled={
                 !userPerms.canAdmin || isSubmitting || isSaving || !workspaceId || !hasNewInvites
               }
-              className='ml-auto h-[32px] gap-[8px] px-[12px] text-[13px]'
+              className='ml-auto'
             >
               {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
-              {!userPerms.canAdmin ? 'Admin Access Required' : 'Send Invite'}
+              {!userPerms.canAdmin ? 'Admin Access Required' : 'Invite'}
             </Button>
           </ModalFooter>
         </form>
