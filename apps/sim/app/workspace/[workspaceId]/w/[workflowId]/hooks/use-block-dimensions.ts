@@ -2,6 +2,9 @@ import { useEffect, useRef } from 'react'
 import { useUpdateNodeInternals } from 'reactflow'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
+// Re-export for backwards compatibility
+export { BLOCK_DIMENSIONS } from '@/lib/blocks/block-dimensions'
+
 interface BlockDimensions {
   width: number
   height: number
@@ -12,24 +15,6 @@ interface UseBlockDimensionsOptions {
   calculateDimensions: () => BlockDimensions
   dependencies: React.DependencyList
 }
-
-/**
- * Shared block dimension constants
- */
-export const BLOCK_DIMENSIONS = {
-  FIXED_WIDTH: 250,
-  HEADER_HEIGHT: 40,
-  MIN_HEIGHT: 100,
-
-  // Workflow blocks
-  WORKFLOW_CONTENT_PADDING: 16,
-  WORKFLOW_ROW_HEIGHT: 29,
-
-  // Note blocks
-  NOTE_CONTENT_PADDING: 14,
-  NOTE_MIN_CONTENT_HEIGHT: 20,
-  NOTE_BASE_CONTENT_HEIGHT: 60,
-} as const
 
 /**
  * Hook to manage deterministic block dimensions without ResizeObserver.
