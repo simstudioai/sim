@@ -55,7 +55,7 @@ export interface ToolConfig<P = any, R = any> {
       items?: {
         type: string
         description?: string
-        properties?: Record<string, any>
+        properties?: Record<string, { type: string; description?: string }>
       }
     }
   >

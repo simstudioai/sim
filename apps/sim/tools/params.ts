@@ -374,7 +374,16 @@ export async function createLLMToolSchema(
 
     // Include items property for arrays
     if (param.type === 'array' && param.items) {
-      propertySchema.items = param.items
+      propertySchema.items = {
+        ...param.items,
+        ...(param.items.properties && {
+          properties: { ...param.items.properties },
+        }),
+      }
+    } else if (param.items) {
+      logger.warn(
+        `items property ignored for non-array param "${paramId}" in tool "${toolConfig.id}"`
+      )
     }
 
     // Special handling for workflow_executor's inputMapping parameter
@@ -510,7 +519,16 @@ export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
 
     // Include items property for arrays
     if (param.type === 'array' && param.items) {
-      propertySchema.items = param.items
+      propertySchema.items = {
+        ...param.items,
+        ...(param.items.properties && {
+          properties: { ...param.items.properties },
+        }),
+      }
+    } else if (param.items) {
+      logger.warn(
+        `items property ignored for non-array param "${paramId}" in tool "${toolConfig.id}"`
+      )
     }
 
     schema.properties[paramId] = propertySchema

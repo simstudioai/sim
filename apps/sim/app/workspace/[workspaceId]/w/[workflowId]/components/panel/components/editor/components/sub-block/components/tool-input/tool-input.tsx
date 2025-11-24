@@ -205,7 +205,7 @@ function KnowledgeBaseSelectorSyncWrapper({
           id: paramId,
           type: 'knowledge-base-selector',
           placeholder: uiComponent.placeholder || 'Select knowledge base',
-          multiSelect: uiComponent.multiSelect,
+          multiSelect: uiComponent.multiSelect ?? false,
         }}
         disabled={disabled}
       />
