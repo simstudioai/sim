@@ -1,9 +1,9 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { layoutContainers } from '@/lib/workflows/autolayout/containers'
+import { layoutBlocksCore } from '@/lib/workflows/autolayout/core'
+import type { Edge, LayoutOptions, LayoutResult } from '@/lib/workflows/autolayout/types'
+import { filterLayoutEligibleBlockIds, getBlocksByParent } from '@/lib/workflows/autolayout/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import { layoutContainers } from './containers'
-import { layoutBlocksCore } from './core'
-import type { Edge, LayoutOptions, LayoutResult } from './types'
-import { filterLayoutEligibleBlockIds, getBlocksByParent } from './utils'
 
 const logger = createLogger('AutoLayout')
 
@@ -67,14 +67,14 @@ export function applyAutoLayout(
   }
 }
 
-export type { TargetedLayoutOptions } from './targeted'
+export type { TargetedLayoutOptions } from '@/lib/workflows/autolayout/targeted'
 // Function exports
-export { applyTargetedLayout } from './targeted'
+export { applyTargetedLayout } from '@/lib/workflows/autolayout/targeted'
 // Type exports
-export type { Edge, LayoutOptions, LayoutResult } from './types'
+export type { Edge, LayoutOptions, LayoutResult } from '@/lib/workflows/autolayout/types'
 export {
   getBlockMetrics,
   isContainerType,
   shouldSkipAutoLayout,
   transferBlockHeights,
-} from './utils'
+} from '@/lib/workflows/autolayout/utils'

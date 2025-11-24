@@ -1,10 +1,14 @@
 import { CONTAINER_DIMENSIONS } from '@/lib/blocks/block-dimensions'
 import { createLogger } from '@/lib/logs/console/logger'
+import {
+  CONTAINER_PADDING_X,
+  CONTAINER_PADDING_Y,
+  DEFAULT_VERTICAL_SPACING,
+} from '@/lib/workflows/autolayout/constants'
+import { layoutBlocksCore } from '@/lib/workflows/autolayout/core'
+import type { Edge, LayoutOptions } from '@/lib/workflows/autolayout/types'
+import { filterLayoutEligibleBlockIds, getBlocksByParent } from '@/lib/workflows/autolayout/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import { CONTAINER_PADDING_X, CONTAINER_PADDING_Y, DEFAULT_VERTICAL_SPACING } from './constants'
-import { layoutBlocksCore } from './core'
-import type { Edge, LayoutOptions } from './types'
-import { filterLayoutEligibleBlockIds, getBlocksByParent } from './utils'
 
 const logger = createLogger('AutoLayout:Containers')
 

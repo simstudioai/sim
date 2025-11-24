@@ -1,6 +1,4 @@
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/blocks/block-dimensions'
-import type { BlockMetrics, BoundingBox, GraphNode } from '@/lib/workflows/autolayout/types'
-import type { BlockState } from '@/stores/workflows/workflow/types'
 import {
   AUTO_LAYOUT_EXCLUDED_TYPES,
   CONTAINER_BLOCK_TYPES,
@@ -9,7 +7,9 @@ import {
   CONTAINER_PADDING_Y,
   ROOT_PADDING_X,
   ROOT_PADDING_Y,
-} from './constants'
+} from '@/lib/workflows/autolayout/constants'
+import type { BlockMetrics, BoundingBox, GraphNode } from '@/lib/workflows/autolayout/types'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 // Re-export layout constants for backwards compatibility
 export {

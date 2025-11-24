@@ -1,19 +1,19 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { BlockState } from '@/stores/workflows/workflow/types'
 import {
   CONTAINER_LAYOUT_OPTIONS,
   DEFAULT_LAYOUT_OPTIONS,
   MAX_OVERLAP_ITERATIONS,
   OVERLAP_MARGIN,
-} from './constants'
-import type { Edge, GraphNode, LayoutOptions } from './types'
+} from '@/lib/workflows/autolayout/constants'
+import type { Edge, GraphNode, LayoutOptions } from '@/lib/workflows/autolayout/types'
 import {
   boxesOverlap,
   createBoundingBox,
   getBlockMetrics,
   normalizePositions,
   prepareBlockMetrics,
-} from './utils'
+} from '@/lib/workflows/autolayout/utils'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('AutoLayout:Core')
 
