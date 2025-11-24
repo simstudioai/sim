@@ -1,33 +1,30 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { layoutContainers } from './containers'
-import { adjustForNewBlock as adjustForNewBlockInternal, compactHorizontally } from './incremental'
-import { assignLayers, groupByLayer } from './layering'
-import { calculatePositions } from './positioning'
-import type { AdjustmentOptions, Edge, LayoutOptions, LayoutResult, Loop, Parallel } from './types'
-import { filterLayoutEligibleBlockIds, getBlocksByParent, prepareBlockMetrics } from './utils'
+import { layoutBlocksCore } from './core'
+import type { Edge, LayoutOptions, LayoutResult } from './types'
+import { filterLayoutEligibleBlockIds, getBlocksByParent } from './utils'
 
 const logger = createLogger('AutoLayout')
 
+/**
+ * Applies automatic layout to all blocks in a workflow.
+ * Positions blocks in layers based on their connections (edges).
+ */
 export function applyAutoLayout(
   blocks: Record<string, BlockState>,
   edges: Edge[],
-  loops: Record<string, Loop> = {},
-  parallels: Record<string, Parallel> = {},
   options: LayoutOptions = {}
 ): LayoutResult {
   try {
     logger.info('Starting auto layout', {
       blockCount: Object.keys(blocks).length,
       edgeCount: edges.length,
-      loopCount: Object.keys(loops).length,
-      parallelCount: Object.keys(parallels).length,
     })
 
     const blocksCopy: Record<string, BlockState> = JSON.parse(JSON.stringify(blocks))
 
     const { root: rootBlockIds } = getBlocksByParent(blocksCopy)
-
     const layoutRootIds = filterLayoutEligibleBlockIds(rootBlockIds, blocksCopy)
 
     const rootBlocks: Record<string, BlockState> = {}
@@ -40,10 +37,10 @@ export function applyAutoLayout(
     )
 
     if (Object.keys(rootBlocks).length > 0) {
-      const nodes = assignLayers(rootBlocks, rootEdges)
-      prepareBlockMetrics(nodes)
-      const layers = groupByLayer(nodes)
-      calculatePositions(layers, options)
+      const { nodes } = layoutBlocksCore(rootBlocks, rootEdges, {
+        isContainer: false,
+        layoutOptions: options,
+      })
 
       for (const node of nodes.values()) {
         blocksCopy[node.id].position = node.position
@@ -70,38 +67,14 @@ export function applyAutoLayout(
   }
 }
 
-export function adjustForNewBlock(
-  blocks: Record<string, BlockState>,
-  edges: Edge[],
-  newBlockId: string,
-  options: AdjustmentOptions = {}
-): LayoutResult {
-  try {
-    logger.info('Adjusting layout for new block', { newBlockId })
-
-    const blocksCopy: Record<string, BlockState> = JSON.parse(JSON.stringify(blocks))
-
-    adjustForNewBlockInternal(blocksCopy, edges, newBlockId, options)
-
-    if (!options.preservePositions) {
-      compactHorizontally(blocksCopy, edges)
-    }
-
-    return {
-      blocks: blocksCopy,
-      success: true,
-    }
-  } catch (error) {
-    logger.error('Failed to adjust layout for new block', { newBlockId, error })
-    return {
-      blocks,
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
-  }
-}
-
-export type { LayoutOptions, LayoutResult, AdjustmentOptions, Edge, Loop, Parallel }
 export type { TargetedLayoutOptions } from './targeted'
-export { applyTargetedLayout, transferBlockHeights } from './targeted'
-export { getBlockMetrics, isContainerType, shouldSkipAutoLayout } from './utils'
+// Function exports
+export { applyTargetedLayout } from './targeted'
+// Type exports
+export type { Edge, LayoutOptions, LayoutResult } from './types'
+export {
+  getBlockMetrics,
+  isContainerType,
+  shouldSkipAutoLayout,
+  transferBlockHeights,
+} from './utils'

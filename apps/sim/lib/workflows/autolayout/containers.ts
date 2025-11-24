@@ -1,31 +1,37 @@
+import { CONTAINER_DIMENSIONS } from '@/lib/blocks/block-dimensions'
 import { createLogger } from '@/lib/logs/console/logger'
-import { assignLayers, groupByLayer } from '@/lib/workflows/autolayout/layering'
-import { calculatePositions } from '@/lib/workflows/autolayout/positioning'
-import type { Edge, LayoutOptions } from '@/lib/workflows/autolayout/types'
-import {
-  CONTAINER_PADDING,
-  CONTAINER_PADDING_X,
-  CONTAINER_PADDING_Y,
-  DEFAULT_CONTAINER_HEIGHT,
-  DEFAULT_CONTAINER_WIDTH,
-  filterLayoutEligibleBlockIds,
-  getBlocksByParent,
-  prepareBlockMetrics,
-} from '@/lib/workflows/autolayout/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+import { CONTAINER_PADDING_X, CONTAINER_PADDING_Y, DEFAULT_VERTICAL_SPACING } from './constants'
+import { layoutBlocksCore } from './core'
+import type { Edge, LayoutOptions } from './types'
+import { filterLayoutEligibleBlockIds, getBlocksByParent } from './utils'
 
 const logger = createLogger('AutoLayout:Containers')
 
+/**
+ * Default horizontal spacing for containers (tighter than root level)
+ */
+const DEFAULT_CONTAINER_HORIZONTAL_SPACING = 400
+
+/**
+ * Lays out children within container blocks (loops and parallels).
+ * Updates both child positions and container dimensions.
+ */
 export function layoutContainers(
   blocks: Record<string, BlockState>,
   edges: Edge[],
   options: LayoutOptions = {}
 ): void {
-  const { root, children } = getBlocksByParent(blocks)
+  const { children } = getBlocksByParent(blocks)
 
+  // Build container-specific layout options
+  // If horizontalSpacing provided, reduce by 15% for tighter container layout
+  // Otherwise use the default container spacing (400)
   const containerOptions: LayoutOptions = {
-    horizontalSpacing: options.horizontalSpacing ? options.horizontalSpacing * 0.85 : 400,
-    verticalSpacing: options.verticalSpacing ? options.verticalSpacing : 200,
+    horizontalSpacing: options.horizontalSpacing
+      ? options.horizontalSpacing * 0.85
+      : DEFAULT_CONTAINER_HORIZONTAL_SPACING,
+    verticalSpacing: options.verticalSpacing ?? DEFAULT_VERTICAL_SPACING,
     padding: { x: CONTAINER_PADDING_X, y: CONTAINER_PADDING_Y },
     alignment: options.alignment,
   }
@@ -50,40 +56,23 @@ export function layoutContainers(
       continue
     }
 
-    const childNodes = assignLayers(childBlocks, childEdges)
-    prepareBlockMetrics(childNodes)
-    const childLayers = groupByLayer(childNodes)
-    calculatePositions(childLayers, containerOptions)
+    // Use the shared core layout function with container options
+    const { nodes, dimensions } = layoutBlocksCore(childBlocks, childEdges, {
+      isContainer: true,
+      layoutOptions: containerOptions,
+    })
 
-    let minX = Number.POSITIVE_INFINITY
-    let minY = Number.POSITIVE_INFINITY
-    let maxX = Number.NEGATIVE_INFINITY
-    let maxY = Number.NEGATIVE_INFINITY
-
-    // Normalize positions to start from padding offset
-    for (const node of childNodes.values()) {
-      minX = Math.min(minX, node.position.x)
-      minY = Math.min(minY, node.position.y)
-      maxX = Math.max(maxX, node.position.x + node.metrics.width)
-      maxY = Math.max(maxY, node.position.y + node.metrics.height)
+    // Apply positions back to blocks
+    for (const node of nodes.values()) {
+      blocks[node.id].position = node.position
     }
 
-    // Adjust all child positions to start at proper padding from container edges
-    const xOffset = CONTAINER_PADDING_X - minX
-    const yOffset = CONTAINER_PADDING_Y - minY
+    // Update container dimensions
+    const calculatedWidth = dimensions.width
+    const calculatedHeight = dimensions.height
 
-    for (const node of childNodes.values()) {
-      childBlocks[node.id].position = {
-        x: node.position.x + xOffset,
-        y: node.position.y + yOffset,
-      }
-    }
-
-    const calculatedWidth = maxX - minX + CONTAINER_PADDING * 2
-    const calculatedHeight = maxY - minY + CONTAINER_PADDING * 2
-
-    const containerWidth = Math.max(calculatedWidth, DEFAULT_CONTAINER_WIDTH)
-    const containerHeight = Math.max(calculatedHeight, DEFAULT_CONTAINER_HEIGHT)
+    const containerWidth = Math.max(calculatedWidth, CONTAINER_DIMENSIONS.DEFAULT_WIDTH)
+    const containerHeight = Math.max(calculatedHeight, CONTAINER_DIMENSIONS.DEFAULT_HEIGHT)
 
     if (!parentBlock.data) {
       parentBlock.data = {}
