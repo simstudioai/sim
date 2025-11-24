@@ -35,7 +35,10 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       required: true,
       provider: 'google-docs',
       serviceId: 'google-docs',
-      requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
+      requiredScopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
+      ],
       placeholder: 'Select Google account',
     },
     // Document selector (basic mode)

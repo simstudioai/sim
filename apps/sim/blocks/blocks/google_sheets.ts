@@ -36,7 +36,10 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       required: true,
       provider: 'google-sheets',
       serviceId: 'google-sheets',
-      requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
+      requiredScopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
+      ],
       placeholder: 'Select Google account',
     },
     // Spreadsheet Selector
@@ -47,7 +50,10 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       canonicalParamId: 'spreadsheetId',
       provider: 'google-sheets',
       serviceId: 'google-sheets',
-      requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
+      requiredScopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
+      ],
       mimeType: 'application/vnd.google-apps.spreadsheet',
       placeholder: 'Select a spreadsheet',
       dependsOn: ['credential'],
