@@ -18,6 +18,7 @@ type CommandContextType = {
   registerItem: (id: string) => void
   unregisterItem: (id: string) => void
   selectItem: (id: string) => void
+  handleKeyDown: (e: React.KeyboardEvent) => void
 }
 
 const CommandContext = createContext<CommandContextType | undefined>(undefined)
@@ -28,6 +29,11 @@ const useCommandContext = () => {
     throw new Error('Command components must be used within a CommandProvider')
   }
   return context
+}
+
+export const useCommandKeyDown = () => {
+  const context = useContext(CommandContext)
+  return context?.handleKeyDown
 }
 
 interface CommandProps {
@@ -59,126 +65,130 @@ interface CommandSeparatorProps {
   className?: string
 }
 
-export const Command = React.forwardRef<HTMLDivElement, CommandProps>(
-  ({ children, className, filter, searchQuery: externalSearchQuery }, ref) => {
-    const [internalSearchQuery, setInternalSearchQuery] = useState('')
-    const [activeIndex, setActiveIndex] = useState(-1)
-    const [items, setItems] = useState<string[]>([])
-    const [filteredItems, setFilteredItems] = useState<string[]>([])
+export function Command({
+  children,
+  className,
+  filter,
+  searchQuery: externalSearchQuery,
+}: CommandProps) {
+  const [internalSearchQuery, setInternalSearchQuery] = useState('')
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const [items, setItems] = useState<string[]>([])
+  const [filteredItems, setFilteredItems] = useState<string[]>([])
 
-    const searchQuery = externalSearchQuery ?? internalSearchQuery
+  const searchQuery = externalSearchQuery ?? internalSearchQuery
 
-    const registerItem = useCallback((id: string) => {
-      setItems((prev) => {
-        if (prev.includes(id)) return prev
-        return [...prev, id]
-      })
-    }, [])
+  const registerItem = useCallback((id: string) => {
+    setItems((prev) => {
+      if (prev.includes(id)) return prev
+      return [...prev, id]
+    })
+  }, [])
 
-    const unregisterItem = useCallback((id: string) => {
-      setItems((prev) => prev.filter((item) => item !== id))
-    }, [])
+  const unregisterItem = useCallback((id: string) => {
+    setItems((prev) => prev.filter((item) => item !== id))
+  }, [])
 
-    const selectItem = useCallback(
-      (id: string) => {
-        const index = filteredItems.indexOf(id)
-        if (index >= 0) {
-          setActiveIndex(index)
-        }
-      },
-      [filteredItems]
-    )
-
-    useEffect(() => {
-      if (!searchQuery) {
-        setFilteredItems(items)
-        return
+  const selectItem = useCallback(
+    (id: string) => {
+      const index = filteredItems.indexOf(id)
+      if (index >= 0) {
+        setActiveIndex(index)
       }
+    },
+    [filteredItems]
+  )
 
-      const filtered = items
-        .map((item) => {
-          const score = filter ? filter(item, searchQuery) : defaultFilter(item, searchQuery)
-          return { item, score }
+  useEffect(() => {
+    if (!searchQuery) {
+      setFilteredItems(items)
+      return
+    }
+
+    const filtered = items.filter((item) => {
+      const score = filter ? filter(item, searchQuery) : defaultFilter(item, searchQuery)
+      return score > 0
+    })
+
+    setFilteredItems(filtered)
+    setActiveIndex(filtered.length > 0 ? 0 : -1)
+  }, [searchQuery, items, filter])
+
+  useEffect(() => {
+    if (activeIndex >= 0 && filteredItems[activeIndex]) {
+      const activeElement = document.getElementById(filteredItems[activeIndex])
+      if (activeElement) {
+        activeElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
         })
-        .filter((item) => item.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .map((item) => item.item)
-
-      setFilteredItems(filtered)
-      setActiveIndex(filtered.length > 0 ? 0 : -1)
-    }, [searchQuery, items, filter])
-
-    useEffect(() => {
-      if (activeIndex >= 0 && filteredItems[activeIndex]) {
-        const activeElement = document.getElementById(filteredItems[activeIndex])
-        if (activeElement) {
-          activeElement.scrollIntoView({
-            behavior: 'smooth',
-            block: 'nearest',
-          })
-        }
       }
-    }, [activeIndex, filteredItems])
+    }
+  }, [activeIndex, filteredItems])
 
-    const defaultFilter = useCallback((value: string, search: string): number => {
-      const normalizedValue = value.toLowerCase()
-      const normalizedSearch = search.toLowerCase()
+  const defaultFilter = useCallback((value: string, search: string): number => {
+    const normalizedValue = value.toLowerCase()
+    const normalizedSearch = search.toLowerCase()
 
-      if (normalizedValue === normalizedSearch) return 1
-      if (normalizedValue.startsWith(normalizedSearch)) return 0.8
-      if (normalizedValue.includes(normalizedSearch)) return 0.6
-      return 0
-    }, [])
+    if (normalizedValue === normalizedSearch) return 1
+    if (normalizedValue.startsWith(normalizedSearch)) return 0.8
+    if (normalizedValue.includes(normalizedSearch)) return 0.6
+    return 0
+  }, [])
 
-    const handleKeyDown = useCallback(
-      (e: React.KeyboardEvent) => {
-        if (filteredItems.length === 0) return
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (filteredItems.length === 0) return
 
-        switch (e.key) {
-          case 'ArrowDown':
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault()
+          setActiveIndex((prev) => (prev + 1) % filteredItems.length)
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          setActiveIndex((prev) => (prev - 1 + filteredItems.length) % filteredItems.length)
+          break
+        case 'Enter':
+          if (activeIndex >= 0) {
             e.preventDefault()
-            setActiveIndex((prev) => (prev + 1) % filteredItems.length)
-            break
-          case 'ArrowUp':
-            e.preventDefault()
-            setActiveIndex((prev) => (prev - 1 + filteredItems.length) % filteredItems.length)
-            break
-          case 'Enter':
-            if (activeIndex >= 0) {
-              e.preventDefault()
-              document.getElementById(filteredItems[activeIndex])?.click()
-            }
-            break
-        }
-      },
-      [filteredItems, activeIndex]
-    )
+            document.getElementById(filteredItems[activeIndex])?.click()
+          }
+          break
+      }
+    },
+    [filteredItems, activeIndex]
+  )
 
-    const contextValue = useMemo(
-      () => ({
-        searchQuery,
-        setSearchQuery: setInternalSearchQuery,
-        activeIndex,
-        setActiveIndex,
-        filteredItems,
-        registerItem,
-        unregisterItem,
-        selectItem,
-      }),
-      [searchQuery, activeIndex, filteredItems, registerItem, unregisterItem, selectItem]
-    )
+  const contextValue = useMemo(
+    () => ({
+      searchQuery,
+      setSearchQuery: setInternalSearchQuery,
+      activeIndex,
+      setActiveIndex,
+      filteredItems,
+      registerItem,
+      unregisterItem,
+      selectItem,
+      handleKeyDown,
+    }),
+    [
+      searchQuery,
+      activeIndex,
+      filteredItems,
+      registerItem,
+      unregisterItem,
+      selectItem,
+      handleKeyDown,
+    ]
+  )
 
-    return (
-      <CommandContext.Provider value={contextValue}>
-        <div ref={ref} className={cn('flex w-full flex-col', className)} onKeyDown={handleKeyDown}>
-          {children}
-        </div>
-      </CommandContext.Provider>
-    )
-  }
-)
-
-Command.displayName = 'Command'
+  return (
+    <CommandContext.Provider value={contextValue}>
+      <div className={cn('flex w-full flex-col', className)}>{children}</div>
+    </CommandContext.Provider>
+  )
+}
 
 export function CommandList({ children, className }: CommandListProps) {
   return <div className={cn(className)}>{children}</div>

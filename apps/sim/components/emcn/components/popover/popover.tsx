@@ -670,10 +670,6 @@ export interface PopoverSearchProps extends React.HTMLAttributes<HTMLDivElement>
    * Callback when search query changes
    */
   onValueChange?: (value: string) => void
-  /**
-   * Callback when keyboard events occur on the search input
-   */
-  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
 }
 
 /**
@@ -692,7 +688,7 @@ export interface PopoverSearchProps extends React.HTMLAttributes<HTMLDivElement>
  * ```
  */
 const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
-  ({ className, placeholder = 'Search...', onValueChange, onKeyDown, ...props }, ref) => {
+  ({ className, placeholder = 'Search...', onValueChange, ...props }, ref) => {
     const { searchQuery, setSearchQuery } = usePopoverContext()
     const inputRef = React.useRef<HTMLInputElement>(null)
 
@@ -715,7 +711,6 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
           placeholder={placeholder}
           value={searchQuery}
           onChange={handleChange}
-          onKeyDown={onKeyDown}
         />
       </div>
     )

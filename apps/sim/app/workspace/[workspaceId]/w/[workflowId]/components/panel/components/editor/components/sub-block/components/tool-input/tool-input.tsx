@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -48,7 +48,10 @@ import {
   CustomToolModal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { McpToolsList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/mcp-tools-list'
-import { ToolCommand } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tool-command/tool-command'
+import {
+  ToolCommand,
+  useCommandKeyDown,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tool-command/tool-command'
 import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tool-credential-selector'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { getAllBlocks } from '@/blocks'
@@ -636,6 +639,15 @@ function CodeEditorSyncWrapper({
 }
 
 /**
+ * Wrapper component that attaches keyboard navigation handler from ToolCommand context
+ */
+const CommandKeyboardWrapper = ({ children }: { children: React.ReactNode }) => {
+  const handleKeyDown = useCommandKeyDown()
+
+  return <div onKeyDown={handleKeyDown}>{children}</div>
+}
+
+/**
  * Tool input component for selecting and configuring LLM tools in workflows
  *
  * @remarks
@@ -672,22 +684,6 @@ export function ToolInput({
     error: mcpError,
     refreshTools,
   } = useMcpTools(workspaceId)
-
-  const commandRef = useRef<HTMLDivElement>(null)
-
-  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Allow arrow keys and Enter to be handled by ToolCommand
-    if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
-      // Dispatch the keyboard event to the ToolCommand component
-      commandRef.current?.dispatchEvent(
-        new KeyboardEvent('keydown', {
-          key: e.key,
-          bubbles: true,
-          cancelable: true,
-        })
-      )
-    }
-  }, [])
 
   // Reset search query when popover opens
   useEffect(() => {
@@ -898,10 +894,11 @@ export function ToolInput({
   )
 
   const handleAddCustomTool = useCallback(
-    (customTool: CustomTool) => {
+    (customTool: CustomTool | any) => {
       if (isPreview || disabled) return
 
-      const customToolId = `custom-${customTool.schema?.function?.name || 'unknown'}`
+      // Use database ID with underscore prefix for unique identification across workspaces
+      const customToolId = `custom_${customTool.id}`
 
       const newTool: StoredTool = {
         type: 'custom-tool',
@@ -1555,139 +1552,138 @@ export function ToolInput({
             align='start'
             sideOffset={6}
           >
-            <PopoverSearch
-              placeholder='Search tools...'
-              onValueChange={setSearchQuery}
-              onKeyDown={handleSearchKeyDown}
-            />
-            <PopoverScrollArea>
-              <ToolCommand.Root ref={commandRef} filter={customFilter} searchQuery={searchQuery}>
-                <ToolCommand.List>
-                  <ToolCommand.Empty>No tools found</ToolCommand.Empty>
+            <ToolCommand.Root filter={customFilter} searchQuery={searchQuery}>
+              <CommandKeyboardWrapper>
+                <PopoverSearch placeholder='Search tools...' onValueChange={setSearchQuery} />
+                <PopoverScrollArea>
+                  <ToolCommand.List>
+                    <ToolCommand.Empty>No tools found</ToolCommand.Empty>
 
-                  <ToolCommand.Item
-                    value='Create Tool'
-                    onSelect={() => {
-                      if (!isPreview) {
-                        setCustomToolModalOpen(true)
-                        setOpen(false)
-                      }
-                    }}
-                    disabled={isPreview}
-                  >
-                    <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                      <WrenchIcon className='h-[11px] w-[11px] text-muted-foreground' />
-                    </div>
-                    <span className='truncate'>Create Tool</span>
-                  </ToolCommand.Item>
+                    <ToolCommand.Item
+                      value='Create Tool'
+                      onSelect={() => {
+                        if (!isPreview) {
+                          setCustomToolModalOpen(true)
+                          setOpen(false)
+                        }
+                      }}
+                      disabled={isPreview}
+                    >
+                      <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
+                        <WrenchIcon className='h-[11px] w-[11px] text-muted-foreground' />
+                      </div>
+                      <span className='truncate'>Create Tool</span>
+                    </ToolCommand.Item>
 
-                  <ToolCommand.Item
-                    value='Add MCP Server'
-                    onSelect={() => {
-                      if (!isPreview) {
-                        setOpen(false)
-                        window.dispatchEvent(
-                          new CustomEvent('open-settings', { detail: { tab: 'mcp' } })
-                        )
-                      }
-                    }}
-                    disabled={isPreview}
-                  >
-                    <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                      <Server className='h-[11px] w-[11px] text-muted-foreground' />
-                    </div>
-                    <span className='truncate'>Add MCP Server</span>
-                  </ToolCommand.Item>
+                    <ToolCommand.Item
+                      value='Add MCP Server'
+                      onSelect={() => {
+                        if (!isPreview) {
+                          setOpen(false)
+                          window.dispatchEvent(
+                            new CustomEvent('open-settings', { detail: { tab: 'mcp' } })
+                          )
+                        }
+                      }}
+                      disabled={isPreview}
+                    >
+                      <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
+                        <Server className='h-[11px] w-[11px] text-muted-foreground' />
+                      </div>
+                      <span className='truncate'>Add MCP Server</span>
+                    </ToolCommand.Item>
 
-                  {/* Display saved custom tools at the top */}
-                  {(() => {
-                    const matchingCustomTools = customTools.filter(
-                      (tool) => customFilter(tool.title, searchQuery || '') > 0
-                    )
-                    if (matchingCustomTools.length === 0) return null
+                    {/* Display saved custom tools at the top */}
+                    {(() => {
+                      const matchingCustomTools = customTools.filter(
+                        (tool) => customFilter(tool.title, searchQuery || '') > 0
+                      )
+                      if (matchingCustomTools.length === 0) return null
 
-                    return (
-                      <>
-                        <PopoverSection>Custom Tools</PopoverSection>
-                        {matchingCustomTools.map((customTool) => (
-                          <ToolCommand.Item
-                            key={customTool.id}
-                            value={customTool.title}
-                            onSelect={() => {
-                              const newTool: StoredTool = {
-                                type: 'custom-tool',
-                                title: customTool.title,
-                                toolId: `custom-${customTool.schema?.function?.name || 'unknown'}`,
-                                params: {},
-                                isExpanded: true,
-                                schema: customTool.schema,
-                                code: customTool.code,
-                                usageControl: 'auto',
-                              }
+                      return (
+                        <>
+                          <PopoverSection>Custom Tools</PopoverSection>
+                          {matchingCustomTools.map((customTool) => (
+                            <ToolCommand.Item
+                              key={customTool.id}
+                              value={customTool.title}
+                              onSelect={() => {
+                                const newTool: StoredTool = {
+                                  type: 'custom-tool',
+                                  title: customTool.title,
+                                  // Use database ID with underscore prefix for unique identification across workspaces
+                                  toolId: `custom_${customTool.id}`,
+                                  params: {},
+                                  isExpanded: true,
+                                  schema: customTool.schema,
+                                  code: customTool.code,
+                                  usageControl: 'auto',
+                                }
 
-                              setStoreValue([
-                                ...selectedTools.map((tool) => ({
-                                  ...tool,
-                                  isExpanded: false,
-                                })),
-                                newTool,
-                              ])
-                              setOpen(false)
-                            }}
-                          >
-                            <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded bg-blue-500'>
-                              <WrenchIcon className='h-[11px] w-[11px] text-white' />
-                            </div>
-                            <span className='truncate'>{customTool.title}</span>
-                          </ToolCommand.Item>
-                        ))}
-                      </>
-                    )
-                  })()}
-
-                  {/* Display MCP tools */}
-                  <McpToolsList
-                    mcpTools={mcpTools}
-                    searchQuery={searchQuery || ''}
-                    customFilter={customFilter}
-                    onToolSelect={handleMcpToolSelect}
-                    disabled={isPreview || disabled}
-                  />
-
-                  {/* Display built-in tools */}
-                  {(() => {
-                    const matchingBlocks = toolBlocks.filter(
-                      (block) => customFilter(block.name, searchQuery || '') > 0
-                    )
-                    if (matchingBlocks.length === 0) return null
-
-                    return (
-                      <>
-                        <PopoverSection>Built-in Tools</PopoverSection>
-                        {matchingBlocks.map((block) => (
-                          <ToolCommand.Item
-                            key={block.type}
-                            value={block.name}
-                            onSelect={() => handleSelectTool(block)}
-                          >
-                            <div
-                              className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
-                              style={{ backgroundColor: block.bgColor }}
+                                setStoreValue([
+                                  ...selectedTools.map((tool) => ({
+                                    ...tool,
+                                    isExpanded: false,
+                                  })),
+                                  newTool,
+                                ])
+                                setOpen(false)
+                              }}
                             >
-                              <IconComponent
-                                icon={block.icon}
-                                className='h-[11px] w-[11px] text-white'
-                              />
-                            </div>
-                            <span className='truncate'>{block.name}</span>
-                          </ToolCommand.Item>
-                        ))}
-                      </>
-                    )
-                  })()}
-                </ToolCommand.List>
-              </ToolCommand.Root>
-            </PopoverScrollArea>
+                              <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded bg-blue-500'>
+                                <WrenchIcon className='h-[11px] w-[11px] text-white' />
+                              </div>
+                              <span className='truncate'>{customTool.title}</span>
+                            </ToolCommand.Item>
+                          ))}
+                        </>
+                      )
+                    })()}
+
+                    {/* Display MCP tools */}
+                    <McpToolsList
+                      mcpTools={mcpTools}
+                      searchQuery={searchQuery || ''}
+                      customFilter={customFilter}
+                      onToolSelect={handleMcpToolSelect}
+                      disabled={isPreview || disabled}
+                    />
+
+                    {/* Display built-in tools */}
+                    {(() => {
+                      const matchingBlocks = toolBlocks.filter(
+                        (block) => customFilter(block.name, searchQuery || '') > 0
+                      )
+                      if (matchingBlocks.length === 0) return null
+
+                      return (
+                        <>
+                          <PopoverSection>Built-in Tools</PopoverSection>
+                          {matchingBlocks.map((block) => (
+                            <ToolCommand.Item
+                              key={block.type}
+                              value={block.name}
+                              onSelect={() => handleSelectTool(block)}
+                            >
+                              <div
+                                className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
+                                style={{ backgroundColor: block.bgColor }}
+                              >
+                                <IconComponent
+                                  icon={block.icon}
+                                  className='h-[11px] w-[11px] text-white'
+                                />
+                              </div>
+                              <span className='truncate'>{block.name}</span>
+                            </ToolCommand.Item>
+                          ))}
+                        </>
+                      )
+                    })()}
+                  </ToolCommand.List>
+                </PopoverScrollArea>
+              </CommandKeyboardWrapper>
+            </ToolCommand.Root>
           </PopoverContent>
         </Popover>
       ) : (
@@ -2099,133 +2095,132 @@ export function ToolInput({
               align='start'
               sideOffset={6}
             >
-              <PopoverSearch
-                placeholder='Search tools...'
-                onValueChange={setSearchQuery}
-                onKeyDown={handleSearchKeyDown}
-              />
-              <PopoverScrollArea>
-                <ToolCommand.Root ref={commandRef} filter={customFilter} searchQuery={searchQuery}>
-                  <ToolCommand.List>
-                    <ToolCommand.Empty>No tools found</ToolCommand.Empty>
+              <ToolCommand.Root filter={customFilter} searchQuery={searchQuery}>
+                <CommandKeyboardWrapper>
+                  <PopoverSearch placeholder='Search tools...' onValueChange={setSearchQuery} />
+                  <PopoverScrollArea>
+                    <ToolCommand.List>
+                      <ToolCommand.Empty>No tools found</ToolCommand.Empty>
 
-                    <ToolCommand.Item
-                      value='Create Tool'
-                      onSelect={() => {
-                        setOpen(false)
-                        setCustomToolModalOpen(true)
-                      }}
-                    >
-                      <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                        <WrenchIcon className='h-[11px] w-[11px] text-muted-foreground' />
-                      </div>
-                      <span className='truncate'>Create Tool</span>
-                    </ToolCommand.Item>
+                      <ToolCommand.Item
+                        value='Create Tool'
+                        onSelect={() => {
+                          setOpen(false)
+                          setCustomToolModalOpen(true)
+                        }}
+                      >
+                        <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
+                          <WrenchIcon className='h-[11px] w-[11px] text-muted-foreground' />
+                        </div>
+                        <span className='truncate'>Create Tool</span>
+                      </ToolCommand.Item>
 
-                    <ToolCommand.Item
-                      value='Add MCP Server'
-                      onSelect={() => {
-                        setOpen(false)
-                        window.dispatchEvent(
-                          new CustomEvent('open-settings', { detail: { tab: 'mcp' } })
+                      <ToolCommand.Item
+                        value='Add MCP Server'
+                        onSelect={() => {
+                          setOpen(false)
+                          window.dispatchEvent(
+                            new CustomEvent('open-settings', { detail: { tab: 'mcp' } })
+                          )
+                        }}
+                      >
+                        <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
+                          <Server className='h-[11px] w-[11px] text-muted-foreground' />
+                        </div>
+                        <span className='truncate'>Add MCP Server</span>
+                      </ToolCommand.Item>
+
+                      {/* Display saved custom tools at the top */}
+                      {(() => {
+                        const matchingCustomTools = customTools.filter(
+                          (tool) => customFilter(tool.title, searchQuery || '') > 0
                         )
-                      }}
-                    >
-                      <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                        <Server className='h-[11px] w-[11px] text-muted-foreground' />
-                      </div>
-                      <span className='truncate'>Add MCP Server</span>
-                    </ToolCommand.Item>
+                        if (matchingCustomTools.length === 0) return null
 
-                    {/* Display saved custom tools at the top */}
-                    {(() => {
-                      const matchingCustomTools = customTools.filter(
-                        (tool) => customFilter(tool.title, searchQuery || '') > 0
-                      )
-                      if (matchingCustomTools.length === 0) return null
+                        return (
+                          <>
+                            <PopoverSection>Custom Tools</PopoverSection>
+                            {matchingCustomTools.map((customTool) => (
+                              <ToolCommand.Item
+                                key={customTool.id}
+                                value={customTool.title}
+                                onSelect={() => {
+                                  const newTool: StoredTool = {
+                                    type: 'custom-tool',
+                                    title: customTool.title,
+                                    // Use database ID with underscore prefix for unique identification across workspaces
+                                    toolId: `custom_${customTool.id}`,
+                                    params: {},
+                                    isExpanded: true,
+                                    schema: customTool.schema,
+                                    code: customTool.code,
+                                    usageControl: 'auto',
+                                  }
 
-                      return (
-                        <>
-                          <PopoverSection>Custom Tools</PopoverSection>
-                          {matchingCustomTools.map((customTool) => (
-                            <ToolCommand.Item
-                              key={customTool.id}
-                              value={customTool.title}
-                              onSelect={() => {
-                                const newTool: StoredTool = {
-                                  type: 'custom-tool',
-                                  title: customTool.title,
-                                  toolId: `custom-${customTool.schema?.function?.name || 'unknown'}`,
-                                  params: {},
-                                  isExpanded: true,
-                                  schema: customTool.schema,
-                                  code: customTool.code,
-                                  usageControl: 'auto',
-                                }
-
-                                setStoreValue([
-                                  ...selectedTools.map((tool) => ({
-                                    ...tool,
-                                    isExpanded: false,
-                                  })),
-                                  newTool,
-                                ])
-                                setOpen(false)
-                              }}
-                            >
-                              <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded bg-blue-500'>
-                                <WrenchIcon className='h-[11px] w-[11px] text-white' />
-                              </div>
-                              <span className='truncate'>{customTool.title}</span>
-                            </ToolCommand.Item>
-                          ))}
-                        </>
-                      )
-                    })()}
-
-                    {/* Display MCP tools */}
-                    <McpToolsList
-                      mcpTools={mcpTools}
-                      searchQuery={searchQuery || ''}
-                      customFilter={customFilter}
-                      onToolSelect={(tool) => handleMcpToolSelect(tool, false)}
-                      disabled={false}
-                    />
-
-                    {/* Display built-in tools */}
-                    {(() => {
-                      const matchingBlocks = toolBlocks.filter(
-                        (block) => customFilter(block.name, searchQuery || '') > 0
-                      )
-                      if (matchingBlocks.length === 0) return null
-
-                      return (
-                        <>
-                          <PopoverSection>Built-in Tools</PopoverSection>
-                          {matchingBlocks.map((block) => (
-                            <ToolCommand.Item
-                              key={block.type}
-                              value={block.name}
-                              onSelect={() => handleSelectTool(block)}
-                            >
-                              <div
-                                className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
-                                style={{ backgroundColor: block.bgColor }}
+                                  setStoreValue([
+                                    ...selectedTools.map((tool) => ({
+                                      ...tool,
+                                      isExpanded: false,
+                                    })),
+                                    newTool,
+                                  ])
+                                  setOpen(false)
+                                }}
                               >
-                                <IconComponent
-                                  icon={block.icon}
-                                  className='h-[11px] w-[11px] text-white'
-                                />
-                              </div>
-                              <span className='truncate'>{block.name}</span>
-                            </ToolCommand.Item>
-                          ))}
-                        </>
-                      )
-                    })()}
-                  </ToolCommand.List>
-                </ToolCommand.Root>
-              </PopoverScrollArea>
+                                <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded bg-blue-500'>
+                                  <WrenchIcon className='h-[11px] w-[11px] text-white' />
+                                </div>
+                                <span className='truncate'>{customTool.title}</span>
+                              </ToolCommand.Item>
+                            ))}
+                          </>
+                        )
+                      })()}
+
+                      {/* Display MCP tools */}
+                      <McpToolsList
+                        mcpTools={mcpTools}
+                        searchQuery={searchQuery || ''}
+                        customFilter={customFilter}
+                        onToolSelect={(tool) => handleMcpToolSelect(tool, false)}
+                        disabled={false}
+                      />
+
+                      {/* Display built-in tools */}
+                      {(() => {
+                        const matchingBlocks = toolBlocks.filter(
+                          (block) => customFilter(block.name, searchQuery || '') > 0
+                        )
+                        if (matchingBlocks.length === 0) return null
+
+                        return (
+                          <>
+                            <PopoverSection>Built-in Tools</PopoverSection>
+                            {matchingBlocks.map((block) => (
+                              <ToolCommand.Item
+                                key={block.type}
+                                value={block.name}
+                                onSelect={() => handleSelectTool(block)}
+                              >
+                                <div
+                                  className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
+                                  style={{ backgroundColor: block.bgColor }}
+                                >
+                                  <IconComponent
+                                    icon={block.icon}
+                                    className='h-[11px] w-[11px] text-white'
+                                  />
+                                </div>
+                                <span className='truncate'>{block.name}</span>
+                              </ToolCommand.Item>
+                            ))}
+                          </>
+                        )
+                      })()}
+                    </ToolCommand.List>
+                  </PopoverScrollArea>
+                </CommandKeyboardWrapper>
+              </ToolCommand.Root>
             </PopoverContent>
           </Popover>
         </>

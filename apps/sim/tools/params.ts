@@ -110,7 +110,6 @@ export interface ToolWithParameters {
 
 let blockConfigCache: Record<string, BlockConfig> | null = null
 
-// Cache for workflow input fields to avoid repeated API calls
 const workflowInputFieldsCache = new Map<
   string,
   { fields: Array<{ name: string; type: string }>; timestamp: number }
