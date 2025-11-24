@@ -33,7 +33,7 @@ export const linearCreateAttachmentTool: ToolConfig<
     },
     title: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description: 'Attachment title',
     },
@@ -61,12 +61,10 @@ export const linearCreateAttachmentTool: ToolConfig<
       const input: Record<string, any> = {
         issueId: params.issueId,
         url: params.url,
+        title: params.title,
       }
 
-      if (params.title !== undefined && params.title !== null && params.title !== '')
-        input.title = params.title
-      if (params.subtitle !== undefined && params.subtitle !== null && params.subtitle !== '')
-        input.subtitle = params.subtitle
+      if (params.subtitle != null && params.subtitle !== '') input.subtitle = params.subtitle
 
       return {
         query: `

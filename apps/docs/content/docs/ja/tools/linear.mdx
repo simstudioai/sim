@@ -39,14 +39,24 @@ Linearから課題を取得してフィルタリングする
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | はい | LinearチームID |
-| `projectId` | string | はい | LinearプロジェクトID |
+| `teamId` | string | いいえ | フィルタリングするLinearチームID |
+| `projectId` | string | いいえ | フィルタリングするLinearプロジェクトID |
+| `assigneeId` | string | いいえ | 担当者でフィルタリングするユーザーID |
+| `stateId` | string | いいえ | ステータスでフィルタリングするワークフロー状態ID |
+| `priority` | number | いいえ | フィルタリングする優先度（0=優先度なし、1=緊急、2=高、3=普通、4=低） |
+| `labelIds` | array | いいえ | フィルタリングするラベルIDの配列 |
+| `createdAfter` | string | いいえ | この日付以降に作成された課題をフィルタリング（ISO 8601形式） |
+| `updatedAfter` | string | いいえ | この日付以降に更新された課題をフィルタリング（ISO 8601形式） |
+| `includeArchived` | boolean | いいえ | アーカイブされた課題を含める（デフォルト：false） |
+| `first` | number | いいえ | 返す課題の数（デフォルト：50、最大：250） |
+| `after` | string | いいえ | 次のページのページネーションカーソル |
+| `orderBy` | string | いいえ | ソート順："createdAt"または"updatedAt"（デフォルト："updatedAt"） |
 
 #### 出力
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `issues` | array | 指定されたLinearチームとプロジェクトからの課題の配列。各課題にはid、title、description、state、teamId、projectIdが含まれます |
+| `issues` | array | Linearからフィルタリングされた課題の配列 |
 
 ### `linear_get_issue`
 
@@ -73,15 +83,25 @@ Linearに新しい課題を作成する
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | はい | LinearチームID |
-| `projectId` | string | はい | LinearプロジェクトID |
+| `projectId` | string | いいえ | LinearプロジェクトID |
 | `title` | string | はい | 課題のタイトル |
 | `description` | string | いいえ | 課題の説明 |
+| `stateId` | string | いいえ | ワークフロー状態ID（ステータス） |
+| `assigneeId` | string | いいえ | 課題を割り当てるユーザーID |
+| `priority` | number | いいえ | 優先度（0=優先度なし、1=緊急、2=高、3=普通、4=低） |
+| `estimate` | number | いいえ | ポイント単位の見積もり |
+| `labelIds` | array | いいえ | 課題に設定するラベルIDの配列 |
+| `cycleId` | string | いいえ | 課題を割り当てるサイクルID |
+| `parentId` | string | いいえ | 親課題ID（サブ課題を作成する場合） |
+| `dueDate` | string | いいえ | ISO 8601形式の期日（日付のみ：YYYY-MM-DD） |
+| `subscriberIds` | array | いいえ | 課題をサブスクライブするユーザーIDの配列 |
+| `projectMilestoneId` | string | いいえ | 課題に関連付けるプロジェクトマイルストーンID |
 
 #### 出力
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `issue` | object | 作成された課題（id、title、description、state、teamId、projectIdを含む） |
+| `issue` | object | すべてのプロパティを含む作成された課題 |
 
 ### `linear_update_issue`
 
@@ -97,8 +117,14 @@ Linearの既存の課題を更新する
 | `stateId` | string | いいえ | ワークフロー状態ID（ステータス） |
 | `assigneeId` | string | いいえ | 課題を割り当てるユーザーID |
 | `priority` | number | いいえ | 優先度（0=優先度なし、1=緊急、2=高、3=普通、4=低） |
-| `estimate` | number | いいえ | ポイント単位の見積もり |
-| `labelIds` | array | いいえ | 課題に設定するラベルIDの配列 |
+| `estimate` | number | いいえ | ポイントでの見積もり |
+| `labelIds` | array | いいえ | 課題に設定するラベルIDの配列（既存のすべてのラベルを置き換え） |
+| `projectId` | string | いいえ | 課題を移動するプロジェクトID |
+| `cycleId` | string | いいえ | 課題を割り当てるサイクルID |
+| `parentId` | string | いいえ | 親課題ID（これをサブ課題にする場合） |
+| `dueDate` | string | いいえ | ISO 8601形式の期日（日付のみ：YYYY-MM-DD） |
+| `addedLabelIds` | array | いいえ | 課題に追加するラベルIDの配列（既存のラベルを置き換えない） |
+| `removedLabelIds` | array | いいえ | 課題から削除するラベルIDの配列 |
 
 #### 出力
 
@@ -237,7 +263,7 @@ Linearでコメントを編集する
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `commentId` | string | はい | 更新するコメントID |
-| `body` | string | はい | 新しいコメントテキスト（Markdownをサポート） |
+| `body` | string | いいえ | 新しいコメントテキスト（Markdownをサポート） |
 
 #### 出力
 
@@ -349,9 +375,9 @@ Linearの既存プロジェクトを更新する
 | `description` | string | いいえ | 新しいプロジェクトの説明 |
 | `state` | string | いいえ | プロジェクトの状態（計画中、開始済み、完了、キャンセル） |
 | `leadId` | string | いいえ | プロジェクトリーダーのユーザーID |
-| `startDate` | string | いいえ | プロジェクト開始日（ISO形式） |
-| `targetDate` | string | いいえ | プロジェクト目標日（ISO形式） |
-| `priority` | number | いいえ | プロジェクト優先度（0-4） |
+| `startDate` | string | いいえ | プロジェクト開始日（ISO形式：YYYY-MM-DD） |
+| `targetDate` | string | いいえ | プロジェクト目標日（ISO形式：YYYY-MM-DD） |
+| `priority` | number | いいえ | プロジェクト優先度（0=優先度なし、1=緊急、2=高、3=普通、4=低） |
 
 #### 出力
 
@@ -527,7 +553,7 @@ Linearに新しいワークフローステータス（状態）を作成する
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | はい | ステータスを作成するチームID |
 | `name` | string | はい | ステータス名（例：「レビュー中」） |
-| `color` | string | はい | ステータスの色（16進形式） |
+| `color` | string | いいえ | ステータスの色（16進形式） |
 | `type` | string | はい | ステータスタイプ：「backlog」、「unstarted」、「started」、「completed」、または「canceled」 |
 | `description` | string | いいえ | ステータスの説明 |
 | `position` | number | いいえ | ワークフロー内の位置 |
@@ -635,9 +661,9 @@ Linearの課題に添付ファイルを追加する
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `issueId` | string | はい | 添付先の課題ID |
+| `issueId` | string | はい | 添付する課題ID |
 | `url` | string | はい | 添付ファイルのURL |
-| `title` | string | いいえ | 添付ファイルのタイトル |
+| `title` | string | はい | 添付ファイルのタイトル |
 | `subtitle` | string | いいえ | 添付ファイルのサブタイトル/説明 |
 
 #### 出力
@@ -673,7 +699,7 @@ Linearで添付ファイルのメタデータを更新する
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `attachmentId` | string | はい | 更新する添付ファイルID |
-| `title` | string | いいえ | 新しい添付ファイルのタイトル |
+| `title` | string | はい | 新しい添付ファイルのタイトル |
 | `subtitle` | string | いいえ | 新しい添付ファイルのサブタイトル |
 
 #### 出力
@@ -708,7 +734,7 @@ Linearで2つの課題を関連付ける（ブロック、関連、重複）
 | --------- | ---- | -------- | ----------- |
 | `issueId` | string | はい | ソース課題ID |
 | `relatedIssueId` | string | はい | リンク先のターゲット課題ID |
-| `type` | string | はい | 関係タイプ：「blocks」、「blocked」、「duplicate」、「related」 |
+| `type` | string | はい | 関係タイプ："blocks"、"duplicate"、または"related"。注意：AからBへの"blocks"を作成すると、逆の関係（BはAによってブロックされる）が自動的に作成されます。 |
 
 #### 出力
 
@@ -1217,6 +1243,7 @@ Linearで新しいプロジェクトラベルを作成する
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | このラベルのプロジェクト |
 | `name` | string | はい | プロジェクトラベル名 |
 | `color` | string | いいえ | ラベルの色（16進コード） |
 | `description` | string | いいえ | ラベルの説明 |
@@ -1394,6 +1421,7 @@ Linearで新しいプロジェクトステータスを作成する
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | ステータスを作成するプロジェクト |
 | `name` | string | はい | プロジェクトステータス名 |
 | `color` | string | はい | ステータスの色（16進コード） |
 | `description` | string | いいえ | ステータスの説明 |

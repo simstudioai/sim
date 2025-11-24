@@ -1,0 +1,172 @@
+---
+title: Neo4j
+description: 连接到 Neo4j 图数据库
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="neo4j"
+  color="#FFFFFF"
+/>
+
+## 使用说明
+
+将 Neo4j 图数据库集成到工作流程中。可以查询、创建、合并、更新和删除节点及关系。
+
+## 工具
+
+### `neo4j_query`
+
+执行 MATCH 查询以从 Neo4j 图数据库中读取节点和关系。为了获得最佳性能并防止结果集过大，请在查询中包含 LIMIT（例如，
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | Neo4j 服务器主机名或 IP 地址 |
+| `port` | number | 是 | Neo4j 服务器端口 \(默认：Bolt 协议为 7687\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | Neo4j 用户名 |
+| `password` | string | 是 | Neo4j 密码 |
+| `encryption` | string | 否 | 连接加密模式 \(启用，禁用\) |
+| `cypherQuery` | string | 是 | 要执行的 Cypher 查询 \(通常是 MATCH 语句\) |
+| `parameters` | object | 否 | Cypher 查询的参数，格式为 JSON 对象。用于任何动态值，包括 LIMIT \(例如，查询："MATCH \(n\) RETURN n LIMIT $limit", 参数：\{limit: 100\}\)。 |
+| `parameters` | string | 否 | 无描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `records` | array | 查询返回的记录数组 |
+| `recordCount` | number | 返回的记录数量 |
+| `summary` | json | 查询执行摘要，包括时间和计数器 |
+
+### `neo4j_create`
+
+执行 CREATE 语句以向 Neo4j 图数据库添加新节点和关系
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | Neo4j 服务器主机名或 IP 地址 |
+| `port` | number | 是 | Neo4j 服务器端口 \(默认：Bolt 协议为 7687\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | Neo4j 用户名 |
+| `password` | string | 是 | Neo4j 密码 |
+| `encryption` | string | 否 | 连接加密模式 \(启用，禁用\) |
+| `cypherQuery` | string | 是 | 要执行的 Cypher CREATE 语句 |
+| `parameters` | object | 否 | Cypher 查询的参数，格式为 JSON 对象 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `summary` | json | 创建摘要，包括创建的节点和关系的计数 |
+
+### `neo4j_merge`
+
+执行 MERGE 语句以在 Neo4j 中查找或创建节点和关系（插入或更新操作）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | Neo4j 服务器主机名或 IP 地址 |
+| `port` | number | 是 | Neo4j 服务器端口 \(默认：Bolt 协议为 7687\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | Neo4j 用户名 |
+| `password` | string | 是 | Neo4j 密码 |
+| `encryption` | string | 否 | 连接加密模式 \(启用，禁用\) |
+| `cypherQuery` | string | 是 | 要执行的 Cypher MERGE 语句 |
+| `parameters` | object | 否 | Cypher 查询的参数，格式为 JSON 对象 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `summary` | json | 包含节点/关系创建或匹配计数的合并摘要 |
+
+### `neo4j_update`
+
+执行 SET 语句以更新 Neo4j 中现有节点和关系的属性
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | Neo4j 服务器主机名或 IP 地址 |
+| `port` | number | 是 | Neo4j 服务器端口 \(默认：Bolt 协议为 7687\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | Neo4j 用户名 |
+| `password` | string | 是 | Neo4j 密码 |
+| `encryption` | string | 否 | 连接加密模式 \(启用，禁用\) |
+| `cypherQuery` | string | 是 | 包含 MATCH 和 SET 语句的 Cypher 查询以更新属性 |
+| `parameters` | object | 否 | Cypher 查询的参数，格式为 JSON 对象 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `summary` | json | 包含已设置属性计数的更新摘要 |
+
+### `neo4j_delete`
+
+执行 DELETE 或 DETACH DELETE 语句以从 Neo4j 中删除节点和关系
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | Neo4j 服务器主机名或 IP 地址 |
+| `port` | number | 是 | Neo4j 服务器端口 \(默认：Bolt 协议为 7687\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | Neo4j 用户名 |
+| `password` | string | 是 | Neo4j 密码 |
+| `encryption` | string | 否 | 连接加密模式 \(启用，禁用\) |
+| `cypherQuery` | string | 是 | 包含 MATCH 和 DELETE/DETACH DELETE 语句的 Cypher 查询 |
+| `parameters` | object | 否 | Cypher 查询的参数，格式为 JSON 对象 |
+| `detach` | boolean | 否 | 是否使用 DETACH DELETE 在删除节点前移除关系 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `summary` | json | 删除摘要，包括已删除的节点和关系的计数 |
+
+### `neo4j_execute`
+
+在 Neo4j 图数据库上执行任意 Cypher 查询以进行复杂操作
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | Neo4j 服务器主机名或 IP 地址 |
+| `port` | number | 是 | Neo4j 服务器端口 \(默认：Bolt 协议为 7687\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | Neo4j 用户名 |
+| `password` | string | 是 | Neo4j 密码 |
+| `encryption` | string | 否 | 连接加密模式 \(启用，禁用\) |
+| `cypherQuery` | string | 是 | 要执行的 Cypher 查询 \(任何有效的 Cypher 语句\) |
+| `parameters` | object | 否 | Cypher 查询的参数，格式为 JSON 对象 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `records` | array | 查询返回的记录数组 |
+| `recordCount` | number | 返回的记录数量 |
+| `summary` | json | 执行摘要，包括时间和计数 |
+
+## 注意
+
+- 分类：`tools`
+- 类型：`neo4j`

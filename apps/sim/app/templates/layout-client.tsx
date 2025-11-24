@@ -1,7 +1,7 @@
 'use client'
 
 import { Tooltip } from '@/components/emcn'
-import { season } from '@/app/fonts/season/season'
+import { season } from '@/app/_styles/fonts/season/season'
 
 export default function TemplatesLayoutClient({ children }: { children: React.ReactNode }) {
   return (

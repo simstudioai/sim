@@ -1,4 +1,4 @@
-import { useBlockConnections } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/hooks/use-block-connections'
+import { useBlockConnections } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 
 interface ConnectionsProps {
   blockId: string

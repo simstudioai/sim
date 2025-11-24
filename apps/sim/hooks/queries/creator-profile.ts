@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { CreatorProfileDetails } from '@/types/creator-profile'
+import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 
 const logger = createLogger('CreatorProfileQuery')
 
@@ -154,12 +154,10 @@ export function useSaveCreatorProfile() {
       return result.data
     },
     onSuccess: (_data, variables) => {
-      // Invalidate the profile query to refetch
       queryClient.invalidateQueries({
         queryKey: creatorProfileKeys.profile(variables.referenceId),
       })
 
-      // Dispatch event to notify that a creator profile was saved
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('creator-profile-saved'))
       }

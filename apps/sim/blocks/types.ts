@@ -35,6 +35,8 @@ export type GenerationType =
   | 'mongodb-sort'
   | 'mongodb-documents'
   | 'mongodb-update'
+  | 'neo4j-cypher'
+  | 'neo4j-parameters'
 
 export type SubBlockType =
   | 'short-input' // Single line input
@@ -71,6 +73,7 @@ export type SubBlockType =
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema
   | 'variables-input' // Variable assignments for updating workflow variables
+  | 'messages-input' // Multiple message inputs with role and content for LLM message history
   | 'text' // Read-only text display
 
 /**
@@ -86,6 +89,8 @@ export const SELECTOR_TYPES_HYDRATION_REQUIRED: SubBlockType[] = [
   'knowledge-base-selector',
   'document-selector',
   'variables-input',
+  'mcp-server-selector',
+  'mcp-tool-selector',
 ] as const
 
 export type ExtractToolOutput<T> = T extends ToolResponse ? T['output'] : never

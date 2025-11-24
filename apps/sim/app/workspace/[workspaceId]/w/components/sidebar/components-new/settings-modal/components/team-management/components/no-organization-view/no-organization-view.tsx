@@ -1,13 +1,14 @@
 import { RefreshCw } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  Button,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/emcn'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -97,7 +98,7 @@ export function NoOrganizationView({
               <Button
                 onClick={onCreateOrganization}
                 disabled={!orgName || !orgSlug || isCreatingOrg}
-                className='h-9 rounded-[8px]'
+                className='h-[32px] px-[12px]'
               >
                 {isCreatingOrg && <RefreshCw className='mr-2 h-4 w-4 animate-spin' />}
                 Create Team Workspace
@@ -106,14 +107,14 @@ export function NoOrganizationView({
           </div>
         </div>
 
-        <Dialog open={createOrgDialogOpen} onOpenChange={setCreateOrgDialogOpen}>
-          <DialogContent className='sm:max-w-md'>
-            <DialogHeader>
-              <DialogTitle className='font-medium text-sm'>Create Team Organization</DialogTitle>
-              <DialogDescription className='text-muted-foreground text-xs'>
+        <Modal open={createOrgDialogOpen} onOpenChange={setCreateOrgDialogOpen}>
+          <ModalContent className='sm:max-w-md'>
+            <ModalHeader>
+              <ModalTitle>Create Team Organization</ModalTitle>
+              <ModalDescription>
                 Create a new team organization to manage members and billing.
-              </DialogDescription>
-            </DialogHeader>
+              </ModalDescription>
+            </ModalHeader>
 
             <div className='space-y-4'>
               {error && (
@@ -150,28 +151,28 @@ export function NoOrganizationView({
                   className='mt-1'
                 />
               </div>
-
-              <div className='flex justify-end gap-2 pt-2'>
-                <Button
-                  variant='outline'
-                  onClick={() => setCreateOrgDialogOpen(false)}
-                  disabled={isCreatingOrg}
-                  className='h-9 rounded-[8px]'
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={onCreateOrganization}
-                  disabled={isCreatingOrg || !orgName.trim()}
-                  className='h-9 rounded-[8px]'
-                >
-                  {isCreatingOrg && <RefreshCw className='mr-2 h-4 w-4 animate-spin' />}
-                  Create Organization
-                </Button>
-              </div>
             </div>
-          </DialogContent>
-        </Dialog>
+
+            <ModalFooter>
+              <Button
+                variant='outline'
+                onClick={() => setCreateOrgDialogOpen(false)}
+                disabled={isCreatingOrg}
+                className='h-[32px] px-[12px]'
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={onCreateOrganization}
+                disabled={isCreatingOrg || !orgName.trim()}
+                className='h-[32px] px-[12px]'
+              >
+                {isCreatingOrg && <RefreshCw className='mr-2 h-4 w-4 animate-spin' />}
+                Create Organization
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </div>
     )
   }
@@ -193,7 +194,7 @@ export function NoOrganizationView({
             })
             window.dispatchEvent(event)
           }}
-          className='h-9 rounded-[8px]'
+          className='h-[32px] px-[12px]'
         >
           Upgrade to Team Plan
         </Button>

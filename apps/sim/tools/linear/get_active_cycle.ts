@@ -73,6 +73,14 @@ export const linearGetActiveCycleTool: ToolConfig<
       }
     }
 
+    if (!data.data?.team) {
+      return {
+        success: false,
+        error: 'Team not found',
+        output: {},
+      }
+    }
+
     return {
       success: true,
       output: {

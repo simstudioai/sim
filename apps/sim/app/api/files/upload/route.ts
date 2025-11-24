@@ -13,21 +13,37 @@ import {
 } from '@/app/api/files/utils'
 
 const ALLOWED_EXTENSIONS = new Set([
+  // Documents
   'pdf',
   'doc',
   'docx',
   'txt',
   'md',
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
   'csv',
   'xlsx',
   'xls',
   'json',
   'yaml',
   'yml',
+  // Images
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  // Audio
+  'mp3',
+  'm4a',
+  'wav',
+  'webm',
+  'ogg',
+  'flac',
+  'aac',
+  'opus',
+  // Video
+  'mp4',
+  'mov',
+  'avi',
+  'mkv',
 ])
 
 function validateFileExtension(filename: string): boolean {

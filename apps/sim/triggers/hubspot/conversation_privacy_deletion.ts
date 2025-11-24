@@ -1,10 +1,10 @@
 import { HubspotIcon } from '@/components/icons'
-import type { TriggerConfig } from '@/triggers/types'
 import {
   buildConversationPrivacyDeletionOutputs,
   hubspotConversationTriggerOptions,
   hubspotSetupInstructions,
-} from './utils'
+} from '@/triggers/hubspot/utils'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const hubspotConversationPrivacyDeletionTrigger: TriggerConfig = {
   id: 'hubspot_conversation_privacy_deletion',

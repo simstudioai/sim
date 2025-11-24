@@ -1,5 +1,5 @@
+import type { ApolloContactCreateParams, ApolloContactCreateResponse } from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ApolloContactCreateParams, ApolloContactCreateResponse } from './types'
 
 export const apolloContactCreateTool: ToolConfig<
   ApolloContactCreateParams,

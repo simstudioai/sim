@@ -19,6 +19,12 @@ export const linearCreateProjectStatusTool: ToolConfig<
   },
 
   params: {
+    projectId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The project to create the status for',
+    },
     name: {
       type: 'string',
       required: true,
@@ -65,21 +71,18 @@ export const linearCreateProjectStatusTool: ToolConfig<
     },
     body: (params) => {
       const input: Record<string, any> = {
+        projectId: params.projectId,
         name: params.name,
         color: params.color,
       }
 
-      if (
-        params.description !== undefined &&
-        params.description !== null &&
-        params.description !== ''
-      ) {
+      if (params.description != null && params.description !== '') {
         input.description = params.description
       }
-      if (params.indefinite !== undefined && params.indefinite !== null) {
+      if (params.indefinite != null) {
         input.indefinite = params.indefinite
       }
-      if (params.position !== undefined && params.position !== null) {
+      if (params.position != null) {
         input.position = params.position
       }
 
@@ -120,8 +123,16 @@ export const linearCreateProjectStatusTool: ToolConfig<
     }
 
     const result = data.data.projectStatusCreate
+    if (!result.success) {
+      return {
+        success: false,
+        error: 'Project status creation was not successful',
+        output: {},
+      }
+    }
+
     return {
-      success: result.success,
+      success: true,
       output: {
         projectStatus: result.status,
       },

@@ -1,6 +1,6 @@
 import { LinearIcon } from '@/components/icons'
+import { linearSetupInstructions, userOutputs } from '@/triggers/linear/utils'
 import type { TriggerConfig } from '@/triggers/types'
-import { linearSetupInstructions, userOutputs } from './utils'
 
 export const linearWebhookTrigger: TriggerConfig = {
   id: 'linear_webhook',

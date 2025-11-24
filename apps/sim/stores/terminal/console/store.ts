@@ -1,9 +1,14 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { createLogger } from '@/lib/logs/console/logger'
 import { redactApiKeys } from '@/lib/utils'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import { useExecutionStore } from '@/stores/execution/store'
-import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from './types'
+import { useNotificationStore } from '@/stores/notifications'
+import { useGeneralStore } from '@/stores/settings/general/store'
+import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from '@/stores/terminal/console/types'
+
+const logger = createLogger('TerminalConsoleStore')
 
 /**
  * Updates a NormalizedBlockOutput with new content
@@ -95,7 +100,36 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
             return { entries: [newEntry, ...state.entries] }
           })
 
-          return get().entries[0]
+          const newEntry = get().entries[0]
+
+          // Surface error notifications immediately when error entries are added
+          // Only show if error notifications are enabled in settings
+          if (newEntry?.error) {
+            const { isErrorNotificationsEnabled } = useGeneralStore.getState()
+
+            if (isErrorNotificationsEnabled) {
+              try {
+                const errorMessage = String(newEntry.error)
+
+                useNotificationStore.getState().addNotification({
+                  level: 'error',
+                  message: errorMessage,
+                  workflowId: entry.workflowId,
+                  action: {
+                    type: 'copilot',
+                    message: errorMessage,
+                  },
+                })
+              } catch (notificationError) {
+                logger.error('Failed to create block error notification', {
+                  entryId: newEntry.id,
+                  error: notificationError,
+                })
+              }
+            }
+          }
+
+          return newEntry
         },
 
         /**

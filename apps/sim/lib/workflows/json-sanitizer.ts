@@ -22,7 +22,6 @@ export interface CopilotBlockState {
   type: string
   name: string
   inputs?: Record<string, string | number | string[][] | object>
-  outputs: BlockState['outputs']
   connections?: Record<string, string | string[]>
   nestedNodes?: Record<string, CopilotBlockState>
   enabled: boolean
@@ -350,10 +349,10 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
       })
     }
 
+    // Create clean result without runtime data (outputs, positions, layout, etc.)
     const result: CopilotBlockState = {
       type: block.type,
       name: block.name,
-      outputs: block.outputs,
       enabled: block.enabled,
     }
 
@@ -362,6 +361,9 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
     if (Object.keys(nestedNodes).length > 0) result.nestedNodes = nestedNodes
     if (block.advancedMode !== undefined) result.advancedMode = block.advancedMode
     if (block.triggerMode !== undefined) result.triggerMode = block.triggerMode
+
+    // Note: outputs, position, height, layout, horizontalHandles are intentionally excluded
+    // These are runtime/UI-specific fields not needed for copilot understanding
 
     return result
   }

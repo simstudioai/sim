@@ -5,24 +5,38 @@ import { Badge } from '@/components/emcn/components/badge/badge'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { createMcpToolId } from '@/lib/mcp/utils'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import {
+  ActionBar,
+  Connections,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components'
+import {
+  useBlockProperties,
+  useChildWorkflow,
+  useScheduleInfo,
+  useWebhookInfo,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks'
+import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
+import {
+  getProviderName,
+  shouldSkipBlockRender,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useBlockCore } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   BLOCK_DIMENSIONS,
   useBlockDimensions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
+import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
+import { useCredentialName } from '@/hooks/queries/oauth-credentials'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useCredentialDisplay } from '@/hooks/use-credential-display'
-import { useDisplayName } from '@/hooks/use-display-name'
+import { useKnowledgeBaseName } from '@/hooks/use-knowledge-base-name'
+import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { ActionBar, Connections } from './components'
-import { useBlockProperties, useChildWorkflow, useScheduleInfo, useWebhookInfo } from './hooks'
-import type { WorkflowBlockProps } from './types'
-import { getProviderName, shouldSkipBlockRender } from './utils'
 
 const logger = createLogger('WorkflowBlock')
 
@@ -97,10 +111,37 @@ const isVariableAssignmentsArray = (
 }
 
 /**
+ * Type guard for agent messages array
+ */
+const isMessagesArray = (value: unknown): value is Array<{ role: string; content: string }> => {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (item) =>
+        typeof item === 'object' &&
+        item !== null &&
+        'role' in item &&
+        'content' in item &&
+        typeof item.role === 'string' &&
+        typeof item.content === 'string'
+    )
+  )
+}
+
+/**
  * Formats a subblock value for display, intelligently handling nested objects and arrays.
  */
 const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
+
+  if (isMessagesArray(value)) {
+    const firstMessage = value[0]
+    if (!firstMessage?.content || firstMessage.content.trim() === '') return '-'
+    const content = firstMessage.content.trim()
+    // Show first 50 characters of the first message content
+    return content.length > 50 ? `${content.slice(0, 50)}...` : content
+  }
 
   if (isVariableAssignmentsArray(value)) {
     const names = value.map((a) => a.variableName).filter((name): name is string => !!name)
@@ -230,9 +271,12 @@ const SubBlockRow = ({
     }, {})
   }, [getStringValue, subBlock?.dependsOn])
 
-  const { displayName: credentialName } = useCredentialDisplay(
-    subBlock?.type === 'oauth-input' && typeof rawValue === 'string' ? rawValue : undefined,
-    subBlock?.provider
+  const credentialSourceId =
+    subBlock?.type === 'oauth-input' && typeof rawValue === 'string' ? rawValue : undefined
+  const { displayName: credentialName } = useCredentialName(
+    credentialSourceId,
+    subBlock?.provider,
+    workflowId
   )
 
   const credentialId = dependencyValues.credential
@@ -253,21 +297,60 @@ const SubBlockRow = ({
     return typeof option === 'string' ? option : option.label
   }, [subBlock, rawValue])
 
-  const genericDisplayName = useDisplayName(subBlock, rawValue, {
-    workspaceId,
-    provider: subBlock?.provider,
+  const domainValue = getStringValue('domain')
+  const teamIdValue = getStringValue('teamId')
+  const projectIdValue = getStringValue('projectId')
+  const planIdValue = getStringValue('planId')
+
+  const { displayName: selectorDisplayName } = useSelectorDisplayName({
+    subBlock,
+    value: rawValue,
+    workflowId,
     credentialId: typeof credentialId === 'string' ? credentialId : undefined,
     knowledgeBaseId: typeof knowledgeBaseId === 'string' ? knowledgeBaseId : undefined,
-    domain: getStringValue('domain'),
-    teamId: getStringValue('teamId'),
-    projectId: getStringValue('projectId'),
-    planId: getStringValue('planId'),
+    domain: domainValue,
+    teamId: teamIdValue,
+    projectId: projectIdValue,
+    planId: planIdValue,
   })
 
-  // Subscribe to variables store to reactively update when variables change
+  const knowledgeBaseDisplayName = useKnowledgeBaseName(
+    subBlock?.type === 'knowledge-base-selector' && typeof rawValue === 'string'
+      ? rawValue
+      : undefined
+  )
+
+  const workflowMap = useWorkflowRegistry((state) => state.workflows)
+  const workflowSelectionName =
+    subBlock?.id === 'workflowId' && typeof rawValue === 'string'
+      ? (workflowMap[rawValue]?.name ?? null)
+      : null
+
+  // Hydrate MCP server ID to name using TanStack Query
+  const { data: mcpServers = [] } = useMcpServers(workspaceId || '')
+  const mcpServerDisplayName = useMemo(() => {
+    if (subBlock?.type !== 'mcp-server-selector' || typeof rawValue !== 'string') {
+      return null
+    }
+    const server = mcpServers.find((s) => s.id === rawValue)
+    return server?.name ?? null
+  }, [subBlock?.type, rawValue, mcpServers])
+
+  const { data: mcpToolsData = [] } = useMcpToolsQuery(workspaceId || '')
+  const mcpToolDisplayName = useMemo(() => {
+    if (subBlock?.type !== 'mcp-tool-selector' || typeof rawValue !== 'string') {
+      return null
+    }
+
+    const tool = mcpToolsData.find((t) => {
+      const toolId = createMcpToolId(t.serverId, t.name)
+      return toolId === rawValue
+    })
+    return tool?.name ?? null
+  }, [subBlock?.type, rawValue, mcpToolsData])
+
   const allVariables = useVariablesStore((state) => state.variables)
 
-  // Special handling for variables-input to hydrate variable IDs to names from variables store
   const variablesDisplayValue = useMemo(() => {
     if (subBlock?.type !== 'variables-input' || !isVariableAssignmentsArray(rawValue)) {
       return null
@@ -300,12 +383,22 @@ const SubBlockRow = ({
 
   const isSelectorType = subBlock?.type && SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlock.type)
   const hydratedName =
-    credentialName || dropdownLabel || variablesDisplayValue || genericDisplayName
+    credentialName ||
+    dropdownLabel ||
+    variablesDisplayValue ||
+    knowledgeBaseDisplayName ||
+    workflowSelectionName ||
+    mcpServerDisplayName ||
+    mcpToolDisplayName ||
+    selectorDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
     <div className='flex items-center gap-[8px]'>
-      <span className='min-w-0 truncate text-[14px] text-[var(--text-tertiary)]' title={title}>
+      <span
+        className='min-w-0 truncate text-[14px] text-[var(--text-tertiary)] capitalize'
+        title={title}
+      >
         {title}
       </span>
       {displayValue !== undefined && (
@@ -463,21 +556,16 @@ export const WorkflowBlock = memo(function WorkflowBlock({
      * Uses preview values in preview mode, diff workflow values in diff mode,
      * or the current block's subblock values otherwise.
      */
-    let stateToUse: Record<string, { value: unknown }> = {}
-
-    if (data.isPreview && data.subBlockValues) {
-      stateToUse = data.subBlockValues
-    } else if (currentWorkflow.isDiffMode && currentBlock) {
-      stateToUse = currentBlock.subBlocks || {}
-    } else {
-      stateToUse = Object.entries(blockSubBlockValues).reduce(
-        (acc, [key, value]) => {
-          acc[key] = { value }
-          return acc
-        },
-        {} as Record<string, { value: unknown }>
-      )
-    }
+    const stateToUse: Record<string, { value: unknown }> =
+      data.isPreview && data.subBlockValues
+        ? data.subBlockValues
+        : Object.entries(blockSubBlockValues).reduce(
+            (acc, [key, value]) => {
+              acc[key] = { value }
+              return acc
+            },
+            {} as Record<string, { value: unknown }>
+          )
 
     const effectiveAdvanced = displayAdvancedMode
     const effectiveTrigger = displayTriggerMode
@@ -712,7 +800,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         ref={contentRef}
         onClick={handleClick}
         className={cn(
-          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[var(--surface-2)]'
+          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)]'
         )}
       >
         {isPending && (

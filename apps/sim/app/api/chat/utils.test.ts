@@ -71,13 +71,13 @@ describe('Chat API Utils', () => {
   })
 
   describe('Auth token utils', () => {
-    it('should encrypt and validate auth tokens', async () => {
-      const { encryptAuthToken, validateAuthToken } = await import('@/app/api/chat/utils')
+    it('should validate auth tokens', async () => {
+      const { validateAuthToken } = await import('@/app/api/chat/utils')
 
       const chatId = 'test-chat-id'
       const type = 'password'
 
-      const token = encryptAuthToken(chatId, type)
+      const token = Buffer.from(`${chatId}:${type}:${Date.now()}`).toString('base64')
       expect(typeof token).toBe('string')
       expect(token.length).toBeGreaterThan(0)
 
@@ -92,7 +92,6 @@ describe('Chat API Utils', () => {
       const { validateAuthToken } = await import('@/app/api/chat/utils')
 
       const chatId = 'test-chat-id'
-      // Create an expired token by directly constructing it with an old timestamp
       const expiredToken = Buffer.from(
         `${chatId}:password:${Date.now() - 25 * 60 * 60 * 1000}`
       ).toString('base64')
@@ -165,20 +164,6 @@ describe('Chat API Utils', () => {
         'Access-Control-Allow-Headers',
         'Content-Type, X-Requested-With'
       )
-    })
-
-    it('should handle OPTIONS request', async () => {
-      const { OPTIONS } = await import('@/app/api/chat/utils')
-
-      const mockRequest = {
-        headers: {
-          get: vi.fn().mockReturnValue('http://localhost:3000'),
-        },
-      } as any
-
-      const response = await OPTIONS(mockRequest)
-
-      expect(response.status).toBe(204)
     })
   })
 
@@ -355,10 +340,8 @@ describe('Chat API Utils', () => {
 
   describe('Execution Result Processing', () => {
     it('should process logs regardless of overall success status', () => {
-      // Test that logs are processed even when overall execution fails
-      // This is key for partial success scenarios
       const executionResult = {
-        success: false, // Overall execution failed
+        success: false,
         output: {},
         logs: [
           {
@@ -383,16 +366,13 @@ describe('Chat API Utils', () => {
         metadata: { duration: 1000 },
       }
 
-      // Test the key logic: logs should be processed regardless of overall success
       expect(executionResult.success).toBe(false)
       expect(executionResult.logs).toBeDefined()
       expect(executionResult.logs).toHaveLength(2)
 
-      // First log should be successful
       expect(executionResult.logs[0].success).toBe(true)
       expect(executionResult.logs[0].output?.content).toBe('Agent 1 succeeded')
 
-      // Second log should be failed
       expect(executionResult.logs[1].success).toBe(false)
       expect(executionResult.logs[1].error).toBe('Agent 2 failed')
     })
@@ -405,18 +385,15 @@ describe('Chat API Utils', () => {
         metadata: { duration: 100 },
       }
 
-      // Test direct ExecutionResult
       const directResult = executionResult
       const extractedDirect = directResult
       expect(extractedDirect).toBe(executionResult)
 
-      // Test StreamingExecution with embedded ExecutionResult
       const streamingResult = {
         stream: new ReadableStream(),
         execution: executionResult,
       }
 
-      // Test that streaming execution wraps the result correctly
       const extractedFromStreaming =
         streamingResult && typeof streamingResult === 'object' && 'execution' in streamingResult
           ? streamingResult.execution

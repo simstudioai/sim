@@ -43,10 +43,11 @@ export interface McpServerConfig {
 }
 
 export interface McpTool {
-  id: string
   serverId: string
+  serverName: string
   name: string
   description?: string
+  inputSchema?: any
 }
 
 /**
@@ -192,9 +193,7 @@ export function useDeleteMcpServer() {
       return data
     },
     onSuccess: (_data, variables) => {
-      // Invalidate servers list to refetch
       queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
-      // Invalidate tools as deleted server's tools should be removed
       queryClient.invalidateQueries({ queryKey: mcpKeys.tools(variables.workspaceId) })
     },
   })
@@ -214,19 +213,14 @@ export function useUpdateMcpServer() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, serverId, updates }: UpdateMcpServerParams) => {
-      // For now, this is optimistic-only since there's no PATCH endpoint
-      // The component would need a PATCH endpoint for full implementation
       logger.info(`Updated MCP server: ${serverId} in workspace: ${workspaceId}`)
       return { serverId, updates }
     },
     onMutate: async ({ workspaceId, serverId, updates }) => {
-      // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: mcpKeys.servers(workspaceId) })
 
-      // Snapshot the previous value
       const previousServers = queryClient.getQueryData<McpServer[]>(mcpKeys.servers(workspaceId))
 
-      // Optimistically update to the new value
       if (previousServers) {
         queryClient.setQueryData<McpServer[]>(
           mcpKeys.servers(workspaceId),
@@ -241,13 +235,11 @@ export function useUpdateMcpServer() {
       return { previousServers }
     },
     onError: (_err, variables, context) => {
-      // Rollback on error
       if (context?.previousServers) {
         queryClient.setQueryData(mcpKeys.servers(variables.workspaceId), context.previousServers)
       }
     },
     onSettled: (_data, _error, variables) => {
-      // Always refetch after error or success
       queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
     },
   })

@@ -1,5 +1,5 @@
 import * as yaml from 'js-yaml'
-import type { FileParseResult } from './types'
+import type { FileParseResult } from '@/lib/file-parsers/types'
 
 /**
  * Parse YAML files

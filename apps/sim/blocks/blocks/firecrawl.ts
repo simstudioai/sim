@@ -187,11 +187,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
           case 'scrape':
             if (url) result.url = url
             if (formats) {
-              try {
-                result.formats = typeof formats === 'string' ? JSON.parse(formats) : formats
-              } catch {
-                result.formats = ['markdown']
-              }
+              result.formats = Array.isArray(formats) ? formats : ['markdown']
             }
             if (timeout) result.timeout = Number.parseInt(timeout)
             if (waitFor) result.waitFor = Number.parseInt(waitFor)
@@ -218,11 +214,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
 
           case 'extract':
             if (urls) {
-              try {
-                result.urls = typeof urls === 'string' ? JSON.parse(urls) : urls
-              } catch {
-                result.urls = [urls]
-              }
+              result.urls = Array.isArray(urls) ? urls : [urls]
             }
             if (prompt) result.prompt = prompt
             break

@@ -4,12 +4,12 @@ import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/block-outputs'
 import { TriggerUtils } from '@/lib/workflows/triggers'
+import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { useSocket } from '@/contexts/socket-context'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
+import { usePanelEditorStore } from '@/stores/panel/editor/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
-import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -26,12 +26,12 @@ export function useCollaborativeWorkflow() {
   const undoRedo = useUndoRedo()
   const isUndoRedoInProgress = useRef(false)
   const skipEdgeRecording = useRef(false)
+  const lastDiffOperationId = useRef<string | null>(null)
 
   useEffect(() => {
     const moveHandler = (e: any) => {
       const { blockId, before, after } = e.detail || {}
       if (!blockId || !before || !after) return
-      // Don't record moves during undo/redo operations
       if (isUndoRedoInProgress.current) return
       undoRedo.recordMove(blockId, before, after)
     }
@@ -40,7 +40,6 @@ export function useCollaborativeWorkflow() {
       const { blockId, oldParentId, newParentId, oldPosition, newPosition, affectedEdges } =
         e.detail || {}
       if (!blockId) return
-      // Don't record during undo/redo operations
       if (isUndoRedoInProgress.current) return
       undoRedo.recordUpdateParent(
         blockId,
@@ -57,13 +56,58 @@ export function useCollaborativeWorkflow() {
       skipEdgeRecording.current = skip
     }
 
+    const diffOperationHandler = (e: any) => {
+      const {
+        type,
+        baselineSnapshot,
+        proposedState,
+        diffAnalysis,
+        beforeAccept,
+        afterAccept,
+        beforeReject,
+        afterReject,
+      } = e.detail || {}
+      // Don't record during undo/redo operations
+      if (isUndoRedoInProgress.current) return
+
+      // Generate a unique ID for this diff operation to prevent duplicates
+      // Use block keys from the relevant states for each operation type
+      let stateForId
+      if (type === 'apply-diff') {
+        stateForId = proposedState
+      } else if (type === 'accept-diff') {
+        stateForId = afterAccept
+      } else if (type === 'reject-diff') {
+        stateForId = afterReject
+      }
+
+      const blockKeys = stateForId?.blocks ? Object.keys(stateForId.blocks).sort().join(',') : ''
+      const operationId = `${type}-${blockKeys}`
+
+      if (lastDiffOperationId.current === operationId) {
+        logger.debug('Skipping duplicate diff operation', { type, operationId })
+        return // Skip duplicate
+      }
+      lastDiffOperationId.current = operationId
+
+      if (type === 'apply-diff' && baselineSnapshot && proposedState) {
+        undoRedo.recordApplyDiff(baselineSnapshot, proposedState, diffAnalysis)
+      } else if (type === 'accept-diff' && beforeAccept && afterAccept) {
+        undoRedo.recordAcceptDiff(beforeAccept, afterAccept, diffAnalysis, baselineSnapshot)
+      } else if (type === 'reject-diff' && beforeReject && afterReject) {
+        undoRedo.recordRejectDiff(beforeReject, afterReject, diffAnalysis, baselineSnapshot)
+      }
+    }
+
     window.addEventListener('workflow-record-move', moveHandler)
     window.addEventListener('workflow-record-parent-update', parentUpdateHandler)
     window.addEventListener('skip-edge-recording', skipEdgeHandler)
+    window.addEventListener('record-diff-operation', diffOperationHandler)
     return () => {
       window.removeEventListener('workflow-record-move', moveHandler)
       window.removeEventListener('workflow-record-parent-update', parentUpdateHandler)
       window.removeEventListener('skip-edge-recording', skipEdgeHandler)
+      window.removeEventListener('record-diff-operation', diffOperationHandler)
     }
   }, [undoRedo])
   const {
@@ -91,7 +135,8 @@ export function useCollaborativeWorkflow() {
   const subBlockStore = useSubBlockStore()
   const variablesStore = useVariablesStore()
   const { data: session } = useSession()
-  const { isShowingDiff } = useWorkflowDiffStore()
+  const { hasActiveDiff, isShowingDiff } = useWorkflowDiffStore()
+  const isBaselineDiffView = hasActiveDiff && !isShowingDiff
 
   // Track if we're applying remote changes to avoid infinite loops
   const isApplyingRemoteChange = useRef(false)
@@ -396,6 +441,39 @@ export function useCollaborativeWorkflow() {
               variablesStore.duplicateVariable(payload.sourceVariableId, payload.id)
               break
           }
+        } else if (target === 'workflow') {
+          switch (operation) {
+            case 'replace-state':
+              if (payload.state) {
+                logger.info('Received workflow state replacement from remote user', {
+                  userId,
+                  blockCount: Object.keys(payload.state.blocks || {}).length,
+                  edgeCount: (payload.state.edges || []).length,
+                  hasActiveDiff,
+                  isShowingDiff,
+                })
+                workflowStore.replaceWorkflowState(payload.state)
+
+                // Extract and apply subblock values
+                const subBlockValues: Record<string, Record<string, any>> = {}
+                Object.entries(payload.state.blocks || {}).forEach(
+                  ([blockId, block]: [string, any]) => {
+                    subBlockValues[blockId] = {}
+                    Object.entries(block.subBlocks || {}).forEach(
+                      ([subBlockId, subBlock]: [string, any]) => {
+                        subBlockValues[blockId][subBlockId] = subBlock.value
+                      }
+                    )
+                  }
+                )
+                if (activeWorkflowId) {
+                  subBlockStore.setWorkflowValues(activeWorkflowId, subBlockValues)
+                }
+
+                logger.info('Successfully applied remote workflow state replacement')
+              }
+              break
+          }
         }
       } catch (error) {
         logger.error('Error applying remote operation:', error)
@@ -605,9 +683,9 @@ export function useCollaborativeWorkflow() {
         return
       }
 
-      // Skip socket operations when in diff mode
-      if (isShowingDiff) {
-        logger.debug('Skipping socket operation in diff mode:', operation)
+      // Skip socket operations when viewing baseline diff (readonly)
+      if (isBaselineDiffView) {
+        logger.debug('Skipping socket operation while viewing baseline diff:', operation)
         return
       }
 
@@ -639,7 +717,7 @@ export function useCollaborativeWorkflow() {
     [
       addToQueue,
       session?.user?.id,
-      isShowingDiff,
+      isBaselineDiffView,
       activeWorkflowId,
       isInActiveRoom,
       currentWorkflowId,
@@ -650,8 +728,8 @@ export function useCollaborativeWorkflow() {
     (operation: string, target: string, payload: any, localAction: () => void) => {
       if (isApplyingRemoteChange.current) return
 
-      if (isShowingDiff) {
-        logger.debug('Skipping debounced socket operation in diff mode:', operation)
+      if (isBaselineDiffView) {
+        logger.debug('Skipping debounced socket operation while viewing baseline diff:', operation)
         return
       }
 
@@ -669,7 +747,7 @@ export function useCollaborativeWorkflow() {
 
       emitWorkflowOperation(operation, target, payload)
     },
-    [emitWorkflowOperation, isShowingDiff, isInActiveRoom, currentWorkflowId, activeWorkflowId]
+    [emitWorkflowOperation, isBaselineDiffView, isInActiveRoom, currentWorkflowId, activeWorkflowId]
   )
 
   const collaborativeAddBlock = useCallback(
@@ -684,9 +762,9 @@ export function useCollaborativeWorkflow() {
       autoConnectEdge?: Edge,
       triggerMode?: boolean
     ) => {
-      // Skip socket operations when in diff mode
-      if (isShowingDiff) {
-        logger.debug('Skipping collaborative add block in diff mode')
+      // Skip socket operations when viewing baseline diff
+      if (isBaselineDiffView) {
+        logger.debug('Skipping collaborative add block while viewing baseline diff')
         return
       }
 
@@ -868,7 +946,7 @@ export function useCollaborativeWorkflow() {
       activeWorkflowId,
       addToQueue,
       session?.user?.id,
-      isShowingDiff,
+      isBaselineDiffView,
       isInActiveRoom,
       currentWorkflowId,
       undoRedo,
@@ -891,7 +969,7 @@ export function useCollaborativeWorkflow() {
       }
       findAllDescendants(id)
 
-      // If the currently edited block is among the blocks being removed, clear selection to restore the last tab
+      // If the currently edited block is among the blocks being removed, clear selection to reset the panel
       const currentEditedBlockId = usePanelEditorStore.getState().currentBlockId
       if (currentEditedBlockId && blocksToRemove.has(currentEditedBlockId)) {
         usePanelEditorStore.getState().clearCurrentBlock()
@@ -939,10 +1017,42 @@ export function useCollaborativeWorkflow() {
   const collaborativeUpdateBlockName = useCallback(
     (id: string, name: string) => {
       executeQueuedOperation('update-name', 'block', { id, name }, () => {
-        workflowStore.updateBlockName(id, name)
+        const result = workflowStore.updateBlockName(id, name)
+
+        if (result.success && result.changedSubblocks.length > 0) {
+          logger.info('Emitting cascaded subblock updates from block rename', {
+            blockId: id,
+            newName: name,
+            updateCount: result.changedSubblocks.length,
+          })
+
+          result.changedSubblocks.forEach(
+            ({
+              blockId,
+              subBlockId,
+              newValue,
+            }: {
+              blockId: string
+              subBlockId: string
+              newValue: any
+            }) => {
+              const operationId = crypto.randomUUID()
+              addToQueue({
+                id: operationId,
+                operation: {
+                  operation: 'subblock-update',
+                  target: 'subblock',
+                  payload: { blockId, subBlockId, value: newValue },
+                },
+                workflowId: activeWorkflowId || '',
+                userId: session?.user?.id || 'unknown',
+              })
+            }
+          )
+        }
       })
     },
-    [executeQueuedOperation, workflowStore]
+    [executeQueuedOperation, workflowStore, addToQueue, activeWorkflowId, session?.user?.id]
   )
 
   const collaborativeToggleBlockEnabled = useCallback(
@@ -1078,9 +1188,9 @@ export function useCollaborativeWorkflow() {
     (blockId: string, subblockId: string, value: any, options?: { _visited?: Set<string> }) => {
       if (isApplyingRemoteChange.current) return
 
-      // Skip socket operations when in diff mode
-      if (isShowingDiff) {
-        logger.debug('Skipping collaborative subblock update in diff mode')
+      // Skip socket operations when viewing baseline diff
+      if (isBaselineDiffView) {
+        logger.debug('Skipping collaborative subblock update while viewing baseline diff')
         return
       }
 
@@ -1097,6 +1207,9 @@ export function useCollaborativeWorkflow() {
       // Generate operation ID for queue tracking
       const operationId = crypto.randomUUID()
 
+      // Get fresh activeWorkflowId from store to avoid stale closure
+      const currentActiveWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+
       // Add to queue for retry mechanism
       addToQueue({
         id: operationId,
@@ -1105,7 +1218,7 @@ export function useCollaborativeWorkflow() {
           target: 'subblock',
           payload: { blockId, subblockId, value },
         },
-        workflowId: activeWorkflowId || '',
+        workflowId: currentActiveWorkflowId || '',
         userId: session?.user?.id || 'unknown',
       })
 
@@ -1140,7 +1253,7 @@ export function useCollaborativeWorkflow() {
       activeWorkflowId,
       addToQueue,
       session?.user?.id,
-      isShowingDiff,
+      isBaselineDiffView,
       isInActiveRoom,
     ]
   )
@@ -1634,19 +1747,21 @@ export function useCollaborativeWorkflow() {
     subBlockStore,
 
     // Undo/Redo operations (wrapped to prevent recording moves during undo/redo)
-    undo: useCallback(() => {
+    undo: useCallback(async () => {
       isUndoRedoInProgress.current = true
-      undoRedo.undo()
-      queueMicrotask(() => {
+      await undoRedo.undo()
+      // Use a longer delay to ensure all async operations complete
+      setTimeout(() => {
         isUndoRedoInProgress.current = false
-      })
+      }, 100)
     }, [undoRedo]),
-    redo: useCallback(() => {
+    redo: useCallback(async () => {
       isUndoRedoInProgress.current = true
-      undoRedo.redo()
-      queueMicrotask(() => {
+      await undoRedo.redo()
+      // Use a longer delay to ensure all async operations complete
+      setTimeout(() => {
         isUndoRedoInProgress.current = false
-      })
+      }, 100)
     }, [undoRedo]),
     getUndoRedoSizes: undoRedo.getStackSizes,
     clearUndoRedo: undoRedo.clearStacks,

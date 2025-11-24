@@ -33,7 +33,7 @@ export const linearCreateWorkflowStateTool: ToolConfig<
     },
     color: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'State color (hex format)',
     },
@@ -73,12 +73,18 @@ export const linearCreateWorkflowStateTool: ToolConfig<
       const input: Record<string, any> = {
         teamId: params.teamId,
         name: params.name,
-        color: params.color,
         type: params.type,
       }
 
-      if (params.description !== undefined) input.description = params.description
-      if (params.position !== undefined) input.position = Number(params.position)
+      if (params.color != null && params.color !== '') {
+        input.color = params.color
+      }
+      if (params.description != null && params.description !== '') {
+        input.description = params.description
+      }
+      if (params.position != null) {
+        input.position = Number(params.position)
+      }
 
       return {
         query: `

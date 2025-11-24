@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import { getBlock } from '@/blocks/registry'
+import { useStarTemplate } from '@/hooks/queries/templates'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('TemplateCard')
@@ -12,37 +13,20 @@ const logger = createLogger('TemplateCard')
 interface TemplateCardProps {
   id: string
   title: string
-  description: string
   author: string
   authorImageUrl?: string | null
   usageCount: string
   stars?: number
-  icon?: React.ReactNode | string
-  iconColor?: string
   blocks?: string[]
-  onClick?: () => void
   className?: string
-  // Workflow state for rendering preview
   state?: WorkflowState
   isStarred?: boolean
-  // Optional callback when template is successfully used (for closing modals, etc.)
-  onTemplateUsed?: () => void
-  // Callback when star state changes (for parent state updates)
-  onStarChange?: (templateId: string, isStarred: boolean, newStarCount: number) => void
-  // User authentication status
-  isAuthenticated?: boolean
 }
 
-/**
- * Skeleton component for loading states
- */
 export function TemplateCardSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn('h-[268px] w-full rounded-[8px] bg-[#202020] p-[8px]', className)}>
-      {/* Workflow preview skeleton */}
       <div className='h-[180px] w-full animate-pulse rounded-[6px] bg-gray-700' />
-
-      {/* Title and blocks row skeleton */}
       <div className='mt-[14px] flex items-center justify-between'>
         <div className='h-4 w-32 animate-pulse rounded bg-gray-700' />
         <div className='flex items-center gap-[-4px]'>
@@ -55,7 +39,6 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
         </div>
       </div>
 
-      {/* Creator and stats row skeleton */}
       <div className='mt-[14px] flex items-center justify-between'>
         <div className='flex items-center gap-[8px]'>
           <div className='h-[14px] w-[14px] animate-pulse rounded-full bg-gray-700' />
@@ -72,31 +55,23 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
   )
 }
 
-// Utility function to extract block types from workflow state
 const extractBlockTypesFromState = (state?: {
   blocks?: Record<string, { type: string; name?: string }>
 }): string[] => {
   if (!state?.blocks) return []
 
-  // Get unique block types from the state, excluding starter blocks
-  // Sort the keys to ensure consistent ordering between server and client
   const blockTypes = Object.keys(state.blocks)
-    .sort() // Sort keys to ensure consistent order
+    .sort()
     .map((key) => state.blocks![key].type)
     .filter((type) => type !== 'starter')
   return [...new Set(blockTypes)]
 }
 
-// Utility function to get the full block config for colored icon display
 const getBlockConfig = (blockType: string) => {
   const block = getBlock(blockType)
   return block
 }
 
-/**
- * Normalize an arbitrary workflow-like object into a valid WorkflowState for preview rendering.
- * Ensures required fields exist: blocks with required properties, edges array, loops and parallels maps.
- */
 function normalizeWorkflowState(input?: any): WorkflowState | null {
   if (!input || !input.blocks) return null
 
@@ -142,34 +117,22 @@ function normalizeWorkflowState(input?: any): WorkflowState | null {
 function TemplateCardInner({
   id,
   title,
-  description,
   author,
   authorImageUrl,
   usageCount,
   stars = 0,
-  icon,
-  iconColor = 'bg-blue-500',
   blocks = [],
-  onClick,
   className,
   state,
   isStarred = false,
-  onTemplateUsed,
-  onStarChange,
-  isAuthenticated = true,
 }: TemplateCardProps) {
   const router = useRouter()
   const params = useParams()
 
-  // Local state for optimistic updates
-  const [localIsStarred, setLocalIsStarred] = useState(isStarred)
-  const [localStarCount, setLocalStarCount] = useState(stars)
-  const [isStarLoading, setIsStarLoading] = useState(false)
+  const { mutate: toggleStar, isPending: isStarLoading } = useStarTemplate()
 
-  // Memoize normalized workflow state to avoid recalculation on every render
   const normalizedState = useMemo(() => normalizeWorkflowState(state), [state])
 
-  // Use IntersectionObserver to defer rendering the heavy WorkflowPreview until in viewport
   const previewRef = useRef<HTMLDivElement | null>(null)
   const [isInView, setIsInView] = useState(false)
 
@@ -188,9 +151,6 @@ function TemplateCardInner({
     return () => observer.disconnect()
   }, [])
 
-  // Extract block types from state if provided, otherwise use the blocks prop
-  // Filter out starter blocks in both cases and sort for consistent rendering
-  // Memoized to prevent recalculation on every render
   const blockTypes = useMemo(
     () =>
       state
@@ -199,65 +159,16 @@ function TemplateCardInner({
     [state, blocks]
   )
 
-  // Handle star toggle with optimistic updates
-  const handleStarClick = async (e: React.MouseEvent) => {
+  const handleStarClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-
-    // Prevent multiple clicks while loading
     if (isStarLoading) return
 
-    setIsStarLoading(true)
-
-    // Optimistic update - update UI immediately
-    const newIsStarred = !localIsStarred
-    const newStarCount = newIsStarred ? localStarCount + 1 : localStarCount - 1
-
-    setLocalIsStarred(newIsStarred)
-    setLocalStarCount(newStarCount)
-
-    // Notify parent component immediately for optimistic update
-    if (onStarChange) {
-      onStarChange(id, newIsStarred, newStarCount)
-    }
-
-    try {
-      const method = localIsStarred ? 'DELETE' : 'POST'
-      const response = await fetch(`/api/templates/${id}/star`, { method })
-
-      if (!response.ok) {
-        // Rollback on error
-        setLocalIsStarred(localIsStarred)
-        setLocalStarCount(localStarCount)
-
-        // Rollback parent state too
-        if (onStarChange) {
-          onStarChange(id, localIsStarred, localStarCount)
-        }
-
-        logger.error('Failed to toggle star:', response.statusText)
-      }
-    } catch (error) {
-      // Rollback on error
-      setLocalIsStarred(localIsStarred)
-      setLocalStarCount(localStarCount)
-
-      // Rollback parent state too
-      if (onStarChange) {
-        onStarChange(id, localIsStarred, localStarCount)
-      }
-
-      logger.error('Error toggling star:', error)
-    } finally {
-      setIsStarLoading(false)
-    }
+    toggleStar({
+      templateId: id,
+      action: isStarred ? 'remove' : 'add',
+    })
   }
 
-  /**
-   * Get the appropriate template detail page URL based on context.
-   * If we're in a workspace context, navigate to the workspace template page.
-   * Otherwise, navigate to the global template page.
-   * Memoized to avoid recalculation on every render.
-   */
   const templateUrl = useMemo(() => {
     const workspaceId = params?.workspaceId as string | undefined
     if (workspaceId) {
@@ -266,23 +177,8 @@ function TemplateCardInner({
     return `/templates/${id}`
   }, [params?.workspaceId, id])
 
-  /**
-   * Handle use button click - navigate to template detail page
-   */
-  const handleUseClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      router.push(templateUrl)
-    },
-    [router, templateUrl]
-  )
-
-  /**
-   * Handle card click - navigate to template detail page
-   */
   const handleCardClick = useCallback(
     (e: React.MouseEvent) => {
-      // Don't navigate if clicking on action buttons
       const target = e.target as HTMLElement
       if (target.closest('button') || target.closest('[data-action]')) {
         return
@@ -298,7 +194,6 @@ function TemplateCardInner({
       onClick={handleCardClick}
       className={cn('w-full cursor-pointer rounded-[8px] bg-[#202020] p-[8px]', className)}
     >
-      {/* Workflow Preview */}
       <div
         ref={previewRef}
         className='pointer-events-none h-[180px] w-full overflow-hidden rounded-[6px]'
@@ -318,16 +213,12 @@ function TemplateCardInner({
         )}
       </div>
 
-      {/* Title and Blocks Row */}
       <div className='mt-[10px] flex items-center justify-between'>
-        {/* Template Name */}
         <h3 className='truncate pr-[8px] pl-[2px] font-medium text-[16px] text-white'>{title}</h3>
 
-        {/* Block Icons */}
         <div className='flex flex-shrink-0'>
           {blockTypes.length > 4 ? (
             <>
-              {/* Show first 3 blocks when there are more than 4 */}
               {blockTypes.slice(0, 3).map((blockType, index) => {
                 const blockConfig = getBlockConfig(blockType)
                 if (!blockConfig) return null
@@ -345,7 +236,6 @@ function TemplateCardInner({
                   </div>
                 )
               })}
-              {/* Show +n for remaining blocks */}
               <div
                 className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[#4A4A4A]'
                 style={{ marginLeft: '-4px' }}
@@ -354,7 +244,6 @@ function TemplateCardInner({
               </div>
             </>
           ) : (
-            /* Show all blocks when 4 or fewer */
             blockTypes.map((blockType, index) => {
               const blockConfig = getBlockConfig(blockType)
               if (!blockConfig) return null
@@ -376,9 +265,7 @@ function TemplateCardInner({
         </div>
       </div>
 
-      {/* Creator and Stats Row */}
       <div className='mt-[10px] flex items-center justify-between'>
-        {/* Creator Info */}
         <div className='flex items-center gap-[8px]'>
           {authorImageUrl ? (
             <div className='h-[26px] w-[26px] flex-shrink-0 overflow-hidden rounded-full'>
@@ -392,7 +279,6 @@ function TemplateCardInner({
           <span className='truncate font-medium text-[#888888] text-[12px]'>{author}</span>
         </div>
 
-        {/* Stats */}
         <div className='flex flex-shrink-0 items-center gap-[6px] font-medium text-[#888888] text-[12px]'>
           <User className='h-[12px] w-[12px]' />
           <span>{usageCount}</span>
@@ -400,11 +286,11 @@ function TemplateCardInner({
             onClick={handleStarClick}
             className={cn(
               'h-[12px] w-[12px] cursor-pointer transition-colors',
-              localIsStarred ? 'fill-yellow-500 text-yellow-500' : 'text-[#888888]',
+              isStarred ? 'fill-yellow-500 text-yellow-500' : 'text-[#888888]',
               isStarLoading && 'opacity-50'
             )}
           />
-          <span>{localStarCount}</span>
+          <span>{stars}</span>
         </div>
       </div>
     </div>

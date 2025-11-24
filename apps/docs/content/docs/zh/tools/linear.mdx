@@ -39,14 +39,24 @@ Linear 的主要功能包括：
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | 是 | Linear 团队 ID |
-| `projectId` | string | 是 | Linear 项目 ID |
+| `teamId` | string | 否 | 按 Linear 团队 ID 筛选 |
+| `projectId` | string | 否 | 按 Linear 项目 ID 筛选 |
+| `assigneeId` | string | 否 | 按分配的用户 ID 筛选 |
+| `stateId` | string | 否 | 按工作流状态 ID 筛选（状态）|
+| `priority` | number | 否 | 按优先级筛选（0=无优先级，1=紧急，2=高，3=正常，4=低）|
+| `labelIds` | array | 否 | 按标签 ID 数组筛选 |
+| `createdAfter` | string | 否 | 筛选创建日期晚于此日期的问题（ISO 8601 格式）|
+| `updatedAfter` | string | 否 | 筛选更新日期晚于此日期的问题（ISO 8601 格式）|
+| `includeArchived` | boolean | 否 | 包括已归档的问题（默认值：false）|
+| `first` | number | 否 | 返回的问题数量（默认值：50，最大值：250）|
+| `after` | string | 否 | 下一页的分页游标 |
+| `orderBy` | string | 否 | 排序顺序："createdAt" 或 "updatedAt"（默认值："updatedAt"）|
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `issues` | array | 来自指定 Linear 团队和项目的问题数组，每个问题包含 id、title、description、state、teamId 和 projectId |
+| `issues` | array | 从 Linear 筛选的问题数组 |
 
 ### `linear_get_issue`
 
@@ -73,15 +83,25 @@ Linear 的主要功能包括：
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | 是 | Linear 团队 ID |
-| `projectId` | string | 是 | Linear 项目 ID |
+| `projectId` | string | 否 | Linear 项目 ID |
 | `title` | string | 是 | 问题标题 |
 | `description` | string | 否 | 问题描述 |
+| `stateId` | string | 否 | 工作流状态 ID（状态）|
+| `assigneeId` | string | 否 | 要分配问题的用户 ID |
+| `priority` | number | 否 | 优先级（0=无优先级，1=紧急，2=高，3=正常，4=低）|
+| `estimate` | number | 否 | 以点数估算 |
+| `labelIds` | array | 否 | 要设置在问题上的标签 ID 数组 |
+| `cycleId` | string | 否 | 要分配问题的周期 ID |
+| `parentId` | string | 否 | 父问题 ID（用于创建子问题）|
+| `dueDate` | string | 否 | 到期日期（ISO 8601 格式，仅日期：YYYY-MM-DD）|
+| `subscriberIds` | array | 否 | 要订阅问题的用户 ID 数组 |
+| `projectMilestoneId` | string | 否 | 要与问题关联的项目里程碑 ID |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `issue` | object | 创建的问题，包含 id、title、description、state、teamId 和 projectId |
+| `issue` | object | 创建的包含所有属性的问题 |
 
 ### `linear_update_issue`
 
@@ -94,11 +114,17 @@ Linear 的主要功能包括：
 | `issueId` | string | 是 | 要更新的 Linear 问题 ID |
 | `title` | string | 否 | 新的问题标题 |
 | `description` | string | 否 | 新的问题描述 |
-| `stateId` | string | 否 | 工作流状态 ID（状态） |
-| `assigneeId` | string | 否 | 要分配问题的用户 ID |
-| `priority` | number | 否 | 优先级（0=无优先级，1=紧急，2=高，3=正常，4=低） |
-| `estimate` | number | 否 | 以点数估算 |
-| `labelIds` | array | 否 | 要设置在问题上的标签 ID 数组 |
+| `stateId` | string | 否 | 工作流状态 ID（状态）|
+| `assigneeId` | string | 否 | 分配给问题的用户 ID |
+| `priority` | number | 否 | 优先级（0=无优先级，1=紧急，2=高，3=正常，4=低）|
+| `estimate` | number | 否 | 估算点数 |
+| `labelIds` | array | 否 | 设置在问题上的标签 ID 数组（替换所有现有标签）|
+| `projectId` | string | 否 | 要移动问题到的项目 ID |
+| `cycleId` | string | 否 | 分配给问题的周期 ID |
+| `parentId` | string | 否 | 父问题 ID（将其设为子问题）|
+| `dueDate` | string | 否 | ISO 8601 格式的截止日期（仅日期：YYYY-MM-DD）|
+| `addedLabelIds` | array | 否 | 添加到问题的标签 ID 数组（不替换现有标签）|
+| `removedLabelIds` | array | 否 | 从问题中移除的标签 ID 数组 |
 
 #### 输出
 
@@ -237,7 +263,7 @@ Linear 的主要功能包括：
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `commentId` | string | 是 | 要更新的评论 ID |
-| `body` | string | 是 | 新的评论文本（支持 Markdown） |
+| `body` | string | 否 | 新的评论文本（支持 Markdown） |
 
 #### 输出
 
@@ -347,11 +373,11 @@ Linear 的主要功能包括：
 | `projectId` | string | 是 | 要更新的项目 ID |
 | `name` | string | 否 | 新的项目名称 |
 | `description` | string | 否 | 新的项目描述 |
-| `state` | string | 否 | 项目状态（计划中、已开始、已完成、已取消）|
+| `state` | string | 否 | 项目状态（planned、started、completed、canceled） |
 | `leadId` | string | 否 | 项目负责人的用户 ID |
-| `startDate` | string | 否 | 项目开始日期（ISO 格式）|
-| `targetDate` | string | 否 | 项目目标日期（ISO 格式）|
-| `priority` | number | 否 | 项目优先级（0-4）|
+| `startDate` | string | 否 | 项目开始日期（ISO 格式: YYYY-MM-DD）|
+| `targetDate` | string | 否 | 项目目标日期（ISO 格式: YYYY-MM-DD）|
+| `priority` | number | 否 | 项目优先级（0=无优先级，1=紧急，2=高，3=正常，4=低） |
 
 #### 输出
 
@@ -525,10 +551,10 @@ Linear 的主要功能包括：
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | 是 | 要创建状态的团队 ID |
-| `name` | string | 是 | 状态名称 \(例如，"In Review"\) |
-| `color` | string | 是 | 状态颜色 \(十六进制格式\) |
-| `type` | string | 是 | 状态类型："backlog"、"unstarted"、"started"、"completed" 或 "canceled" |
+| `teamId` | string | 是 | 要在其中创建状态的团队 ID |
+| `name` | string | 是 | 状态名称（例如 "In Review"）|
+| `color` | string | 否 | 状态颜色（十六进制格式）|
+| `type` | string | 是 | 状态类型: "backlog"、"unstarted"、"started"、"completed" 或 "canceled" |
 | `description` | string | 否 | 状态描述 |
 | `position` | number | 否 | 工作流中的位置 |
 
@@ -637,7 +663,7 @@ Linear 的主要功能包括：
 | --------- | ---- | -------- | ----------- |
 | `issueId` | string | 是 | 要附加的 Issue ID |
 | `url` | string | 是 | 附件的 URL |
-| `title` | string | 否 | 附件标题 |
+| `title` | string | 是 | 附件标题 |
 | `subtitle` | string | 否 | 附件副标题/描述 |
 
 #### 输出
@@ -673,7 +699,7 @@ Linear 的主要功能包括：
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `attachmentId` | string | 是 | 要更新的附件 ID |
-| `title` | string | 否 | 新的附件标题 |
+| `title` | string | 是 | 新的附件标题 |
 | `subtitle` | string | 否 | 新的附件副标题 |
 
 #### 输出
@@ -708,7 +734,7 @@ Linear 的主要功能包括：
 | --------- | ---- | -------- | ----------- |
 | `issueId` | string | 是 | 源问题 ID |
 | `relatedIssueId` | string | 是 | 要链接的目标问题 ID |
-| `type` | string | 是 | 关系类型："blocks"（阻止）、"blocked"（被阻止）、"duplicate"（重复）、"related"（相关） |
+| `type` | string | 是 | 关系类型: "blocks"、"duplicate" 或 "related"。注意：当从 A 到 B 创建 "blocks" 时，会自动创建反向关系 \(B 被 A 阻止\)。 |
 
 #### 输出
 
@@ -1217,6 +1243,7 @@ Linear 的主要功能包括：
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 此标签所属的项目 |
 | `name` | string | 是 | 项目标签名称 |
 | `color` | string | 否 | 标签颜色 \(十六进制代码\) |
 | `description` | string | 否 | 标签描述 |
@@ -1394,6 +1421,7 @@ Linear 的主要功能包括：
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 要为其创建状态的项目 |
 | `name` | string | 是 | 项目状态名称 |
 | `color` | string | 是 | 状态颜色 \(十六进制代码\) |
 | `description` | string | 否 | 状态描述 |

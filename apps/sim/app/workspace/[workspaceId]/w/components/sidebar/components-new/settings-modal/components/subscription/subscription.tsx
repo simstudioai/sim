@@ -169,7 +169,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const logger = createLogger('Subscription')
 
-  // React Query hooks for data fetching
   const { data: subscriptionData, isLoading: isSubscriptionLoading } = useSubscriptionData()
   const { data: usageLimitResponse, isLoading: isUsageLimitLoading } = useUsageLimitData()
   const { data: workspaceData, isLoading: isWorkspaceLoading } = useWorkspaceSettings(workspaceId)
@@ -179,7 +178,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const activeOrganization = orgsData?.activeOrganization
   const activeOrgId = activeOrganization?.id
 
-  // Fetch organization billing data with React Query
   const { data: organizationBillingData, isLoading: isOrgBillingLoading } = useOrganizationBilling(
     activeOrgId || ''
   )
@@ -187,10 +185,8 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const [upgradeError, setUpgradeError] = useState<'pro' | 'team' | null>(null)
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
 
-  // Combine all loading states
   const isLoading = isSubscriptionLoading || isUsageLimitLoading || isWorkspaceLoading
 
-  // Extract subscription status from subscriptionData.data
   const subscription = {
     isFree: subscriptionData?.data?.plan === 'free' || !subscriptionData?.data?.plan,
     isPro: subscriptionData?.data?.plan === 'pro',
@@ -205,28 +201,23 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     seats: subscriptionData?.data?.seats || 1,
   }
 
-  // Extract usage data from subscriptionData.data.usage (same source as panel usage indicator)
   const usage = {
     current: subscriptionData?.data?.usage?.current || 0,
     limit: subscriptionData?.data?.usage?.limit || 0,
     percentUsed: subscriptionData?.data?.usage?.percentUsed || 0,
   }
 
-  // Extract usage limit metadata from usageLimitResponse.data
   const usageLimitData = {
     currentLimit: usageLimitResponse?.data?.currentLimit || 0,
     minimumLimit: usageLimitResponse?.data?.minimumLimit || (subscription.isPro ? 20 : 40),
   }
 
-  // Extract billing status
   const billingStatus = subscriptionData?.data?.billingBlocked ? 'blocked' : 'ok'
 
-  // Extract workspace settings
   const billedAccountUserId = workspaceData?.settings?.workspace?.billedAccountUserId ?? null
   const workspaceAdmins =
     workspaceData?.permissions?.users?.filter((user: any) => user.permissionType === 'admin') || []
 
-  // Update workspace settings handler
   const updateWorkspaceSettings = async (updates: { billedAccountUserId?: string }) => {
     if (!workspaceId) return
     try {
@@ -240,7 +231,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     }
   }
 
-  // Auto-clear upgrade error
   useEffect(() => {
     if (upgradeError) {
       const timer = setTimeout(() => {
@@ -250,11 +240,9 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     }
   }, [upgradeError])
 
-  // User role and permissions
   const userRole = getUserRole(activeOrganization, session?.user?.email)
   const isTeamAdmin = ['owner', 'admin'].includes(userRole)
 
-  // Get permissions based on subscription state and user role
   const permissions = getSubscriptionPermissions(
     {
       isFree: subscription.isFree,
@@ -271,7 +259,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     }
   )
 
-  // Get visible plans based on current subscription
   const visiblePlans = getVisiblePlans(
     {
       isFree: subscription.isFree,
@@ -459,8 +446,8 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                   }
                   context={subscription.isTeam && isTeamAdmin ? 'organization' : 'user'}
                   organizationId={subscription.isTeam && isTeamAdmin ? activeOrgId : undefined}
-                  onLimitUpdated={async () => {
-                    // React Query will automatically refetch when the mutation completes
+                  onLimitUpdated={() => {
+                    logger.info('Usage limit updated')
                   }}
                 />
               ) : undefined

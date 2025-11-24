@@ -4,7 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { sanitizeForCopilot } from '@/lib/workflows/json-sanitizer'
-import type { ChatContext } from '@/stores/panel-new/copilot/types'
+import type { ChatContext } from '@/stores/panel/copilot/types'
 
 export type AgentContextType =
   | 'past_chat'

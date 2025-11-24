@@ -51,7 +51,7 @@
 
 import * as React from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /**
@@ -202,6 +202,13 @@ export interface PopoverContentProps
     'side' | 'align' | 'sideOffset' | 'alignOffset' | 'collisionPadding'
   > {
   /**
+   * When true, renders the popover content inline instead of in a portal.
+   * Useful when used inside other portalled components (e.g. dialogs)
+   * where additional portals can interfere with scroll locking behavior.
+   * @default false
+   */
+  disablePortal?: boolean
+  /**
    * Maximum height for the popover content in pixels
    */
   maxHeight?: number
@@ -255,6 +262,7 @@ const PopoverContent = React.forwardRef<
   (
     {
       className,
+      disablePortal = false,
       style,
       children,
       maxHeight,
@@ -281,41 +289,67 @@ const PopoverContent = React.forwardRef<
       style?.maxWidth !== undefined ||
       style?.width !== undefined
 
-    return (
-      <PopoverPrimitive.Portal>
-        <PopoverPrimitive.Content
-          ref={ref}
-          side={side}
-          align={align}
-          sideOffset={effectiveSideOffset}
-          collisionPadding={collisionPadding}
-          avoidCollisions={true}
-          sticky='partial'
-          {...restProps}
-          className={cn(
-            'z-[10000001] flex flex-col overflow-auto rounded-[8px] bg-[var(--surface-3)] px-[5.5px] py-[5px] text-foreground outline-none dark:bg-[var(--surface-3)]',
-            // If width is constrained by the caller (prop or style), ensure inner flexible text truncates by default,
-            // and also truncate section headers.
-            hasUserWidthConstraint && '[&_.flex-1]:truncate [&_[data-popover-section]]:truncate',
-            className
-          )}
-          style={{
-            maxHeight: `${maxHeight || 400}px`,
-            maxWidth: maxWidth !== undefined ? `${maxWidth}px` : 'calc(100vw - 16px)',
-            // Only enforce default min width when the user hasn't set width constraints
-            minWidth:
-              minWidth !== undefined
-                ? `${minWidth}px`
-                : hasUserWidthConstraint
-                  ? undefined
-                  : '160px',
-            ...style,
-          }}
-        >
-          {children}
-        </PopoverPrimitive.Content>
-      </PopoverPrimitive.Portal>
+    const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+      const container = event.currentTarget
+      if (!container) return
+
+      const { scrollHeight, clientHeight, scrollTop } = container
+      if (scrollHeight <= clientHeight) {
+        return
+      }
+
+      const deltaY = event.deltaY
+      const isScrollingDown = deltaY > 0
+      const isAtTop = scrollTop === 0
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight
+
+      // If we're at the boundary and user keeps scrolling in that direction,
+      // let the event bubble so parent scroll containers can handle it.
+      if ((isScrollingDown && isAtBottom) || (!isScrollingDown && isAtTop)) {
+        return
+      }
+
+      // Otherwise, consume the wheel event and manually scroll the popover content.
+      event.preventDefault()
+      container.scrollTop += deltaY
+    }
+
+    const content = (
+      <PopoverPrimitive.Content
+        ref={ref}
+        side={side}
+        align={align}
+        sideOffset={effectiveSideOffset}
+        collisionPadding={collisionPadding}
+        avoidCollisions={true}
+        sticky='partial'
+        onWheel={handleWheel}
+        {...restProps}
+        className={cn(
+          'z-[10000200] flex flex-col overflow-auto rounded-[8px] bg-[var(--surface-3)] px-[5.5px] py-[5px] text-foreground outline-none dark:bg-[var(--surface-3)]',
+          // If width is constrained by the caller (prop or style), ensure inner flexible text truncates by default,
+          // and also truncate section headers.
+          hasUserWidthConstraint && '[&_.flex-1]:truncate [&_[data-popover-section]]:truncate',
+          className
+        )}
+        style={{
+          maxHeight: `${maxHeight || 400}px`,
+          maxWidth: maxWidth !== undefined ? `${maxWidth}px` : 'calc(100vw - 16px)',
+          // Only enforce default min width when the user hasn't set width constraints
+          minWidth:
+            minWidth !== undefined ? `${minWidth}px` : hasUserWidthConstraint ? undefined : '160px',
+          ...style,
+        }}
+      >
+        {children}
+      </PopoverPrimitive.Content>
     )
+
+    if (disablePortal) {
+      return content
+    }
+
+    return <PopoverPrimitive.Portal>{content}</PopoverPrimitive.Portal>
   }
 )
 
@@ -364,6 +398,11 @@ export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
    * Whether this item is disabled
    */
   disabled?: boolean
+  /**
+   * Whether to show a checkmark when active
+   * @default false
+   */
+  showCheck?: boolean
 }
 
 /**
@@ -378,7 +417,7 @@ export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
  * ```
  */
 const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
-  ({ className, active, rootOnly, disabled, ...props }, ref) => {
+  ({ className, active, rootOnly, disabled, showCheck = false, children, ...props }, ref) => {
     // Try to get context - if not available, we're outside Popover (shouldn't happen)
     const context = React.useContext(PopoverContext)
     const variant = context?.variant || 'default'
@@ -401,7 +440,10 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
         aria-selected={active}
         aria-disabled={disabled}
         {...props}
-      />
+      >
+        {children}
+        {showCheck && active && <Check className='ml-auto h-[12px] w-[12px]' />}
+      </div>
     )
   }
 )

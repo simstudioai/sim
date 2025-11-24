@@ -1,11 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
-import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { generateRequestId } from '@/lib/utils'
 import {
-  checkRateLimits,
-  checkUsageLimits,
+  checkWebhookPreprocessing,
   findWebhookAndWorkflow,
   handleProviderChallenges,
   parseWebhookBody,
@@ -126,47 +123,48 @@ export async function POST(
     return authError
   }
 
-  const rateLimitError = await checkRateLimits(foundWorkflow, foundWebhook, requestId)
-  if (rateLimitError) {
-    return rateLimitError
-  }
+  let preprocessError: NextResponse | null = null
+  try {
+    preprocessError = await checkWebhookPreprocessing(
+      foundWorkflow,
+      foundWebhook,
+      requestId,
+      false // testMode
+    )
+    if (preprocessError) {
+      return preprocessError
+    }
+  } catch (error) {
+    logger.error(`[${requestId}] Unexpected error during webhook preprocessing`, {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      webhookId: foundWebhook.id,
+      workflowId: foundWorkflow.id,
+    })
 
-  const usageLimitError = await checkUsageLimits(foundWorkflow, foundWebhook, requestId, false)
-  if (usageLimitError) {
-    return usageLimitError
+    if (foundWebhook.provider === 'microsoft-teams') {
+      return NextResponse.json(
+        {
+          type: 'message',
+          text: 'An unexpected error occurred during preprocessing',
+        },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json(
+      { error: 'An unexpected error occurred during preprocessing' },
+      { status: 500 }
+    )
   }
 
   if (foundWebhook.blockId) {
     const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
     if (!blockExists) {
-      logger.warn(
+      logger.info(
         `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
       )
-
-      const executionId = uuidv4()
-      const loggingSession = new LoggingSession(foundWorkflow.id, executionId, 'webhook', requestId)
-
-      const actorUserId = foundWorkflow.workspaceId
-        ? (await import('@/lib/workspaces/utils')).getWorkspaceBilledAccountUserId(
-            foundWorkflow.workspaceId
-          ) || foundWorkflow.userId
-        : foundWorkflow.userId
-
-      await loggingSession.safeStart({
-        userId: actorUserId,
-        workspaceId: foundWorkflow.workspaceId || '',
-        variables: {},
-      })
-
-      await loggingSession.safeCompleteWithError({
-        error: {
-          message: `Trigger block not deployed. The webhook trigger (block ${foundWebhook.blockId}) is not present in the deployed workflow. Please redeploy the workflow.`,
-          stackTrace: undefined,
-        },
-        traceSpans: [],
-      })
-
-      return new NextResponse('Trigger block not deployed', { status: 404 })
+      return new NextResponse('Trigger block not found in deployment', { status: 404 })
     }
   }
 

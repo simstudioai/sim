@@ -1,0 +1,172 @@
+---
+title: Neo4j
+description: Connexion à la base de données graphe Neo4j
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="neo4j"
+  color="#FFFFFF"
+/>
+
+## Instructions d'utilisation
+
+Intégrez la base de données graphe Neo4j dans le flux de travail. Permet d'interroger, créer, fusionner, mettre à jour et supprimer des nœuds et des relations.
+
+## Outils
+
+### `neo4j_query`
+
+Exécutez des requêtes MATCH pour lire les nœuds et les relations de la base de données graphe Neo4j. Pour de meilleures performances et pour éviter les grands ensembles de résultats, incluez LIMIT dans votre requête (par exemple, 
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur Neo4j |
+| `port` | number | Oui | Port du serveur Neo4j \(par défaut : 7687 pour le protocole Bolt\) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | string | Oui | Nom d'utilisateur Neo4j |
+| `password` | string | Oui | Mot de passe Neo4j |
+| `encryption` | string | Non | Mode de chiffrement de connexion \(enabled, disabled\) |
+| `cypherQuery` | string | Oui | Requête Cypher à exécuter \(généralement des instructions MATCH\) |
+| `parameters` | object | Non | Paramètres pour la requête Cypher sous forme d'objet JSON. À utiliser pour toutes les valeurs dynamiques, y compris LIMIT \(par exemple, query: "MATCH \(n\) RETURN n LIMIT $limit", parameters: \{limit: 100\}\). |
+| `parameters` | string | Non | Pas de description |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `records` | array | Tableau des enregistrements retournés par la requête |
+| `recordCount` | number | Nombre d'enregistrements retournés |
+| `summary` | json | Résumé de l'exécution de la requête avec timing et compteurs |
+
+### `neo4j_create`
+
+Exécuter des instructions CREATE pour ajouter de nouveaux nœuds et relations à la base de données graphique Neo4j
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur Neo4j |
+| `port` | nombre | Oui | Port du serveur Neo4j \(par défaut : 7687 pour le protocole Bolt\) |
+| `database` | chaîne | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | chaîne | Oui | Nom d'utilisateur Neo4j |
+| `password` | chaîne | Oui | Mot de passe Neo4j |
+| `encryption` | chaîne | Non | Mode de chiffrement de connexion \(enabled, disabled\) |
+| `cypherQuery` | chaîne | Oui | Instruction Cypher CREATE à exécuter |
+| `parameters` | objet | Non | Paramètres pour la requête Cypher sous forme d'objet JSON |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message d'état de l'opération |
+| `summary` | json | Résumé de création avec compteurs pour les nœuds et relations créés |
+
+### `neo4j_merge`
+
+Exécuter des instructions MERGE pour trouver ou créer des nœuds et relations dans Neo4j (opération d'upsert)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur Neo4j |
+| `port` | nombre | Oui | Port du serveur Neo4j \(par défaut : 7687 pour le protocole Bolt\) |
+| `database` | chaîne | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | chaîne | Oui | Nom d'utilisateur Neo4j |
+| `password` | chaîne | Oui | Mot de passe Neo4j |
+| `encryption` | chaîne | Non | Mode de chiffrement de connexion \(enabled, disabled\) |
+| `cypherQuery` | chaîne | Oui | Instruction Cypher MERGE à exécuter |
+| `parameters` | objet | Non | Paramètres pour la requête Cypher sous forme d'objet JSON |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `summary` | json | Résumé de fusion avec compteurs pour les nœuds/relations créés ou correspondants |
+
+### `neo4j_update`
+
+Exécuter des instructions SET pour mettre à jour les propriétés des nœuds et relations existants dans Neo4j
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur Neo4j |
+| `port` | number | Oui | Port du serveur Neo4j \(par défaut : 7687 pour le protocole Bolt\) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | string | Oui | Nom d'utilisateur Neo4j |
+| `password` | string | Oui | Mot de passe Neo4j |
+| `encryption` | string | Non | Mode de chiffrement de connexion \(enabled, disabled\) |
+| `cypherQuery` | string | Oui | Requête Cypher avec instructions MATCH et SET pour mettre à jour les propriétés |
+| `parameters` | object | Non | Paramètres pour la requête Cypher sous forme d'objet JSON |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `summary` | json | Résumé de mise à jour avec compteurs pour les propriétés définies |
+
+### `neo4j_delete`
+
+Exécuter des instructions DELETE ou DETACH DELETE pour supprimer des nœuds et des relations de Neo4j
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur Neo4j |
+| `port` | number | Oui | Port du serveur Neo4j \(par défaut : 7687 pour le protocole Bolt\) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | string | Oui | Nom d'utilisateur Neo4j |
+| `password` | string | Oui | Mot de passe Neo4j |
+| `encryption` | string | Non | Mode de chiffrement de connexion \(enabled, disabled\) |
+| `cypherQuery` | string | Oui | Requête Cypher avec instructions MATCH et DELETE/DETACH DELETE |
+| `parameters` | object | Non | Paramètres pour la requête Cypher sous forme d'objet JSON |
+| `detach` | boolean | Non | Indique s'il faut utiliser DETACH DELETE pour supprimer les relations avant de supprimer les nœuds |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `summary` | json | Résumé de suppression avec compteurs pour les nœuds et relations supprimés |
+
+### `neo4j_execute`
+
+Exécuter des requêtes Cypher arbitraires sur la base de données graphique Neo4j pour des opérations complexes
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur Neo4j |
+| `port` | number | Oui | Port du serveur Neo4j \(par défaut : 7687 pour le protocole Bolt\) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | string | Oui | Nom d'utilisateur Neo4j |
+| `password` | string | Oui | Mot de passe Neo4j |
+| `encryption` | string | Non | Mode de chiffrement de connexion \(enabled, disabled\) |
+| `cypherQuery` | string | Oui | Requête Cypher à exécuter \(toute instruction Cypher valide\) |
+| `parameters` | object | Non | Paramètres pour la requête Cypher sous forme d'objet JSON |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `records` | array | Tableau des enregistrements retournés par la requête |
+| `recordCount` | number | Nombre d'enregistrements retournés |
+| `summary` | json | Résumé d'exécution avec chronométrage et compteurs |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `neo4j`

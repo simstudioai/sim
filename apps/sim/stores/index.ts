@@ -4,8 +4,8 @@ import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
-import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -207,8 +207,15 @@ export const resetAllStores = () => {
   useWorkflowRegistry.setState({
     workflows: {},
     activeWorkflowId: null,
-    isLoading: false,
     error: null,
+    deploymentStatuses: {},
+    hydration: {
+      phase: 'idle',
+      workspaceId: null,
+      workflowId: null,
+      requestId: null,
+      error: null,
+    },
   })
   useWorkflowStore.getState().clear()
   useSubBlockStore.getState().clear()

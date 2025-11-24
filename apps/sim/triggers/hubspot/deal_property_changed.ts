@@ -1,10 +1,10 @@
 import { HubspotIcon } from '@/components/icons'
-import type { TriggerConfig } from '@/triggers/types'
 import {
   buildDealPropertyChangedOutputs,
   hubspotDealTriggerOptions,
   hubspotSetupInstructions,
-} from './utils'
+} from '@/triggers/hubspot/utils'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const hubspotDealPropertyChangedTrigger: TriggerConfig = {
   id: 'hubspot_deal_property_changed',

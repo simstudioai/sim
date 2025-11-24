@@ -1,7 +1,7 @@
 import type { NodeProps } from 'reactflow'
+import { WEBHOOK_PROVIDERS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/constants'
+import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
 import type { SubBlockConfig } from '@/blocks/types'
-import { WEBHOOK_PROVIDERS } from './constants'
-import type { WorkflowBlockProps } from './types'
 
 /**
  * Gets the display name for a webhook provider

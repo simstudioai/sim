@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ErrorExtractorId, type ErrorInfo, extractErrorMessage } from './error-extractors'
+import { ErrorExtractorId, type ErrorInfo, extractErrorMessage } from '@/tools/error-extractors'
 
 describe('Error Extractors', () => {
   describe('extractErrorMessage', () => {

@@ -12,11 +12,11 @@ import {
   Text,
 } from '@react-email/components'
 import { format } from 'date-fns'
+import { baseStyles } from '@/components/emails/base-styles'
+import EmailFooter from '@/components/emails/footer'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
 
 interface InvitationEmailProps {
   inviterName?: string

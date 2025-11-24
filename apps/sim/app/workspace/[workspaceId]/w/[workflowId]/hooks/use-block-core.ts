@@ -1,11 +1,11 @@
 import { useCallback, useMemo } from 'react'
+import { useBlockState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks'
+import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
+import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import { getBlockRingStyles } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-ring-utils'
 import { useExecutionStore } from '@/stores/execution/store'
-import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
+import { usePanelEditorStore } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useBlockState } from '../components/workflow-block/hooks'
-import type { WorkflowBlockProps } from '../components/workflow-block/types'
-import { getBlockRingStyles } from '../utils/block-ring-utils'
-import { useCurrentWorkflow } from './use-current-workflow'
 
 interface UseBlockCoreOptions {
   blockId: string

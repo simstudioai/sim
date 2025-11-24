@@ -1,5 +1,8 @@
+import type {
+  ApolloSequenceAddContactsParams,
+  ApolloSequenceAddContactsResponse,
+} from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ApolloSequenceAddContactsParams, ApolloSequenceAddContactsResponse } from './types'
 
 export const apolloSequenceAddContactsTool: ToolConfig<
   ApolloSequenceAddContactsParams,

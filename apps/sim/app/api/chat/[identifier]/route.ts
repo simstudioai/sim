@@ -1,9 +1,10 @@
+import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
-import { chat, workflow, workspace } from '@sim/db/schema'
+import { chat } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
+import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { ChatFiles } from '@/lib/uploads'
@@ -93,7 +94,7 @@ export async function POST(
     if (!deployment.isActive) {
       logger.warn(`[${requestId}] Chat is not active: ${identifier}`)
 
-      const executionId = uuidv4()
+      const executionId = randomUUID()
       const loggingSession = new LoggingSession(
         deployment.workflowId,
         executionId,
@@ -140,82 +141,35 @@ export async function POST(
       return addCorsHeaders(createErrorResponse('No input provided', 400), request)
     }
 
-    const workflowResult = await db
-      .select({
-        isDeployed: workflow.isDeployed,
-        workspaceId: workflow.workspaceId,
-        variables: workflow.variables,
-      })
-      .from(workflow)
-      .where(eq(workflow.id, deployment.workflowId))
-      .limit(1)
+    const executionId = randomUUID()
 
-    if (workflowResult.length === 0 || !workflowResult[0].isDeployed) {
-      logger.warn(`[${requestId}] Workflow not found or not deployed: ${deployment.workflowId}`)
+    const loggingSession = new LoggingSession(deployment.workflowId, executionId, 'chat', requestId)
 
-      const executionId = uuidv4()
-      const loggingSession = new LoggingSession(
-        deployment.workflowId,
-        executionId,
-        'chat',
-        requestId
+    const preprocessResult = await preprocessExecution({
+      workflowId: deployment.workflowId,
+      userId: deployment.userId,
+      triggerType: 'chat',
+      executionId,
+      requestId,
+      checkRateLimit: false, // Chat bypasses rate limits
+      checkDeployment: true, // Chat requires deployed workflows
+      loggingSession,
+    })
+
+    if (!preprocessResult.success) {
+      logger.warn(`[${requestId}] Preprocessing failed: ${preprocessResult.error?.message}`)
+      return addCorsHeaders(
+        createErrorResponse(
+          preprocessResult.error?.message || 'Failed to process request',
+          preprocessResult.error?.statusCode || 500
+        ),
+        request
       )
-
-      await loggingSession.safeStart({
-        userId: deployment.userId,
-        workspaceId: workflowResult[0]?.workspaceId || '',
-        variables: {},
-      })
-
-      await loggingSession.safeCompleteWithError({
-        error: {
-          message: 'Chat workflow is not available. The workflow is not deployed.',
-          stackTrace: undefined,
-        },
-        traceSpans: [],
-      })
-
-      return addCorsHeaders(createErrorResponse('Chat workflow is not available', 503), request)
     }
 
-    let workspaceOwnerId = deployment.userId
-    if (workflowResult[0].workspaceId) {
-      const workspaceData = await db
-        .select({ ownerId: workspace.ownerId })
-        .from(workspace)
-        .where(eq(workspace.id, workflowResult[0].workspaceId))
-        .limit(1)
-
-      if (workspaceData.length === 0) {
-        logger.error(`[${requestId}] Workspace not found for workflow ${deployment.workflowId}`)
-
-        const executionId = uuidv4()
-        const loggingSession = new LoggingSession(
-          deployment.workflowId,
-          executionId,
-          'chat',
-          requestId
-        )
-
-        await loggingSession.safeStart({
-          userId: deployment.userId,
-          workspaceId: workflowResult[0].workspaceId || '',
-          variables: {},
-        })
-
-        await loggingSession.safeCompleteWithError({
-          error: {
-            message: 'Workspace not found. Critical configuration error - please contact support.',
-            stackTrace: undefined,
-          },
-          traceSpans: [],
-        })
-
-        return addCorsHeaders(createErrorResponse('Workspace not found', 500), request)
-      }
-
-      workspaceOwnerId = workspaceData[0].ownerId
-    }
+    const { actorUserId, workflowRecord } = preprocessResult
+    const workspaceOwnerId = actorUserId!
+    const workspaceId = workflowRecord?.workspaceId || ''
 
     try {
       const selectedOutputs: string[] = []
@@ -232,12 +186,10 @@ export async function POST(
       const { SSE_HEADERS } = await import('@/lib/utils')
       const { createFilteredResult } = await import('@/app/api/workflows/[id]/execute/route')
 
-      const executionId = crypto.randomUUID()
-
       const workflowInput: any = { input, conversationId }
       if (files && Array.isArray(files) && files.length > 0) {
         const executionContext = {
-          workspaceId: workflowResult[0].workspaceId || '',
+          workspaceId,
           workflowId: deployment.workflowId,
           executionId,
         }
@@ -257,20 +209,13 @@ export async function POST(
         } catch (fileError: any) {
           logger.error(`[${requestId}] Failed to process chat files:`, fileError)
 
-          const fileLoggingSession = new LoggingSession(
-            deployment.workflowId,
-            executionId,
-            'chat',
-            requestId
-          )
-
-          await fileLoggingSession.safeStart({
+          await loggingSession.safeStart({
             userId: workspaceOwnerId,
-            workspaceId: workflowResult[0].workspaceId || '',
+            workspaceId,
             variables: {},
           })
 
-          await fileLoggingSession.safeCompleteWithError({
+          await loggingSession.safeCompleteWithError({
             error: {
               message: `File upload failed: ${fileError.message || 'Unable to process uploaded files'}`,
               stackTrace: fileError.stack,
@@ -285,9 +230,9 @@ export async function POST(
       const workflowForExecution = {
         id: deployment.workflowId,
         userId: deployment.userId,
-        workspaceId: workflowResult[0].workspaceId,
-        isDeployed: true,
-        variables: workflowResult[0].variables || {},
+        workspaceId,
+        isDeployed: workflowRecord?.isDeployed ?? false,
+        variables: workflowRecord?.variables || {},
       }
 
       const stream = await createStreamingResponse({

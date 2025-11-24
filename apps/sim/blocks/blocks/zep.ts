@@ -222,23 +222,14 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
         if (operation === 'add_messages') {
           if (!params.messages) {
             errors.push('Messages are required')
+          } else if (!Array.isArray(params.messages) || params.messages.length === 0) {
+            errors.push('Messages must be a non-empty array')
           } else {
-            try {
-              const messagesArray =
-                typeof params.messages === 'string' ? JSON.parse(params.messages) : params.messages
-
-              if (!Array.isArray(messagesArray) || messagesArray.length === 0) {
-                errors.push('Messages must be a non-empty array')
-              } else {
-                for (const msg of messagesArray) {
-                  if (!msg.role || !msg.content) {
-                    errors.push("Each message must have 'role' and 'content' properties")
-                    break
-                  }
-                }
+            for (const msg of params.messages) {
+              if (!msg.role || !msg.content) {
+                errors.push("Each message must have 'role' and 'content' properties")
+                break
               }
-            } catch (_e: any) {
-              errors.push('Messages must be valid JSON')
             }
           }
         }
@@ -263,16 +254,8 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
         if (params.metadata) result.metadata = params.metadata
 
         // Add messages for add operation
-        if (operation === 'add_messages') {
-          if (params.messages) {
-            try {
-              const messagesArray =
-                typeof params.messages === 'string' ? JSON.parse(params.messages) : params.messages
-              result.messages = messagesArray
-            } catch (e: any) {
-              throw new Error(`Zep Block Error: ${e.message || 'Messages must be valid JSON'}`)
-            }
-          }
+        if (operation === 'add_messages' && params.messages) {
+          result.messages = params.messages
         }
 
         return result

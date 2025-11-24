@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -10,7 +11,10 @@ import {
   getSubscriptionStatus,
   getUsage,
 } from '@/lib/subscription/helpers'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { isUsageAtLimit, USAGE_PILL_COLORS } from '@/lib/subscription/usage-visualization'
+import { RotatingDigit } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/usage-indicator/rotating-digit'
+import { useSocket } from '@/app/workspace/providers/socket-provider'
+import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('UsageIndicator')
@@ -84,6 +88,20 @@ interface UsageIndicatorProps {
 export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const { data: subscriptionData, isLoading } = useSubscriptionData()
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
+  const { onOperationConfirmed } = useSocket()
+  const queryClient = useQueryClient()
+
+  // Listen for completed operations to update usage
+  useEffect(() => {
+    const handleOperationConfirmed = () => {
+      // Small delay to ensure backend has updated usage
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+      }, 1000)
+    }
+
+    onOperationConfirmed(handleOperationConfirmed)
+  }, [onOperationConfirmed, queryClient])
 
   /**
    * Calculate pill count based on sidebar width (6-8 pills dynamically).
@@ -116,11 +134,12 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   /**
    * Calculate which pills should be filled based on usage percentage.
-   * Uses Math.ceil heuristic with dynamic pill count (6-8).
-   * This ensures consistent calculation logic while maintaining responsive pill count.
+   * Uses a percentage-based heuristic with dynamic pill count (6-8).
+   * The warning/limit (red) state is derived from shared usage visualization utilities
+   * so it is consistent with other parts of the app (e.g. UsageHeader).
    */
   const filledPillsCount = Math.ceil((progressPercentage / 100) * pillCount)
-  const isAlmostOut = filledPillsCount === pillCount
+  const isAtLimit = isUsageAtLimit(progressPercentage)
 
   const [isHovered, setIsHovered] = useState(false)
   const [wavePosition, setWavePosition] = useState<number | null>(null)
@@ -128,9 +147,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const startAnimationIndex = pillCount === 0 ? 0 : Math.min(filledPillsCount, pillCount - 1)
 
   useEffect(() => {
-    const isFreePlan = subscription.isFree
-
-    if (!isHovered || pillCount <= 0 || !isFreePlan) {
+    // Animation enabled for all plans on hover
+    if (!isHovered || pillCount <= 0) {
       setWavePosition(null)
       return
     }
@@ -160,7 +178,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     return () => {
       window.clearInterval(interval)
     }
-  }, [isHovered, pillCount, startAnimationIndex, subscription.isFree])
+  }, [isHovered, pillCount, startAnimationIndex])
 
   if (isLoading) {
     return (
@@ -194,7 +212,6 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
       const blocked = getBillingStatus(subscriptionData?.data) === 'blocked'
       const canUpg = canUpgrade(subscriptionData?.data)
 
-      // If blocked, try to open billing portal directly for faster recovery
       if (blocked) {
         try {
           const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
@@ -222,7 +239,6 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         }
       }
 
-      // Fallback: Open Settings modal to the subscription tab
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
         logger.info('Opened settings to subscription tab', { blocked, canUpgrade: canUpg })
@@ -243,10 +259,12 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     >
       {/* Top row */}
       <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-[6px]'>
-          <span className='font-medium text-[#FFFFFF] text-[12px]'>{PLAN_NAMES[planType]}</span>
-          <div className='h-[14px] w-[1.5px] bg-[var(--divider)]' />
-          <div className='flex items-center gap-[4px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
+          <span className='flex-shrink-0 font-medium text-[#FFFFFF] text-[12px]'>
+            {PLAN_NAMES[planType]}
+          </span>
+          <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
+          <div className='flex min-w-0 flex-1 items-center gap-[4px]'>
             {isBlocked ? (
               <>
                 <span className='font-medium text-[12px] text-red-400'>Payment</span>
@@ -254,9 +272,15 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
               </>
             ) : (
               <>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
-                  ${usage.current.toFixed(2)}
-                </span>
+                <div className='flex items-center font-medium text-[12px] text-[var(--text-tertiary)]'>
+                  <span className='mr-[1px]'>$</span>
+                  <RotatingDigit
+                    value={usage.current}
+                    height={14}
+                    width={7}
+                    textClassName='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'
+                  />
+                </div>
                 <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>/</span>
                 <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
                   ${usage.limit}
@@ -286,17 +310,17 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           const isFilled = i < filledPillsCount
 
           const baseColor = isFilled
-            ? isBlocked || isAlmostOut
-              ? '#ef4444'
-              : '#34B5FF'
-            : '#414141'
+            ? isBlocked || isAtLimit
+              ? USAGE_PILL_COLORS.AT_LIMIT
+              : USAGE_PILL_COLORS.FILLED
+            : USAGE_PILL_COLORS.UNFILLED
 
           let backgroundColor = baseColor
           let backgroundImage: string | undefined
 
-          if (isHovered && wavePosition !== null && pillCount > 0 && subscription.isFree) {
-            const grayColor = '#414141'
-            const activeColor = isAlmostOut ? '#ef4444' : '#34B5FF'
+          if (isHovered && wavePosition !== null && pillCount > 0) {
+            const grayColor = USAGE_PILL_COLORS.UNFILLED
+            const activeColor = isAtLimit ? USAGE_PILL_COLORS.AT_LIMIT : USAGE_PILL_COLORS.FILLED
 
             /**
              * Single-pass wave: travel from {@link startAnimationIndex} to the end
@@ -309,7 +333,6 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
             const pillOffsetFromStart = i - startAnimationIndex
 
             if (pillOffsetFromStart < 0) {
-              // Before the wave start; keep original baseColor.
             } else if (pillOffsetFromStart < headIndex) {
               backgroundColor = isFilled ? baseColor : grayColor
               backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} 100%)`

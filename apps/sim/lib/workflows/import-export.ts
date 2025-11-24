@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 import { createLogger } from '@/lib/logs/console/logger'
+import { sanitizeForExport } from '@/lib/workflows/json-sanitizer'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { sanitizeForExport } from './json-sanitizer'
 
 const logger = createLogger('WorkflowImportExport')
 

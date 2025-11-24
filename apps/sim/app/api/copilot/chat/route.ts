@@ -43,6 +43,12 @@ const ChatMessageSchema = z.object({
       'gpt-5',
       'gpt-5-medium',
       'gpt-5-high',
+      'gpt-5.1-fast',
+      'gpt-5.1',
+      'gpt-5.1-medium',
+      'gpt-5.1-high',
+      'gpt-5-codex',
+      'gpt-5.1-codex',
       'gpt-4o',
       'gpt-4.1',
       'o3',
@@ -53,7 +59,7 @@ const ChatMessageSchema = z.object({
     ])
     .optional()
     .default('claude-4.5-sonnet'),
-  mode: z.enum(['ask', 'agent']).optional().default('agent'),
+  mode: z.enum(['ask', 'agent', 'plan']).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
@@ -880,6 +886,8 @@ export async function GET(req: NextRequest) {
         title: copilotChats.title,
         model: copilotChats.model,
         messages: copilotChats.messages,
+        planArtifact: copilotChats.planArtifact,
+        config: copilotChats.config,
         createdAt: copilotChats.createdAt,
         updatedAt: copilotChats.updatedAt,
       })
@@ -897,6 +905,8 @@ export async function GET(req: NextRequest) {
       messages: Array.isArray(chat.messages) ? chat.messages : [],
       messageCount: Array.isArray(chat.messages) ? chat.messages.length : 0,
       previewYaml: null, // Not needed for chat list
+      planArtifact: chat.planArtifact || null,
+      config: chat.config || null,
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
     }))
