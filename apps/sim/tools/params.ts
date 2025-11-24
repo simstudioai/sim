@@ -199,106 +199,6 @@ export function getToolParametersConfig(
       }
     }
 
-    // Special handling for knowledge base tools
-    if (toolId.startsWith('knowledge_')) {
-      const params = Object.entries(toolConfig.params).map(([paramId, param]) => {
-        const toolParam: ToolParameterConfig = {
-          id: paramId,
-          type: param.type,
-          required: param.required ?? false,
-          visibility: param.visibility ?? (param.required ? 'user-or-llm' : 'user-only'),
-          description: param.description,
-          default: param.default,
-        }
-
-        // Use knowledge-base-selector for knowledgeBaseId parameter
-        if (paramId === 'knowledgeBaseId') {
-          toolParam.uiComponent = {
-            type: 'knowledge-base-selector',
-            placeholder: 'Select knowledge base',
-          }
-        } else if (paramId === 'tagFilters') {
-          toolParam.uiComponent = {
-            type: 'knowledge-tag-filters',
-            placeholder: 'Add tag filters',
-          }
-        } else if (paramId === 'query') {
-          toolParam.uiComponent = {
-            type: 'long-input',
-            placeholder: 'Enter search query',
-          }
-        } else if (paramId === 'topK') {
-          toolParam.uiComponent = {
-            type: 'short-input',
-            placeholder: 'Number of results (default: 10)',
-          }
-        }
-
-        return toolParam
-      })
-
-      return {
-        toolConfig,
-        allParameters: params,
-        userInputParameters: params.filter(
-          (param) => param.visibility === 'user-or-llm' || param.visibility === 'user-only'
-        ),
-        requiredParameters: params.filter((param) => param.required),
-        optionalParameters: params.filter(
-          (param) => param.visibility === 'user-only' && !param.required
-        ),
-      }
-    }
-
-    // Special handling for function_execute tool
-    if (toolId === 'function_execute') {
-      const params = Object.entries(toolConfig.params)
-        .filter(([, param]) => param.visibility !== 'hidden') // Skip hidden parameters
-        .map(([paramId, param]) => {
-          const toolParam: ToolParameterConfig = {
-            id: paramId,
-            type: param.type,
-            required: param.required ?? false,
-            visibility: param.visibility ?? (param.required ? 'user-or-llm' : 'user-only'),
-            description: param.description,
-            default: param.default,
-          }
-
-          // Map parameters to appropriate UI components
-          if (paramId === 'language') {
-            toolParam.uiComponent = {
-              type: 'dropdown',
-              options: [
-                { label: 'JavaScript', value: 'javascript' },
-                { label: 'Python', value: 'python' },
-              ],
-              placeholder: 'Select language',
-            }
-          } else if (paramId === 'code') {
-            toolParam.uiComponent = {
-              type: 'code',
-              language: 'javascript',
-              generationType: 'javascript-function-body',
-              placeholder: 'Enter your code here',
-            }
-          }
-
-          return toolParam
-        })
-
-      return {
-        toolConfig,
-        allParameters: params,
-        userInputParameters: params.filter(
-          (param) => param.visibility === 'user-or-llm' || param.visibility === 'user-only'
-        ),
-        requiredParameters: params.filter((param) => param.required),
-        optionalParameters: params.filter(
-          (param) => param.visibility === 'user-only' && !param.required
-        ),
-      }
-    }
-
     // Get block configuration for UI component information
     let blockConfig: BlockConfig | null = null
     if (blockType) {
@@ -472,6 +372,11 @@ export async function createLLMToolSchema(
       description: param.description || '',
     }
 
+    // Include items property for arrays
+    if (param.type === 'array' && param.items) {
+      propertySchema.items = param.items
+    }
+
     // Special handling for workflow_executor's inputMapping parameter
     if (toolConfig.id === 'workflow_executor' && paramId === 'inputMapping') {
       const workflowId = userProvidedParams.workflowId as string
@@ -598,10 +503,17 @@ export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
   }
 
   Object.entries(toolConfig.params).forEach(([paramId, param]) => {
-    schema.properties[paramId] = {
+    const propertySchema: any = {
       type: param.type === 'json' ? 'object' : param.type,
       description: param.description || '',
     }
+
+    // Include items property for arrays
+    if (param.type === 'array' && param.items) {
+      propertySchema.items = param.items
+    }
+
+    schema.properties[paramId] = propertySchema
 
     if (param.required) {
       schema.required.push(paramId)

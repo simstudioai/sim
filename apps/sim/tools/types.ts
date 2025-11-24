@@ -52,6 +52,11 @@ export interface ToolConfig<P = any, R = any> {
       visibility?: ParameterVisibility
       default?: any
       description?: string
+      items?: {
+        type: string
+        description?: string
+        properties?: Record<string, any>
+      }
     }
   >
 

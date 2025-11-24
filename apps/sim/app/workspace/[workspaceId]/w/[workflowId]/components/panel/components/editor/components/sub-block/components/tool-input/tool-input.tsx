@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Loader2, PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
+  Combobox,
   Popover,
   PopoverContent,
   PopoverScrollArea,
@@ -12,13 +13,6 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Toggle } from '@/components/ui/toggle'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -42,6 +36,7 @@ import {
   Table,
   TimeInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
+import { DocumentSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/document-selector/document-selector'
 import { KnowledgeBaseSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/knowledge-base-selector/knowledge-base-selector'
 import {
   type CustomTool,
@@ -182,6 +177,68 @@ function FileSelectorSyncWrapper({
         }}
         disabled={disabled}
         previewContextValues={previewContextValues}
+      />
+    </GenericSyncWrapper>
+  )
+}
+
+function KnowledgeBaseSelectorSyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  uiComponent,
+  disabled,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  uiComponent: any
+  disabled: boolean
+}) {
+  return (
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <KnowledgeBaseSelector
+        blockId={blockId}
+        subBlock={{
+          id: paramId,
+          type: 'knowledge-base-selector',
+          placeholder: uiComponent.placeholder || 'Select knowledge base',
+          multiSelect: uiComponent.multiSelect,
+        }}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
+  )
+}
+
+function DocumentSelectorSyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  uiComponent,
+  disabled,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  uiComponent: any
+  disabled: boolean
+}) {
+  return (
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <DocumentSelector
+        blockId={blockId}
+        subBlock={{
+          id: paramId,
+          type: 'document-selector',
+          placeholder: uiComponent.placeholder || 'Select document',
+          dependsOn: ['knowledgeBaseId'],
+        }}
+        disabled={disabled}
       />
     </GenericSyncWrapper>
   )
@@ -1268,23 +1325,20 @@ export function ToolInput({
     switch (uiComponent.type) {
       case 'dropdown':
         return (
-          <Select value={value} onValueChange={onChange}>
-            <SelectTrigger className='w-full rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] px-[10px] py-[8px] text-left font-medium text-sm'>
-              <SelectValue
-                placeholder={uiComponent.placeholder || 'Select option'}
-                className='truncate'
-              />
-            </SelectTrigger>
-            <SelectContent className='border-[var(--border-strong)] bg-[#1F1F1F]'>
-              {uiComponent.options
+          <Combobox
+            options={
+              uiComponent.options
                 ?.filter((option: any) => option.id !== '')
-                .map((option: any) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+                .map((option: any) => ({
+                  label: option.label,
+                  value: option.id,
+                })) || []
+            }
+            value={value}
+            onChange={onChange}
+            placeholder={uiComponent.placeholder || 'Select option'}
+            disabled={disabled}
+          />
         )
 
       case 'switch':
@@ -1502,14 +1556,24 @@ export function ToolInput({
 
       case 'knowledge-base-selector':
         return (
-          <KnowledgeBaseSelector
+          <KnowledgeBaseSelectorSyncWrapper
             blockId={blockId}
-            subBlock={{
-              id: uniqueSubBlockId,
-              type: 'knowledge-base-selector',
-              placeholder: uiComponent.placeholder || param.description,
-              multiSelect: uiComponent.multiSelect,
-            }}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            uiComponent={uiComponent}
+            disabled={disabled}
+          />
+        )
+
+      case 'document-selector':
+        return (
+          <DocumentSelectorSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            uiComponent={uiComponent}
             disabled={disabled}
           />
         )
@@ -1904,29 +1968,22 @@ export function ToolInput({
                       const operationOptions = hasOperations ? getOperationOptions(tool.type) : []
 
                       return hasOperations && operationOptions.length > 0 ? (
-                        <div className='relative min-w-0 space-y-[6px]'>
+                        <div className='relative space-y-[6px]'>
                           <div className='font-medium text-[13px] text-[var(--text-tertiary)]'>
                             Operation
                           </div>
-                          <div className='w-full min-w-0'>
-                            <Select
-                              value={tool.operation || operationOptions[0].id}
-                              onValueChange={(value) => handleOperationChange(toolIndex, value)}
-                            >
-                              <SelectTrigger className='w-full min-w-0 rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] px-[10px] py-[8px] text-left font-medium text-sm'>
-                                <SelectValue placeholder='Select operation' className='truncate' />
-                              </SelectTrigger>
-                              <SelectContent className='border-[var(--border-strong)] bg-[#1F1F1F]'>
-                                {operationOptions
-                                  .filter((option) => option.id !== '')
-                                  .map((option) => (
-                                    <SelectItem key={option.id} value={option.id}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
+                          <Combobox
+                            options={operationOptions
+                              .filter((option) => option.id !== '')
+                              .map((option) => ({
+                                label: option.label,
+                                value: option.id,
+                              }))}
+                            value={tool.operation || operationOptions[0].id}
+                            onChange={(value) => handleOperationChange(toolIndex, value)}
+                            placeholder='Select operation'
+                            disabled={disabled}
+                          />
                         </div>
                       ) : null
                     })()}
