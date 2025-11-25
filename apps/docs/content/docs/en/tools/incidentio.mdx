@@ -1,0 +1,576 @@
+---
+title: incident.io
+description: Manage incidents with incident.io
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="incidentio"
+  color="#7C3AED"
+/>
+
+## Usage Instructions
+
+Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.
+
+
+
+## Tools
+
+### `incidentio_incidents_list`
+
+List incidents from incident.io. Returns a list of incidents with their details including severity, status, and timestamps.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `page_size` | number | No | Number of incidents to return per page \(default: 25\) |
+| `after` | string | No | Pagination cursor to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incidents` | array | List of incidents |
+
+### `incidentio_incidents_create`
+
+Create a new incident in incident.io. Requires idempotency_key, severity_id, and visibility. Optionally accepts name, summary, type, and status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `idempotency_key` | string | Yes | Unique identifier to prevent duplicate incident creation. Use a UUID or unique string. |
+| `name` | string | No | Name of the incident \(optional\) |
+| `summary` | string | No | Brief summary of the incident |
+| `severity_id` | string | Yes | ID of the severity level \(required\) |
+| `incident_type_id` | string | No | ID of the incident type |
+| `incident_status_id` | string | No | ID of the initial incident status |
+| `visibility` | string | Yes | Visibility of the incident: "public" or "private" \(required\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The created incident object |
+
+### `incidentio_incidents_show`
+
+Retrieve detailed information about a specific incident from incident.io by its ID. Returns full incident details including custom fields and role assignments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | ID of the incident to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | Detailed incident information |
+
+### `incidentio_incidents_update`
+
+Update an existing incident in incident.io. Can update name, summary, severity, status, or type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | ID of the incident to update |
+| `name` | string | No | Updated name of the incident |
+| `summary` | string | No | Updated summary of the incident |
+| `severity_id` | string | No | Updated severity ID for the incident |
+| `incident_status_id` | string | No | Updated status ID for the incident |
+| `incident_type_id` | string | No | Updated incident type ID |
+| `notify_incident_channel` | boolean | No | Whether to notify the incident channel about this update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The updated incident object |
+
+### `incidentio_actions_list`
+
+List actions from incident.io. Optionally filter by incident ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `incident_id` | string | No | Filter actions by incident ID |
+| `page_size` | number | No | Number of actions to return per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `actions` | array | List of actions |
+
+### `incidentio_actions_show`
+
+Get detailed information about a specific action from incident.io.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | Action ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | object | Action details |
+
+### `incidentio_follow_ups_list`
+
+List follow-ups from incident.io. Optionally filter by incident ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `incident_id` | string | No | Filter follow-ups by incident ID |
+| `page_size` | number | No | Number of follow-ups to return per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `follow_ups` | array | List of follow-ups |
+
+### `incidentio_follow_ups_show`
+
+Get detailed information about a specific follow-up from incident.io.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | Follow-up ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `follow_up` | object | Follow-up details |
+
+### `incidentio_users_list`
+
+List all users in your Incident.io workspace. Returns user details including id, name, email, and role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Incident.io API Key |
+| `page_size` | number | No | Number of results to return per page \(default: 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | List of users in the workspace |
+
+### `incidentio_users_show`
+
+Get detailed information about a specific user in your Incident.io workspace by their ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Incident.io API Key |
+| `id` | string | Yes | The unique identifier of the user to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | Details of the requested user |
+
+### `incidentio_workflows_list`
+
+List all workflows in your incident.io workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `page_size` | number | No | Number of workflows to return per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflows` | array | List of workflows |
+
+### `incidentio_workflows_create`
+
+Create a new workflow in incident.io.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `name` | string | Yes | Name of the workflow |
+| `folder` | string | No | Folder to organize the workflow in |
+| `state` | string | No | State of the workflow \(active, draft, or disabled\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflow` | object | The created workflow |
+
+### `incidentio_workflows_show`
+
+Get details of a specific workflow in incident.io.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the workflow to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflow` | object | The workflow details |
+
+### `incidentio_workflows_update`
+
+Update an existing workflow in incident.io.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the workflow to update |
+| `name` | string | No | New name for the workflow |
+| `state` | string | No | New state for the workflow \(active, draft, or disabled\) |
+| `folder` | string | No | New folder for the workflow |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflow` | object | The updated workflow |
+
+### `incidentio_workflows_delete`
+
+Delete a workflow in incident.io.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the workflow to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### `incidentio_schedules_list`
+
+List all schedules in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `page_size` | number | No | Number of results per page \(default: 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schedules` | array | List of schedules |
+
+### `incidentio_schedules_create`
+
+Create a new schedule in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `name` | string | Yes | Name of the schedule |
+| `timezone` | string | Yes | Timezone for the schedule \(e.g., America/New_York\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schedule` | object | The created schedule |
+
+### `incidentio_schedules_show`
+
+Get details of a specific schedule in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the schedule |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schedule` | object | The schedule details |
+
+### `incidentio_schedules_update`
+
+Update an existing schedule in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the schedule to update |
+| `name` | string | No | New name for the schedule |
+| `timezone` | string | No | New timezone for the schedule \(e.g., America/New_York\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schedule` | object | The updated schedule |
+
+### `incidentio_schedules_delete`
+
+Delete a schedule in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the schedule to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### `incidentio_escalations_list`
+
+List all escalation policies in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `page_size` | number | No | Number of results per page \(default: 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `escalations` | array | List of escalation policies |
+
+### `incidentio_escalations_create`
+
+Create a new escalation policy in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `name` | string | Yes | Name of the escalation policy |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `escalation` | object | The created escalation policy |
+
+### `incidentio_escalations_show`
+
+Get details of a specific escalation policy in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | The ID of the escalation policy |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `escalation` | object | The escalation policy details |
+
+### `incidentio_custom_fields_list`
+
+List all custom fields from incident.io.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `custom_fields` | array | List of custom fields |
+
+### `incidentio_custom_fields_create`
+
+Create a new custom field in incident.io.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `name` | string | Yes | Name of the custom field |
+| `description` | string | Yes | Description of the custom field \(required\) |
+| `field_type` | string | Yes | Type of the custom field \(e.g., text, single_select, multi_select, numeric, datetime, link, user, team\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `custom_field` | object | Created custom field |
+
+### `incidentio_custom_fields_show`
+
+Get detailed information about a specific custom field from incident.io.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | Custom field ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `custom_field` | object | Custom field details |
+
+### `incidentio_custom_fields_update`
+
+Update an existing custom field in incident.io.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | Custom field ID |
+| `name` | string | Yes | New name for the custom field \(required\) |
+| `description` | string | Yes | New description for the custom field \(required\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `custom_field` | object | Updated custom field |
+
+### `incidentio_custom_fields_delete`
+
+Delete a custom field from incident.io.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `id` | string | Yes | Custom field ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### `incidentio_severities_list`
+
+List all severity levels configured in your Incident.io workspace. Returns severity details including id, name, description, and rank.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Incident.io API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `severities` | array | List of severity levels |
+
+### `incidentio_incident_statuses_list`
+
+List all incident statuses configured in your Incident.io workspace. Returns status details including id, name, description, and category.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Incident.io API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident_statuses` | array | List of incident statuses |
+
+### `incidentio_incident_types_list`
+
+List all incident types configured in your Incident.io workspace. Returns type details including id, name, description, and default flag.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Incident.io API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident_types` | array | List of incident types |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `incidentio`
