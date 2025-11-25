@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { pollingIdempotency } from '@/lib/idempotency/service'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -10,6 +10,8 @@ import type { GmailAttachment } from '@/tools/gmail/types'
 import { downloadAttachments, extractAttachmentInfo } from '@/tools/gmail/utils'
 
 const logger = createLogger('GmailPollingService')
+
+const MAX_CONSECUTIVE_FAILURES = 10
 
 interface GmailWebhookConfig {
   labelIds: string[]
@@ -55,6 +57,53 @@ export interface GmailWebhookPayload {
   rawEmail?: GmailEmail // Only included when includeRawEmail is true
 }
 
+async function markWebhookFailed(webhookId: string) {
+  try {
+    const result = await db
+      .update(webhook)
+      .set({
+        failedCount: sql`COALESCE(${webhook.failedCount}, 0) + 1`,
+        lastFailedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(webhook.id, webhookId))
+      .returning({ failedCount: webhook.failedCount })
+
+    const newFailedCount = result[0]?.failedCount || 0
+    const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
+
+    if (shouldDisable) {
+      await db
+        .update(webhook)
+        .set({
+          isActive: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(webhook.id, webhookId))
+
+      logger.warn(
+        `Webhook ${webhookId} auto-disabled after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
+      )
+    }
+  } catch (err) {
+    logger.error(`Failed to mark webhook ${webhookId} as failed:`, err)
+  }
+}
+
+async function markWebhookSuccess(webhookId: string) {
+  try {
+    await db
+      .update(webhook)
+      .set({
+        failedCount: 0, // Reset on success
+        updatedAt: new Date(),
+      })
+      .where(eq(webhook.id, webhookId))
+  } catch (err) {
+    logger.error(`Failed to mark webhook ${webhookId} as successful:`, err)
+  }
+}
+
 export async function pollGmailWebhooks() {
   logger.info('Starting Gmail webhook polling')
 
@@ -76,8 +125,9 @@ export async function pollGmailWebhooks() {
     // exhausting Postgres or Gmail API connections when many users exist.
     const CONCURRENCY = 10
 
-    const running: Promise<any>[] = []
-    const settledResults: PromiseSettledResult<any>[] = []
+    const running: Promise<void>[] = []
+    let successCount = 0
+    let failureCount = 0
 
     const enqueue = async (webhookData: (typeof activeWebhooks)[number]) => {
       const webhookId = webhookData.id
@@ -91,7 +141,9 @@ export async function pollGmailWebhooks() {
 
         if (!credentialId && !userId) {
           logger.error(`[${requestId}] Missing credentialId and userId for webhook ${webhookId}`)
-          return { success: false, webhookId, error: 'Missing credentialId and userId' }
+          await markWebhookFailed(webhookId)
+          failureCount++
+          return
         }
 
         // Resolve owner and token
@@ -102,7 +154,9 @@ export async function pollGmailWebhooks() {
             logger.error(
               `[${requestId}] Credential ${credentialId} not found for webhook ${webhookId}`
             )
-            return { success: false, webhookId, error: 'Credential not found' }
+            await markWebhookFailed(webhookId)
+            failureCount++
+            return
           }
           const ownerUserId = rows[0].userId
           accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
@@ -115,7 +169,9 @@ export async function pollGmailWebhooks() {
           logger.error(
             `[${requestId}] Failed to get Gmail access token for webhook ${webhookId} (cred or fallback)`
           )
-          return { success: false, webhookId, error: 'No access token' }
+          await markWebhookFailed(webhookId)
+          failureCount++
+          return
         }
 
         // Get webhook configuration
@@ -157,47 +213,47 @@ export async function pollGmailWebhooks() {
 
         // Update webhook with latest history ID and timestamp
         await updateWebhookData(webhookId, now.toISOString(), latestHistoryId || config.historyId)
+        await markWebhookSuccess(webhookId)
+        successCount++
 
-        return {
-          success: true,
-          webhookId,
-          emailsFound: emails.length,
-          emailsProcessed: processed,
-        }
+        logger.info(
+          `[${requestId}] Successfully processed ${processed} emails for webhook ${webhookId}`
+        )
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         logger.error(`[${requestId}] Error processing Gmail webhook ${webhookId}:`, error)
-        return { success: false, webhookId, error: errorMessage }
+        await markWebhookFailed(webhookId)
+        failureCount++
       }
     }
 
     for (const webhookData of activeWebhooks) {
-      running.push(enqueue(webhookData))
+      const promise = enqueue(webhookData)
+        .then(() => {
+          // Result processed, memory released
+        })
+        .catch((err) => {
+          logger.error('Unexpected error in webhook processing:', err)
+          failureCount++
+        })
+
+      running.push(promise)
 
       if (running.length >= CONCURRENCY) {
-        const result = await Promise.race(running)
-        running.splice(running.indexOf(result), 1)
-        settledResults.push(result)
+        await Promise.race(running)
+        // Remove completed promise
+        running.splice(0, 1)
       }
     }
 
-    while (running.length) {
-      const result = await Promise.race(running)
-      running.splice(running.indexOf(result), 1)
-      settledResults.push(result)
-    }
-
-    const results = settledResults
+    // Wait for remaining webhooks to complete
+    await Promise.allSettled(running)
 
     const summary = {
-      total: results.length,
-      successful: results.filter((r) => r.status === 'fulfilled' && r.value.success).length,
-      failed: results.filter(
-        (r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)
-      ).length,
-      details: results.map((r) =>
-        r.status === 'fulfilled' ? r.value : { success: false, error: r.reason }
-      ),
+      total: activeWebhooks.length,
+      successful: successCount,
+      failed: failureCount,
+      details: [], // Don't store details to save memory
     }
 
     logger.info('Gmail polling completed', {
@@ -694,8 +750,8 @@ async function markEmailAsRead(accessToken: string, messageId: string) {
 }
 
 async function updateWebhookLastChecked(webhookId: string, timestamp: string, historyId?: string) {
-  const existingConfig =
-    (await db.select().from(webhook).where(eq(webhook.id, webhookId)))[0]?.providerConfig || {}
+  const result = await db.select().from(webhook).where(eq(webhook.id, webhookId))
+  const existingConfig = (result[0]?.providerConfig as Record<string, any>) || {}
   await db
     .update(webhook)
     .set({
@@ -703,15 +759,15 @@ async function updateWebhookLastChecked(webhookId: string, timestamp: string, hi
         ...existingConfig,
         lastCheckedTimestamp: timestamp,
         ...(historyId ? { historyId } : {}),
-      },
+      } as any,
       updatedAt: new Date(),
     })
     .where(eq(webhook.id, webhookId))
 }
 
 async function updateWebhookData(webhookId: string, timestamp: string, historyId?: string) {
-  const existingConfig =
-    (await db.select().from(webhook).where(eq(webhook.id, webhookId)))[0]?.providerConfig || {}
+  const result = await db.select().from(webhook).where(eq(webhook.id, webhookId))
+  const existingConfig = (result[0]?.providerConfig as Record<string, any>) || {}
 
   await db
     .update(webhook)
@@ -720,7 +776,7 @@ async function updateWebhookData(webhookId: string, timestamp: string, historyId
         ...existingConfig,
         lastCheckedTimestamp: timestamp,
         ...(historyId ? { historyId } : {}),
-      },
+      } as any,
       updatedAt: new Date(),
     })
     .where(eq(webhook.id, webhookId))
