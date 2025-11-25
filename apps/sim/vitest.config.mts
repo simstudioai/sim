@@ -3,11 +3,10 @@ import path, { resolve } from 'path'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import { configDefaults, defineConfig } from 'vitest/config'
-
-const nextEnv = require('@next/env')
-const { loadEnvConfig } = nextEnv.default || nextEnv
+import nextEnv from '@next/env'
 
 const projectDir = process.cwd()
+const { loadEnvConfig } = nextEnv as { loadEnvConfig: (dir: string) => void }
 loadEnvConfig(projectDir)
 
 export default defineConfig({
@@ -18,6 +17,9 @@ export default defineConfig({
     include: ['**/*.test.{ts,tsx}'],
     exclude: [...configDefaults.exclude, '**/node_modules/**', '**/dist/**'],
     setupFiles: ['./vitest.setup.ts'],
+    // Allow slower API route/unit tests that set up many mocks
+    testTimeout: 15000,
+    hookTimeout: 15000,
     alias: {
       '@sim/db': resolve(__dirname, '../../packages/db'),
     },
