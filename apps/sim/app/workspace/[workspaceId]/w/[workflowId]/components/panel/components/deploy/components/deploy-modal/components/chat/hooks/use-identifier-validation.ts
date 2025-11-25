@@ -1,10 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 
+const IDENTIFIER_PATTERN = /^[a-z0-9-]+$/
+const DEBOUNCE_MS = 500
+
+interface IdentifierValidationState {
+  isChecking: boolean
+  error: string | null
+  isValid: boolean
+}
+
+/**
+ * Hook for validating chat identifier availability with debounced API checks
+ * @param identifier - The identifier to validate
+ * @param originalIdentifier - The original identifier when editing an existing chat
+ * @param isEditingExisting - Whether we're editing an existing chat deployment
+ */
 export function useIdentifierValidation(
   identifier: string,
   originalIdentifier?: string,
   isEditingExisting?: boolean
-) {
+): IdentifierValidationState {
   const [isChecking, setIsChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isValid, setIsValid] = useState(false)
@@ -16,36 +31,29 @@ export function useIdentifierValidation(
       clearTimeout(timeoutRef.current)
     }
 
-    // Reset states immediately when identifier changes
     setError(null)
     setIsValid(false)
     setIsChecking(false)
 
-    // Skip validation if empty
     if (!identifier.trim()) {
       return
     }
 
-    // Skip validation if same as original (existing deployment)
     if (originalIdentifier && identifier === originalIdentifier) {
       setIsValid(true)
       return
     }
 
-    // If we're editing an existing deployment but originalIdentifier isn't available yet,
-    // assume it's valid and wait for the data to load
     if (isEditingExisting && !originalIdentifier) {
       setIsValid(true)
       return
     }
 
-    // Validate format first - client-side validation
-    if (!/^[a-z0-9-]+$/.test(identifier)) {
+    if (!IDENTIFIER_PATTERN.test(identifier)) {
       setError('Identifier can only contain lowercase letters, numbers, and hyphens')
       return
     }
 
-    // Check availability with server
     setIsChecking(true)
     timeoutRef.current = setTimeout(async () => {
       try {
@@ -64,13 +72,13 @@ export function useIdentifierValidation(
           setError(null)
           setIsValid(true)
         }
-      } catch (error) {
+      } catch {
         setError('Error checking identifier availability')
         setIsValid(false)
       } finally {
         setIsChecking(false)
       }
-    }, 500)
+    }, DEBOUNCE_MS)
 
     return () => {
       if (timeoutRef.current) {

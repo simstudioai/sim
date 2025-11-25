@@ -7,72 +7,72 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { usePanelEditorStore } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-interface UseBlockCoreOptions {
+/**
+ * Props for the useBlockVisual hook.
+ */
+interface UseBlockVisualProps {
+  /** The unique identifier of the block */
   blockId: string
+  /** Block data including type, config, and preview state */
   data: WorkflowBlockProps
+  /** Whether the block is pending execution */
   isPending?: boolean
 }
 
 /**
- * Consolidated hook for core block functionality shared across all block types.
- * Combines workflow state, block state, focus, and ring styling.
+ * Provides visual state and interaction handlers for workflow blocks.
+ * Computes ring styling based on execution, focus, diff, and run path states.
+ * In preview mode, all interactive and execution-related visual states are disabled.
+ *
+ * @param props - The hook properties
+ * @returns Visual state, click handler, and ring styling for the block
  */
-export function useBlockCore({ blockId, data, isPending = false }: UseBlockCoreOptions) {
-  // Workflow context
+export function useBlockVisual({ blockId, data, isPending = false }: UseBlockVisualProps) {
+  const isPreview = data.isPreview ?? false
+
   const currentWorkflow = useCurrentWorkflow()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
-  // Block state (enabled, active, diff status, deleted)
-  const { isEnabled, isActive, diffStatus, isDeletedBlock } = useBlockState(
-    blockId,
-    currentWorkflow,
-    data
-  )
+  const {
+    isEnabled,
+    isActive: blockIsActive,
+    diffStatus,
+    isDeletedBlock,
+  } = useBlockState(blockId, currentWorkflow, data)
 
-  // Run path state (from last execution)
+  const isActive = isPreview ? false : blockIsActive
+
   const lastRunPath = useExecutionStore((state) => state.lastRunPath)
-  const runPathStatus = lastRunPath.get(blockId)
+  const runPathStatus = isPreview ? undefined : lastRunPath.get(blockId)
 
-  // Focus management
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
-  const isFocused = currentBlockId === blockId
+  const isFocused = isPreview ? false : currentBlockId === blockId
 
   const handleClick = useCallback(() => {
-    setCurrentBlockId(blockId)
-  }, [blockId, setCurrentBlockId])
+    if (!isPreview) {
+      setCurrentBlockId(blockId)
+    }
+  }, [blockId, setCurrentBlockId, isPreview])
 
-  // Ring styling based on all states
-  // Priority: active (executing) > pending > focused > deleted > diff > run path
   const { hasRing, ringClassName: ringStyles } = useMemo(
     () =>
       getBlockRingStyles({
         isActive,
-        isPending,
+        isPending: isPreview ? false : isPending,
         isFocused,
-        isDeletedBlock,
-        diffStatus,
+        isDeletedBlock: isPreview ? false : isDeletedBlock,
+        diffStatus: isPreview ? undefined : diffStatus,
         runPathStatus,
       }),
-    [isActive, isPending, isFocused, isDeletedBlock, diffStatus, runPathStatus]
+    [isActive, isPending, isFocused, isDeletedBlock, diffStatus, runPathStatus, isPreview]
   )
 
   return {
-    // Workflow context
     currentWorkflow,
     activeWorkflowId,
-
-    // Block state
     isEnabled,
-    isActive,
-    diffStatus,
-    isDeletedBlock,
-
-    // Focus
-    isFocused,
     handleClick,
-
-    // Ring styling
     hasRing,
     ringStyles,
     runPathStatus,

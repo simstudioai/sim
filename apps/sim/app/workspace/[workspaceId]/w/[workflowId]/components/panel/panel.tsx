@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Braces, Square } from 'lucide-react'
+import { ArrowUp, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   BubbleChatPreview,
@@ -408,7 +408,7 @@ export function Panel() {
                     onClick={handleExportJson}
                     disabled={!userPermissions.canEdit || isExporting || !currentWorkflow}
                   >
-                    <Braces className='h-3 w-3' />
+                    <ArrowUp className='h-3 w-3' />
                     <span>Export workflow</span>
                   </PopoverItem>
                   <PopoverItem
@@ -462,7 +462,7 @@ export function Panel() {
           <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
             <div className='flex gap-[4px]'>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-9)] dark:hover:text-[var(--text-primary)]'
+                className='h-[28px] truncate px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('copilot')}
                 data-tab-button='copilot'
@@ -470,7 +470,7 @@ export function Panel() {
                 Copilot
               </Button>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-9)] dark:hover:text-[var(--text-primary)]'
+                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'

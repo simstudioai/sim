@@ -332,7 +332,7 @@ export function FieldFormat({
           <Code.Content paddingLeft={`${gutterWidth}px`}>
             <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
               {
-                '[\n  {\n    "data": "data:application/pdf;base64,...",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]'
+                '[\n  {\n    "data": "<base64>",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]'
               }
             </Code.Placeholder>
             <Editor

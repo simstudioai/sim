@@ -24,7 +24,7 @@ import {
   getProviderName,
   shouldSkipBlockRender,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
-import { useBlockCore } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   BLOCK_DIMENSIONS,
   useBlockDimensions,
@@ -430,15 +430,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     currentWorkflow,
     activeWorkflowId,
     isEnabled,
-    isActive,
-    diffStatus,
-    isDeletedBlock,
-    isFocused,
     handleClick,
     hasRing,
     ringStyles,
     runPathStatus,
-  } = useBlockCore({ blockId: id, data, isPending })
+  } = useBlockVisual({ blockId: id, data, isPending })
 
   const currentBlock = currentWorkflow.getBlockById(id)
 

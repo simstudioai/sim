@@ -4,7 +4,7 @@ import type { NodeProps } from 'reactflow'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useBlockCore } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   BLOCK_DIMENSIONS,
   useBlockDimensions,
@@ -121,9 +121,10 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
 export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlockNodeData>) {
   const { type, config, name } = data
 
-  const { activeWorkflowId, isEnabled, isFocused, handleClick, hasRing, ringStyles } = useBlockCore(
-    { blockId: id, data }
-  )
+  const { activeWorkflowId, isEnabled, handleClick, hasRing, ringStyles } = useBlockVisual({
+    blockId: id,
+    data,
+  })
   const storedValues = useSubBlockStore(
     useCallback(
       (state) => {

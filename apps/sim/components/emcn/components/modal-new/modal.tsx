@@ -248,15 +248,68 @@ ModalDescription.displayName = 'ModalDescription'
  */
 const ModalTabs = TabsPrimitive.Root
 
+interface ModalTabsListProps extends React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> {
+  /** Currently active tab value for indicator positioning */
+  activeValue?: string
+}
+
 /**
- * Modal tabs list component. Container for tab triggers.
+ * Modal tabs list component with animated sliding indicator.
  */
 const ModalTabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.List ref={ref} className={cn('flex', className)} {...props} />
-))
+  ModalTabsListProps
+>(({ className, children, activeValue, ...props }, ref) => {
+  const listRef = React.useRef<HTMLDivElement>(null)
+  const [indicator, setIndicator] = React.useState({ left: 0, width: 0 })
+  const [ready, setReady] = React.useState(false)
+
+  React.useEffect(() => {
+    const list = listRef.current
+    if (!list) return
+
+    const updateIndicator = () => {
+      const activeTab = list.querySelector('[data-state="active"]') as HTMLElement | null
+      if (!activeTab) return
+
+      setIndicator({
+        left: activeTab.offsetLeft,
+        width: activeTab.offsetWidth,
+      })
+      setReady(true)
+    }
+
+    updateIndicator()
+
+    const observer = new MutationObserver(updateIndicator)
+    observer.observe(list, { attributes: true, subtree: true, attributeFilter: ['data-state'] })
+    window.addEventListener('resize', updateIndicator)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', updateIndicator)
+    }
+  }, [activeValue])
+
+  return (
+    <TabsPrimitive.List
+      ref={ref}
+      className={cn('relative flex gap-[16px] px-4', className)}
+      {...props}
+    >
+      <div ref={listRef} className='flex gap-[16px]'>
+        {children}
+      </div>
+      <span
+        className={cn(
+          'pointer-events-none absolute bottom-0 h-[1px] rounded-full bg-[var(--text-primary)]',
+          ready && 'transition-all duration-200 ease-out'
+        )}
+        style={{ left: indicator.left, width: indicator.width }}
+      />
+    </TabsPrimitive.List>
+  )
+})
 
 ModalTabsList.displayName = 'ModalTabsList'
 
@@ -270,9 +323,8 @@ const ModalTabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'relative px-0 py-0 text-[12px] text-[var(--text-secondary)]',
-      'after:absolute after:right-0 after:bottom-0 after:left-0 after:h-[8px] after:bg-transparent',
-      'data-[state=active]:text-[#FFFFFF] data-[state=active]:after:bg-[#FFFFFF]',
+      'px-1 pb-[8px] font-medium text-[13px] text-[var(--text-secondary)] transition-colors',
+      'hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
       className
     )}
     {...props}
