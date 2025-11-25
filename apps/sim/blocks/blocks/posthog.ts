@@ -87,6 +87,63 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         { label: 'EU Cloud', id: 'eu' },
       ],
       value: () => 'us',
+      required: {
+        field: 'operation',
+        value: [
+          // Feature Flags
+          'posthog_create_feature_flag',
+          'posthog_update_feature_flag',
+          'posthog_delete_feature_flag',
+          'posthog_get_feature_flag',
+          'posthog_list_feature_flags',
+          // Experiments
+          'posthog_create_experiment',
+          'posthog_get_experiment',
+          'posthog_list_experiments',
+          // Early Access Features
+          'posthog_create_early_access_feature',
+          'posthog_list_early_access_features',
+          // Data Management
+          'posthog_list_property_definitions',
+          'posthog_get_property_definition',
+          'posthog_update_property_definition',
+          'posthog_list_event_definitions',
+          'posthog_get_event_definition',
+          'posthog_update_event_definition',
+          // Core Operations (with personalApiKey)
+          'posthog_list_events',
+          'posthog_list_persons',
+          'posthog_get_person',
+          'posthog_delete_person',
+          'posthog_query',
+          // Analytics
+          'posthog_list_insights',
+          'posthog_get_insight',
+          'posthog_create_insight',
+          'posthog_list_dashboards',
+          'posthog_get_dashboard',
+          'posthog_list_actions',
+          'posthog_list_cohorts',
+          'posthog_get_cohort',
+          'posthog_create_cohort',
+          'posthog_list_annotations',
+          'posthog_create_annotation',
+          // Surveys & Recordings
+          'posthog_list_surveys',
+          'posthog_get_survey',
+          'posthog_create_survey',
+          'posthog_update_survey',
+          'posthog_list_session_recordings',
+          'posthog_get_session_recording',
+          'posthog_list_recording_playlists',
+          'posthog_create_recording_playlist',
+          // Configuration
+          'posthog_list_projects',
+          'posthog_get_project',
+          'posthog_list_organizations',
+          'posthog_get_organization',
+        ],
+      },
     },
 
     // API Keys (conditional based on operation)
@@ -100,10 +157,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         field: 'operation',
         value: ['posthog_capture_event', 'posthog_batch_events', 'posthog_evaluate_flags'],
       },
-      required: {
-        field: 'operation',
-        value: ['posthog_capture_event', 'posthog_batch_events', 'posthog_evaluate_flags'],
-      },
+      required: true,
     },
     {
       id: 'personalApiKey',
@@ -116,11 +170,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         value: ['posthog_capture_event', 'posthog_batch_events', 'posthog_evaluate_flags'],
         not: true,
       },
-      required: {
-        field: 'operation',
-        value: ['posthog_capture_event', 'posthog_batch_events', 'posthog_evaluate_flags'],
-        not: true,
-      },
+      required: true,
     },
     {
       id: 'projectId',
@@ -140,19 +190,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         ],
         not: true,
       },
-      required: {
-        field: 'operation',
-        value: [
-          'posthog_capture_event',
-          'posthog_batch_events',
-          'posthog_evaluate_flags',
-          'posthog_list_projects',
-          'posthog_get_project',
-          'posthog_list_organizations',
-          'posthog_get_organization',
-        ],
-        not: true,
-      },
+      required: true,
     },
 
     // Capture Event fields
@@ -453,6 +491,10 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_update_event_definition',
           'posthog_update_property_definition',
         ],
+      },
+      required: {
+        field: 'operation',
+        value: 'posthog_create_early_access_feature',
       },
     },
 

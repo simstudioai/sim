@@ -120,10 +120,15 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       title: 'Severity ID',
       type: 'short-input',
       placeholder: 'Enter severity ID...',
-      condition: {
-        field: 'operation',
-        value: ['incidentio_incidents_create', 'incidentio_incidents_update'],
-      },
+      condition: { field: 'operation', value: 'incidentio_incidents_create' },
+      required: true,
+    },
+    {
+      id: 'severity_id',
+      title: 'Severity ID',
+      type: 'short-input',
+      placeholder: 'Enter severity ID...',
+      condition: { field: 'operation', value: 'incidentio_incidents_update' },
     },
     {
       id: 'incident_type_id',
@@ -201,14 +206,26 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       condition: {
         field: 'operation',
         value: [
-          'incidentio_incidents_update',
           'incidentio_workflows_create',
-          'incidentio_workflows_update',
           'incidentio_schedules_create',
-          'incidentio_schedules_update',
           'incidentio_escalations_create',
           'incidentio_custom_fields_create',
           'incidentio_custom_fields_update',
+        ],
+      },
+      required: true,
+    },
+    {
+      id: 'name',
+      title: 'Name',
+      type: 'short-input',
+      placeholder: 'Enter name...',
+      condition: {
+        field: 'operation',
+        value: [
+          'incidentio_incidents_update',
+          'incidentio_workflows_update',
+          'incidentio_schedules_update',
         ],
       },
     },
@@ -255,10 +272,15 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       title: 'Timezone',
       type: 'short-input',
       placeholder: 'e.g., America/New_York',
-      condition: {
-        field: 'operation',
-        value: ['incidentio_schedules_create', 'incidentio_schedules_update'],
-      },
+      condition: { field: 'operation', value: 'incidentio_schedules_create' },
+      required: true,
+    },
+    {
+      id: 'timezone',
+      title: 'Timezone',
+      type: 'short-input',
+      placeholder: 'e.g., America/New_York',
+      condition: { field: 'operation', value: 'incidentio_schedules_update' },
     },
     // Custom Fields inputs
     {
@@ -270,6 +292,7 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         field: 'operation',
         value: ['incidentio_custom_fields_create', 'incidentio_custom_fields_update'],
       },
+      required: true,
     },
     {
       id: 'field_type',
