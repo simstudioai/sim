@@ -14,7 +14,6 @@ export function CopyPageButton({ markdownUrl }: CopyPageButtonProps) {
   const [isLoading, setLoading] = useState(false)
 
   const handleCopy = async () => {
-    // Check cache first
     const cached = cache.get(markdownUrl)
     if (cached) {
       await navigator.clipboard.writeText(cached)
@@ -23,7 +22,6 @@ export function CopyPageButton({ markdownUrl }: CopyPageButtonProps) {
       return
     }
 
-    // Fetch and cache
     setLoading(true)
     try {
       await navigator.clipboard.write([

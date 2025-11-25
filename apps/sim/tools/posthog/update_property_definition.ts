@@ -115,7 +115,7 @@ export const updatePropertyDefinitionTool: ToolConfig<
         body.description = params.description
       }
 
-      if (params.tags !== undefined) {
+      if (params.tags) {
         body.tags = params.tags
           .split(',')
           .map((tag: string) => tag.trim())

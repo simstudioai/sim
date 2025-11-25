@@ -50,8 +50,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         { label: 'List Experiments', id: 'posthog_list_experiments' },
         { label: 'Get Experiment', id: 'posthog_get_experiment' },
         { label: 'Create Experiment', id: 'posthog_create_experiment' },
-        { label: 'List Early Access Features', id: 'posthog_list_early_access_features' },
-        { label: 'Create Early Access Feature', id: 'posthog_create_early_access_feature' },
         // User Engagement
         { label: 'List Surveys', id: 'posthog_list_surveys' },
         { label: 'Get Survey', id: 'posthog_get_survey' },
@@ -100,9 +98,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_create_experiment',
           'posthog_get_experiment',
           'posthog_list_experiments',
-          // Early Access Features
-          'posthog_create_early_access_feature',
-          'posthog_list_early_access_features',
           // Data Management
           'posthog_list_property_definitions',
           'posthog_get_property_definition',
@@ -440,7 +435,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_create_feature_flag',
           'posthog_update_feature_flag',
           'posthog_create_experiment',
-          'posthog_create_early_access_feature',
           'posthog_create_survey',
           'posthog_update_survey',
           'posthog_create_recording_playlist',
@@ -460,17 +454,12 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_create_feature_flag',
           'posthog_update_feature_flag',
           'posthog_create_experiment',
-          'posthog_create_early_access_feature',
           'posthog_create_survey',
           'posthog_update_survey',
           'posthog_create_recording_playlist',
           'posthog_update_event_definition',
           'posthog_update_property_definition',
         ],
-      },
-      required: {
-        field: 'operation',
-        value: 'posthog_create_early_access_feature',
       },
     },
 
@@ -509,6 +498,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_update_feature_flag',
           'posthog_create_cohort',
           'posthog_create_experiment',
+          'posthog_create_recording_playlist',
         ],
       },
     },
@@ -758,27 +748,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       },
     },
 
-    // Early Access Feature fields
-    {
-      id: 'stage',
-      title: 'Stage',
-      type: 'dropdown',
-      options: [
-        { label: 'Alpha', id: 'alpha' },
-        { label: 'Beta', id: 'beta' },
-        { label: 'General Availability', id: 'general-availability' },
-      ],
-      value: () => 'beta',
-      condition: { field: 'operation', value: 'posthog_create_early_access_feature' },
-    },
-    {
-      id: 'documentationUrl',
-      title: 'Documentation URL',
-      type: 'short-input',
-      placeholder: 'https://docs.example.com/feature',
-      condition: { field: 'operation', value: 'posthog_create_early_access_feature' },
-    },
-
     // List operations - pagination fields
     {
       id: 'limit',
@@ -797,7 +766,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_list_annotations',
           'posthog_list_feature_flags',
           'posthog_list_experiments',
-          'posthog_list_early_access_features',
           'posthog_list_surveys',
           'posthog_list_session_recordings',
           'posthog_list_recording_playlists',
@@ -823,7 +791,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_list_annotations',
           'posthog_list_feature_flags',
           'posthog_list_experiments',
-          'posthog_list_early_access_features',
           'posthog_list_surveys',
           'posthog_list_session_recordings',
           'posthog_list_recording_playlists',
@@ -926,8 +893,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       'posthog_list_experiments',
       'posthog_get_experiment',
       'posthog_create_experiment',
-      'posthog_list_early_access_features',
-      'posthog_create_early_access_feature',
       // Engagement
       'posthog_list_surveys',
       'posthog_get_survey',
@@ -1100,8 +1065,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
     parameters: { type: 'string', description: 'Experiment parameters as JSON' },
     questions: { type: 'string', description: 'Survey questions as JSON array' },
     surveyType: { type: 'string', description: 'Survey type (popover or api)' },
-    stage: { type: 'string', description: 'Early access feature stage' },
-    documentationUrl: { type: 'string', description: 'Documentation URL' },
     // List parameters
     limit: { type: 'number', description: 'Number of results to return' },
     offset: { type: 'number', description: 'Number of results to skip' },

@@ -10,6 +10,27 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+The [PostHog](https://posthog.com/) tool integrates powerful product analytics, feature flag management, experimentation, and user behavior insights directly into your agentic workflows. Designed for modern teams, it enables you to capture, analyze, and act on user data in real time — helping you build better products, understand engagement, and boost conversions.
+
+With the PostHog tool, you can:
+
+- **Track and analyze events**: Use the `posthog_capture_event` and `posthog_batch_events` operations to record individual or multiple user actions, page views, or custom events for deep analytics.
+- **Explore event data**: Retrieve and list historical or real-time events using the `posthog_list_events` operation for advanced event analysis.
+- **Understand users**: Leverage the `posthog_list_persons`, `posthog_get_person`, and `posthog_delete_person` operations to manage user profiles, get detailed user insights, or remove them as needed.
+- **Gain actionable product insights**: Visualize user journeys, feature usage, and engagement via `posthog_list_insights`, `posthog_get_insight`, and `posthog_create_insight` operations.
+- **Manage and roll out features safely**: Toggle features and run A/B or multivariate tests at scale using operations like `posthog_list_feature_flags`, `posthog_get_feature_flag`, `posthog_create_feature_flag`, `posthog_update_feature_flag`, and `posthog_delete_feature_flag`.
+- **Segment and target audiences**: Build, list, or manage cohorts with `posthog_list_cohorts`, `posthog_get_cohort`, and `posthog_create_cohort`.
+- **Gather direct feedback**: Design, deploy, and analyze surveys through `posthog_list_surveys`, `posthog_get_survey`, `posthog_create_survey`, and `posthog_update_survey`.
+- **Monitor user experience**: Access and analyze session recordings via the `posthog_list_session_recordings` and `posthog_get_session_recording` operations.
+- **Collaborate with your team**: Organize dashboards (`posthog_list_dashboards`, `posthog_get_dashboard`), create and annotate insights and events, and manage projects and organizations within PostHog.
+
+Whether you want to implement full-scale product analytics, enhance user onboarding, refine your product roadmap, or automate decisions based on real usage data, the PostHog tool empowers your agents and workflows with advanced analytics and in-product experimentation — all in one unified platform.
+
+Looking for true product analytics with privacy, scalability, and an open-source option? PostHog is trusted by fast-moving teams and enterprises worldwide.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate PostHog into your workflow. Track events, manage feature flags, analyze user behavior, run experiments, create surveys, and access session recordings.
@@ -229,7 +250,7 @@ Create a new insight in PostHog. Requires insight name and configuration filters
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | The PostHog project ID |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
-| `name` | string | Yes | Name for the insight |
+| `name` | string | No | Name for the insight \(optional - PostHog will generate a derived name if not provided\) |
 | `description` | string | No | Description of the insight |
 | `filters` | string | No | JSON string of filter configuration for the insight |
 | `query` | string | No | JSON string of query configuration for the insight |
@@ -395,7 +416,7 @@ Create a new cohort in PostHog. Requires cohort name and filter or query configu
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | The PostHog project ID |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
-| `name` | string | Yes | Name for the cohort |
+| `name` | string | No | Name for the cohort \(optional - PostHog will use "Untitled cohort" if not provided\) |
 | `description` | string | No | Description of the cohort |
 | `filters` | string | No | JSON string of filter configuration for the cohort |
 | `query` | string | No | JSON string of query configuration for the cohort |
@@ -526,7 +547,7 @@ Create a new feature flag in PostHog
 | `projectId` | string | Yes | The PostHog project ID |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `name` | string | Yes | Feature flag name |
+| `name` | string | No | Feature flag name \(optional - can be empty\) |
 | `key` | string | Yes | Feature flag key \(unique identifier\) |
 | `filters` | string | No | Feature flag filters as JSON string |
 | `active` | boolean | No | Whether the flag is active \(default: true\) |
@@ -657,7 +678,7 @@ Create a new experiment in PostHog
 | `projectId` | string | Yes | The PostHog project ID |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `name` | string | Yes | Experiment name |
+| `name` | string | No | Experiment name \(optional\) |
 | `description` | string | No | Experiment description |
 | `featureFlagKey` | string | Yes | Feature flag key to use for the experiment |
 | `parameters` | string | No | Experiment parameters as JSON string |
@@ -671,49 +692,6 @@ Create a new experiment in PostHog
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `experiment` | object | Created experiment |
-
-### `posthog_list_early_access_features`
-
-List all early access features in a PostHog project
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | The PostHog project ID |
-| `region` | string | Yes | PostHog cloud region: us or eu |
-| `apiKey` | string | Yes | PostHog Personal API Key |
-| `limit` | number | No | Number of results to return |
-| `offset` | number | No | Number of results to skip |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `results` | array | List of early access features |
-
-### `posthog_create_early_access_feature`
-
-Create a new early access feature in PostHog
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | The PostHog project ID |
-| `region` | string | Yes | PostHog cloud region: us or eu |
-| `apiKey` | string | Yes | PostHog Personal API Key |
-| `name` | string | Yes | Feature name |
-| `description` | string | Yes | Feature description |
-| `stage` | string | No | Feature stage \(e.g., alpha, beta, general-availability\) |
-| `documentationUrl` | string | No | URL to feature documentation |
-| `featureFlagId` | number | No | Associated feature flag ID |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `feature` | object | Created early access feature |
 
 ### `posthog_list_surveys`
 
@@ -765,7 +743,7 @@ Create a new survey in PostHog. Supports question types: Basic (open), Link, Rat
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | PostHog Project ID |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
-| `name` | string | Yes | Survey name |
+| `name` | string | No | Survey name \(optional\) |
 | `description` | string | No | Survey description |
 | `type` | string | No | Survey type: popover \(in-app\) or api \(custom implementation\) \(default: popover\) |
 | `questions` | string | Yes | JSON string of survey questions array. Each question must have type \(open/link/rating/multiple_choice\) and question text. Rating questions can have scale \(1-10\), lowerBoundLabel, upperBoundLabel. Multiple choice questions need choices array. Link questions can have buttonText. |
@@ -827,11 +805,6 @@ List session recordings in a PostHog project. Session recordings capture user in
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
 | `limit` | number | No | Number of results to return \(default: 50\) |
 | `offset` | number | No | Number of results to skip for pagination |
-| `dateFrom` | string | No | Filter recordings from this date \(ISO 8601 format\) |
-| `dateTo` | string | No | Filter recordings to this date \(ISO 8601 format\) |
-| `personId` | string | No | Filter recordings by person ID |
-| `events` | string | No | JSON array of event filters to apply |
-| `properties` | string | No | JSON array of property filters to apply |
 
 #### Output
 
@@ -871,8 +844,6 @@ List session recording playlists in a PostHog project. Playlists allow you to or
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
 | `limit` | number | No | Number of results to return \(default: 100\) |
 | `offset` | number | No | Number of results to skip for pagination |
-| `createdBy` | string | No | Filter by creator user ID |
-| `shortId` | string | No | Filter by playlist short ID |
 
 #### Output
 

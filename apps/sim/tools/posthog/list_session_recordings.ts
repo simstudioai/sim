@@ -6,11 +6,6 @@ interface PostHogListSessionRecordingsParams {
   region?: 'us' | 'eu'
   limit?: number
   offset?: number
-  dateFrom?: string
-  dateTo?: string
-  personId?: string
-  events?: string // JSON array of event filters
-  properties?: string // JSON array of property filters
 }
 
 interface PostHogSessionRecording {
@@ -86,36 +81,6 @@ export const listSessionRecordingsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Number of results to skip for pagination',
     },
-    dateFrom: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter recordings from this date (ISO 8601 format)',
-    },
-    dateTo: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter recordings to this date (ISO 8601 format)',
-    },
-    personId: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter recordings by person ID',
-    },
-    events: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'JSON array of event filters to apply',
-    },
-    properties: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'JSON array of property filters to apply',
-    },
   },
 
   request: {
@@ -128,21 +93,6 @@ export const listSessionRecordingsTool: ToolConfig<
       }
       if (params.offset) {
         url.searchParams.set('offset', params.offset.toString())
-      }
-      if (params.dateFrom) {
-        url.searchParams.set('date_from', params.dateFrom)
-      }
-      if (params.dateTo) {
-        url.searchParams.set('date_to', params.dateTo)
-      }
-      if (params.personId) {
-        url.searchParams.set('person_id', params.personId)
-      }
-      if (params.events) {
-        url.searchParams.set('events', params.events)
-      }
-      if (params.properties) {
-        url.searchParams.set('properties', params.properties)
       }
 
       return url.toString()

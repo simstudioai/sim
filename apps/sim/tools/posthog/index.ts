@@ -4,7 +4,6 @@ import { batchEventsTool } from '@/tools/posthog/batch_events'
 import { captureEventTool } from '@/tools/posthog/capture_event'
 import { createAnnotationTool } from '@/tools/posthog/create_annotation'
 import { createCohortTool } from '@/tools/posthog/create_cohort'
-import { createEarlyAccessFeatureTool } from '@/tools/posthog/create_early_access_feature'
 import { createExperimentTool } from '@/tools/posthog/create_experiment'
 import { createFeatureFlagTool } from '@/tools/posthog/create_feature_flag'
 import { createInsightTool } from '@/tools/posthog/create_insight'
@@ -29,7 +28,6 @@ import { listActionsTool } from '@/tools/posthog/list_actions'
 import { listAnnotationsTool } from '@/tools/posthog/list_annotations'
 import { listCohortsTool } from '@/tools/posthog/list_cohorts'
 import { listDashboardsTool } from '@/tools/posthog/list_dashboards'
-import { listEarlyAccessFeaturesTool } from '@/tools/posthog/list_early_access_features'
 // Data Management
 import { listEventDefinitionsTool } from '@/tools/posthog/list_event_definitions'
 import { listEventsTool } from '@/tools/posthog/list_events'
@@ -83,8 +81,6 @@ export const posthogEvaluateFlagsTool = evaluateFlagsTool
 export const posthogListExperimentsTool = listExperimentsTool
 export const posthogGetExperimentTool = getExperimentTool
 export const posthogCreateExperimentTool = createExperimentTool
-export const posthogListEarlyAccessFeaturesTool = listEarlyAccessFeaturesTool
-export const posthogCreateEarlyAccessFeatureTool = createEarlyAccessFeatureTool
 
 export const posthogListSurveysTool = listSurveysTool
 export const posthogGetSurveyTool = getSurveyTool

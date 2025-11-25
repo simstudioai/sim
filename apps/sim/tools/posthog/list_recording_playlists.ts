@@ -6,8 +6,6 @@ interface PostHogListRecordingPlaylistsParams {
   region?: 'us' | 'eu'
   limit?: number
   offset?: number
-  createdBy?: string
-  shortId?: string
 }
 
 interface PostHogRecordingPlaylist {
@@ -82,18 +80,6 @@ export const listRecordingPlaylistsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Number of results to skip for pagination',
     },
-    createdBy: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by creator user ID',
-    },
-    shortId: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by playlist short ID',
-    },
   },
 
   request: {
@@ -108,12 +94,6 @@ export const listRecordingPlaylistsTool: ToolConfig<
       }
       if (params.offset) {
         url.searchParams.set('offset', params.offset.toString())
-      }
-      if (params.createdBy) {
-        url.searchParams.set('created_by', params.createdBy)
-      }
-      if (params.shortId) {
-        url.searchParams.set('short_id', params.shortId)
       }
 
       return url.toString()

@@ -10,6 +10,33 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+Supercharge your error monitoring and application reliability with [Sentry](https://sentry.io/) — the industry-leading platform for real-time error tracking, performance monitoring, and release management. Seamlessly integrate Sentry into your automated agent workflows to easily monitor issues, track critical events, manage projects, and orchestrate releases across all your applications and services.
+
+With the Sentry tool, you can:
+
+- **Monitor and triage issues**: Fetch comprehensive lists of issues using the `sentry_issues_list` operation and retrieve detailed information on individual errors and bugs via `sentry_issues_get`. Instantly access metadata, tags, stack traces, and statistics to reduce mean time to resolution.
+- **Track event data**: Analyze specific error and event instances with `sentry_events_list` and `sentry_events_get`, providing deep insight into error occurrences and user impact.
+- **Manage projects and teams**: Use `sentry_projects_list` and `sentry_project_get` to enumerate and review all your Sentry projects, ensuring smooth team collaboration and centralized configuration.
+- **Coordinate releases**: Automate version tracking, deployment health, and change management across your codebase with operations like `sentry_releases_list`, `sentry_release_get`, and more.
+- **Gain powerful application insights**: Leverage advanced filters and queries to find unresolved or high-priority issues, aggregate event statistics over time, and track regressions as your codebase evolves.
+
+Sentry's integration empowers engineering and DevOps teams to detect issues early, prioritize the most impactful bugs, and continuously improve application health across development stacks. Programmatically orchestrate workflow automation for modern observability, incident response, and release lifecycle management—reducing downtime and increasing user satisfaction.
+
+**Key Sentry operations available**:
+- `sentry_issues_list`: List Sentry issues for organizations and projects, with powerful search and filtering.
+- `sentry_issues_get`: Retrieve detailed information for a specific Sentry issue.
+- `sentry_events_list`: Enumerate the events for a particular issue for root-cause analysis.
+- `sentry_events_get`: Get full detail on an individual event, including stack traces, context, and metadata.
+- `sentry_projects_list`: List all Sentry projects within your organization.
+- `sentry_project_get`: Retrieve configuration and details for a specific project.
+- `sentry_releases_list`: List recent releases and their deployment status.
+- `sentry_release_get`: Retrieve detailed release information, including associated commits and issues.
+
+Whether you're proactively managing app health, troubleshooting production errors, or automating release workflows, Sentry equips you with world-class monitoring, actionable alerts, and seamless DevOps integration. Boost your software quality and search visibility by leveraging Sentry for error tracking, observability, and release management—all from your agentic workflows.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Sentry into the workflow. Monitor issues, manage projects, track events, and coordinate releases across your applications.
@@ -112,7 +139,7 @@ Retrieve detailed information about a specific Sentry project by its slug. Retur
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
 | `organizationSlug` | string | Yes | The slug of the organization |
-| `projectSlug` | string | Yes | The slug of the project to retrieve |
+| `projectSlug` | string | Yes | The ID or slug of the project to retrieve |
 
 #### Output
 

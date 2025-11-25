@@ -109,7 +109,25 @@ export const createRecordingPlaylistTool: ToolConfig<
 
       if (params.name) body.name = params.name
       if (params.description) body.description = params.description
-      if (params.filters) body.filters = JSON.parse(params.filters)
+
+      // PostHog requires either 'filters' or 'collection'
+      // Provide minimal valid filters with date range as default
+      if (params.filters) {
+        try {
+          body.filters = JSON.parse(params.filters)
+        } catch (e) {
+          // Fallback to minimal valid filter on parse error
+          body.filters = {
+            date_from: '-7d', // Last 7 days
+          }
+        }
+      } else {
+        // Default to last 7 days if no filters provided
+        body.filters = {
+          date_from: '-7d',
+        }
+      }
+
       if (params.derivedName) body.derived_name = params.derivedName
 
       return body
