@@ -240,9 +240,8 @@ export async function pollGmailWebhooks() {
       running.push(promise)
 
       if (running.length >= CONCURRENCY) {
-        await Promise.race(running)
-        // Remove completed promise
-        running.splice(0, 1)
+        const completedIdx = await Promise.race(running.map((p, i) => p.then(() => i)))
+        running.splice(completedIdx, 1)
       }
     }
 
