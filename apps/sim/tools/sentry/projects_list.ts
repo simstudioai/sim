@@ -40,11 +40,11 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
       const baseUrl = `https://sentry.io/api/0/organizations/${params.organizationSlug}/projects/`
       const queryParams: string[] = []
 
-      if (params.cursor) {
+      if (params.cursor && params.cursor !== null && params.cursor !== '') {
         queryParams.push(`cursor=${encodeURIComponent(params.cursor)}`)
       }
 
-      if (params.limit) {
+      if (params.limit && params.limit !== null) {
         queryParams.push(`limit=${Number(params.limit)}`)
       }
 

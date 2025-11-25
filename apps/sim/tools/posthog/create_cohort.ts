@@ -61,9 +61,10 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
       },
       name: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-or-llm',
-        description: 'Name for the cohort',
+        description:
+          'Name for the cohort (optional - PostHog will use "Untitled cohort" if not provided)',
       },
       description: {
         type: 'string',
@@ -88,6 +89,7 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
         required: false,
         visibility: 'user-or-llm',
         description: 'Whether the cohort is static (default: false)',
+        default: false,
       },
       groups: {
         type: 'string',

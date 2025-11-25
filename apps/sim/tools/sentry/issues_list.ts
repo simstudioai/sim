@@ -72,31 +72,31 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
       const baseUrl = `https://sentry.io/api/0/organizations/${params.organizationSlug}/issues/`
       const queryParams: string[] = []
 
-      if (params.projectSlug) {
+      if (params.projectSlug && params.projectSlug !== null && params.projectSlug !== '') {
         queryParams.push(`project=${encodeURIComponent(params.projectSlug)}`)
       }
 
-      if (params.query) {
+      if (params.query && params.query !== null && params.query !== '') {
         queryParams.push(`query=${encodeURIComponent(params.query)}`)
       }
 
-      if (params.statsPeriod) {
+      if (params.statsPeriod && params.statsPeriod !== null && params.statsPeriod !== '') {
         queryParams.push(`statsPeriod=${encodeURIComponent(params.statsPeriod)}`)
       }
 
-      if (params.cursor) {
+      if (params.cursor && params.cursor !== null && params.cursor !== '') {
         queryParams.push(`cursor=${encodeURIComponent(params.cursor)}`)
       }
 
-      if (params.limit) {
+      if (params.limit && params.limit !== null) {
         queryParams.push(`limit=${Number(params.limit)}`)
       }
 
-      if (params.status) {
+      if (params.status && params.status !== null && params.status !== '') {
         queryParams.push(`query=${encodeURIComponent(`is:${params.status}`)}`)
       }
 
-      if (params.sort) {
+      if (params.sort && params.sort !== null && params.sort !== '') {
         queryParams.push(`sort=${encodeURIComponent(params.sort)}`)
       }
 

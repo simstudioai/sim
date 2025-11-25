@@ -79,19 +79,19 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
             .filter((p: string) => p.length > 0),
         }
 
-        if (params.ref) {
+        if (params.ref && params.ref !== null && params.ref !== '') {
           body.ref = params.ref
         }
 
-        if (params.url) {
+        if (params.url && params.url !== null && params.url !== '') {
           body.url = params.url
         }
 
-        if (params.dateReleased) {
+        if (params.dateReleased && params.dateReleased !== null && params.dateReleased !== '') {
           body.dateReleased = params.dateReleased
         }
 
-        if (params.commits) {
+        if (params.commits && params.commits !== null && params.commits !== '') {
           try {
             body.commits = JSON.parse(params.commits)
           } catch (e) {

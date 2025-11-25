@@ -58,9 +58,9 @@ export const createFeatureFlagTool: ToolConfig<CreateFeatureFlagParams, CreateFe
       },
       name: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-or-llm',
-        description: 'Feature flag name',
+        description: 'Feature flag name (optional - can be empty)',
       },
       key: {
         type: 'string',
@@ -79,12 +79,14 @@ export const createFeatureFlagTool: ToolConfig<CreateFeatureFlagParams, CreateFe
         required: false,
         visibility: 'user-or-llm',
         description: 'Whether the flag is active (default: true)',
+        default: true,
       },
       ensureExperienceContinuity: {
         type: 'boolean',
         required: false,
         visibility: 'user-or-llm',
         description: 'Whether to ensure experience continuity (default: false)',
+        default: false,
       },
       rolloutPercentage: {
         type: 'number',

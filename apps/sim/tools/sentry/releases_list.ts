@@ -52,19 +52,19 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
       const baseUrl = `https://sentry.io/api/0/organizations/${params.organizationSlug}/releases/`
       const queryParams: string[] = []
 
-      if (params.projectSlug) {
+      if (params.projectSlug && params.projectSlug !== null && params.projectSlug !== '') {
         queryParams.push(`project=${encodeURIComponent(params.projectSlug)}`)
       }
 
-      if (params.query) {
+      if (params.query && params.query !== null && params.query !== '') {
         queryParams.push(`query=${encodeURIComponent(params.query)}`)
       }
 
-      if (params.cursor) {
+      if (params.cursor && params.cursor !== null && params.cursor !== '') {
         queryParams.push(`cursor=${encodeURIComponent(params.cursor)}`)
       }
 
-      if (params.limit) {
+      if (params.limit && params.limit !== null) {
         queryParams.push(`limit=${Number(params.limit)}`)
       }
 

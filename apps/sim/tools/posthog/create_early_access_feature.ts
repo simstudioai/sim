@@ -55,9 +55,9 @@ export const createEarlyAccessFeatureTool: ToolConfig<
     },
     name: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Feature name',
+      description: 'Feature name (optional)',
     },
     description: {
       type: 'string',

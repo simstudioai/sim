@@ -113,6 +113,18 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'plain-text-data',
+    description: 'Plain text error response',
+    examples: ['APIs returning plain text errors like Apollo'],
+    extract: (errorInfo) => {
+      // If data is a plain string (not an object), use it directly
+      if (typeof errorInfo?.data === 'string' && errorInfo.data.trim()) {
+        return errorInfo.data.trim()
+      }
+      return undefined
+    },
+  },
+  {
     id: 'http-status-text',
     description: 'HTTP response status text fallback',
     examples: ['Generic HTTP errors'],
@@ -171,5 +183,6 @@ export const ErrorExtractorId = {
   SOAP_FAULT: 'soap-fault',
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',
+  PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',
 } as const

@@ -118,11 +118,11 @@ export const updateFeatureFlagTool: ToolConfig<UpdateFeatureFlagParams, UpdateFe
           body.name = params.name
         }
 
-        if (params.key !== undefined) {
+        if (params.key !== undefined && params.key !== '') {
           body.key = params.key
         }
 
-        if (params.filters !== undefined) {
+        if (params.filters) {
           try {
             body.filters = JSON.parse(params.filters)
           } catch {

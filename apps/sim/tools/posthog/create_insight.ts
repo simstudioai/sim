@@ -61,9 +61,10 @@ export const createInsightTool: ToolConfig<
     },
     name: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Name for the insight',
+      description:
+        'Name for the insight (optional - PostHog will generate a derived name if not provided)',
     },
     description: {
       type: 'string',

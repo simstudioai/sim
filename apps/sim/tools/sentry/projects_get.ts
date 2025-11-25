@@ -25,13 +25,13 @@ export const getProjectTool: ToolConfig<SentryGetProjectParams, SentryGetProject
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The slug of the project to retrieve',
+      description: 'The ID or slug of the project to retrieve',
     },
   },
 
   request: {
     url: (params) =>
-      `https://sentry.io/api/0/organizations/${params.organizationSlug}/projects/${params.projectSlug}/`,
+      `https://sentry.io/api/0/projects/${params.organizationSlug}/${params.projectSlug}/`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

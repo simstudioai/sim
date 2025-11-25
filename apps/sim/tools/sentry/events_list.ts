@@ -65,7 +65,7 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
     url: (params) => {
       let baseUrl: string
 
-      if (params.issueId) {
+      if (params.issueId && params.issueId !== null && params.issueId !== '') {
         // List events for a specific issue
         baseUrl = `https://sentry.io/api/0/organizations/${params.organizationSlug}/issues/${params.issueId}/events/`
       } else {
@@ -75,19 +75,19 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
 
       const queryParams: string[] = []
 
-      if (params.query) {
+      if (params.query && params.query !== null && params.query !== '') {
         queryParams.push(`query=${encodeURIComponent(params.query)}`)
       }
 
-      if (params.cursor) {
+      if (params.cursor && params.cursor !== null && params.cursor !== '') {
         queryParams.push(`cursor=${encodeURIComponent(params.cursor)}`)
       }
 
-      if (params.limit) {
+      if (params.limit && params.limit !== null) {
         queryParams.push(`limit=${Number(params.limit)}`)
       }
 
-      if (params.statsPeriod) {
+      if (params.statsPeriod && params.statsPeriod !== null && params.statsPeriod !== '') {
         queryParams.push(`statsPeriod=${encodeURIComponent(params.statsPeriod)}`)
       }
 

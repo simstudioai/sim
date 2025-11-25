@@ -71,23 +71,23 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
     body: (params) => {
       const body: Record<string, any> = {}
 
-      if (params.status !== undefined) {
+      if (params.status !== undefined && params.status !== null && params.status !== '') {
         body.status = params.status
       }
 
-      if (params.assignedTo !== undefined) {
+      if (params.assignedTo !== undefined && params.assignedTo !== null) {
         body.assignedTo = params.assignedTo === '' ? null : params.assignedTo
       }
 
-      if (params.isBookmarked !== undefined) {
+      if (params.isBookmarked !== undefined && params.isBookmarked !== null) {
         body.isBookmarked = params.isBookmarked
       }
 
-      if (params.isSubscribed !== undefined) {
+      if (params.isSubscribed !== undefined && params.isSubscribed !== null) {
         body.isSubscribed = params.isSubscribed
       }
 
-      if (params.isPublic !== undefined) {
+      if (params.isPublic !== undefined && params.isPublic !== null) {
         body.isPublic = params.isPublic
       }
 

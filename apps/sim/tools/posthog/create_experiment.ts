@@ -61,9 +61,9 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
     },
     name: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Experiment name',
+      description: 'Experiment name (optional)',
     },
     description: {
       type: 'string',

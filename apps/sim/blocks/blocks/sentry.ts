@@ -169,9 +169,9 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
     // =====================================================================
     {
       id: 'projectSlug',
-      title: 'Project Slug',
+      title: 'Project ID or Slug',
       type: 'short-input',
-      placeholder: 'Enter project slug',
+      placeholder: 'Enter project ID or slug',
       condition: { field: 'operation', value: 'sentry_projects_get' },
       required: true,
     },

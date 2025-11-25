@@ -83,9 +83,9 @@ export const createSurveyTool: ToolConfig<PostHogCreateSurveyParams, PostHogCrea
       },
       name: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-or-llm',
-        description: 'Survey name',
+        description: 'Survey name (optional)',
       },
       description: {
         type: 'string',

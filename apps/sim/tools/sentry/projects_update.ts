@@ -68,7 +68,7 @@ export const updateProjectTool: ToolConfig<SentryUpdateProjectParams, SentryUpda
 
     request: {
       url: (params) =>
-        `https://sentry.io/api/0/organizations/${params.organizationSlug}/projects/${params.projectSlug}/`,
+        `https://sentry.io/api/0/projects/${params.organizationSlug}/${params.projectSlug}/`,
       method: 'PUT',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
@@ -77,27 +77,27 @@ export const updateProjectTool: ToolConfig<SentryUpdateProjectParams, SentryUpda
       body: (params) => {
         const body: Record<string, any> = {}
 
-        if (params.name !== undefined) {
+        if (params.name !== undefined && params.name !== null && params.name !== '') {
           body.name = params.name
         }
 
-        if (params.slug !== undefined) {
+        if (params.slug !== undefined && params.slug !== null && params.slug !== '') {
           body.slug = params.slug
         }
 
-        if (params.platform !== undefined) {
+        if (params.platform !== undefined && params.platform !== null && params.platform !== '') {
           body.platform = params.platform
         }
 
-        if (params.isBookmarked !== undefined) {
+        if (params.isBookmarked !== undefined && params.isBookmarked !== null) {
           body.isBookmarked = params.isBookmarked
         }
 
-        if (params.digestsMinDelay !== undefined) {
+        if (params.digestsMinDelay !== undefined && params.digestsMinDelay !== null) {
           body.digestsMinDelay = Number(params.digestsMinDelay)
         }
 
-        if (params.digestsMaxDelay !== undefined) {
+        if (params.digestsMaxDelay !== undefined && params.digestsMaxDelay !== null) {
           body.digestsMaxDelay = Number(params.digestsMaxDelay)
         }
 

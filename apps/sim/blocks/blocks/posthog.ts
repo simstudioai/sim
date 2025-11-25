@@ -211,10 +211,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         field: 'operation',
         value: ['posthog_capture_event', 'posthog_evaluate_flags'],
       },
-      required: {
-        field: 'operation',
-        value: ['posthog_capture_event', 'posthog_evaluate_flags'],
-      },
+      required: true,
     },
     {
       id: 'properties',
@@ -272,11 +269,18 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       placeholder: 'HogQL query or JSON object',
       condition: {
         field: 'operation',
-        value: ['posthog_query', 'posthog_create_cohort'],
-      },
-      required: {
-        field: 'operation',
         value: 'posthog_query',
+      },
+      required: true,
+    },
+    {
+      id: 'query',
+      title: 'Query',
+      type: 'long-input',
+      placeholder: 'HogQL query or JSON object',
+      condition: {
+        field: 'operation',
+        value: 'posthog_create_cohort',
       },
     },
     {
@@ -330,10 +334,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         field: 'operation',
         value: ['posthog_get_person', 'posthog_delete_person'],
       },
-      required: {
-        field: 'operation',
-        value: ['posthog_get_person', 'posthog_delete_person'],
-      },
+      required: true,
     },
     {
       id: 'insightId',
@@ -372,14 +373,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_delete_feature_flag',
         ],
       },
-      required: {
-        field: 'operation',
-        value: [
-          'posthog_get_feature_flag',
-          'posthog_update_feature_flag',
-          'posthog_delete_feature_flag',
-        ],
-      },
+      required: true,
     },
     {
       id: 'experimentId',
@@ -398,10 +392,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         field: 'operation',
         value: ['posthog_get_survey', 'posthog_update_survey'],
       },
-      required: {
-        field: 'operation',
-        value: ['posthog_get_survey', 'posthog_update_survey'],
-      },
+      required: true,
     },
     {
       id: 'recordingId',
@@ -420,10 +411,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         field: 'operation',
         value: ['posthog_get_event_definition', 'posthog_update_event_definition'],
       },
-      required: {
-        field: 'operation',
-        value: ['posthog_get_event_definition', 'posthog_update_event_definition'],
-      },
+      required: true,
     },
     {
       id: 'propertyDefinitionId',
@@ -434,10 +422,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         field: 'operation',
         value: ['posthog_get_property_definition', 'posthog_update_property_definition'],
       },
-      required: {
-        field: 'operation',
-        value: ['posthog_get_property_definition', 'posthog_update_property_definition'],
-      },
+      required: true,
     },
 
     // Create/Update fields (name, description, etc.)
@@ -459,15 +444,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_create_survey',
           'posthog_update_survey',
           'posthog_create_recording_playlist',
-        ],
-      },
-      required: {
-        field: 'operation',
-        value: [
-          'posthog_create_feature_flag',
-          'posthog_create_experiment',
-          'posthog_create_early_access_feature',
-          'posthog_create_survey',
         ],
       },
     },
@@ -506,11 +482,18 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       placeholder: 'feature_flag_key',
       condition: {
         field: 'operation',
-        value: ['posthog_create_feature_flag', 'posthog_update_feature_flag'],
-      },
-      required: {
-        field: 'operation',
         value: 'posthog_create_feature_flag',
+      },
+      required: true,
+    },
+    {
+      id: 'key',
+      title: 'Flag Key',
+      type: 'short-input',
+      placeholder: 'feature_flag_key',
+      condition: {
+        field: 'operation',
+        value: 'posthog_update_feature_flag',
       },
     },
     {
@@ -558,6 +541,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       id: 'active',
       title: 'Active',
       type: 'switch',
+      value: () => 'true',
       condition: {
         field: 'operation',
         value: ['posthog_create_feature_flag', 'posthog_update_feature_flag'],
@@ -577,6 +561,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       id: 'ensureExperienceContinuity',
       title: 'Ensure Experience Continuity',
       type: 'switch',
+      value: () => 'false',
       condition: {
         field: 'operation',
         value: ['posthog_create_feature_flag', 'posthog_update_feature_flag'],
@@ -595,6 +580,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       id: 'isStatic',
       title: 'Static Cohort',
       type: 'switch',
+      value: () => 'false',
       condition: { field: 'operation', value: 'posthog_create_cohort' },
     },
 
@@ -673,11 +659,18 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       placeholder: '[{"type": "open", "question": "What do you think?"}]',
       condition: {
         field: 'operation',
-        value: ['posthog_create_survey', 'posthog_update_survey'],
-      },
-      required: {
-        field: 'operation',
         value: 'posthog_create_survey',
+      },
+      required: true,
+    },
+    {
+      id: 'questions',
+      title: 'Questions (JSON Array)',
+      type: 'long-input',
+      placeholder: '[{"type": "open", "question": "What do you think?"}]',
+      condition: {
+        field: 'operation',
+        value: 'posthog_update_survey',
       },
     },
     {
@@ -996,6 +989,11 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         // Map isStatic for cohorts
         if (params.operation === 'posthog_create_cohort' && params.isStatic !== undefined) {
           params.is_static = params.isStatic
+        }
+
+        // Map dateMarker to date_marker for annotations
+        if (params.operation === 'posthog_create_annotation' && params.dateMarker) {
+          params.date_marker = params.dateMarker
         }
 
         // Map propertyType to property_type

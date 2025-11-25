@@ -73,19 +73,19 @@ export const createDeployTool: ToolConfig<SentryCreateDeployParams, SentryCreate
         environment: params.environment,
       }
 
-      if (params.name) {
+      if (params.name && params.name !== null && params.name !== '') {
         body.name = params.name
       }
 
-      if (params.url) {
+      if (params.url && params.url !== null && params.url !== '') {
         body.url = params.url
       }
 
-      if (params.dateStarted) {
+      if (params.dateStarted && params.dateStarted !== null && params.dateStarted !== '') {
         body.dateStarted = params.dateStarted
       }
 
-      if (params.dateFinished) {
+      if (params.dateFinished && params.dateFinished !== null && params.dateFinished !== '') {
         body.dateFinished = params.dateFinished
       }
 

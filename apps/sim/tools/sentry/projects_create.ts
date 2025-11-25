@@ -68,15 +68,15 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
           name: params.name,
         }
 
-        if (params.slug) {
+        if (params.slug && params.slug !== null && params.slug !== '') {
           body.slug = params.slug
         }
 
-        if (params.platform) {
+        if (params.platform && params.platform !== null && params.platform !== '') {
           body.platform = params.platform
         }
 
-        if (params.defaultRules !== undefined) {
+        if (params.defaultRules !== undefined && params.defaultRules !== null) {
           body.default_rules = params.defaultRules
         }
 

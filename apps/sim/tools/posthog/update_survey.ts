@@ -180,15 +180,17 @@ export const updateSurveyTool: ToolConfig<PostHogUpdateSurveyParams, PostHogUpda
         if (params.name !== undefined) body.name = params.name
         if (params.description !== undefined) body.description = params.description
         if (params.type !== undefined) body.type = params.type
-        if (params.questions !== undefined) body.questions = JSON.parse(params.questions)
+        if (params.questions) body.questions = JSON.parse(params.questions)
         if (params.startDate !== undefined) body.start_date = params.startDate
         if (params.endDate !== undefined) body.end_date = params.endDate
-        if (params.appearance !== undefined) body.appearance = JSON.parse(params.appearance)
-        if (params.conditions !== undefined) body.conditions = JSON.parse(params.conditions)
-        if (params.targetingFlagFilters !== undefined) {
+        if (params.appearance) body.appearance = JSON.parse(params.appearance)
+        if (params.conditions) body.conditions = JSON.parse(params.conditions)
+        if (params.targetingFlagFilters) {
           body.targeting_flag_filters = JSON.parse(params.targetingFlagFilters)
         }
-        if (params.linkedFlagId !== undefined) body.linked_flag_id = params.linkedFlagId
+        if (params.linkedFlagId !== undefined && params.linkedFlagId !== '') {
+          body.linked_flag_id = params.linkedFlagId
+        }
         if (params.responsesLimit !== undefined) body.responses_limit = params.responsesLimit
         if (params.archived !== undefined) body.archived = params.archived
 
