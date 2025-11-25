@@ -37,8 +37,8 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       provider: 'google-sheets',
       serviceId: 'google-sheets',
       requiredScopes: [
-        'https://www.googleapis.com/auth/drive.readonly',
         'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
       ],
       placeholder: 'Select Google account',
     },
@@ -51,8 +51,8 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       provider: 'google-sheets',
       serviceId: 'google-sheets',
       requiredScopes: [
-        'https://www.googleapis.com/auth/drive.readonly',
         'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
       ],
       mimeType: 'application/vnd.google-apps.spreadsheet',
       placeholder: 'Select a spreadsheet',

@@ -18,6 +18,10 @@ const getCurrentOllamaModels = () => {
   return useProvidersStore.getState().providers.ollama.models
 }
 
+const getCurrentVLLMModels = () => {
+  return useProvidersStore.getState().providers.vllm.models
+}
+
 import { useProvidersStore } from '@/stores/providers/store'
 import type { ToolResponse } from '@/tools/types'
 
@@ -90,8 +94,11 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         const providersState = useProvidersStore.getState()
         const baseModels = providersState.providers.base.models
         const ollamaModels = providersState.providers.ollama.models
+        const vllmModels = providersState.providers.vllm.models
         const openrouterModels = providersState.providers.openrouter.models
-        const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
+        const allModels = Array.from(
+          new Set([...baseModels, ...ollamaModels, ...vllmModels, ...openrouterModels])
+        )
 
         return allModels.map((model) => {
           const icon = getProviderIcon(model)
@@ -172,7 +179,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       password: true,
       connectionDroppable: false,
       required: true,
-      // Hide API key for hosted models and Ollama models
+      // Hide API key for hosted models, Ollama models, and vLLM models
       condition: isHosted
         ? {
             field: 'model',
@@ -181,8 +188,8 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
           }
         : () => ({
             field: 'model',
-            value: getCurrentOllamaModels(),
-            not: true, // Show for all models EXCEPT Ollama models
+            value: [...getCurrentOllamaModels(), ...getCurrentVLLMModels()],
+            not: true, // Show for all models EXCEPT Ollama and vLLM models
           }),
     },
     {

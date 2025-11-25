@@ -4,6 +4,7 @@ title: Principes de base
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Video } from '@/components/ui/video'
 
 ## Comment fonctionnent les connexions
 
@@ -28,16 +29,20 @@ Les connexions sont les voies qui permettent aux données de circuler entre les 
   </Step>
 </Steps>
 
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="connections-build.mp4" width={700} height={450} />
+</div>
+
 ### Flux de connexion
 
 Le flux de données à travers les connexions suit ces principes :
 
-1. **Flux directionnel** : Les données circulent toujours des sorties vers les entrées
-2. **Ordre d'exécution** : Les blocs s'exécutent dans l'ordre en fonction de leurs connexions
-3. **Transformation des données** : Les données peuvent être transformées lors de leur passage entre les blocs
-4. **Chemins conditionnels** : Certains blocs (comme Routeur et Condition) peuvent diriger le flux vers différents chemins
+1. **Flux directionnel** : les données circulent toujours des sorties vers les entrées
+2. **Ordre d'exécution** : les blocs s'exécutent dans l'ordre en fonction de leurs connexions
+3. **Transformation des données** : les données peuvent être transformées lors de leur passage entre les blocs
+4. **Chemins conditionnels** : certains blocs (comme Routeur et Condition) peuvent diriger le flux vers différents chemins
 
 <Callout type="warning">
   La suppression d'une connexion arrêtera immédiatement le flux de données entre les blocs. Assurez-vous que c'est
-  bien ce que vous souhaitez avant de supprimer des connexions.
+  bien votre intention avant de supprimer des connexions.
 </Callout>

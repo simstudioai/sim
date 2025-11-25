@@ -1,4 +1,9 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import {
+  DEFAULT_HORIZONTAL_SPACING,
+  DEFAULT_LAYOUT_PADDING,
+  DEFAULT_VERTICAL_SPACING,
+} from '@/lib/workflows/autolayout/constants'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('AutoLayoutUtils')
@@ -7,36 +12,15 @@ const logger = createLogger('AutoLayoutUtils')
  * Auto layout options interface
  */
 export interface AutoLayoutOptions {
-  strategy?: 'smart' | 'hierarchical' | 'layered' | 'force-directed'
-  direction?: 'horizontal' | 'vertical' | 'auto'
   spacing?: {
     horizontal?: number
     vertical?: number
-    layer?: number
   }
   alignment?: 'start' | 'center' | 'end'
   padding?: {
     x?: number
     y?: number
   }
-}
-
-/**
- * Default auto layout options
- */
-const DEFAULT_AUTO_LAYOUT_OPTIONS = {
-  strategy: 'smart' as const,
-  direction: 'auto' as const,
-  spacing: {
-    horizontal: 550,
-    vertical: 200,
-    layer: 550,
-  },
-  alignment: 'center' as const,
-  padding: {
-    x: 150,
-    y: 150,
-  },
 }
 
 /**
@@ -69,17 +53,14 @@ export async function applyAutoLayoutAndUpdateStore(
 
     // Merge with default options
     const layoutOptions = {
-      strategy: options.strategy || DEFAULT_AUTO_LAYOUT_OPTIONS.strategy,
-      direction: options.direction || DEFAULT_AUTO_LAYOUT_OPTIONS.direction,
       spacing: {
-        horizontal: options.spacing?.horizontal || DEFAULT_AUTO_LAYOUT_OPTIONS.spacing.horizontal,
-        vertical: options.spacing?.vertical || DEFAULT_AUTO_LAYOUT_OPTIONS.spacing.vertical,
-        layer: options.spacing?.layer || DEFAULT_AUTO_LAYOUT_OPTIONS.spacing.layer,
+        horizontal: options.spacing?.horizontal ?? DEFAULT_HORIZONTAL_SPACING,
+        vertical: options.spacing?.vertical ?? DEFAULT_VERTICAL_SPACING,
       },
-      alignment: options.alignment || DEFAULT_AUTO_LAYOUT_OPTIONS.alignment,
+      alignment: options.alignment ?? 'center',
       padding: {
-        x: options.padding?.x || DEFAULT_AUTO_LAYOUT_OPTIONS.padding.x,
-        y: options.padding?.y || DEFAULT_AUTO_LAYOUT_OPTIONS.padding.y,
+        x: options.padding?.x ?? DEFAULT_LAYOUT_PADDING.x,
+        y: options.padding?.y ?? DEFAULT_LAYOUT_PADDING.y,
       },
     }
 

@@ -11,16 +11,19 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
     knowledgeBaseId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'ID of the knowledge base containing the document',
     },
     documentId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'ID of the document to upload the chunk to',
     },
     content: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Content of the chunk to upload',
     },
   },

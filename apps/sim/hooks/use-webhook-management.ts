@@ -208,6 +208,111 @@ export function useWebhookManagement({
     loadWebhookOrGenerateUrl()
   }, [isPreview, triggerId, workflowId, blockId])
 
+  const createWebhook = async (
+    effectiveTriggerId: string | undefined,
+    selectedCredentialId: string | null
+  ): Promise<boolean> => {
+    if (!triggerDef || !effectiveTriggerId) {
+      return false
+    }
+
+    const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
+    const webhookConfig = {
+      ...(triggerConfig || {}),
+      ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
+      triggerId: effectiveTriggerId,
+    }
+
+    const path = blockId
+
+    const response = await fetch('/api/webhooks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workflowId,
+        blockId,
+        path,
+        provider: triggerDef.provider,
+        providerConfig: webhookConfig,
+      }),
+    })
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to create webhook'
+      try {
+        const errorData = await response.json()
+        errorMessage = errorData.details || errorData.error || errorMessage
+      } catch {
+        // If response is not JSON, use default message
+      }
+      logger.error('Failed to create webhook', { errorMessage })
+      throw new Error(errorMessage)
+    }
+
+    const data = await response.json()
+    const savedWebhookId = data.webhook.id
+
+    useSubBlockStore.getState().setValue(blockId, 'triggerPath', path)
+    useSubBlockStore.getState().setValue(blockId, 'triggerId', effectiveTriggerId)
+    useSubBlockStore.getState().setValue(blockId, 'webhookId', savedWebhookId)
+    useSubBlockStore.setState((state) => ({
+      checkedWebhooks: new Set([...state.checkedWebhooks, blockId]),
+    }))
+
+    logger.info('Trigger webhook created successfully', {
+      webhookId: savedWebhookId,
+      triggerId: effectiveTriggerId,
+      provider: triggerDef.provider,
+      blockId,
+    })
+
+    return true
+  }
+
+  const updateWebhook = async (
+    webhookIdToUpdate: string,
+    effectiveTriggerId: string | undefined,
+    selectedCredentialId: string | null
+  ): Promise<boolean> => {
+    const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
+
+    const response = await fetch(`/api/webhooks/${webhookIdToUpdate}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        providerConfig: {
+          ...triggerConfig,
+          ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
+          triggerId: effectiveTriggerId,
+        },
+      }),
+    })
+
+    if (response.status === 404) {
+      logger.warn('Webhook not found while updating, recreating', {
+        blockId,
+        lostWebhookId: webhookIdToUpdate,
+      })
+      useSubBlockStore.getState().setValue(blockId, 'webhookId', null)
+      return createWebhook(effectiveTriggerId, selectedCredentialId)
+    }
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to save trigger configuration'
+      try {
+        const errorData = await response.json()
+        errorMessage = errorData.details || errorData.error || errorMessage
+      } catch {
+        // If response is not JSON, use default message
+      }
+      logger.error('Failed to save trigger config', { errorMessage })
+      throw new Error(errorMessage)
+    }
+
+    logger.info('Trigger config saved successfully', { blockId, webhookId: webhookIdToUpdate })
+    return true
+  }
+
   const saveConfig = async (): Promise<boolean> => {
     if (isPreview || !triggerDef) {
       return false
@@ -218,95 +323,14 @@ export function useWebhookManagement({
     try {
       setIsSaving(true)
 
-      if (!webhookId) {
-        const path = blockId
-
-        const selectedCredentialId =
-          (useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as string | null) ||
-          null
-
-        const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
-
-        const webhookConfig = {
-          ...(triggerConfig || {}),
-          ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
-          triggerId: effectiveTriggerId,
-        }
-
-        const response = await fetch('/api/webhooks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workflowId,
-            blockId,
-            path,
-            provider: triggerDef.provider,
-            providerConfig: webhookConfig,
-          }),
-        })
-
-        if (!response.ok) {
-          let errorMessage = 'Failed to create webhook'
-          try {
-            const errorData = await response.json()
-            errorMessage = errorData.details || errorData.error || errorMessage
-          } catch {
-            // If response is not JSON, use default message
-          }
-          logger.error('Failed to create webhook', { errorMessage })
-          throw new Error(errorMessage)
-        }
-
-        const data = await response.json()
-        const savedWebhookId = data.webhook.id
-
-        useSubBlockStore.getState().setValue(blockId, 'triggerPath', path)
-        useSubBlockStore.getState().setValue(blockId, 'triggerId', effectiveTriggerId)
-        useSubBlockStore.getState().setValue(blockId, 'webhookId', savedWebhookId)
-        useSubBlockStore.setState((state) => ({
-          checkedWebhooks: new Set([...state.checkedWebhooks, blockId]),
-        }))
-
-        logger.info('Trigger webhook created successfully', {
-          webhookId: savedWebhookId,
-          triggerId: effectiveTriggerId,
-          provider: triggerDef.provider,
-          blockId,
-        })
-
-        return true
-      }
-
-      const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
       const triggerCredentials = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials')
-      const selectedCredentialId = triggerCredentials as string | null
+      const selectedCredentialId = (triggerCredentials as string | null) || null
 
-      const response = await fetch(`/api/webhooks/${webhookId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          providerConfig: {
-            ...triggerConfig,
-            ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
-            triggerId: effectiveTriggerId,
-          },
-        }),
-      })
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to save trigger configuration'
-        try {
-          const errorData = await response.json()
-          errorMessage = errorData.details || errorData.error || errorMessage
-        } catch {
-          // If response is not JSON, use default message
-        }
-        logger.error('Failed to save trigger config', { errorMessage })
-        throw new Error(errorMessage)
+      if (!webhookId) {
+        return createWebhook(effectiveTriggerId, selectedCredentialId)
       }
 
-      logger.info('Trigger config saved successfully')
-      return true
+      return updateWebhook(webhookId, effectiveTriggerId, selectedCredentialId)
     } catch (error) {
       logger.error('Error saving trigger config:', error)
       throw error

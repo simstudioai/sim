@@ -3,6 +3,11 @@ import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { applyAutoLayout } from '@/lib/workflows/autolayout'
+import {
+  DEFAULT_HORIZONTAL_SPACING,
+  DEFAULT_LAYOUT_PADDING,
+  DEFAULT_VERTICAL_SPACING,
+} from '@/lib/workflows/autolayout/constants'
 
 const logger = createLogger('YamlAutoLayoutAPI')
 
@@ -15,13 +20,10 @@ const AutoLayoutRequestSchema = z.object({
   }),
   options: z
     .object({
-      strategy: z.enum(['smart', 'hierarchical', 'layered', 'force-directed']).optional(),
-      direction: z.enum(['horizontal', 'vertical', 'auto']).optional(),
       spacing: z
         .object({
           horizontal: z.number().optional(),
           vertical: z.number().optional(),
-          layer: z.number().optional(),
         })
         .optional(),
       alignment: z.enum(['start', 'center', 'end']).optional(),
@@ -45,24 +47,21 @@ export async function POST(request: NextRequest) {
     logger.info(`[${requestId}] Applying auto layout`, {
       blockCount: Object.keys(workflowState.blocks).length,
       edgeCount: workflowState.edges.length,
-      strategy: options?.strategy || 'smart',
     })
 
     const autoLayoutOptions = {
-      horizontalSpacing: options?.spacing?.horizontal || 550,
-      verticalSpacing: options?.spacing?.vertical || 200,
+      horizontalSpacing: options?.spacing?.horizontal ?? DEFAULT_HORIZONTAL_SPACING,
+      verticalSpacing: options?.spacing?.vertical ?? DEFAULT_VERTICAL_SPACING,
       padding: {
-        x: options?.padding?.x || 150,
-        y: options?.padding?.y || 150,
+        x: options?.padding?.x ?? DEFAULT_LAYOUT_PADDING.x,
+        y: options?.padding?.y ?? DEFAULT_LAYOUT_PADDING.y,
       },
-      alignment: options?.alignment || 'center',
+      alignment: options?.alignment ?? 'center',
     }
 
     const layoutResult = applyAutoLayout(
       workflowState.blocks,
       workflowState.edges,
-      workflowState.loops || {},
-      workflowState.parallels || {},
       autoLayoutOptions
     )
 

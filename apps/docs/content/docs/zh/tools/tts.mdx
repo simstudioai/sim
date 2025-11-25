@@ -1,0 +1,256 @@
+---
+title: 文本转语音
+description: 使用 AI 语音将文本转换为语音
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tts"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+使用最新的 AI 语音将文本转换为自然的语音。Sim 的文本转语音 (TTS) 工具可以让您从书面文本生成音频，支持数十种语言，并提供多种富有表现力的语音、格式以及高级控制选项，如语速、风格、情感等。
+
+**支持的提供商和模型：**
+
+- **[OpenAI 文本转语音](https://platform.openai.com/docs/guides/text-to-speech/voice-options)** (OpenAI)：  
+  OpenAI 的 TTS API 使用先进的 AI 模型（如 `tts-1`、`tts-1-hd` 和 `gpt-4o-mini-tts`）提供超逼真的语音。语音包括男性和女性选项，如 alloy、echo、fable、onyx、nova、shimmer、ash、ballad、coral、sage 和 verse。支持多种音频格式（mp3、opus、aac、flac、wav、pcm），并可调整语速和流式合成。
+
+- **[Deepgram Aura](https://deepgram.com/products/text-to-speech)** (Deepgram Inc.)：  
+  Deepgram 的 Aura 提供富有表现力的英语和多语言 AI 语音，优化了对话清晰度、低延迟和定制化。可用模型包括 `aura-asteria-en`、`aura-luna-en` 等。支持多种编码格式（linear16、mp3、opus、aac、flac），并可对语速、采样率和风格进行微调。
+
+- **[ElevenLabs 文本转语音](https://elevenlabs.io/text-to-speech)** (ElevenLabs)：  
+  ElevenLabs 在逼真且情感丰富的 TTS 领域处于领先地位，提供 29+ 种语言的数十种语音，并支持克隆自定义语音。模型支持语音设计、语音合成和直接 API 访问，具有风格、情感、稳定性和相似性等高级控制功能。适用于有声读物、内容创作、无障碍访问等。
+
+- **[Cartesia TTS](https://docs.cartesia.ai/)** (Cartesia)：  
+  Cartesia 提供高质量、快速且安全的文本转语音，注重隐私和灵活部署。支持即时流媒体、实时合成，并提供多种国际语音和口音，通过简单的 API 即可访问。
+
+- **[Google Cloud Text-to-Speech](https://cloud.google.com/text-to-speech)** (Google Cloud):  
+  Google 使用 DeepMind WaveNet 和 Neural2 模型，为 50 多种语言和变体提供高保真语音。功能包括语音选择、音调、语速、音量控制、SSML 标签，以及标准和工作室级高级语音的访问权限。广泛用于无障碍访问、IVR 和媒体。
+
+- **[Microsoft Azure Speech](https://azure.microsoft.com/en-us/products/ai-services/text-to-speech)** (Microsoft Azure):  
+  Azure 提供超过 400 种神经语音，覆盖 140 多种语言和地区，具有独特的语音定制、风格、情感、角色和实时控制功能。支持 SSML 用于发音、语调等。非常适合全球化、企业或创意的 TTS 需求。
+
+- **[PlayHT](https://play.ht/)** (PlayHT):  
+  PlayHT 专注于逼真的语音合成、语音克隆和即时流媒体播放，支持 100 多种语言的 800 多种语音。功能包括情感、音调和速度控制、多语音音频，以及通过 API 或在线工作室创建自定义语音。
+
+**如何选择：**  
+根据语言、支持的语音类型、所需格式（mp3、wav 等）、控制粒度（速度、情感等）和特殊功能（语音克隆、口音、流媒体）来优先选择提供商和模型。对于创意、无障碍或开发者使用场景，请确保与您的应用程序需求兼容，并比较成本。
+
+访问每个提供商的官方网站，了解最新功能、定价和文档详情！
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用来自 OpenAI、Deepgram、ElevenLabs、Cartesia、Google Cloud、Azure 和 PlayHT 的最先进 AI 语音，从文本生成自然语音。支持多种语音、语言和音频格式。
+
+## 工具
+
+### `tts_openai`
+
+使用 OpenAI TTS 模型将文本转换为语音
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | 是 | 要转换为语音的文本 |
+| `apiKey` | string | 是 | OpenAI API 密钥 |
+| `model` | string | 否 | 要使用的 TTS 模型 \(tts-1, tts-1-hd, 或 gpt-4o-mini-tts\) |
+| `voice` | string | 否 | 要使用的语音 \(alloy, ash, ballad, cedar, coral, echo, marin, sage, shimmer, verse\) |
+| `responseFormat` | string | 否 | 音频格式 \(mp3, opus, aac, flac, wav, pcm\) |
+| `speed` | number | 否 | 语速 \(0.25 到 4.0，默认值：1.0\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成的音频文件的 URL |
+| `audioFile` | file | 生成的音频文件对象 |
+| `duration` | number | 音频时长（秒） |
+| `characterCount` | number | 处理的字符数 |
+| `format` | string | 音频格式 |
+| `provider` | string | 使用的 TTS 提供商 |
+
+### `tts_deepgram`
+
+使用 Deepgram Aura 将文本转换为语音
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | 是 | 要转换为语音的文本 |
+| `apiKey` | string | 是 | Deepgram API 密钥 |
+| `model` | string | 否 | Deepgram 模型/语音（例如：aura-asteria-en, aura-luna-en） |
+| `voice` | string | 否 | 语音标识符（模型参数的替代选项） |
+| `encoding` | string | 否 | 音频编码（linear16, mp3, opus, aac, flac） |
+| `sampleRate` | number | 否 | 采样率（8000, 16000, 24000, 48000） |
+| `bitRate` | number | 否 | 压缩格式的比特率 |
+| `container` | string | 否 | 容器格式（none, wav, ogg） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成的音频文件的 URL |
+| `audioFile` | file | 生成的音频文件对象 |
+| `duration` | number | 音频时长（秒） |
+| `characterCount` | number | 处理的字符数 |
+| `format` | string | 音频格式 |
+| `provider` | string | 使用的 TTS 提供商 |
+
+### `tts_elevenlabs`
+
+使用 ElevenLabs 声音将文本转换为语音
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | 是 | 要转换为语音的文本 |
+| `voiceId` | string | 是 | 要使用的声音 ID |
+| `apiKey` | string | 是 | ElevenLabs API 密钥 |
+| `modelId` | string | 否 | 使用的模型 \(例如，eleven_monolingual_v1, eleven_turbo_v2_5, eleven_flash_v2_5\) |
+| `stability` | number | 否 | 声音稳定性 \(0.0 到 1.0，默认值：0.5\) |
+| `similarityBoost` | number | 否 | 相似性增强 \(0.0 到 1.0，默认值：0.8\) |
+| `style` | number | 否 | 风格夸张程度 \(0.0 到 1.0\) |
+| `useSpeakerBoost` | boolean | 否 | 是否使用扬声器增强 \(默认值：true\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成的音频文件的 URL |
+| `audioFile` | file | 生成的音频文件对象 |
+| `duration` | number | 音频时长（秒） |
+| `characterCount` | number | 处理的字符数 |
+| `format` | string | 音频格式 |
+| `provider` | string | 使用的 TTS 提供商 |
+
+### `tts_cartesia`
+
+使用 Cartesia Sonic （超低延迟）将文本转换为语音
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | 是 | 要转换为语音的文本 |
+| `apiKey` | string | 是 | Cartesia API 密钥 |
+| `modelId` | string | 否 | 模型 ID \(sonic-english, sonic-multilingual\) |
+| `voice` | string | 否 | 声音 ID 或嵌入 |
+| `language` | string | 否 | 语言代码 \(en, es, fr, de, it, pt 等\) |
+| `outputFormat` | json | 否 | 输出格式配置 \(容器, 编码, 采样率\) |
+| `speed` | number | 否 | 速度倍增器 |
+| `emotion` | array | 否 | Sonic-3 的情感标签 \(例如，\['positivity:high'\]\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成的音频文件的 URL |
+| `audioFile` | file | 生成的音频文件对象 |
+| `duration` | number | 音频时长（以秒为单位） |
+| `characterCount` | number | 处理的字符数 |
+| `format` | string | 音频格式 |
+| `provider` | string | 使用的 TTS 提供商 |
+
+### `tts_google`
+
+使用 Google Cloud Text-to-Speech 将文本转换为语音
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | 是 | 要转换为语音的文本 |
+| `apiKey` | string | 是 | Google Cloud API 密钥 |
+| `voiceId` | string | 否 | 语音 ID（例如，en-US-Neural2-A, en-US-Wavenet-D） |
+| `languageCode` | string | 是 | 语言代码（例如，en-US, es-ES, fr-FR） |
+| `gender` | string | 否 | 语音性别（MALE, FEMALE, NEUTRAL） |
+| `audioEncoding` | string | 否 | 音频编码（LINEAR16, MP3, OGG_OPUS, MULAW, ALAW） |
+| `speakingRate` | number | 否 | 语速（0.25 到 2.0，默认值：1.0） |
+| `pitch` | number | 否 | 语音音调（-20.0 到 20.0，默认值：0.0） |
+| `volumeGainDb` | number | 否 | 音量增益（以 dB 为单位，-96.0 到 16.0） |
+| `sampleRateHertz` | number | 否 | 采样率（以 Hz 为单位） |
+| `effectsProfileId` | array | 否 | 效果配置文件（例如，\['headphone-class-device'\]） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成的音频文件的 URL |
+| `audioFile` | file | 生成的音频文件对象 |
+| `duration` | number | 音频时长（秒） |
+| `characterCount` | number | 处理的字符数 |
+| `format` | string | 音频格式 |
+| `provider` | string | 使用的 TTS 提供商 |
+
+### `tts_azure`
+
+使用 Azure 认知服务将文本转换为语音
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | 是 | 要转换为语音的文本 |
+| `apiKey` | string | 是 | Azure 语音服务 API 密钥 |
+| `voiceId` | string | 否 | 语音 ID（例如，en-US-JennyNeural, en-US-GuyNeural） |
+| `region` | string | 否 | Azure 区域（例如，eastus, westus, westeurope） |
+| `outputFormat` | string | 否 | 输出音频格式 |
+| `rate` | string | 否 | 语速（例如，+10%, -20%, 1.5） |
+| `pitch` | string | 否 | 语音音调（例如，+5Hz, -2st, low） |
+| `style` | string | 否 | 语音风格（例如，cheerful, sad, angry - 仅限神经语音） |
+| `styleDegree` | number | 否 | 风格强度（0.01 到 2.0） |
+| `role` | string | 否 | 角色（例如，Girl, Boy, YoungAdultFemale） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成的音频文件的 URL |
+| `audioFile` | file | 生成的音频文件对象 |
+| `duration` | number | 音频时长（秒） |
+| `characterCount` | number | 处理的字符数 |
+| `format` | string | 音频格式 |
+| `provider` | string | 使用的 TTS 提供商 |
+
+### `tts_playht`
+
+使用 PlayHT （语音克隆）将文本转换为语音
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | 是 | 要转换为语音的文本 |
+| `apiKey` | string | 是 | PlayHT API 密钥 \(AUTHORIZATION header\) |
+| `userId` | string | 是 | PlayHT 用户 ID \(X-USER-ID header\) |
+| `voice` | string | 否 | 语音 ID 或清单 URL |
+| `quality` | string | 否 | 质量级别 \(draft, standard, premium\) |
+| `outputFormat` | string | 否 | 输出格式 \(mp3, wav, ogg, flac, mulaw\) |
+| `speed` | number | 否 | 速度倍数 \(0.5 到 2.0\) |
+| `temperature` | number | 否 | 创造性/随机性 \(0.0 到 2.0\) |
+| `voiceGuidance` | number | 否 | 语音稳定性 \(1.0 到 6.0\) |
+| `textGuidance` | number | 否 | 文本贴合度 \(1.0 到 6.0\) |
+| `sampleRate` | number | 否 | 采样率 \(8000, 16000, 22050, 24000, 44100, 48000\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成的音频文件的 URL |
+| `audioFile` | file | 生成的音频文件对象 |
+| `duration` | number | 音频时长（秒） |
+| `characterCount` | number | 处理的字符数 |
+| `format` | string | 音频格式 |
+| `provider` | string | 使用的 TTS 提供商 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`tts`

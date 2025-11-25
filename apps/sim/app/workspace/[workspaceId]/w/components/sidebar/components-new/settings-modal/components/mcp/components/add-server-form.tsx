@@ -253,9 +253,9 @@ export function AddServerForm({
           <div className='space-y-1.5'>
             {/* Error message above buttons */}
             {testResult && !testResult.success && (
-              <div className='text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
                 {testResult.error || testResult.message}
-              </div>
+              </p>
             )}
 
             {/* Buttons row */}

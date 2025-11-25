@@ -62,6 +62,20 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
       visibility: 'user-only',
       description: 'Translate audio to English',
     },
+    prompt: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Optional text to guide the model's style or continue a previous audio segment. Helps with proper nouns and context.",
+    },
+    temperature: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Sampling temperature between 0 and 1. Higher values make output more random, lower values more focused and deterministic.',
+    },
   },
 
   request: {
@@ -84,6 +98,8 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
       language: params.language || 'auto',
       timestamps: params.timestamps || 'none',
       translateToEnglish: params.translateToEnglish || false,
+      prompt: (params as any).prompt,
+      temperature: (params as any).temperature,
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,
@@ -110,7 +126,6 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
         segments: data.segments,
         language: data.language,
         duration: data.duration,
-        confidence: data.confidence,
       },
     }
   },
@@ -120,6 +135,5 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
     segments: { type: 'array', description: 'Timestamped segments' },
     language: { type: 'string', description: 'Detected or specified language' },
     duration: { type: 'number', description: 'Audio duration in seconds' },
-    confidence: { type: 'number', description: 'Overall confidence score' },
   },
 }

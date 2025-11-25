@@ -693,11 +693,14 @@ export class WorkflowDiffEngine {
           })
 
           const { applyTargetedLayout } = await import('@/lib/workflows/autolayout')
+          const { DEFAULT_HORIZONTAL_SPACING, DEFAULT_VERTICAL_SPACING } = await import(
+            '@/lib/workflows/autolayout/constants'
+          )
 
           const layoutedBlocks = applyTargetedLayout(finalBlocks, finalProposedState.edges, {
             changedBlockIds: impactedBlockArray,
-            horizontalSpacing: 550,
-            verticalSpacing: 200,
+            horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
+            verticalSpacing: DEFAULT_VERTICAL_SPACING,
           })
 
           Object.entries(layoutedBlocks).forEach(([id, layoutBlock]) => {
@@ -738,23 +741,12 @@ export class WorkflowDiffEngine {
           const { applyAutoLayout: applyNativeAutoLayout } = await import(
             '@/lib/workflows/autolayout'
           )
-
-          const autoLayoutOptions = {
-            horizontalSpacing: 550,
-            verticalSpacing: 200,
-            padding: {
-              x: 150,
-              y: 150,
-            },
-            alignment: 'center' as const,
-          }
+          const { DEFAULT_LAYOUT_OPTIONS } = await import('@/lib/workflows/autolayout/constants')
 
           const layoutResult = applyNativeAutoLayout(
             finalBlocks,
             finalProposedState.edges,
-            finalProposedState.loops || {},
-            finalProposedState.parallels || {},
-            autoLayoutOptions
+            DEFAULT_LAYOUT_OPTIONS
           )
 
           if (layoutResult.success && layoutResult.blocks) {

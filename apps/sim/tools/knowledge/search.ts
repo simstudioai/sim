@@ -11,22 +11,33 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
     knowledgeBaseId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'ID of the knowledge base to search in',
     },
     query: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Search query text (optional when using tag filters)',
     },
     topK: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Number of most similar results to return (1-100)',
     },
     tagFilters: {
       type: 'array',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Array of tag filters with tagName and tagValue properties',
+      items: {
+        type: 'object',
+        properties: {
+          tagName: { type: 'string' },
+          tagValue: { type: 'string' },
+        },
+      },
     },
   },
 

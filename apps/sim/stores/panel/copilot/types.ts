@@ -78,6 +78,7 @@ export interface CopilotState {
     | 'claude-4-sonnet'
     | 'claude-4.5-haiku'
     | 'claude-4.5-sonnet'
+    | 'claude-4.5-opus'
     | 'claude-4.1-opus'
   agentPrefetch: boolean
   enabledModels: string[] | null // Null means not loaded yet, array of model IDs when loaded

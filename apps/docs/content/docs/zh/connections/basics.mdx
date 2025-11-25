@@ -4,6 +4,7 @@ title: 基础
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Video } from '@/components/ui/video'
 
 ## 连接如何工作
 
@@ -27,15 +28,19 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
   </Step>
 </Steps>
 
-### 连接流动
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="connections-build.mp4" width={700} height={450} />
+</div>
 
-数据通过连接流动遵循以下原则：
+### 连接流程
 
-1. **定向流动**：数据始终从输出流向输入
-2. **执行顺序**：模块根据其连接的顺序执行
-3. **数据转换**：数据在模块之间传递时可能会被转换
-4. **条件路径**：某些模块（如路由器和条件模块）可以将流动引导到不同的路径
+通过连接的数据流遵循以下原则：
+
+1. **方向性流动**：数据始终从输出流向输入
+2. **执行顺序**：块根据其连接的顺序执行
+3. **数据转换**：数据在块之间传递时可能会被转换
+4. **条件路径**：某些块（如路由器和条件块）可以将流引导到不同的路径
 
 <Callout type="warning">
-  删除连接将立即停止模块之间的数据流动。在删除连接之前，请确保这是您想要的操作。
+  删除连接将立即停止块之间的数据流。在删除连接之前，请确保这是您想要的操作。
 </Callout>

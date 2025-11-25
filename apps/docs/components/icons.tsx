@@ -4085,7 +4085,29 @@ export function CalendlyIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-export function AudioWaveformIcon(props: SVGProps<SVGSVGElement>) {
+export function STTIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns='http://www.w3.org/2000/svg'
+      width='24'
+      height='24'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <path d='m15 16 2.536-7.328a1.02 1.02 1 0 1 1.928 0L22 16' />
+      <path d='M15.697 14h5.606' />
+      <path d='m2 16 4.039-9.69a.5.5 0 0 1 .923 0L11 16' />
+      <path d='M3.304 13h6.392' />
+    </svg>
+  )
+}
+
+export function TTSIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
@@ -4105,6 +4127,26 @@ export function AudioWaveformIcon(props: SVGProps<SVGSVGElement>) {
       <path d='M14 8v7' />
       <path d='M18 5v13' />
       <path d='M22 10v3' />
+    </svg>
+  )
+}
+
+export function VideoIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns='http://www.w3.org/2000/svg'
+      width='24'
+      height='24'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <path d='m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5' />
+      <rect x='2' y='6' width='14' height='12' rx='2' />
     </svg>
   )
 }

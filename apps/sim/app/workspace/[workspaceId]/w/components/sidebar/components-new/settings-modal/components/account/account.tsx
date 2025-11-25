@@ -232,7 +232,11 @@ export function Account(_props: AccountProps) {
           <div className='flex flex-1 flex-col justify-center'>
             <h3 className='font-medium text-base'>{profile?.name || ''}</h3>
             <p className='font-normal text-muted-foreground text-sm'>{profile?.email || ''}</p>
-            {uploadError && <p className='mt-1 text-destructive text-xs'>{uploadError}</p>}
+            {uploadError && (
+              <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                {uploadError}
+              </p>
+            )}
           </div>
         </div>
 

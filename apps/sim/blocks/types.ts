@@ -74,6 +74,8 @@ export type SubBlockType =
   | 'input-mapping' // Map parent variables to child workflow input schema
   | 'variables-input' // Variable assignments for updating workflow variables
   | 'messages-input' // Multiple message inputs with role and content for LLM message history
+  | 'workflow-selector' // Workflow selector for agent tools
+  | 'workflow-input-mapper' // Dynamic workflow input mapper based on selected workflow
   | 'text' // Read-only text display
 
 /**
@@ -87,6 +89,7 @@ export const SELECTOR_TYPES_HYDRATION_REQUIRED: SubBlockType[] = [
   'folder-selector',
   'project-selector',
   'knowledge-base-selector',
+  'workflow-selector',
   'document-selector',
   'variables-input',
   'mcp-server-selector',

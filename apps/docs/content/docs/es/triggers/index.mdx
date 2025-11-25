@@ -4,10 +4,21 @@ description: Los disparadores son las formas principales de iniciar flujos de tr
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/triggers.png"
+    alt="Resumen de disparadores"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
 
 ## Disparadores principales
 
-Usa el bloque Start para todo lo que se origina desde el editor, deploy-to-API o experiencias deploy-to-chat. Otros disparadores siguen disponibles para flujos de trabajo basados en eventos:
+Utiliza el bloque Start para todo lo que se origina desde el editor, despliegue a API o experiencias de despliegue a chat. Otros disparadores siguen disponibles para flujos de trabajo basados en eventos:
 
 <Cards>
   <Card title="Start" href="/triggers/start">
@@ -25,9 +36,9 @@ Usa el bloque Start para todo lo que se origina desde el editor, deploy-to-API o
 
 | Disparador | Condición de inicio |
 |---------|-----------------|
-| **Inicio** | El editor se ejecuta, solicitudes de implementación a API o mensajes de chat |
-| **Programación** | Temporizador gestionado en el bloque de programación |
-| **Webhook** | En solicitud HTTP entrante |
+| **Start** | Ejecuciones del editor, solicitudes de despliegue a API o mensajes de chat |
+| **Schedule** | Temporizador gestionado en el bloque de programación |
+| **Webhook** | Al recibir una solicitud HTTP entrante |
 
 > El bloque Start siempre expone los campos `input`, `conversationId` y `files`. Añade campos personalizados al formato de entrada para datos estructurados adicionales.
 
@@ -37,16 +48,16 @@ Usa el bloque Start para todo lo que se origina desde el editor, deploy-to-API o
 2. Configura cualquier esquema o autenticación requerida.
 3. Conecta el bloque al resto del flujo de trabajo.
 
-> Los despliegues alimentan cada disparador. Actualiza el flujo de trabajo, vuelve a desplegar, y todos los puntos de entrada de disparadores recogen la nueva instantánea. Aprende más en [Ejecución → Instantáneas de despliegue](/execution).
+> Los despliegues alimentan cada disparador. Actualiza el flujo de trabajo, vuelve a desplegarlo, y todos los puntos de entrada de los disparadores recogen la nueva instantánea. Aprende más en [Ejecución → Instantáneas de despliegue](/execution).
 
 ## Prioridad de ejecución manual
 
 Cuando haces clic en **Ejecutar** en el editor, Sim selecciona automáticamente qué disparador ejecutar según el siguiente orden de prioridad:
 
-1. **Bloque de inicio** (prioridad más alta)
-2. **Disparadores programados**
+1. **Bloque Start** (prioridad más alta)
+2. **Disparadores de programación**
 3. **Disparadores externos** (webhooks, integraciones como Slack, Gmail, Airtable, etc.)
 
-Si tu flujo de trabajo tiene múltiples disparadores, se ejecutará el disparador de mayor prioridad. Por ejemplo, si tienes tanto un bloque de inicio como un disparador de webhook, al hacer clic en Ejecutar se ejecutará el bloque de inicio.
+Si tu flujo de trabajo tiene múltiples disparadores, se ejecutará el disparador de mayor prioridad. Por ejemplo, si tienes tanto un bloque Start como un disparador Webhook, al hacer clic en Ejecutar se ejecutará el bloque Start.
 
 **Disparadores externos con cargas útiles simuladas**: Cuando los disparadores externos (webhooks e integraciones) se ejecutan manualmente, Sim genera automáticamente cargas útiles simuladas basadas en la estructura de datos esperada del disparador. Esto asegura que los bloques posteriores puedan resolver las variables correctamente durante las pruebas.

@@ -5,6 +5,7 @@ title: Einführung
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
 Sim ist ein Open-Source-Tool zur visuellen Workflow-Erstellung für die Entwicklung und Bereitstellung von KI-Agenten-Workflows. Entwerfen Sie intelligente Automatisierungssysteme mit einer No-Code-Oberfläche – verbinden Sie KI-Modelle, Datenbanken, APIs und Business-Tools über eine intuitive Drag-and-Drop-Oberfläche. Ob Sie Chatbots entwickeln, Geschäftsprozesse automatisieren oder komplexe Datenpipelines orchestrieren – Sim bietet die Werkzeuge, um Ihre KI-Workflows zum Leben zu erwecken.
 
@@ -32,19 +33,27 @@ Verwandeln Sie Rohdaten in umsetzbare Erkenntnisse. Extrahieren Sie Informatione
 **API-Integrations-Workflows**  
 Orchestieren Sie komplexe Interaktionen zwischen mehreren Diensten. Erstellen Sie einheitliche API-Endpunkte, implementieren Sie anspruchsvolle Geschäftslogik und bauen Sie ereignisgesteuerte Automatisierungssysteme.
 
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/chat-workflow.mp4" width={700} height={450} />
+</div>
+
 ## Wie es funktioniert
 
 **Visueller Workflow-Editor**  
-Entwerfen Sie Workflows mit einer intuitiven Drag-and-Drop-Oberfläche. Verbinden Sie KI-Modelle, Datenbanken, APIs und Drittanbieterdienste über eine visuelle No-Code-Schnittstelle, die komplexe Automatisierungslogik leicht verständlich und wartbar macht.
+Entwerfen Sie Workflows mit einer intuitiven Drag-and-Drop-Oberfläche. Verbinden Sie KI-Modelle, Datenbanken, APIs und Dienste von Drittanbietern über eine visuelle No-Code-Schnittstelle, die komplexe Automatisierungslogik leicht verständlich und wartbar macht.
 
 **Modulares Blocksystem**  
 Bauen Sie mit spezialisierten Komponenten: Verarbeitungsblöcke (KI-Agenten, API-Aufrufe, benutzerdefinierte Funktionen), Logikblöcke (bedingte Verzweigungen, Schleifen, Router) und Ausgabeblöcke (Antworten, Evaluatoren). Jeder Block übernimmt eine bestimmte Aufgabe in Ihrem Workflow.
 
 **Flexible Ausführungsauslöser**  
-Starten Sie Workflows über verschiedene Kanäle, darunter Chat-Schnittstellen, REST-APIs, Webhooks, geplante Cron-Jobs oder externe Ereignisse von Plattformen wie Slack und GitHub.
+Starten Sie Workflows über mehrere Kanäle, einschließlich Chat-Schnittstellen, REST-APIs, Webhooks, geplante Cron-Jobs oder externe Ereignisse von Plattformen wie Slack und GitHub.
 
 **Echtzeit-Zusammenarbeit**  
-Ermöglichen Sie Ihrem Team die gemeinsame Entwicklung. Mehrere Benutzer können Workflows gleichzeitig bearbeiten, mit Live-Updates und granularen Berechtigungskontrollen.
+Ermöglichen Sie Ihrem Team, gemeinsam zu arbeiten. Mehrere Benutzer können Workflows gleichzeitig bearbeiten, mit Live-Updates und detaillierten Berechtigungskontrollen.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/build-workflow.mp4" width={700} height={450} />
+</div>
 
 ## Integrationen
 
@@ -57,7 +66,28 @@ Sim bietet native Integrationen mit über 80 Diensten in verschiedenen Kategorie
 - **Suche & Daten**: Google Search, Perplexity, Firecrawl, Exa AI
 - **Datenbanken**: PostgreSQL, MySQL, Supabase, Pinecone, Qdrant
 
-Für benutzerdefinierte Integrationen nutzen Sie unsere [MCP (Model Context Protocol) Unterstützung](/mcp), um beliebige externe Dienste oder Tools anzubinden.
+Für benutzerdefinierte Integrationen nutzen Sie unsere [MCP (Model Context Protocol)-Unterstützung](/mcp), um beliebige externe Dienste oder Tools anzubinden.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/integrations-sidebar.mp4" width={700} height={450} />
+</div>
+
+## KI-gesteuerter Copilot
+
+**Fragen stellen & Anleitung erhalten**  
+Der Copilot beantwortet Fragen zu Sim, erklärt Ihre Workflows und gibt Verbesserungsvorschläge. Verwenden Sie das `@` Symbol, um auf Workflows, Blöcke, Dokumentation, Wissen und Protokolle für kontextbezogene Unterstützung zu verweisen.
+
+**Workflows erstellen & bearbeiten**  
+Wechseln Sie in den Agent-Modus, damit der Copilot Änderungen direkt auf Ihrer Arbeitsfläche vorschlagen und anwenden kann. Fügen Sie Blöcke hinzu, konfigurieren Sie Einstellungen, verbinden Sie Variablen und strukturieren Sie Workflows mit natürlichsprachlichen Befehlen um.
+
+**Adaptive Reasoning-Stufen**  
+Wählen Sie zwischen den Modi Schnell, Auto, Erweitert oder Behemoth, je nach Komplexität der Aufgabe. Beginnen Sie mit Schnell für einfache Fragen und steigern Sie sich bis zu Behemoth für komplexe architektonische Änderungen und tiefgehendes Debugging.
+
+Erfahren Sie mehr über [Copilot-Funktionen](/copilot) und wie Sie die Produktivität mit KI-Unterstützung maximieren können.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="introduction/copilot-workflow.mp4" width={700} height={450} />
+</div>
 
 ## Bereitstellungsoptionen
 
@@ -75,7 +105,7 @@ Bereit, Ihren ersten KI-Workflow zu erstellen?
   <Card title="Erste Schritte" href="/getting-started">
     Erstellen Sie Ihren ersten Workflow in 10 Minuten
   </Card>
-  <Card title="Workflow-Bausteine" href="/blocks">
+  <Card title="Workflow-Blöcke" href="/blocks">
     Erfahren Sie mehr über die Bausteine
   </Card>
   <Card title="Tools & Integrationen" href="/tools">

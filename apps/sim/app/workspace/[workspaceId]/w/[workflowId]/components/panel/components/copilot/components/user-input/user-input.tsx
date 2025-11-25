@@ -19,7 +19,6 @@ import { cn } from '@/lib/utils'
 import {
   AttachedFilesDisplay,
   ContextPills,
-  ContextUsageIndicator,
   MentionMenu,
   ModelSelector,
   ModeSelector,
@@ -622,13 +621,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               </Badge>
 
               {/* Context Usage Indicator */}
-              {contextUsage && contextUsage.percentage > 0 && (
+              {/* {contextUsage && contextUsage.percentage > 0 && (
                 <ContextUsageIndicator
                   percentage={contextUsage.percentage}
                   size={18}
                   strokeWidth={2.5}
                 />
-              )}
+              )} */}
 
               {/* Selected Context Pills */}
               <ContextPills
