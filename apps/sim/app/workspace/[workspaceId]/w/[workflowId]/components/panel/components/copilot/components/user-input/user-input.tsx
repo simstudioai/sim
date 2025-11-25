@@ -19,7 +19,6 @@ import { cn } from '@/lib/utils'
 import {
   AttachedFilesDisplay,
   ContextPills,
-  ContextUsageIndicator,
   MentionMenu,
   ModelSelector,
   ModeSelector,
