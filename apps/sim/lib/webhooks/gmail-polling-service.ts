@@ -191,8 +191,10 @@ export async function pollGmailWebhooks() {
             now.toISOString(),
             latestHistoryId || config.historyId
           )
+          await markWebhookSuccess(webhookId)
           logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
-          return { success: true, webhookId, status: 'no_emails' }
+          successCount++
+          return
         }
 
         logger.info(`[${requestId}] Found ${emails.length} new emails for webhook ${webhookId}`)
