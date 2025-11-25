@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="incidentio"
-  color="#7C3AED"
+  color="#E0E0E0"
 />
 
 ## Usage Instructions
@@ -213,6 +213,7 @@ List all workflows in your incident.io workspace.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `page_size` | number | No | Number of workflows to return per page |
+| `after` | string | No | Pagination cursor to fetch the next page of results |
 
 #### Output
 
@@ -303,6 +304,7 @@ List all schedules in incident.io
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `page_size` | number | No | Number of results per page \(default: 25\) |
+| `after` | string | No | Pagination cursor to fetch the next page of results |
 
 #### Output
 

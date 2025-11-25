@@ -12,7 +12,7 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
     'Integrate Sentry into the workflow. Monitor issues, manage projects, track events, and coordinate releases across your applications.',
   docsLink: 'https://docs.sim.ai/tools/sentry',
   category: 'tools',
-  bgColor: '#362D59',
+  bgColor: '#E0E0E0',
   icon: SentryIcon,
   subBlocks: [
     {

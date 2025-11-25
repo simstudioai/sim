@@ -12,7 +12,7 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
     'Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.',
   docsLink: 'https://docs.sim.ai/tools/incidentio',
   category: 'tools',
-  bgColor: '#7C3AED',
+  bgColor: '#E0E0E0',
   icon: IncidentioIcon,
   subBlocks: [
     {
@@ -82,13 +82,20 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         ],
       },
     },
-    // Incidents List operation inputs
+    // Pagination 'after' field for list operations
     {
       id: 'after',
       title: 'After (Pagination)',
       type: 'short-input',
       placeholder: 'Cursor for pagination',
-      condition: { field: 'operation', value: 'incidentio_incidents_list' },
+      condition: {
+        field: 'operation',
+        value: [
+          'incidentio_incidents_list',
+          'incidentio_workflows_list',
+          'incidentio_schedules_list',
+        ],
+      },
     },
     // Incidents Create operation inputs
     {
@@ -97,7 +104,6 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       type: 'short-input',
       placeholder: 'Enter incident name...',
       condition: { field: 'operation', value: 'incidentio_incidents_create' },
-      required: true,
     },
     {
       id: 'summary',
@@ -149,6 +155,15 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       ],
       value: () => 'public',
       condition: { field: 'operation', value: 'incidentio_incidents_create' },
+      required: true,
+    },
+    {
+      id: 'idempotency_key',
+      title: 'Idempotency Key',
+      type: 'short-input',
+      placeholder: 'Enter unique key (e.g., UUID)',
+      condition: { field: 'operation', value: 'incidentio_incidents_create' },
+      required: true,
     },
     // Show/Update Incident inputs
     {
@@ -196,12 +211,6 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
           'incidentio_custom_fields_update',
         ],
       },
-      required: (params) =>
-        params.operation === 'incidentio_workflows_create' ||
-        params.operation === 'incidentio_schedules_create' ||
-        params.operation === 'incidentio_escalations_create' ||
-        params.operation === 'incidentio_custom_fields_create' ||
-        params.operation === 'incidentio_custom_fields_update',
     },
     // Actions List inputs
     {
@@ -250,7 +259,6 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         field: 'operation',
         value: ['incidentio_schedules_create', 'incidentio_schedules_update'],
       },
-      required: (params) => params.operation === 'incidentio_schedules_create',
     },
     // Custom Fields inputs
     {
@@ -262,9 +270,6 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         field: 'operation',
         value: ['incidentio_custom_fields_create', 'incidentio_custom_fields_update'],
       },
-      required: (params) =>
-        params.operation === 'incidentio_custom_fields_create' ||
-        params.operation === 'incidentio_custom_fields_update',
     },
     {
       id: 'field_type',
@@ -275,10 +280,7 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         { label: 'Single Select', id: 'single_select' },
         { label: 'Multi Select', id: 'multi_select' },
         { label: 'Numeric', id: 'numeric' },
-        { label: 'Datetime', id: 'datetime' },
         { label: 'Link', id: 'link' },
-        { label: 'User', id: 'user' },
-        { label: 'Team', id: 'team' },
       ],
       value: () => 'text',
       condition: { field: 'operation', value: 'incidentio_custom_fields_create' },
@@ -427,7 +429,7 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
     // Custom field fields
     description: { type: 'string', description: 'Custom field description' },
     field_type: { type: 'string', description: 'Custom field type' },
-    required: { type: 'boolean', description: 'Whether field is required' },
+    idempotency_key: { type: 'string', description: 'Unique key to prevent duplicate creation' },
   },
   outputs: {
     // Incidents

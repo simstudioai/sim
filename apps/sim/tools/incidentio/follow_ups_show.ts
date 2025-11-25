@@ -55,7 +55,14 @@ export const followUpsShowTool: ToolConfig<
               }
             : undefined,
           status: data.follow_up.status,
-          priority: data.follow_up.priority,
+          priority: data.follow_up.priority
+            ? {
+                id: data.follow_up.priority.id,
+                name: data.follow_up.priority.name,
+                description: data.follow_up.priority.description,
+                rank: data.follow_up.priority.rank,
+              }
+            : undefined,
           created_at: data.follow_up.created_at,
           updated_at: data.follow_up.updated_at,
           incident_id: data.follow_up.incident_id,
@@ -98,7 +105,17 @@ export const followUpsShowTool: ToolConfig<
           },
         },
         status: { type: 'string', description: 'Follow-up status' },
-        priority: { type: 'string', description: 'Follow-up priority' },
+        priority: {
+          type: 'object',
+          description: 'Follow-up priority',
+          optional: true,
+          properties: {
+            id: { type: 'string', description: 'Priority ID' },
+            name: { type: 'string', description: 'Priority name' },
+            description: { type: 'string', description: 'Priority description' },
+            rank: { type: 'number', description: 'Priority rank' },
+          },
+        },
         created_at: { type: 'string', description: 'Creation timestamp' },
         updated_at: { type: 'string', description: 'Last update timestamp' },
         incident_id: { type: 'string', description: 'Associated incident ID' },

@@ -1,3 +1,5 @@
+import type { ToolResponse } from '@/tools/types'
+
 // Base parameter interface shared across all Sentry tools
 export interface SentryBaseParams {
   apiKey: string
@@ -57,18 +59,22 @@ export interface SentryListIssuesParams extends SentryBaseParams {
   sort?: string
 }
 
-export interface SentryListIssuesResponse {
-  issues: SentryIssue[]
-  nextCursor?: string
-  hasMore: boolean
+export interface SentryListIssuesResponse extends ToolResponse {
+  output: {
+    issues: SentryIssue[]
+    nextCursor?: string
+    hasMore: boolean
+  }
 }
 
 export interface SentryGetIssueParams extends SentryBaseParams {
   issueId: string
 }
 
-export interface SentryGetIssueResponse {
-  issue: SentryIssue
+export interface SentryGetIssueResponse extends ToolResponse {
+  output: {
+    issue: SentryIssue
+  }
 }
 
 export interface SentryUpdateIssueParams extends SentryBaseParams {
@@ -80,8 +86,10 @@ export interface SentryUpdateIssueParams extends SentryBaseParams {
   isPublic?: boolean
 }
 
-export interface SentryUpdateIssueResponse {
-  issue: SentryIssue
+export interface SentryUpdateIssueResponse extends ToolResponse {
+  output: {
+    issue: SentryIssue
+  }
 }
 
 // ============================================================================
@@ -132,18 +140,22 @@ export interface SentryListProjectsParams extends SentryBaseParams {
   limit?: number
 }
 
-export interface SentryListProjectsResponse {
-  projects: SentryProject[]
-  nextCursor?: string
-  hasMore: boolean
+export interface SentryListProjectsResponse extends ToolResponse {
+  output: {
+    projects: SentryProject[]
+    nextCursor?: string
+    hasMore: boolean
+  }
 }
 
 export interface SentryGetProjectParams extends SentryBaseParams {
   projectSlug: string
 }
 
-export interface SentryGetProjectResponse {
-  project: SentryProject
+export interface SentryGetProjectResponse extends ToolResponse {
+  output: {
+    project: SentryProject
+  }
 }
 
 export interface SentryCreateProjectParams extends SentryBaseParams {
@@ -154,8 +166,10 @@ export interface SentryCreateProjectParams extends SentryBaseParams {
   defaultRules?: boolean
 }
 
-export interface SentryCreateProjectResponse {
-  project: SentryProject
+export interface SentryCreateProjectResponse extends ToolResponse {
+  output: {
+    project: SentryProject
+  }
 }
 
 export interface SentryUpdateProjectParams extends SentryBaseParams {
@@ -168,8 +182,10 @@ export interface SentryUpdateProjectParams extends SentryBaseParams {
   digestsMaxDelay?: number
 }
 
-export interface SentryUpdateProjectResponse {
-  project: SentryProject
+export interface SentryUpdateProjectResponse extends ToolResponse {
+  output: {
+    project: SentryProject
+  }
 }
 
 // ============================================================================
@@ -228,10 +244,12 @@ export interface SentryListEventsParams extends SentryBaseParams {
   statsPeriod?: string
 }
 
-export interface SentryListEventsResponse {
-  events: SentryEvent[]
-  nextCursor?: string
-  hasMore: boolean
+export interface SentryListEventsResponse extends ToolResponse {
+  output: {
+    events: SentryEvent[]
+    nextCursor?: string
+    hasMore: boolean
+  }
 }
 
 export interface SentryGetEventParams extends SentryBaseParams {
@@ -239,8 +257,10 @@ export interface SentryGetEventParams extends SentryBaseParams {
   eventId: string
 }
 
-export interface SentryGetEventResponse {
-  event: SentryEvent
+export interface SentryGetEventResponse extends ToolResponse {
+  output: {
+    event: SentryEvent
+  }
 }
 
 // ============================================================================
@@ -305,27 +325,27 @@ export interface SentryListReleasesParams extends SentryBaseParams {
   limit?: number
 }
 
-export interface SentryListReleasesResponse {
-  releases: SentryRelease[]
-  nextCursor?: string
-  hasMore: boolean
+export interface SentryListReleasesResponse extends ToolResponse {
+  output: {
+    releases: SentryRelease[]
+    nextCursor?: string
+    hasMore: boolean
+  }
 }
 
 export interface SentryCreateReleaseParams extends SentryBaseParams {
   version: string
   ref?: string
   url?: string
-  projects: string[]
+  projects: string // Comma-separated list of project slugs
   dateReleased?: string
-  commits?: Array<{
-    id: string
-    repository?: string
-    message?: string
-  }>
+  commits?: string // JSON string of commit objects
 }
 
-export interface SentryCreateReleaseResponse {
-  release: SentryRelease
+export interface SentryCreateReleaseResponse extends ToolResponse {
+  output: {
+    release: SentryRelease
+  }
 }
 
 export interface SentryCreateDeployParams extends SentryBaseParams {
@@ -337,14 +357,16 @@ export interface SentryCreateDeployParams extends SentryBaseParams {
   dateFinished?: string
 }
 
-export interface SentryCreateDeployResponse {
-  deploy: {
-    id: string
-    environment: string
-    name: string | null
-    url: string | null
-    dateStarted: string
-    dateFinished: string | null
+export interface SentryCreateDeployResponse extends ToolResponse {
+  output: {
+    deploy: {
+      id: string
+      environment: string
+      name: string | null
+      url: string | null
+      dateStarted: string
+      dateFinished: string | null
+    }
   }
 }
 

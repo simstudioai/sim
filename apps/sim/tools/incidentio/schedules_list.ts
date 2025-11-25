@@ -26,6 +26,12 @@ export const schedulesListTool: ToolConfig<
       visibility: 'user-only',
       description: 'Number of results per page (default: 25)',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Pagination cursor to fetch the next page of results',
+    },
   },
 
   request: {
@@ -33,6 +39,9 @@ export const schedulesListTool: ToolConfig<
       const url = new URL('https://api.incident.io/v2/schedules')
       if (params.page_size) {
         url.searchParams.append('page_size', params.page_size.toString())
+      }
+      if (params.after) {
+        url.searchParams.append('after', params.after)
       }
       return url.toString()
     },
@@ -50,6 +59,12 @@ export const schedulesListTool: ToolConfig<
       success: true,
       output: {
         schedules: data.schedules || [],
+        pagination_meta: data.pagination_meta
+          ? {
+              after: data.pagination_meta.after,
+              page_size: data.pagination_meta.page_size,
+            }
+          : undefined,
       },
     }
   },
@@ -67,6 +82,15 @@ export const schedulesListTool: ToolConfig<
           created_at: { type: 'string', description: 'When the schedule was created' },
           updated_at: { type: 'string', description: 'When the schedule was last updated' },
         },
+      },
+    },
+    pagination_meta: {
+      type: 'object',
+      description: 'Pagination metadata',
+      optional: true,
+      properties: {
+        after: { type: 'string', description: 'Cursor for next page', optional: true },
+        page_size: { type: 'number', description: 'Number of results per page' },
       },
     },
   },

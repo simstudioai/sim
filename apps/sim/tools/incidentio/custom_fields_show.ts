@@ -45,7 +45,6 @@ export const customFieldsShowTool: ToolConfig<CustomFieldsShowParams, CustomFiel
           created_at: data.custom_field.created_at,
           updated_at: data.custom_field.updated_at,
           options: data.custom_field.options,
-          required: data.custom_field.required,
         },
       },
     }
@@ -62,7 +61,6 @@ export const customFieldsShowTool: ToolConfig<CustomFieldsShowParams, CustomFiel
         field_type: { type: 'string', description: 'Custom field type' },
         created_at: { type: 'string', description: 'Creation timestamp' },
         updated_at: { type: 'string', description: 'Last update timestamp' },
-        required: { type: 'boolean', description: 'Whether the field is required' },
       },
     },
   },

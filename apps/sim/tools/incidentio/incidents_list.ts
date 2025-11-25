@@ -67,6 +67,9 @@ export const incidentsListTool: ToolConfig<
             id: incident.id,
             name: incident.name,
             summary: incident.summary,
+            description: incident.description,
+            mode: incident.mode,
+            call_url: incident.call_url,
             severity: incident.severity
               ? {
                   id: incident.severity.id,
@@ -98,6 +101,7 @@ export const incidentsListTool: ToolConfig<
           ? {
               after: data.pagination_meta.after,
               page_size: data.pagination_meta.page_size,
+              total_record_count: data.pagination_meta.total_record_count,
             }
           : undefined,
       },
@@ -114,6 +118,9 @@ export const incidentsListTool: ToolConfig<
           id: { type: 'string', description: 'Incident ID' },
           name: { type: 'string', description: 'Incident name' },
           summary: { type: 'string', description: 'Brief summary of the incident' },
+          description: { type: 'string', description: 'Detailed description of the incident' },
+          mode: { type: 'string', description: 'Incident mode (e.g., standard, retrospective)' },
+          call_url: { type: 'string', description: 'URL for the incident call/bridge' },
           severity: {
             type: 'object',
             description: 'Severity of the incident',
@@ -154,8 +161,13 @@ export const incidentsListTool: ToolConfig<
       description: 'Pagination metadata',
       optional: true,
       properties: {
-        after: { type: 'string', description: 'Cursor for the next page' },
+        after: { type: 'string', description: 'Cursor for the next page', optional: true },
         page_size: { type: 'number', description: 'Number of items per page' },
+        total_record_count: {
+          type: 'number',
+          description: 'Total number of records available',
+          optional: true,
+        },
       },
     },
   },

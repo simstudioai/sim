@@ -16,6 +16,9 @@ export interface IncidentioIncident {
   id: string
   name: string
   summary?: string
+  description?: string
+  mode?: string
+  call_url?: string
   severity?: {
     id: string
     name: string
@@ -44,6 +47,7 @@ export interface IncidentioIncidentsListResponse extends ToolResponse {
     pagination_meta?: {
       after?: string
       page_size: number
+      total_record_count?: number
     }
   }
 }
@@ -132,11 +136,25 @@ export interface IncidentioAction {
     id: string
     name: string
     email: string
+    role?: string
+    slack_user_id?: string
   }
   status: string
   due_at?: string
   created_at: string
   updated_at: string
+  incident_id?: string
+  creator?: {
+    id: string
+    name: string
+    email: string
+  }
+  completed_at?: string
+  external_issue_reference?: {
+    provider: string
+    issue_name: string
+    issue_permalink: string
+  }
 }
 
 export interface IncidentioActionsListResponse extends ToolResponse {
@@ -169,11 +187,31 @@ export interface IncidentioFollowUp {
     id: string
     name: string
     email: string
+    role?: string
+    slack_user_id?: string
   }
   status: string
-  priority?: string
+  priority?: {
+    id: string
+    name: string
+    description: string
+    rank: number
+  }
   created_at: string
   updated_at: string
+  incident_id?: string
+  creator?: {
+    id: string
+    name: string
+    email: string
+  }
+  completed_at?: string
+  labels?: string[]
+  external_issue_reference?: {
+    provider: string
+    issue_name: string
+    issue_permalink: string
+  }
 }
 
 export interface IncidentioFollowUpsListResponse extends ToolResponse {
@@ -205,11 +243,16 @@ export interface Workflow {
 // Workflows List tool types
 export interface WorkflowsListParams extends IncidentioBaseParams {
   page_size?: number
+  after?: string
 }
 
 export interface WorkflowsListResponse extends ToolResponse {
   output: {
     workflows: Workflow[]
+    pagination_meta?: {
+      after?: string
+      page_size: number
+    }
   }
 }
 
@@ -263,15 +306,7 @@ export interface WorkflowsDeleteResponse extends ToolResponse {
 }
 
 // Custom field types
-export type CustomFieldType =
-  | 'text'
-  | 'single_select'
-  | 'multi_select'
-  | 'numeric'
-  | 'datetime'
-  | 'link'
-  | 'user'
-  | 'team'
+export type CustomFieldType = 'text' | 'single_select' | 'multi_select' | 'numeric' | 'link'
 
 export interface CustomField {
   id: string
@@ -281,7 +316,6 @@ export interface CustomField {
   created_at: string
   updated_at: string
   options?: CustomFieldOption[]
-  required?: boolean
 }
 
 export interface CustomFieldOption {
@@ -304,7 +338,6 @@ export interface CustomFieldsCreateParams extends IncidentioBaseParams {
   name: string
   description?: string
   field_type: CustomFieldType
-  required?: boolean
 }
 
 export interface CustomFieldsCreateResponse extends ToolResponse {
@@ -329,7 +362,6 @@ export interface CustomFieldsUpdateParams extends IncidentioBaseParams {
   id: string
   name?: string
   description?: string
-  required?: boolean
 }
 
 export interface CustomFieldsUpdateResponse extends ToolResponse {
@@ -500,6 +532,7 @@ export interface IncidentioEscalationsShowResponse extends ToolResponse {
 // Schedules types
 export interface IncidentioSchedulesListParams extends IncidentioBaseParams {
   page_size?: number
+  after?: string
 }
 
 export interface IncidentioSchedule {
@@ -513,6 +546,10 @@ export interface IncidentioSchedule {
 export interface IncidentioSchedulesListResponse extends ToolResponse {
   output: {
     schedules: IncidentioSchedule[]
+    pagination_meta?: {
+      after?: string
+      page_size: number
+    }
   }
 }
 

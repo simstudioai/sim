@@ -74,7 +74,14 @@ export const followUpsListTool: ToolConfig<
                 }
               : undefined,
             status: followUp.status,
-            priority: followUp.priority,
+            priority: followUp.priority
+              ? {
+                  id: followUp.priority.id,
+                  name: followUp.priority.name,
+                  description: followUp.priority.description,
+                  rank: followUp.priority.rank,
+                }
+              : undefined,
             created_at: followUp.created_at,
             updated_at: followUp.updated_at,
             incident_id: followUp.incident_id,
@@ -119,7 +126,17 @@ export const followUpsListTool: ToolConfig<
             },
           },
           status: { type: 'string', description: 'Follow-up status' },
-          priority: { type: 'string', description: 'Follow-up priority' },
+          priority: {
+            type: 'object',
+            description: 'Follow-up priority',
+            optional: true,
+            properties: {
+              id: { type: 'string', description: 'Priority ID' },
+              name: { type: 'string', description: 'Priority name' },
+              description: { type: 'string', description: 'Priority description' },
+              rank: { type: 'number', description: 'Priority rank' },
+            },
+          },
           created_at: { type: 'string', description: 'Creation timestamp' },
           updated_at: { type: 'string', description: 'Last update timestamp' },
           incident_id: { type: 'string', description: 'Associated incident ID' },

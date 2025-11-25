@@ -85,6 +85,13 @@ export const actionsListTool: ToolConfig<
                 }
               : undefined,
             completed_at: action.completed_at,
+            external_issue_reference: action.external_issue_reference
+              ? {
+                  provider: action.external_issue_reference.provider,
+                  issue_name: action.external_issue_reference.issue_name,
+                  issue_permalink: action.external_issue_reference.issue_permalink,
+                }
+              : undefined,
           })) || [],
       },
     }
@@ -123,6 +130,19 @@ export const actionsListTool: ToolConfig<
             },
           },
           completed_at: { type: 'string', description: 'Completion timestamp' },
+          external_issue_reference: {
+            type: 'object',
+            description: 'External issue tracking reference',
+            optional: true,
+            properties: {
+              provider: {
+                type: 'string',
+                description: 'Issue tracking provider (e.g., Jira, Linear)',
+              },
+              issue_name: { type: 'string', description: 'Issue identifier' },
+              issue_permalink: { type: 'string', description: 'URL to the external issue' },
+            },
+          },
         },
       },
     },

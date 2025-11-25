@@ -20,6 +20,12 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
       visibility: 'user-only',
       description: 'Number of workflows to return per page',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Pagination cursor to fetch the next page of results',
+    },
   },
 
   request: {
@@ -34,6 +40,10 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
 
       if (params.page_size) {
         queryParams.page_size = Number(params.page_size)
+      }
+
+      if (params.after) {
+        queryParams.after = params.after
       }
 
       return queryParams
@@ -54,6 +64,12 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
           created_at: workflow.created_at,
           updated_at: workflow.updated_at,
         })),
+        pagination_meta: data.pagination_meta
+          ? {
+              after: data.pagination_meta.after,
+              page_size: data.pagination_meta.page_size,
+            }
+          : undefined,
       },
     }
   },
@@ -83,6 +99,15 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
             optional: true,
           },
         },
+      },
+    },
+    pagination_meta: {
+      type: 'object',
+      description: 'Pagination metadata',
+      optional: true,
+      properties: {
+        after: { type: 'string', description: 'Cursor for next page', optional: true },
+        page_size: { type: 'number', description: 'Number of results per page' },
       },
     },
   },

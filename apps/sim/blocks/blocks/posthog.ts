@@ -12,7 +12,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
     'Integrate PostHog into your workflow. Track events, manage feature flags, analyze user behavior, run experiments, create surveys, and access session recordings.',
   docsLink: 'https://docs.sim.ai/tools/posthog',
   category: 'tools',
-  bgColor: '#1D4AFF',
+  bgColor: '#E0E0E0',
   icon: PosthogIcon,
   subBlocks: [
     {
@@ -21,7 +21,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'dropdown',
       options: [
         // Core Data Operations
-        { label: '📊 Core Data', id: 'section_core_data', disabled: true },
         { label: 'Capture Event', id: 'posthog_capture_event' },
         { label: 'Batch Events', id: 'posthog_batch_events' },
         { label: 'List Events', id: 'posthog_list_events' },
@@ -30,7 +29,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         { label: 'Delete Person', id: 'posthog_delete_person' },
         { label: 'Run Query (HogQL)', id: 'posthog_query' },
         // Analytics
-        { label: '📈 Analytics', id: 'section_analytics', disabled: true },
         { label: 'List Insights', id: 'posthog_list_insights' },
         { label: 'Get Insight', id: 'posthog_get_insight' },
         { label: 'Create Insight', id: 'posthog_create_insight' },
@@ -43,7 +41,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         { label: 'List Annotations', id: 'posthog_list_annotations' },
         { label: 'Create Annotation', id: 'posthog_create_annotation' },
         // Feature Management
-        { label: '🚩 Feature Management', id: 'section_features', disabled: true },
         { label: 'List Feature Flags', id: 'posthog_list_feature_flags' },
         { label: 'Get Feature Flag', id: 'posthog_get_feature_flag' },
         { label: 'Create Feature Flag', id: 'posthog_create_feature_flag' },
@@ -56,7 +53,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         { label: 'List Early Access Features', id: 'posthog_list_early_access_features' },
         { label: 'Create Early Access Feature', id: 'posthog_create_early_access_feature' },
         // User Engagement
-        { label: '💬 User Engagement', id: 'section_engagement', disabled: true },
         { label: 'List Surveys', id: 'posthog_list_surveys' },
         { label: 'Get Survey', id: 'posthog_get_survey' },
         { label: 'Create Survey', id: 'posthog_create_survey' },
@@ -66,7 +62,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         { label: 'List Recording Playlists', id: 'posthog_list_recording_playlists' },
         { label: 'Create Recording Playlist', id: 'posthog_create_recording_playlist' },
         // Data Management
-        { label: '🗂️ Data Management', id: 'section_data_mgmt', disabled: true },
         { label: 'List Event Definitions', id: 'posthog_list_event_definitions' },
         { label: 'Get Event Definition', id: 'posthog_get_event_definition' },
         { label: 'Update Event Definition', id: 'posthog_update_event_definition' },
@@ -74,7 +69,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         { label: 'Get Property Definition', id: 'posthog_get_property_definition' },
         { label: 'Update Property Definition', id: 'posthog_update_property_definition' },
         // Configuration
-        { label: '⚙️ Configuration', id: 'section_config', disabled: true },
         { label: 'List Projects', id: 'posthog_list_projects' },
         { label: 'Get Project', id: 'posthog_get_project' },
         { label: 'List Organizations', id: 'posthog_list_organizations' },
@@ -102,21 +96,13 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'short-input',
       placeholder: 'Enter your PostHog project API key',
       password: true,
-      condition: (params) => {
-        const publicOps = [
-          'posthog_capture_event',
-          'posthog_batch_events',
-          'posthog_evaluate_flags',
-        ]
-        return publicOps.includes(params.operation as string)
+      condition: {
+        field: 'operation',
+        value: ['posthog_capture_event', 'posthog_batch_events', 'posthog_evaluate_flags'],
       },
-      required: (params) => {
-        const publicOps = [
-          'posthog_capture_event',
-          'posthog_batch_events',
-          'posthog_evaluate_flags',
-        ]
-        return publicOps.includes(params.operation as string)
+      required: {
+        field: 'operation',
+        value: ['posthog_capture_event', 'posthog_batch_events', 'posthog_evaluate_flags'],
       },
     },
     {
@@ -125,21 +111,15 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'short-input',
       placeholder: 'Enter your PostHog personal API key',
       password: true,
-      condition: (params) => {
-        const publicOps = [
-          'posthog_capture_event',
-          'posthog_batch_events',
-          'posthog_evaluate_flags',
-        ]
-        return !publicOps.includes(params.operation as string)
+      condition: {
+        field: 'operation',
+        value: ['posthog_capture_event', 'posthog_batch_events', 'posthog_evaluate_flags'],
+        not: true,
       },
-      required: (params) => {
-        const publicOps = [
-          'posthog_capture_event',
-          'posthog_batch_events',
-          'posthog_evaluate_flags',
-        ]
-        return !publicOps.includes(params.operation as string)
+      required: {
+        field: 'operation',
+        value: ['posthog_capture_event', 'posthog_batch_events', 'posthog_evaluate_flags'],
+        not: true,
       },
     },
     {
@@ -147,8 +127,9 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Project ID',
       type: 'short-input',
       placeholder: 'Enter your PostHog project ID',
-      condition: (params) => {
-        const noProjectIdOps = [
+      condition: {
+        field: 'operation',
+        value: [
           'posthog_capture_event',
           'posthog_batch_events',
           'posthog_evaluate_flags',
@@ -156,11 +137,12 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_get_project',
           'posthog_list_organizations',
           'posthog_get_organization',
-        ]
-        return !noProjectIdOps.includes(params.operation as string)
+        ],
+        not: true,
       },
-      required: (params) => {
-        const noProjectIdOps = [
+      required: {
+        field: 'operation',
+        value: [
           'posthog_capture_event',
           'posthog_batch_events',
           'posthog_evaluate_flags',
@@ -168,8 +150,8 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_get_project',
           'posthog_list_organizations',
           'posthog_get_organization',
-        ]
-        return !noProjectIdOps.includes(params.operation as string)
+        ],
+        not: true,
       },
     },
 
@@ -187,15 +169,13 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Distinct ID',
       type: 'short-input',
       placeholder: 'Unique identifier for the user',
-      condition: (params) => {
-        return ['posthog_capture_event', 'posthog_evaluate_flags'].includes(
-          params.operation as string
-        )
+      condition: {
+        field: 'operation',
+        value: ['posthog_capture_event', 'posthog_evaluate_flags'],
       },
-      required: (params) => {
-        return ['posthog_capture_event', 'posthog_evaluate_flags'].includes(
-          params.operation as string
-        )
+      required: {
+        field: 'operation',
+        value: ['posthog_capture_event', 'posthog_evaluate_flags'],
       },
     },
     {
@@ -211,6 +191,29 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'short-input',
       placeholder: '2024-01-01T12:00:00Z',
       condition: { field: 'operation', value: 'posthog_capture_event' },
+    },
+
+    // Evaluate Flags fields
+    {
+      id: 'groups',
+      title: 'Groups (JSON)',
+      type: 'long-input',
+      placeholder: '{"company": "company_id_in_your_db"}',
+      condition: { field: 'operation', value: 'posthog_evaluate_flags' },
+    },
+    {
+      id: 'personProperties',
+      title: 'Person Properties (JSON)',
+      type: 'long-input',
+      placeholder: '{"email": "user@example.com", "plan": "enterprise"}',
+      condition: { field: 'operation', value: 'posthog_evaluate_flags' },
+    },
+    {
+      id: 'groupProperties',
+      title: 'Group Properties (JSON)',
+      type: 'long-input',
+      placeholder: '{"plan": "enterprise", "seats": 100}',
+      condition: { field: 'operation', value: 'posthog_evaluate_flags' },
     },
 
     // Batch Events fields
@@ -229,11 +232,13 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Query',
       type: 'long-input',
       placeholder: 'HogQL query or JSON object',
-      condition: (params) => {
-        return ['posthog_query', 'posthog_create_cohort'].includes(params.operation as string)
+      condition: {
+        field: 'operation',
+        value: ['posthog_query', 'posthog_create_cohort'],
       },
-      required: (params) => {
-        return params.operation === 'posthog_query'
+      required: {
+        field: 'operation',
+        value: 'posthog_query',
       },
     },
     {
@@ -244,17 +249,52 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       condition: { field: 'operation', value: 'posthog_query' },
     },
 
+    // List Events filters
+    {
+      id: 'eventFilter',
+      title: 'Event Name Filter',
+      type: 'short-input',
+      placeholder: 'e.g., page_view, button_clicked',
+      condition: { field: 'operation', value: 'posthog_list_events' },
+    },
+    {
+      id: 'before',
+      title: 'Before (ISO 8601)',
+      type: 'short-input',
+      placeholder: '2024-01-01T12:00:00Z',
+      condition: { field: 'operation', value: 'posthog_list_events' },
+    },
+    {
+      id: 'after',
+      title: 'After (ISO 8601)',
+      type: 'short-input',
+      placeholder: '2024-01-01T00:00:00Z',
+      condition: { field: 'operation', value: 'posthog_list_events' },
+    },
+    {
+      id: 'distinctIdFilter',
+      title: 'Distinct ID Filter',
+      type: 'short-input',
+      placeholder: 'user123',
+      condition: {
+        field: 'operation',
+        value: ['posthog_list_events', 'posthog_list_persons'],
+      },
+    },
+
     // ID fields for get/update/delete operations
     {
       id: 'personId',
       title: 'Person ID',
       type: 'short-input',
       placeholder: 'Person ID or UUID',
-      condition: (params) => {
-        return ['posthog_get_person', 'posthog_delete_person'].includes(params.operation as string)
+      condition: {
+        field: 'operation',
+        value: ['posthog_get_person', 'posthog_delete_person'],
       },
-      required: (params) => {
-        return ['posthog_get_person', 'posthog_delete_person'].includes(params.operation as string)
+      required: {
+        field: 'operation',
+        value: ['posthog_get_person', 'posthog_delete_person'],
       },
     },
     {
@@ -286,19 +326,21 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Feature Flag ID',
       type: 'short-input',
       placeholder: 'Feature Flag ID',
-      condition: (params) => {
-        return [
+      condition: {
+        field: 'operation',
+        value: [
           'posthog_get_feature_flag',
           'posthog_update_feature_flag',
           'posthog_delete_feature_flag',
-        ].includes(params.operation as string)
+        ],
       },
-      required: (params) => {
-        return [
+      required: {
+        field: 'operation',
+        value: [
           'posthog_get_feature_flag',
           'posthog_update_feature_flag',
           'posthog_delete_feature_flag',
-        ].includes(params.operation as string)
+        ],
       },
     },
     {
@@ -314,11 +356,13 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Survey ID',
       type: 'short-input',
       placeholder: 'Survey ID',
-      condition: (params) => {
-        return ['posthog_get_survey', 'posthog_update_survey'].includes(params.operation as string)
+      condition: {
+        field: 'operation',
+        value: ['posthog_get_survey', 'posthog_update_survey'],
       },
-      required: (params) => {
-        return ['posthog_get_survey', 'posthog_update_survey'].includes(params.operation as string)
+      required: {
+        field: 'operation',
+        value: ['posthog_get_survey', 'posthog_update_survey'],
       },
     },
     {
@@ -334,15 +378,13 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Event Definition ID',
       type: 'short-input',
       placeholder: 'Event Definition ID',
-      condition: (params) => {
-        return ['posthog_get_event_definition', 'posthog_update_event_definition'].includes(
-          params.operation as string
-        )
+      condition: {
+        field: 'operation',
+        value: ['posthog_get_event_definition', 'posthog_update_event_definition'],
       },
-      required: (params) => {
-        return ['posthog_get_event_definition', 'posthog_update_event_definition'].includes(
-          params.operation as string
-        )
+      required: {
+        field: 'operation',
+        value: ['posthog_get_event_definition', 'posthog_update_event_definition'],
       },
     },
     {
@@ -350,15 +392,13 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Property Definition ID',
       type: 'short-input',
       placeholder: 'Property Definition ID',
-      condition: (params) => {
-        return ['posthog_get_property_definition', 'posthog_update_property_definition'].includes(
-          params.operation as string
-        )
+      condition: {
+        field: 'operation',
+        value: ['posthog_get_property_definition', 'posthog_update_property_definition'],
       },
-      required: (params) => {
-        return ['posthog_get_property_definition', 'posthog_update_property_definition'].includes(
-          params.operation as string
-        )
+      required: {
+        field: 'operation',
+        value: ['posthog_get_property_definition', 'posthog_update_property_definition'],
       },
     },
 
@@ -368,8 +408,9 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Name',
       type: 'short-input',
       placeholder: 'Enter name',
-      condition: (params) => {
-        const createUpdateOps = [
+      condition: {
+        field: 'operation',
+        value: [
           'posthog_create_insight',
           'posthog_create_cohort',
           'posthog_create_annotation',
@@ -380,17 +421,16 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_create_survey',
           'posthog_update_survey',
           'posthog_create_recording_playlist',
-        ]
-        return createUpdateOps.includes(params.operation as string)
+        ],
       },
-      required: (params) => {
-        const requiredOps = [
+      required: {
+        field: 'operation',
+        value: [
           'posthog_create_feature_flag',
           'posthog_create_experiment',
           'posthog_create_early_access_feature',
           'posthog_create_survey',
-        ]
-        return requiredOps.includes(params.operation as string)
+        ],
       },
     },
     {
@@ -398,8 +438,9 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Description',
       type: 'long-input',
       placeholder: 'Enter description',
-      condition: (params) => {
-        const descOps = [
+      condition: {
+        field: 'operation',
+        value: [
           'posthog_create_insight',
           'posthog_create_cohort',
           'posthog_create_feature_flag',
@@ -411,8 +452,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_create_recording_playlist',
           'posthog_update_event_definition',
           'posthog_update_property_definition',
-        ]
-        return descOps.includes(params.operation as string)
+        ],
       },
     },
 
@@ -422,13 +462,13 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Flag Key',
       type: 'short-input',
       placeholder: 'feature_flag_key',
-      condition: (params) => {
-        return ['posthog_create_feature_flag', 'posthog_update_feature_flag'].includes(
-          params.operation as string
-        )
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_feature_flag', 'posthog_update_feature_flag'],
       },
-      required: (params) => {
-        return params.operation === 'posthog_create_feature_flag'
+      required: {
+        field: 'operation',
+        value: 'posthog_create_feature_flag',
       },
     },
     {
@@ -436,23 +476,49 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Filters (JSON)',
       type: 'long-input',
       placeholder: '{"groups": [...]}',
-      condition: (params) => {
-        return [
+      condition: {
+        field: 'operation',
+        value: [
           'posthog_create_insight',
           'posthog_create_feature_flag',
           'posthog_update_feature_flag',
           'posthog_create_cohort',
-        ].includes(params.operation as string)
+          'posthog_create_experiment',
+        ],
       },
     },
+
+    // Insight specific fields
+    {
+      id: 'insightQuery',
+      title: 'Query (JSON)',
+      type: 'long-input',
+      placeholder: '{"kind": "HogQLQuery", "query": "SELECT ..."}',
+      condition: { field: 'operation', value: 'posthog_create_insight' },
+    },
+    {
+      id: 'dashboards',
+      title: 'Dashboard IDs (comma-separated)',
+      type: 'short-input',
+      placeholder: '123, 456, 789',
+      condition: { field: 'operation', value: 'posthog_create_insight' },
+    },
+    {
+      id: 'insightTags',
+      title: 'Tags (comma-separated)',
+      type: 'short-input',
+      placeholder: 'analytics, revenue, important',
+      condition: { field: 'operation', value: 'posthog_create_insight' },
+    },
+
+    // Feature Flag fields
     {
       id: 'active',
       title: 'Active',
       type: 'switch',
-      condition: (params) => {
-        return ['posthog_create_feature_flag', 'posthog_update_feature_flag'].includes(
-          params.operation as string
-        )
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_feature_flag', 'posthog_update_feature_flag'],
       },
     },
     {
@@ -460,10 +526,18 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Rollout Percentage',
       type: 'short-input',
       placeholder: '100',
-      condition: (params) => {
-        return ['posthog_create_feature_flag', 'posthog_update_feature_flag'].includes(
-          params.operation as string
-        )
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_feature_flag', 'posthog_update_feature_flag'],
+      },
+    },
+    {
+      id: 'ensureExperienceContinuity',
+      title: 'Ensure Experience Continuity',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_feature_flag', 'posthog_update_feature_flag'],
       },
     },
 
@@ -473,6 +547,12 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Groups (JSON Array)',
       type: 'long-input',
       placeholder: '[{"properties": [...]}]',
+      condition: { field: 'operation', value: 'posthog_create_cohort' },
+    },
+    {
+      id: 'isStatic',
+      title: 'Static Cohort',
+      type: 'switch',
       condition: { field: 'operation', value: 'posthog_create_cohort' },
     },
 
@@ -521,6 +601,27 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       placeholder: '{"minimum_detectable_effect": 5}',
       condition: { field: 'operation', value: 'posthog_create_experiment' },
     },
+    {
+      id: 'variants',
+      title: 'Variants (JSON)',
+      type: 'long-input',
+      placeholder: '{"control": 50, "test": 50}',
+      condition: { field: 'operation', value: 'posthog_create_experiment' },
+    },
+    {
+      id: 'experimentStartDate',
+      title: 'Start Date (ISO 8601)',
+      type: 'short-input',
+      placeholder: '2024-01-01T00:00:00Z',
+      condition: { field: 'operation', value: 'posthog_create_experiment' },
+    },
+    {
+      id: 'experimentEndDate',
+      title: 'End Date (ISO 8601)',
+      type: 'short-input',
+      placeholder: '2024-12-31T23:59:59Z',
+      condition: { field: 'operation', value: 'posthog_create_experiment' },
+    },
 
     // Survey fields
     {
@@ -528,13 +629,13 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Questions (JSON Array)',
       type: 'long-input',
       placeholder: '[{"type": "open", "question": "What do you think?"}]',
-      condition: (params) => {
-        return ['posthog_create_survey', 'posthog_update_survey'].includes(
-          params.operation as string
-        )
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_survey', 'posthog_update_survey'],
       },
-      required: (params) => {
-        return params.operation === 'posthog_create_survey'
+      required: {
+        field: 'operation',
+        value: 'posthog_create_survey',
       },
     },
     {
@@ -546,10 +647,79 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         { label: 'API', id: 'api' },
       ],
       value: () => 'popover',
-      condition: (params) => {
-        return ['posthog_create_survey', 'posthog_update_survey'].includes(
-          params.operation as string
-        )
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_survey', 'posthog_update_survey'],
+      },
+    },
+    {
+      id: 'surveyStartDate',
+      title: 'Start Date (ISO 8601)',
+      type: 'short-input',
+      placeholder: '2024-01-01T00:00:00Z',
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_survey', 'posthog_update_survey'],
+      },
+    },
+    {
+      id: 'surveyEndDate',
+      title: 'End Date (ISO 8601)',
+      type: 'short-input',
+      placeholder: '2024-12-31T23:59:59Z',
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_survey', 'posthog_update_survey'],
+      },
+    },
+    {
+      id: 'appearance',
+      title: 'Appearance (JSON)',
+      type: 'long-input',
+      placeholder: '{"backgroundColor": "#ffffff", "position": "right"}',
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_survey', 'posthog_update_survey'],
+      },
+    },
+    {
+      id: 'conditions',
+      title: 'Conditions (JSON)',
+      type: 'long-input',
+      placeholder: '{"url": "contains", "value": "/checkout"}',
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_survey', 'posthog_update_survey'],
+      },
+    },
+    {
+      id: 'targetingFlagFilters',
+      title: 'Targeting Flag Filters (JSON)',
+      type: 'long-input',
+      placeholder: '{"groups": [...]}',
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_survey', 'posthog_update_survey'],
+      },
+    },
+    {
+      id: 'linkedFlagId',
+      title: 'Linked Feature Flag ID',
+      type: 'short-input',
+      placeholder: 'Feature flag ID',
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_survey', 'posthog_update_survey'],
+      },
+    },
+    {
+      id: 'responsesLimit',
+      title: 'Responses Limit',
+      type: 'short-input',
+      placeholder: '1000',
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_survey', 'posthog_update_survey'],
       },
     },
 
@@ -580,8 +750,9 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Limit',
       type: 'short-input',
       placeholder: '100',
-      condition: (params) => {
-        const listOps = [
+      condition: {
+        field: 'operation',
+        value: [
           'posthog_list_events',
           'posthog_list_persons',
           'posthog_list_insights',
@@ -597,8 +768,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_list_recording_playlists',
           'posthog_list_event_definitions',
           'posthog_list_property_definitions',
-        ]
-        return listOps.includes(params.operation as string)
+        ],
       },
     },
     {
@@ -606,8 +776,9 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Offset',
       type: 'short-input',
       placeholder: '0',
-      condition: (params) => {
-        const listOps = [
+      condition: {
+        field: 'operation',
+        value: [
           'posthog_list_events',
           'posthog_list_persons',
           'posthog_list_insights',
@@ -623,8 +794,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_list_recording_playlists',
           'posthog_list_event_definitions',
           'posthog_list_property_definitions',
-        ]
-        return listOps.includes(params.operation as string)
+        ],
       },
     },
 
@@ -634,12 +804,13 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Search',
       type: 'short-input',
       placeholder: 'Search query',
-      condition: (params) => {
-        return [
+      condition: {
+        field: 'operation',
+        value: [
           'posthog_list_persons',
           'posthog_list_event_definitions',
           'posthog_list_property_definitions',
-        ].includes(params.operation as string)
+        ],
       },
     },
 
@@ -649,10 +820,9 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Tags (comma-separated)',
       type: 'short-input',
       placeholder: 'tag1, tag2, tag3',
-      condition: (params) => {
-        return ['posthog_update_event_definition', 'posthog_update_property_definition'].includes(
-          params.operation as string
-        )
+      condition: {
+        field: 'operation',
+        value: ['posthog_update_event_definition', 'posthog_update_property_definition'],
       },
     },
 
@@ -770,6 +940,77 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         ]
         if (flagOps.includes(params.operation as string) && params.featureFlagId) {
           params.flagId = params.featureFlagId
+        }
+
+        // Map surveyType to type for survey operations
+        if (
+          (params.operation === 'posthog_create_survey' ||
+            params.operation === 'posthog_update_survey') &&
+          params.surveyType
+        ) {
+          params.type = params.surveyType
+        }
+
+        // Map isStatic for cohorts
+        if (params.operation === 'posthog_create_cohort' && params.isStatic !== undefined) {
+          params.is_static = params.isStatic
+        }
+
+        // Map propertyType to property_type
+        if (params.operation === 'posthog_update_property_definition' && params.propertyType) {
+          params.property_type = params.propertyType
+        }
+
+        // Map insightQuery to query for insights
+        if (params.operation === 'posthog_create_insight' && params.insightQuery) {
+          params.query = params.insightQuery
+        }
+
+        // Map insightTags to tags for insights
+        if (params.operation === 'posthog_create_insight' && params.insightTags) {
+          params.tags = params.insightTags
+        }
+
+        // Map eventFilter to event for list_events
+        if (params.operation === 'posthog_list_events' && params.eventFilter) {
+          params.event = params.eventFilter
+        }
+
+        // Map distinctIdFilter to distinctId for list operations
+        if (
+          (params.operation === 'posthog_list_events' ||
+            params.operation === 'posthog_list_persons') &&
+          params.distinctIdFilter
+        ) {
+          params.distinctId = params.distinctIdFilter
+        }
+
+        // Map experiment date fields
+        if (params.operation === 'posthog_create_experiment') {
+          if (params.experimentStartDate) {
+            params.startDate = params.experimentStartDate
+          }
+          if (params.experimentEndDate) {
+            params.endDate = params.experimentEndDate
+          }
+        }
+
+        // Map survey date fields
+        if (
+          params.operation === 'posthog_create_survey' ||
+          params.operation === 'posthog_update_survey'
+        ) {
+          if (params.surveyStartDate) {
+            params.startDate = params.surveyStartDate
+          }
+          if (params.surveyEndDate) {
+            params.endDate = params.surveyEndDate
+          }
+        }
+
+        // Convert responsesLimit to number
+        if (params.responsesLimit) {
+          params.responsesLimit = Number(params.responsesLimit)
         }
 
         return params.operation as string

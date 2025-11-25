@@ -4227,7 +4227,7 @@ export function IncidentioIcon(props: SVGProps<SVGSVGElement>) {
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
     >
-      <g clip-path='url(#clip0_1361_12561)'>
+      <g clipPath='url(#clip0_1361_12561)'>
         <path
           fillRule='evenodd'
           clipRule='evenodd'
