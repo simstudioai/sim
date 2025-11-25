@@ -159,6 +159,7 @@ export const ScheduleBlock: BlockConfig = {
       id: 'scheduleSave',
       type: 'schedule-save',
       mode: 'trigger',
+      hideFromPreview: true,
     },
 
     {
