@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
   "id": "36786d95-c9bc-4064-af54-8a2cbf0f2f51",
+=======
+  "id": "941ea606-0117-4f5b-891c-0f631214d1eb",
+>>>>>>> 443c663c9 (Superagent poc)
   "prevId": "cc4ec973-5498-4553-b423-7b3c40cab196",
   "version": "7",
   "dialect": "postgresql",
@@ -102,6 +106,7 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+<<<<<<< HEAD
         },
         "idx_account_on_account_id_provider_id": {
           "name": "idx_account_on_account_id_provider_id",
@@ -123,6 +128,8 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+=======
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "foreignKeys": {
@@ -130,8 +137,17 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -222,8 +238,17 @@
           "name": "api_key_user_id_user_id_fk",
           "tableFrom": "api_key",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -231,8 +256,17 @@
           "name": "api_key_workspace_id_workspace_id_fk",
           "tableFrom": "api_key",
           "tableTo": "workspace",
+<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -240,8 +274,17 @@
           "name": "api_key_created_by_user_id_fk",
           "tableFrom": "api_key",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -251,7 +294,13 @@
         "api_key_key_unique": {
           "name": "api_key_key_unique",
           "nullsNotDistinct": false,
+<<<<<<< HEAD
           "columns": ["key"]
+=======
+          "columns": [
+            "key"
+          ]
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "policies": {},
@@ -381,8 +430,17 @@
           "name": "chat_workflow_id_workflow_id_fk",
           "tableFrom": "chat",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -390,8 +448,17 @@
           "name": "chat_user_id_user_id_fk",
           "tableFrom": "chat",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -572,8 +639,17 @@
           "name": "copilot_chats_user_id_user_id_fk",
           "tableFrom": "copilot_chats",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -581,8 +657,17 @@
           "name": "copilot_chats_workflow_id_workflow_id_fk",
           "tableFrom": "copilot_chats",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -749,8 +834,17 @@
           "name": "copilot_feedback_user_id_user_id_fk",
           "tableFrom": "copilot_feedback",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -758,8 +852,17 @@
           "name": "copilot_feedback_chat_id_copilot_chats_id_fk",
           "tableFrom": "copilot_feedback",
           "tableTo": "copilot_chats",
+<<<<<<< HEAD
           "columnsFrom": ["chat_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "chat_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -847,8 +950,17 @@
           "name": "custom_tools_workspace_id_workspace_id_fk",
           "tableFrom": "custom_tools",
           "tableTo": "workspace",
+<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -856,8 +968,17 @@
           "name": "custom_tools_user_id_user_id_fk",
           "tableFrom": "custom_tools",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1288,6 +1409,30 @@
           "method": "btree",
           "with": {}
         },
+<<<<<<< HEAD
+=======
+        "doc_kb_uploaded_at_idx": {
+          "name": "doc_kb_uploaded_at_idx",
+          "columns": [
+            {
+              "expression": "knowledge_base_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "uploaded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+>>>>>>> 443c663c9 (Superagent poc)
         "doc_processing_status_idx": {
           "name": "doc_processing_status_idx",
           "columns": [
@@ -1420,8 +1565,17 @@
           "name": "document_knowledge_base_id_knowledge_base_id_fk",
           "tableFrom": "document",
           "tableTo": "knowledge_base",
+<<<<<<< HEAD
           "columnsFrom": ["knowledge_base_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "knowledge_base_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1843,8 +1997,17 @@
           "name": "embedding_knowledge_base_id_knowledge_base_id_fk",
           "tableFrom": "embedding",
           "tableTo": "knowledge_base",
+<<<<<<< HEAD
           "columnsFrom": ["knowledge_base_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "knowledge_base_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1852,8 +2015,17 @@
           "name": "embedding_document_id_document_id_fk",
           "tableFrom": "embedding",
           "tableTo": "document",
+<<<<<<< HEAD
           "columnsFrom": ["document_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "document_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1905,8 +2077,17 @@
           "name": "environment_user_id_user_id_fk",
           "tableFrom": "environment",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1916,7 +2097,13 @@
         "environment_user_id_unique": {
           "name": "environment_user_id_unique",
           "nullsNotDistinct": false,
+<<<<<<< HEAD
           "columns": ["user_id"]
+=======
+          "columns": [
+            "user_id"
+          ]
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "policies": {},
@@ -2105,8 +2292,17 @@
           "name": "invitation_inviter_id_user_id_fk",
           "tableFrom": "invitation",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["inviter_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "inviter_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2114,8 +2310,17 @@
           "name": "invitation_organization_id_organization_id_fk",
           "tableFrom": "invitation",
           "tableTo": "organization",
+<<<<<<< HEAD
           "columnsFrom": ["organization_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2282,8 +2487,17 @@
           "name": "knowledge_base_user_id_user_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2291,8 +2505,17 @@
           "name": "knowledge_base_workspace_id_workspace_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "workspace",
+<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2417,8 +2640,17 @@
           "name": "knowledge_base_tag_definitions_knowledge_base_id_knowledge_base_id_fk",
           "tableFrom": "knowledge_base_tag_definitions",
           "tableTo": "knowledge_base",
+<<<<<<< HEAD
           "columnsFrom": ["knowledge_base_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "knowledge_base_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2509,8 +2741,17 @@
           "name": "marketplace_workflow_id_workflow_id_fk",
           "tableFrom": "marketplace",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2518,8 +2759,17 @@
           "name": "marketplace_author_id_user_id_fk",
           "tableFrom": "marketplace",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["author_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "author_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2719,8 +2969,17 @@
           "name": "mcp_servers_workspace_id_workspace_id_fk",
           "tableFrom": "mcp_servers",
           "tableTo": "workspace",
+<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2728,8 +2987,17 @@
           "name": "mcp_servers_created_by_user_id_fk",
           "tableFrom": "mcp_servers",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2813,8 +3081,17 @@
           "name": "member_user_id_user_id_fk",
           "tableFrom": "member",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2822,8 +3099,17 @@
           "name": "member_organization_id_organization_id_fk",
           "tableFrom": "member",
           "tableTo": "organization",
+<<<<<<< HEAD
           "columnsFrom": ["organization_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2941,8 +3227,17 @@
           "name": "memory_workflow_id_workflow_id_fk",
           "tableFrom": "memory",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3157,8 +3452,17 @@
           "name": "paused_executions_workflow_id_workflow_id_fk",
           "tableFrom": "paused_executions",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3364,8 +3668,17 @@
           "name": "permissions_user_id_user_id_fk",
           "tableFrom": "permissions",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3498,8 +3811,17 @@
           "name": "resume_queue_paused_execution_id_paused_executions_id_fk",
           "tableFrom": "resume_queue",
           "tableTo": "paused_executions",
+<<<<<<< HEAD
           "columnsFrom": ["paused_execution_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "paused_execution_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3606,8 +3928,17 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3615,8 +3946,17 @@
           "name": "session_active_organization_id_organization_id_fk",
           "tableFrom": "session",
           "tableTo": "organization",
+<<<<<<< HEAD
           "columnsFrom": ["active_organization_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "active_organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -3626,7 +3966,13 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
+<<<<<<< HEAD
           "columns": ["token"]
+=======
+          "columns": [
+            "token"
+          ]
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "policies": {},
@@ -3747,8 +4093,17 @@
           "name": "settings_user_id_user_id_fk",
           "tableFrom": "settings",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3758,7 +4113,13 @@
         "settings_user_id_unique": {
           "name": "settings_user_id_unique",
           "nullsNotDistinct": false,
+<<<<<<< HEAD
           "columns": ["user_id"]
+=======
+          "columns": [
+            "user_id"
+          ]
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "policies": {},
@@ -3885,8 +4246,17 @@
           "name": "sso_provider_user_id_user_id_fk",
           "tableFrom": "sso_provider",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3894,8 +4264,17 @@
           "name": "sso_provider_organization_id_organization_id_fk",
           "tableFrom": "sso_provider",
           "tableTo": "organization",
+<<<<<<< HEAD
           "columnsFrom": ["organization_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4024,6 +4403,184 @@
       },
       "isRLSEnabled": false
     },
+<<<<<<< HEAD
+=======
+    "public.superagent_chats": {
+      "name": "superagent_chats",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "messages": {
+          "name": "messages",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'"
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'claude-sonnet-4-5'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "superagent_chats_user_id_idx": {
+          "name": "superagent_chats_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "superagent_chats_workspace_id_idx": {
+          "name": "superagent_chats_workspace_id_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "superagent_chats_user_workspace_idx": {
+          "name": "superagent_chats_user_workspace_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "superagent_chats_created_at_idx": {
+          "name": "superagent_chats_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "superagent_chats_updated_at_idx": {
+          "name": "superagent_chats_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "superagent_chats_user_id_user_id_fk": {
+          "name": "superagent_chats_user_id_user_id_fk",
+          "tableFrom": "superagent_chats",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "superagent_chats_workspace_id_workspace_id_fk": {
+          "name": "superagent_chats_workspace_id_workspace_id_fk",
+          "tableFrom": "superagent_chats",
+          "tableTo": "workspace",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+>>>>>>> 443c663c9 (Superagent poc)
     "public.template_creators": {
       "name": "template_creators",
       "schema": "",
@@ -4144,8 +4701,17 @@
           "name": "template_creators_created_by_user_id_fk",
           "tableFrom": "template_creators",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -4329,8 +4895,17 @@
           "name": "template_stars_user_id_user_id_fk",
           "tableFrom": "template_stars",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4338,8 +4913,17 @@
           "name": "template_stars_template_id_templates_id_fk",
           "tableFrom": "template_stars",
           "tableTo": "templates",
+<<<<<<< HEAD
           "columnsFrom": ["template_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "template_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4580,8 +5164,17 @@
           "name": "templates_workflow_id_workflow_id_fk",
           "tableFrom": "templates",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -4589,8 +5182,17 @@
           "name": "templates_creator_id_template_creators_id_fk",
           "tableFrom": "templates",
           "tableTo": "template_creators",
+<<<<<<< HEAD
           "columnsFrom": ["creator_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "creator_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -4668,7 +5270,13 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
+<<<<<<< HEAD
           "columns": ["email"]
+=======
+          "columns": [
+            "email"
+          ]
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "policies": {},
@@ -4912,8 +5520,17 @@
           "name": "user_stats_user_id_user_id_fk",
           "tableFrom": "user_stats",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4923,7 +5540,13 @@
         "user_stats_user_id_unique": {
           "name": "user_stats_user_id_unique",
           "nullsNotDistinct": false,
+<<<<<<< HEAD
           "columns": ["user_id"]
+=======
+          "columns": [
+            "user_id"
+          ]
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "policies": {},
@@ -5040,7 +5663,13 @@
         "waitlist_email_unique": {
           "name": "waitlist_email_unique",
           "nullsNotDistinct": false,
+<<<<<<< HEAD
           "columns": ["email"]
+=======
+          "columns": [
+            "email"
+          ]
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "policies": {},
@@ -5094,6 +5723,7 @@
           "notNull": true,
           "default": true
         },
+<<<<<<< HEAD
         "failed_count": {
           "name": "failed_count",
           "type": "integer",
@@ -5107,6 +5737,8 @@
           "primaryKey": false,
           "notNull": false
         },
+=======
+>>>>>>> 443c663c9 (Superagent poc)
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -5137,6 +5769,7 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+<<<<<<< HEAD
         },
         "idx_webhook_on_workflow_id_block_id": {
           "name": "idx_webhook_on_workflow_id_block_id",
@@ -5158,6 +5791,8 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+=======
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "foreignKeys": {
@@ -5165,8 +5800,17 @@
           "name": "webhook_workflow_id_workflow_id_fk",
           "tableFrom": "webhook",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5174,8 +5818,17 @@
           "name": "webhook_block_id_workflow_blocks_id_fk",
           "tableFrom": "webhook",
           "tableTo": "workflow_blocks",
+<<<<<<< HEAD
           "columnsFrom": ["block_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "block_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5343,8 +5996,17 @@
           "name": "workflow_user_id_user_id_fk",
           "tableFrom": "workflow",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5352,8 +6014,17 @@
           "name": "workflow_workspace_id_workspace_id_fk",
           "tableFrom": "workflow",
           "tableTo": "workspace",
+<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5361,8 +6032,17 @@
           "name": "workflow_folder_id_workflow_folder_id_fk",
           "tableFrom": "workflow",
           "tableTo": "workflow_folder",
+<<<<<<< HEAD
           "columnsFrom": ["folder_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "folder_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -5506,6 +6186,30 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+<<<<<<< HEAD
+=======
+        },
+        "workflow_blocks_workflow_type_idx": {
+          "name": "workflow_blocks_workflow_type_idx",
+          "columns": [
+            {
+              "expression": "workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "foreignKeys": {
@@ -5513,8 +6217,17 @@
           "name": "workflow_blocks_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_blocks",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5726,8 +6439,17 @@
           "name": "workflow_checkpoints_user_id_user_id_fk",
           "tableFrom": "workflow_checkpoints",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5735,8 +6457,17 @@
           "name": "workflow_checkpoints_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_checkpoints",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5744,8 +6475,17 @@
           "name": "workflow_checkpoints_chat_id_copilot_chats_id_fk",
           "tableFrom": "workflow_checkpoints",
           "tableTo": "copilot_chats",
+<<<<<<< HEAD
           "columnsFrom": ["chat_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "chat_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5812,6 +6552,24 @@
         }
       },
       "indexes": {
+<<<<<<< HEAD
+=======
+        "workflow_deployment_version_workflow_id_idx": {
+          "name": "workflow_deployment_version_workflow_id_idx",
+          "columns": [
+            {
+              "expression": "workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+>>>>>>> 443c663c9 (Superagent poc)
         "workflow_deployment_version_workflow_version_unique": {
           "name": "workflow_deployment_version_workflow_version_unique",
           "columns": [
@@ -5875,8 +6633,17 @@
           "name": "workflow_deployment_version_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_deployment_version",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5999,8 +6766,17 @@
           "name": "workflow_edges_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_edges",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -6008,8 +6784,17 @@
           "name": "workflow_edges_source_block_id_workflow_blocks_id_fk",
           "tableFrom": "workflow_edges",
           "tableTo": "workflow_blocks",
+<<<<<<< HEAD
           "columnsFrom": ["source_block_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "source_block_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -6017,8 +6802,17 @@
           "name": "workflow_edges_target_block_id_workflow_blocks_id_fk",
           "tableFrom": "workflow_edges",
           "tableTo": "workflow_blocks",
+<<<<<<< HEAD
           "columnsFrom": ["target_block_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "target_block_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6130,6 +6924,24 @@
           "method": "btree",
           "with": {}
         },
+<<<<<<< HEAD
+=======
+        "workflow_execution_logs_execution_id_idx": {
+          "name": "workflow_execution_logs_execution_id_idx",
+          "columns": [
+            {
+              "expression": "execution_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+>>>>>>> 443c663c9 (Superagent poc)
         "workflow_execution_logs_state_snapshot_id_idx": {
           "name": "workflow_execution_logs_state_snapshot_id_idx",
           "columns": [
@@ -6232,8 +7044,17 @@
           "name": "workflow_execution_logs_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_execution_logs",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -6241,8 +7062,17 @@
           "name": "workflow_execution_logs_state_snapshot_id_workflow_execution_snapshots_id_fk",
           "tableFrom": "workflow_execution_logs",
           "tableTo": "workflow_execution_snapshots",
+<<<<<<< HEAD
           "columnsFrom": ["state_snapshot_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "state_snapshot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -6362,8 +7192,17 @@
           "name": "workflow_execution_snapshots_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_execution_snapshots",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6508,8 +7347,17 @@
           "name": "workflow_folder_user_id_user_id_fk",
           "tableFrom": "workflow_folder",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -6517,8 +7365,17 @@
           "name": "workflow_folder_workspace_id_workspace_id_fk",
           "tableFrom": "workflow_folder",
           "tableTo": "workspace",
+<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6658,8 +7515,17 @@
           "name": "workflow_log_webhook_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_log_webhook",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6825,8 +7691,17 @@
           "name": "workflow_log_webhook_delivery_subscription_id_workflow_log_webhook_id_fk",
           "tableFrom": "workflow_log_webhook_delivery",
           "tableTo": "workflow_log_webhook",
+<<<<<<< HEAD
           "columnsFrom": ["subscription_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "subscription_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -6834,8 +7709,17 @@
           "name": "workflow_log_webhook_delivery_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_log_webhook_delivery",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6968,8 +7852,17 @@
           "name": "workflow_schedule_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_schedule",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -6977,8 +7870,17 @@
           "name": "workflow_schedule_block_id_workflow_blocks_id_fk",
           "tableFrom": "workflow_schedule",
           "tableTo": "workflow_blocks",
+<<<<<<< HEAD
           "columnsFrom": ["block_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "block_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7076,8 +7978,17 @@
           "name": "workflow_subflows_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_subflows",
           "tableTo": "workflow",
+<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7144,8 +8055,17 @@
           "name": "workspace_owner_id_user_id_fk",
           "tableFrom": "workspace",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["owner_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "owner_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -7153,8 +8073,17 @@
           "name": "workspace_billed_account_user_id_user_id_fk",
           "tableFrom": "workspace",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["billed_account_user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "billed_account_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -7225,8 +8154,17 @@
           "name": "workspace_environment_workspace_id_workspace_id_fk",
           "tableFrom": "workspace_environment",
           "tableTo": "workspace",
+<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7328,8 +8266,17 @@
           "name": "workspace_file_workspace_id_workspace_id_fk",
           "tableFrom": "workspace_file",
           "tableTo": "workspace",
+<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -7337,8 +8284,17 @@
           "name": "workspace_file_uploaded_by_user_id_fk",
           "tableFrom": "workspace_file",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["uploaded_by"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "uploaded_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7348,7 +8304,13 @@
         "workspace_file_key_unique": {
           "name": "workspace_file_key_unique",
           "nullsNotDistinct": false,
+<<<<<<< HEAD
           "columns": ["key"]
+=======
+          "columns": [
+            "key"
+          ]
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "policies": {},
@@ -7482,8 +8444,17 @@
           "name": "workspace_files_user_id_user_id_fk",
           "tableFrom": "workspace_files",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -7491,8 +8462,17 @@
           "name": "workspace_files_workspace_id_workspace_id_fk",
           "tableFrom": "workspace_files",
           "tableTo": "workspace",
+<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7502,7 +8482,13 @@
         "workspace_files_key_unique": {
           "name": "workspace_files_key_unique",
           "nullsNotDistinct": false,
+<<<<<<< HEAD
           "columns": ["key"]
+=======
+          "columns": [
+            "key"
+          ]
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "policies": {},
@@ -7599,8 +8585,17 @@
           "name": "workspace_invitation_workspace_id_workspace_id_fk",
           "tableFrom": "workspace_invitation",
           "tableTo": "workspace",
+<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -7608,8 +8603,17 @@
           "name": "workspace_invitation_inviter_id_user_id_fk",
           "tableFrom": "workspace_invitation",
           "tableTo": "user",
+<<<<<<< HEAD
           "columnsFrom": ["inviter_id"],
           "columnsTo": ["id"],
+=======
+          "columnsFrom": [
+            "inviter_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+>>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7619,7 +8623,13 @@
         "workspace_invitation_token_unique": {
           "name": "workspace_invitation_token_unique",
           "nullsNotDistinct": false,
+<<<<<<< HEAD
           "columns": ["token"]
+=======
+          "columns": [
+            "token"
+          ]
+>>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "policies": {},
@@ -7631,27 +8641,68 @@
     "public.permission_type": {
       "name": "permission_type",
       "schema": "public",
+<<<<<<< HEAD
       "values": ["admin", "write", "read"]
+=======
+      "values": [
+        "admin",
+        "write",
+        "read"
+      ]
+>>>>>>> 443c663c9 (Superagent poc)
     },
     "public.template_creator_type": {
       "name": "template_creator_type",
       "schema": "public",
+<<<<<<< HEAD
       "values": ["user", "organization"]
+=======
+      "values": [
+        "user",
+        "organization"
+      ]
+>>>>>>> 443c663c9 (Superagent poc)
     },
     "public.template_status": {
       "name": "template_status",
       "schema": "public",
+<<<<<<< HEAD
       "values": ["pending", "approved", "rejected"]
+=======
+      "values": [
+        "pending",
+        "approved",
+        "rejected"
+      ]
+>>>>>>> 443c663c9 (Superagent poc)
     },
     "public.webhook_delivery_status": {
       "name": "webhook_delivery_status",
       "schema": "public",
+<<<<<<< HEAD
       "values": ["pending", "in_progress", "success", "failed"]
+=======
+      "values": [
+        "pending",
+        "in_progress",
+        "success",
+        "failed"
+      ]
+>>>>>>> 443c663c9 (Superagent poc)
     },
     "public.workspace_invitation_status": {
       "name": "workspace_invitation_status",
       "schema": "public",
+<<<<<<< HEAD
       "values": ["pending", "accepted", "rejected", "cancelled"]
+=======
+      "values": [
+        "pending",
+        "accepted",
+        "rejected",
+        "cancelled"
+      ]
+>>>>>>> 443c663c9 (Superagent poc)
     }
   },
   "schemas": {},
@@ -7664,4 +8715,8 @@
     "schemas": {},
     "tables": {}
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 443c663c9 (Superagent poc)
