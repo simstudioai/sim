@@ -49,54 +49,75 @@ Die Modellaufschlüsselung zeigt:
 
 <Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
   <Tab>
-    **Hosted Models** - Sim stellt API-Schlüssel mit einem 2,5-fachen Preismultiplikator bereit:
-    
-    | Modell | Basispreis (Input/Output) | Hosted-Preis (Input/Output) |
+    **Gehostete Modelle** - Sim stellt API-Schlüssel mit einem 2,5-fachen Preismultiplikator bereit:
+
+    **OpenAI**
+    | Modell | Basispreis (Eingabe/Ausgabe) | Gehosteter Preis (Eingabe/Ausgabe) |
     |-------|---------------------------|----------------------------|
+    | GPT-5.1 | $1,25 / $10,00 | $3,13 / $25,00 |
+    | GPT-5 | $1,25 / $10,00 | $3,13 / $25,00 |
+    | GPT-5 Mini | $0,25 / $2,00 | $0,63 / $5,00 |
+    | GPT-5 Nano | $0,05 / $0,40 | $0,13 / $1,00 |
     | GPT-4o | $2,50 / $10,00 | $6,25 / $25,00 |
     | GPT-4.1 | $2,00 / $8,00 | $5,00 / $20,00 |
+    | GPT-4.1 Mini | $0,40 / $1,60 | $1,00 / $4,00 |
+    | GPT-4.1 Nano | $0,10 / $0,40 | $0,25 / $1,00 |
     | o1 | $15,00 / $60,00 | $37,50 / $150,00 |
     | o3 | $2,00 / $8,00 | $5,00 / $20,00 |
-    | Claude 3.5 Sonnet | $3,00 / $15,00 | $7,50 / $37,50 |
-    | Claude Opus 4.0 | $15,00 / $75,00 | $37,50 / $187,50 |
-    
+    | o4 Mini | $1,10 / $4,40 | $2,75 / $11,00 |
+
+    **Anthropic**
+    | Modell | Basispreis (Eingabe/Ausgabe) | Gehosteter Preis (Eingabe/Ausgabe) |
+    |-------|---------------------------|----------------------------|
+    | Claude Opus 4.5 | $5,00 / $25,00 | $12,50 / $62,50 |
+    | Claude Opus 4.1 | $15,00 / $75,00 | $37,50 / $187,50 |
+    | Claude Sonnet 4.5 | $3,00 / $15,00 | $7,50 / $37,50 |
+    | Claude Sonnet 4.0 | $3,00 / $15,00 | $7,50 / $37,50 |
+    | Claude Haiku 4.5 | $1,00 / $5,00 | $2,50 / $12,50 |
+
+    **Google**
+    | Modell | Basispreis (Eingabe/Ausgabe) | Gehosteter Preis (Eingabe/Ausgabe) |
+    |-------|---------------------------|----------------------------|
+    | Gemini 3 Pro Preview | $2,00 / $12,00 | $5,00 / $30,00 |
+    | Gemini 2.5 Pro | $0,15 / $0,60 | $0,38 / $1,50 |
+    | Gemini 2.5 Flash | $0,15 / $0,60 | $0,38 / $1,50 |
+
     *Der 2,5-fache Multiplikator deckt Infrastruktur- und API-Verwaltungskosten ab.*
   </Tab>
-  
+
   <Tab>
     **Eigene API-Schlüssel** - Nutzen Sie jedes Modell zum Basispreis:
-    
-    | Anbieter | Modelle | Input / Output |
-    |----------|---------|----------------|
-    | Google | Gemini 2.5 | $0,15 / $0,60 |
+
+    | Anbieter | Beispielmodelle | Input / Output |
+    |----------|----------------|----------------|
     | Deepseek | V3, R1 | $0,75 / $1,00 |
-    | xAI | Grok 4, Grok 3 | $5,00 / $25,00 |
-    | Groq | Llama 4 Scout | $0,40 / $0,60 |
-    | Cerebras | Llama 3.3 70B | $0,94 / $0,94 |
+    | xAI | Grok 4 Latest, Grok 3 | $3,00 / $15,00 |
+    | Groq | Llama 4 Scout, Llama 3.3 70B | $0,11 / $0,34 |
+    | Cerebras | Llama 4 Scout, Llama 3.3 70B | $0,11 / $0,34 |
     | Ollama | Lokale Modelle | Kostenlos |
     | VLLM | Lokale Modelle | Kostenlos |
-    
+
     *Bezahlen Sie Anbieter direkt ohne Aufschlag*
   </Tab>
 </Tabs>
 
 <Callout type="warning">
-  Die angezeigten Preise spiegeln die Tarife vom 10. September 2025 wider. Überprüfen Sie die Anbieterdokumentation für aktuelle Preise.
+  Die angezeigten Preise entsprechen den Tarifen vom 10. September 2025. Überprüfen Sie die Dokumentation der Anbieter für aktuelle Preise.
 </Callout>
 
-## Kostenoptimierungsstrategien
+## Strategien zur Kostenoptimierung
 
 - **Modellauswahl**: Wählen Sie Modelle basierend auf der Komplexität der Aufgabe. Einfache Aufgaben können GPT-4.1-nano verwenden, während komplexes Denken möglicherweise o1 oder Claude Opus erfordert.
 - **Prompt-Engineering**: Gut strukturierte, präzise Prompts reduzieren den Token-Verbrauch ohne Qualitätseinbußen.
 - **Lokale Modelle**: Verwenden Sie Ollama oder VLLM für unkritische Aufgaben, um API-Kosten vollständig zu eliminieren.
-- **Caching und Wiederverwendung**: Speichern Sie häufig verwendete Ergebnisse in Variablen oder Dateien, um wiederholte AI-Modellaufrufe zu vermeiden.
-- **Batch-Verarbeitung**: Verarbeiten Sie mehrere Elemente in einer einzigen AI-Anfrage anstatt einzelne Aufrufe zu tätigen.
+- **Caching und Wiederverwendung**: Speichern Sie häufig verwendete Ergebnisse in Variablen oder Dateien, um wiederholte KI-Modellaufrufe zu vermeiden.
+- **Batch-Verarbeitung**: Verarbeiten Sie mehrere Elemente in einer einzigen KI-Anfrage anstatt einzelne Aufrufe zu tätigen.
 
 ## Nutzungsüberwachung
 
 Überwachen Sie Ihre Nutzung und Abrechnung unter Einstellungen → Abonnement:
 
-- **Aktuelle Nutzung**: Echtzeit-Nutzung und Kosten für den aktuellen Zeitraum
+- **Aktuelle Nutzung**: Echtzeit-Nutzung und -Kosten für den aktuellen Zeitraum
 - **Nutzungslimits**: Plangrenzen mit visuellen Fortschrittsanzeigen
 - **Abrechnungsdetails**: Prognostizierte Gebühren und Mindestverpflichtungen
 - **Planverwaltung**: Upgrade-Optionen und Abrechnungsverlauf
@@ -139,11 +160,11 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 ```
 
 **Antwortfelder:**
-- `currentPeriodCost` spiegelt die Nutzung im aktuellen Abrechnungszeitraum wider
-- `limit` wird aus individuellen Limits (Free/Pro) oder gepoolten Organisationslimits (Team/Enterprise) abgeleitet
+- `currentPeriodCost` zeigt die Nutzung im aktuellen Abrechnungszeitraum
+- `limit` wird aus individuellen Limits (Free/Pro) oder gebündelten Organisationslimits (Team/Enterprise) abgeleitet
 - `plan` ist der aktive Plan mit der höchsten Priorität, der mit Ihrem Benutzer verknüpft ist
 
-## Planlimits
+## Plan-Limits
 
 Verschiedene Abonnementpläne haben unterschiedliche Nutzungslimits:
 
@@ -151,55 +172,52 @@ Verschiedene Abonnementpläne haben unterschiedliche Nutzungslimits:
 |------|-------------------|-------------------------|
 | **Free** | $10 | 5 sync, 10 async |
 | **Pro** | $100 | 10 sync, 50 async |
-| **Team** | $500 (gepoolt) | 50 sync, 100 async |
+| **Team** | $500 (gebündelt) | 50 sync, 100 async |
 | **Enterprise** | Individuell | Individuell |
 
-## Best Practices für Kostenmanagement
+## Abrechnungsmodell
 
-1. **Regelmäßig überwachen**: Prüfen Sie Ihr Nutzungs-Dashboard häufig, um Überraschungen zu vermeiden
-2. **Budgets festlegen**: Nutzen Sie Planlimits als Leitplanken für Ihre Ausgaben
-3. **Workflows optimieren**: Überprüfen Sie kostenintensive Ausführungen und optimieren Sie Prompts oder Modellauswahl
-4. **Passende Modelle verwenden**: Stimmen Sie die Modellkomplexität auf die Aufgabenanforderungen ab
-5. **Ähnliche Aufgaben bündeln**: Kombinieren Sie wenn möglich mehrere Anfragen, um den Overhead zu reduzieren
+Sim verwendet ein **Basisabonnement + Überschreitung** Abrechnungsmodell:
 
-## Nächste Schritte
+### Wie es funktioniert
 
-- Überprüfen Sie Ihre aktuelle Nutzung unter [Einstellungen → Abonnement](https://sim.ai/settings/subscription)
-- Erfahren Sie mehr über [Logging](/execution/logging), um Ausführungsdetails zu verfolgen
-- Erkunden Sie die [Externe API](/execution/api) für programmatische Kostenüberwachung
-- Sehen Sie sich [Workflow-Optimierungstechniken](/blocks) an, um Kosten zu reduzieren
+**Pro Plan ($20/Monat):**
+- Monatliches Abonnement beinhaltet $20 Nutzung
+- Nutzung unter $20 → Keine zusätzlichen Kosten
+- Nutzung über $20 → Zahlung der Überschreitung am Monatsende
+- Beispiel: $35 Nutzung = $20 (Abonnement) + $15 (Überschreitung)
 
-**Team-Plan (40 $/Sitz/Monat):**
-- Gemeinsame Nutzung für alle Teammitglieder
-- Überschreitung wird anhand der Gesamtnutzung des Teams berechnet
+**Team Plan ($40/Benutzer/Monat):**
+- Gebündelte Nutzung für alle Teammitglieder
+- Überschreitung wird aus der Gesamtnutzung des Teams berechnet
 - Organisationsinhaber erhält eine Rechnung
 
-**Enterprise-Pläne:**
+**Enterprise Pläne:**
 - Fester monatlicher Preis, keine Überschreitungen
-- Benutzerdefinierte Nutzungslimits gemäß Vereinbarung
+- Individuelle Nutzungslimits gemäß Vereinbarung
 
 ### Schwellenwertabrechnung
 
-Wenn die nicht abgerechnete Überschreitung 50 $ erreicht, berechnet Sim automatisch den gesamten nicht abgerechneten Betrag.
+Wenn die nicht abgerechnete Überschreitung $50 erreicht, berechnet Sim automatisch den gesamten nicht abgerechneten Betrag.
 
 **Beispiel:**
-- Tag 10: 70 $ Überschreitung → Sofortige Abrechnung von 70 $
-- Tag 15: Zusätzliche Nutzung von 35 $ (insgesamt 105 $) → Bereits abgerechnet, keine Aktion
-- Tag 20: Weitere Nutzung von 50 $ (insgesamt 155 $, 85 $ nicht abgerechnet) → Sofortige Abrechnung von 85 $
+- Tag 10: $70 Überschreitung → Sofortige Abrechnung von $70
+- Tag 15: Zusätzliche $35 Nutzung ($105 insgesamt) → Bereits abgerechnet, keine Aktion
+- Tag 20: Weitere $50 Nutzung ($155 insgesamt, $85 nicht abgerechnet) → Sofortige Abrechnung von $85
 
-Dies verteilt hohe Überschreitungsgebühren über den Monat, anstatt eine große Rechnung am Ende des Abrechnungszeitraums zu stellen.
+Dies verteilt große Überziehungsgebühren über den Monat, anstatt eine große Rechnung am Ende des Abrechnungszeitraums zu erhalten.
 
 ## Best Practices für Kostenmanagement
 
-1. **Regelmäßige Überwachung**: Überprüfen Sie Ihr Nutzungs-Dashboard häufig, um Überraschungen zu vermeiden
+1. **Regelmäßig überwachen**: Überprüfen Sie Ihr Nutzungs-Dashboard häufig, um Überraschungen zu vermeiden
 2. **Budgets festlegen**: Nutzen Sie Planlimits als Leitplanken für Ihre Ausgaben
 3. **Workflows optimieren**: Überprüfen Sie kostenintensive Ausführungen und optimieren Sie Prompts oder Modellauswahl
-4. **Geeignete Modelle verwenden**: Passen Sie die Modellkomplexität an die Aufgabenanforderungen an
+4. **Passende Modelle verwenden**: Passen Sie die Modellkomplexität an die Aufgabenanforderungen an
 5. **Ähnliche Aufgaben bündeln**: Kombinieren Sie wenn möglich mehrere Anfragen, um den Overhead zu reduzieren
 
 ## Nächste Schritte
 
 - Überprüfen Sie Ihre aktuelle Nutzung unter [Einstellungen → Abonnement](https://sim.ai/settings/subscription)
 - Erfahren Sie mehr über [Protokollierung](/execution/logging), um Ausführungsdetails zu verfolgen
-- Erkunden Sie die [externe API](/execution/api) für programmatische Kostenüberwachung
-- Sehen Sie sich [Workflow-Optimierungstechniken](/blocks) zur Kostenreduzierung an
+- Erkunden Sie die [Externe API](/execution/api) für programmatische Kostenüberwachung
+- Sehen Sie sich [Workflow-Optimierungstechniken](/blocks) an, um Kosten zu reduzieren

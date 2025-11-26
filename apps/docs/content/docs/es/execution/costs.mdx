@@ -50,32 +50,53 @@ El desglose del modelo muestra:
 <Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
   <Tab>
     **Modelos alojados** - Sim proporciona claves API con un multiplicador de precio de 2.5x:
-    
+
+    **OpenAI**
     | Modelo | Precio base (Entrada/Salida) | Precio alojado (Entrada/Salida) |
     |-------|---------------------------|----------------------------|
+    | GPT-5.1 | $1.25 / $10.00 | $3.13 / $25.00 |
+    | GPT-5 | $1.25 / $10.00 | $3.13 / $25.00 |
+    | GPT-5 Mini | $0.25 / $2.00 | $0.63 / $5.00 |
+    | GPT-5 Nano | $0.05 / $0.40 | $0.13 / $1.00 |
     | GPT-4o | $2.50 / $10.00 | $6.25 / $25.00 |
     | GPT-4.1 | $2.00 / $8.00 | $5.00 / $20.00 |
+    | GPT-4.1 Mini | $0.40 / $1.60 | $1.00 / $4.00 |
+    | GPT-4.1 Nano | $0.10 / $0.40 | $0.25 / $1.00 |
     | o1 | $15.00 / $60.00 | $37.50 / $150.00 |
     | o3 | $2.00 / $8.00 | $5.00 / $20.00 |
-    | Claude 3.5 Sonnet | $3.00 / $15.00 | $7.50 / $37.50 |
-    | Claude Opus 4.0 | $15.00 / $75.00 | $37.50 / $187.50 |
-    
+    | o4 Mini | $1.10 / $4.40 | $2.75 / $11.00 |
+
+    **Anthropic**
+    | Modelo | Precio base (Entrada/Salida) | Precio alojado (Entrada/Salida) |
+    |-------|---------------------------|----------------------------|
+    | Claude Opus 4.5 | $5.00 / $25.00 | $12.50 / $62.50 |
+    | Claude Opus 4.1 | $15.00 / $75.00 | $37.50 / $187.50 |
+    | Claude Sonnet 4.5 | $3.00 / $15.00 | $7.50 / $37.50 |
+    | Claude Sonnet 4.0 | $3.00 / $15.00 | $7.50 / $37.50 |
+    | Claude Haiku 4.5 | $1.00 / $5.00 | $2.50 / $12.50 |
+
+    **Google**
+    | Modelo | Precio base (Entrada/Salida) | Precio alojado (Entrada/Salida) |
+    |-------|---------------------------|----------------------------|
+    | Gemini 3 Pro Preview | $2.00 / $12.00 | $5.00 / $30.00 |
+    | Gemini 2.5 Pro | $0.15 / $0.60 | $0.38 / $1.50 |
+    | Gemini 2.5 Flash | $0.15 / $0.60 | $0.38 / $1.50 |
+
     *El multiplicador de 2.5x cubre los costos de infraestructura y gestión de API.*
   </Tab>
-  
+
   <Tab>
     **Tus propias claves API** - Usa cualquier modelo con precio base:
-    
-    | Proveedor | Modelos | Entrada / Salida |
-    |----------|---------|----------------|
-    | Google | Gemini 2.5 | $0.15 / $0.60 |
+
+    | Proveedor | Modelos de ejemplo | Entrada / Salida |
+    |----------|----------------|----------------|
     | Deepseek | V3, R1 | $0.75 / $1.00 |
-    | xAI | Grok 4, Grok 3 | $5.00 / $25.00 |
-    | Groq | Llama 4 Scout | $0.40 / $0.60 |
-    | Cerebras | Llama 3.3 70B | $0.94 / $0.94 |
+    | xAI | Grok 4 Latest, Grok 3 | $3.00 / $15.00 |
+    | Groq | Llama 4 Scout, Llama 3.3 70B | $0.11 / $0.34 |
+    | Cerebras | Llama 4 Scout, Llama 3.3 70B | $0.11 / $0.34 |
     | Ollama | Modelos locales | Gratis |
     | VLLM | Modelos locales | Gratis |
-    
+
     *Paga directamente a los proveedores sin recargo*
   </Tab>
 </Tabs>
@@ -86,9 +107,9 @@ El desglose del modelo muestra:
 
 ## Estrategias de optimización de costos
 
-- **Selección de modelo**: Elige modelos según la complejidad de la tarea. Las tareas simples pueden usar GPT-4.1-nano mientras que el razonamiento complejo podría necesitar o1 o Claude Opus.
-- **Ingeniería de prompts**: Los prompts bien estructurados y concisos reducen el uso de tokens sin sacrificar calidad.
-- **Modelos locales**: Usa Ollama o VLLM para tareas no críticas para eliminar completamente los costos de API.
+- **Selección de modelos**: Elige modelos según la complejidad de la tarea. Las tareas simples pueden usar GPT-4.1-nano mientras que el razonamiento complejo podría necesitar o1 o Claude Opus.
+- **Ingeniería de prompts**: Los prompts bien estructurados y concisos reducen el uso de tokens sin sacrificar la calidad.
+- **Modelos locales**: Usa Ollama o VLLM para tareas no críticas para eliminar por completo los costos de API.
 - **Almacenamiento en caché y reutilización**: Guarda resultados frecuentemente utilizados en variables o archivos para evitar llamadas repetidas al modelo de IA.
 - **Procesamiento por lotes**: Procesa múltiples elementos en una sola solicitud de IA en lugar de hacer llamadas individuales.
 
@@ -101,7 +122,7 @@ Monitorea tu uso y facturación en Configuración → Suscripción:
 - **Detalles de facturación**: Cargos proyectados y compromisos mínimos
 - **Gestión del plan**: Opciones de actualización e historial de facturación
 
-### Seguimiento programático del uso
+### Seguimiento programático de uso
 
 Puedes consultar tu uso actual y límites de forma programática utilizando la API:
 
@@ -140,7 +161,7 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 
 **Campos de respuesta:**
 - `currentPeriodCost` refleja el uso en el período de facturación actual
-- `limit` se deriva de límites individuales (Gratuito/Pro) o límites de organización agrupados (Equipo/Empresa)
+- `limit` se deriva de límites individuales (Gratuito/Pro) o límites agrupados de la organización (Equipo/Empresa)
 - `plan` es el plan activo de mayor prioridad asociado a tu usuario
 
 ## Límites del plan
@@ -149,50 +170,47 @@ Los diferentes planes de suscripción tienen diferentes límites de uso:
 
 | Plan | Límite de uso mensual | Límites de tasa (por minuto) |
 |------|-------------------|-------------------------|
-| **Gratuito** | $10 | 5 síncronos, 10 asíncronos |
-| **Pro** | $100 | 10 síncronos, 50 asíncronos |
-| **Equipo** | $500 (agrupado) | 50 síncronos, 100 asíncronos |
+| **Gratuito** | $10 | 5 sinc, 10 asinc |
+| **Pro** | $100 | 10 sinc, 50 asinc |
+| **Equipo** | $500 (agrupado) | 50 sinc, 100 asinc |
 | **Empresa** | Personalizado | Personalizado |
 
-## Mejores prácticas para la gestión de costos
+## Modelo de facturación
 
-1. **Monitorear regularmente**: Revisa tu panel de uso frecuentemente para evitar sorpresas
-2. **Establecer presupuestos**: Utiliza los límites del plan como guías para tu gasto
-3. **Optimizar flujos de trabajo**: Revisa las ejecuciones de alto costo y optimiza los prompts o la selección de modelos
-4. **Usar modelos apropiados**: Ajusta la complejidad del modelo a los requisitos de la tarea
-5. **Agrupar tareas similares**: Combina múltiples solicitudes cuando sea posible para reducir la sobrecarga
+Sim utiliza un modelo de facturación de **suscripción base + exceso**:
 
-## Próximos pasos
+### Cómo funciona
 
-- Revisa tu uso actual en [Configuración → Suscripción](https://sim.ai/settings/subscription)
-- Aprende sobre [Registro](/execution/logging) para seguir los detalles de ejecución
-- Explora la [API externa](/execution/api) para monitoreo programático de costos
-- Consulta las [técnicas de optimización de flujo de trabajo](/blocks) para reducir costos
+**Plan Pro ($20/mes):**
+- La suscripción mensual incluye $20 de uso
+- Uso por debajo de $20 → Sin cargos adicionales
+- Uso por encima de $20 → Pagas el exceso al final del mes
+- Ejemplo: $35 de uso = $20 (suscripción) + $15 (exceso)
 
-**Plan de equipo (40$/asiento/mes):**
-- Uso compartido entre todos los miembros del equipo
+**Plan de equipo ($40/usuario/mes):**
+- Uso agrupado entre todos los miembros del equipo
 - Exceso calculado del uso total del equipo
 - El propietario de la organización recibe una sola factura
 
 **Planes empresariales:**
 - Precio mensual fijo, sin excesos
-- Límites de uso personalizados según acuerdo
+- Límites de uso personalizados según el acuerdo
 
 ### Facturación por umbral
 
-Cuando el exceso no facturado alcanza los 50$, Sim factura automáticamente el monto total no facturado.
+Cuando el exceso no facturado alcanza los $50, Sim factura automáticamente el monto total no facturado.
 
 **Ejemplo:**
-- Día 10: 70$ de exceso → Facturar 70$ inmediatamente
-- Día 15: 35$ adicionales de uso (105$ en total) → Ya facturado, sin acción
-- Día 20: Otros 50$ de uso (155$ en total, 85$ sin facturar) → Facturar 85$ inmediatamente
+- Día 10: $70 de exceso → Factura inmediata de $70
+- Día 15: $35 adicionales de uso ($105 en total) → Ya facturado, sin acción
+- Día 20: Otros $50 de uso ($155 en total, $85 no facturados) → Factura inmediata de $85
 
-Esto distribuye los cargos grandes por exceso a lo largo del mes en lugar de una factura grande al final del período.
+Esto distribuye los cargos por exceso a lo largo del mes en lugar de una gran factura al final del período.
 
-## Mejores prácticas de gestión de costos
+## Mejores prácticas para la gestión de costos
 
-1. **Monitorear regularmente**: Revisa tu panel de uso con frecuencia para evitar sorpresas
-2. **Establecer presupuestos**: Usa los límites del plan como guía para tus gastos
+1. **Monitorear regularmente**: Revisa tu panel de uso frecuentemente para evitar sorpresas
+2. **Establecer presupuestos**: Usa los límites del plan como guías para tu gasto
 3. **Optimizar flujos de trabajo**: Revisa las ejecuciones de alto costo y optimiza los prompts o la selección de modelos
 4. **Usar modelos apropiados**: Ajusta la complejidad del modelo a los requisitos de la tarea
 5. **Agrupar tareas similares**: Combina múltiples solicitudes cuando sea posible para reducir la sobrecarga
@@ -201,5 +219,5 @@ Esto distribuye los cargos grandes por exceso a lo largo del mes en lugar de una
 
 - Revisa tu uso actual en [Configuración → Suscripción](https://sim.ai/settings/subscription)
 - Aprende sobre [Registro](/execution/logging) para seguir los detalles de ejecución
-- Explora la [API externa](/execution/api) para monitoreo programático de costos
+- Explora la [API externa](/execution/api) para el monitoreo programático de costos
 - Consulta las [técnicas de optimización de flujo de trabajo](/blocks) para reducir costos
