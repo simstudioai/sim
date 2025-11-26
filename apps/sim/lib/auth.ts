@@ -27,6 +27,7 @@ import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { getPlans } from '@/lib/billing/plans'
+import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
 import {
   handleInvoiceFinalized,
@@ -1682,18 +1683,18 @@ export const auth = betterAuth({
                     const stripeSubscription = event.data.object as Stripe.Subscription
                     const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
 
-                    // Only update if quantity differs from current seats
-                    if (quantity !== subscription.seats) {
-                      await db
-                        .update(schema.subscription)
-                        .set({ seats: quantity })
-                        .where(eq(schema.subscription.id, subscription.id))
+                    const result = await syncSeatsFromStripeQuantity(
+                      subscription.id,
+                      subscription.seats,
+                      quantity
+                    )
 
+                    if (result.synced) {
                       logger.info('[onSubscriptionUpdate] Synced seat count from Stripe', {
                         subscriptionId: subscription.id,
                         referenceId: subscription.referenceId,
-                        previousSeats: subscription.seats,
-                        newSeats: quantity,
+                        previousSeats: result.previousSeats,
+                        newSeats: result.newSeats,
                       })
                     }
                   } catch (error) {
