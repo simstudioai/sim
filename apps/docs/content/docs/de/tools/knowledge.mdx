@@ -40,10 +40,14 @@ Suche nach ähnlichen Inhalten in einer Wissensdatenbank mittels Vektorähnlichk
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `knowledgeBaseId` | string | Ja | ID der Wissensdatenbank, in der gesucht werden soll |
+| `knowledgeBaseId` | string | Ja | ID der zu durchsuchenden Wissensdatenbank |
 | `query` | string | Nein | Suchanfragentext \(optional bei Verwendung von Tag-Filtern\) |
 | `topK` | number | Nein | Anzahl der ähnlichsten Ergebnisse, die zurückgegeben werden sollen \(1-100\) |
 | `tagFilters` | array | Nein | Array von Tag-Filtern mit tagName- und tagValue-Eigenschaften |
+| `items` | object | Nein | Keine Beschreibung |
+| `properties` | string | Nein | Keine Beschreibung |
+| `tagName` | string | Nein | Keine Beschreibung |
+| `tagValue` | string | Nein | Keine Beschreibung |
 
 #### Ausgabe
 
@@ -88,6 +92,11 @@ Ein neues Dokument in einer Wissensdatenbank erstellen
 | `tag6` | string | Nein | Tag 6-Wert für das Dokument |
 | `tag7` | string | Nein | Tag 7-Wert für das Dokument |
 | `documentTagsData` | array | Nein | Strukturierte Tag-Daten mit Namen, Typen und Werten |
+| `items` | object | Nein | Keine Beschreibung |
+| `properties` | string | Nein | Keine Beschreibung |
+| `tagName` | string | Nein | Keine Beschreibung |
+| `tagValue` | string | Nein | Keine Beschreibung |
+| `tagType` | string | Nein | Keine Beschreibung |
 
 #### Ausgabe
 

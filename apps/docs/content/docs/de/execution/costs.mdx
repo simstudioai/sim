@@ -47,33 +47,34 @@ Die Modellaufschlüsselung zeigt:
 
 ## Preisoptionen
 
-<Tabs items={['Gehostete Modelle', 'Eigener API-Schlüssel']}>
+<Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
   <Tab>
-    **Gehostete Modelle** - Sim stellt API-Schlüssel mit einem 2,5-fachen Preismultiplikator bereit:
+    **Hosted Models** - Sim stellt API-Schlüssel mit einem 2,5-fachen Preismultiplikator bereit:
     
-    | Modell | Basispreis (Eingabe/Ausgabe) | Gehosteter Preis (Eingabe/Ausgabe) |
+    | Modell | Basispreis (Input/Output) | Hosted-Preis (Input/Output) |
     |-------|---------------------------|----------------------------|
-    | GPT-4o | 2,50 $ / 10,00 $ | 6,25 $ / 25,00 $ |
-    | GPT-4.1 | 2,00 $ / 8,00 $ | 5,00 $ / 20,00 $ |
-    | o1 | 15,00 $ / 60,00 $ | 37,50 $ / 150,00 $ |
-    | o3 | 2,00 $ / 8,00 $ | 5,00 $ / 20,00 $ |
-    | Claude 3.5 Sonnet | 3,00 $ / 15,00 $ | 7,50 $ / 37,50 $ |
-    | Claude Opus 4.0 | 15,00 $ / 75,00 $ | 37,50 $ / 187,50 $ |
+    | GPT-4o | $2,50 / $10,00 | $6,25 / $25,00 |
+    | GPT-4.1 | $2,00 / $8,00 | $5,00 / $20,00 |
+    | o1 | $15,00 / $60,00 | $37,50 / $150,00 |
+    | o3 | $2,00 / $8,00 | $5,00 / $20,00 |
+    | Claude 3.5 Sonnet | $3,00 / $15,00 | $7,50 / $37,50 |
+    | Claude Opus 4.0 | $15,00 / $75,00 | $37,50 / $187,50 |
     
     *Der 2,5-fache Multiplikator deckt Infrastruktur- und API-Verwaltungskosten ab.*
   </Tab>
   
   <Tab>
-    **Ihre eigenen API-Schlüssel** - Nutzen Sie jedes Modell zum Basispreis:
+    **Eigene API-Schlüssel** - Nutzen Sie jedes Modell zum Basispreis:
     
-    | Anbieter | Modelle | Eingabe / Ausgabe |
+    | Anbieter | Modelle | Input / Output |
     |----------|---------|----------------|
-    | Google | Gemini 2.5 | 0,15 $ / 0,60 $ |
-    | Deepseek | V3, R1 | 0,75 $ / 1,00 $ |
-    | xAI | Grok 4, Grok 3 | 5,00 $ / 25,00 $ |
-    | Groq | Llama 4 Scout | 0,40 $ / 0,60 $ |
-    | Cerebras | Llama 3.3 70B | 0,94 $ / 0,94 $ |
+    | Google | Gemini 2.5 | $0,15 / $0,60 |
+    | Deepseek | V3, R1 | $0,75 / $1,00 |
+    | xAI | Grok 4, Grok 3 | $5,00 / $25,00 |
+    | Groq | Llama 4 Scout | $0,40 / $0,60 |
+    | Cerebras | Llama 3.3 70B | $0,94 / $0,94 |
     | Ollama | Lokale Modelle | Kostenlos |
+    | VLLM | Lokale Modelle | Kostenlos |
     
     *Bezahlen Sie Anbieter direkt ohne Aufschlag*
   </Tab>
@@ -85,11 +86,11 @@ Die Modellaufschlüsselung zeigt:
 
 ## Kostenoptimierungsstrategien
 
-- **Modellauswahl**: Wähle Modelle basierend auf der Komplexität der Aufgabe. Einfache Aufgaben können mit GPT-4.1-nano erledigt werden, während komplexes Denken möglicherweise o1 oder Claude Opus erfordert.
+- **Modellauswahl**: Wählen Sie Modelle basierend auf der Komplexität der Aufgabe. Einfache Aufgaben können GPT-4.1-nano verwenden, während komplexes Denken möglicherweise o1 oder Claude Opus erfordert.
 - **Prompt-Engineering**: Gut strukturierte, präzise Prompts reduzieren den Token-Verbrauch ohne Qualitätseinbußen.
-- **Lokale Modelle**: Nutze Ollama für unkritische Aufgaben, um API-Kosten vollständig zu eliminieren.
-- **Caching und Wiederverwendung**: Speichere häufig verwendete Ergebnisse in Variablen oder Dateien, um wiederholte KI-Modellaufrufe zu vermeiden.
-- **Batch-Verarbeitung**: Verarbeite mehrere Elemente in einer einzigen KI-Anfrage anstatt einzelne Aufrufe zu tätigen.
+- **Lokale Modelle**: Verwenden Sie Ollama oder VLLM für unkritische Aufgaben, um API-Kosten vollständig zu eliminieren.
+- **Caching und Wiederverwendung**: Speichern Sie häufig verwendete Ergebnisse in Variablen oder Dateien, um wiederholte AI-Modellaufrufe zu vermeiden.
+- **Batch-Verarbeitung**: Verarbeiten Sie mehrere Elemente in einer einzigen AI-Anfrage anstatt einzelne Aufrufe zu tätigen.
 
 ## Nutzungsüberwachung
 
