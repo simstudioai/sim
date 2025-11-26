@@ -348,8 +348,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       workspaceId: workflow.workspaceId,
     })
 
-    // Load workflow data ONCE and cache it for all execution paths
-    // This avoids duplicate DB calls in executeWorkflowCore
     let cachedWorkflowData: {
       blocks: Record<string, any>
       edges: any[]
@@ -419,8 +417,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
     }
 
-    // Use user-provided workflowStateOverride, or fall back to our cached data
-    // This prevents executeWorkflowCore from making redundant DB calls
     const effectiveWorkflowStateOverride = workflowStateOverride || cachedWorkflowData || undefined
 
     if (!enableSSE) {
@@ -500,7 +496,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       logger.info(`[${requestId}] Using SSE console log streaming (manual execution)`)
     } else {
       logger.info(`[${requestId}] Using streaming API response`)
-      // Use cached workflow data instead of reloading from DB
+
       const resolvedSelectedOutputs = resolveOutputIds(
         selectedOutputs,
         cachedWorkflowData?.blocks || {}
