@@ -303,7 +303,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Cannot remove organization owner' }, { status: 400 })
     }
 
-    // Capture departed member's usage before removal
+    // Capture departed member's usage and reset their cost to prevent double billing
     try {
       const departingUserStats = await db
         .select({ currentPeriodCost: userStats.currentPeriodCost })
@@ -321,7 +321,12 @@ export async function DELETE(
             })
             .where(eq(organization.id, organizationId))
 
-          logger.info('Captured departed member usage', {
+          await db
+            .update(userStats)
+            .set({ currentPeriodCost: '0' })
+            .where(eq(userStats.userId, memberId))
+
+          logger.info('Captured departed member usage and reset user cost', {
             organizationId,
             memberId,
             usage,
