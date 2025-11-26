@@ -1,6 +1,3 @@
-import { existsSync } from 'fs'
-import { mkdir } from 'fs/promises'
-import path, { join } from 'path'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getStorageProvider, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
@@ -24,7 +21,15 @@ export async function ensureUploadsDirectory() {
     return true
   }
 
+  if (typeof window !== 'undefined' || !UPLOAD_DIR_SERVER) {
+    // Skip on client side
+    return true
+  }
+
   try {
+    const { existsSync } = require('fs')
+    const { mkdir } = require('fs/promises')
+
     if (!existsSync(UPLOAD_DIR_SERVER)) {
       await mkdir(UPLOAD_DIR_SERVER, { recursive: true })
     } else {
