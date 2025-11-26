@@ -7,7 +7,6 @@ const { rewrite: rewriteLLM } = rewritePath('/docs/*path', '/llms.mdx/*path')
 const i18nMiddleware = createI18nMiddleware(i18n)
 
 export default function middleware(request: NextRequest, event: NextFetchEvent) {
-  // Check if the request prefers markdown content (from AI agents)
   if (isMarkdownPreferred(request)) {
     const result = rewriteLLM(request.nextUrl.pathname)
 
@@ -16,7 +15,6 @@ export default function middleware(request: NextRequest, event: NextFetchEvent) 
     }
   }
 
-  // Otherwise, use default i18n middleware
   return i18nMiddleware(request, event)
 }
 
