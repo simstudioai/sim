@@ -472,7 +472,7 @@ export function SSO() {
         tabIndex={-1}
         readOnly
       />
-      <div className='flex-1 overflow-y-auto px-6 pt-4 pb-4'>
+      <div className='flex-1 overflow-y-auto'>
         <div className='space-y-6'>
           {showStatus ? (
             <div className='space-y-4'>
@@ -1003,7 +1003,7 @@ export function SSO() {
 function SsoSkeleton() {
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex-1 overflow-y-auto px-6 pt-4 pb-4'>
+      <div className='flex-1 overflow-y-auto'>
         <div className='space-y-3'>
           {/* Provider type toggle */}
           <div className='space-y-1'>

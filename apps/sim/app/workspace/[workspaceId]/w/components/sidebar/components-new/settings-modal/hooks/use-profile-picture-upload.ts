@@ -11,6 +11,10 @@ interface UseProfilePictureUploadProps {
   currentImage?: string | null
 }
 
+/**
+ * Hook for handling profile picture upload functionality.
+ * Manages file validation, preview generation, and server upload.
+ */
 export function useProfilePictureUpload({
   onUpload,
   onError,

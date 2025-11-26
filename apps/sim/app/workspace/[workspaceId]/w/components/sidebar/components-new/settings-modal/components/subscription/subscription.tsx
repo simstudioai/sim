@@ -64,7 +64,7 @@ interface SubscriptionProps {
  */
 function SubscriptionSkeleton() {
   return (
-    <div className='px-6 pt-4 pb-4'>
+    <div>
       <div className='flex flex-col gap-2'>
         {/* Current Plan & Usage Header */}
         <div className='mb-2'>
@@ -363,7 +363,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   }
 
   return (
-    <div className='px-6 pt-4 pb-4'>
+    <div>
       <div className='flex flex-col gap-2'>
         {/* Current Plan & Usage Overview */}
         <div className='mb-2'>

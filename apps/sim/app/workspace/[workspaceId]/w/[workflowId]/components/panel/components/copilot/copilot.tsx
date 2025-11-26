@@ -385,8 +385,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         className='flex h-full flex-col overflow-hidden'
       >
         {/* Header */}
-        <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px]'>
-          <h2 className='font-medium text-[14px] text-[var(--white)]'>
+        <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[var(--surface-5)] px-[12px] py-[8px]'>
+          <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>
             {currentChat?.title || 'New Chat'}
           </h2>
           <div className='flex items-center gap-[8px]'>

@@ -282,7 +282,7 @@ export function TeamManagement() {
   if (isLoading && !displayOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
     return (
       <div className='flex h-full flex-col'>
-        <div className='flex flex-1 flex-col overflow-y-auto px-6 pt-4 pb-4'>
+        <div className='flex flex-1 flex-col overflow-y-auto'>
           {/* Team Seats Overview */}
           <div className='mb-4'>
             <div className='rounded-[8px] border bg-background p-4 shadow-xs'>
@@ -366,7 +366,7 @@ export function TeamManagement() {
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex flex-1 flex-col overflow-y-auto px-6 pt-4 pb-4'>
+      <div className='flex flex-1 flex-col overflow-y-auto'>
         {/* Seats Overview - Full Width */}
         {adminOrOwner && (
           <div className='mb-4'>

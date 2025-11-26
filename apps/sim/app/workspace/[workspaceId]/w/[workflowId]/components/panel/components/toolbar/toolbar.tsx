@@ -488,10 +488,10 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
     >
       {/* Header */}
       <div
-        className='flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px]'
+        className='flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[4px] bg-[var(--surface-5)] px-[12px] py-[8px]'
         onClick={handleSearchClick}
       >
-        <h2 className='font-medium text-[14px] text-[var(--white)]'>Toolbar</h2>
+        <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>Toolbar</h2>
         <div className='flex shrink-0 items-center gap-[8px]'>
           {!isSearchActive ? (
             <Button

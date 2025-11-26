@@ -368,10 +368,10 @@ export function Panel() {
     <>
       <aside
         ref={panelRef}
-        className='panel-container fixed inset-y-0 right-0 z-10 overflow-hidden dark:bg-[var(--surface-1)]'
+        className='panel-container fixed inset-y-0 right-0 z-10 overflow-hidden bg-[var(--surface-1)]'
         aria-label='Workflow panel'
       >
-        <div className='flex h-full flex-col border-l pt-[14px] dark:border-[var(--border)]'>
+        <div className='flex h-full flex-col border-[var(--border)] border-l pt-[14px]'>
           {/* Header */}
           <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
             {/* More and Chat */}

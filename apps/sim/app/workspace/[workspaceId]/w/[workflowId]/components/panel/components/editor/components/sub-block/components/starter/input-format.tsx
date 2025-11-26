@@ -405,7 +405,7 @@ export function FieldFormat({
           key={field.id}
           data-field-id={field.id}
           className={cn(
-            'rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]',
+            'rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
             field.collapsed ? 'overflow-hidden' : 'overflow-visible'
           )}
         >

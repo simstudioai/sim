@@ -235,7 +235,7 @@ const renderLabel = (
               }}
               disabled={isStreaming}
               className={cn(
-                'h-[12px] w-full max-w-[200px] border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[#737373] focus:outline-none',
+                'h-[12px] w-full max-w-[200px] border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[var(--text-muted)] focus:outline-none',
                 isStreaming && 'text-muted-foreground'
               )}
               placeholder='Describe...'

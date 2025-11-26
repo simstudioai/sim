@@ -519,7 +519,7 @@ export function EnvironmentVariables({
         readOnly
       />
       {/* Fixed Header */}
-      <div className='px-6 pt-4 pb-2'>
+      <div>
         {/* Search Input */}
         {isLoading ? (
           <Skeleton className='h-9 w-56 rounded-[8px]' />
@@ -543,8 +543,8 @@ export function EnvironmentVariables({
       </div>
 
       {/* Scrollable Content */}
-      <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto px-6'>
-        <div className='space-y-2 pt-2 pb-6'>
+      <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='space-y-2'>
           {isLoading ? (
             <>
               {/* Show 3 skeleton rows */}
@@ -695,7 +695,7 @@ export function EnvironmentVariables({
 
       {/* Footer */}
       <div className='bg-background'>
-        <div className='flex w-full items-center justify-between px-6 py-4'>
+        <div className='flex w-full items-center justify-between'>
           {isLoading ? (
             <>
               <Skeleton className='h-9 w-[117px] rounded-[8px]' />

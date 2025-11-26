@@ -224,7 +224,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   return (
     <div className='relative flex h-full flex-col'>
       {/* Fixed Header */}
-      <div className='px-6 pt-4 pb-2'>
+      <div>
         {/* Search Input */}
         {isLoading ? (
           <Skeleton className='h-9 w-56 rounded-lg' />
@@ -242,8 +242,8 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
       </div>
 
       {/* Scrollable Content */}
-      <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto px-6'>
-        <div className='space-y-2 pt-2 pb-6'>
+      <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='space-y-2'>
           {isLoading ? (
             <div className='space-y-2'>
               <ApiKeySkeleton />
@@ -428,7 +428,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
 
       {/* Footer */}
       <div className='bg-background'>
-        <div className='flex w-full items-center px-6 py-4'>
+        <div className='flex w-full items-center'>
           {isLoading ? (
             <Skeleton className='h-9 w-[117px] rounded-[8px]' />
           ) : (

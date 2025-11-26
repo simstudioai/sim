@@ -42,7 +42,7 @@ export function NoOrganizationView({
 }: NoOrganizationViewProps) {
   if (hasTeamPlan || hasEnterprisePlan) {
     return (
-      <div className='px-6 pt-4 pb-4'>
+      <div>
         <div className='flex flex-col gap-6'>
           {/* Header - matching settings page style */}
           <div>

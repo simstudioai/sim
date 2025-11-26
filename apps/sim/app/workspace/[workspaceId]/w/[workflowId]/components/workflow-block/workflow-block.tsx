@@ -404,7 +404,7 @@ const SubBlockRow = ({
       </span>
       {displayValue !== undefined && (
         <span
-          className='flex-1 truncate text-right text-[14px] text-[var(--white)]'
+          className='flex-1 truncate text-right text-[14px] text-[var(--text-primary)]'
           title={displayValue}
         >
           {displayValue}
@@ -852,7 +852,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             <span
               className={cn(
                 'truncate font-medium text-[16px]',
-                !isEnabled && runPathStatus !== 'success' && 'text-[#808080]'
+                !isEnabled && runPathStatus !== 'success' && 'text-[var(--text-muted)]'
               )}
               title={name}
             >

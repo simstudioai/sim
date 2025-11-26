@@ -183,7 +183,7 @@ export function Editor() {
   return (
     <div className='flex h-full flex-col'>
       {/* Header */}
-      <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px] dark:bg-[#2A2A2A]'>
+      <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[var(--surface-5)] px-[12px] py-[8px]'>
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
           {(blockConfig || isSubflow) && (
             <div
@@ -210,11 +210,11 @@ export function Editor() {
                   handleCancelRename()
                 }
               }}
-              className='min-w-0 flex-1 truncate bg-transparent pr-[8px] font-medium text-[14px] text-[var(--white)] outline-none'
+              className='min-w-0 flex-1 truncate bg-transparent pr-[8px] font-medium text-[14px] text-[var(--text-primary)] outline-none'
             />
           ) : (
             <h2
-              className='min-w-0 flex-1 cursor-pointer select-none truncate pr-[8px] font-medium text-[14px] text-[var(--white)]'
+              className='min-w-0 flex-1 cursor-pointer select-none truncate pr-[8px] font-medium text-[14px] text-[var(--text-primary)]'
               title={title}
               onDoubleClick={handleStartRename}
               onMouseDown={(e) => {

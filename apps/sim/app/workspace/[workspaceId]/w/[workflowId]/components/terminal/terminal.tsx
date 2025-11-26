@@ -79,7 +79,7 @@ const RUN_ID_COLORS = [
  * Shared styling constants
  */
 const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-[12px]'
-const ROW_TEXT_CLASS = 'font-medium text-[#D2D2D2] text-[12px]'
+const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-[12px]'
 const COLUMN_BASE_CLASS = 'flex-shrink-0'
 
 /**
@@ -1098,7 +1098,7 @@ export function Terminal() {
                         )}
                       >
                         {BlockIcon && (
-                          <BlockIcon className='h-[13px] w-[13px] flex-shrink-0 text-[#D2D2D2]' />
+                          <BlockIcon className='h-[13px] w-[13px] flex-shrink-0 text-[var(--text-secondary)]' />
                         )}
                         <span className={clsx('truncate', ROW_TEXT_CLASS)}>{entry.blockName}</span>
                       </div>

@@ -3,38 +3,31 @@
  */
 
 /**
- * Updates the theme in next-themes by dispatching a storage event
- * This works by updating localStorage and notifying next-themes of the change
- *
- * COMMENTED OUT: Theme switching disabled - dark mode is forced for workspace
+ * Updates the theme in next-themes by dispatching a storage event.
+ * This works by updating localStorage and notifying next-themes of the change.
+ * @param theme - The theme to apply: 'system', 'light', or 'dark'
  */
 export function syncThemeToNextThemes(theme: 'system' | 'light' | 'dark') {
   if (typeof window === 'undefined') return
 
-  // COMMENTED OUT: Dark mode is forced for workspace pages
-  // // Update localStorage
-  // localStorage.setItem('sim-theme', theme)
+  localStorage.setItem('sim-theme', theme)
 
-  // // Dispatch storage event to notify next-themes
-  // window.dispatchEvent(
-  //   new StorageEvent('storage', {
-  //     key: 'sim-theme',
-  //     newValue: theme,
-  //     oldValue: localStorage.getItem('sim-theme'),
-  //     storageArea: localStorage,
-  //     url: window.location.href,
-  //   })
-  // )
+  window.dispatchEvent(
+    new StorageEvent('storage', {
+      key: 'sim-theme',
+      newValue: theme,
+      oldValue: localStorage.getItem('sim-theme'),
+      storageArea: localStorage,
+      url: window.location.href,
+    })
+  )
 
-  // // Also update the HTML class immediately for instant feedback
-  // const root = document.documentElement
-  // const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  // const actualTheme = theme === 'system' ? systemTheme : theme
+  const root = document.documentElement
+  const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  const actualTheme = theme === 'system' ? systemTheme : theme
 
-  // // Remove existing theme classes
-  // root.classList.remove('light', 'dark')
-  // // Add new theme class
-  // root.classList.add(actualTheme)
+  root.classList.remove('light', 'dark')
+  root.classList.add(actualTheme)
 }
 
 /**

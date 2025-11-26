@@ -1,6 +1,7 @@
 /**
- * Compositional modal component with optional sidebar and tabs.
+ * Compositional modal component with optional tabs.
  * Uses Radix UI Dialog and Tabs primitives for accessibility.
+ * For sidebar modals, use `sidebar-modal.tsx` instead.
  *
  * @example
  * ```tsx
@@ -8,19 +9,18 @@
  * <Modal>
  *   <ModalTrigger>Open</ModalTrigger>
  *   <ModalContent>
- *     <ModalHeader>
- *       <ModalTitle>Title</ModalTitle>
- *     </ModalHeader>
+ *     <ModalHeader>Title</ModalHeader>
+ *     <ModalBody>Content here</ModalBody>
+ *     <ModalFooter>
+ *       <Button>Save</Button>
+ *     </ModalFooter>
  *   </ModalContent>
  * </Modal>
  *
- * // Modal with sidebar and tabs
+ * // Modal with tabs
  * <Modal>
  *   <ModalContent>
- *     <ModalSidebar>Sidebar content</ModalSidebar>
- *     <ModalHeader>
- *       <ModalTitle>Title</ModalTitle>
- *     </ModalHeader>
+ *     <ModalHeader>Title</ModalHeader>
  *     <ModalTabs defaultValue="tab1">
  *       <ModalTabsList>
  *         <ModalTabsTrigger value="tab1">Tab 1</ModalTabsTrigger>
@@ -95,7 +95,7 @@ const ModalOverlay = React.forwardRef<
     <DialogPrimitive.Overlay
       ref={ref}
       className={cn(
-        'fixed inset-0 z-50 light:bg-[#E4E4E4]/50 backdrop-blur-[0.75px] dark:bg-[#0D0D0D]/50',
+        'fixed inset-0 z-50 bg-[#E4E4E4]/50 backdrop-blur-[0.75px] dark:bg-[#0D0D0D]/50',
         ANIMATION_CLASSES,
         className
       )}
@@ -186,15 +186,6 @@ const ModalContent = React.forwardRef<
 ModalContent.displayName = 'ModalContent'
 
 /**
- * Modal sidebar component. Appears on the left side of the modal.
- */
-const ModalSidebar = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => <div ref={ref} className={cn('', className)} {...props} />
-)
-
-ModalSidebar.displayName = 'ModalSidebar'
-
-/**
  * Modal header component for title and description.
  */
 const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
@@ -204,7 +195,7 @@ const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
       className={cn('flex items-center justify-between px-[16px] py-[10px]', className)}
       {...props}
     >
-      <DialogPrimitive.Title className='font-medium text-[#FFFFFF] text-[16px]'>
+      <DialogPrimitive.Title className='font-medium text-[16px] text-[var(--text-primary)]'>
         {children}
       </DialogPrimitive.Title>
       <DialogPrimitive.Close asChild>
@@ -353,7 +344,7 @@ const ModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivE
     <div
       ref={ref}
       className={cn(
-        'flex-1 overflow-y-auto rounded-t-[8px] border-t bg-[#232323] px-[14px] py-[10px]',
+        'flex-1 overflow-y-auto rounded-t-[8px] border-t bg-[var(--surface-2)] px-[14px] py-[10px]',
         className
       )}
       {...props}
@@ -371,7 +362,7 @@ const ModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     <div
       ref={ref}
       className={cn(
-        'flex justify-end gap-[8px] rounded-b-[8px] border-t bg-[#232323] px-[16px] py-[10px]',
+        'flex justify-end gap-[8px] rounded-b-[8px] border-t bg-[var(--surface-2)] px-[16px] py-[10px]',
         className
       )}
       {...props}
@@ -385,7 +376,6 @@ export {
   Modal,
   ModalTrigger,
   ModalContent,
-  ModalSidebar,
   ModalHeader,
   ModalTitle,
   ModalDescription,

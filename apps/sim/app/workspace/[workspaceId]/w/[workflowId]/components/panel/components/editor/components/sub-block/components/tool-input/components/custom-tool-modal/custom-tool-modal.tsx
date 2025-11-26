@@ -973,7 +973,7 @@ try {
                         onBlur={handleSchemaPromptBlur}
                         onKeyDown={handleSchemaPromptKeyDown}
                         disabled={schemaGeneration.isStreaming}
-                        className='h-[16px] w-full border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[#737373] focus:outline-none'
+                        className='h-[16px] w-full border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[var(--text-muted)] focus:outline-none'
                         placeholder='Describe schema...'
                       />
                     )}
@@ -1053,7 +1053,7 @@ try {
                         onBlur={handleCodePromptBlur}
                         onKeyDown={handleCodePromptKeyDown}
                         disabled={codeGeneration.isStreaming}
-                        className='h-[16px] w-full border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[#737373] focus:outline-none'
+                        className='h-[16px] w-full border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[var(--text-muted)] focus:outline-none'
                         placeholder='Describe code...'
                       />
                     )}
