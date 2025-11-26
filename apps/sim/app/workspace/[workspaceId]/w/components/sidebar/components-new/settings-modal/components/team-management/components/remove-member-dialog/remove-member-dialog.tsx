@@ -40,9 +40,7 @@ export function RemoveMemberDialog({
             {isSelfRemoval
               ? 'Are you sure you want to leave this organization? You will lose access to all team resources.'
               : `Are you sure you want to remove ${memberName} from the team?`}{' '}
-            <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-              This action cannot be undone.
-            </span>
+            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
           </ModalDescription>
         </ModalHeader>
 
@@ -80,7 +78,7 @@ export function RemoveMemberDialog({
           </Button>
           <Button
             onClick={() => onConfirmRemove(shouldReduceSeats)}
-            className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+            className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
           >
             {isSelfRemoval ? 'Leave Organization' : 'Remove'}
           </Button>

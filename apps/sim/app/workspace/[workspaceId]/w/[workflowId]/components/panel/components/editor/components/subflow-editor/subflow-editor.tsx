@@ -71,7 +71,7 @@ export function SubflowEditor({
         <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[5px] pb-[8px]'>
           {/* Type Selection */}
           <div>
-            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
               {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
             </Label>
             <Combobox
@@ -96,7 +96,7 @@ export function SubflowEditor({
 
           {/* Configuration */}
           <div>
-            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
               {isCountMode
                 ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
                 : isConditionMode
@@ -165,7 +165,7 @@ export function SubflowEditor({
       {hasIncomingConnections && (
         <div
           className={
-            'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t dark:border-[var(--border)]' +
+            'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
             (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
           }
           style={{ height: `${connectionsHeight}px` }}
@@ -198,9 +198,7 @@ export function SubflowEditor({
                 (!isConnectionsAtMinHeight ? ' rotate-180' : '')
               }
             />
-            <div className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-              Connections
-            </div>
+            <div className='font-medium text-[13px] text-[var(--text-primary)]'>Connections</div>
           </div>
 
           {/* Connections Content - Always visible */}

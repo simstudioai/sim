@@ -76,7 +76,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
             return (
               <code
                 {...props}
-                className='whitespace-normal rounded bg-gray-200 px-1 py-0.5 font-mono text-[#F59E0B] text-xs dark:bg-[var(--surface-11)] dark:text-[#F59E0B]'
+                className='whitespace-normal rounded bg-gray-200 px-1 py-0.5 font-mono text-[#F59E0B] text-xs dark:bg-[var(--surface-11)]'
               >
                 {children}
               </code>

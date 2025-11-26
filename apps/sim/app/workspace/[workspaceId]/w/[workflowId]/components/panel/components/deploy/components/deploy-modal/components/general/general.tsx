@@ -271,7 +271,11 @@ export function GeneralDeploy({
             <Button variant='default' onClick={() => setShowLoadDialog(false)}>
               Cancel
             </Button>
-            <Button variant='primary' onClick={confirmLoadDeployment}>
+            <Button
+              variant='primary'
+              onClick={confirmLoadDeployment}
+              className='bg-[var(--text-error)] text-white hover:bg-[var(--text-error)]'
+            >
               Load deployment
             </Button>
           </ModalFooter>

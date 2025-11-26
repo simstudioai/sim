@@ -595,9 +595,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             <ModalTitle>Delete API key?</ModalTitle>
             <ModalDescription>
               Deleting this API key will immediately revoke access for any integrations using it.{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </ModalDescription>
           </ModalHeader>
           <ModalFooter>
@@ -613,7 +611,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
               Cancel
             </Button>
             <Button
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
               onClick={handleDeleteKey}
               disabled={deleteApiKeyMutation.isPending}
             >

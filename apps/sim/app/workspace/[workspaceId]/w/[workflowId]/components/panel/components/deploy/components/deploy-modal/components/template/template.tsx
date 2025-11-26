@@ -395,7 +395,7 @@ export function TemplateDeploy({
               variant='primary'
               onClick={handleDelete}
               disabled={deleteMutation.isPending}
-              className='bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)] dark:bg-[var(--text-error)] dark:hover:bg-[var(--text-error)]'
+              className='bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
             >
               {deleteMutation.isPending ? (
                 <>

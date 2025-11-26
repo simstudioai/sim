@@ -119,18 +119,16 @@ export const PermissionsTable = ({
   if (isSaving) {
     return (
       <div className='space-y-[12px]'>
-        <h3 className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-          Member Permissions
-        </h3>
-        <div className='rounded-[8px] border border-[var(--surface-11)] bg-[var(--surface-3)] dark:bg-[var(--surface-3)]'>
+        <h3 className='font-medium text-[14px] text-[var(--text-primary)]'>Member Permissions</h3>
+        <div className='rounded-[8px] border border-[var(--surface-11)] bg-[var(--surface-3)]'>
           <div className='flex items-center justify-center py-[48px]'>
-            <div className='flex items-center gap-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+            <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
               <Loader2 className='h-[16px] w-[16px] animate-spin' />
               <span className='font-medium text-[13px]'>Saving permission changes...</span>
             </div>
           </div>
         </div>
-        <p className='flex min-h-[2rem] items-start text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+        <p className='flex min-h-[2rem] items-start text-[12px] text-[var(--text-tertiary)]'>
           Please wait while we update the permissions.
         </p>
       </div>
@@ -174,7 +172,7 @@ export const PermissionsTable = ({
               <div key={uniqueKey} className='flex items-center justify-between gap-[8px] py-[8px]'>
                 <div className='min-w-0 flex-1'>
                   <div className='flex items-center gap-[8px]'>
-                    <span className='truncate font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                    <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
                       {user.email}
                     </span>
                     {isPendingInvitation && (

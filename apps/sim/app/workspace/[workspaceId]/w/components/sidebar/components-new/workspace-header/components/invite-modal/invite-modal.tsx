@@ -681,7 +681,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               <div>
                 <Label
                   htmlFor='emails'
-                  className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+                  className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
                 >
                   Email Addresses
                 </Label>
@@ -728,9 +728,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                 </div>
               </div>
               {errorMessage && (
-                <p className='mt-[4px] text-[12px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                  {errorMessage}
-                </p>
+                <p className='mt-[4px] text-[12px] text-[var(--text-error)]'>{errorMessage}</p>
               )}
             </div>
             <div className='mt-[8px]'>
@@ -800,15 +798,13 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         <ModalContent>
           <ModalHeader>Remove Member</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               Are you sure you want to remove{' '}
-              <span className='font-medium text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+              <span className='font-medium text-[var(--text-primary)]'>
                 {memberToRemove?.email}
               </span>{' '}
               from this workspace?{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
@@ -823,7 +819,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               variant='primary'
               onClick={handleRemoveMemberConfirm}
               disabled={isRemovingMember}
-              className='gap-[8px] bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)] dark:bg-[var(--text-error)] dark:hover:bg-[var(--text-error)]'
+              className='gap-[8px] bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
             >
               {isRemovingMember && <Loader2 className='mr-1 h-4 w-4 animate-spin' />}
               Remove Member
@@ -837,15 +833,12 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         <ModalContent className='w-[400px]'>
           <ModalHeader>Cancel Invitation</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               Are you sure you want to cancel the invitation for{' '}
-              <span className='font-medium text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+              <span className='font-medium text-[var(--text-primary)]'>
                 {invitationToRemove?.email}
               </span>
-              ?{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
+              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
@@ -860,7 +853,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               variant='primary'
               onClick={handleRemoveInvitationConfirm}
               disabled={isRemovingInvitation}
-              className='gap-[8px] bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)] dark:bg-[var(--text-error)] dark:hover:bg-[var(--text-error)]'
+              className='gap-[8px] bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
             >
               {isRemovingInvitation && <Loader2 className='mr-1 h-4 w-4 animate-spin' />}
               Cancel Invitation

@@ -488,12 +488,10 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
     >
       {/* Header */}
       <div
-        className='flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px] dark:bg-[#2A2A2A]'
+        className='flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px]'
         onClick={handleSearchClick}
       >
-        <h2 className='font-medium text-[14px] text-[var(--white)] dark:text-[var(--white)]'>
-          Toolbar
-        </h2>
+        <h2 className='font-medium text-[14px] text-[var(--white)]'>Toolbar</h2>
         <div className='flex shrink-0 items-center gap-[8px]'>
           {!isSearchActive ? (
             <Button
@@ -511,7 +509,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onBlur={handleSearchBlur}
-              className='w-full border-none bg-transparent pr-[2px] text-right font-medium text-[13px] text-[var(--text-primary)] placeholder:text-[#737373] focus:outline-none dark:text-[var(--text-primary)]'
+              className='w-full border-none bg-transparent pr-[2px] text-right font-medium text-[13px] text-[var(--text-primary)] placeholder:text-[#737373] focus:outline-none'
             />
           )}
         </div>
@@ -529,7 +527,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
         >
           <div
             ref={triggersHeaderRef}
-            className='px-[10px] pt-[5px] pb-[5px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+            className='px-[10px] pt-[5px] pb-[5px] font-medium text-[13px] text-[var(--text-primary)]'
           >
             Triggers
           </div>
@@ -557,8 +555,8 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     onClick={() => handleItemClick(trigger.type, isTriggerCapable)}
                     className={clsx(
                       'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5px] text-[14px]',
-                      'cursor-pointer hover:bg-[var(--border)] active:cursor-grabbing dark:hover:bg-[var(--border)]',
-                      'focus-visible:bg-[var(--border)] focus-visible:outline-none dark:focus-visible:bg-[var(--border)]'
+                      'cursor-pointer hover:bg-[var(--border)] active:cursor-grabbing',
+                      'focus-visible:bg-[var(--border)] focus-visible:outline-none'
                     )}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
@@ -585,8 +583,8 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     <span
                       className={clsx(
                         'truncate font-medium',
-                        'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]',
-                        'group-focus-visible:text-[var(--text-primary)] dark:group-focus-visible:text-[var(--text-primary)]'
+                        'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]',
+                        'group-focus-visible:text-[var(--text-primary)]'
                       )}
                     >
                       {trigger.name}
@@ -599,7 +597,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
         </div>
 
         {/* Resize Handle */}
-        <div className='relative flex-shrink-0 border-[var(--border)] border-t dark:border-[var(--border)]'>
+        <div className='relative flex-shrink-0 border-[var(--border)] border-t'>
           <div
             className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
             onMouseDown={handleMouseDown}
@@ -611,7 +609,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
           <div
             ref={blocksHeaderRef}
             onClick={handleBlocksHeaderClick}
-            className='cursor-pointer px-[10px] pt-[5px] pb-[5px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+            className='cursor-pointer px-[10px] pt-[5px] pb-[5px] font-medium text-[13px] text-[var(--text-primary)]'
           >
             Blocks
           </div>
@@ -646,8 +644,8 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     onClick={() => handleItemClick(block.type, false)}
                     className={clsx(
                       'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px]',
-                      'cursor-pointer hover:bg-[var(--border)] active:cursor-grabbing dark:hover:bg-[var(--border)]',
-                      'focus-visible:bg-[var(--border)] focus-visible:outline-none dark:focus-visible:bg-[var(--border)]'
+                      'cursor-pointer hover:bg-[var(--border)] active:cursor-grabbing',
+                      'focus-visible:bg-[var(--border)] focus-visible:outline-none'
                     )}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
@@ -674,8 +672,8 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     <span
                       className={clsx(
                         'truncate font-medium',
-                        'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]',
-                        'group-focus-visible:text-[var(--text-primary)] dark:group-focus-visible:text-[var(--text-primary)]'
+                        'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]',
+                        'group-focus-visible:text-[var(--text-primary)]'
                       )}
                     >
                       {block.name}

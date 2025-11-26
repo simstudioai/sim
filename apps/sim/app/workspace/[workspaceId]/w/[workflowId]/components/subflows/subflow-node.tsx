@@ -161,7 +161,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
           {/* Header Section */}
           <div
             className={cn(
-              'workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--divider)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px] dark:bg-[var(--surface-2)] [&:active]:cursor-grabbing'
+              'workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--divider)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px] [&:active]:cursor-grabbing'
             )}
             onMouseDown={(e) => {
               e.stopPropagation()

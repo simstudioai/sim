@@ -210,11 +210,11 @@ export function Editor() {
                   handleCancelRename()
                 }
               }}
-              className='min-w-0 flex-1 truncate bg-transparent pr-[8px] font-medium text-[14px] text-[var(--white)] outline-none dark:text-[var(--white)]'
+              className='min-w-0 flex-1 truncate bg-transparent pr-[8px] font-medium text-[14px] text-[var(--white)] outline-none'
             />
           ) : (
             <h2
-              className='min-w-0 flex-1 cursor-pointer select-none truncate pr-[8px] font-medium text-[14px] text-[var(--white)] dark:text-[var(--white)]'
+              className='min-w-0 flex-1 cursor-pointer select-none truncate pr-[8px] font-medium text-[14px] text-[var(--white)]'
               title={title}
               onDoubleClick={handleStartRename}
               onMouseDown={(e) => {
@@ -380,7 +380,7 @@ export function Editor() {
           {hasIncomingConnections && (
             <div
               className={
-                'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t dark:border-[var(--border)]' +
+                'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
                 (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
               }
               style={{ height: `${connectionsHeight}px` }}
@@ -415,7 +415,7 @@ export function Editor() {
                     (!isConnectionsAtMinHeight ? ' rotate-180' : '')
                   }
                 />
-                <div className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                <div className='font-medium text-[13px] text-[var(--text-primary)]'>
                   Connections
                 </div>
               </div>

@@ -425,7 +425,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                 <div>
                   <Label
                     htmlFor='type'
-                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
                   >
                     Request
                   </Label>
@@ -438,16 +438,14 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                     placeholder='Select a request type'
                     editable={false}
                     filterOptions={false}
-                    className={cn(
-                      errors.type && 'border-[var(--text-error)] dark:border-[var(--text-error)]'
-                    )}
+                    className={cn(errors.type && 'border-[var(--text-error)]')}
                   />
                 </div>
 
                 <div>
                   <Label
                     htmlFor='subject'
-                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
                   >
                     Subject
                   </Label>
@@ -455,16 +453,14 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                     id='subject'
                     placeholder='Brief description of your request'
                     {...register('subject')}
-                    className={cn(
-                      errors.subject && 'border-[var(--text-error)] dark:border-[var(--text-error)]'
-                    )}
+                    className={cn(errors.subject && 'border-[var(--text-error)]')}
                   />
                 </div>
 
                 <div>
                   <Label
                     htmlFor='message'
-                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
                   >
                     Message
                   </Label>
@@ -473,14 +469,12 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                     placeholder='Please provide details about your request...'
                     rows={6}
                     {...register('message')}
-                    className={cn(
-                      errors.message && 'border-[var(--text-error)] dark:border-[var(--text-error)]'
-                    )}
+                    className={cn(errors.message && 'border-[var(--text-error)]')}
                   />
                 </div>
 
                 <div>
-                  <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                  <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
                     Attach Images (Optional)
                   </Label>
                   <Button

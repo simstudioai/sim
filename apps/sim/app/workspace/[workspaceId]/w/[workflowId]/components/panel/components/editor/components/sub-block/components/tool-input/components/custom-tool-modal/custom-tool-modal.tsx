@@ -1215,7 +1215,7 @@ try {
             <div className='flex w-full justify-between'>
               {isEditing ? (
                 <EmcnButton
-                  className='h-[32px] gap-1 bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+                  className='h-[32px] gap-1 bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
                   onClick={() => setShowDeleteConfirm(true)}
                 >
                   <Trash className='h-4 w-4' />
@@ -1271,10 +1271,7 @@ try {
             <ModalTitle>Delete custom tool?</ModalTitle>
             <ModalDescription>
               This will permanently delete the tool and remove it from any workflows that are using
-              it.{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
+              it. <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </ModalDescription>
           </ModalHeader>
           <ModalFooter>
@@ -1289,7 +1286,7 @@ try {
             <Button
               onClick={handleDelete}
               disabled={deleteToolMutation.isPending}
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
             >
               {deleteToolMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>

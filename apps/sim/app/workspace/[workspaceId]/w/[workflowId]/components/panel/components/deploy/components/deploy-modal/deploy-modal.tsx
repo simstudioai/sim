@@ -700,9 +700,9 @@ export function DeployModal({
         <ModalContent className='w-[400px]'>
           <ModalHeader>Undeploy API</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               Are you sure you want to undeploy this workflow?{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
+              <span className='text-[var(--text-error)]'>
                 This will remove the API endpoint and make it unavailable to external users.
               </span>
             </p>
@@ -719,7 +719,7 @@ export function DeployModal({
               variant='primary'
               onClick={handleUndeploy}
               disabled={isUndeploying}
-              className='bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)] dark:bg-[var(--text-error)] dark:hover:bg-[var(--text-error)]'
+              className='bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
             >
               {isUndeploying ? 'Undeploying...' : 'Undeploy'}
             </Button>

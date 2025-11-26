@@ -11,9 +11,8 @@ import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/db-helpe
 const logger = createLogger('Versions')
 
 /** Shared styling constants aligned with terminal component */
-const HEADER_TEXT_CLASS =
-  'font-medium text-[var(--text-tertiary)] text-[12px] dark:text-[var(--text-tertiary)]'
-const ROW_TEXT_CLASS = 'font-medium text-[#D2D2D2] text-[12px] dark:text-[#D2D2D2]'
+const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-[12px]'
+const ROW_TEXT_CLASS = 'font-medium text-[#D2D2D2] text-[12px]'
 const COLUMN_BASE_CLASS = 'flex-shrink-0'
 
 /** Column width configuration */

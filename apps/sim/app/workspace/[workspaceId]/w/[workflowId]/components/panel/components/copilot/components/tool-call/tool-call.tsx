@@ -12,7 +12,7 @@ import { getEnv } from '@/lib/core/config/env'
 import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/store'
 import type { CopilotToolCall } from '@/stores/panel/copilot/types'
 
-interface InlineToolCallProps {
+interface ToolCallProps {
   toolCall?: CopilotToolCall
   toolCallId?: string
   onStateChange?: (state: any) => void
@@ -453,11 +453,7 @@ function RunSkipButtons({
   )
 }
 
-export function InlineToolCall({
-  toolCall: toolCallProp,
-  toolCallId,
-  onStateChange,
-}: InlineToolCallProps) {
+export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: ToolCallProps) {
   const [, forceUpdate] = useState({})
   const liveToolCall = useCopilotStore((s) =>
     toolCallId ? s.toolCallsById[toolCallId] : undefined
@@ -869,7 +865,7 @@ export function InlineToolCall({
           text={displayName}
           active={isLoadingState}
           isSpecial={isSpecial}
-          className='font-[470] font-season text-[#939393] text-sm dark:text-[#939393]'
+          className='font-[470] font-season text-[#939393] text-sm'
         />
         <div className='mt-[8px]'>{renderPendingDetails()}</div>
         {showButtons && (
@@ -895,7 +891,7 @@ export function InlineToolCall({
           text={displayName}
           active={isLoadingState}
           isSpecial={isSpecial}
-          className='font-[470] font-season text-[#939393] text-sm dark:text-[#939393]'
+          className='font-[470] font-season text-[#939393] text-sm'
         />
       </div>
       {isExpandableTool && expanded && <div>{renderPendingDetails()}</div>}

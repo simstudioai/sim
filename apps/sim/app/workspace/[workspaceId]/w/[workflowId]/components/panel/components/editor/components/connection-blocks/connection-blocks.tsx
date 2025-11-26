@@ -123,7 +123,7 @@ function ConnectionItem({
         draggable
         onDragStart={(e) => onConnectionDragStart(e, connection)}
         className={clsx(
-          'group flex h-[25px] cursor-grab items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px] hover:bg-[var(--border)] active:cursor-grabbing dark:hover:bg-[var(--border)]',
+          'group flex h-[25px] cursor-grab items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px] hover:bg-[var(--border)] active:cursor-grabbing',
           hasFields && 'cursor-pointer'
         )}
         onClick={() => hasFields && onToggleExpand(connection.id)}
@@ -145,7 +145,7 @@ function ConnectionItem({
         <span
           className={clsx(
             'truncate font-medium',
-            'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
+            'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
           )}
         >
           {connection.name}
@@ -154,7 +154,7 @@ function ConnectionItem({
           <ChevronDown
             className={clsx(
               'h-3.5 w-3.5 flex-shrink-0 transition-transform',
-              'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]',
+              'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]',
               isExpanded && 'rotate-180'
             )}
           />

@@ -259,9 +259,7 @@ export function CustomTools() {
             <ModalDescription>
               Deleting "{toolToDelete?.name}" will permanently remove this custom tool from your
               workspace.{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </ModalDescription>
           </ModalHeader>
           <ModalFooter>
@@ -277,7 +275,7 @@ export function CustomTools() {
               Cancel
             </Button>
             <Button
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
               onClick={handleDeleteTool}
               disabled={deleteToolMutation.isPending}
             >

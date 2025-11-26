@@ -141,7 +141,7 @@ export const WorkflowEdge = ({
               }
             }}
           >
-            <X className='h-4 w-4 text-[var(--text-error)] transition-colors group-hover:text-[var(--text-error)]/80 dark:text-[var(--text-error)] dark:group-hover:text-[var(--text-error)]/80' />
+            <X className='h-4 w-4 text-[var(--text-error)] transition-colors group-hover:text-[var(--text-error)]/80' />
           </div>
         </EdgeLabelRenderer>
       )}

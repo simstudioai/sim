@@ -478,7 +478,7 @@ export function Panel() {
                 Toolbar
               </Button>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-9)] dark:hover:text-[var(--text-primary)]'
+                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
@@ -550,9 +550,7 @@ export function Panel() {
             <ModalDescription>
               Deleting this workflow will permanently remove all associated blocks, executions, and
               configuration.{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </ModalDescription>
           </ModalHeader>
           <ModalFooter>
@@ -565,7 +563,7 @@ export function Panel() {
               Cancel
             </Button>
             <Button
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
               onClick={handleDeleteWorkflow}
               disabled={isDeleting}
             >

@@ -78,9 +78,8 @@ const RUN_ID_COLORS = [
 /**
  * Shared styling constants
  */
-const HEADER_TEXT_CLASS =
-  'font-medium text-[var(--text-tertiary)] text-[12px] dark:text-[var(--text-tertiary)]'
-const ROW_TEXT_CLASS = 'font-medium text-[#D2D2D2] text-[12px] dark:text-[#D2D2D2]'
+const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-[12px]'
+const ROW_TEXT_CLASS = 'font-medium text-[#D2D2D2] text-[12px]'
 const COLUMN_BASE_CLASS = 'flex-shrink-0'
 
 /**
