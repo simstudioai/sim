@@ -150,10 +150,7 @@ export const updateFeatureFlagTool: ToolConfig<UpdateFeatureFlagParams, UpdateFe
       const data = await response.json()
 
       return {
-        success: true,
-        output: {
-          flag: data,
-        },
+        flag: data,
       }
     },
 

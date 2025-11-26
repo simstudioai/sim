@@ -118,27 +118,24 @@ export const listPropertyDefinitionsTool: ToolConfig<
     const data = await response.json()
 
     return {
-      success: true,
-      output: {
-        count: data.count,
-        next: data.next,
-        previous: data.previous,
-        results: data.results.map((property: any) => ({
-          id: property.id,
-          name: property.name,
-          description: property.description || '',
-          tags: property.tags || [],
-          is_numerical: property.is_numerical || false,
-          is_seen_on_filtered_events: property.is_seen_on_filtered_events,
-          property_type: property.property_type,
-          type: property.type,
-          volume_30_day: property.volume_30_day,
-          query_usage_30_day: property.query_usage_30_day,
-          created_at: property.created_at,
-          updated_at: property.updated_at,
-          updated_by: property.updated_by,
-        })),
-      },
+      count: data.count,
+      next: data.next,
+      previous: data.previous,
+      results: data.results.map((property: any) => ({
+        id: property.id,
+        name: property.name,
+        description: property.description || '',
+        tags: property.tags || [],
+        is_numerical: property.is_numerical || false,
+        is_seen_on_filtered_events: property.is_seen_on_filtered_events,
+        property_type: property.property_type,
+        type: property.type,
+        volume_30_day: property.volume_30_day,
+        query_usage_30_day: property.query_usage_30_day,
+        created_at: property.created_at,
+        updated_at: property.updated_at,
+        updated_by: property.updated_by,
+      })),
     }
   },
 

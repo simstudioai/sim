@@ -113,12 +113,9 @@ export const evaluateFlagsTool: ToolConfig<EvaluateFlagsParams, EvaluateFlagsRes
     const data = await response.json()
 
     return {
-      success: true,
-      output: {
-        featureFlags: data.featureFlags || {},
-        featureFlagPayloads: data.featureFlagPayloads || {},
-        errorsWhileComputingFlags: data.errorsWhileComputingFlags || false,
-      },
+      featureFlags: data.featureFlags || {},
+      featureFlagPayloads: data.featureFlagPayloads || {},
+      errorsWhileComputingFlags: data.errorsWhileComputingFlags || false,
     }
   },
 

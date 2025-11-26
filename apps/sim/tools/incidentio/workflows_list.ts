@@ -29,25 +29,24 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
   },
 
   request: {
-    url: 'https://api.incident.io/v2/workflows',
+    url: (params) => {
+      const url = new URL('https://api.incident.io/v2/workflows')
+
+      if (params.page_size) {
+        url.searchParams.set('page_size', Number(params.page_size).toString())
+      }
+
+      if (params.after) {
+        url.searchParams.set('after', params.after)
+      }
+
+      return url.toString()
+    },
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
     }),
-    params: (params) => {
-      const queryParams: Record<string, any> = {}
-
-      if (params.page_size) {
-        queryParams.page_size = Number(params.page_size)
-      }
-
-      if (params.after) {
-        queryParams.after = params.after
-      }
-
-      return queryParams
-    },
   },
 
   transformResponse: async (response: Response) => {

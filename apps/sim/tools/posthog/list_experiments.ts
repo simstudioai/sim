@@ -91,13 +91,10 @@ export const listExperimentsTool: ToolConfig<ListExperimentsParams, ListExperime
     const data = await response.json()
 
     return {
-      success: true,
-      output: {
-        results: data.results,
-        count: data.count,
-        next: data.next,
-        previous: data.previous,
-      },
+      results: data.results,
+      count: data.count,
+      next: data.next,
+      previous: data.previous,
     }
   },
 

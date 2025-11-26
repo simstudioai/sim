@@ -78,10 +78,7 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
     const data = await response.json()
 
     return {
-      success: true,
-      output: {
-        experiment: data,
-      },
+      experiment: data,
     }
   },
 

@@ -140,10 +140,7 @@ export const createFeatureFlagTool: ToolConfig<CreateFeatureFlagParams, CreateFe
       const data = await response.json()
 
       return {
-        success: true,
-        output: {
-          flag: data,
-        },
+        flag: data,
       }
     },
 

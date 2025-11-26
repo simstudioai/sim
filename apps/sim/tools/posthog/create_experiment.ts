@@ -169,10 +169,7 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
     const data = await response.json()
 
     return {
-      success: true,
-      output: {
-        experiment: data,
-      },
+      experiment: data,
     }
   },
 

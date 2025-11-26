@@ -76,10 +76,7 @@ export const getFeatureFlagTool: ToolConfig<GetFeatureFlagParams, GetFeatureFlag
     const data = await response.json()
 
     return {
-      success: true,
-      output: {
-        flag: data,
-      },
+      flag: data,
     }
   },
 
