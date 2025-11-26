@@ -59,7 +59,7 @@ export const incidentsUpdateTool: ToolConfig<
     },
     notify_incident_channel: {
       type: 'boolean',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description: 'Whether to notify the incident channel about this update',
     },
@@ -82,15 +82,11 @@ export const incidentsUpdateTool: ToolConfig<
       if (params.incident_status_id) incident.incident_status_id = params.incident_status_id
       if (params.incident_type_id) incident.incident_type_id = params.incident_type_id
 
-      // Wrap in incident object
-      const body: Record<string, any> = { incident }
-
-      // Add notify_incident_channel if provided
-      if (params.notify_incident_channel !== undefined) {
-        body.notify_incident_channel = params.notify_incident_channel
+      // Wrap in incident object with required notify_incident_channel
+      return {
+        incident,
+        notify_incident_channel: params.notify_incident_channel,
       }
-
-      return body
     },
   },
 

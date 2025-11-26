@@ -58,7 +58,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         { label: 'List Session Recordings', id: 'posthog_list_session_recordings' },
         { label: 'Get Session Recording', id: 'posthog_get_session_recording' },
         { label: 'List Recording Playlists', id: 'posthog_list_recording_playlists' },
-        { label: 'Create Recording Playlist', id: 'posthog_create_recording_playlist' },
         // Data Management
         { label: 'List Event Definitions', id: 'posthog_list_event_definitions' },
         { label: 'Get Event Definition', id: 'posthog_get_event_definition' },
@@ -131,7 +130,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_list_session_recordings',
           'posthog_get_session_recording',
           'posthog_list_recording_playlists',
-          'posthog_create_recording_playlist',
           // Configuration
           'posthog_list_projects',
           'posthog_get_project',
@@ -437,7 +435,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_create_experiment',
           'posthog_create_survey',
           'posthog_update_survey',
-          'posthog_create_recording_playlist',
         ],
       },
     },
@@ -456,7 +453,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_create_experiment',
           'posthog_create_survey',
           'posthog_update_survey',
-          'posthog_create_recording_playlist',
           'posthog_update_event_definition',
           'posthog_update_property_definition',
         ],
@@ -498,7 +494,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_update_feature_flag',
           'posthog_create_cohort',
           'posthog_create_experiment',
-          'posthog_create_recording_playlist',
         ],
       },
     },
@@ -901,7 +896,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       'posthog_list_session_recordings',
       'posthog_get_session_recording',
       'posthog_list_recording_playlists',
-      'posthog_create_recording_playlist',
       // Data Management
       'posthog_list_event_definitions',
       'posthog_get_event_definition',

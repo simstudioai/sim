@@ -851,28 +851,6 @@ List session recording playlists in a PostHog project. Playlists allow you to or
 | --------- | ---- | ----------- |
 | `playlists` | array | List of session recording playlists |
 
-### `posthog_create_recording_playlist`
-
-Create a new session recording playlist in PostHog. Playlists help organize and curate session recordings based on filters or manual selection.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | PostHog Project ID |
-| `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
-| `name` | string | No | Playlist name \(optional, can be auto-generated from filters\) |
-| `description` | string | No | Playlist description |
-| `filters` | string | No | JSON string of filter configuration to automatically include recordings \(date ranges, events, properties, etc.\) |
-| `derivedName` | string | No | Auto-generated name based on filters |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `playlist` | object | Created playlist details |
-
 ### `posthog_list_event_definitions`
 
 List all event definitions in a PostHog project. Event definitions represent tracked events with metadata like descriptions, tags, and usage statistics.

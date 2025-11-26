@@ -115,6 +115,7 @@ export interface IncidentioIncidentsUpdateParams extends IncidentioBaseParams {
   severity_id?: string
   incident_status_id?: string
   incident_type_id?: string
+  notify_incident_channel: boolean
 }
 
 export interface IncidentioIncidentsUpdateResponse extends ToolResponse {
@@ -490,6 +491,20 @@ export type IncidentioResponse =
   | IncidentioSchedulesShowResponse
   | IncidentioSchedulesUpdateResponse
   | IncidentioSchedulesDeleteResponse
+  | IncidentioIncidentRolesListResponse
+  | IncidentioIncidentRolesCreateResponse
+  | IncidentioIncidentRolesShowResponse
+  | IncidentioIncidentRolesUpdateResponse
+  | IncidentioIncidentRolesDeleteResponse
+  | IncidentioIncidentTimestampsListResponse
+  | IncidentioIncidentTimestampsShowResponse
+  | IncidentioIncidentUpdatesListResponse
+  | IncidentioScheduleEntriesListResponse
+  | IncidentioScheduleOverridesCreateResponse
+  | IncidentioEscalationPathsCreateResponse
+  | IncidentioEscalationPathsShowResponse
+  | IncidentioEscalationPathsUpdateResponse
+  | IncidentioEscalationPathsDeleteResponse
 
 // Escalations types
 export interface IncidentioEscalationsListParams extends IncidentioBaseParams {
@@ -510,7 +525,10 @@ export interface IncidentioEscalationsListResponse extends ToolResponse {
 }
 
 export interface IncidentioEscalationsCreateParams extends IncidentioBaseParams {
-  name: string
+  idempotency_key: string
+  title: string
+  escalation_path_id?: string
+  user_ids?: string
 }
 
 export interface IncidentioEscalationsCreateResponse extends ToolResponse {
@@ -556,6 +574,7 @@ export interface IncidentioSchedulesListResponse extends ToolResponse {
 export interface IncidentioSchedulesCreateParams extends IncidentioBaseParams {
   name: string
   timezone: string
+  config: string
 }
 
 export interface IncidentioSchedulesCreateResponse extends ToolResponse {
@@ -591,6 +610,306 @@ export interface IncidentioSchedulesDeleteParams extends IncidentioBaseParams {
 }
 
 export interface IncidentioSchedulesDeleteResponse extends ToolResponse {
+  output: {
+    message: string
+  }
+}
+
+// Incident Roles types
+export interface IncidentioIncidentRole {
+  id: string
+  name: string
+  description?: string
+  instructions: string
+  shortform: string
+  role_type: string
+  required: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface IncidentioIncidentRolesListParams extends IncidentioBaseParams {}
+
+export interface IncidentioIncidentRolesListResponse extends ToolResponse {
+  output: {
+    incident_roles: IncidentioIncidentRole[]
+  }
+}
+
+export interface IncidentioIncidentRolesCreateParams extends IncidentioBaseParams {
+  name: string
+  description: string
+  instructions: string
+  shortform: string
+}
+
+export interface IncidentioIncidentRolesCreateResponse extends ToolResponse {
+  output: {
+    incident_role: IncidentioIncidentRole
+  }
+}
+
+export interface IncidentioIncidentRolesShowParams extends IncidentioBaseParams {
+  id: string
+}
+
+export interface IncidentioIncidentRolesShowResponse extends ToolResponse {
+  output: {
+    incident_role: IncidentioIncidentRole
+  }
+}
+
+export interface IncidentioIncidentRolesUpdateParams extends IncidentioBaseParams {
+  id: string
+  name: string
+  description: string
+  instructions: string
+  shortform: string
+}
+
+export interface IncidentioIncidentRolesUpdateResponse extends ToolResponse {
+  output: {
+    incident_role: IncidentioIncidentRole
+  }
+}
+
+export interface IncidentioIncidentRolesDeleteParams extends IncidentioBaseParams {
+  id: string
+}
+
+export interface IncidentioIncidentRolesDeleteResponse extends ToolResponse {
+  output: {
+    message: string
+  }
+}
+
+// Incident Timestamps types
+export interface IncidentioIncidentTimestamp {
+  id: string
+  name: string
+  rank: number
+  created_at: string
+  updated_at: string
+}
+
+export interface IncidentioIncidentTimestampsListParams extends IncidentioBaseParams {}
+
+export interface IncidentioIncidentTimestampsListResponse extends ToolResponse {
+  output: {
+    incident_timestamps: IncidentioIncidentTimestamp[]
+  }
+}
+
+export interface IncidentioIncidentTimestampsShowParams extends IncidentioBaseParams {
+  id: string
+}
+
+export interface IncidentioIncidentTimestampsShowResponse extends ToolResponse {
+  output: {
+    incident_timestamp: IncidentioIncidentTimestamp
+  }
+}
+
+// Incident Updates types
+export interface IncidentioIncidentUpdate {
+  id: string
+  incident_id: string
+  message: string
+  new_severity?: {
+    id: string
+    name: string
+    rank: number
+  }
+  new_status?: {
+    id: string
+    name: string
+    category: string
+  }
+  updater: {
+    id: string
+    name: string
+    email: string
+  }
+  created_at: string
+  updated_at: string
+}
+
+export interface IncidentioIncidentUpdatesListParams extends IncidentioBaseParams {
+  incident_id?: string
+  page_size?: number
+  after?: string
+}
+
+export interface IncidentioIncidentUpdatesListResponse extends ToolResponse {
+  output: {
+    incident_updates: IncidentioIncidentUpdate[]
+    pagination_meta?: {
+      after?: string
+      page_size: number
+    }
+  }
+}
+
+// Schedule Entries types
+export interface IncidentioScheduleEntry {
+  id: string
+  schedule_id: string
+  user: {
+    id: string
+    name: string
+    email: string
+  }
+  start_at: string
+  end_at: string
+  layer_id: string
+  created_at: string
+  updated_at: string
+}
+
+export interface IncidentioScheduleEntriesListParams extends IncidentioBaseParams {
+  schedule_id: string
+  entry_window_start?: string
+  entry_window_end?: string
+  page_size?: number
+  after?: string
+}
+
+export interface IncidentioScheduleEntriesListResponse extends ToolResponse {
+  output: {
+    schedule_entries: IncidentioScheduleEntry[]
+    pagination_meta?: {
+      after?: string
+      after_url?: string
+      page_size: number
+    }
+  }
+}
+
+// Schedule Overrides types
+export interface IncidentioScheduleOverride {
+  id: string
+  rotation_id: string
+  schedule_id: string
+  user: {
+    id: string
+    name: string
+    email: string
+  }
+  start_at: string
+  end_at: string
+  created_at: string
+  updated_at: string
+}
+
+export interface IncidentioScheduleOverridesCreateParams extends IncidentioBaseParams {
+  rotation_id: string
+  schedule_id: string
+  user_id?: string
+  user_email?: string
+  user_slack_id?: string
+  start_at: string
+  end_at: string
+}
+
+export interface IncidentioScheduleOverridesCreateResponse extends ToolResponse {
+  output: {
+    override: IncidentioScheduleOverride
+  }
+}
+
+// Escalation Paths types
+export interface IncidentioEscalationPathTarget {
+  id: string
+  type: string
+  schedule_id?: string
+  user_id?: string
+  urgency: string
+}
+
+export interface IncidentioEscalationPathLevel {
+  targets: IncidentioEscalationPathTarget[]
+  time_to_ack_seconds: number
+}
+
+export interface IncidentioEscalationPath {
+  id: string
+  name: string
+  path: IncidentioEscalationPathLevel[]
+  working_hours?: Array<{
+    weekday: string
+    start_time: string
+    end_time: string
+  }>
+  created_at: string
+  updated_at: string
+}
+
+export interface IncidentioEscalationPathsCreateParams extends IncidentioBaseParams {
+  name: string
+  path: Array<{
+    targets: Array<{
+      id: string
+      type: string
+      schedule_id?: string
+      user_id?: string
+      urgency: string
+    }>
+    time_to_ack_seconds: number
+  }>
+  working_hours?: Array<{
+    weekday: string
+    start_time: string
+    end_time: string
+  }>
+}
+
+export interface IncidentioEscalationPathsCreateResponse extends ToolResponse {
+  output: {
+    escalation_path: IncidentioEscalationPath
+  }
+}
+
+export interface IncidentioEscalationPathsShowParams extends IncidentioBaseParams {
+  id: string
+}
+
+export interface IncidentioEscalationPathsShowResponse extends ToolResponse {
+  output: {
+    escalation_path: IncidentioEscalationPath
+  }
+}
+
+export interface IncidentioEscalationPathsUpdateParams extends IncidentioBaseParams {
+  id: string
+  name?: string
+  path?: Array<{
+    targets: Array<{
+      id: string
+      type: string
+      schedule_id?: string
+      user_id?: string
+      urgency: string
+    }>
+    time_to_ack_seconds: number
+  }>
+  working_hours?: Array<{
+    weekday: string
+    start_time: string
+    end_time: string
+  }>
+}
+
+export interface IncidentioEscalationPathsUpdateResponse extends ToolResponse {
+  output: {
+    escalation_path: IncidentioEscalationPath
+  }
+}
+
+export interface IncidentioEscalationPathsDeleteParams extends IncidentioBaseParams {
+  id: string
+}
+
+export interface IncidentioEscalationPathsDeleteResponse extends ToolResponse {
   output: {
     message: string
   }

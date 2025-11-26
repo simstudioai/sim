@@ -20,11 +20,31 @@ export const escalationsCreateTool: ToolConfig<
       visibility: 'user-only',
       description: 'incident.io API Key',
     },
-    name: {
+    idempotency_key: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the escalation policy',
+      description:
+        'Unique identifier to prevent duplicate escalation creation. Use a UUID or unique string.',
+    },
+    title: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Title of the escalation',
+    },
+    escalation_path_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'ID of the escalation path to use (required if user_ids not provided)',
+    },
+    user_ids: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of user IDs to notify (required if escalation_path_id not provided)',
     },
   },
 
@@ -35,9 +55,23 @@ export const escalationsCreateTool: ToolConfig<
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
     }),
-    body: (params) => ({
-      name: params.name,
-    }),
+    body: (params) => {
+      const body: Record<string, any> = {
+        idempotency_key: params.idempotency_key,
+        title: params.title,
+      }
+
+      if (params.escalation_path_id) {
+        body.escalation_path_id = params.escalation_path_id
+      }
+
+      if (params.user_ids) {
+        // Split comma-separated string into array
+        body.user_ids = params.user_ids.split(',').map((id: string) => id.trim())
+      }
+
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {

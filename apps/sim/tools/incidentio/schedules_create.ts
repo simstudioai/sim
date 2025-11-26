@@ -32,6 +32,13 @@ export const schedulesCreateTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Timezone for the schedule (e.g., America/New_York)',
     },
+    config: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'Schedule configuration as JSON string with rotations. Example: {"rotations": [{"name": "Primary", "users": [{"id": "user_id"}], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": [{"interval": 1, "interval_type": "weekly"}]}]}',
+    },
   },
 
   request: {
@@ -42,8 +49,11 @@ export const schedulesCreateTool: ToolConfig<
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => ({
-      name: params.name,
-      timezone: params.timezone,
+      schedule: {
+        name: params.name,
+        timezone: params.timezone,
+        config: typeof params.config === 'string' ? JSON.parse(params.config) : params.config,
+      },
     }),
   },
 

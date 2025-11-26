@@ -43,16 +43,23 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
+      // incident.io requires all these fields to create a workflow
       const body: Record<string, any> = {
         name: params.name,
+        trigger: 'incident.updated',
+        once_for: [],
+        condition_groups: [],
+        steps: [],
+        expressions: [],
+        include_private_incidents: true,
+        runs_on_incident_modes: ['standard'],
+        continue_on_step_error: false,
+        runs_on_incidents: 'newly_created',
+        state: params.state || 'draft',
       }
 
       if (params.folder) {
         body.folder = params.folder
-      }
-
-      if (params.state) {
-        body.state = params.state
       }
 
       return body

@@ -48,10 +48,10 @@ export const schedulesUpdateTool: ToolConfig<
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
-      if (params.name) body.name = params.name
-      if (params.timezone) body.timezone = params.timezone
-      return body
+      const schedule: Record<string, any> = {}
+      if (params.name) schedule.name = params.name
+      if (params.timezone) schedule.timezone = params.timezone
+      return { schedule }
     },
   },
 

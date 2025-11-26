@@ -5,7 +5,7 @@ import type { IncidentioResponse } from '@/tools/incidentio/types'
 
 export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   type: 'incidentio',
-  name: 'incident.io',
+  name: 'incidentio',
   description: 'Manage incidents with incident.io',
   authMode: AuthMode.ApiKey,
   longDescription:
@@ -36,7 +36,6 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         { label: 'Show User', id: 'incidentio_users_show' },
         // Workflows
         { label: 'List Workflows', id: 'incidentio_workflows_list' },
-        { label: 'Create Workflow', id: 'incidentio_workflows_create' },
         { label: 'Show Workflow', id: 'incidentio_workflows_show' },
         { label: 'Update Workflow', id: 'incidentio_workflows_update' },
         { label: 'Delete Workflow', id: 'incidentio_workflows_delete' },
@@ -60,6 +59,26 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         { label: 'List Severities', id: 'incidentio_severities_list' },
         { label: 'List Incident Statuses', id: 'incidentio_incident_statuses_list' },
         { label: 'List Incident Types', id: 'incidentio_incident_types_list' },
+        // Incident Roles
+        { label: 'List Incident Roles', id: 'incidentio_incident_roles_list' },
+        { label: 'Create Incident Role', id: 'incidentio_incident_roles_create' },
+        { label: 'Show Incident Role', id: 'incidentio_incident_roles_show' },
+        { label: 'Update Incident Role', id: 'incidentio_incident_roles_update' },
+        { label: 'Delete Incident Role', id: 'incidentio_incident_roles_delete' },
+        // Incident Timestamps
+        { label: 'List Incident Timestamps', id: 'incidentio_incident_timestamps_list' },
+        { label: 'Show Incident Timestamp', id: 'incidentio_incident_timestamps_show' },
+        // Incident Updates
+        { label: 'List Incident Updates', id: 'incidentio_incident_updates_list' },
+        // Schedule Entries
+        { label: 'List Schedule Entries', id: 'incidentio_schedule_entries_list' },
+        // Schedule Overrides
+        { label: 'Create Schedule Override', id: 'incidentio_schedule_overrides_create' },
+        // Escalation Paths
+        { label: 'Create Escalation Path', id: 'incidentio_escalation_paths_create' },
+        { label: 'Show Escalation Path', id: 'incidentio_escalation_paths_show' },
+        { label: 'Update Escalation Path', id: 'incidentio_escalation_paths_update' },
+        { label: 'Delete Escalation Path', id: 'incidentio_escalation_paths_delete' },
       ],
       value: () => 'incidentio_incidents_list',
     },
@@ -79,6 +98,8 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
           'incidentio_workflows_list',
           'incidentio_schedules_list',
           'incidentio_escalations_list',
+          'incidentio_incident_updates_list',
+          'incidentio_schedule_entries_list',
         ],
       },
     },
@@ -94,6 +115,8 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
           'incidentio_incidents_list',
           'incidentio_workflows_list',
           'incidentio_schedules_list',
+          'incidentio_incident_updates_list',
+          'incidentio_schedule_entries_list',
         ],
       },
     },
@@ -151,6 +174,14 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       },
     },
     {
+      id: 'notify_incident_channel',
+      title: 'Notify Incident Channel',
+      type: 'switch',
+      value: () => 'true',
+      condition: { field: 'operation', value: 'incidentio_incidents_update' },
+      required: true,
+    },
+    {
       id: 'visibility',
       title: 'Visibility',
       type: 'dropdown',
@@ -194,6 +225,13 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
           'incidentio_custom_fields_show',
           'incidentio_custom_fields_update',
           'incidentio_custom_fields_delete',
+          'incidentio_incident_roles_show',
+          'incidentio_incident_roles_update',
+          'incidentio_incident_roles_delete',
+          'incidentio_incident_timestamps_show',
+          'incidentio_escalation_paths_show',
+          'incidentio_escalation_paths_update',
+          'incidentio_escalation_paths_delete',
         ],
       },
       required: true,
@@ -206,14 +244,57 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       condition: {
         field: 'operation',
         value: [
-          'incidentio_workflows_create',
           'incidentio_schedules_create',
-          'incidentio_escalations_create',
           'incidentio_custom_fields_create',
           'incidentio_custom_fields_update',
+          'incidentio_incident_roles_create',
+          'incidentio_incident_roles_update',
+          'incidentio_escalation_paths_create',
         ],
       },
       required: true,
+    },
+    {
+      id: 'name',
+      title: 'Name',
+      type: 'short-input',
+      placeholder: 'Enter name (optional for update)...',
+      condition: {
+        field: 'operation',
+        value: 'incidentio_escalation_paths_update',
+      },
+      required: false,
+    },
+    // Escalations inputs
+    {
+      id: 'idempotency_key',
+      title: 'Idempotency Key',
+      type: 'short-input',
+      placeholder: 'Enter unique key (e.g., UUID)...',
+      condition: { field: 'operation', value: 'incidentio_escalations_create' },
+      required: true,
+    },
+    {
+      id: 'title',
+      title: 'Title',
+      type: 'short-input',
+      placeholder: 'Enter escalation title...',
+      condition: { field: 'operation', value: 'incidentio_escalations_create' },
+      required: true,
+    },
+    {
+      id: 'escalation_path_id',
+      title: 'Escalation Path ID',
+      type: 'short-input',
+      placeholder: 'Enter escalation path ID (required if no user IDs)...',
+      condition: { field: 'operation', value: 'incidentio_escalations_create' },
+    },
+    {
+      id: 'user_ids',
+      title: 'User IDs',
+      type: 'short-input',
+      placeholder: 'Enter user IDs, comma-separated (required if no path ID)...',
+      condition: { field: 'operation', value: 'incidentio_escalations_create' },
     },
     {
       id: 'name',
@@ -246,10 +327,7 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       title: 'Folder',
       type: 'short-input',
       placeholder: 'Enter folder name...',
-      condition: {
-        field: 'operation',
-        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
-      },
+      condition: { field: 'operation', value: 'incidentio_workflows_update' },
     },
     {
       id: 'state',
@@ -261,25 +339,81 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         { label: 'Disabled', id: 'disabled' },
       ],
       value: () => 'active',
-      condition: {
-        field: 'operation',
-        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
-      },
+      condition: { field: 'operation', value: 'incidentio_workflows_update' },
     },
     // Schedules inputs
     {
       id: 'timezone',
       title: 'Timezone',
-      type: 'short-input',
-      placeholder: 'e.g., America/New_York',
+      type: 'dropdown',
+      options: [
+        { label: 'America/New_York (Eastern)', id: 'America/New_York' },
+        { label: 'America/Chicago (Central)', id: 'America/Chicago' },
+        { label: 'America/Denver (Mountain)', id: 'America/Denver' },
+        { label: 'America/Los_Angeles (Pacific)', id: 'America/Los_Angeles' },
+        { label: 'America/Phoenix (Arizona)', id: 'America/Phoenix' },
+        { label: 'America/Anchorage (Alaska)', id: 'America/Anchorage' },
+        { label: 'Pacific/Honolulu (Hawaii)', id: 'Pacific/Honolulu' },
+        { label: 'Europe/London (UK)', id: 'Europe/London' },
+        { label: 'Europe/Paris (Central Europe)', id: 'Europe/Paris' },
+        { label: 'Europe/Berlin (Germany)', id: 'Europe/Berlin' },
+        { label: 'Europe/Dublin (Ireland)', id: 'Europe/Dublin' },
+        { label: 'Europe/Amsterdam (Netherlands)', id: 'Europe/Amsterdam' },
+        { label: 'Asia/Tokyo (Japan)', id: 'Asia/Tokyo' },
+        { label: 'Asia/Singapore', id: 'Asia/Singapore' },
+        { label: 'Asia/Hong_Kong', id: 'Asia/Hong_Kong' },
+        { label: 'Asia/Shanghai (China)', id: 'Asia/Shanghai' },
+        { label: 'Asia/Seoul (South Korea)', id: 'Asia/Seoul' },
+        { label: 'Asia/Dubai (UAE)', id: 'Asia/Dubai' },
+        { label: 'Asia/Kolkata (India)', id: 'Asia/Kolkata' },
+        { label: 'Australia/Sydney', id: 'Australia/Sydney' },
+        { label: 'Australia/Melbourne', id: 'Australia/Melbourne' },
+        { label: 'Pacific/Auckland (New Zealand)', id: 'Pacific/Auckland' },
+        { label: 'UTC', id: 'UTC' },
+      ],
+      value: () => 'UTC',
+      condition: { field: 'operation', value: 'incidentio_schedules_create' },
+      required: true,
+    },
+    {
+      id: 'config',
+      title: 'Schedule Configuration',
+      type: 'long-input',
+      placeholder:
+        'JSON configuration with rotations. Example: {"rotations": [{"name": "Primary", "users": [{"id": "user_id"}], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": [{"interval": 1, "interval_type": "weekly"}]}]}',
       condition: { field: 'operation', value: 'incidentio_schedules_create' },
       required: true,
     },
     {
       id: 'timezone',
       title: 'Timezone',
-      type: 'short-input',
-      placeholder: 'e.g., America/New_York',
+      type: 'dropdown',
+      options: [
+        { label: 'America/New_York (Eastern)', id: 'America/New_York' },
+        { label: 'America/Chicago (Central)', id: 'America/Chicago' },
+        { label: 'America/Denver (Mountain)', id: 'America/Denver' },
+        { label: 'America/Los_Angeles (Pacific)', id: 'America/Los_Angeles' },
+        { label: 'America/Phoenix (Arizona)', id: 'America/Phoenix' },
+        { label: 'America/Anchorage (Alaska)', id: 'America/Anchorage' },
+        { label: 'Pacific/Honolulu (Hawaii)', id: 'Pacific/Honolulu' },
+        { label: 'Europe/London (UK)', id: 'Europe/London' },
+        { label: 'Europe/Paris (Central Europe)', id: 'Europe/Paris' },
+        { label: 'Europe/Berlin (Germany)', id: 'Europe/Berlin' },
+        { label: 'Europe/Dublin (Ireland)', id: 'Europe/Dublin' },
+        { label: 'Europe/Amsterdam (Netherlands)', id: 'Europe/Amsterdam' },
+        { label: 'Asia/Tokyo (Japan)', id: 'Asia/Tokyo' },
+        { label: 'Asia/Singapore', id: 'Asia/Singapore' },
+        { label: 'Asia/Hong_Kong', id: 'Asia/Hong_Kong' },
+        { label: 'Asia/Shanghai (China)', id: 'Asia/Shanghai' },
+        { label: 'Asia/Seoul (South Korea)', id: 'Asia/Seoul' },
+        { label: 'Asia/Dubai (UAE)', id: 'Asia/Dubai' },
+        { label: 'Asia/Kolkata (India)', id: 'Asia/Kolkata' },
+        { label: 'Australia/Sydney', id: 'Australia/Sydney' },
+        { label: 'Australia/Melbourne', id: 'Australia/Melbourne' },
+        { label: 'Pacific/Auckland (New Zealand)', id: 'Pacific/Auckland' },
+        { label: 'UTC', id: 'UTC' },
+      ],
+      value: () => 'UTC',
       condition: { field: 'operation', value: 'incidentio_schedules_update' },
     },
     // Custom Fields inputs
@@ -309,6 +443,160 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       condition: { field: 'operation', value: 'incidentio_custom_fields_create' },
       required: true,
     },
+    // Incident Roles inputs
+    {
+      id: 'description',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Enter description...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_incident_roles_create', 'incidentio_incident_roles_update'],
+      },
+      required: true,
+    },
+    {
+      id: 'instructions',
+      title: 'Instructions',
+      type: 'long-input',
+      placeholder: 'Enter instructions for the role...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_incident_roles_create', 'incidentio_incident_roles_update'],
+      },
+      required: true,
+    },
+    {
+      id: 'shortform',
+      title: 'Shortform',
+      type: 'short-input',
+      placeholder: 'Enter short form abbreviation (e.g., INC, LEAD)...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_incident_roles_create', 'incidentio_incident_roles_update'],
+      },
+      required: true,
+    },
+    // Incident Updates inputs
+    {
+      id: 'incident_id',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'Enter incident ID (optional - leave blank for all incidents)...',
+      condition: { field: 'operation', value: 'incidentio_incident_updates_list' },
+      required: false,
+    },
+    // Schedule Entries inputs
+    {
+      id: 'schedule_id',
+      title: 'Schedule ID',
+      type: 'short-input',
+      placeholder: 'Enter schedule ID...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_schedule_entries_list', 'incidentio_schedule_overrides_create'],
+      },
+      required: true,
+    },
+    {
+      id: 'entry_window_start',
+      title: 'Entry Window Start (Date/Time)',
+      type: 'short-input',
+      placeholder: 'ISO 8601 format (e.g., 2024-01-01T00:00:00Z)...',
+      condition: { field: 'operation', value: 'incidentio_schedule_entries_list' },
+    },
+    {
+      id: 'entry_window_end',
+      title: 'Entry Window End (Date/Time)',
+      type: 'short-input',
+      placeholder: 'ISO 8601 format (e.g., 2024-12-31T23:59:59Z)...',
+      condition: { field: 'operation', value: 'incidentio_schedule_entries_list' },
+    },
+    // Schedule Overrides inputs
+    {
+      id: 'rotation_id',
+      title: 'Rotation ID',
+      type: 'short-input',
+      placeholder: 'Enter rotation ID...',
+      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
+      required: true,
+    },
+    {
+      id: 'user_id',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'Enter user ID (provide one of: user_id, user_email, or user_slack_id)...',
+      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
+      required: false,
+    },
+    {
+      id: 'user_email',
+      title: 'User Email',
+      type: 'short-input',
+      placeholder: 'Enter user email (provide one of: user_id, user_email, or user_slack_id)...',
+      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
+      required: false,
+    },
+    {
+      id: 'user_slack_id',
+      title: 'User Slack ID',
+      type: 'short-input',
+      placeholder: 'Enter user Slack ID (provide one of: user_id, user_email, or user_slack_id)...',
+      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
+      required: false,
+    },
+    {
+      id: 'start_at',
+      title: 'Start At',
+      type: 'short-input',
+      placeholder: 'ISO 8601 format (e.g., 2024-01-01T00:00:00Z)...',
+      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
+      required: true,
+    },
+    {
+      id: 'end_at',
+      title: 'End At',
+      type: 'short-input',
+      placeholder: 'ISO 8601 format (e.g., 2024-12-31T23:59:59Z)...',
+      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
+      required: true,
+    },
+    // Escalation Paths inputs
+    {
+      id: 'path',
+      title: 'Path Configuration',
+      type: 'long-input',
+      placeholder:
+        'JSON array of escalation levels: [{"targets": [{"id": "...", "type": "...", "urgency": "..."}], "time_to_ack_seconds": 300}]',
+      condition: {
+        field: 'operation',
+        value: 'incidentio_escalation_paths_create',
+      },
+      required: true,
+    },
+    {
+      id: 'path',
+      title: 'Path Configuration',
+      type: 'long-input',
+      placeholder:
+        'JSON array of escalation levels (optional for update): [{"targets": [{"id": "...", "type": "...", "urgency": "..."}], "time_to_ack_seconds": 300}]',
+      condition: {
+        field: 'operation',
+        value: 'incidentio_escalation_paths_update',
+      },
+      required: false,
+    },
+    {
+      id: 'working_hours',
+      title: 'Working Hours',
+      type: 'long-input',
+      placeholder:
+        'Optional JSON array: [{"weekday": "monday", "start_time": "09:00", "end_time": "17:00"}]',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_escalation_paths_create', 'incidentio_escalation_paths_update'],
+      },
+    },
     // API Key (common)
     {
       id: 'apiKey',
@@ -332,7 +620,6 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       'incidentio_users_list',
       'incidentio_users_show',
       'incidentio_workflows_list',
-      'incidentio_workflows_create',
       'incidentio_workflows_show',
       'incidentio_workflows_update',
       'incidentio_workflows_delete',
@@ -352,12 +639,31 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       'incidentio_severities_list',
       'incidentio_incident_statuses_list',
       'incidentio_incident_types_list',
+      'incidentio_incident_roles_list',
+      'incidentio_incident_roles_create',
+      'incidentio_incident_roles_show',
+      'incidentio_incident_roles_update',
+      'incidentio_incident_roles_delete',
+      'incidentio_incident_timestamps_list',
+      'incidentio_incident_timestamps_show',
+      'incidentio_incident_updates_list',
+      'incidentio_schedule_entries_list',
+      'incidentio_schedule_overrides_create',
+      'incidentio_escalation_paths_create',
+      'incidentio_escalation_paths_show',
+      'incidentio_escalation_paths_update',
+      'incidentio_escalation_paths_delete',
     ],
     config: {
       tool: (params) => {
         // Convert page_size to a number if provided
         if (params.page_size) {
           params.page_size = Number(params.page_size)
+        }
+
+        // Convert notify_incident_channel from string to boolean
+        if (params.notify_incident_channel !== undefined) {
+          params.notify_incident_channel = params.notify_incident_channel === 'true'
         }
 
         switch (params.operation) {
@@ -383,8 +689,6 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
             return 'incidentio_users_show'
           case 'incidentio_workflows_list':
             return 'incidentio_workflows_list'
-          case 'incidentio_workflows_create':
-            return 'incidentio_workflows_create'
           case 'incidentio_workflows_show':
             return 'incidentio_workflows_show'
           case 'incidentio_workflows_update':
@@ -423,6 +727,34 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
             return 'incidentio_incident_statuses_list'
           case 'incidentio_incident_types_list':
             return 'incidentio_incident_types_list'
+          case 'incidentio_incident_roles_list':
+            return 'incidentio_incident_roles_list'
+          case 'incidentio_incident_roles_create':
+            return 'incidentio_incident_roles_create'
+          case 'incidentio_incident_roles_show':
+            return 'incidentio_incident_roles_show'
+          case 'incidentio_incident_roles_update':
+            return 'incidentio_incident_roles_update'
+          case 'incidentio_incident_roles_delete':
+            return 'incidentio_incident_roles_delete'
+          case 'incidentio_incident_timestamps_list':
+            return 'incidentio_incident_timestamps_list'
+          case 'incidentio_incident_timestamps_show':
+            return 'incidentio_incident_timestamps_show'
+          case 'incidentio_incident_updates_list':
+            return 'incidentio_incident_updates_list'
+          case 'incidentio_schedule_entries_list':
+            return 'incidentio_schedule_entries_list'
+          case 'incidentio_schedule_overrides_create':
+            return 'incidentio_schedule_overrides_create'
+          case 'incidentio_escalation_paths_create':
+            return 'incidentio_escalation_paths_create'
+          case 'incidentio_escalation_paths_show':
+            return 'incidentio_escalation_paths_show'
+          case 'incidentio_escalation_paths_update':
+            return 'incidentio_escalation_paths_update'
+          case 'incidentio_escalation_paths_delete':
+            return 'incidentio_escalation_paths_delete'
           default:
             return 'incidentio_incidents_list'
         }
@@ -444,6 +776,10 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
     incident_status_id: { type: 'string', description: 'Incident status ID' },
     visibility: { type: 'string', description: 'Incident visibility' },
     incident_id: { type: 'string', description: 'Incident ID for filtering' },
+    notify_incident_channel: {
+      type: 'boolean',
+      description: 'Whether to notify the incident channel',
+    },
     // Workflow fields
     folder: { type: 'string', description: 'Workflow folder' },
     state: { type: 'string', description: 'Workflow state' },
@@ -453,6 +789,20 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
     description: { type: 'string', description: 'Custom field description' },
     field_type: { type: 'string', description: 'Custom field type' },
     idempotency_key: { type: 'string', description: 'Unique key to prevent duplicate creation' },
+    // Incident Roles fields
+    role_type: { type: 'string', description: 'Type of incident role' },
+    required: { type: 'boolean', description: 'Whether the role is required' },
+    // Schedule Entries/Overrides fields
+    schedule_id: { type: 'string', description: 'Schedule ID' },
+    from: { type: 'string', description: 'Start date/time for filtering' },
+    to: { type: 'string', description: 'End date/time for filtering' },
+    user_id: { type: 'string', description: 'User ID' },
+    start_at: { type: 'string', description: 'Start date/time' },
+    end_at: { type: 'string', description: 'End date/time' },
+    layer_id: { type: 'string', description: 'Schedule layer ID' },
+    // Escalation Paths fields
+    path: { type: 'json', description: 'Escalation path configuration' },
+    working_hours: { type: 'json', description: 'Working hours configuration' },
   },
   outputs: {
     // Incidents
@@ -483,6 +833,20 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
     severities: { type: 'json', description: 'List of severities' },
     incident_statuses: { type: 'json', description: 'List of incident statuses' },
     incident_types: { type: 'json', description: 'List of incident types' },
+    // Incident Roles
+    incident_roles: { type: 'json', description: 'List of incident roles' },
+    incident_role: { type: 'json', description: 'Incident role details' },
+    // Incident Timestamps
+    incident_timestamps: { type: 'json', description: 'List of incident timestamps' },
+    incident_timestamp: { type: 'json', description: 'Incident timestamp details' },
+    // Incident Updates
+    incident_updates: { type: 'json', description: 'List of incident updates' },
+    // Schedule Entries
+    schedule_entries: { type: 'json', description: 'List of schedule entries' },
+    // Schedule Overrides
+    schedule_override: { type: 'json', description: 'Schedule override details' },
+    // Escalation Paths
+    escalation_path: { type: 'json', description: 'Escalation path details' },
     // General
     message: { type: 'string', description: 'Operation result message' },
     pagination_meta: { type: 'json', description: 'Pagination metadata' },

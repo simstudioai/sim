@@ -7,7 +7,6 @@ import { createCohortTool } from '@/tools/posthog/create_cohort'
 import { createExperimentTool } from '@/tools/posthog/create_experiment'
 import { createFeatureFlagTool } from '@/tools/posthog/create_feature_flag'
 import { createInsightTool } from '@/tools/posthog/create_insight'
-import { createRecordingPlaylistTool } from '@/tools/posthog/create_recording_playlist'
 import { createSurveyTool } from '@/tools/posthog/create_survey'
 import { deleteFeatureFlagTool } from '@/tools/posthog/delete_feature_flag'
 import { deletePersonTool } from '@/tools/posthog/delete_person'
@@ -89,7 +88,6 @@ export const posthogUpdateSurveyTool = updateSurveyTool
 export const posthogListSessionRecordingsTool = listSessionRecordingsTool
 export const posthogGetSessionRecordingTool = getSessionRecordingTool
 export const posthogListRecordingPlaylistsTool = listRecordingPlaylistsTool
-export const posthogCreateRecordingPlaylistTool = createRecordingPlaylistTool
 
 export const posthogListEventDefinitionsTool = listEventDefinitionsTool
 export const posthogGetEventDefinitionTool = getEventDefinitionTool
