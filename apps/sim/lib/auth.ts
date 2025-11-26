@@ -1654,6 +1654,7 @@ export const auth = betterAuth({
                 await sendPlanWelcomeEmail(subscription)
               },
               onSubscriptionUpdate: async ({
+                event,
                 subscription,
               }: {
                 event: Stripe.Event
@@ -1673,6 +1674,35 @@ export const auth = betterAuth({
                     referenceId: subscription.referenceId,
                     error,
                   })
+                }
+
+                // Sync seat count from Stripe subscription quantity for team plans
+                if (subscription.plan === 'team') {
+                  try {
+                    const stripeSubscription = event.data.object as Stripe.Subscription
+                    const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
+
+                    // Only update if quantity differs from current seats
+                    if (quantity !== subscription.seats) {
+                      await db
+                        .update(schema.subscription)
+                        .set({ seats: quantity })
+                        .where(eq(schema.subscription.id, subscription.id))
+
+                      logger.info('[onSubscriptionUpdate] Synced seat count from Stripe', {
+                        subscriptionId: subscription.id,
+                        referenceId: subscription.referenceId,
+                        previousSeats: subscription.seats,
+                        newSeats: quantity,
+                      })
+                    }
+                  } catch (error) {
+                    logger.error('[onSubscriptionUpdate] Failed to sync seat count', {
+                      subscriptionId: subscription.id,
+                      referenceId: subscription.referenceId,
+                      error,
+                    })
+                  }
                 }
               },
               onSubscriptionDeleted: async ({
