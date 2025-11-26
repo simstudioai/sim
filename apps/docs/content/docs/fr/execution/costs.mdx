@@ -47,7 +47,7 @@ La répartition des modèles montre :
 
 ## Options de tarification
 
-<Tabs items={['Modèles hébergés', 'Apportez votre propre clé API']}>
+<Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
   <Tab>
     **Modèles hébergés** - Sim fournit des clés API avec un multiplicateur de prix de 2,5x :
     
@@ -74,6 +74,7 @@ La répartition des modèles montre :
     | Groq | Llama 4 Scout | 0,40 $ / 0,60 $ |
     | Cerebras | Llama 3.3 70B | 0,94 $ / 0,94 $ |
     | Ollama | Modèles locaux | Gratuit |
+    | VLLM | Modèles locaux | Gratuit |
     
     *Payez directement les fournisseurs sans majoration*
   </Tab>
@@ -87,8 +88,8 @@ La répartition des modèles montre :
 
 - **Sélection du modèle** : choisissez les modèles en fonction de la complexité de la tâche. Les tâches simples peuvent utiliser GPT-4.1-nano tandis que le raisonnement complexe pourrait nécessiter o1 ou Claude Opus.
 - **Ingénierie de prompt** : des prompts bien structurés et concis réduisent l'utilisation de tokens sans sacrifier la qualité.
-- **Modèles locaux** : utilisez Ollama pour les tâches non critiques afin d'éliminer complètement les coûts d'API.
-- **Mise en cache et réutilisation** : stockez les résultats fréquemment utilisés dans des variables ou des fichiers pour éviter les appels répétés au modèle d'IA.
+- **Modèles locaux** : utilisez Ollama ou VLLM pour les tâches non critiques afin d'éliminer complètement les coûts d'API.
+- **Mise en cache et réutilisation** : stockez les résultats fréquemment utilisés dans des variables ou des fichiers pour éviter les appels répétés aux modèles d'IA.
 - **Traitement par lots** : traitez plusieurs éléments dans une seule requête d'IA plutôt que de faire des appels individuels.
 
 ## Surveillance de l'utilisation

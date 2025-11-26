@@ -47,9 +47,9 @@ El desglose del modelo muestra:
 
 ## Opciones de precios
 
-<Tabs items={['Modelos alojados', 'Trae tu propia clave API']}>
+<Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
   <Tab>
-    **Modelos alojados** - Sim proporciona claves API con un multiplicador de precio de 2,5x:
+    **Modelos alojados** - Sim proporciona claves API con un multiplicador de precio de 2.5x:
     
     | Modelo | Precio base (Entrada/Salida) | Precio alojado (Entrada/Salida) |
     |-------|---------------------------|----------------------------|
@@ -60,7 +60,7 @@ El desglose del modelo muestra:
     | Claude 3.5 Sonnet | $3.00 / $15.00 | $7.50 / $37.50 |
     | Claude Opus 4.0 | $15.00 / $75.00 | $37.50 / $187.50 |
     
-    *El multiplicador de 2,5x cubre los costos de infraestructura y gestión de API.*
+    *El multiplicador de 2.5x cubre los costos de infraestructura y gestión de API.*
   </Tab>
   
   <Tab>
@@ -74,6 +74,7 @@ El desglose del modelo muestra:
     | Groq | Llama 4 Scout | $0.40 / $0.60 |
     | Cerebras | Llama 3.3 70B | $0.94 / $0.94 |
     | Ollama | Modelos locales | Gratis |
+    | VLLM | Modelos locales | Gratis |
     
     *Paga directamente a los proveedores sin recargo*
   </Tab>
@@ -86,8 +87,8 @@ El desglose del modelo muestra:
 ## Estrategias de optimización de costos
 
 - **Selección de modelo**: Elige modelos según la complejidad de la tarea. Las tareas simples pueden usar GPT-4.1-nano mientras que el razonamiento complejo podría necesitar o1 o Claude Opus.
-- **Ingeniería de prompts**: Los prompts bien estructurados y concisos reducen el uso de tokens sin sacrificar la calidad.
-- **Modelos locales**: Usa Ollama para tareas no críticas para eliminar por completo los costos de API.
+- **Ingeniería de prompts**: Los prompts bien estructurados y concisos reducen el uso de tokens sin sacrificar calidad.
+- **Modelos locales**: Usa Ollama o VLLM para tareas no críticas para eliminar completamente los costos de API.
 - **Almacenamiento en caché y reutilización**: Guarda resultados frecuentemente utilizados en variables o archivos para evitar llamadas repetidas al modelo de IA.
 - **Procesamiento por lotes**: Procesa múltiples elementos en una sola solicitud de IA en lugar de hacer llamadas individuales.
 
