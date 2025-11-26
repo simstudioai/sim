@@ -66,7 +66,6 @@ export const escalationsCreateTool: ToolConfig<
       }
 
       if (params.user_ids) {
-        // Split comma-separated string into array
         body.user_ids = params.user_ids.split(',').map((id: string) => id.trim())
       }
 
