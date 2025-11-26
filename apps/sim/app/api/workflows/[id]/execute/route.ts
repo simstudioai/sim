@@ -348,6 +348,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       workspaceId: workflow.workspaceId,
     })
 
+    // Load workflow data ONCE and cache it for all execution paths
+    // This avoids duplicate DB calls in executeWorkflowCore
+    let cachedWorkflowData: {
+      blocks: Record<string, any>
+      edges: any[]
+      loops: Record<string, any>
+      parallels: Record<string, any>
+    } | null = null
+
     let processedInput = input
     try {
       const workflowData = shouldUseDraftState
@@ -355,6 +364,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : await loadDeployedWorkflowState(workflowId)
 
       if (workflowData) {
+        // Cache the loaded data to avoid reloading in executeWorkflowCore
+        cachedWorkflowData = {
+          blocks: workflowData.blocks,
+          edges: workflowData.edges,
+          loops: workflowData.loops || {},
+          parallels: workflowData.parallels || {},
+        }
+
         const serializedWorkflow = new Serializer().serializeWorkflow(
           workflowData.blocks,
           workflowData.edges,
@@ -402,6 +419,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
     }
 
+    // Use user-provided workflowStateOverride, or fall back to our cached data
+    // This prevents executeWorkflowCore from making redundant DB calls
+    const effectiveWorkflowStateOverride = workflowStateOverride || cachedWorkflowData || undefined
+
     if (!enableSSE) {
       logger.info(`[${requestId}] Using non-SSE execution (direct JSON response)`)
       try {
@@ -414,7 +435,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           triggerType,
           useDraftState: shouldUseDraftState,
           startTime: new Date().toISOString(),
-          workflowStateOverride,
+          workflowStateOverride: effectiveWorkflowStateOverride,
         }
 
         const snapshot = new ExecutionSnapshot(
@@ -479,8 +500,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       logger.info(`[${requestId}] Using SSE console log streaming (manual execution)`)
     } else {
       logger.info(`[${requestId}] Using streaming API response`)
-      const deployedData = await loadDeployedWorkflowState(workflowId)
-      const resolvedSelectedOutputs = resolveOutputIds(selectedOutputs, deployedData?.blocks || {})
+      // Use cached workflow data instead of reloading from DB
+      const resolvedSelectedOutputs = resolveOutputIds(
+        selectedOutputs,
+        cachedWorkflowData?.blocks || {}
+      )
       const stream = await createStreamingResponse({
         requestId,
         workflow: {
@@ -677,7 +701,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             triggerType,
             useDraftState: shouldUseDraftState,
             startTime: new Date().toISOString(),
-            workflowStateOverride,
+            workflowStateOverride: effectiveWorkflowStateOverride,
           }
 
           const snapshot = new ExecutionSnapshot(
