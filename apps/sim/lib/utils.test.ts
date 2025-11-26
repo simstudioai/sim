@@ -415,8 +415,6 @@ describe('getRotatingApiKey', () => {
   })
 
   it.concurrent('should rotate keys based on minute modulo', () => {
-    // Since we can't control time in this test, we just verify that the function
-    // returns one of the configured keys
     const result = getRotatingApiKey('openai')
     expect(['test-openai-key-1', 'test-openai-key-2', 'test-openai-key-3']).toContain(result)
   })
