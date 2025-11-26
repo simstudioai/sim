@@ -362,7 +362,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : await loadDeployedWorkflowState(workflowId)
 
       if (workflowData) {
-        // Cache the loaded data to avoid reloading in executeWorkflowCore
         cachedWorkflowData = {
           blocks: workflowData.blocks,
           edges: workflowData.edges,
