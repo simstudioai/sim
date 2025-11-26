@@ -565,41 +565,74 @@ export class ExecutionLogger implements IExecutionLoggerService {
         return
       }
 
+      // Try to deduct prepaid credits first
+      const { tryDeductPrepaidCredits } = await import('@/lib/billing/credits/deduction')
+      const { costCoveredByCredits, remainingCost } = await tryDeductPrepaidCredits({
+        userId,
+        cost: costToStore,
+        workflowId,
+      })
+
+      // Helper function to get trigger counter update
+      const getTriggerCounterUpdate = (triggerType: ExecutionTrigger['type']) => {
+        switch (triggerType) {
+          case 'manual':
+            return { totalManualExecutions: sql`total_manual_executions + 1` }
+          case 'api':
+            return { totalApiCalls: sql`total_api_calls + 1` }
+          case 'webhook':
+            return { totalWebhookTriggers: sql`total_webhook_triggers + 1` }
+          case 'schedule':
+            return { totalScheduledExecutions: sql`total_scheduled_executions + 1` }
+          case 'chat':
+            return { totalChatExecutions: sql`total_chat_executions + 1` }
+          default:
+            return {}
+        }
+      }
+
+      if (remainingCost <= 0) {
+        // Fully covered by credits - only update usage stats, not billing
+        const updateFields: any = {
+          totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
+          totalCost: sql`total_cost + ${costToStore}`, // Track for analytics
+          lastActive: new Date(),
+          ...getTriggerCounterUpdate(trigger),
+        }
+
+        await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))
+
+        logger.debug('Cost fully covered by prepaid credits', {
+          userId,
+          trigger,
+          totalCost: costToStore,
+          creditsCovered: costCoveredByCredits,
+          remainingCost: 0,
+        })
+        return
+      }
+
+      // Partially or not covered by credits - charge remaining cost to period
       const updateFields: any = {
         totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
         totalCost: sql`total_cost + ${costToStore}`,
-        currentPeriodCost: sql`current_period_cost + ${costToStore}`,
+        currentPeriodCost: sql`current_period_cost + ${remainingCost}`, // Only charge non-credited amount
         lastActive: new Date(),
-      }
-
-      switch (trigger) {
-        case 'manual':
-          updateFields.totalManualExecutions = sql`total_manual_executions + 1`
-          break
-        case 'api':
-          updateFields.totalApiCalls = sql`total_api_calls + 1`
-          break
-        case 'webhook':
-          updateFields.totalWebhookTriggers = sql`total_webhook_triggers + 1`
-          break
-        case 'schedule':
-          updateFields.totalScheduledExecutions = sql`total_scheduled_executions + 1`
-          break
-        case 'chat':
-          updateFields.totalChatExecutions = sql`total_chat_executions + 1`
-          break
+        ...getTriggerCounterUpdate(trigger),
       }
 
       await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))
 
-      logger.debug('Updated user stats record with cost data', {
+      logger.debug('Updated user stats with remaining cost after credits', {
         userId,
         trigger,
-        addedCost: costToStore,
+        totalCost: costToStore,
+        creditsCovered: costCoveredByCredits,
+        remainingCost,
         addedTokens: costSummary.totalTokens,
       })
 
-      // Check if user has hit overage threshold and bill incrementally
+      // Check if user has hit overage threshold and bill incrementally (only for remaining cost)
       await checkAndBillOverageThreshold(userId)
     } catch (error) {
       logger.error('Error updating user stats with cost information', {

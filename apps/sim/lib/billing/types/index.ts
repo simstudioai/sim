@@ -151,6 +151,37 @@ export interface UsageLimitAPIResponse {
   updatedAt?: Date
 }
 
+// Prepaid Credits Types
+export interface PrepaidCreditsBalance {
+  balance: number
+  totalPurchased: number
+  totalUsed: number
+  lastPurchaseAt: Date | null
+  depletionBehavior: CreditDepletionBehavior
+}
+
+export interface CreditDeductionResult {
+  costCoveredByCredits: number
+  remainingCost: number
+  creditsUsed: boolean
+}
+
+export interface CreditPurchaseRequest {
+  amount: number
+  referenceId: string
+  referenceType: 'user' | 'organization'
+}
+
+export interface CreditPurchaseResponse {
+  checkoutUrl: string
+  sessionId: string
+}
+
+export interface CreditBalanceInfo {
+  available: boolean
+  balance: number
+}
+
 // Utility Types
 export type PlanType = 'free' | 'pro' | 'team' | 'enterprise'
 export type SubscriptionStatus =
@@ -165,6 +196,7 @@ export type BillingEntityType = 'user' | 'organization'
 export type BillingPeriodType = 'monthly' | 'annual'
 export type UsagePeriodStatus = 'active' | 'finalized' | 'billed'
 export type BillingStatusType = 'ok' | 'warning' | 'exceeded'
+export type CreditDepletionBehavior = 'fallback_to_overage' | 'block_until_recharged'
 
 // Error Types
 export interface BillingError {
