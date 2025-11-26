@@ -741,7 +741,8 @@ export const organization = pgTable('organization', {
   logo: text('logo'),
   metadata: json('metadata'),
   orgUsageLimit: decimal('org_usage_limit'),
-  storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0), // Storage tracking for team/enterprise
+  storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
+  departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
