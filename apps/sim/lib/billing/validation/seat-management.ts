@@ -405,3 +405,50 @@ export async function getOrganizationSeatAnalytics(organizationId: string) {
     return null
   }
 }
+
+/**
+ * Sync seat count from Stripe subscription quantity.
+ * Used by webhook handlers to keep local DB in sync with Stripe.
+ */
+export async function syncSeatsFromStripeQuantity(
+  subscriptionId: string,
+  currentSeats: number | null,
+  stripeQuantity: number
+): Promise<{ synced: boolean; previousSeats: number | null; newSeats: number }> {
+  const effectiveCurrentSeats = currentSeats ?? 0
+
+  // Only update if quantity differs
+  if (stripeQuantity === effectiveCurrentSeats) {
+    return {
+      synced: false,
+      previousSeats: effectiveCurrentSeats,
+      newSeats: stripeQuantity,
+    }
+  }
+
+  try {
+    await db
+      .update(subscription)
+      .set({ seats: stripeQuantity })
+      .where(eq(subscription.id, subscriptionId))
+
+    logger.info('Synced seat count from Stripe', {
+      subscriptionId,
+      previousSeats: effectiveCurrentSeats,
+      newSeats: stripeQuantity,
+    })
+
+    return {
+      synced: true,
+      previousSeats: effectiveCurrentSeats,
+      newSeats: stripeQuantity,
+    }
+  } catch (error) {
+    logger.error('Failed to sync seat count from Stripe', {
+      subscriptionId,
+      stripeQuantity,
+      error,
+    })
+    throw error
+  }
+}
