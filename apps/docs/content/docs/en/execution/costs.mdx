@@ -49,32 +49,53 @@ The model breakdown shows:
 <Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
   <Tab>
     **Hosted Models** - Sim provides API keys with a 2.5x pricing multiplier:
-    
+
+    **OpenAI**
     | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
     |-------|---------------------------|----------------------------|
+    | GPT-5.1 | $1.25 / $10.00 | $3.13 / $25.00 |
+    | GPT-5 | $1.25 / $10.00 | $3.13 / $25.00 |
+    | GPT-5 Mini | $0.25 / $2.00 | $0.63 / $5.00 |
+    | GPT-5 Nano | $0.05 / $0.40 | $0.13 / $1.00 |
     | GPT-4o | $2.50 / $10.00 | $6.25 / $25.00 |
     | GPT-4.1 | $2.00 / $8.00 | $5.00 / $20.00 |
+    | GPT-4.1 Mini | $0.40 / $1.60 | $1.00 / $4.00 |
+    | GPT-4.1 Nano | $0.10 / $0.40 | $0.25 / $1.00 |
     | o1 | $15.00 / $60.00 | $37.50 / $150.00 |
     | o3 | $2.00 / $8.00 | $5.00 / $20.00 |
-    | Claude 3.5 Sonnet | $3.00 / $15.00 | $7.50 / $37.50 |
-    | Claude Opus 4.0 | $15.00 / $75.00 | $37.50 / $187.50 |
-    
+    | o4 Mini | $1.10 / $4.40 | $2.75 / $11.00 |
+
+    **Anthropic**
+    | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
+    |-------|---------------------------|----------------------------|
+    | Claude Opus 4.5 | $5.00 / $25.00 | $12.50 / $62.50 |
+    | Claude Opus 4.1 | $15.00 / $75.00 | $37.50 / $187.50 |
+    | Claude Sonnet 4.5 | $3.00 / $15.00 | $7.50 / $37.50 |
+    | Claude Sonnet 4.0 | $3.00 / $15.00 | $7.50 / $37.50 |
+    | Claude Haiku 4.5 | $1.00 / $5.00 | $2.50 / $12.50 |
+
+    **Google**
+    | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
+    |-------|---------------------------|----------------------------|
+    | Gemini 3 Pro Preview | $2.00 / $12.00 | $5.00 / $30.00 |
+    | Gemini 2.5 Pro | $0.15 / $0.60 | $0.38 / $1.50 |
+    | Gemini 2.5 Flash | $0.15 / $0.60 | $0.38 / $1.50 |
+
     *The 2.5x multiplier covers infrastructure and API management costs.*
   </Tab>
-  
+
   <Tab>
     **Your Own API Keys** - Use any model at base pricing:
-    
-    | Provider | Models | Input / Output |
-    |----------|---------|----------------|
-    | Google | Gemini 2.5 | $0.15 / $0.60 |
+
+    | Provider | Example Models | Input / Output |
+    |----------|----------------|----------------|
     | Deepseek | V3, R1 | $0.75 / $1.00 |
-    | xAI | Grok 4, Grok 3 | $5.00 / $25.00 |
-    | Groq | Llama 4 Scout | $0.40 / $0.60 |
-    | Cerebras | Llama 3.3 70B | $0.94 / $0.94 |
+    | xAI | Grok 4 Latest, Grok 3 | $3.00 / $15.00 |
+    | Groq | Llama 4 Scout, Llama 3.3 70B | $0.11 / $0.34 |
+    | Cerebras | Llama 4 Scout, Llama 3.3 70B | $0.11 / $0.34 |
     | Ollama | Local models | Free |
     | VLLM | Local models | Free |
-    
+
     *Pay providers directly with no markup*
   </Tab>
 </Tabs>

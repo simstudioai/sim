@@ -1336,8 +1336,11 @@ export function getProvidersWithToolUsageControl(): string[] {
  * Get all models that are hosted (don't require user API keys)
  */
 export function getHostedModels(): string[] {
-  // Currently, OpenAI and Anthropic models are hosted
-  return [...getProviderModels('openai'), ...getProviderModels('anthropic')]
+  return [
+    ...getProviderModels('openai'),
+    ...getProviderModels('anthropic'),
+    ...getProviderModels('google'),
+  ]
 }
 
 /**
