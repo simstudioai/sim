@@ -10,7 +10,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
   const page = source.getPage(slug)
   if (!page) notFound()
 
-  return new NextResponse(await getLLMText(page))
+  return new NextResponse(await getLLMText(page), {
+    headers: {
+      'Content-Type': 'text/markdown',
+    },
+  })
 }
 
 export function generateStaticParams() {

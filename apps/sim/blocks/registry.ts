@@ -34,6 +34,7 @@ import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
 import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
 import { HunterBlock } from '@/blocks/blocks/hunter'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
+import { IncidentioBlock } from '@/blocks/blocks/incidentio'
 import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
 import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
@@ -61,6 +62,7 @@ import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock } from '@/blocks/blocks/pipedrive'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
+import { PostHogBlock } from '@/blocks/blocks/posthog'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { ResendBlock } from '@/blocks/blocks/resend'
@@ -69,6 +71,7 @@ import { RouterBlock } from '@/blocks/blocks/router'
 import { S3Block } from '@/blocks/blocks/s3'
 import { SalesforceBlock } from '@/blocks/blocks/salesforce'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
+import { SentryBlock } from '@/blocks/blocks/sentry'
 import { SerperBlock } from '@/blocks/blocks/serper'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { SlackBlock } from '@/blocks/blocks/slack'
@@ -140,6 +143,7 @@ export const registry: Record<string, BlockConfig> = {
   human_in_the_loop: HumanInTheLoopBlock,
   hunter: HunterBlock,
   image_generator: ImageGeneratorBlock,
+  incidentio: IncidentioBlock,
   jina: JinaBlock,
   jira: JiraBlock,
   knowledge: KnowledgeBlock,
@@ -162,6 +166,7 @@ export const registry: Record<string, BlockConfig> = {
   onedrive: OneDriveBlock,
   parallel_ai: ParallelBlock,
   perplexity: PerplexityBlock,
+  posthog: PostHogBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
   postgresql: PostgreSQLBlock,
@@ -174,6 +179,7 @@ export const registry: Record<string, BlockConfig> = {
   schedule: ScheduleBlock,
   s3: S3Block,
   salesforce: SalesforceBlock,
+  sentry: SentryBlock,
   serper: SerperBlock,
   sharepoint: SharepointBlock,
   stagehand: StagehandBlock,
