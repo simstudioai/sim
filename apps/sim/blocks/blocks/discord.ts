@@ -71,7 +71,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       type: 'short-input',
       placeholder: 'Enter Discord server ID',
       required: true,
-      provider: 'discord',
       serviceId: 'discord',
     },
     // Channel ID - for operations that need it
@@ -81,7 +80,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       type: 'short-input',
       placeholder: 'Enter Discord channel ID',
       required: true,
-      provider: 'discord',
       serviceId: 'discord',
       condition: {
         field: 'operation',
