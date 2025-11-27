@@ -8,6 +8,7 @@ import '@/app/_styles/globals.css'
 
 import { OneDollarStats } from '@/components/analytics/onedollarstats'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
+import { AutoLoginProvider } from '@/app/_shell/providers/auto-login-provider'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
@@ -190,10 +191,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ThemeProvider>
             <QueryProvider>
               <SessionProvider>
-                <BrandedLayout>
-                  <ZoomPrevention />
-                  {children}
-                </BrandedLayout>
+                <AutoLoginProvider>
+                  <BrandedLayout>
+                    <ZoomPrevention />
+                    {children}
+                  </BrandedLayout>
+                </AutoLoginProvider>
               </SessionProvider>
             </QueryProvider>
           </ThemeProvider>

@@ -1,10 +1,18 @@
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { isHosted } from './lib/environment'
+import { isDev } from './lib/environment'
 import { createLogger } from './lib/logs/console/logger'
 import { generateRuntimeCSP } from './lib/security/csp'
 
 const logger = createLogger('Middleware')
+
+/**
+ * Helper function to check if email cookie exists
+ */
+function hasEmailCookie(request: NextRequest): boolean {
+  const emailCookie = request.cookies.get('email')
+  return !!emailCookie?.value
+}
 
 const SUSPICIOUS_UA_PATTERNS = [
   /^\s*$/, // Empty user agents
@@ -27,25 +35,28 @@ function handleRootPathRedirects(
     return null
   }
 
-  if (!isHosted) {
-    // Self-hosted: Always redirect based on session
-    if (hasActiveSession) {
-      return NextResponse.redirect(new URL('/workspace', request.url))
-    }
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  // For root path, redirect authenticated users to workspace
-  // Unless they have a 'from' query parameter (e.g., ?from=nav, ?from=settings)
-  // This allows intentional navigation to the homepage from anywhere in the app
+  // Always redirect root path to workspace
+  // Auto-login will handle authentication if email cookie exists
   if (hasActiveSession) {
     const from = url.searchParams.get('from')
     if (!from) {
       return NextResponse.redirect(new URL('/workspace', request.url))
     }
+    return null
   }
 
-  return null
+  // No session - check for email cookie in local dev
+  if (isDev) {
+    if (hasEmailCookie(request)) {
+      // Email cookie exists - redirect to workspace (auto-login will handle it)
+      return NextResponse.redirect(new URL('/workspace', request.url))
+    }
+    // No email cookie in dev - redirect to login page
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // Non-local environment - always redirect to workspace (auto-login will handle it)
+  return NextResponse.redirect(new URL('/workspace', request.url))
 }
 
 /**
@@ -141,9 +152,14 @@ export async function middleware(request: NextRequest) {
   if (redirect) return redirect
 
   if (url.pathname === '/login' || url.pathname === '/signup') {
-    if (hasActiveSession) {
+    // Block login/signup pages in non-local environments
+    if (!isDev) {
+      // In non-local environments, redirect to workspace (auto-login will handle authentication)
       return NextResponse.redirect(new URL('/workspace', request.url))
     }
+
+    // In local environment, always allow access to login/signup pages
+    // This allows users to switch accounts even when logged in
     return NextResponse.next()
   }
 
@@ -163,7 +179,17 @@ export async function middleware(request: NextRequest) {
     }
 
     if (!hasActiveSession) {
-      return NextResponse.redirect(new URL('/login', request.url))
+      // In local dev, check for email cookie
+      if (isDev) {
+        if (hasEmailCookie(request)) {
+          // Email cookie exists - allow access (auto-login will handle it)
+          return NextResponse.next()
+        }
+        // No email cookie in dev - redirect to login
+        return NextResponse.redirect(new URL('/login', request.url))
+      }
+      // In non-local environments, allow access (auto-login will handle authentication)
+      return NextResponse.next()
     }
     return NextResponse.next()
   }
