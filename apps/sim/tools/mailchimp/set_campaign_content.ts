@@ -1,0 +1,120 @@
+import { createLogger } from '@/lib/logs/console/logger'
+import type { ToolConfig } from '@/tools/types'
+import { buildMailchimpUrl, handleMailchimpError } from './types'
+
+const logger = createLogger('MailchimpSetCampaignContent')
+
+export interface MailchimpSetCampaignContentParams {
+  apiKey: string
+  campaignId: string
+  html?: string
+  plainText?: string
+  templateId?: string
+}
+
+export interface MailchimpSetCampaignContentResponse {
+  success: boolean
+  output: {
+    content: any
+    metadata: {
+      operation: 'set_campaign_content'
+      campaignId: string
+    }
+    success: boolean
+  }
+}
+
+export const mailchimpSetCampaignContentTool: ToolConfig<
+  MailchimpSetCampaignContentParams,
+  MailchimpSetCampaignContentResponse
+> = {
+  id: 'mailchimp_set_campaign_content',
+  name: 'Set Campaign Content in Mailchimp',
+  description: 'Set the content for a Mailchimp campaign',
+  version: '1.0.0',
+
+  params: {
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Mailchimp API key with server prefix',
+    },
+    campaignId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The unique ID for the campaign',
+    },
+    html: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'The HTML content for the campaign',
+    },
+    plainText: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'The plain-text content for the campaign',
+    },
+    templateId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'The ID of the template to use',
+    },
+  },
+
+  request: {
+    url: (params) => buildMailchimpUrl(params.apiKey, `/campaigns/${params.campaignId}/content`),
+    method: 'PUT',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.apiKey}`,
+      'Content-Type': 'application/json',
+    }),
+    body: (params) => {
+      const body: any = {}
+
+      if (params.html) body.html = params.html
+      if (params.plainText) body.plain_text = params.plainText
+      if (params.templateId) body.template = { id: params.templateId }
+
+      return body
+    },
+  },
+
+  transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const data = await response.json()
+      handleMailchimpError(data, response.status, 'set_campaign_content')
+    }
+
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        content: data,
+        metadata: {
+          operation: 'set_campaign_content' as const,
+          campaignId: '',
+        },
+        success: true,
+      },
+    }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Campaign content data',
+      properties: {
+        content: { type: 'object', description: 'Campaign content object' },
+        metadata: { type: 'object', description: 'Operation metadata' },
+        success: { type: 'boolean', description: 'Operation success' },
+      },
+    },
+  },
+}

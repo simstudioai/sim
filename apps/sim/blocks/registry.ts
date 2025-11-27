@@ -36,11 +36,13 @@ import { HunterBlock } from '@/blocks/blocks/hunter'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
 import { IncidentioBlock } from '@/blocks/blocks/incidentio'
 import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
+import { IntercomBlock } from '@/blocks/blocks/intercom'
 import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LinearBlock } from '@/blocks/blocks/linear'
 import { LinkupBlock } from '@/blocks/blocks/linkup'
+import { MailchimpBlock } from '@/blocks/blocks/mailchimp'
 import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
@@ -63,6 +65,7 @@ import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock } from '@/blocks/blocks/pipedrive'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { PostHogBlock } from '@/blocks/blocks/posthog'
+import { PylonBlock } from '@/blocks/blocks/pylon'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { ResendBlock } from '@/blocks/blocks/resend'
@@ -104,6 +107,7 @@ import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { XBlock } from '@/blocks/blocks/x'
 import { YouTubeBlock } from '@/blocks/blocks/youtube'
+import { ZendeskBlock } from '@/blocks/blocks/zendesk'
 import { ZepBlock } from '@/blocks/blocks/zep'
 import type { BlockConfig } from '@/blocks/types'
 
@@ -149,6 +153,7 @@ export const registry: Record<string, BlockConfig> = {
   knowledge: KnowledgeBlock,
   linear: LinearBlock,
   linkup: LinkupBlock,
+  mailchimp: MailchimpBlock,
   mcp: McpBlock,
   mem0: Mem0Block,
   zep: ZepBlock,
@@ -170,6 +175,7 @@ export const registry: Record<string, BlockConfig> = {
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
   postgresql: PostgreSQLBlock,
+  pylon: PylonBlock,
   qdrant: QdrantBlock,
   resend: ResendBlock,
   memory: MemoryBlock,
@@ -180,6 +186,8 @@ export const registry: Record<string, BlockConfig> = {
   s3: S3Block,
   salesforce: SalesforceBlock,
   sentry: SentryBlock,
+  intercom: IntercomBlock,
+  zendesk: ZendeskBlock,
   serper: SerperBlock,
   sharepoint: SharepointBlock,
   stagehand: StagehandBlock,
