@@ -28,11 +28,13 @@
     "hunter",
     "image_generator",
     "incidentio",
+    "intercom",
     "jina",
     "jira",
     "knowledge",
     "linear",
     "linkup",
+    "mailchimp",
     "mem0",
     "memory",
     "microsoft_excel",
@@ -52,6 +54,7 @@
     "pipedrive",
     "postgresql",
     "posthog",
+    "pylon",
     "qdrant",
     "reddit",
     "resend",
@@ -83,6 +86,7 @@
     "wikipedia",
     "x",
     "youtube",
+    "zendesk",
     "zep"
   ]
 }

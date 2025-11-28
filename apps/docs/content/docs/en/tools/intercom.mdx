@@ -1,0 +1,358 @@
+---
+title: Intercom
+description: Manage contacts, companies, conversations, tickets, and messages in Intercom
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="intercom"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Intercom](https://www.intercom.com/) is a leading customer communications platform that enables you to manage and automate your interactions with contacts, companies, conversations, tickets, and messages—all in one place. The Intercom integration in Sim lets your agents programmatically manage customer relationships, support requests, and conversations directly from your automated workflows.
+
+With the Intercom tools, you can:
+
+- **Contacts Management:** Create, get, update, list, search, and delete contacts—automate your CRM processes and keep your customer records up-to-date.
+- **Company Management:** Create new companies, retrieve company details, and list all companies related to your users or business clients.
+- **Conversation Handling:** Get, list, reply to, and search through conversations—allowing agents to track ongoing support threads, provide answers, and automate follow-up actions.
+- **Ticket Management:** Create and retrieve tickets programmatically, helping you automate customer service, support issue tracking, and workflow escalations.
+- **Send Messages:** Trigger messages to users or leads for onboarding, support, or marketing, all from within your workflow automation.
+
+By integrating Intercom tools into Sim, you empower your workflows to communicate directly with your users, automate customer support processes, manage leads, and streamline communications at scale. Whether you need to create new contacts, keep customer data synchronized, manage support tickets, or send personalized engagement messages, the Intercom tools provide a comprehensive way to manage customer interactions as part of your intelligent automations.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.
+
+
+
+## Tools
+
+### `intercom_create_contact`
+
+Create a new contact in Intercom with email, external_id, or role
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | No | The contact's email address |
+| `external_id` | string | No | A unique identifier for the contact provided by the client |
+| `phone` | string | No | The contact's phone number |
+| `name` | string | No | The contact's name |
+| `avatar` | string | No | An avatar image URL for the contact |
+| `signed_up_at` | number | No | The time the user signed up as a Unix timestamp |
+| `last_seen_at` | number | No | The time the user was last seen as a Unix timestamp |
+| `owner_id` | string | No | The id of an admin that has been assigned account ownership of the contact |
+| `unsubscribed_from_emails` | boolean | No | Whether the contact is unsubscribed from emails |
+| `custom_attributes` | string | No | Custom attributes as JSON object \(e.g., \{"attribute_name": "value"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created contact data |
+
+### `intercom_get_contact`
+
+Get a single contact by ID from Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | Contact ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Contact data |
+
+### `intercom_update_contact`
+
+Update an existing contact in Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | Contact ID to update |
+| `email` | string | No | The contact's email address |
+| `phone` | string | No | The contact's phone number |
+| `name` | string | No | The contact's name |
+| `avatar` | string | No | An avatar image URL for the contact |
+| `signed_up_at` | number | No | The time the user signed up as a Unix timestamp |
+| `last_seen_at` | number | No | The time the user was last seen as a Unix timestamp |
+| `owner_id` | string | No | The id of an admin that has been assigned account ownership of the contact |
+| `unsubscribed_from_emails` | boolean | No | Whether the contact is unsubscribed from emails |
+| `custom_attributes` | string | No | Custom attributes as JSON object \(e.g., \{"attribute_name": "value"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Updated contact data |
+
+### `intercom_list_contacts`
+
+List all contacts from Intercom with pagination support
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | No | Number of results per page \(max: 150\) |
+| `starting_after` | string | No | Cursor for pagination - ID to start after |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | List of contacts |
+
+### `intercom_search_contacts`
+
+Search for contacts in Intercom using a query
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query \(e.g., \{"field":"email","operator":"=","value":"user@example.com"\}\) |
+| `per_page` | number | No | Number of results per page \(max: 150\) |
+| `starting_after` | string | No | Cursor for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Search results |
+
+### `intercom_delete_contact`
+
+Delete a contact from Intercom by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | Contact ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Deletion result |
+
+### `intercom_create_company`
+
+Create or update a company in Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `company_id` | string | Yes | Your unique identifier for the company |
+| `name` | string | No | The name of the company |
+| `website` | string | No | The company website |
+| `plan` | string | No | The company plan name |
+| `size` | number | No | The number of employees in the company |
+| `industry` | string | No | The industry the company operates in |
+| `monthly_spend` | number | No | How much revenue the company generates for your business |
+| `custom_attributes` | string | No | Custom attributes as JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created or updated company data |
+
+### `intercom_get_company`
+
+Retrieve a single company by ID from Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Company ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Company data |
+
+### `intercom_list_companies`
+
+List all companies from Intercom with pagination support
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | No | Number of results per page |
+| `page` | number | No | Page number |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | List of companies |
+
+### `intercom_get_conversation`
+
+Retrieve a single conversation by ID from Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID to retrieve |
+| `display_as` | string | No | Set to "plaintext" to retrieve messages in plain text |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Conversation data |
+
+### `intercom_list_conversations`
+
+List all conversations from Intercom with pagination support
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | No | Number of results per page \(max: 150\) |
+| `starting_after` | string | No | Cursor for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | List of conversations |
+
+### `intercom_reply_conversation`
+
+Reply to a conversation as an admin in Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID to reply to |
+| `message_type` | string | Yes | Message type: "comment" or "note" |
+| `body` | string | Yes | The text body of the reply |
+| `admin_id` | string | Yes | The ID of the admin authoring the reply |
+| `attachment_urls` | string | No | Comma-separated list of image URLs \(max 10\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Updated conversation with reply |
+
+### `intercom_search_conversations`
+
+Search for conversations in Intercom using a query
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query as JSON object |
+| `per_page` | number | No | Number of results per page \(max: 150\) |
+| `starting_after` | string | No | Cursor for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Search results |
+
+### `intercom_create_ticket`
+
+Create a new ticket in Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticket_type_id` | string | Yes | The ID of the ticket type |
+| `contacts` | string | Yes | JSON array of contact identifiers \(e.g., \[\{"id": "contact_id"\}\]\) |
+| `ticket_attributes` | string | Yes | JSON object with ticket attributes including _default_title_ and _default_description_ |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created ticket data |
+
+### `intercom_get_ticket`
+
+Retrieve a single ticket by ID from Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticketId` | string | Yes | Ticket ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Ticket data |
+
+### `intercom_create_message`
+
+Create and send a new admin-initiated message in Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `message_type` | string | Yes | Message type: "inapp" or "email" |
+| `subject` | string | No | The subject of the message \(for email type\) |
+| `body` | string | Yes | The body of the message |
+| `from_type` | string | Yes | Sender type: "admin" |
+| `from_id` | string | Yes | The ID of the admin sending the message |
+| `to_type` | string | Yes | Recipient type: "contact" |
+| `to_id` | string | Yes | The ID of the contact receiving the message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created message data |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `intercom`
