@@ -256,6 +256,10 @@ export const env = createEnv({
     SSO_SAML_SIGNATURE_ALGORITHM:          z.string().optional(),                  // SAML signature algorithm (optional)
     SSO_SAML_DIGEST_ALGORITHM:             z.string().optional(),                  // SAML digest algorithm (optional)
     SSO_SAML_IDENTIFIER_FORMAT:            z.string().optional(),                  // SAML identifier format (optional)
+
+    // Arena
+    ARENA_BACKEND_BASE_URL:               z.string().url().optional(),            // Arena backend base URL
+    ARENA_FRONTEND_APP_URL:               z.string().url().optional(),            // Arena frontend app URL
   },
 
   client: {
@@ -301,6 +305,10 @@ export const env = createEnv({
     NEXT_PUBLIC_TRIGGER_DEV_ENABLED:       z.boolean().optional(),                 // Client-side gate for async executions UI
     NEXT_PUBLIC_SSO_ENABLED:               z.boolean().optional(),                 // Enable SSO login UI components
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: z.boolean().optional().default(true), // Control visibility of email/password login forms
+
+    // Arena
+    NEXT_PUBLIC_ARENA_BACKEND_BASE_URL:               z.string().url().optional(),            // Arena backend base URL
+    NEXT_PUBLIC_ARENA_FRONTEND_APP_URL:               z.string().url().optional(),            // Arena frontend app URL        z.string().url().optional(),            // Arena frontend app URL
   },
 
   // Variables available on both server and client
@@ -310,6 +318,8 @@ export const env = createEnv({
   },
 
   experimental__runtimeEnv: {
+    NEXT_PUBLIC_ARENA_BACKEND_BASE_URL: process.env.NEXT_PUBLIC_ARENA_BACKEND_BASE_URL,
+    NEXT_PUBLIC_ARENA_FRONTEND_APP_URL: process.env.NEXT_PUBLIC_ARENA_FRONTEND_APP_URL,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_BILLING_ENABLED: process.env.NEXT_PUBLIC_BILLING_ENABLED,
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,

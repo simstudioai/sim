@@ -77,6 +77,12 @@ export type SubBlockType =
   | 'workflow-selector' // Workflow selector for agent tools
   | 'workflow-input-mapper' // Dynamic workflow input mapper based on selected workflow
   | 'text' // Read-only text display
+  | 'arena-project-selector'
+  | 'arena-group-selector'
+  | 'arena-assignee-selector'
+  | 'arena-task-selector'
+  | 'arena-states-selector'
+  | 'arena-client-selector'
 
 /**
  * Selector types that require display name hydration
