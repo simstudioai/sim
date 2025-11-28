@@ -43,20 +43,19 @@ export const mailchimpCreateCampaignTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Campaign type (regular, plaintext, absplit, rss, variate)',
+      description: 'Campaign type',
     },
     campaignSettings: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Campaign settings as JSON (e.g., {"subject_line": "Test", "from_name": "John", "reply_to": "john@example.com"})',
+      description: 'JSON object of campaign settings',
     },
     recipients: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Recipients as JSON (e.g., {"list_id": "abc123"})',
+      description: 'JSON object of recipients',
     },
   },
 

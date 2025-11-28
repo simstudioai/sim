@@ -64,9 +64,10 @@ export const intercomListCompaniesTool: ToolConfig<
       const queryString = queryParams.toString()
       return queryString ? `${url}?${queryString}` : url
     },
-    method: 'GET',
+    method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
+      Accept: 'application/json',
       'Content-Type': 'application/json',
       'Intercom-Version': '2.14',
     }),

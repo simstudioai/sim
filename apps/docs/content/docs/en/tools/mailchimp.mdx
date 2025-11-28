@@ -102,10 +102,10 @@ Create a new audience (list) in Mailchimp
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `audienceName` | string | Yes | The name of the list |
-| `contact` | string | Yes | Contact information as JSON \(e.g., \{"company": "Acme Inc", "address1": "123 Main St", "city": "Atlanta", "state": "GA", "zip": "30308", "country": "US"\}\) |
-| `permissionReminder` | string | Yes | Permission reminder text \(why subscribers are on your list\) |
-| `campaignDefaults` | string | Yes | Default campaign settings as JSON \(e.g., \{"from_name": "John", "from_email": "john@example.com", "subject": "Newsletter", "language": "en"\}\) |
-| `emailTypeOption` | string | Yes | Whether the list supports multiple formats \(true/false\) |
+| `contact` | string | Yes | JSON object of contact information |
+| `permissionReminder` | string | Yes | Permission reminder text |
+| `campaignDefaults` | string | Yes | JSON object of default campaign settings |
+| `emailTypeOption` | string | Yes | Support multiple email formats |
 
 #### Output
 
@@ -126,8 +126,8 @@ Update an existing audience (list) in Mailchimp
 | `listId` | string | Yes | The unique ID for the list |
 | `audienceName` | string | No | The name of the list |
 | `permissionReminder` | string | No | Permission reminder text |
-| `campaignDefaults` | string | No | Default campaign settings as JSON |
-| `emailTypeOption` | string | No | Whether the list supports multiple formats \(true/false\) |
+| `campaignDefaults` | string | No | JSON object of default campaign settings |
+| `emailTypeOption` | string | No | Support multiple email formats |
 
 #### Output
 
@@ -185,7 +185,7 @@ Retrieve details of a specific member from a Mailchimp audience
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the list |
-| `subscriberHash` | string | Yes | The MD5 hash of the lowercase version of the list member's email address |
+| `subscriberEmail` | string | Yes | Member email address or MD5 hash |
 
 #### Output
 
@@ -204,10 +204,10 @@ Add a new member to a Mailchimp audience
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the list |
-| `emailAddress` | string | Yes | Email address for the member |
-| `status` | string | Yes | Subscriber status \(subscribed, unsubscribed, cleaned, pending\) |
-| `mergeFields` | string | No | Merge fields as JSON object \(e.g., \{"FNAME": "John", "LNAME": "Doe"\}\) |
-| `interests` | string | No | Interests as JSON object \(e.g., \{"interest_id": true\}\) |
+| `emailAddress` | string | Yes | Member email address |
+| `status` | string | Yes | Subscriber status |
+| `mergeFields` | string | No | JSON object of merge fields |
+| `interests` | string | No | JSON object of interests |
 
 #### Output
 
@@ -226,11 +226,11 @@ Add a new member or update an existing member in a Mailchimp audience (upsert)
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the list |
-| `subscriberHash` | string | Yes | The MD5 hash of the lowercase version of the list member's email address |
-| `emailAddress` | string | Yes | Email address for the member |
-| `statusIfNew` | string | Yes | Subscriber status if new member \(subscribed, unsubscribed, cleaned, pending\) |
-| `mergeFields` | string | No | Merge fields as JSON object \(e.g., \{"FNAME": "John", "LNAME": "Doe"\}\) |
-| `interests` | string | No | Interests as JSON object \(e.g., \{"interest_id": true\}\) |
+| `subscriberEmail` | string | Yes | Member email address or MD5 hash |
+| `emailAddress` | string | Yes | Member email address |
+| `statusIfNew` | string | Yes | Subscriber status if new member |
+| `mergeFields` | string | No | JSON object of merge fields |
+| `interests` | string | No | JSON object of interests |
 
 #### Output
 
@@ -249,11 +249,11 @@ Update an existing member in a Mailchimp audience
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the list |
-| `subscriberHash` | string | Yes | The MD5 hash of the lowercase version of the list member's email address |
-| `emailAddress` | string | No | Email address for the member |
-| `status` | string | No | Subscriber status \(subscribed, unsubscribed, cleaned, pending\) |
-| `mergeFields` | string | No | Merge fields as JSON object |
-| `interests` | string | No | Interests as JSON object |
+| `subscriberEmail` | string | Yes | Member email address or MD5 hash |
+| `emailAddress` | string | No | Member email address |
+| `status` | string | No | Subscriber status |
+| `mergeFields` | string | No | JSON object of merge fields |
+| `interests` | string | No | JSON object of interests |
 
 #### Output
 
@@ -272,7 +272,7 @@ Delete a member from a Mailchimp audience
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the list |
-| `subscriberHash` | string | Yes | The MD5 hash of the lowercase version of the list member's email address |
+| `subscriberEmail` | string | Yes | Member email address or MD5 hash |
 
 #### Output
 
@@ -291,7 +291,7 @@ Permanently archive (delete) a member from a Mailchimp audience
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the list |
-| `subscriberHash` | string | Yes | The MD5 hash of the lowercase version of the list member's email address |
+| `subscriberEmail` | string | Yes | Member email address or MD5 hash |
 
 #### Output
 
@@ -310,9 +310,9 @@ Restore an archived member to a Mailchimp audience
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the list |
-| `subscriberHash` | string | Yes | The MD5 hash of the lowercase version of the list member's email address |
-| `emailAddress` | string | Yes | Email address for the member |
-| `status` | string | Yes | Subscriber status \(subscribed, unsubscribed, cleaned, pending\) |
+| `subscriberEmail` | string | Yes | Member email address or MD5 hash |
+| `emailAddress` | string | Yes | Member email address |
+| `status` | string | Yes | Subscriber status |
 
 #### Output
 
@@ -369,9 +369,9 @@ Create a new campaign in Mailchimp
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
-| `campaignType` | string | Yes | Campaign type \(regular, plaintext, absplit, rss, variate\) |
-| `campaignSettings` | string | Yes | Campaign settings as JSON \(e.g., \{"subject_line": "Test", "from_name": "John", "reply_to": "john@example.com"\}\) |
-| `recipients` | string | No | Recipients as JSON \(e.g., \{"list_id": "abc123"\}\) |
+| `campaignType` | string | Yes | Campaign type |
+| `campaignSettings` | string | Yes | JSON object of campaign settings |
+| `recipients` | string | No | JSON object of recipients |
 
 #### Output
 
@@ -390,8 +390,8 @@ Update an existing campaign in Mailchimp
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignId` | string | Yes | The unique ID for the campaign |
-| `campaignSettings` | string | No | Campaign settings as JSON |
-| `recipients` | string | No | Recipients as JSON |
+| `campaignSettings` | string | No | JSON object of campaign settings |
+| `recipients` | string | No | JSON object of recipients |
 
 #### Output
 
@@ -446,7 +446,7 @@ Schedule a Mailchimp campaign to be sent at a specific time
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignId` | string | Yes | The unique ID for the campaign to schedule |
-| `scheduleTime` | string | Yes | The date and time in ISO 8601 format \(e.g., 2024-01-01T12:00:00+00:00\) |
+| `scheduleTime` | string | Yes | ISO 8601 format date and time |
 
 #### Output
 
@@ -804,7 +804,7 @@ Create a new segment in a Mailchimp audience
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the list |
 | `segmentName` | string | Yes | The name of the segment |
-| `segmentOptions` | string | No | Segment options as JSON \(e.g., \{"match": "any", "conditions": \[\]\}\) |
+| `segmentOptions` | string | No | JSON object of segment options |
 
 #### Output
 
@@ -825,7 +825,7 @@ Update an existing segment in a Mailchimp audience
 | `listId` | string | Yes | The unique ID for the list |
 | `segmentId` | string | Yes | The unique ID for the segment |
 | `segmentName` | string | No | The name of the segment |
-| `segmentOptions` | string | No | Segment options as JSON |
+| `segmentOptions` | string | No | JSON object of segment options |
 
 #### Output
 
@@ -905,7 +905,7 @@ Remove a member from a specific segment in a Mailchimp audience
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the list |
 | `segmentId` | string | Yes | The unique ID for the segment |
-| `subscriberHash` | string | Yes | The MD5 hash of the lowercase version of the list member's email address |
+| `subscriberEmail` | string | Yes | Member email address or MD5 hash |
 
 #### Output
 
@@ -924,7 +924,7 @@ Retrieve tags associated with a member in a Mailchimp audience
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the list |
-| `subscriberHash` | string | Yes | The MD5 hash of the lowercase version of the list member's email address |
+| `subscriberEmail` | string | Yes | Member email address or MD5 hash |
 
 #### Output
 
@@ -943,8 +943,8 @@ Add tags to a member in a Mailchimp audience
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the list |
-| `subscriberHash` | string | Yes | The MD5 hash of the lowercase version of the list member's email address |
-| `tags` | string | Yes | Tags as JSON array \(e.g., \[\{"name": "tag1", "status": "active"\}, \{"name": "tag2", "status": "active"\}\]\) |
+| `subscriberEmail` | string | Yes | Member email address or MD5 hash |
+| `tags` | string | Yes | JSON array of tags |
 
 #### Output
 
@@ -963,8 +963,8 @@ Remove tags from a member in a Mailchimp audience
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the list |
-| `subscriberHash` | string | Yes | The MD5 hash of the lowercase version of the list member's email address |
-| `tags` | string | Yes | Tags as JSON array with inactive status \(e.g., \[\{"name": "tag1", "status": "inactive"\}, \{"name": "tag2", "status": "inactive"\}\]\) |
+| `subscriberEmail` | string | Yes | Member email address or MD5 hash |
+| `tags` | string | Yes | JSON array of tags with inactive status |
 
 #### Output
 
@@ -1446,7 +1446,7 @@ Create a new batch operation in Mailchimp
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailchimp API key with server prefix |
-| `operations` | string | Yes | Operations as JSON array \(e.g., \[\{"method": "POST", "path": "/lists", "body": "\{\\"name\\": \\"Test\\"\}"\}\]\) |
+| `operations` | string | Yes | JSON array of operations |
 
 #### Output
 

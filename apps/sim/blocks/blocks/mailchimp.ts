@@ -284,10 +284,10 @@ export const MailchimpBlock: BlockConfig = {
     },
     // Member fields
     {
-      id: 'subscriberHash',
-      title: 'Subscriber Hash',
+      id: 'subscriberEmail',
+      title: 'Subscriber Email',
       type: 'short-input',
-      placeholder: 'MD5 hash of lowercase email',
+      placeholder: 'Email address or MD5 hash',
       required: {
         field: 'operation',
         value: [
@@ -299,6 +299,8 @@ export const MailchimpBlock: BlockConfig = {
           'get_member_tags',
           'add_member_tags',
           'remove_member_tags',
+          'add_or_update_member',
+          'remove_segment_member',
         ],
       },
       condition: {
@@ -312,6 +314,8 @@ export const MailchimpBlock: BlockConfig = {
           'get_member_tags',
           'add_member_tags',
           'remove_member_tags',
+          'add_or_update_member',
+          'remove_segment_member',
         ],
       },
     },
@@ -322,11 +326,24 @@ export const MailchimpBlock: BlockConfig = {
       placeholder: 'Member email address',
       required: {
         field: 'operation',
-        value: ['add_member', 'add_or_update_member'],
+        value: [
+          'add_member',
+          'add_or_update_member',
+          'unarchive_member',
+          'add_segment_member',
+          'add_subscriber_to_automation',
+        ],
       },
       condition: {
         field: 'operation',
-        value: ['add_member', 'add_or_update_member', 'update_member'],
+        value: [
+          'add_member',
+          'add_or_update_member',
+          'update_member',
+          'unarchive_member',
+          'add_segment_member',
+          'add_subscriber_to_automation',
+        ],
       },
     },
     {
@@ -342,11 +359,11 @@ export const MailchimpBlock: BlockConfig = {
       ],
       required: {
         field: 'operation',
-        value: ['add_member'],
+        value: ['add_member', 'unarchive_member'],
       },
       condition: {
         field: 'operation',
-        value: ['get_members', 'add_member', 'update_member'],
+        value: ['get_members', 'add_member', 'update_member', 'unarchive_member'],
       },
     },
     {

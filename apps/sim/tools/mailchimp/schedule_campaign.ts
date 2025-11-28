@@ -48,7 +48,7 @@ export const mailchimpScheduleCampaignTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'The date and time in ISO 8601 format (e.g., 2024-01-01T12:00:00+00:00)',
+      description: 'ISO 8601 format date and time',
     },
   },
 

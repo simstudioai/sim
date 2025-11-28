@@ -62,6 +62,7 @@ export const intercomGetConversationTool: ToolConfig<
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
+      Accept: 'application/json',
       'Content-Type': 'application/json',
       'Intercom-Version': '2.14',
     }),

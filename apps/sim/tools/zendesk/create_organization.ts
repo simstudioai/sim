@@ -5,6 +5,7 @@ import { buildZendeskUrl, handleZendeskError } from './types'
 const logger = createLogger('ZendeskCreateOrganization')
 
 export interface ZendeskCreateOrganizationParams {
+  email: string
   apiToken: string
   subdomain: string
   name: string
@@ -37,6 +38,12 @@ export const zendeskCreateOrganizationTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    email: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your Zendesk email address',
+    },
     apiToken: {
       type: 'string',
       required: true,
@@ -90,10 +97,14 @@ export const zendeskCreateOrganizationTool: ToolConfig<
   request: {
     url: (params) => buildZendeskUrl(params.subdomain, '/organizations'),
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiToken}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => {
+      const credentials = `${params.email}/token:${params.apiToken}`
+      const base64Credentials = Buffer.from(credentials).toString('base64')
+      return {
+        Authorization: `Basic ${base64Credentials}`,
+        'Content-Type': 'application/json',
+      }
+    },
     body: (params) => {
       const organization: any = {
         name: params.name,

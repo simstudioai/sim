@@ -7,7 +7,7 @@ export const ZendeskBlock: BlockConfig = {
   name: 'Zendesk',
   description: 'Manage support tickets, users, and organizations in Zendesk',
   longDescription:
-    'Integrate Zendesk into the workflow. Can get tickets, get ticket, create ticket, create tickets bulk, update ticket, update tickets bulk, delete ticket, merge tickets, get users, get user, get current user, search users, create user, create users bulk, update user, update users bulk, delete user, get organizations, get organization, autocomplete organizations, create organization, create organizations bulk, update organization, delete organization, search, search count, export search.',
+    'Integrate Zendesk into the workflow. Can get tickets, get ticket, create ticket, create tickets bulk, update ticket, update tickets bulk, delete ticket, merge tickets, get users, get user, get current user, search users, create user, create users bulk, update user, update users bulk, delete user, get organizations, get organization, autocomplete organizations, create organization, create organizations bulk, update organization, delete organization, search, search count.',
   docsLink: 'https://docs.sim.ai/tools/zendesk',
   authMode: AuthMode.ApiKey,
   category: 'tools',
@@ -45,9 +45,16 @@ export const ZendeskBlock: BlockConfig = {
         { label: 'Delete Organization', id: 'delete_organization' },
         { label: 'Search', id: 'search' },
         { label: 'Search Count', id: 'search_count' },
-        { label: 'Export Search', id: 'export_search' },
       ],
       value: () => 'get_tickets',
+    },
+    {
+      id: 'email',
+      title: 'Email',
+      type: 'short-input',
+      placeholder: 'Your Zendesk email address',
+      required: true,
+      description: 'The email address associated with your Zendesk account',
     },
     {
       id: 'apiToken',
@@ -92,6 +99,10 @@ export const ZendeskBlock: BlockConfig = {
       title: 'Description',
       type: 'long-input',
       placeholder: 'Ticket description',
+      required: {
+        field: 'operation',
+        value: ['create_ticket'],
+      },
       condition: {
         field: 'operation',
         value: ['create_ticket', 'update_ticket'],
@@ -213,10 +224,14 @@ export const ZendeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'userName',
+      id: 'name',
       title: 'Name',
       type: 'short-input',
       placeholder: 'User name',
+      required: {
+        field: 'operation',
+        value: ['create_user'],
+      },
       condition: {
         field: 'operation',
         value: ['create_user', 'update_user'],
@@ -299,11 +314,11 @@ export const ZendeskBlock: BlockConfig = {
       placeholder: 'Search query',
       required: {
         field: 'operation',
-        value: ['search', 'search_count', 'export_search'],
+        value: ['search', 'search_count'],
       },
       condition: {
         field: 'operation',
-        value: ['search_users', 'search', 'search_count', 'export_search'],
+        value: ['search_users', 'search', 'search_count'],
       },
     },
     {
@@ -400,7 +415,6 @@ export const ZendeskBlock: BlockConfig = {
       'zendesk_delete_organization',
       'zendesk_search',
       'zendesk_search_count',
-      'zendesk_export_search',
     ],
     config: {
       tool: (params) => {
@@ -457,8 +471,6 @@ export const ZendeskBlock: BlockConfig = {
             return 'zendesk_search'
           case 'search_count':
             return 'zendesk_search_count'
-          case 'export_search':
-            return 'zendesk_export_search'
           default:
             throw new Error(`Unknown operation: ${params.operation}`)
         }
@@ -487,6 +499,7 @@ export const ZendeskBlock: BlockConfig = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
+    email: { type: 'string', description: 'Zendesk email address' },
     apiToken: { type: 'string', description: 'Zendesk API token' },
     subdomain: { type: 'string', description: 'Zendesk subdomain' },
   },

@@ -7,7 +7,7 @@ const logger = createLogger('MailchimpGetMemberTags')
 export interface MailchimpGetMemberTagsParams {
   apiKey: string
   listId: string
-  subscriberHash: string
+  subscriberEmail: string
 }
 
 export interface MailchimpGetMemberTagsResponse {
@@ -45,11 +45,11 @@ export const mailchimpGetMemberTagsTool: ToolConfig<
       visibility: 'user-only',
       description: 'The unique ID for the list',
     },
-    subscriberHash: {
+    subscriberEmail: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: "The MD5 hash of the lowercase version of the list member's email address",
+      description: 'Member email address or MD5 hash',
     },
   },
 
@@ -57,7 +57,7 @@ export const mailchimpGetMemberTagsTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/members/${params.subscriberHash}/tags`
+        `/lists/${params.listId}/members/${params.subscriberEmail}/tags`
       ),
     method: 'GET',
     headers: (params) => ({

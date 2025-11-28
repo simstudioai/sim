@@ -41,8 +41,7 @@ export const mailchimpCreateBatchOperationTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Operations as JSON array (e.g., [{"method": "POST", "path": "/lists", "body": "{\\"name\\": \\"Test\\"}"}])',
+      description: 'JSON array of operations',
     },
   },
 

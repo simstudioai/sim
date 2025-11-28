@@ -5,6 +5,7 @@ import { buildZendeskUrl, handleZendeskError } from './types'
 const logger = createLogger('ZendeskUpdateUsersBulk')
 
 export interface ZendeskUpdateUsersBulkParams {
+  email: string
   apiToken: string
   subdomain: string
   users: string
@@ -32,6 +33,12 @@ export const zendeskUpdateUsersBulkTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    email: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your Zendesk email address',
+    },
     apiToken: {
       type: 'string',
       required: true,
@@ -55,10 +62,14 @@ export const zendeskUpdateUsersBulkTool: ToolConfig<
   request: {
     url: (params) => buildZendeskUrl(params.subdomain, '/users/update_many'),
     method: 'PUT',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiToken}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => {
+      const credentials = `${params.email}/token:${params.apiToken}`
+      const base64Credentials = Buffer.from(credentials).toString('base64')
+      return {
+        Authorization: `Basic ${base64Credentials}`,
+        'Content-Type': 'application/json',
+      }
+    },
     body: (params) => {
       try {
         const users = JSON.parse(params.users)

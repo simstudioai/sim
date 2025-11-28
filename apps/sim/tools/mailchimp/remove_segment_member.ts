@@ -8,7 +8,7 @@ export interface MailchimpRemoveSegmentMemberParams {
   apiKey: string
   listId: string
   segmentId: string
-  subscriberHash: string
+  subscriberEmail: string
 }
 
 export interface MailchimpRemoveSegmentMemberResponse {
@@ -50,11 +50,11 @@ export const mailchimpRemoveSegmentMemberTool: ToolConfig<
       visibility: 'user-only',
       description: 'The unique ID for the segment',
     },
-    subscriberHash: {
+    subscriberEmail: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: "The MD5 hash of the lowercase version of the list member's email address",
+      description: 'Member email address or MD5 hash',
     },
   },
 
@@ -62,7 +62,7 @@ export const mailchimpRemoveSegmentMemberTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/segments/${params.segmentId}/members/${params.subscriberHash}`
+        `/lists/${params.listId}/segments/${params.segmentId}/members/${params.subscriberEmail}`
       ),
     method: 'DELETE',
     headers: (params) => ({

@@ -4,8 +4,8 @@ const logger = createLogger('Zendesk')
 
 // Base params - following Sentry pattern where subdomain is user-provided
 export interface ZendeskBaseParams {
-  accessToken: string // OAuth token (hidden)
-  idToken?: string // Optional ID token (hidden)
+  email: string // Zendesk user email (required for API token authentication)
+  apiToken: string // API token (hidden)
   subdomain: string // Zendesk subdomain (user-visible, required - e.g., "mycompany" for mycompany.zendesk.com)
 }
 

@@ -55,7 +55,7 @@ export const mailchimpCreateSegmentTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Segment options as JSON (e.g., {"match": "any", "conditions": []})',
+      description: 'JSON object of segment options',
     },
   },
 

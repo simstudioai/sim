@@ -63,13 +63,13 @@ export const mailchimpUpdateAudienceTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Default campaign settings as JSON',
+      description: 'JSON object of default campaign settings',
     },
     emailTypeOption: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Whether the list supports multiple formats (true/false)',
+      description: 'Support multiple email formats',
     },
   },
 

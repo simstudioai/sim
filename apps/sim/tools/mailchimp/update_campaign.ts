@@ -49,13 +49,13 @@ export const mailchimpUpdateCampaignTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Campaign settings as JSON',
+      description: 'JSON object of campaign settings',
     },
     recipients: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Recipients as JSON',
+      description: 'JSON object of recipients',
     },
   },
 

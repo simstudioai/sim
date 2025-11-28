@@ -5,11 +5,12 @@ import { buildZendeskUrl, handleZendeskError } from './types'
 const logger = createLogger('ZendeskUpdateUser')
 
 export interface ZendeskUpdateUserParams {
+  email: string
   apiToken: string
   subdomain: string
   userId: string
   name?: string
-  email?: string
+  userEmail?: string
   role?: string
   phone?: string
   organizationId?: string
@@ -38,6 +39,12 @@ export const zendeskUpdateUserTool: ToolConfig<ZendeskUpdateUserParams, ZendeskU
     version: '1.0.0',
 
     params: {
+      email: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description: 'Your Zendesk email address',
+      },
       apiToken: {
         type: 'string',
         required: true,
@@ -62,7 +69,7 @@ export const zendeskUpdateUserTool: ToolConfig<ZendeskUpdateUserParams, ZendeskU
         visibility: 'user-only',
         description: 'New user name',
       },
-      email: {
+      userEmail: {
         type: 'string',
         required: false,
         visibility: 'user-only',
@@ -109,15 +116,19 @@ export const zendeskUpdateUserTool: ToolConfig<ZendeskUpdateUserParams, ZendeskU
     request: {
       url: (params) => buildZendeskUrl(params.subdomain, `/users/${params.userId}`),
       method: 'PUT',
-      headers: (params) => ({
-        Authorization: `Bearer ${params.apiToken}`,
-        'Content-Type': 'application/json',
-      }),
+      headers: (params) => {
+        const credentials = `${params.email}/token:${params.apiToken}`
+        const base64Credentials = Buffer.from(credentials).toString('base64')
+        return {
+          Authorization: `Basic ${base64Credentials}`,
+          'Content-Type': 'application/json',
+        }
+      },
       body: (params) => {
         const user: any = {}
 
         if (params.name) user.name = params.name
-        if (params.email) user.email = params.email
+        if (params.userEmail) user.email = params.userEmail
         if (params.role) user.role = params.role
         if (params.phone) user.phone = params.phone
         if (params.organizationId) user.organization_id = params.organizationId

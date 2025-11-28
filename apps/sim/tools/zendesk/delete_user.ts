@@ -5,6 +5,7 @@ import { buildZendeskUrl, handleZendeskError } from './types'
 const logger = createLogger('ZendeskDeleteUser')
 
 export interface ZendeskDeleteUserParams {
+  email: string
   apiToken: string
   subdomain: string
   userId: string
@@ -30,6 +31,12 @@ export const zendeskDeleteUserTool: ToolConfig<ZendeskDeleteUserParams, ZendeskD
     version: '1.0.0',
 
     params: {
+      email: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description: 'Your Zendesk email address',
+      },
       apiToken: {
         type: 'string',
         required: true,
@@ -53,10 +60,14 @@ export const zendeskDeleteUserTool: ToolConfig<ZendeskDeleteUserParams, ZendeskD
     request: {
       url: (params) => buildZendeskUrl(params.subdomain, `/users/${params.userId}`),
       method: 'DELETE',
-      headers: (params) => ({
-        Authorization: `Bearer ${params.apiToken}`,
-        'Content-Type': 'application/json',
-      }),
+      headers: (params) => {
+        const credentials = `${params.email}/token:${params.apiToken}`
+        const base64Credentials = Buffer.from(credentials).toString('base64')
+        return {
+          Authorization: `Basic ${base64Credentials}`,
+          'Content-Type': 'application/json',
+        }
+      },
     },
 
     transformResponse: async (response: Response, params) => {

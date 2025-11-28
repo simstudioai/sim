@@ -7,7 +7,7 @@ const logger = createLogger('MailchimpAddOrUpdateMember')
 export interface MailchimpAddOrUpdateMemberParams {
   apiKey: string
   listId: string
-  subscriberHash: string
+  subscriberEmail: string
   emailAddress: string
   statusIfNew: string
   mergeFields?: string
@@ -48,41 +48,41 @@ export const mailchimpAddOrUpdateMemberTool: ToolConfig<
       visibility: 'user-only',
       description: 'The unique ID for the list',
     },
-    subscriberHash: {
+    subscriberEmail: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: "The MD5 hash of the lowercase version of the list member's email address",
+      description: 'Member email address or MD5 hash',
     },
     emailAddress: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Email address for the member',
+      description: 'Member email address',
     },
     statusIfNew: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Subscriber status if new member (subscribed, unsubscribed, cleaned, pending)',
+      description: 'Subscriber status if new member',
     },
     mergeFields: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Merge fields as JSON object (e.g., {"FNAME": "John", "LNAME": "Doe"})',
+      description: 'JSON object of merge fields',
     },
     interests: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Interests as JSON object (e.g., {"interest_id": true})',
+      description: 'JSON object of interests',
     },
   },
 
   request: {
     url: (params) =>
-      buildMailchimpUrl(params.apiKey, `/lists/${params.listId}/members/${params.subscriberHash}`),
+      buildMailchimpUrl(params.apiKey, `/lists/${params.listId}/members/${params.subscriberEmail}`),
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

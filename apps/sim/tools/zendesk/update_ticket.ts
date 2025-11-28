@@ -5,6 +5,7 @@ import { buildZendeskUrl, handleZendeskError } from './types'
 const logger = createLogger('ZendeskUpdateTicket')
 
 export interface ZendeskUpdateTicketParams {
+  email: string
   apiToken: string
   subdomain: string
   ticketId: string
@@ -41,6 +42,12 @@ export const zendeskUpdateTicketTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    email: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your Zendesk email address',
+    },
     apiToken: {
       type: 'string',
       required: true,
@@ -118,10 +125,15 @@ export const zendeskUpdateTicketTool: ToolConfig<
   request: {
     url: (params) => buildZendeskUrl(params.subdomain, `/tickets/${params.ticketId}`),
     method: 'PUT',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiToken}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => {
+      // Use Basic Authentication with email/token format for Zendesk API tokens
+      const credentials = `${params.email}/token:${params.apiToken}`
+      const base64Credentials = Buffer.from(credentials).toString('base64')
+      return {
+        Authorization: `Basic ${base64Credentials}`,
+        'Content-Type': 'application/json',
+      }
+    },
     body: (params) => {
       const ticket: any = {}
 

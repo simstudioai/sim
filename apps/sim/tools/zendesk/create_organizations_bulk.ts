@@ -5,6 +5,7 @@ import { buildZendeskUrl, handleZendeskError } from './types'
 const logger = createLogger('ZendeskCreateOrganizationsBulk')
 
 export interface ZendeskCreateOrganizationsBulkParams {
+  email: string
   apiToken: string
   subdomain: string
   organizations: string
@@ -32,6 +33,12 @@ export const zendeskCreateOrganizationsBulkTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    email: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your Zendesk email address',
+    },
     apiToken: {
       type: 'string',
       required: true,
@@ -55,10 +62,14 @@ export const zendeskCreateOrganizationsBulkTool: ToolConfig<
   request: {
     url: (params) => buildZendeskUrl(params.subdomain, '/organizations/create_many'),
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiToken}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => {
+      const credentials = `${params.email}/token:${params.apiToken}`
+      const base64Credentials = Buffer.from(credentials).toString('base64')
+      return {
+        Authorization: `Basic ${base64Credentials}`,
+        'Content-Type': 'application/json',
+      }
+    },
     body: (params) => {
       try {
         const organizations = JSON.parse(params.organizations)

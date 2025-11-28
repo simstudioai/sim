@@ -7,7 +7,7 @@ const logger = createLogger('MailchimpAddMemberTags')
 export interface MailchimpAddMemberTagsParams {
   apiKey: string
   listId: string
-  subscriberHash: string
+  subscriberEmail: string
   tags: string
 }
 
@@ -44,18 +44,17 @@ export const mailchimpAddMemberTagsTool: ToolConfig<
       visibility: 'user-only',
       description: 'The unique ID for the list',
     },
-    subscriberHash: {
+    subscriberEmail: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: "The MD5 hash of the lowercase version of the list member's email address",
+      description: 'Member email address or MD5 hash',
     },
     tags: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Tags as JSON array (e.g., [{"name": "tag1", "status": "active"}, {"name": "tag2", "status": "active"}])',
+      description: 'JSON array of tags',
     },
   },
 
@@ -63,7 +62,7 @@ export const mailchimpAddMemberTagsTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/members/${params.subscriberHash}/tags`
+        `/lists/${params.listId}/members/${params.subscriberEmail}/tags`
       ),
     method: 'POST',
     headers: (params) => ({

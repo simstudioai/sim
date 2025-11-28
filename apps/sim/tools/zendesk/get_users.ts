@@ -5,6 +5,7 @@ import { buildZendeskUrl, handleZendeskError } from './types'
 const logger = createLogger('ZendeskGetUsers')
 
 export interface ZendeskGetUsersParams {
+  email: string
   apiToken: string
   subdomain: string
   role?: string
@@ -37,6 +38,12 @@ export const zendeskGetUsersTool: ToolConfig<ZendeskGetUsersParams, ZendeskGetUs
   version: '1.0.0',
 
   params: {
+    email: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your Zendesk email address',
+    },
     apiToken: {
       type: 'string',
       required: true,
@@ -88,10 +95,14 @@ export const zendeskGetUsersTool: ToolConfig<ZendeskGetUsersParams, ZendeskGetUs
       return query ? `${url}?${query}` : url
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiToken}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => {
+      const credentials = `${params.email}/token:${params.apiToken}`
+      const base64Credentials = Buffer.from(credentials).toString('base64')
+      return {
+        Authorization: `Basic ${base64Credentials}`,
+        'Content-Type': 'application/json',
+      }
+    },
   },
 
   transformResponse: async (response: Response) => {

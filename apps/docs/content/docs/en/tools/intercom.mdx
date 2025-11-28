@@ -12,7 +12,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Usage Instructions
 
-Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create, get, and list tickets; and create messages.
+Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.
 
 
 
@@ -311,24 +311,6 @@ Retrieve a single ticket by ID from Intercom
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Ticket data |
-
-### `intercom_list_tickets`
-
-List all tickets from Intercom with pagination support
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `per_page` | number | No | Number of results per page \(max: 150\) |
-| `starting_after` | string | No | Cursor for pagination |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | List of tickets |
 
 ### `intercom_create_message`
 

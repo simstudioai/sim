@@ -5,6 +5,7 @@ import { buildZendeskUrl, handleZendeskError } from './types'
 const logger = createLogger('ZendeskMergeTickets')
 
 export interface ZendeskMergeTicketsParams {
+  email: string
   apiToken: string
   subdomain: string
   targetTicketId: string
@@ -35,6 +36,12 @@ export const zendeskMergeTicketsTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    email: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your Zendesk email address',
+    },
     apiToken: {
       type: 'string',
       required: true,
@@ -70,10 +77,14 @@ export const zendeskMergeTicketsTool: ToolConfig<
   request: {
     url: (params) => buildZendeskUrl(params.subdomain, `/tickets/${params.targetTicketId}/merge`),
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiToken}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => {
+      const credentials = `${params.email}/token:${params.apiToken}`
+      const base64Credentials = Buffer.from(credentials).toString('base64')
+      return {
+        Authorization: `Basic ${base64Credentials}`,
+        'Content-Type': 'application/json',
+      }
+    },
     body: (params) => {
       const ids = params.sourceTicketIds.split(',').map((id) => id.trim())
       const body: any = { ids }

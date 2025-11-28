@@ -7,7 +7,7 @@ export const IntercomBlock: BlockConfig = {
   name: 'Intercom',
   description: 'Manage contacts, companies, conversations, tickets, and messages in Intercom',
   longDescription:
-    'Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create, get, and list tickets; and create messages.',
+    'Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.',
   docsLink: 'https://docs.sim.ai/tools/intercom',
   authMode: AuthMode.ApiKey,
   category: 'tools',
@@ -34,7 +34,6 @@ export const IntercomBlock: BlockConfig = {
         { label: 'Search Conversations', id: 'search_conversations' },
         { label: 'Create Ticket', id: 'create_ticket' },
         { label: 'Get Ticket', id: 'get_ticket' },
-        { label: 'List Tickets', id: 'list_tickets' },
         { label: 'Create Message', id: 'create_message' },
       ],
       value: () => 'create_contact',
@@ -455,7 +454,6 @@ export const IntercomBlock: BlockConfig = {
           'list_companies',
           'list_conversations',
           'search_conversations',
-          'list_tickets',
         ],
       },
     },
@@ -466,13 +464,7 @@ export const IntercomBlock: BlockConfig = {
       placeholder: 'Cursor for pagination',
       condition: {
         field: 'operation',
-        value: [
-          'list_contacts',
-          'search_contacts',
-          'list_conversations',
-          'search_conversations',
-          'list_tickets',
-        ],
+        value: ['list_contacts', 'search_contacts', 'list_conversations', 'search_conversations'],
       },
     },
     {
@@ -503,7 +495,6 @@ export const IntercomBlock: BlockConfig = {
       'intercom_search_conversations',
       'intercom_create_ticket',
       'intercom_get_ticket',
-      'intercom_list_tickets',
       'intercom_create_message',
     ],
     config: {
@@ -539,8 +530,6 @@ export const IntercomBlock: BlockConfig = {
             return 'intercom_create_ticket'
           case 'get_ticket':
             return 'intercom_get_ticket'
-          case 'list_tickets':
-            return 'intercom_list_tickets'
           case 'create_message':
             return 'intercom_create_message'
           default:

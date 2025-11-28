@@ -1,5 +1,3 @@
-// Ticket tools
-
 export { zendeskAutocompleteOrganizationsTool } from './autocomplete_organizations'
 export { zendeskCreateOrganizationTool } from './create_organization'
 export { zendeskCreateOrganizationsBulkTool } from './create_organizations_bulk'
@@ -10,18 +8,14 @@ export { zendeskCreateUsersBulkTool } from './create_users_bulk'
 export { zendeskDeleteOrganizationTool } from './delete_organization'
 export { zendeskDeleteTicketTool } from './delete_ticket'
 export { zendeskDeleteUserTool } from './delete_user'
-export { zendeskExportSearchTool } from './export_search'
 export { zendeskGetCurrentUserTool } from './get_current_user'
 export { zendeskGetOrganizationTool } from './get_organization'
-// Organization tools
 export { zendeskGetOrganizationsTool } from './get_organizations'
 export { zendeskGetTicketTool } from './get_ticket'
 export { zendeskGetTicketsTool } from './get_tickets'
 export { zendeskGetUserTool } from './get_user'
-// User tools
 export { zendeskGetUsersTool } from './get_users'
 export { zendeskMergeTicketsTool } from './merge_tickets'
-// Search tools
 export { zendeskSearchTool } from './search'
 export { zendeskSearchCountTool } from './search_count'
 export { zendeskSearchUsersTool } from './search_users'

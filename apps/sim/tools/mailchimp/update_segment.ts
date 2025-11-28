@@ -62,7 +62,7 @@ export const mailchimpUpdateSegmentTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Segment options as JSON',
+      description: 'JSON object of segment options',
     },
   },
 

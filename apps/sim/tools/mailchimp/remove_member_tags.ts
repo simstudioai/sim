@@ -7,7 +7,7 @@ const logger = createLogger('MailchimpRemoveMemberTags')
 export interface MailchimpRemoveMemberTagsParams {
   apiKey: string
   listId: string
-  subscriberHash: string
+  subscriberEmail: string
   tags: string
 }
 
@@ -44,18 +44,17 @@ export const mailchimpRemoveMemberTagsTool: ToolConfig<
       visibility: 'user-only',
       description: 'The unique ID for the list',
     },
-    subscriberHash: {
+    subscriberEmail: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: "The MD5 hash of the lowercase version of the list member's email address",
+      description: 'Member email address or MD5 hash',
     },
     tags: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Tags as JSON array with inactive status (e.g., [{"name": "tag1", "status": "inactive"}, {"name": "tag2", "status": "inactive"}])',
+      description: 'JSON array of tags with inactive status',
     },
   },
 
@@ -63,7 +62,7 @@ export const mailchimpRemoveMemberTagsTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/members/${params.subscriberHash}/tags`
+        `/lists/${params.listId}/members/${params.subscriberEmail}/tags`
       ),
     method: 'POST',
     headers: (params) => ({

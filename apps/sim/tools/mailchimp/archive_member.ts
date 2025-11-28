@@ -7,7 +7,7 @@ const logger = createLogger('MailchimpArchiveMember')
 export interface MailchimpArchiveMemberParams {
   apiKey: string
   listId: string
-  subscriberHash: string
+  subscriberEmail: string
 }
 
 export interface MailchimpArchiveMemberResponse {
@@ -43,11 +43,11 @@ export const mailchimpArchiveMemberTool: ToolConfig<
       visibility: 'user-only',
       description: 'The unique ID for the list',
     },
-    subscriberHash: {
+    subscriberEmail: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: "The MD5 hash of the lowercase version of the list member's email address",
+      description: 'Member email address or MD5 hash',
     },
   },
 
@@ -55,7 +55,7 @@ export const mailchimpArchiveMemberTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/members/${params.subscriberHash}/actions/delete-permanent`
+        `/lists/${params.listId}/members/${params.subscriberEmail}/actions/delete-permanent`
       ),
     method: 'DELETE',
     headers: (params) => ({

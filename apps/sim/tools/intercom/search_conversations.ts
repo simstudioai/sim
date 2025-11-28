@@ -65,6 +65,7 @@ export const intercomSearchConversationsTool: ToolConfig<
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
+      Accept: 'application/json',
       'Content-Type': 'application/json',
       'Intercom-Version': '2.14',
     }),
