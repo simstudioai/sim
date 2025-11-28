@@ -175,7 +175,8 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     logger.error(`[${requestId}] Error updating custom tools`, error)
-    return NextResponse.json({ error: 'Failed to update custom tools' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update custom tools'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
 

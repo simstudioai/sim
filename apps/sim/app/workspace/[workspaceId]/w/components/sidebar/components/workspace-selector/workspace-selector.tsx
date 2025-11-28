@@ -511,11 +511,17 @@ export function WorkspaceSelector({
                       variant='ghost'
                       onClick={(e) => {
                         e.stopPropagation()
-                        handleExportWorkspace()
+                        if (userPermissions.canAdmin) {
+                          handleExportWorkspace()
+                        }
                       }}
-                      disabled={isExporting}
+                      disabled={isExporting || !userPermissions.canAdmin}
                       className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
-                      title='Export workspace'
+                      title={
+                        !userPermissions.canAdmin
+                          ? 'Admin permission required to export workspace'
+                          : 'Export workspace'
+                      }
                     >
                       <Download className='!h-3.5 !w-3.5' />
                     </Button>
