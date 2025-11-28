@@ -94,7 +94,9 @@ describe('Chat Edit API Route', () => {
 
   describe('GET', () => {
     it('should return 401 when user is not authenticated', async () => {
-      mockGetSession.mockResolvedValueOnce(null)
+      vi.doMock('@/lib/auth', () => ({
+        getSession: vi.fn().mockResolvedValue(null),
+      }))
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123')
       const { GET } = await import('@/app/api/chat/manage/[id]/route')
