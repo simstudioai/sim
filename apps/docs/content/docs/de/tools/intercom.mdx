@@ -125,7 +125,7 @@ Suche nach Kontakten in Intercom mit einer Abfrage
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Ja | Suchabfrage (z.B., {"field":"email","operator":"=","value":"user@example.com"}) |
+| `query` | string | Ja | Suchabfrage (z.B., \{"field":"email","operator":"=","value":"user@example.com"\}) |
 | `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite (max: 150) |
 | `starting_after` | string | Nein | Cursor für Paginierung |
 
@@ -297,7 +297,7 @@ Ein neues Ticket in Intercom erstellen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `ticket_type_id` | string | Ja | Die ID des Ticket-Typs |
-| `contacts` | string | Ja | JSON-Array von Kontakt-Identifikatoren (z.B. [{"id": "contact_id"}]) |
+| `contacts` | string | Ja | JSON-Array von Kontakt-Identifikatoren (z.B. \{"id": "contact_id"\}) |
 | `ticket_attributes` | string | Ja | JSON-Objekt mit Ticket-Attributen einschließlich _default_title_ und _default_description_ |
 
 #### Output
