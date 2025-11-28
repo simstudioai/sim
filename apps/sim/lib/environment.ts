@@ -23,8 +23,11 @@ export const isTest = env.NODE_ENV === 'test'
  */
 export const isHosted =
   getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.sim.ai' ||
-  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.staging.sim.ai'
-
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.staging.sim.ai' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://dev-agent.thearena.ai' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://test-agent.thearena.ai' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'http://localhost:3000' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://agent.thearena.ai'
 /**
  * Is billing enforcement enabled
  */
