@@ -1,0 +1,1475 @@
+---
+title: Mailchimp
+description: Mailchimpでオーディエンス、キャンペーン、マーケティングオートメーションを管理する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mailchimp"
+  color="#FFE01B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Mailchimp](https://mailchimp.com/)は、オーディエンス、キャンペーン、そして幅広いマーケティング活動をひとつの場所で管理できる強力なマーケティングオートメーションプラットフォームです。MailchimpのパワフルなAPIと統合機能により、Simのワークフローから直接アウトリーチ、Eメールマーケティング、レポート作成、オーディエンス管理を自動化することができます。
+
+SimのMailchimpツールでは、以下のことが可能です：
+
+- **オーディエンス（リスト）の管理：**
+  - すべてのMailchimpオーディエンス（リスト）を一覧表示して取得し、簡単に管理できます。
+  - 特定のオーディエンスに関する包括的な情報を取得できます。
+  - 新しいオーディエンスを作成し、セグメンテーションを最新の状態に保ちます。
+
+- **メンバーリスト：**
+  - リストメンバー（購読者）にアクセスして管理し、メンバーの詳細を取得し、メールリストを同期させておくことができます。
+
+- **キャンペーン管理：**
+  - キャンペーン作成の自動化、キャンペーンの送信、包括的なレポートによるキャンペーンパフォーマンスの分析ができます。
+
+- **マーケティングオートメーション：**
+  - 自動化されたワークフローの管理、トリガーの設定、育成プロセスを効率化するためのメールのスケジュール設定ができます。
+
+- **テンプレート、セグメント、タグ：**
+  - 一貫したブランディングのためにメールテンプレートを取得・管理できます。
+  - 特定のグループをターゲットにするためのオーディエンスセグメントにアクセスし、更新できます。
+  - コンタクトをさらに整理するためのタグを作成・管理できます。
+
+- **高度なリストコントロール：**
+  - マージフィールドと興味カテゴリ（グループ）を管理して、購読者から豊富で構造化されたデータを収集できます。
+  - ランディングページ、サインアップフォーム、その他のリード獲得ツールを扱い、コンバージョンを最大化します。
+
+- **バッチ操作とレポート：**
+  - 一括操作のためのバッチジョブを実行し、大規模な更新を効率化します。
+  - キャンペーン、オートメーション、オーディエンス成長に関する詳細なレポートを取得し、マーケティング戦略に役立てることができます。
+
+Simの中でMailchimpを使用することで、エージェントやワークフローはメールマーケティングを大規模に自動化できます—オーディエンスを拡大し、アウトリーチをパーソナライズし、エンゲージメントを最適化し、データに基づいた意思決定を行うことができます。CRMレコードの同期、製品内アクションに応じたキャンペーンのトリガー、購読者データの管理など、SimにおけるMailchimpのツールは、マーケティング自動化に対する完全なプログラム制御を提供します。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Mailchimpをワークフローに統合します。オーディエンス（リスト）、リストメンバー、キャンペーン、自動化ワークフロー、テンプレート、レポート、セグメント、タグ、マージフィールド、興味カテゴリ、ランディングページ、サインアップフォーム、バッチ操作を管理できます。
+
+## ツール
+
+### `mailchimp_get_audiences`
+
+Mailchimpからオーディエンス（リスト）のリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | オーディエンスデータとメタデータ |
+
+### `mailchimp_get_audience`
+
+Mailchimpから特定のオーディエンス（リスト）の詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | オーディエンスデータとメタデータ |
+
+### `mailchimp_create_audience`
+
+Mailchimpで新しいオーディエンス（リスト）を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `audienceName` | string | はい | リストの名前 |
+| `contact` | string | はい | 連絡先情報のJSONオブジェクト |
+| `permissionReminder` | string | はい | 許可リマインダーテキスト |
+| `campaignDefaults` | string | はい | デフォルトのキャンペーン設定のJSONオブジェクト |
+| `emailTypeOption` | string | はい | 複数のメール形式をサポート |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成されたオーディエンスデータ |
+
+### `mailchimp_update_audience`
+
+Mailchimpで既存のオーディエンス（リスト）を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `audienceName` | string | いいえ | リストの名前 |
+| `permissionReminder` | string | いいえ | 許可リマインダーテキスト |
+| `campaignDefaults` | string | いいえ | デフォルトのキャンペーン設定のJSONオブジェクト |
+| `emailTypeOption` | string | いいえ | 複数のメール形式をサポート |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 更新されたオーディエンスデータ |
+
+### `mailchimp_delete_audience`
+
+Mailchimpからオーディエンス（リスト）を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | 削除するリストの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除確認 |
+
+### `mailchimp_get_members`
+
+Mailchimpオーディエンスからメンバーのリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `status` | string | いいえ | ステータスでフィルタリング（subscribed、unsubscribed、cleaned、pending） |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | メンバーデータとメタデータ |
+
+### `mailchimp_get_member`
+
+Mailchimpオーディエンスから特定のメンバーの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `subscriberEmail` | string | はい | メンバーのメールアドレスまたはMD5ハッシュ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | メンバーデータとメタデータ |
+
+### `mailchimp_add_member`
+
+Mailchimpオーディエンスに新しいメンバーを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `emailAddress` | string | はい | メンバーのメールアドレス |
+| `status` | string | はい | 購読者のステータス |
+| `mergeFields` | string | いいえ | マージフィールドのJSONオブジェクト |
+| `interests` | string | いいえ | 興味関心のJSONオブジェクト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | 追加されたメンバーデータ |
+
+### `mailchimp_add_or_update_member`
+
+Mailchimpオーディエンスに新しいメンバーを追加するか、既存のメンバーを更新する（アップサート）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `subscriberEmail` | string | はい | メンバーのメールアドレスまたはMD5ハッシュ |
+| `emailAddress` | string | はい | メンバーのメールアドレス |
+| `statusIfNew` | string | はい | 新規メンバーの場合の購読者ステータス |
+| `mergeFields` | string | いいえ | マージフィールドのJSONオブジェクト |
+| `interests` | string | いいえ | 興味のJSONオブジェクト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | メンバーデータ |
+
+### `mailchimp_update_member`
+
+Mailchienceのオーディエンスに既存のメンバーを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `subscriberEmail` | string | はい | メンバーのメールアドレスまたはMD5ハッシュ |
+| `emailAddress` | string | いいえ | メンバーのメールアドレス |
+| `status` | string | いいえ | 購読者ステータス |
+| `mergeFields` | string | いいえ | マージフィールドのJSONオブジェクト |
+| `interests` | string | いいえ | 興味のJSONオブジェクト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 更新されたメンバーデータ |
+
+### `mailchimp_delete_member`
+
+Mailchimpオーディエンスからメンバーを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `subscriberEmail` | string | はい | メンバーのメールアドレスまたはMD5ハッシュ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除確認 |
+
+### `mailchimp_archive_member`
+
+Mailchimpオーディエンスからメンバーを完全にアーカイブ（削除）する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `subscriberEmail` | string | はい | メンバーのメールアドレスまたはMD5ハッシュ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | アーカイブ確認 |
+
+### `mailchimp_unarchive_member`
+
+アーカイブされたメンバーをMailchimpオーディエンスに復元する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `subscriberEmail` | string | はい | メンバーのメールアドレスまたはMD5ハッシュ |
+| `emailAddress` | string | はい | メンバーのメールアドレス |
+| `status` | string | はい | 購読者のステータス |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | アーカイブ解除されたメンバーデータ |
+
+### `mailchimp_get_campaigns`
+
+Mailchimpからキャンペーンのリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `campaignType` | string | いいえ | キャンペーンタイプでフィルタリング（regular、plaintext、absplit、rss、variate） |
+| `status` | string | いいえ | ステータスでフィルタリング（save、paused、schedule、sending、sent） |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | キャンペーンデータとメタデータ |
+
+### `mailchimp_get_campaign`
+
+Mailchimpから特定のキャンペーンの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `campaignId` | string | はい | キャンペーンの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | キャンペーンデータとメタデータ |
+
+### `mailchimp_create_campaign`
+
+Mailchimpで新しいキャンペーンを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `campaignType` | string | はい | キャンペーンタイプ |
+| `campaignSettings` | string | はい | キャンペーン設定のJSONオブジェクト |
+| `recipients` | string | いいえ | 受信者のJSONオブジェクト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成されたキャンペーンデータ |
+
+### `mailchimp_update_campaign`
+
+Mailchimpの既存のキャンペーンを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `campaignId` | string | はい | キャンペーンの一意のID |
+| `campaignSettings` | string | いいえ | キャンペーン設定のJSONオブジェクト |
+| `recipients` | string | いいえ | 受信者のJSONオブジェクト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 更新されたキャンペーンデータ |
+
+### `mailchimp_delete_campaign`
+
+Mailchimpからキャンペーンを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `campaignId` | string | はい | 削除するキャンペーンの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除確認 |
+
+### `mailchimp_send_campaign`
+
+Mailchimpキャンペーンを送信する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `campaignId` | string | はい | 送信するキャンペーンの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 送信確認 |
+
+### `mailchimp_schedule_campaign`
+
+特定の時間に送信するようMailchimpキャンペーンをスケジュールする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `campaignId` | string | はい | スケジュールするキャンペーンの一意のID |
+| `scheduleTime` | string | はい | ISO 8601形式の日付と時刻 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | スケジュール確認 |
+
+### `mailchimp_unschedule_campaign`
+
+以前にスケジュールされたMailchimpキャンペーンのスケジュールを解除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `campaignId` | string | はい | スケジュール解除するキャンペーンの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | スケジュール解除確認 |
+
+### `mailchimp_replicate_campaign`
+
+既存のMailchimpキャンペーンのコピーを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `campaignId` | string | はい | 複製するキャンペーンの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 複製されたキャンペーンデータ |
+
+### `mailchimp_get_campaign_content`
+
+MailchimpキャンペーンのHTMLおよびプレーンテキストコンテンツを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `campaignId` | string | はい | キャンペーンの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | キャンペーンコンテンツデータ |
+
+### `mailchimp_set_campaign_content`
+
+Mailchimpキャンペーンのコンテンツを設定する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `campaignId` | string | はい | キャンペーンの一意のID |
+| `html` | string | いいえ | キャンペーンのHTMLコンテンツ |
+| `plainText` | string | いいえ | キャンペーンのプレーンテキストコンテンツ |
+| `templateId` | string | いいえ | 使用するテンプレートのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | キャンペーンコンテンツデータ |
+
+### `mailchimp_get_automations`
+
+Mailchimpから自動化のリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 自動化データとメタデータ |
+
+### `mailchimp_get_automation`
+
+Mailchimpから特定の自動化の詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `workflowId` | string | はい | 自動化ワークフローの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 自動化データとメタデータ |
+
+### `mailchimp_start_automation`
+
+Mailchimp自動化ワークフロー内のすべてのメールを開始する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `workflowId` | string | はい | 自動化ワークフローの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 開始確認 |
+
+### `mailchimp_pause_automation`
+
+Mailchimp自動化ワークフロー内のすべてのメールを一時停止する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `workflowId` | string | はい | 自動化ワークフローの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 一時停止確認 |
+
+### `mailchimp_add_subscriber_to_automation`
+
+ワークフローメールキューに購読者を手動で追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `workflowId` | string | はい | 自動化ワークフローの一意のID |
+| `workflowEmailId` | string | はい | ワークフローメールの一意のID |
+| `emailAddress` | string | はい | 購読者のメールアドレス |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 購読者キューデータ |
+
+### `mailchimp_get_templates`
+
+Mailchimpからテンプレートのリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | テンプレートデータとメタデータ |
+
+### `mailchimp_get_template`
+
+Mailchimpから特定のテンプレートの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `templateId` | string | はい | テンプレートの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | テンプレートデータとメタデータ |
+
+### `mailchimp_create_template`
+
+Mailchimpで新しいテンプレートを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `templateName` | string | はい | テンプレートの名前 |
+| `templateHtml` | string | はい | テンプレートのHTMLコンテンツ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成されたテンプレートデータ |
+
+### `mailchimp_update_template`
+
+Mailchimpの既存テンプレートを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `templateId` | string | はい | テンプレートの一意のID |
+| `templateName` | string | いいえ | テンプレートの名前 |
+| `templateHtml` | string | いいえ | テンプレートのHTMLコンテンツ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 更新されたテンプレートデータ |
+
+### `mailchimp_delete_template`
+
+Mailchimpからテンプレートを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `templateId` | string | はい | 削除するテンプレートの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除確認 |
+
+### `mailchimp_get_campaign_reports`
+
+Mailchimpからキャンペーンレポートのリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | キャンペーンレポートデータとメタデータ |
+
+### `mailchimp_get_campaign_report`
+
+Mailchimpから特定のキャンペーンのレポートを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `campaignId` | string | はい | キャンペーンの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | キャンペーンレポートデータとメタデータ |
+
+### `mailchimp_get_segments`
+
+Mailchimp オーディエンスからセグメントのリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | セグメントデータとメタデータ |
+
+### `mailchimp_get_segment`
+
+Mailchimp オーディエンスから特定のセグメントの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `segmentId` | string | はい | セグメントの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | セグメントデータとメタデータ |
+
+### `mailchimp_create_segment`
+
+Mailchimp オーディエンスに新しいセグメントを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `segmentName` | string | はい | セグメントの名前 |
+| `segmentOptions` | string | いいえ | セグメントオプションのJSONオブジェクト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成されたセグメントデータ |
+
+### `mailchimp_update_segment`
+
+Mailchimp オーディエンスの既存のセグメントを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `segmentId` | string | はい | セグメントの一意のID |
+| `segmentName` | string | いいえ | セグメントの名前 |
+| `segmentOptions` | string | いいえ | セグメントオプションのJSONオブジェクト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 更新されたセグメントデータ |
+
+### `mailchimp_delete_segment`
+
+Mailchimpオーディエンスからセグメントを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `segmentId` | string | はい | 削除するセグメントの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除確認 |
+
+### `mailchimp_get_segment_members`
+
+Mailchimpオーディエンスの特定のセグメントからメンバーを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `segmentId` | string | はい | セグメントの一意のID |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | セグメントメンバーのデータとメタデータ |
+
+### `mailchimp_add_segment_member`
+
+Mailchimpオーディエンスの特定のセグメントにメンバーを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `segmentId` | string | はい | セグメントの一意のID |
+| `emailAddress` | string | はい | メンバーのメールアドレス |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 追加されたメンバーデータ |
+
+### `mailchimp_remove_segment_member`
+
+Mailchienceのオーディエンスの特定のセグメントからメンバーを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `segmentId` | string | はい | セグメントの一意のID |
+| `subscriberEmail` | string | はい | メンバーのメールアドレスまたはMD5ハッシュ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除確認 |
+
+### `mailchimp_get_member_tags`
+
+Mailchienceのオーディエンスのメンバーに関連付けられたタグを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `subscriberEmail` | string | はい | メンバーのメールアドレスまたはMD5ハッシュ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | メンバータグデータとメタデータ |
+
+### `mailchimp_add_member_tags`
+
+Mailchimp オーディエンスのメンバーにタグを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `subscriberEmail` | string | はい | メンバーのメールアドレスまたはMD5ハッシュ |
+| `tags` | string | はい | タグのJSON配列 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | タグ追加の確認 |
+
+### `mailchimp_remove_member_tags`
+
+Mailchimp オーディエンスのメンバーからタグを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `subscriberEmail` | string | はい | メンバーのメールアドレスまたはMD5ハッシュ |
+| `tags` | string | はい | 非アクティブステータスのタグのJSON配列 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | タグ削除の確認 |
+
+### `mailchimp_get_merge_fields`
+
+Mailchimp オーディエンスからマージフィールドのリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きの Mailchimp API キー |
+| `listId` | string | はい | リストの一意の ID |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | マージフィールドのデータとメタデータ |
+
+### `mailchimp_get_merge_field`
+
+Mailchimp オーディエンスから特定のマージフィールドの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きの Mailchimp API キー |
+| `listId` | string | はい | リストの一意の ID |
+| `mergeId` | string | はい | マージフィールドの一意の ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | マージフィールドのデータとメタデータ |
+
+### `mailchimp_create_merge_field`
+
+Mailchimp オーディエンスに新しいマージフィールドを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きの Mailchimp API キー |
+| `listId` | string | はい | リストの一意の ID |
+| `mergeName` | string | はい | マージフィールドの名前 |
+| `mergeType` | string | はい | マージフィールドのタイプ（text、number、address、phone、date、url、imageurl、radio、dropdown、birthday、zip） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成されたマージフィールドデータ |
+
+### `mailchimp_update_merge_field`
+
+Mailchimp オーディエンスの既存のマージフィールドを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `mergeId` | string | はい | マージフィールドの一意のID |
+| `mergeName` | string | いいえ | マージフィールドの名前 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 更新されたマージフィールドデータ |
+
+### `mailchimp_delete_merge_field`
+
+Mailchimp オーディエンスからマージフィールドを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `mergeId` | string | はい | 削除するマージフィールドの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除確認 |
+
+### `mailchimp_get_interest_categories`
+
+Mailchimp オーディエンスから興味カテゴリのリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | 興味カテゴリのデータとメタデータ |
+
+### `mailchimp_get_interest_category`
+
+Mailchimp オーディエンスから特定の興味カテゴリの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `interestCategoryId` | string | はい | 興味カテゴリの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | 興味カテゴリのデータとメタデータ |
+
+### `mailchimp_create_interest_category`
+
+Mailchimp オーディエンスに新しい興味カテゴリを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `interestCategoryTitle` | string | はい | 興味カテゴリのタイトル |
+| `interestCategoryType` | string | はい | 興味カテゴリのタイプ（チェックボックス、ドロップダウン、ラジオ、非表示） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成された興味カテゴリーデータ |
+
+### `mailchimp_update_interest_category`
+
+Mailchimp オーディエンスの既存の興味カテゴリーを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `interestCategoryId` | string | はい | 興味カテゴリーの一意のID |
+| `interestCategoryTitle` | string | いいえ | 興味カテゴリーのタイトル |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 更新された興味カテゴリーデータ |
+
+### `mailchimp_delete_interest_category`
+
+Mailchimp オーディエンスから興味カテゴリーを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `interestCategoryId` | string | はい | 削除する興味カテゴリーの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除確認 |
+
+### `mailchimp_get_interests`
+
+Mailchimp オーディエンスの興味カテゴリから興味のリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `interestCategoryId` | string | はい | 興味カテゴリの一意のID |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | 興味データとメタデータ |
+
+### `mailchimp_get_interest`
+
+Mailchimp オーディエンスの興味カテゴリから特定の興味の詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `interestCategoryId` | string | はい | 興味カテゴリの一意のID |
+| `interestId` | string | はい | 興味の一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | 興味データとメタデータ |
+
+### `mailchimp_create_interest`
+
+Mailchimp オーディエンスの興味カテゴリに新しい興味を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `interestCategoryId` | string | はい | 興味カテゴリの一意のID |
+| `interestName` | string | はい | 興味の名前 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | 作成された興味のデータ |
+
+### `mailchimp_update_interest`
+
+Mailchimp オーディエンスの興味カテゴリ内の既存の興味を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `interestCategoryId` | string | はい | 興味カテゴリの一意のID |
+| `interestId` | string | はい | 興味の一意のID |
+| `interestName` | string | いいえ | 興味の名前 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | 更新された興味のデータ |
+
+### `mailchimp_delete_interest`
+
+Mailchimp オーディエンスの興味カテゴリから興味を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `listId` | string | はい | リストの一意のID |
+| `interestCategoryId` | string | はい | 興味カテゴリの一意のID |
+| `interestId` | string | はい | 削除する興味の一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除確認 |
+
+### `mailchimp_get_landing_pages`
+
+Mailchimpからランディングページのリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | ランディングページのデータとメタデータ |
+
+### `mailchimp_get_landing_page`
+
+Mailchimpから特定のランディングページの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `pageId` | string | はい | ランディングページの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | ランディングページのデータとメタデータ |
+
+### `mailchimp_create_landing_page`
+
+Mailchimpで新しいランディングページを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `landingPageType` | string | はい | ランディングページのタイプ（signup） |
+| `landingPageTitle` | string | いいえ | ランディングページのタイトル |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成されたランディングページのデータ |
+
+### `mailchimp_update_landing_page`
+
+Mailchimpの既存のランディングページを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `pageId` | string | はい | ランディングページの一意のID |
+| `landingPageTitle` | string | いいえ | ランディングページのタイトル |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 更新されたランディングページのデータ |
+
+### `mailchimp_delete_landing_page`
+
+Mailchimpからランディングページを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `pageId` | string | はい | 削除するランディングページの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除確認 |
+
+### `mailchimp_publish_landing_page`
+
+Mailchimpでランディングページを公開する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `pageId` | string | はい | ランディングページの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 公開確認 |
+
+### `mailchimp_unpublish_landing_page`
+
+Mailchimpでランディングページを非公開にする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `pageId` | string | はい | ランディングページの一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 非公開確認 |
+
+### `mailchimp_get_batch_operations`
+
+Mailchimpからバッチ操作のリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `count` | string | いいえ | 結果の数（デフォルト：10、最大：1000） |
+| `offset` | string | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | バッチ操作データとメタデータ |
+
+### `mailchimp_get_batch_operation`
+
+Mailchimpから特定のバッチ操作の詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `batchId` | string | はい | バッチ操作の一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | バッチ操作データとメタデータ |
+
+### `mailchimp_create_batch_operation`
+
+Mailchimpで新しいバッチ操作を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `operations` | string | はい | 操作のJSON配列 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成されたバッチ操作データ |
+
+### `mailchimp_delete_batch_operation`
+
+Mailchimpからバッチ操作を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | サーバープレフィックス付きのMailchimp APIキー |
+| `batchId` | string | はい | 削除するバッチ操作の一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除確認 |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `mailchimp`
