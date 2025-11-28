@@ -11,33 +11,36 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Zendesk](https://www.zendesk.com/) is a leading customer service and support platform that enables organizations to efficiently track, prioritize, and solve customer support tickets. Its robust API exposes granular control over all aspects of support, user management, and organizational data, making it a versatile tool for automating business workflows.
+[Zendesk](https://www.zendesk.com/) is a leading customer service and support platform that empowers organizations to efficiently manage support tickets, users, and organizations through a robust set of tools and APIs. The Zendesk integration in Sim lets your agents automate key support operations and synchronize your support data with the rest of your workflow.
 
-With Zendesk’s rich integration in Sim, your agents can perform nearly any support-related task programmatically. The Zendesk integration provides comprehensive access to actions such as:
+With Zendesk in Sim, you can:
 
-- **Tickets management**:
-  - Retrieve lists of tickets or a single ticket (`zendesk_get_tickets`, `zendesk_get_ticket`)
-  - Create a new ticket or multiple tickets in bulk (`zendesk_create_ticket`, `zendesk_create_tickets_bulk`)
-  - Update a ticket or update multiple tickets at once (`zendesk_update_ticket`, `zendesk_update_tickets_bulk`)
-  - Delete tickets, merge tickets, and manage ticket lifecycle (`zendesk_delete_ticket`, `zendesk_merge_tickets`)
-- **User operations**:
-  - Fetch all users, get a single user, or get your current Zendesk user (`zendesk_get_users`, `zendesk_get_user`, `zendesk_get_current_user`)
-  - Search users, create a user, create users in bulk, update users (single or bulk), and delete users (`zendesk_search_users`, `zendesk_create_user`, `zendesk_create_users_bulk`, `zendesk_update_user`, `zendesk_update_users_bulk`, `zendesk_delete_user`)
-- **Organization operations**:
-  - List organizations, get a single organization, or search for organizations (`zendesk_get_organizations`, `zendesk_get_organization`, `zendesk_search_organizations`)
-  - Create a new organization or multiple at once, update, and delete organizations (`zendesk_create_organization`, `zendesk_create_organizations_bulk`, `zendesk_update_organization`, `zendesk_delete_organization`)
-- **Advanced data access and search**:
-  - Powerful search capabilities across tickets, users, and organizations (`zendesk_search`)
-  - Count matched results for a search query (`zendesk_search_count`)
-  - Export search results for reporting or downstream automation (`zendesk_export_search`)
+- **Manage Tickets:**
+  - Retrieve lists of support tickets with advanced filtering and sorting.
+  - Get detailed information on a single ticket for tracking and resolution.
+  - Create new tickets individually or in bulk to log customer issues programmatically.
+  - Update tickets or apply bulk updates to streamline complex workflows.
+  - Delete or merge tickets as cases are resolved or duplicates arise.
 
-**Bulk operations** are available for tickets, users, and organizations, allowing you to automate updates or creations at scale. Every major resource (tickets, users, orgs) can be created, listed, updated, deleted, or queried both individually and in batches.
+- **User Management:**
+  - Retrieve lists of users or search users by criteria to keep your customer and agent directories up-to-date.
+  - Get detailed information on individual users or the current logged-in user.
+  - Create new users or onboard them in bulk, automating customer and agent provisioning.
+  - Update or bulk update user details to ensure information accuracy.
+  - Delete users as needed for privacy or account management.
 
-By leveraging these tools, Sim agents can take complex support scenarios such as onboarding, triage, escalations, ticket merging, and reporting and make them hands-free and fully automated. This enables your workflows to efficiently keep CRM data synchronized, support customers in real-time, and maintain clean, integrated records.
+- **Organization Management:**
+  - List, search, and autocomplete organizations for streamlined support and account management.
+  - Get organization details and keep your database organized.
+  - Create, update, or delete organizations to reflect changes in your customer base.
+  - Perform bulk organization creation for large onboarding efforts.
 
-Whether you need to power support chatbots, automate escalations, sync user databases, or generate cross-system reports, the Zendesk integration in Sim provides granular control for any customer support automation need.
+- **Advanced Search & Analytics:**
+  - Use versatile search endpoints to quickly locate tickets, users, or organizations by any field.
+  - Retrieve counts of search results to power reporting and analytics.
+
+By leveraging Zendesk’s Sim integration, your automated workflows can seamlessly handle support ticket triage, user onboarding/offboarding, company management, and keep your support operations running smoothly. Whether you’re integrating support with product, CRM, or automation systems, Zendesk tools in Sim provide robust, programmatic control to power best-in-class support at scale.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Usage Instructions
 
