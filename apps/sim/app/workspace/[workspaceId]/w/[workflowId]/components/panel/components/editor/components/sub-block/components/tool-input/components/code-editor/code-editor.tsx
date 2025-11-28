@@ -141,7 +141,8 @@ export function CodeEditor({
 
     if (schemaParameters.length > 0) {
       schemaParameters.forEach((param) => {
-        const paramRegex = new RegExp(`\\b(${param.name})\\b`, 'g')
+        const escapedName = param.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const paramRegex = new RegExp(`\\b(${escapedName})\\b`, 'g')
         processedCode = processedCode.replace(paramRegex, (match) => {
           const placeholder = `__PARAM_${placeholders.length}__`
           placeholders.push({ placeholder, original: match, type: 'param' })
