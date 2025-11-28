@@ -271,7 +271,9 @@ try {
   const { data: customTools = [] } = useCustomTools(workspaceId)
 
   useEffect(() => {
-    if (open && initialValues) {
+    if (!open) return
+
+    if (initialValues) {
       try {
         setJsonSchema(
           typeof initialValues.schema === 'string'
@@ -285,10 +287,10 @@ try {
         logger.error('Error initializing form with initial values:', { error })
         setSchemaError('Failed to load tool data. Please try again.')
       }
-    } else if (open) {
+    } else {
       resetForm()
     }
-  }, [open, initialValues])
+  }, [open])
 
   const resetForm = () => {
     setJsonSchema('')
