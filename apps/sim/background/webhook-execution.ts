@@ -3,13 +3,11 @@ import { webhook, workflow as workflowTable } from '@sim/db/schema'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { processExecutionFiles } from '@/lib/execution/files'
 import { IdempotencyService, webhookIdempotency } from '@/lib/idempotency'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { decryptSecret } from '@/lib/utils'
 import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
 import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils.server'
 import {
@@ -133,7 +131,12 @@ async function executeWebhookJobInternal(
   executionId: string,
   requestId: string
 ) {
-  const loggingSession = new LoggingSession(payload.workflowId, executionId, 'webhook', requestId)
+  const loggingSession = new LoggingSession(
+    payload.workflowId,
+    executionId,
+    payload.provider || 'webhook',
+    requestId
+  )
 
   try {
     const workflowData =
@@ -155,19 +158,6 @@ async function executeWebhookJobInternal(
       .limit(1)
     const workspaceId = wfRows[0]?.workspaceId || undefined
     const workflowVariables = (wfRows[0]?.variables as Record<string, any>) || {}
-
-    const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
-      payload.userId,
-      workspaceId
-    )
-    const mergedEncrypted = { ...personalEncrypted, ...workspaceEncrypted }
-    const decryptedPairs = await Promise.all(
-      Object.entries(mergedEncrypted).map(async ([key, encrypted]) => {
-        const { decrypted } = await decryptSecret(encrypted)
-        return [key, decrypted] as const
-      })
-    )
-    const decryptedEnvVars: Record<string, string> = Object.fromEntries(decryptedPairs)
 
     // Merge subblock states (matching workflow-execution pattern)
     const mergedStates = mergeSubblockState(blocks, {})
@@ -232,7 +222,7 @@ async function executeWebhookJobInternal(
           workflowId: payload.workflowId,
           workspaceId,
           userId: payload.userId,
-          triggerType: 'webhook',
+          triggerType: payload.provider || 'webhook',
           triggerBlockId: payload.blockId,
           useDraftState: false,
           startTime: new Date().toISOString(),
@@ -445,7 +435,7 @@ async function executeWebhookJobInternal(
       workflowId: payload.workflowId,
       workspaceId,
       userId: payload.userId,
-      triggerType: 'webhook',
+      triggerType: payload.provider || 'webhook',
       triggerBlockId: payload.blockId,
       useDraftState: false,
       startTime: new Date().toISOString(),

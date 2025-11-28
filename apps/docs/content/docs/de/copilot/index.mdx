@@ -71,6 +71,16 @@ Diese kontextbezogenen Informationen helfen Copilot, genauere und relevantere Un
   </Card>
 </Cards>
 
+<div className="flex justify-center">
+  <Image
+    src="/static/copilot/copilot-mode.png"
+    alt="Copilot-Modusauswahl-Oberfläche"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
 ## Tiefenebenen
 
 <Cards>
@@ -82,7 +92,7 @@ Diese kontextbezogenen Informationen helfen Copilot, genauere und relevantere Un
       </span>
     }
   >
-    <div className="m-0 text-sm">Am schnellsten und günstigsten. Ideal für kleine Änderungen, einfache Workflows und geringfügige Anpassungen.</div>
+    <div className="m-0 text-sm">Am schnellsten und günstigsten. Ideal für kleine Änderungen, einfache Arbeitsabläufe und geringfügige Anpassungen.</div>
   </Card>
   <Card
     title={
@@ -102,7 +112,7 @@ Diese kontextbezogenen Informationen helfen Copilot, genauere und relevantere Un
       </span>
     }
   >
-    <div className="m-0 text-sm">Mehr Denkleistung für umfangreichere Workflows und komplexe Änderungen bei gleichzeitiger Leistungsfähigkeit.</div>
+    <div className="m-0 text-sm">Mehr Denkleistung für umfangreichere Arbeitsabläufe und komplexe Änderungen bei gleichzeitiger Leistungsfähigkeit.</div>
   </Card>
   <Card
     title={
@@ -118,7 +128,7 @@ Diese kontextbezogenen Informationen helfen Copilot, genauere und relevantere Un
 
 ### Modusauswahl-Oberfläche
 
-Du kannst einfach zwischen verschiedenen Denkmodi über den Modusauswähler in der Copilot-Oberfläche wechseln:
+Du kannst einfach zwischen verschiedenen Denkmodi über die Modusauswahl in der Copilot-Oberfläche wechseln:
 
 <Image
   src="/static/copilot/copilot-models.png"
@@ -140,8 +150,8 @@ Wähle deinen Modus basierend auf der Komplexität deiner Aufgabe - verwende Sch
 
 Die Copilot-Nutzung wird pro Token vom zugrundeliegenden LLM abgerechnet:
 
-- **Eingabe-Tokens**: werden zum Basistarif des Anbieters berechnet (**zum Selbstkostenpreis**)
-- **Ausgabe-Tokens**: werden mit dem **1,5-fachen** des Basisausgabepreises des Anbieters berechnet
+- **Eingabe-Tokens**: werden zum Basispreis des Anbieters berechnet (**zum Selbstkostenpreis**)
+- **Ausgabe-Tokens**: werden mit dem **1,5-fachen** des Basis-Ausgabepreises des Anbieters berechnet
 
 ```javascript
 copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5)) / 1,000,000
@@ -149,13 +159,13 @@ copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5))
 
 | Komponente | Angewendeter Tarif    |
 |------------|------------------------|
-| Input      | inputPrice             |
-| Output     | outputPrice × 1,5      |
+| Eingabe    | inputPrice             |
+| Ausgabe    | outputPrice × 1,5      |
 
 <Callout type="warning">
-  Die angezeigten Preise spiegeln die Tarife vom 4. September 2025 wider. Überprüfen Sie die Anbieterdokumentation für aktuelle Preise.
+  Die angezeigten Preise spiegeln die Tarife vom 4. September 2025 wider. Überprüfen Sie die Anbieter-Dokumentation für aktuelle Preise.
 </Callout>
 
 <Callout type="info">
-  Modellpreise werden pro Million Token berechnet. Die Berechnung teilt durch 1.000.000, um die tatsächlichen Kosten zu ermitteln. Siehe <a href="/execution/costs">die Seite zur Kostenberechnung</a> für Hintergründe und Beispiele.
+  Modellpreise werden pro Million Tokens angegeben. Die Berechnung teilt durch 1.000.000, um die tatsächlichen Kosten zu ermitteln. Siehe <a href="/execution/costs">die Seite zur Kostenberechnung</a> für Hintergründe und Beispiele.
 </Callout>

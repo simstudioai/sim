@@ -1,5 +1,4 @@
-import type React from 'react'
-import {
+import React, {
   createContext,
   type ReactNode,
   useCallback,
@@ -19,6 +18,7 @@ type CommandContextType = {
   registerItem: (id: string) => void
   unregisterItem: (id: string) => void
   selectItem: (id: string) => void
+  handleKeyDown: (e: React.KeyboardEvent) => void
 }
 
 const CommandContext = createContext<CommandContextType | undefined>(undefined)
@@ -29,6 +29,11 @@ const useCommandContext = () => {
     throw new Error('Command components must be used within a CommandProvider')
   }
   return context
+}
+
+export const useCommandKeyDown = () => {
+  const context = useContext(CommandContext)
+  return context?.handleKeyDown
 }
 
 interface CommandProps {
@@ -71,7 +76,6 @@ export function Command({
   const [items, setItems] = useState<string[]>([])
   const [filteredItems, setFilteredItems] = useState<string[]>([])
 
-  // Use external searchQuery if provided, otherwise use internal state
   const searchQuery = externalSearchQuery ?? internalSearchQuery
 
   const registerItem = useCallback((id: string) => {
@@ -101,18 +105,26 @@ export function Command({
       return
     }
 
-    const filtered = items
-      .map((item) => {
-        const score = filter ? filter(item, searchQuery) : defaultFilter(item, searchQuery)
-        return { item, score }
-      })
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map((item) => item.item)
+    const filtered = items.filter((item) => {
+      const score = filter ? filter(item, searchQuery) : defaultFilter(item, searchQuery)
+      return score > 0
+    })
 
     setFilteredItems(filtered)
     setActiveIndex(filtered.length > 0 ? 0 : -1)
   }, [searchQuery, items, filter])
+
+  useEffect(() => {
+    if (activeIndex >= 0 && filteredItems[activeIndex]) {
+      const activeElement = document.getElementById(filteredItems[activeIndex])
+      if (activeElement) {
+        activeElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+        })
+      }
+    }
+  }, [activeIndex, filteredItems])
 
   const defaultFilter = useCallback((value: string, search: string): number => {
     const normalizedValue = value.toLowerCase()
@@ -158,15 +170,22 @@ export function Command({
       registerItem,
       unregisterItem,
       selectItem,
+      handleKeyDown,
     }),
-    [searchQuery, activeIndex, filteredItems, registerItem, unregisterItem, selectItem]
+    [
+      searchQuery,
+      activeIndex,
+      filteredItems,
+      registerItem,
+      unregisterItem,
+      selectItem,
+      handleKeyDown,
+    ]
   )
 
   return (
     <CommandContext.Provider value={contextValue}>
-      <div className={cn('flex w-full flex-col', className)} onKeyDown={handleKeyDown}>
-        {children}
-      </div>
+      <div className={cn('flex w-full flex-col', className)}>{children}</div>
     </CommandContext.Provider>
   )
 }

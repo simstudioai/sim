@@ -291,7 +291,11 @@ export function CreatorProfile() {
                           />
                         </div>
                         <div className='flex flex-col gap-1'>
-                          {uploadError && <p className='text-destructive text-sm'>{uploadError}</p>}
+                          {uploadError && (
+                            <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                              {uploadError}
+                            </p>
+                          )}
                           <p className='text-muted-foreground text-xs'>PNG or JPEG (max 5MB)</p>
                         </div>
                       </div>
@@ -411,9 +415,9 @@ export function CreatorProfile() {
           {/* Error Message */}
           {saveError && (
             <div className='px-6 pb-2'>
-              <div className='text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
                 {saveError}
-              </div>
+              </p>
             </div>
           )}
 

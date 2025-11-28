@@ -5,6 +5,7 @@ title: ヒューマン・イン・ザ・ループ
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
 ヒューマン・イン・ザ・ループブロックは、ワークフローの実行を一時停止し、続行する前に人間の介入を待ちます。承認ゲート、フィードバックの収集、または重要な決断ポイントでの追加入力の収集に使用します。
 
@@ -76,7 +77,7 @@ import { Image } from '@/components/ui/image'
 }
 ```
 
-下流のブロックで再開データにアクセスするには `<blockId.resumeInput.fieldName>` を使用します。
+`<blockId.resumeInput.fieldName>`を使用して、下流のブロックで再開データにアクセスします。
 
 ## 承認方法
 
@@ -173,6 +174,12 @@ Agent (Generate) → Human in the Loop (QA) → Gmail (Send)
 // Condition block
 <approval1.resumeInput.approved> === true
 ```
+
+以下の例は、ワークフローが一時停止された後に承認者が見る承認ポータルを示しています。承認者はデータを確認し、ワークフロー再開の一部として入力を提供できます。承認ポータルは、固有のURL、`<blockId.url>`から直接アクセスできます。
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="hitl-resume.mp4" width={700} height={450} />
+</div>
 
 ## 関連ブロック
 

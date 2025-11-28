@@ -71,6 +71,16 @@ Ces informations contextuelles aident Copilot à fournir une assistance plus pr�
   </Card>
 </Cards>
 
+<div className="flex justify-center">
+  <Image
+    src="/static/copilot/copilot-mode.png"
+    alt="Interface de sélection du mode Copilot"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
 ## Niveaux de profondeur
 
 <Cards>
@@ -92,7 +102,7 @@ Ces informations contextuelles aident Copilot à fournir une assistance plus pr�
       </span>
     }
   >
-    <div className="m-0 text-sm">Équilibre entre vitesse et raisonnement. Recommandé par défaut pour la plupart des tâches.</div>
+    <div className="m-0 text-sm">Équilibre entre vitesse et raisonnement. Option par défaut recommandée pour la plupart des tâches.</div>
   </Card>
   <Card
     title={
@@ -102,13 +112,13 @@ Ces informations contextuelles aident Copilot à fournir une assistance plus pr�
       </span>
     }
   >
-    <div className="m-0 text-sm">Plus de raisonnement pour les flux de travail plus importants et les modifications complexes tout en restant performant.</div>
+    <div className="m-0 text-sm">Raisonnement plus poussé pour les flux de travail plus importants et les modifications complexes tout en restant performant.</div>
   </Card>
   <Card
     title={
       <span className="inline-flex items-center gap-2">
         <BrainCircuit className="h-4 w-4 text-muted-foreground" />
-        Mastodonte
+        Behemoth
       </span>
     }
   >
@@ -122,23 +132,23 @@ Vous pouvez facilement basculer entre différents modes de raisonnement à l'aid
 
 <Image
   src="/static/copilot/copilot-models.png"
-  alt="Sélection du mode Copilot montrant le mode Avancé avec l'option MAX activée"
+  alt="Sélection du mode Copilot montrant le mode Avancé avec l'option MAX"
   width={600}
   height={300}
 />
 
 L'interface vous permet de :
-- **Sélectionner le niveau de raisonnement** : choisissez entre Rapide, Auto, Avancé ou Mastodonte
+- **Sélectionner le niveau de raisonnement** : choisissez entre Rapide, Auto, Avancé ou Behemoth
 - **Activer le mode MAX** : basculez pour des capacités de raisonnement maximales lorsque vous avez besoin de l'analyse la plus approfondie
 - **Voir les descriptions des modes** : comprendre pour quoi chaque mode est optimisé
 
-Choisissez votre mode en fonction de la complexité de votre tâche - utilisez Rapide pour des questions simples et Mastodonte pour des changements architecturaux complexes.
+Choisissez votre mode en fonction de la complexité de votre tâche - utilisez Rapide pour des questions simples et Behemoth pour des changements architecturaux complexes.
 
 ## Facturation et calcul des coûts
 
 ### Comment les coûts sont calculés
 
-L'utilisation de Copilot est facturée par token depuis le LLM sous-jacent :
+L'utilisation de Copilot est facturée par token à partir du LLM sous-jacent :
 
 - **Tokens d'entrée** : facturés au tarif de base du fournisseur (**au prix coûtant**)
 - **Tokens de sortie** : facturés à **1,5×** le tarif de base de sortie du fournisseur
@@ -153,9 +163,9 @@ copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5))
 | Sortie    | outputPrice × 1,5    |
 
 <Callout type="warning">
-  Les tarifs affichés reflètent les taux en vigueur au 4 septembre 2025. Consultez la documentation du fournisseur pour connaître les tarifs actuels.
+  Les prix indiqués reflètent les tarifs en date du 4 septembre 2025. Consultez la documentation du fournisseur pour les tarifs actuels.
 </Callout>
 
 <Callout type="info">
-  Les prix des modèles sont indiqués par million de tokens. Le calcul divise par 1 000 000 pour obtenir le coût réel. Consultez <a href="/execution/costs">la page de calcul des coûts</a> pour plus d'informations et des exemples.
+  Les prix des modèles sont par million de tokens. Le calcul divise par 1 000 000 pour obtenir le coût réel. Consultez <a href="/execution/costs">la page de calcul des coûts</a> pour plus d'informations et des exemples.
 </Callout>

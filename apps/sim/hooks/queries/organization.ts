@@ -274,7 +274,7 @@ export function useInviteMember() {
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.message || 'Failed to invite member')
+        throw new Error(error.error || error.message || 'Failed to invite member')
       }
 
       return response.json()

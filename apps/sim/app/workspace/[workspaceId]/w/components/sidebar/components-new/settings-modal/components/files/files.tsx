@@ -273,9 +273,9 @@ export function Files() {
       {/* Error message */}
       {uploadError && (
         <div className='px-6 pb-2'>
-          <div className='text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+          <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
             {uploadError}
-          </div>
+          </p>
         </div>
       )}
 

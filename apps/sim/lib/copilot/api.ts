@@ -84,6 +84,7 @@ export interface SendMessageRequest {
     | 'claude-4-sonnet'
     | 'claude-4.5-haiku'
     | 'claude-4.5-sonnet'
+    | 'claude-4.5-opus'
     | 'claude-4.1-opus'
   prefetch?: boolean
   createNewChat?: boolean

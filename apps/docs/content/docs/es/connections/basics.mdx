@@ -4,6 +4,7 @@ title: Conceptos básicos
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Video } from '@/components/ui/video'
 
 ## Cómo funcionan las conexiones
 
@@ -28,11 +29,15 @@ Las conexiones son las vías que permiten que los datos fluyan entre bloques en 
   </Step>
 </Steps>
 
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="connections-build.mp4" width={700} height={450} />
+</div>
+
 ### Flujo de conexión
 
 El flujo de datos a través de las conexiones sigue estos principios:
 
-1. **Flujo direccional**: Los datos siempre fluyen de las salidas a las entradas
+1. **Flujo direccional**: Los datos siempre fluyen desde las salidas hacia las entradas
 2. **Orden de ejecución**: Los bloques se ejecutan en orden según sus conexiones
 3. **Transformación de datos**: Los datos pueden transformarse al pasar entre bloques
 4. **Rutas condicionales**: Algunos bloques (como Router y Condition) pueden dirigir el flujo a diferentes rutas

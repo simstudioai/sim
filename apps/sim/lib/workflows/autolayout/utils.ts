@@ -1,34 +1,56 @@
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/blocks/block-dimensions'
+import {
+  AUTO_LAYOUT_EXCLUDED_TYPES,
+  CONTAINER_BLOCK_TYPES,
+  CONTAINER_PADDING,
+  CONTAINER_PADDING_X,
+  CONTAINER_PADDING_Y,
+  ROOT_PADDING_X,
+  ROOT_PADDING_Y,
+} from '@/lib/workflows/autolayout/constants'
 import type { BlockMetrics, BoundingBox, GraphNode } from '@/lib/workflows/autolayout/types'
-import { TriggerUtils } from '@/lib/workflows/triggers'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
-export const DEFAULT_BLOCK_WIDTH = 350
-export const DEFAULT_BLOCK_HEIGHT = 100
-export const DEFAULT_CONTAINER_WIDTH = 500
-export const DEFAULT_CONTAINER_HEIGHT = 300
-const DEFAULT_PADDING = 40
+// Re-export layout constants for backwards compatibility
+export {
+  CONTAINER_PADDING,
+  CONTAINER_PADDING_X,
+  CONTAINER_PADDING_Y,
+  ROOT_PADDING_X,
+  ROOT_PADDING_Y,
+}
 
-export const CONTAINER_PADDING = 150
-export const CONTAINER_PADDING_X = 180
-export const CONTAINER_PADDING_Y = 100
-export const ROOT_PADDING_X = 150
-export const ROOT_PADDING_Y = 150
+// Re-export block dimensions for backwards compatibility
+export const DEFAULT_BLOCK_WIDTH = BLOCK_DIMENSIONS.FIXED_WIDTH
+export const DEFAULT_BLOCK_HEIGHT = BLOCK_DIMENSIONS.MIN_HEIGHT
+export const DEFAULT_CONTAINER_WIDTH = CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+export const DEFAULT_CONTAINER_HEIGHT = CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
 
+/**
+ * Resolves a potentially undefined numeric value to a fallback
+ */
 function resolveNumeric(value: number | undefined, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
-const AUTO_LAYOUT_EXCLUDED_TYPES = new Set(['note'])
-
+/**
+ * Checks if a block type is a container (loop or parallel)
+ */
 export function isContainerType(blockType: string): boolean {
-  return blockType === 'loop' || blockType === 'parallel'
+  return CONTAINER_BLOCK_TYPES.has(blockType)
 }
 
+/**
+ * Checks if a block should be excluded from autolayout
+ */
 export function shouldSkipAutoLayout(block?: BlockState): boolean {
   if (!block) return true
   return AUTO_LAYOUT_EXCLUDED_TYPES.has(block.type)
 }
 
+/**
+ * Filters block IDs to only include those eligible for layout
+ */
 export function filterLayoutEligibleBlockIds(
   blockIds: string[],
   blocks: Record<string, BlockState>
@@ -40,34 +62,40 @@ export function filterLayoutEligibleBlockIds(
   })
 }
 
+/**
+ * Gets metrics for a container block
+ */
 function getContainerMetrics(block: BlockState): BlockMetrics {
   const measuredWidth = block.layout?.measuredWidth
   const measuredHeight = block.layout?.measuredHeight
 
   const containerWidth = Math.max(
     measuredWidth ?? 0,
-    resolveNumeric(block.data?.width, DEFAULT_CONTAINER_WIDTH)
+    resolveNumeric(block.data?.width, CONTAINER_DIMENSIONS.DEFAULT_WIDTH)
   )
   const containerHeight = Math.max(
     measuredHeight ?? 0,
-    resolveNumeric(block.data?.height, DEFAULT_CONTAINER_HEIGHT)
+    resolveNumeric(block.data?.height, CONTAINER_DIMENSIONS.DEFAULT_HEIGHT)
   )
 
   return {
     width: containerWidth,
     height: containerHeight,
-    minWidth: DEFAULT_CONTAINER_WIDTH,
-    minHeight: DEFAULT_CONTAINER_HEIGHT,
-    paddingTop: DEFAULT_PADDING,
-    paddingBottom: DEFAULT_PADDING,
-    paddingLeft: DEFAULT_PADDING,
-    paddingRight: DEFAULT_PADDING,
+    minWidth: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+    minHeight: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+    paddingTop: BLOCK_DIMENSIONS.HEADER_HEIGHT,
+    paddingBottom: BLOCK_DIMENSIONS.HEADER_HEIGHT,
+    paddingLeft: BLOCK_DIMENSIONS.HEADER_HEIGHT,
+    paddingRight: BLOCK_DIMENSIONS.HEADER_HEIGHT,
   }
 }
 
+/**
+ * Gets metrics for a regular (non-container) block
+ */
 function getRegularBlockMetrics(block: BlockState): BlockMetrics {
-  const minWidth = DEFAULT_BLOCK_WIDTH
-  const minHeight = DEFAULT_BLOCK_HEIGHT
+  const minWidth = BLOCK_DIMENSIONS.FIXED_WIDTH
+  const minHeight = BLOCK_DIMENSIONS.MIN_HEIGHT
   const measuredH = block.layout?.measuredHeight ?? block.height
   const measuredW = block.layout?.measuredWidth
 
@@ -79,13 +107,16 @@ function getRegularBlockMetrics(block: BlockState): BlockMetrics {
     height,
     minWidth,
     minHeight,
-    paddingTop: DEFAULT_PADDING,
-    paddingBottom: DEFAULT_PADDING,
-    paddingLeft: DEFAULT_PADDING,
-    paddingRight: DEFAULT_PADDING,
+    paddingTop: BLOCK_DIMENSIONS.HEADER_HEIGHT,
+    paddingBottom: BLOCK_DIMENSIONS.HEADER_HEIGHT,
+    paddingLeft: BLOCK_DIMENSIONS.HEADER_HEIGHT,
+    paddingRight: BLOCK_DIMENSIONS.HEADER_HEIGHT,
   }
 }
 
+/**
+ * Gets the dimensions and metrics for a block
+ */
 export function getBlockMetrics(block: BlockState): BlockMetrics {
   if (isContainerType(block.type)) {
     return getContainerMetrics(block)
@@ -94,12 +125,18 @@ export function getBlockMetrics(block: BlockState): BlockMetrics {
   return getRegularBlockMetrics(block)
 }
 
+/**
+ * Prepares metrics for all nodes in a graph
+ */
 export function prepareBlockMetrics(nodes: Map<string, GraphNode>): void {
   for (const node of nodes.values()) {
     node.metrics = getBlockMetrics(node.block)
   }
 }
 
+/**
+ * Creates a bounding box from position and dimensions
+ */
 export function createBoundingBox(
   position: { x: number; y: number },
   dimensions: Pick<BlockMetrics, 'width' | 'height'>
@@ -112,6 +149,9 @@ export function createBoundingBox(
   }
 }
 
+/**
+ * Checks if two bounding boxes overlap (with optional margin)
+ */
 export function boxesOverlap(box1: BoundingBox, box2: BoundingBox, margin = 0): boolean {
   return !(
     box1.x + box1.width + margin <= box2.x ||
@@ -121,6 +161,9 @@ export function boxesOverlap(box1: BoundingBox, box2: BoundingBox, margin = 0): 
   )
 }
 
+/**
+ * Groups blocks by their parent container
+ */
 export function getBlocksByParent(blocks: Record<string, BlockState>): {
   root: string[]
   children: Map<string, string[]>
@@ -144,10 +187,81 @@ export function getBlocksByParent(blocks: Record<string, BlockState>): {
   return { root, children }
 }
 
-export function isStarterBlock(block: BlockState): boolean {
-  if (TriggerUtils.isTriggerBlock({ type: block.type, triggerMode: block.triggerMode })) {
-    return true
+/**
+ * Normalizes node positions to start from a given padding offset.
+ * Returns the bounding box dimensions of the normalized layout.
+ */
+export function normalizePositions(
+  nodes: Map<string, GraphNode>,
+  options: { isContainer: boolean }
+): { width: number; height: number } {
+  if (nodes.size === 0) {
+    return { width: 0, height: 0 }
   }
 
-  return false
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+
+  for (const node of nodes.values()) {
+    minX = Math.min(minX, node.position.x)
+    minY = Math.min(minY, node.position.y)
+    maxX = Math.max(maxX, node.position.x + node.metrics.width)
+    maxY = Math.max(maxY, node.position.y + node.metrics.height)
+  }
+
+  const paddingX = options.isContainer ? CONTAINER_PADDING_X : ROOT_PADDING_X
+  const paddingY = options.isContainer ? CONTAINER_PADDING_Y : ROOT_PADDING_Y
+
+  const xOffset = paddingX - minX
+  const yOffset = paddingY - minY
+
+  for (const node of nodes.values()) {
+    node.position = {
+      x: node.position.x + xOffset,
+      y: node.position.y + yOffset,
+    }
+  }
+
+  const width = maxX - minX + CONTAINER_PADDING * 2
+  const height = maxY - minY + CONTAINER_PADDING * 2
+
+  return { width, height }
+}
+
+/**
+ * Transfers block height measurements from source blocks to target blocks.
+ * Matches blocks by type:name key.
+ */
+export function transferBlockHeights(
+  sourceBlocks: Record<string, BlockState>,
+  targetBlocks: Record<string, BlockState>
+): void {
+  // Build a map of block type+name to heights from source
+  const heightMap = new Map<string, { height: number; width: number }>()
+
+  for (const block of Object.values(sourceBlocks)) {
+    const key = `${block.type}:${block.name}`
+    heightMap.set(key, {
+      height: block.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
+      width: block.layout?.measuredWidth || BLOCK_DIMENSIONS.FIXED_WIDTH,
+    })
+  }
+
+  // Transfer heights to target blocks
+  for (const block of Object.values(targetBlocks)) {
+    const key = `${block.type}:${block.name}`
+    const measurements = heightMap.get(key)
+
+    if (measurements) {
+      block.height = measurements.height
+
+      if (!block.layout) {
+        block.layout = {}
+      }
+      block.layout.measuredHeight = measurements.height
+      block.layout.measuredWidth = measurements.width
+    }
+  }
 }

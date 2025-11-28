@@ -19,6 +19,7 @@ import {
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
+  VllmIcon,
   xAIIcon,
 } from '@/components/icons'
 
@@ -80,6 +81,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     contextInformationAvailable: false,
+    models: [],
+  },
+  vllm: {
+    id: 'vllm',
+    name: 'vLLM',
+    icon: VllmIcon,
+    description: 'Self-hosted vLLM with an OpenAI-compatible API',
+    defaultModel: 'vllm/generic',
+    modelPatterns: [/^vllm\//],
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
     models: [],
   },
   openai: {
@@ -568,6 +582,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           cachedInput: 1.5,
           output: 15.0,
           updatedAt: '2025-06-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-opus-4-5',
+        pricing: {
+          input: 5.0,
+          cachedInput: 0.5,
+          output: 25.0,
+          updatedAt: '2025-11-24',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1356,6 +1383,21 @@ export function supportsToolUsageControl(providerId: string): boolean {
  */
 export function updateOllamaModels(models: string[]): void {
   PROVIDER_DEFINITIONS.ollama.models = models.map((modelId) => ({
+    id: modelId,
+    pricing: {
+      input: 0,
+      output: 0,
+      updatedAt: new Date().toISOString().split('T')[0],
+    },
+    capabilities: {},
+  }))
+}
+
+/**
+ * Update vLLM models dynamically
+ */
+export function updateVLLMModels(models: string[]): void {
+  PROVIDER_DEFINITIONS.vllm.models = models.map((modelId) => ({
     id: modelId,
     pricing: {
       input: 0,

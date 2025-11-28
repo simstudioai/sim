@@ -1,4 +1,5 @@
 import { Sandbox } from '@e2b/code-interpreter'
+import { env } from '@/lib/env'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -20,13 +21,7 @@ const logger = createLogger('E2BExecution')
 export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecutionResult> {
   const { code, language, timeoutMs } = req
 
-  logger.info(`Executing code in E2B`, {
-    code,
-    language,
-    timeoutMs,
-  })
-
-  const apiKey = process.env.E2B_API_KEY
+  const apiKey = env.E2B_API_KEY
   if (!apiKey) {
     throw new Error('E2B_API_KEY is required when E2B is enabled')
   }
@@ -42,7 +37,6 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
       timeoutMs,
     })
 
-    // Check for execution errors
     if (execution.error) {
       const errorMessage = `${execution.error.name}: ${execution.error.value}`
       logger.error(`E2B execution error`, {
@@ -51,7 +45,6 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
         errorMessage,
       })
 
-      // Include error traceback in stdout if available
       const errorOutput = execution.error.traceback || errorMessage
       return {
         result: null,
@@ -61,7 +54,6 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
       }
     }
 
-    // Get output from execution
     if (execution.text) {
       stdoutChunks.push(execution.text)
     }
