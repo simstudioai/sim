@@ -332,7 +332,7 @@ export function FieldFormat({
           <Code.Content paddingLeft={`${gutterWidth}px`}>
             <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
               {
-                '[\n  {\n    "data": "data:application/pdf;base64,...",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]'
+                '[\n  {\n    "data": "<base64>",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]'
               }
             </Code.Placeholder>
             <Editor
@@ -405,7 +405,7 @@ export function FieldFormat({
           key={field.id}
           data-field-id={field.id}
           className={cn(
-            'rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]',
+            'rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
             field.collapsed ? 'overflow-hidden' : 'overflow-visible'
           )}
         >

@@ -23,7 +23,7 @@ import {
   getProviderName,
   shouldSkipBlockRender,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
-import { useBlockCore } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   BLOCK_DIMENSIONS,
   useBlockDimensions,
@@ -400,7 +400,7 @@ const SubBlockRow = ({
       </span>
       {displayValue !== undefined && (
         <span
-          className='flex-1 truncate text-right text-[14px] text-[var(--white)]'
+          className='flex-1 truncate text-right text-[14px] text-[var(--text-primary)]'
           title={displayValue}
         >
           {displayValue}
@@ -426,15 +426,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     currentWorkflow,
     activeWorkflowId,
     isEnabled,
-    isActive,
-    diffStatus,
-    isDeletedBlock,
-    isFocused,
     handleClick,
     hasRing,
     ringStyles,
     runPathStatus,
-  } = useBlockCore({ blockId: id, data, isPending })
+  } = useBlockVisual({ blockId: id, data, isPending })
 
   const currentBlock = currentWorkflow.getBlockById(id)
 
@@ -852,7 +848,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             <span
               className={cn(
                 'truncate font-medium text-[16px]',
-                !isEnabled && runPathStatus !== 'success' && 'text-[#808080]'
+                !isEnabled && runPathStatus !== 'success' && 'text-[var(--text-muted)]'
               )}
               title={name}
             >
@@ -870,8 +866,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                       variant='outline'
                       className='cursor-pointer'
                       style={{
-                        borderColor: !childIsDeployed ? '#EF4444' : '#FF6600',
-                        color: !childIsDeployed ? '#EF4444' : '#FF6600',
+                        borderColor: !childIsDeployed ? 'var(--text-error)' : 'var(--warning)',
+                        color: !childIsDeployed ? 'var(--text-error)' : 'var(--warning)',
                       }}
                       onClick={(e) => {
                         e.stopPropagation()
@@ -899,8 +895,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                     variant='outline'
                     className='cursor-pointer'
                     style={{
-                      borderColor: '#FF6600',
-                      color: '#FF6600',
+                      borderColor: 'var(--warning)',
+                      color: 'var(--warning)',
                     }}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -953,7 +949,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   <Badge
                     variant='outline'
                     className='cursor-pointer'
-                    style={{ borderColor: '#FF6600', color: '#FF6600' }}
+                    style={{ borderColor: 'var(--warning)', color: 'var(--warning)' }}
                     onClick={(e) => {
                       e.stopPropagation()
                       reactivateWebhook(webhookId)

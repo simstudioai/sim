@@ -1,8 +1,10 @@
 import { memo, useCallback } from 'react'
+import clsx from 'clsx'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
+import { useTerminalStore } from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -11,6 +13,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 const logger = createLogger('DiffControls')
 
 export const DiffControls = memo(function DiffControls() {
+  const isTerminalResizing = useTerminalStore((state) => state.isResizing)
   // Optimized: Single diff store subscription
   const {
     isShowingDiff,
@@ -312,7 +315,10 @@ export const DiffControls = memo(function DiffControls() {
 
   return (
     <div
-      className='-translate-x-1/2 fixed left-1/2 z-30'
+      className={clsx(
+        '-translate-x-1/2 fixed left-1/2 z-30',
+        !isTerminalResizing && 'transition-[bottom] duration-100 ease-out'
+      )}
       style={{ bottom: 'calc(var(--terminal-height) + 40px)' }}
     >
       <div className='flex items-center gap-[6px] rounded-[10px] p-[6px]'>

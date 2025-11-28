@@ -18,7 +18,6 @@ export interface ExecutionState {
   pendingBlocks: string[]
   executor: Executor | null
   debugContext: ExecutionContext | null
-  autoPanDisabled: boolean
   /**
    * Tracks blocks from the last execution run and their success/error status.
    * Cleared when a new run starts. Used to show run path indicators (rings on blocks).
@@ -38,7 +37,6 @@ export interface ExecutionActions {
   setPendingBlocks: (blockIds: string[]) => void
   setExecutor: (executor: Executor | null) => void
   setDebugContext: (context: ExecutionContext | null) => void
-  setAutoPanDisabled: (disabled: boolean) => void
   setBlockRunStatus: (blockId: string, status: BlockRunStatus) => void
   setEdgeRunStatus: (edgeId: string, status: EdgeRunStatus) => void
   clearRunPath: () => void
@@ -52,11 +50,6 @@ export const initialState: ExecutionState = {
   pendingBlocks: [],
   executor: null,
   debugContext: null,
-  autoPanDisabled: false,
   lastRunPath: new Map(),
   lastRunEdges: new Map(),
 }
-
-// Types for panning functionality
-export type PanToBlockCallback = (blockId: string) => void
-export type SetPanToBlockCallback = (callback: PanToBlockCallback | null) => void

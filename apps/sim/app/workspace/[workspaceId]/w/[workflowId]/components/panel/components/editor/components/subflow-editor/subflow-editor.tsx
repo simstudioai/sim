@@ -71,7 +71,7 @@ export function SubflowEditor({
         <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[5px] pb-[8px]'>
           {/* Type Selection */}
           <div>
-            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
               {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
             </Label>
             <Combobox
@@ -89,14 +89,14 @@ export function SubflowEditor({
               className='h-[1.25px]'
               style={{
                 backgroundImage:
-                  'repeating-linear-gradient(to right, #2C2C2C 0px, #2C2C2C 6px, transparent 6px, transparent 12px)',
+                  'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
               }}
             />
           </div>
 
           {/* Configuration */}
           <div>
-            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
               {isCountMode
                 ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
                 : isConditionMode
@@ -165,7 +165,7 @@ export function SubflowEditor({
       {hasIncomingConnections && (
         <div
           className={
-            'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t dark:border-[var(--border)]' +
+            'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
             (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
           }
           style={{ height: `${connectionsHeight}px` }}
@@ -198,9 +198,7 @@ export function SubflowEditor({
                 (!isConnectionsAtMinHeight ? ' rotate-180' : '')
               }
             />
-            <div className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-              Connections
-            </div>
+            <div className='font-medium text-[13px] text-[var(--text-primary)]'>Connections</div>
           </div>
 
           {/* Connections Content - Always visible */}

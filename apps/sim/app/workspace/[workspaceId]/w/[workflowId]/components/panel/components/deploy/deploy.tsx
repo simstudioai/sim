@@ -62,7 +62,6 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
   const isEmpty = !hasBlocks()
   const canDeploy = userPermissions.canAdmin
   const isDisabled = isDeploying || !canDeploy || isEmpty
-  const isPreviousVersionActive = isDeployed && changeDetected
 
   /**
    * Handle deploy button click
@@ -135,6 +134,7 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
         workflowId={activeWorkflowId}
+        isDeployed={isDeployed}
         needsRedeployment={changeDetected}
         setNeedsRedeployment={setChangeDetected}
         deployedState={deployedState!}

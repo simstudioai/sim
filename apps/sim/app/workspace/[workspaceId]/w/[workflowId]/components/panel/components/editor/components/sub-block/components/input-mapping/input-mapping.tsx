@@ -257,7 +257,7 @@ export function InputMapping({
 
   if (!selectedWorkflowId) {
     return (
-      <div className='flex flex-col items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] p-8 text-center'>
+      <div className='flex flex-col items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] p-8 text-center dark:bg-[#1F1F1F]'>
         <svg
           className='mb-3 h-10 w-10 text-[var(--text-tertiary)]'
           fill='none'
@@ -369,7 +369,7 @@ function InputMappingField({
   return (
     <div
       className={cn(
-        'rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]',
+        'rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
         collapsed ? 'overflow-hidden' : 'overflow-visible'
       )}
     >

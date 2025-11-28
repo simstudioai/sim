@@ -234,12 +234,8 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
         data-item-id={workflow.id}
         className={clsx(
           'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px]',
-          active
-            ? 'bg-[var(--border)] dark:bg-[var(--border)]'
-            : 'hover:bg-[var(--border)] dark:hover:bg-[var(--border)]',
-          isSelected && selectedWorkflows.size > 1 && !active
-            ? 'bg-[var(--border)] dark:bg-[var(--border)]'
-            : '',
+          active ? 'bg-[var(--border)]' : 'hover:bg-[var(--border)]',
+          isSelected && selectedWorkflows.size > 1 && !active ? 'bg-[var(--border)]' : '',
           isDragging ? 'opacity-50' : ''
         )}
         draggable={!isEditing}
@@ -263,7 +259,7 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
               className={clsx(
                 'w-full border-0 bg-transparent p-0 font-medium text-[14px] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
                 active
-                  ? 'text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+                  ? 'text-[var(--text-primary)]'
                   : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
               )}
               maxLength={100}
@@ -282,8 +278,8 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
               className={clsx(
                 'truncate font-medium',
                 active
-                  ? 'text-[var(--text-primary)] dark:text-[var(--text-primary)]'
-                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
+                  ? 'text-[var(--text-primary)]'
+                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
               )}
               onDoubleClick={handleDoubleClick}
             >

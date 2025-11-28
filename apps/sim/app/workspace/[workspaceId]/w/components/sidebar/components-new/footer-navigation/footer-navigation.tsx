@@ -88,23 +88,21 @@ export function FooterNavigation() {
 
           const itemClasses = clsx(
             'group flex h-[24px] items-center gap-[8px] rounded-[8px] px-[7px] text-[14px]',
-            active
-              ? 'bg-[var(--border)] dark:bg-[var(--border)]'
-              : 'hover:bg-[var(--border)] dark:hover:bg-[var(--border)]'
+            active ? 'bg-[var(--border)]' : 'hover:bg-[var(--border)]'
           )
 
           const iconClasses = clsx(
             'h-[14px] w-[14px] flex-shrink-0',
             active
-              ? 'text-[var(--text-primary)] dark:text-[var(--text-primary)]'
-              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
+              ? 'text-[var(--text-primary)]'
+              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
           )
 
           const labelClasses = clsx(
             'truncate font-base text-[13px]',
             active
-              ? 'text-[var(--text-primary)] dark:text-[var(--text-primary)]'
-              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
+              ? 'text-[var(--text-primary)]'
+              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
           )
 
           const content = (

@@ -208,7 +208,7 @@ export function Files() {
   return (
     <div className='relative flex h-full flex-col'>
       {/* Header: search left, file count + Upload right */}
-      <div className='flex items-center justify-between px-6 pt-4 pb-2'>
+      <div className='flex items-center justify-between'>
         <div className='flex h-9 w-56 items-center gap-2 rounded-[8px] border bg-transparent pr-2 pl-3'>
           <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
           <Input
@@ -272,7 +272,7 @@ export function Files() {
 
       {/* Error message */}
       {uploadError && (
-        <div className='px-6 pb-2'>
+        <div>
           <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
             {uploadError}
           </p>
@@ -280,7 +280,7 @@ export function Files() {
       )}
 
       {/* Files Table */}
-      <div className='min-h-0 flex-1 overflow-y-auto px-6'>
+      <div className='min-h-0 flex-1 overflow-y-auto'>
         {files.length === 0 ? (
           <div className='py-8 text-center text-muted-foreground text-sm'>
             No files uploaded yet

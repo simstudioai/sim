@@ -1602,7 +1602,7 @@ export function ToolInput({
       {selectedTools.length === 0 ? (
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)]'>
+            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)] dark:bg-[#1F1F1F]'>
               <div className='flex items-center text-[13px] text-[var(--text-muted)]'>
                 <PlusIcon className='mr-2 h-4 w-4' />
                 Add Tool
@@ -1823,7 +1823,7 @@ export function ToolInput({
               <div
                 key={`${tool.toolId}-${toolIndex}`}
                 className={cn(
-                  'group relative flex flex-col overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] transition-all duration-200 ease-in-out',
+                  'group relative flex flex-col overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] transition-all duration-200 ease-in-out dark:bg-[#1F1F1F]',
                   draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
                   dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
                     ? 'translate-y-1 transform border-t-2 border-t-muted-foreground/40'
@@ -1876,7 +1876,7 @@ export function ToolInput({
                         />
                       )}
                     </div>
-                    <span className='truncate font-medium text-[#EEEEEE] text-[13px]'>
+                    <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
                       {tool.title}
                     </span>
                   </div>
@@ -1952,7 +1952,7 @@ export function ToolInput({
                         e.stopPropagation()
                         handleRemoveTool(toolIndex)
                       }}
-                      className='text-[var(--text-tertiary)] transition-colors hover:text-[#EEEEEE]'
+                      className='text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
                       aria-label='Remove tool'
                     >
                       <XIcon className='h-[14px] w-[14px]' />
@@ -2137,7 +2137,7 @@ export function ToolInput({
           {/* Add Tool Button */}
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)]'>
+              <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)] dark:bg-[#1F1F1F]'>
                 <div className='flex items-center text-[13px] text-[var(--text-muted)]'>
                   <PlusIcon className='mr-2 h-4 w-4' />
                   Add Tool

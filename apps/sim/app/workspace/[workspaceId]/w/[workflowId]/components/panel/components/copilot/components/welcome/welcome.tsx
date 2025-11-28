@@ -64,16 +64,14 @@ export function Welcome({ onQuestionClick, mode = 'ask' }: WelcomeProps) {
           >
             <div className='flex flex-col items-start'>
               <p className='font-medium'>{title}</p>
-              <p className='text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
-                {question}
-              </p>
+              <p className='text-[var(--text-secondary)]'>{question}</p>
             </div>
           </Button>
         ))}
       </div>
 
       {/* Tips */}
-      <p className='pt-[12px] text-center text-[13px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+      <p className='pt-[12px] text-center text-[13px] text-[var(--text-secondary)]'>
         Tip: Use <span className='font-medium'>@</span> to reference chats, workflows, knowledge,
         blocks, or templates
       </p>

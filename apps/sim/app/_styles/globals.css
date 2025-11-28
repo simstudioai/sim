@@ -82,20 +82,20 @@
   .light {
     /* Neutrals (surfaces) */
     --bg: #ffffff;
-    --surface-1: #ffffff;
-    --surface-2: #fafafa;
-    --surface-3: #f8f8f8;
-    --surface-4: #f6f6f6;
-    --surface-5: #f3f3f3;
-    --surface-6: #f0f0f0;
-    --surface-9: #eaeaea;
-    --surface-11: #e6e6e6;
-    --surface-12: #e0e0e0;
-    --surface-13: #dcdcdc;
-    --surface-14: #d6d6d6;
-    --surface-15: #cfcfcf;
+    --surface-1: #f5f5f5;
+    --surface-2: #f2f2f2;
+    --surface-3: #f0f0f0;
+    --surface-4: #eeeeee;
+    --surface-5: #ebebeb;
+    --surface-6: #e8e8e8;
+    --surface-9: #cecece;
+    --surface-11: #c8c8c8;
+    --surface-12: #c4c4c4;
+    --surface-13: #c0c0c0;
+    --surface-14: #bcbcbc;
+    --surface-15: #b8b8b8;
     --surface-elevated: #ffffff;
-    --bg-strong: #f5f5f5;
+    --bg-strong: #ebebeb;
 
     /* Text */
     --text-primary: #1b1b1b;
@@ -107,11 +107,11 @@
     --text-error: #ef4444;
 
     /* Borders / dividers */
-    --border: #dddddd;
-    --border-strong: #d1d1d1;
+    --border: #ebebeb;
+    --border-strong: #e0e0e0;
     --divider: #e5e5e5;
-    --border-muted: #eeeeee;
-    --border-success: #d5d5d5;
+    --border-muted: #f0f0f0;
+    --border-success: #cecece;
 
     /* Brand & state */
     --brand-400: #8e4cfb;
@@ -124,10 +124,10 @@
     --white: #ffffff;
 
     /* RGB for opacity usage */
-    --surface-4-rgb: 246 246 246;
-    --surface-5-rgb: 243 243 243;
-    --surface-7-rgb: 230 230 230;
-    --surface-9-rgb: 234 234 234;
+    --surface-4-rgb: 238 238 238;
+    --surface-5-rgb: 235 235 235;
+    --surface-7-rgb: 224 224 224;
+    --surface-9-rgb: 206 206 206;
     --divider-rgb: 229 229 229;
     --white-rgb: 255 255 255;
     --black-rgb: 0 0 0;

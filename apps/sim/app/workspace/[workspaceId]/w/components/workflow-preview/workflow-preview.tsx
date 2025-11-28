@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { cloneDeep } from 'lodash'
 import ReactFlow, {
   ConnectionLineType,
@@ -9,6 +9,7 @@ import ReactFlow, {
   type Node,
   type NodeTypes,
   ReactFlowProvider,
+  useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
@@ -47,6 +48,31 @@ const nodeTypes: NodeTypes = {
 const edgeTypes: EdgeTypes = {
   default: WorkflowEdge,
   workflowEdge: WorkflowEdge, // Keep for backward compatibility
+}
+
+interface FitViewOnChangeProps {
+  nodes: Node[]
+  fitPadding: number
+}
+
+/**
+ * Helper component that calls fitView when nodes change.
+ * Must be rendered inside ReactFlowProvider.
+ */
+function FitViewOnChange({ nodes, fitPadding }: FitViewOnChangeProps) {
+  const { fitView } = useReactFlow()
+
+  useEffect(() => {
+    if (nodes.length > 0) {
+      // Small delay to ensure nodes are rendered before fitting
+      const timeoutId = setTimeout(() => {
+        fitView({ padding: fitPadding, duration: 200 })
+      }, 50)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [nodes, fitPadding, fitView])
+
+  return null
 }
 
 export function WorkflowPreview({
@@ -275,7 +301,7 @@ export function WorkflowPreview({
 
   return (
     <ReactFlowProvider>
-      <div style={{ height, width, backgroundColor: '#1B1B1B' }} className={cn('preview-mode')}>
+      <div style={{ height, width, backgroundColor: 'var(--bg)' }} className={cn('preview-mode')}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -308,6 +334,7 @@ export function WorkflowPreview({
               : undefined
           }
         />
+        <FitViewOnChange nodes={nodes} fitPadding={fitPadding} />
       </div>
     </ReactFlowProvider>
   )

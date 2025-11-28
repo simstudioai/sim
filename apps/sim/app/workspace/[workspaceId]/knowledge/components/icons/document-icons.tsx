@@ -125,7 +125,7 @@ export const TxtIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
     <path d='M14 2V8H20' fill='#9E9E9E' />
     <path
       d='M14 2L20 8V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V4C4 2.9 4.9 2 6 2H14Z'
-      stroke='#424242'
+      stroke='var(--border-muted)'
       strokeWidth='0.5'
       strokeLinecap='round'
       strokeLinejoin='round'

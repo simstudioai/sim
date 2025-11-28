@@ -177,8 +177,8 @@ export function Copilot() {
   return (
     <div className='relative flex h-full flex-col'>
       {/* Scrollable Content */}
-      <div className='min-h-0 flex-1 overflow-y-auto px-6'>
-        <div className='space-y-2 pt-2 pb-6'>
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='space-y-2'>
           {keys.length === 0 ? (
             <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
               Click "Create Key" below to get started
@@ -219,7 +219,7 @@ export function Copilot() {
 
       {/* Footer */}
       <div className='bg-background'>
-        <div className='flex w-full items-center px-6 py-4'>
+        <div className='flex w-full items-center'>
           <Button
             onClick={onGenerate}
             variant='ghost'

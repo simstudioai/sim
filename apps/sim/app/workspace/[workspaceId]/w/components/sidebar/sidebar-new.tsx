@@ -522,14 +522,12 @@ export function SidebarNew() {
                 onClick={() => setIsSearchModalOpen(true)}
               >
                 <div className='flex items-center gap-[6px]'>
-                  <Search className='h-[14px] w-[14px] text-[var(--text-subtle)] dark:text-[var(--text-subtle)]' />
-                  <p className='translate-y-[0.25px] font-medium text-[var(--text-secondary)] text-small dark:text-[var(--text-secondary)]'>
+                  <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+                  <p className='translate-y-[0.25px] font-medium text-[var(--text-secondary)] text-small'>
                     Search
                   </p>
                 </div>
-                <p className='font-medium text-[var(--text-subtle)] text-small dark:text-[var(--text-subtle)]'>
-                  ⌘K
-                </p>
+                <p className='font-medium text-[var(--text-subtle)] text-small'>⌘K</p>
               </div>
 
               {/* Workflows */}
@@ -537,7 +535,7 @@ export function SidebarNew() {
                 {/* Header - Always visible */}
                 <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[14px]'>
                   <div className='flex items-center justify-between'>
-                    <div className='font-medium text-[var(--text-tertiary)] text-small dark:text-[var(--text-tertiary)]'>
+                    <div className='font-medium text-[var(--text-tertiary)] text-small'>
                       Workflows
                     </div>
                     <div className='flex items-center justify-center gap-[10px]'>

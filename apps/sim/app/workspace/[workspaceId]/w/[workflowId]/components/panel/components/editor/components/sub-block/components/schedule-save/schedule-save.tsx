@@ -485,9 +485,7 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
             <ModalDescription>
               Are you sure you want to delete this schedule configuration? This will stop the
               workflow from running automatically.{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </ModalDescription>
           </ModalHeader>
           <ModalFooter>
@@ -500,7 +498,7 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
             </Button>
             <Button
               onClick={handleDeleteConfirm}
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
             >
               Delete
             </Button>

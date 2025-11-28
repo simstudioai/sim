@@ -12,7 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
-import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/account/hooks/use-profile-picture-upload'
+import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/hooks/use-profile-picture-upload'
 import {
   useCreatorProfile,
   useOrganizations,
@@ -149,8 +149,8 @@ export function CreatorProfile() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='flex h-full flex-col'>
           {/* Scrollable Content */}
-          <div className='min-h-0 flex-1 overflow-y-auto px-6'>
-            <div className='space-y-2 pt-2 pb-6'>
+          <div className='min-h-0 flex-1 overflow-y-auto'>
+            <div className='space-y-2'>
               {/* Profile Type - only show if user has organizations */}
               {organizations.length > 0 && (
                 <FormField
@@ -414,7 +414,7 @@ export function CreatorProfile() {
 
           {/* Error Message */}
           {saveError && (
-            <div className='px-6 pb-2'>
+            <div>
               <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
                 {saveError}
               </p>
@@ -423,7 +423,7 @@ export function CreatorProfile() {
 
           {/* Footer */}
           <div className='bg-background'>
-            <div className='flex w-full items-center justify-between px-6 py-4'>
+            <div className='flex w-full items-center justify-between'>
               <div className='text-muted-foreground text-xs'>
                 Set up your creator profile for publishing templates
               </div>

@@ -1,48 +1,83 @@
-import { useEffect, useState } from 'react'
-import { Info } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-// COMMENTED OUT: Theme switching disabled - dark mode is forced for workspace
-// import {
-//   Select,
-//   SelectContent,
-//   SelectItem,
-//   SelectTrigger,
-//   SelectValue,
-// } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
-import { useSession } from '@/lib/auth-client'
-import { getEnv, isTruthy } from '@/lib/env'
-import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
+'use client'
 
-const TOOLTIPS = {
-  autoConnect: 'Automatically connect nodes.',
-  autoPan: 'Automatically pan to active blocks during workflow execution.',
-  consoleExpandedByDefault:
-    'Show console entries expanded by default. When disabled, entries will be collapsed by default.',
-  floatingControls:
-    'Show floating controls for zoom, undo, and redo at the bottom of the workflow canvas.',
-  trainingControls:
-    'Show training controls for recording workflow edits to build copilot training datasets.',
-  superUserMode:
-    'Toggle super user mode UI. When enabled, you can see and approve pending templates. Your super user status in the database remains unchanged.',
-  errorNotifications:
-    'Show error notifications when blocks fail. When disabled, errors will only appear in the console.',
+import { useEffect, useRef, useState } from 'react'
+import { Camera, Check, Pencil } from 'lucide-react'
+import Image from 'next/image'
+import { useRouter } from 'next/navigation'
+import { Button, Combobox, Label, Switch } from '@/components/emcn'
+import {
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn/components/modal-new/modal'
+import { Input, Skeleton } from '@/components/ui'
+import { signOut, useSession } from '@/lib/auth-client'
+import { useBrandConfig } from '@/lib/branding/branding'
+import { getEnv, isTruthy } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
+import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/hooks/use-profile-picture-upload'
+import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
+import { useUpdateUserProfile, useUserProfile } from '@/hooks/queries/user-profile'
+import { clearUserData } from '@/stores'
+
+const logger = createLogger('General')
+
+/**
+ * Extracts initials from a user's name.
+ * @param name - The user's full name
+ * @returns Up to 2 characters: first letters of first and last name, or just the first letter
+ */
+function getInitials(name: string | undefined | null): string {
+  if (!name?.trim()) return ''
+  const parts = name.trim().split(' ')
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+  }
+  return parts[0][0].toUpperCase()
 }
 
-export function General() {
-  const { data: session } = useSession()
-  const [isSuperUser, setIsSuperUser] = useState(false)
-  const [loadingSuperUser, setLoadingSuperUser] = useState(true)
+interface GeneralProps {
+  onOpenChange?: (open: boolean) => void
+}
 
-  // React Query hooks - with placeholderData to show cached data immediately
-  const { data: settings, isLoading } = useGeneralSettings()
+export function General({ onOpenChange }: GeneralProps) {
+  const router = useRouter()
+  const brandConfig = useBrandConfig()
+  const { data: session } = useSession()
+
+  const { data: profile, isLoading: isProfileLoading } = useUserProfile()
+  const updateProfile = useUpdateUserProfile()
+
+  const { data: settings, isLoading: isSettingsLoading } = useGeneralSettings()
   const updateSetting = useUpdateGeneralSetting()
+
+  const isLoading = isProfileLoading || isSettingsLoading
 
   const isTrainingEnabled = isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
 
-  // Fetch super user status from database
+  const [isSuperUser, setIsSuperUser] = useState(false)
+  const [loadingSuperUser, setLoadingSuperUser] = useState(true)
+
+  const [name, setName] = useState(profile?.name || '')
+  const [isEditingName, setIsEditingName] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const [isResettingPassword, setIsResettingPassword] = useState(false)
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false)
+  const [resetPasswordError, setResetPasswordError] = useState<string | null>(null)
+
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (profile?.name) {
+      setName(profile.name)
+    }
+  }, [profile?.name])
+
   useEffect(() => {
     const fetchSuperUserStatus = async () => {
       try {
@@ -52,7 +87,7 @@ export function General() {
           setIsSuperUser(data.isSuperUser)
         }
       } catch (error) {
-        console.error('Failed to fetch super user status:', error)
+        logger.error('Failed to fetch super user status:', error)
       } finally {
         setLoadingSuperUser(false)
       }
@@ -63,47 +98,135 @@ export function General() {
     }
   }, [session?.user?.id])
 
-  const handleSuperUserModeToggle = async (checked: boolean) => {
-    if (checked !== settings?.superUserModeEnabled && !updateSetting.isPending) {
-      await updateSetting.mutateAsync({ key: 'superUserModeEnabled', value: checked })
+  const {
+    previewUrl: profilePictureUrl,
+    fileInputRef: profilePictureInputRef,
+    handleThumbnailClick: handleProfilePictureClick,
+    handleFileChange: handleProfilePictureChange,
+    isUploading: isUploadingProfilePicture,
+  } = useProfilePictureUpload({
+    currentImage: profile?.image || null,
+    onUpload: (url: string | null) => {
+      updateProfile
+        .mutateAsync({ image: url })
+        .then(() => {
+          setUploadError(null)
+        })
+        .catch(() => {
+          setUploadError(
+            url ? 'Failed to update profile picture' : 'Failed to remove profile picture'
+          )
+        })
+    },
+    onError: (error: string) => {
+      setUploadError(error)
+      setTimeout(() => setUploadError(null), 5000)
+    },
+  })
+
+  useEffect(() => {
+    if (isEditingName && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditingName])
+
+  const handleUpdateName = async () => {
+    const trimmedName = name.trim()
+
+    if (!trimmedName) {
+      return
+    }
+
+    if (trimmedName === profile?.name) {
+      setIsEditingName(false)
+      return
+    }
+
+    try {
+      await updateProfile.mutateAsync({ name: trimmedName })
+      setIsEditingName(false)
+    } catch (error) {
+      logger.error('Error updating name:', error)
+      setName(profile?.name || '')
     }
   }
 
-  // COMMENTED OUT: Theme switching disabled - dark mode is forced for workspace
-  // // Sync theme from store to next-themes when theme changes
-  // useEffect(() => {
-  //   if (!isLoading && theme) {
-  //     // Ensure next-themes is in sync with our store
-  //     const { syncThemeToNextThemes } = require('@/lib/theme-sync')
-  //     syncThemeToNextThemes(theme)
-  //   }
-  // }, [theme, isLoading])
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleUpdateName()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      handleCancelEdit()
+    }
+  }
 
-  const handleThemeChange = async (value: 'system' | 'light' | 'dark') => {
-    await updateSetting.mutateAsync({ key: 'theme', value })
+  const handleCancelEdit = () => {
+    setIsEditingName(false)
+    setName(profile?.name || '')
+  }
+
+  const handleInputBlur = () => {
+    handleUpdateName()
+  }
+
+  const handleSignOut = async () => {
+    try {
+      await Promise.all([signOut(), clearUserData()])
+      router.push('/login?fromLogout=true')
+    } catch (error) {
+      logger.error('Error signing out:', { error })
+      router.push('/login?fromLogout=true')
+    }
+  }
+
+  const handleResetPasswordConfirm = async () => {
+    if (!profile?.email) return
+
+    setIsResettingPassword(true)
+    setResetPasswordError(null)
+
+    try {
+      const response = await fetch('/api/auth/forget-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: profile.email,
+          redirectTo: `${getBaseUrl()}/reset-password`,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to send reset password email')
+      }
+
+      setResetPasswordSuccess(true)
+
+      setTimeout(() => {
+        setShowResetPasswordModal(false)
+        setResetPasswordSuccess(false)
+      }, 1500)
+    } catch (error) {
+      logger.error('Error resetting password:', error)
+      setResetPasswordError('Failed to send email')
+
+      setTimeout(() => {
+        setResetPasswordError(null)
+      }, 5000)
+    } finally {
+      setIsResettingPassword(false)
+    }
+  }
+
+  const handleThemeChange = async (value: string) => {
+    await updateSetting.mutateAsync({ key: 'theme', value: value as 'system' | 'light' | 'dark' })
   }
 
   const handleAutoConnectChange = async (checked: boolean) => {
     if (checked !== settings?.autoConnect && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'autoConnect', value: checked })
-    }
-  }
-
-  const handleAutoPanChange = async (checked: boolean) => {
-    if (checked !== settings?.autoPan && !updateSetting.isPending) {
-      await updateSetting.mutateAsync({ key: 'autoPan', value: checked })
-    }
-  }
-
-  const handleConsoleExpandedByDefaultChange = async (checked: boolean) => {
-    if (checked !== settings?.consoleExpandedByDefault && !updateSetting.isPending) {
-      await updateSetting.mutateAsync({ key: 'consoleExpandedByDefault', value: checked })
-    }
-  }
-
-  const handleFloatingControlsChange = async (checked: boolean) => {
-    if (checked !== settings?.showFloatingControls && !updateSetting.isPending) {
-      await updateSetting.mutateAsync({ key: 'showFloatingControls', value: checked })
     }
   }
 
@@ -119,232 +242,312 @@ export function General() {
     }
   }
 
+  const handleSuperUserModeToggle = async (checked: boolean) => {
+    if (checked !== settings?.superUserModeEnabled && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({ key: 'superUserModeEnabled', value: checked })
+    }
+  }
+
+  const handleTelemetryToggle = async (checked: boolean) => {
+    if (checked !== settings?.telemetryEnabled && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({ key: 'telemetryEnabled', value: checked })
+
+      if (checked) {
+        if (typeof window !== 'undefined') {
+          fetch('/api/telemetry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              category: 'consent',
+              action: 'enable_from_settings',
+              timestamp: new Date().toISOString(),
+            }),
+          }).catch(() => {})
+        }
+      }
+    }
+  }
+
+  const imageUrl = profilePictureUrl || profile?.image || brandConfig.logoUrl
+
+  if (isLoading) {
+    return <GeneralSkeleton />
+  }
+
   return (
-    <div className='px-6 pt-4 pb-2'>
-      <div className='flex flex-col gap-4'>
-        {/* COMMENTED OUT: Theme switching disabled - dark mode is forced for workspace */}
-        {/* <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <Label htmlFor='theme-select' className='font-normal'>
-              Theme
-            </Label>
-          </div>
-          <Select
-            value={settings?.theme}
-            onValueChange={handleThemeChange}
-            disabled={updateSetting.isPending}
+    <div className='flex h-full flex-col gap-[16px]'>
+      {/* User Info Section */}
+      <div className='flex items-center gap-[12px]'>
+        <div className='relative'>
+          <div
+            className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover:bg-[var(--bg)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
+            onClick={handleProfilePictureClick}
           >
-            <SelectTrigger id='theme-select' className='h-9 w-[180px]'>
-              <SelectValue placeholder='Select theme' />
-            </SelectTrigger>
-            <SelectContent className='min-w-32 rounded-[10px] border-[#E5E5E5] bg-[var(--white)] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
-              <SelectItem
-                value='system'
-                className='rounded-[8px] text-card-foreground text-sm hover:bg-muted focus:bg-muted'
-              >
-                System
-              </SelectItem>
-              <SelectItem
-                value='light'
-                className='rounded-[8px] text-card-foreground text-sm hover:bg-muted focus:bg-muted'
-              >
-                Light
-              </SelectItem>
-              <SelectItem
-                value='dark'
-                className='rounded-[8px] text-card-foreground text-sm hover:bg-muted focus:bg-muted'
-              >
-                Dark
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div> */}
-
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <Label htmlFor='auto-connect' className='font-normal'>
-              Auto-connect on drop
-            </Label>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  className='h-7 p-1 text-gray-500'
-                  aria-label='Learn more about auto-connect feature'
-                  disabled={updateSetting.isPending}
-                >
-                  <Info className='h-5 w-5' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top' className='max-w-[300px] p-3'>
-                <p className='text-sm'>{TOOLTIPS.autoConnect}</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          </div>
-          <Switch
-            id='auto-connect'
-            checked={settings?.autoConnect ?? true}
-            onCheckedChange={handleAutoConnectChange}
-            disabled={updateSetting.isPending}
-          />
-        </div>
-
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <Label htmlFor='console-expanded-by-default' className='font-normal'>
-              Console expanded by default
-            </Label>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  className='h-7 p-1 text-gray-500'
-                  aria-label='Learn more about console expanded by default'
-                  disabled={updateSetting.isPending}
-                >
-                  <Info className='h-5 w-5' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top' className='max-w-[300px] p-3'>
-                <p className='text-sm'>{TOOLTIPS.consoleExpandedByDefault}</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          </div>
-          <Switch
-            id='console-expanded-by-default'
-            checked={settings?.consoleExpandedByDefault ?? true}
-            onCheckedChange={handleConsoleExpandedByDefaultChange}
-            disabled={updateSetting.isPending}
-          />
-        </div>
-
-        {/* TODO: Add floating controls back when we implement the new UI for it */}
-        {/* <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <Label htmlFor='floating-controls' className='font-normal'>
-              Floating controls
-            </Label>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  className='h-7 p-1 text-gray-500'
-                  aria-label='Learn more about floating controls'
-                  disabled={updateSetting.isPending}
-                >
-                  <Info className='h-5 w-5' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top' className='max-w-[300px] p-3'>
-                <p className='text-sm'>{TOOLTIPS.floatingControls}</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          </div>
-          <Switch
-            id='floating-controls'
-            checked={settings?.showFloatingControls ?? true}
-            onCheckedChange={handleFloatingControlsChange}
-            disabled={updateSetting.isPending}
-          />
-        </div> */}
-
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <Label htmlFor='error-notifications' className='font-normal'>
-              Error notifications
-            </Label>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  className='h-7 p-1 text-gray-500'
-                  aria-label='Learn more about error notifications'
-                  disabled={updateSetting.isPending}
-                >
-                  <Info className='h-5 w-5' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top' className='max-w-[300px] p-3'>
-                <p className='text-sm'>{TOOLTIPS.errorNotifications}</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          </div>
-          <Switch
-            id='error-notifications'
-            checked={settings?.errorNotificationsEnabled ?? true}
-            onCheckedChange={handleErrorNotificationsChange}
-            disabled={updateSetting.isPending}
-          />
-        </div>
-
-        {isTrainingEnabled && (
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-2'>
-              <Label htmlFor='training-controls' className='font-normal'>
-                Training controls
-              </Label>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    className='h-5 w-5 p-0'
-                    aria-label='Learn more about training controls'
-                    disabled={updateSetting.isPending}
-                  >
-                    <Info className='h-3.5 w-3.5 text-muted-foreground' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top' className='max-w-[300px] p-3'>
-                  <p className='text-sm'>{TOOLTIPS.trainingControls}</p>
-                </Tooltip.Content>
-              </Tooltip.Root>
+            {(() => {
+              if (imageUrl) {
+                return (
+                  <Image
+                    src={imageUrl}
+                    alt={profile?.name || 'User'}
+                    width={36}
+                    height={36}
+                    className={`h-full w-full object-cover transition-opacity duration-300 ${
+                      isUploadingProfilePicture ? 'opacity-50' : 'opacity-100'
+                    }`}
+                  />
+                )
+              }
+              return (
+                <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+                  {getInitials(profile?.name) || ''}
+                </span>
+              )
+            })()}
+            <div
+              className={`absolute inset-0 flex items-center justify-center rounded-full bg-black/50 transition-opacity ${
+                isUploadingProfilePicture ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              }`}
+            >
+              {isUploadingProfilePicture ? (
+                <div className='h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
+              ) : (
+                <Camera className='h-4 w-4 text-white' />
+              )}
             </div>
-            <Switch
-              id='training-controls'
-              checked={settings?.showTrainingControls ?? false}
-              onCheckedChange={handleTrainingControlsChange}
-              disabled={updateSetting.isPending}
-            />
           </div>
-        )}
+          <Input
+            type='file'
+            accept='image/png,image/jpeg,image/jpg'
+            className='hidden'
+            ref={profilePictureInputRef}
+            onChange={handleProfilePictureChange}
+            disabled={isUploadingProfilePicture}
+          />
+        </div>
+        <div className='flex flex-1 flex-col justify-center gap-[1px]'>
+          <div className='flex items-center gap-[8px]'>
+            {isEditingName ? (
+              <>
+                <input
+                  ref={inputRef}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={handleInputBlur}
+                  className='w-auto border-0 bg-transparent p-0 font-medium text-[14px] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                  size={Math.max(name.length, 1)}
+                  maxLength={100}
+                  disabled={updateProfile.isPending}
+                  autoComplete='off'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  spellCheck='false'
+                />
+                <Button
+                  variant='ghost'
+                  className='h-[11px] w-[11px] flex-shrink-0 p-0'
+                  onClick={handleUpdateName}
+                  disabled={updateProfile.isPending}
+                  aria-label='Save name'
+                >
+                  <Check className='h-[11px] w-[11px]' />
+                </Button>
+              </>
+            ) : (
+              <>
+                <h3 className='font-medium text-[14px]'>{profile?.name || ''}</h3>
+                <Button
+                  variant='ghost'
+                  className='h-[11px] w-[11px] flex-shrink-0 p-0'
+                  onClick={() => setIsEditingName(true)}
+                  aria-label='Edit name'
+                >
+                  <Pencil className='h-[11px] w-[11px]' />
+                </Button>
+              </>
+            )}
+          </div>
+          <p className='text-[13px] text-[var(--text-muted)]'>{profile?.email || ''}</p>
+        </div>
+      </div>
+      {uploadError && <p className='text-[13px] text-[var(--text-error)]'>{uploadError}</p>}
 
-        {/* Super User Mode Toggle - Only visible to super users */}
-        {!loadingSuperUser && isSuperUser && (
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-2'>
-              <Label htmlFor='super-user-mode' className='font-normal'>
-                Super User Mode
-              </Label>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    className='h-7 p-1 text-gray-500'
-                    aria-label='Learn more about super user mode'
-                    disabled={updateSetting.isPending}
-                  >
-                    <Info className='h-5 w-5' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top' className='max-w-[300px] p-3'>
-                  <p className='text-sm'>{TOOLTIPS.superUserMode}</p>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            </div>
-            <Switch
-              id='super-user-mode'
-              checked={settings?.superUserModeEnabled ?? true}
-              onCheckedChange={handleSuperUserModeToggle}
-              disabled={updateSetting.isPending}
-            />
+      <div className='flex items-center justify-between border-b pb-[12px]'>
+        <Label htmlFor='theme-select'>Theme</Label>
+        <div className='w-[100px]'>
+          <Combobox
+            size='sm'
+            align='end'
+            dropdownWidth={140}
+            value={settings?.theme}
+            onChange={handleThemeChange}
+            disabled={updateSetting.isPending}
+            placeholder='Select theme'
+            options={[
+              { label: 'System', value: 'system' },
+              { label: 'Light', value: 'light' },
+              { label: 'Dark', value: 'dark' },
+            ]}
+          />
+        </div>
+      </div>
+
+      <div className='flex items-center justify-between'>
+        <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
+        <Switch
+          id='auto-connect'
+          checked={settings?.autoConnect ?? true}
+          onCheckedChange={handleAutoConnectChange}
+          disabled={updateSetting.isPending}
+        />
+      </div>
+
+      <div className='flex items-center justify-between'>
+        <Label htmlFor='error-notifications'>Run error notifications</Label>
+        <Switch
+          id='error-notifications'
+          checked={settings?.errorNotificationsEnabled ?? true}
+          onCheckedChange={handleErrorNotificationsChange}
+          disabled={updateSetting.isPending}
+        />
+      </div>
+
+      <div className='flex items-center justify-between border-t pt-[12px]'>
+        <Label htmlFor='telemetry'>Allow anonymous telemetry</Label>
+        <Switch
+          id='telemetry'
+          checked={settings?.telemetryEnabled ?? true}
+          onCheckedChange={handleTelemetryToggle}
+          disabled={updateSetting.isPending}
+        />
+      </div>
+
+      <p className='text-[12px] text-[var(--text-muted)]'>
+        We use OpenTelemetry to collect anonymous usage data to improve Sim. All data is collected
+        in accordance with our privacy policy, and you can opt-out at any time.
+      </p>
+
+      {isTrainingEnabled && (
+        <div className='flex items-center justify-between'>
+          <Label htmlFor='training-controls'>Training controls</Label>
+          <Switch
+            id='training-controls'
+            checked={settings?.showTrainingControls ?? false}
+            onCheckedChange={handleTrainingControlsChange}
+            disabled={updateSetting.isPending}
+          />
+        </div>
+      )}
+
+      {!loadingSuperUser && isSuperUser && (
+        <div className='flex items-center justify-between'>
+          <Label htmlFor='super-user-mode'>Super admin mode</Label>
+          <Switch
+            id='super-user-mode'
+            checked={settings?.superUserModeEnabled ?? true}
+            onCheckedChange={handleSuperUserModeToggle}
+            disabled={updateSetting.isPending}
+          />
+        </div>
+      )}
+
+      <div className='mt-auto flex items-center gap-[8px]'>
+        <Button onClick={handleSignOut}>Sign out</Button>
+        <Button onClick={() => setShowResetPasswordModal(true)}>Reset password</Button>
+      </div>
+
+      {/* Password Reset Confirmation Modal */}
+      <Modal open={showResetPasswordModal} onOpenChange={setShowResetPasswordModal}>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Reset Password</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              A password reset link will be sent to{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>.
+              Click the link in the email to create a new password.
+            </p>
+            {resetPasswordError && (
+              <p className='mt-[8px] text-[12px] text-[var(--text-error)]'>{resetPasswordError}</p>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              onClick={() => setShowResetPasswordModal(false)}
+              disabled={isResettingPassword || resetPasswordSuccess}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='primary'
+              onClick={handleResetPasswordConfirm}
+              disabled={isResettingPassword || resetPasswordSuccess}
+            >
+              {isResettingPassword
+                ? 'Sending...'
+                : resetPasswordSuccess
+                  ? 'Sent'
+                  : 'Send Reset Email'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </div>
+  )
+}
+
+/**
+ * Skeleton component for general settings loading state.
+ * Matches the exact layout structure of the General component.
+ */
+function GeneralSkeleton() {
+  return (
+    <div className='flex h-full flex-col gap-[16px]'>
+      {/* User Info Section */}
+      <div className='flex items-center gap-[12px]'>
+        <Skeleton className='h-9 w-9 rounded-full' />
+        <div className='flex flex-1 flex-col justify-center gap-[1px]'>
+          <div className='flex items-center gap-[8px]'>
+            <Skeleton className='h-[14px] w-24' />
+            <Skeleton className='h-[11px] w-[11px]' />
           </div>
-        )}
+          <Skeleton className='h-[13px] w-40' />
+        </div>
+      </div>
+
+      {/* Theme row */}
+      <div className='flex items-center justify-between border-b pb-[12px]'>
+        <Skeleton className='h-4 w-12' />
+        <Skeleton className='h-8 w-[100px] rounded-[8px]' />
+      </div>
+
+      {/* Auto-connect row */}
+      <div className='flex items-center justify-between'>
+        <Skeleton className='h-4 w-36' />
+        <Skeleton className='h-[17px] w-[30px] rounded-[20px]' />
+      </div>
+
+      {/* Error notifications row */}
+      <div className='flex items-center justify-between'>
+        <Skeleton className='h-4 w-36' />
+        <Skeleton className='h-[17px] w-[30px] rounded-[20px]' />
+      </div>
+
+      {/* Telemetry row */}
+      <div className='flex items-center justify-between border-t pt-[12px]'>
+        <Skeleton className='h-4 w-40' />
+        <Skeleton className='h-[17px] w-[30px] rounded-[20px]' />
+      </div>
+
+      {/* Telemetry description */}
+      <div className='space-y-1'>
+        <Skeleton className='h-3 w-full' />
+        <Skeleton className='h-3 w-4/5' />
+      </div>
+
+      {/* Action buttons */}
+      <div className='mt-auto flex items-center gap-[8px]'>
+        <Skeleton className='h-8 w-20 rounded-[4px]' />
+        <Skeleton className='h-8 w-28 rounded-[4px]' />
       </div>
     </div>
   )

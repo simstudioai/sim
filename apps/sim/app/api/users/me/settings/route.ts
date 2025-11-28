@@ -13,8 +13,6 @@ const logger = createLogger('UserSettingsAPI')
 const SettingsSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']).optional(),
   autoConnect: z.boolean().optional(),
-  autoPan: z.boolean().optional(),
-  consoleExpandedByDefault: z.boolean().optional(),
   telemetryEnabled: z.boolean().optional(),
   emailPreferences: z
     .object({
@@ -25,7 +23,6 @@ const SettingsSchema = z.object({
     })
     .optional(),
   billingUsageNotificationsEnabled: z.boolean().optional(),
-  showFloatingControls: z.boolean().optional(),
   showTrainingControls: z.boolean().optional(),
   superUserModeEnabled: z.boolean().optional(),
   errorNotificationsEnabled: z.boolean().optional(),
@@ -35,12 +32,9 @@ const SettingsSchema = z.object({
 const defaultSettings = {
   theme: 'system',
   autoConnect: true,
-  autoPan: true,
-  consoleExpandedByDefault: true,
   telemetryEnabled: true,
   emailPreferences: {},
   billingUsageNotificationsEnabled: true,
-  showFloatingControls: true,
   showTrainingControls: false,
   superUserModeEnabled: false,
   errorNotificationsEnabled: true,
@@ -72,12 +66,9 @@ export async function GET() {
         data: {
           theme: userSettings.theme,
           autoConnect: userSettings.autoConnect,
-          autoPan: userSettings.autoPan,
-          consoleExpandedByDefault: userSettings.consoleExpandedByDefault,
           telemetryEnabled: userSettings.telemetryEnabled,
           emailPreferences: userSettings.emailPreferences ?? {},
           billingUsageNotificationsEnabled: userSettings.billingUsageNotificationsEnabled ?? true,
-          showFloatingControls: userSettings.showFloatingControls ?? true,
           showTrainingControls: userSettings.showTrainingControls ?? false,
           superUserModeEnabled: userSettings.superUserModeEnabled ?? true,
           errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,

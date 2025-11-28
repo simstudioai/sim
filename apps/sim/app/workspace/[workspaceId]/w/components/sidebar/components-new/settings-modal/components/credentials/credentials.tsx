@@ -179,7 +179,7 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
   return (
     <div className='relative flex h-full flex-col'>
       {/* Search Input */}
-      <div className='px-6 pt-4 pb-2'>
+      <div>
         <div className='flex h-9 w-56 items-center gap-2 rounded-[8px] border bg-transparent pr-2 pl-3'>
           <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
           <Input
@@ -192,8 +192,8 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
       </div>
 
       {/* Scrollable Content */}
-      <div className='min-h-0 flex-1 overflow-y-auto px-6'>
-        <div className='flex flex-col gap-6 pt-2 pb-6'>
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='flex flex-col gap-6'>
           {/* Success message */}
           {authSuccess && (
             <div className='rounded-[8px] border border-green-200 bg-green-50 p-4'>

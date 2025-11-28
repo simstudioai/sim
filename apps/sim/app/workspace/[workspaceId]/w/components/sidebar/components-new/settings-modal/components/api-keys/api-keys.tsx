@@ -224,7 +224,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   return (
     <div className='relative flex h-full flex-col'>
       {/* Fixed Header */}
-      <div className='px-6 pt-4 pb-2'>
+      <div>
         {/* Search Input */}
         {isLoading ? (
           <Skeleton className='h-9 w-56 rounded-lg' />
@@ -242,8 +242,8 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
       </div>
 
       {/* Scrollable Content */}
-      <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto px-6'>
-        <div className='space-y-2 pt-2 pb-6'>
+      <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='space-y-2'>
           {isLoading ? (
             <div className='space-y-2'>
               <ApiKeySkeleton />
@@ -428,7 +428,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
 
       {/* Footer */}
       <div className='bg-background'>
-        <div className='flex w-full items-center px-6 py-4'>
+        <div className='flex w-full items-center'>
           {isLoading ? (
             <Skeleton className='h-9 w-[117px] rounded-[8px]' />
           ) : (
@@ -595,9 +595,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             <ModalTitle>Delete API key?</ModalTitle>
             <ModalDescription>
               Deleting this API key will immediately revoke access for any integrations using it.{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </ModalDescription>
           </ModalHeader>
           <ModalFooter>
@@ -613,7 +611,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
               Cancel
             </Button>
             <Button
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
               onClick={handleDeleteKey}
               disabled={deleteApiKeyMutation.isPending}
             >

@@ -408,8 +408,6 @@ export const settings = pgTable('settings', {
   // General settings
   theme: text('theme').notNull().default('system'),
   autoConnect: boolean('auto_connect').notNull().default(true),
-  autoPan: boolean('auto_pan').notNull().default(true),
-  consoleExpandedByDefault: boolean('console_expanded_by_default').notNull().default(true),
 
   // Privacy settings
   telemetryEnabled: boolean('telemetry_enabled').notNull().default(true),
@@ -423,7 +421,6 @@ export const settings = pgTable('settings', {
     .default(true),
 
   // UI preferences
-  showFloatingControls: boolean('show_floating_controls').notNull().default(true),
   showTrainingControls: boolean('show_training_controls').notNull().default(false),
   superUserModeEnabled: boolean('super_user_mode_enabled').notNull().default(true),
 

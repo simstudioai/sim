@@ -2,7 +2,6 @@
 
 import { type KeyboardEvent, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
@@ -43,13 +42,11 @@ export function TagInput({
       e.preventDefault()
       addTag(inputValue)
     } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
-      // Remove last tag when backspace is pressed with empty input
       removeTag(value[value.length - 1])
     }
   }
 
   const handleBlur = () => {
-    // Add tag on blur if there's input
     if (inputValue.trim()) {
       addTag(inputValue)
     }
@@ -58,32 +55,14 @@ export function TagInput({
   return (
     <div
       className={cn(
-        'flex min-h-[34px] flex-wrap gap-1 rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[8px] py-[6px] dark:bg-[var(--surface-9)]',
+        'scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[4px] focus-within:outline-none dark:bg-[var(--surface-9)]',
         disabled && 'cursor-not-allowed opacity-50',
         className
       )}
       onClick={() => !disabled && inputRef.current?.focus()}
     >
       {value.map((tag) => (
-        <Badge
-          key={tag}
-          variant='secondary'
-          className='h-[22px] gap-1 border-0 bg-muted/60 pr-1 pl-2 text-xs hover:bg-muted/80'
-        >
-          <span>{tag}</span>
-          {!disabled && (
-            <button
-              type='button'
-              onClick={(e) => {
-                e.stopPropagation()
-                removeTag(tag)
-              }}
-              className='ml-auto rounded-full p-0.5 hover:bg-muted-foreground/20'
-            >
-              <X className='h-3 w-3' />
-            </button>
-          )}
-        </Badge>
+        <Tag key={tag} value={tag} onRemove={() => removeTag(tag)} disabled={disabled} />
       ))}
       {!disabled && value.length < maxTags && (
         <Input
@@ -95,8 +74,38 @@ export function TagInput({
           onBlur={handleBlur}
           placeholder={value.length === 0 ? placeholder : ''}
           disabled={disabled}
-          className='h-[22px] min-w-[120px] flex-1 border-0 bg-transparent p-0 text-sm shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0 focus-visible:ring-offset-0'
+          className={cn(
+            'h-6 min-w-[180px] flex-1 border-none bg-transparent p-0 text-[13px] focus-visible:ring-0 focus-visible:ring-offset-0',
+            value.length > 0 ? 'pl-[4px]' : 'pl-[4px]'
+          )}
         />
+      )}
+    </div>
+  )
+}
+
+interface TagProps {
+  value: string
+  onRemove: () => void
+  disabled?: boolean
+}
+
+function Tag({ value, onRemove, disabled }: TagProps) {
+  return (
+    <div className='flex w-auto items-center gap-[4px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-5)] px-[6px] py-[2px] text-[12px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'>
+      <span className='max-w-[200px] truncate'>{value}</span>
+      {!disabled && (
+        <button
+          type='button'
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove()
+          }}
+          className='flex-shrink-0 text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)] focus:outline-none'
+          aria-label={`Remove ${value}`}
+        >
+          <X className='h-[12px] w-[12px] translate-y-[0.2px]' />
+        </button>
       )}
     </div>
   )

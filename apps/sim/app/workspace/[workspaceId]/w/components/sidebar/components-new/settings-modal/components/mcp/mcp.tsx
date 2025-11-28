@@ -247,7 +247,7 @@ export function MCP() {
   return (
     <div className='relative flex h-full flex-col'>
       {/* Fixed Header with Search */}
-      <div className='px-6 pt-4 pb-2'>
+      <div>
         {/* Search Input */}
         {serversLoading ? (
           <Skeleton className='h-9 w-56 rounded-[8px]' />
@@ -265,8 +265,8 @@ export function MCP() {
       </div>
 
       {/* Scrollable Content */}
-      <div className='min-h-0 flex-1 overflow-y-auto px-6'>
-        <div className='space-y-2 pt-2 pb-6'>
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='space-y-2'>
           {/* Server List */}
           {toolsError || serversError ? (
             <div className='flex h-full flex-col items-center justify-center gap-2'>
@@ -442,7 +442,7 @@ export function MCP() {
 
       {/* Footer */}
       <div className='bg-background'>
-        <div className='flex w-full items-center justify-between px-6 py-4'>
+        <div className='flex w-full items-center justify-between'>
           {serversLoading ? (
             <>
               <Skeleton className='h-9 w-[117px] rounded-[8px]' />
