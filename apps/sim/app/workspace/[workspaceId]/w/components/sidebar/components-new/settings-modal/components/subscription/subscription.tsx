@@ -22,6 +22,7 @@ import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 import {
   CancelSubscription,
   PlanCard,
+  PrepaidCredits,
   UsageLimit,
   type UsageLimitRef,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/subscription/components'
@@ -406,6 +407,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                   : usage.percentUsed
                 : usage.percentUsed
             }
+            creditsAvailable={subscriptionData?.data?.credits?.balance}
             onResolvePayment={async () => {
               try {
                 const res = await fetch('/api/billing/portal', {
@@ -455,6 +457,23 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
             progressValue={Math.min(usage.percentUsed, 100)}
           />
         </div>
+
+        {/* Prepaid Credits Section */}
+        {subscriptionData?.data?.credits &&
+          (subscription.isPro || subscription.isTeam) &&
+          session?.user?.id &&
+          (subscription.isTeam ? activeOrgId : true) && (
+            <div className='mb-2'>
+              <PrepaidCredits
+                balance={subscriptionData.data.credits.balance}
+                totalPurchased={subscriptionData.data.credits.totalPurchased}
+                totalUsed={subscriptionData.data.credits.totalUsed}
+                lastPurchaseAt={subscriptionData.data.credits.lastPurchaseAt}
+                context={subscription.isTeam ? 'organization' : 'user'}
+                referenceId={subscription.isTeam ? activeOrgId || '' : session.user.id}
+              />
+            </div>
+          )}
 
         {/* Enterprise Usage Limit Notice */}
         {subscription.isEnterprise && (

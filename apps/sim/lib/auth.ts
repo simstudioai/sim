@@ -25,6 +25,7 @@ import {
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
+import { handleCreditPurchaseComplete } from '@/lib/billing/credits/purchase'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { getPlans } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
@@ -1745,6 +1746,14 @@ export const auth = betterAuth({
 
               try {
                 switch (event.type) {
+                  case 'checkout.session.completed': {
+                    const session = event.data.object as Stripe.Checkout.Session
+
+                    if (session.metadata?.type === 'credit_purchase') {
+                      await handleCreditPurchaseComplete(session)
+                    }
+                    break
+                  }
                   case 'invoice.payment_succeeded': {
                     await handleInvoicePaymentSucceeded(event)
                     break
@@ -1761,7 +1770,6 @@ export const auth = betterAuth({
                     await handleManualEnterpriseSubscription(event)
                     break
                   }
-                  // Note: customer.subscription.deleted is handled by better-auth's onSubscriptionDeleted callback above
                   default:
                     logger.info('[onEvent] Ignoring unsupported webhook event', {
                       eventId: event.id,

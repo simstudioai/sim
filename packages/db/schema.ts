@@ -640,6 +640,16 @@ export const userStats = pgTable('user_stats', {
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
   lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
+  billingBlockedReason: text('billing_blocked_reason'), // 'payment_failed' | 'credits_depleted' | null
+  // Prepaid credits balance (for Pro users)
+  prepaidCreditsBalance: decimal('prepaid_credits_balance').notNull().default('0'),
+  prepaidCreditsTotalPurchased: decimal('prepaid_credits_total_purchased').notNull().default('0'),
+  prepaidCreditsTotalUsed: decimal('prepaid_credits_total_used').notNull().default('0'),
+  prepaidCreditsLastPurchaseAt: timestamp('prepaid_credits_last_purchase_at'),
+  // Credit depletion behavior preference
+  creditDepletionBehavior: text('credit_depletion_behavior')
+    .notNull()
+    .default('fallback_to_overage'), // 'fallback_to_overage' | 'block_until_recharged'
 })
 
 export const customTools = pgTable(
@@ -744,6 +754,15 @@ export const organization = pgTable('organization', {
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0), // Storage tracking for team/enterprise
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  // Prepaid credits balance (for Team/Enterprise orgs)
+  prepaidCreditsBalance: decimal('prepaid_credits_balance').notNull().default('0'),
+  prepaidCreditsTotalPurchased: decimal('prepaid_credits_total_purchased').notNull().default('0'),
+  prepaidCreditsTotalUsed: decimal('prepaid_credits_total_used').notNull().default('0'),
+  prepaidCreditsLastPurchaseAt: timestamp('prepaid_credits_last_purchase_at'),
+  // Credit depletion behavior preference for organization
+  creditDepletionBehavior: text('credit_depletion_behavior')
+    .notNull()
+    .default('fallback_to_overage'), // 'fallback_to_overage' | 'block_until_recharged'
 })
 
 export const member = pgTable(

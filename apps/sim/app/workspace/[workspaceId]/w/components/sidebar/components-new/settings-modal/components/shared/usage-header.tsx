@@ -23,6 +23,7 @@ interface UsageHeaderProps {
   onResolvePayment?: () => void
   status?: 'ok' | 'warning' | 'exceeded' | 'blocked'
   percentUsed?: number
+  creditsAvailable?: number // Show when user has prepaid credits
 }
 
 export function UsageHeader({
@@ -40,6 +41,7 @@ export function UsageHeader({
   onResolvePayment,
   status,
   percentUsed,
+  creditsAvailable,
 }: UsageHeaderProps) {
   const progress = progressValue ?? (limit > 0 ? Math.min((current / limit) * 100, 100) : 0)
 
@@ -106,6 +108,13 @@ export function UsageHeader({
             )
           })}
         </div>
+
+        {/* Credits info - only show when credits are available */}
+        {creditsAvailable !== undefined && creditsAvailable > 0 && (
+          <div className='text-muted-foreground text-xs'>
+            ${creditsAvailable.toFixed(2)} in credits • Applied before overage charges
+          </div>
+        )}
 
         {/* Status messages */}
         {isBlocked && (

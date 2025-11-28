@@ -255,6 +255,59 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
 
     logger.info('Server-side checking usage limits for user', { userId })
 
+    // Get subscription and user stats upfront
+    const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
+    const { hasSufficientCredits, getCreditDepletionBehavior } = await import(
+      '@/lib/billing/credits/deduction'
+    )
+
+    const subscription = await getHighestPrioritySubscription(userId)
+
+    // CRITICAL ORDER: Check credits BEFORE checking billing blocked status
+    // This allows users with credits to execute even if they have failed payment invoices
+    if (
+      subscription &&
+      (subscription.plan === 'pro' ||
+        subscription.plan === 'team' ||
+        subscription.plan === 'enterprise')
+    ) {
+      const creditStatus = await hasSufficientCredits({ userId, subscription })
+
+      if (creditStatus.available) {
+        // User has prepaid credits - allow execution (even if blocked for payment failures)
+        // Get actual usage for accurate reporting
+        const usageData = await checkUsageStatus(userId)
+        logger.info('User has prepaid credits available - bypassing limits', {
+          userId,
+          creditBalance: creditStatus.balance,
+          actualUsage: usageData.currentUsage,
+        })
+        return {
+          isExceeded: false,
+          currentUsage: usageData.currentUsage,
+          limit: usageData.limit, // Show real limit, not credit balance
+        }
+      }
+
+      // No credits available - check depletion behavior
+      const behavior = await getCreditDepletionBehavior({ userId, subscription })
+
+      if (behavior === 'block_until_recharged') {
+        logger.warn('Prepaid credits depleted and blocking enabled', { userId })
+        return {
+          isExceeded: true,
+          currentUsage: 0,
+          limit: 0,
+          message:
+            'Prepaid credits depleted. Please purchase more credits to continue, or change your depletion behavior to use overage billing.',
+        }
+      }
+
+      // Behavior is 'fallback_to_overage' - continue to normal limit check below
+      logger.info('Prepaid credits depleted, falling back to overage billing', { userId })
+    }
+
+    // Check for billing blocked status (AFTER credits check)
     const stats = await db
       .select({
         blocked: userStats.billingBlocked,
@@ -276,6 +329,7 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
       }
     }
 
+    // Normal usage limit check (for users without credits or with fallback behavior)
     const usageData = await checkUsageStatus(userId)
 
     return {

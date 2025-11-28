@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { subscription } from '@sim/db/schema'
+import { member, subscription } from '@sim/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -209,8 +209,29 @@ export async function handleSubscriptionDeleted(subscription: {
       referenceId: subscription.referenceId,
     })
 
+    // Refund any unused prepaid credits
+    const { refundUnusedCredits } = await import('@/lib/billing/credits/refund')
+
+    // Get the user who owns the subscription (for Stripe customer ID lookup)
+    let ownerId = subscription.referenceId
+
+    // For team/enterprise, we need to get the organization owner
+    if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
+      const ownerRecord = await db
+        .select({ userId: member.userId })
+        .from(member)
+        .where(and(eq(member.organizationId, subscription.referenceId), eq(member.role, 'owner')))
+        .limit(1)
+
+      if (ownerRecord.length > 0) {
+        ownerId = ownerRecord[0].userId
+      }
+    }
+
+    await refundUnusedCredits({ subscription, userId: ownerId })
+
     // Note: better-auth's Stripe plugin already updates status to 'canceled' before calling this handler
-    // We only need to handle overage billing and usage reset
+    // We only need to handle overage billing, usage reset, and credit refunds
 
     logger.info('Successfully processed subscription cancellation', {
       subscriptionId: subscription.id,

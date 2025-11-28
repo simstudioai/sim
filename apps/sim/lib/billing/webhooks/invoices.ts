@@ -383,13 +383,13 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
       if (memberIds.length > 0) {
         await db
           .update(userStats)
-          .set({ billingBlocked: false })
+          .set({ billingBlocked: false, billingBlockedReason: null })
           .where(inArray(userStats.userId, memberIds))
       }
     } else {
       await db
         .update(userStats)
-        .set({ billingBlocked: false })
+        .set({ billingBlocked: false, billingBlockedReason: null })
         .where(eq(userStats.userId, sub.referenceId))
     }
 
@@ -485,7 +485,7 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
           if (memberIds.length > 0) {
             await db
               .update(userStats)
-              .set({ billingBlocked: true })
+              .set({ billingBlocked: true, billingBlockedReason: 'payment_failed' })
               .where(inArray(userStats.userId, memberIds))
           }
           logger.info('Blocked team/enterprise members due to payment failure', {
@@ -496,7 +496,7 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
         } else {
           await db
             .update(userStats)
-            .set({ billingBlocked: true })
+            .set({ billingBlocked: true, billingBlockedReason: 'payment_failed' })
             .where(eq(userStats.userId, sub.referenceId))
           logger.info('Blocked user due to payment failure', {
             userId: sub.referenceId,

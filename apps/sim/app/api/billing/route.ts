@@ -45,15 +45,28 @@ export async function GET(request: NextRequest) {
     if (context === 'user') {
       // Get user billing (may include organization if they're part of one)
       billingData = await getSimplifiedBillingSummary(session.user.id, contextId || undefined)
+
       // Attach billingBlocked status for the current user
       const stats = await db
         .select({ blocked: userStats.billingBlocked })
         .from(userStats)
         .where(eq(userStats.userId, session.user.id))
         .limit(1)
+
+      // Get prepaid credits data
+      const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
+      const { getPrepaidCreditsBalance } = await import('@/lib/billing/credits/deduction')
+      const subscription = await getHighestPrioritySubscription(session.user.id)
+
+      let creditsData = null
+      if (subscription) {
+        creditsData = await getPrepaidCreditsBalance({ userId: session.user.id, subscription })
+      }
+
       billingData = {
         ...billingData,
         billingBlocked: stats.length > 0 ? !!stats[0].blocked : false,
+        credits: creditsData,
       }
     } else {
       // Get user role in organization for permission checks first
@@ -111,10 +124,21 @@ export async function GET(request: NextRequest) {
         .where(eq(userStats.userId, session.user.id))
         .limit(1)
 
-      // Merge blocked flag into data for convenience
+      // Get organization prepaid credits data
+      const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
+      const { getPrepaidCreditsBalance } = await import('@/lib/billing/credits/deduction')
+      const subscription = await getHighestPrioritySubscription(session.user.id)
+
+      let creditsData = null
+      if (subscription && (subscription.plan === 'team' || subscription.plan === 'enterprise')) {
+        creditsData = await getPrepaidCreditsBalance({ userId: session.user.id, subscription })
+      }
+
+      // Merge blocked flag and credits into data for convenience
       billingData = {
         ...billingData,
         billingBlocked: stats.length > 0 ? !!stats[0].blocked : false,
+        credits: creditsData,
       }
 
       return NextResponse.json({
