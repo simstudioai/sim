@@ -198,14 +198,14 @@ Example 2:
       prompt: `You are an expert JavaScript programmer.
 Generate ONLY the raw body of a JavaScript function based on the user's request.
 The code should be executable within an 'async function(params, environmentVariables) {...}' context.
-- 'params' (object): Contains input parameters derived from the JSON schema. Access these directly using the parameter name wrapped in angle brackets, e.g., '<paramName>'. Do NOT use 'params.paramName'.
+- 'params' (object): Contains input parameters derived from the JSON schema. Reference these directly by name (e.g., 'userId', 'cityName'). Do NOT use 'params.paramName'.
 - 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use 'environmentVariables.VAR_NAME' or env.
 
 Current code: {context}
 
 IMPORTANT FORMATTING RULES:
-1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. Do NOT wrap it in quotes (e.g., use 'apiKey = {{SERVICE_API_KEY}}' not 'apiKey = "{{SERVICE_API_KEY}}"'). Our system replaces these placeholders before execution.
-2. Reference Input Parameters/Workflow Variables: Use the exact syntax <variable_name>. Do NOT wrap it in quotes (e.g., use 'userId = <userId>;' not 'userId = "<userId>";'). This includes parameters defined in the block's schema and outputs from previous blocks.
+1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. Do NOT wrap it in quotes (e.g., use 'const apiKey = {{SERVICE_API_KEY}};' not 'const apiKey = "{{SERVICE_API_KEY}}";'). Our system replaces these placeholders before execution.
+2. Reference Input Parameters/Workflow Variables: Reference them directly by name (e.g., 'const city = cityName;' or use directly in template strings like \`\${cityName}\`). Do NOT wrap in quotes or angle brackets.
 3. Function Body ONLY: Do NOT include the function signature (e.g., 'async function myFunction() {' or the surrounding '}').
 4. Imports: Do NOT include import/require statements unless they are standard Node.js built-in modules (e.g., 'crypto', 'fs'). External libraries are not supported in this context.
 5. Output: Ensure the code returns a value if the function is expected to produce output. Use 'return'.
@@ -213,33 +213,28 @@ IMPORTANT FORMATTING RULES:
 7. No Explanations: Do NOT include markdown formatting, comments explaining the rules, or any text other than the raw JavaScript code for the function body.
 
 Example Scenario:
-User Prompt: "Fetch user data from an API. Use the User ID passed in as 'userId' and an API Key stored as the 'SERVICE_API_KEY' environment variable."
+User Prompt: "Fetch weather data from OpenWeather API. Use the city name passed in as 'cityName' and an API Key stored as the 'OPENWEATHER_API_KEY' environment variable."
 
 Generated Code:
-const userId = userId; // Correct: Accessing userId input parameter without quotes
-const apiKey = {{SERVICE_API_KEY}}; // Correct: Accessing environment variable without quotes
-const url = \`https://api.example.com/users/\${userId}\`;
+const apiKey = {{OPENWEATHER_API_KEY}};
+const url = \`https://api.openweathermap.org/data/2.5/weather?q=\${cityName}&appid=\${apiKey}\`;
 
 try {
   const response = await fetch(url, {
     method: 'GET',
     headers: {
-      'Authorization': \`Bearer \${apiKey}\`,
       'Content-Type': 'application/json'
     }
   });
 
   if (!response.ok) {
-    // Throwing an error will mark the block execution as failed
     throw new Error(\`API request failed with status \${response.status}: \${await response.text()}\`);
   }
 
-  const data = await response.json();
-  console.log('User data fetched successfully.'); // Optional: logging for debugging
-  return data; // Return the fetched data which becomes the block's output
+  const weatherData = await response.json();
+  return weatherData;
 } catch (error) {
-  console.error(\`Error fetching user data: \${error.message}\`);
-  // Re-throwing the error ensures the workflow knows this step failed.
+  console.error(\`Error fetching weather data: \${error.message}\`);
   throw error;
 }`,
       placeholder: 'Describe the JavaScript function to generate...',
@@ -253,16 +248,13 @@ try {
     onStreamChunk: (chunk) => {
       setFunctionCode((prev) => {
         const newCode = prev + chunk
-        // Use existing handler logic for consistency, though dropdowns might be disabled during streaming
         handleFunctionCodeChange(newCode)
-        // Clear error as soon as streaming starts
         if (codeError) setCodeError(null)
         return newCode
       })
     },
   })
 
-  // Environment variables and tags dropdown state
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
   const [showSchemaParams, setShowSchemaParams] = useState(false)
@@ -270,18 +262,14 @@ try {
   const [cursorPosition, setCursorPosition] = useState(0)
   const codeEditorRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
-  // Add state for dropdown positioning
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
-  // Schema params keyboard navigation
   const [schemaParamSelectedIndex, setSchemaParamSelectedIndex] = useState(0)
 
-  // React Query mutations
   const createToolMutation = useCreateCustomTool()
   const updateToolMutation = useUpdateCustomTool()
   const deleteToolMutation = useDeleteCustomTool()
   const { data: customTools = [] } = useCustomTools(workspaceId)
 
-  // Initialize form with initial values if provided
   useEffect(() => {
     if (open && initialValues) {
       try {
@@ -298,7 +286,6 @@ try {
         setSchemaError('Failed to load tool data. Please try again.')
       }
     } else if (open) {
-      // Reset form when opening without initial values
       resetForm()
     }
   }, [open, initialValues])
@@ -311,6 +298,12 @@ try {
     setActiveSection('schema')
     setIsEditing(false)
     setToolId(undefined)
+    setSchemaPromptSummary(null)
+    setCodePromptSummary(null)
+    setIsSchemaPromptActive(false)
+    setIsCodePromptActive(false)
+    setSchemaPromptInput('')
+    setCodePromptInput('')
     schemaGeneration.closePrompt()
     schemaGeneration.hidePromptInline()
     codeGeneration.closePrompt()
@@ -318,21 +311,18 @@ try {
   }
 
   const handleClose = () => {
-    // Cancel any ongoing generation before closing
     if (schemaGeneration.isStreaming) schemaGeneration.cancelGeneration()
     if (codeGeneration.isStreaming) codeGeneration.cancelGeneration()
     resetForm()
     onOpenChange(false)
   }
 
-  // Pure validation function that doesn't update state
   const validateJsonSchema = (schema: string): boolean => {
     if (!schema) return false
 
     try {
       const parsed = JSON.parse(schema)
 
-      // Basic validation for function schema
       if (!parsed.type || parsed.type !== 'function') {
         return false
       }
@@ -341,7 +331,6 @@ try {
         return false
       }
 
-      // Validate that parameters object exists with correct structure
       if (!parsed.function.parameters) {
         return false
       }
@@ -356,12 +345,10 @@ try {
     }
   }
 
-  // Pure validation function that doesn't update state
   const validateFunctionCode = (code: string): boolean => {
     return true // Allow empty code
   }
 
-  // Extract parameters from JSON schema for autocomplete
   const schemaParameters = useMemo(() => {
     try {
       if (!jsonSchema) return []
@@ -380,13 +367,11 @@ try {
     }
   }, [jsonSchema])
 
-  // Memoize validation results to prevent unnecessary recalculations
   const isSchemaValid = useMemo(() => validateJsonSchema(jsonSchema), [jsonSchema])
   const isCodeValid = useMemo(() => validateFunctionCode(functionCode), [functionCode])
 
   const handleSave = async () => {
     try {
-      // Validation with error messages
       if (!jsonSchema) {
         setSchemaError('Schema cannot be empty')
         setActiveSection('schema')
@@ -407,7 +392,6 @@ try {
         return
       }
 
-      // Validate parameters structure - must be present
       if (!parsed.function.parameters) {
         setSchemaError('Missing function.parameters object')
         setActiveSection('schema')
@@ -435,16 +419,13 @@ try {
         return
       }
 
-      // No errors, proceed with save - clear any existing errors
       setSchemaError(null)
       setCodeError(null)
 
-      // Parse schema to get tool details
       const schema = JSON.parse(jsonSchema)
       const name = schema.function.name
       const description = schema.function.description || ''
 
-      // Determine the tool ID for editing
       let toolIdToUpdate: string | undefined = toolId
       if (isEditing && !toolIdToUpdate && initialValues?.schema) {
         const originalName = initialValues.schema.function?.name
@@ -458,9 +439,7 @@ try {
         }
       }
 
-      // Save to the store (server validates duplicates)
       if (isEditing && toolIdToUpdate) {
-        // Update existing tool
         await updateToolMutation.mutateAsync({
           workspaceId,
           toolId: toolIdToUpdate,
@@ -471,7 +450,6 @@ try {
           },
         })
       } else {
-        // Create new tool
         await createToolMutation.mutateAsync({
           workspaceId,
           tool: {
@@ -482,7 +460,6 @@ try {
         })
       }
 
-      // Create the custom tool object for the parent component
       const customTool: CustomTool = {
         type: 'custom-tool',
         title: name,
@@ -494,35 +471,35 @@ try {
         isExpanded: true,
       }
 
-      // Pass the tool to parent component
       onSave(customTool)
 
-      // Close the modal
+      setSchemaPromptSummary(null)
+      setCodePromptSummary(null)
+
       handleClose()
     } catch (error) {
       logger.error('Error saving custom tool:', { error })
 
-      // Check if it's an API error with status code (from store)
-      const hasStatus = error && typeof error === 'object' && 'status' in error
-      const errorStatus = hasStatus ? (error as { status: number }).status : null
+      setSchemaPromptSummary(null)
+      setCodePromptSummary(null)
+
       const errorMessage = error instanceof Error ? error.message : 'Failed to save custom tool'
 
-      // Display server validation errors (400) directly, generic message for others
-      setSchemaError(
-        errorStatus === 400
-          ? errorMessage
-          : 'Failed to save custom tool. Please check your inputs and try again.'
-      )
+      if (errorMessage.includes('Cannot change function name')) {
+        setSchemaError(
+          'Function name cannot be changed after creation. To use a different name, delete this tool and create a new one.'
+        )
+      } else {
+        setSchemaError(errorMessage)
+      }
       setActiveSection('schema')
     }
   }
 
   const handleJsonSchemaChange = (value: string) => {
-    // Prevent updates during AI generation/streaming
     if (schemaGeneration.isLoading || schemaGeneration.isStreaming) return
     setJsonSchema(value)
 
-    // Real-time validation - show error immediately when schema is invalid
     if (value.trim()) {
       try {
         const parsed = JSON.parse(value)
@@ -560,21 +537,17 @@ try {
           return
         }
 
-        // Schema is valid, clear any existing error
         setSchemaError(null)
       } catch {
         setSchemaError('Invalid JSON format')
       }
     } else {
-      // Clear error when schema is empty (will be caught during save)
       setSchemaError(null)
     }
   }
 
   const handleFunctionCodeChange = (value: string) => {
-    // Prevent updates during AI generation/streaming
     if (codeGeneration.isLoading || codeGeneration.isStreaming) {
-      // We still need to update the state for streaming chunks, but skip dropdown logic
       setFunctionCode(value)
       if (codeError) {
         setCodeError(null)
@@ -587,27 +560,23 @@ try {
       setCodeError(null)
     }
 
-    // Check for environment variables and tags
     const textarea = codeEditorRef.current?.querySelector('textarea')
     if (textarea) {
       const pos = textarea.selectionStart
       setCursorPosition(pos)
 
-      // Calculate cursor position for dropdowns
       const textBeforeCursor = value.substring(0, pos)
       const lines = textBeforeCursor.split('\n')
       const currentLine = lines.length
       const currentCol = lines[lines.length - 1].length
 
-      // Find position of cursor in the editor
       try {
         if (codeEditorRef.current) {
           const editorRect = codeEditorRef.current.getBoundingClientRect()
-          const lineHeight = 21 // Same as in CodeEditor
+          const lineHeight = 21
 
-          // Calculate approximate position
           const top = currentLine * lineHeight + 5
-          const left = Math.min(currentCol * 8, editorRect.width - 260) // Prevent dropdown from going off-screen
+          const left = Math.min(currentCol * 8, editorRect.width - 260)
 
           setDropdownPosition({ top, left })
         }
@@ -615,19 +584,16 @@ try {
         logger.error('Error calculating cursor position:', { error })
       }
 
-      // Check if we should show the environment variables dropdown
       const envVarTrigger = checkEnvVarTrigger(value, pos)
-      setShowEnvVars(envVarTrigger.show && !codeGeneration.isStreaming) // Hide dropdown during streaming
+      setShowEnvVars(envVarTrigger.show && !codeGeneration.isStreaming)
       setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
 
-      // Check if we should show the tags dropdown
       const tagTrigger = checkTagTrigger(value, pos)
-      setShowTags(tagTrigger.show && !codeGeneration.isStreaming) // Hide dropdown during streaming
+      setShowTags(tagTrigger.show && !codeGeneration.isStreaming)
       if (!tagTrigger.show) {
         setActiveSourceBlockId(null)
       }
 
-      // Show/hide schema parameters dropdown based on typing context
       if (!codeGeneration.isStreaming && schemaParameters.length > 0) {
         const schemaParamTrigger = checkSchemaParamTrigger(value, pos, schemaParameters)
         if (schemaParamTrigger.show && !showSchemaParams) {
@@ -640,16 +606,13 @@ try {
     }
   }
 
-  // Function to check if we should show schema parameters dropdown
   const checkSchemaParamTrigger = (text: string, cursorPos: number, parameters: any[]) => {
     if (parameters.length === 0) return { show: false, searchTerm: '' }
 
-    // Look for partial parameter names after common patterns like 'const ', '= ', etc.
     const beforeCursor = text.substring(0, cursorPos)
     const words = beforeCursor.split(/[\s=();,{}[\]]+/)
     const currentWord = words[words.length - 1] || ''
 
-    // Show dropdown if typing and current word could be a parameter
     if (currentWord.length > 0 && /^[a-zA-Z_][\w]*$/.test(currentWord)) {
       const matchingParams = parameters.filter((param) =>
         param.name.toLowerCase().startsWith(currentWord.toLowerCase())
@@ -660,20 +623,17 @@ try {
     return { show: false, searchTerm: '' }
   }
 
-  // Handle environment variable selection
   const handleEnvVarSelect = (newValue: string) => {
     setFunctionCode(newValue)
     setShowEnvVars(false)
   }
 
-  // Handle tag selection
   const handleTagSelect = (newValue: string) => {
     setFunctionCode(newValue)
     setShowTags(false)
     setActiveSourceBlockId(null)
   }
 
-  // Handle schema parameter selection
   const handleSchemaParamSelect = (paramName: string) => {
     const textarea = codeEditorRef.current?.querySelector('textarea')
     if (textarea) {
@@ -681,17 +641,14 @@ try {
       const beforeCursor = functionCode.substring(0, pos)
       const afterCursor = functionCode.substring(pos)
 
-      // Find the start of the current word
       const words = beforeCursor.split(/[\s=();,{}[\]]+/)
       const currentWord = words[words.length - 1] || ''
       const wordStart = beforeCursor.lastIndexOf(currentWord)
 
-      // Replace the current partial word with the selected parameter
       const newValue = beforeCursor.substring(0, wordStart) + paramName + afterCursor
       setFunctionCode(newValue)
       setShowSchemaParams(false)
 
-      // Set cursor position after the inserted parameter
       setTimeout(() => {
         textarea.focus()
         textarea.setSelectionRange(wordStart + paramName.length, wordStart + paramName.length)
@@ -699,10 +656,7 @@ try {
     }
   }
 
-  // Handle key press events
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Allow AI prompt interaction (e.g., Escape to close prompt bar)
-    // Check if AI prompt is visible for the current section
     const isSchemaPromptVisible = activeSection === 'schema' && schemaGeneration.isPromptVisible
     const isCodePromptVisible = activeSection === 'code' && codeGeneration.isPromptVisible
 
@@ -719,7 +673,6 @@ try {
         e.stopPropagation()
         return
       }
-      // Close dropdowns first, only close modal if no dropdowns are open
       if (showEnvVars || showTags || showSchemaParams) {
         setShowEnvVars(false)
         setShowTags(false)
@@ -730,7 +683,6 @@ try {
       }
     }
 
-    // Prevent regular input if streaming in the active section
     if (activeSection === 'schema' && schemaGeneration.isStreaming) {
       e.preventDefault()
       return
@@ -740,7 +692,6 @@ try {
       return
     }
 
-    // Handle schema parameters dropdown keyboard navigation
     if (showSchemaParams && schemaParameters.length > 0) {
       switch (e.key) {
         case 'ArrowDown':
@@ -767,10 +718,9 @@ try {
           setShowSchemaParams(false)
           break
       }
-      return // Don't handle other dropdown events when schema params is active
+      return
     }
 
-    // Let other dropdowns handle their own keyboard events if visible
     if (showEnvVars || showTags) {
       if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
         e.preventDefault()
@@ -779,7 +729,6 @@ try {
     }
   }
 
-  // Schema inline wand handlers (copied from regular sub-block UX)
   const handleSchemaWandClick = () => {
     if (schemaGeneration.isLoading || schemaGeneration.isStreaming) return
     setIsSchemaPromptActive(true)
@@ -819,7 +768,6 @@ try {
     }
   }
 
-  // Code inline wand handlers
   const handleCodeWandClick = () => {
     if (codeGeneration.isLoading || codeGeneration.isStreaming) return
     setIsCodePromptActive(true)
@@ -865,26 +813,23 @@ try {
     try {
       setShowDeleteConfirm(false)
 
-      // Delete using React Query mutation
       await deleteToolMutation.mutateAsync({
         workspaceId,
         toolId,
       })
       logger.info(`Deleted tool: ${toolId}`)
 
-      // Notify parent component if callback provided
       if (onDelete) {
         onDelete(toolId)
       }
 
-      // Close the modal
       handleClose()
     } catch (error) {
       logger.error('Error deleting custom tool:', error)
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete custom tool'
       setSchemaError(`${errorMessage}. Please try again.`)
-      setActiveSection('schema') // Switch to schema tab to show the error
-      setShowDeleteConfirm(false) // Close the confirmation dialog
+      setActiveSection('schema')
+      setShowDeleteConfirm(false)
     }
   }
 
@@ -903,7 +848,6 @@ try {
     },
   ]
 
-  // Ensure modal overlay appears above Settings modal (z-index: 9999999)
   useEffect(() => {
     if (!open) return
 

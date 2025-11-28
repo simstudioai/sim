@@ -61,6 +61,26 @@ interface ContextMenuProps {
    * Set to true for items that can be exported (like workspaces)
    */
   showExport?: boolean
+  /**
+   * Whether the export option is disabled (default: false)
+   * Set to true when user lacks permissions
+   */
+  disableExport?: boolean
+  /**
+   * Whether the rename option is disabled (default: false)
+   * Set to true when user lacks permissions
+   */
+  disableRename?: boolean
+  /**
+   * Whether the duplicate option is disabled (default: false)
+   * Set to true when user lacks permissions
+   */
+  disableDuplicate?: boolean
+  /**
+   * Whether the delete option is disabled (default: false)
+   * Set to true when user lacks permissions
+   */
+  disableDelete?: boolean
 }
 
 /**
@@ -84,6 +104,10 @@ export function ContextMenu({
   showCreate = false,
   showDuplicate = true,
   showExport = false,
+  disableExport = false,
+  disableRename = false,
+  disableDuplicate = false,
+  disableDelete = false,
 }: ContextMenuProps) {
   return (
     <Popover open={isOpen} onOpenChange={onClose}>
@@ -99,9 +123,12 @@ export function ContextMenu({
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
         {showRename && onRename && (
           <PopoverItem
+            disabled={disableRename}
             onClick={() => {
-              onRename()
-              onClose()
+              if (!disableRename) {
+                onRename()
+                onClose()
+              }
             }}
           >
             <Pencil className='h-3 w-3' />
@@ -121,9 +148,12 @@ export function ContextMenu({
         )}
         {showDuplicate && onDuplicate && (
           <PopoverItem
+            disabled={disableDuplicate}
             onClick={() => {
-              onDuplicate()
-              onClose()
+              if (!disableDuplicate) {
+                onDuplicate()
+                onClose()
+              }
             }}
           >
             <Copy className='h-3 w-3' />
@@ -132,9 +162,12 @@ export function ContextMenu({
         )}
         {showExport && onExport && (
           <PopoverItem
+            disabled={disableExport}
             onClick={() => {
-              onExport()
-              onClose()
+              if (!disableExport) {
+                onExport()
+                onClose()
+              }
             }}
           >
             <ArrowUp className='h-3 w-3' />
@@ -142,9 +175,12 @@ export function ContextMenu({
           </PopoverItem>
         )}
         <PopoverItem
+          disabled={disableDelete}
           onClick={() => {
-            onDelete()
-            onClose()
+            if (!disableDelete) {
+              onDelete()
+              onClose()
+            }
           }}
         >
           <Trash className='h-3 w-3' />
