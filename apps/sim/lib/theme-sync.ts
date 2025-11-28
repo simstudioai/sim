@@ -6,12 +6,12 @@
  * Updates the theme in next-themes by dispatching a storage event
  * This works by updating localStorage and notifying next-themes of the change
  *
- * COMMENTED OUT: Theme switching disabled - dark mode is forced for workspace
+ * COMMENTED OUT: Theme switching disabled - light mode is forced for workspace
  */
 export function syncThemeToNextThemes(theme: 'system' | 'light' | 'dark') {
   if (typeof window === 'undefined') return
 
-  // COMMENTED OUT: Dark mode is forced for workspace pages
+  // COMMENTED OUT: Light mode is forced for workspace pages
   // // Update localStorage
   // localStorage.setItem('sim-theme', theme)
 
