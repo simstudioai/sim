@@ -1,8 +1,5 @@
 import { startOfDayTimestamp } from '@/lib/arena-utils/arena-utils'
-import type {
-  ArenaCreateTaskParams,
-  ArenaCreateTaskResponse,
-} from '@/tools/arena_task_manager/types'
+import type { ArenaCreateTaskParams, ArenaCreateTaskResponse } from '@/tools/arena/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const createTask: ToolConfig<ArenaCreateTaskParams, ArenaCreateTaskResponse> = {
