@@ -163,7 +163,7 @@ describe('OAuth Utils', () => {
 
       const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
 
-      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token')
+      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token', undefined)
       expect(mockDb.update).toHaveBeenCalled()
       expect(mockDb.set).toHaveBeenCalled()
       expect(result).toEqual({ accessToken: 'new-token', refreshed: true })
@@ -251,7 +251,7 @@ describe('OAuth Utils', () => {
 
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
-      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token')
+      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token', undefined)
       expect(mockDb.update).toHaveBeenCalled()
       expect(mockDb.set).toHaveBeenCalled()
       expect(token).toBe('new-token')
