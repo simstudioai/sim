@@ -19,7 +19,7 @@ export const gmailPollingTrigger: TriggerConfig = {
       title: 'Credentials',
       type: 'oauth-input',
       description: 'This trigger requires google email credentials to access your account.',
-      serviceId: 'google-email',
+      serviceId: 'gmail',
       requiredScopes: [],
       required: true,
       mode: 'trigger',
