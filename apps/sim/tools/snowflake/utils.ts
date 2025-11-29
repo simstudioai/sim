@@ -140,3 +140,45 @@ export function extractColumnMetadata(response: any): Array<{ name: string; type
     type: col.type,
   }))
 }
+
+export function sanitizeIdentifier(identifier: string): string {
+  if (identifier.includes('.')) {
+    const parts = identifier.split('.')
+    return parts.map((part) => sanitizeSingleIdentifier(part)).join('.')
+  }
+
+  return sanitizeSingleIdentifier(identifier)
+}
+
+export function validateWhereClause(where: string): void {
+  const dangerousPatterns = [
+    /;\s*(drop|delete|insert|update|create|alter|grant|revoke|truncate)/i,
+    /union\s+select/i,
+    /into\s+outfile/i,
+    /load_file/i,
+    /--/,
+    /\/\*/,
+    /\*\//,
+    /xp_cmdshell/i,
+    /exec\s*\(/i,
+    /execute\s+immediate/i,
+  ]
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(where)) {
+      throw new Error('WHERE clause contains potentially dangerous operation')
+    }
+  }
+}
+
+function sanitizeSingleIdentifier(identifier: string): string {
+  const cleaned = identifier.replace(/"/g, '')
+
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(cleaned)) {
+    throw new Error(
+      `Invalid identifier: ${identifier}. Identifiers must start with a letter or underscore and contain only letters, numbers, and underscores.`
+    )
+  }
+
+  return `"${cleaned}"`
+}

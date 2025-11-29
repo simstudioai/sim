@@ -3,7 +3,7 @@ import type {
   SnowflakeDeleteRowsParams,
   SnowflakeDeleteRowsResponse,
 } from '@/tools/snowflake/types'
-import { parseAccountUrl } from '@/tools/snowflake/utils'
+import { parseAccountUrl, sanitizeIdentifier, validateWhereClause } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SnowflakeDeleteRowsTool')
@@ -17,12 +17,15 @@ function buildDeleteSQL(
   table: string,
   whereClause?: string
 ): string {
-  const fullTableName = `${database}.${schema}.${table}`
+  const sanitizedDatabase = sanitizeIdentifier(database)
+  const sanitizedSchema = sanitizeIdentifier(schema)
+  const sanitizedTable = sanitizeIdentifier(table)
+  const fullTableName = `${sanitizedDatabase}.${sanitizedSchema}.${sanitizedTable}`
 
   let sql = `DELETE FROM ${fullTableName}`
 
-  // Add WHERE clause if provided
   if (whereClause?.trim()) {
+    validateWhereClause(whereClause)
     sql += ` WHERE ${whereClause}`
   }
 

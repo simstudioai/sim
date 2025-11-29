@@ -3,13 +3,13 @@ import type {
   SnowflakeInsertRowsParams,
   SnowflakeInsertRowsResponse,
 } from '@/tools/snowflake/types'
-import { parseAccountUrl } from '@/tools/snowflake/utils'
+import { parseAccountUrl, sanitizeIdentifier } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SnowflakeInsertRowsTool')
 
 /**
- * Build INSERT SQL statement from parameters
+ * Build INSERT SQL statement from parameters with proper identifier quoting
  */
 function buildInsertSQL(
   database: string,
@@ -18,10 +18,13 @@ function buildInsertSQL(
   columns: string[],
   values: any[][]
 ): string {
-  const fullTableName = `${database}.${schema}.${table}`
-  const columnList = columns.join(', ')
+  const sanitizedDatabase = sanitizeIdentifier(database)
+  const sanitizedSchema = sanitizeIdentifier(schema)
+  const sanitizedTable = sanitizeIdentifier(table)
+  const fullTableName = `${sanitizedDatabase}.${sanitizedSchema}.${sanitizedTable}`
 
-  // Build values clause for multiple rows
+  const columnList = columns.map((col) => sanitizeIdentifier(col)).join(', ')
+
   const valuesClause = values
     .map((rowValues) => {
       const formattedValues = rowValues.map((val) => {

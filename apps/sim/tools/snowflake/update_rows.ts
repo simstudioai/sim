@@ -3,13 +3,13 @@ import type {
   SnowflakeUpdateRowsParams,
   SnowflakeUpdateRowsResponse,
 } from '@/tools/snowflake/types'
-import { parseAccountUrl } from '@/tools/snowflake/utils'
+import { parseAccountUrl, sanitizeIdentifier, validateWhereClause } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SnowflakeUpdateRowsTool')
 
 /**
- * Build UPDATE SQL statement from parameters
+ * Build UPDATE SQL statement from parameters with proper identifier quoting
  */
 function buildUpdateSQL(
   database: string,
@@ -18,11 +18,15 @@ function buildUpdateSQL(
   updates: Record<string, any>,
   whereClause?: string
 ): string {
-  const fullTableName = `${database}.${schema}.${table}`
+  const sanitizedDatabase = sanitizeIdentifier(database)
+  const sanitizedSchema = sanitizeIdentifier(schema)
+  const sanitizedTable = sanitizeIdentifier(table)
+  const fullTableName = `${sanitizedDatabase}.${sanitizedSchema}.${sanitizedTable}`
 
-  // Build SET clause
   const setClause = Object.entries(updates)
     .map(([column, value]) => {
+      const sanitizedColumn = sanitizeIdentifier(column)
+
       let formattedValue: string
 
       if (value === null || value === undefined) {
@@ -36,14 +40,14 @@ function buildUpdateSQL(
         formattedValue = String(value)
       }
 
-      return `${column} = ${formattedValue}`
+      return `${sanitizedColumn} = ${formattedValue}`
     })
     .join(', ')
 
   let sql = `UPDATE ${fullTableName} SET ${setClause}`
 
-  // Add WHERE clause if provided
   if (whereClause?.trim()) {
+    validateWhereClause(whereClause)
     sql += ` WHERE ${whereClause}`
   }
 
