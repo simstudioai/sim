@@ -67,6 +67,9 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       accessToken: account.accessToken,
       refreshToken: account.refreshToken,
       accessTokenExpiresAt: account.accessTokenExpiresAt,
+      accountId: account.accountId,
+      providerId: account.providerId,
+      password: account.password, // Include password field for Snowflake OAuth credentials
     })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
@@ -93,8 +96,25 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
     )
 
     try {
+      // Extract account URL and OAuth credentials for Snowflake
+      let metadata: { accountUrl?: string; clientId?: string; clientSecret?: string } | undefined
+      if (providerId === 'snowflake' && credential.accountId) {
+        metadata = { accountUrl: credential.accountId }
+
+        // Extract clientId and clientSecret from the password field (stored as JSON)
+        if (credential.password) {
+          try {
+            const oauthCredentials = JSON.parse(credential.password)
+            metadata.clientId = oauthCredentials.clientId
+            metadata.clientSecret = oauthCredentials.clientSecret
+          } catch (e) {
+            logger.error('Failed to parse Snowflake OAuth credentials', { error: e })
+          }
+        }
+      }
+
       // Use the existing refreshOAuthToken function
-      const refreshResult = await refreshOAuthToken(providerId, credential.refreshToken!)
+      const refreshResult = await refreshOAuthToken(providerId, credential.refreshToken!, metadata)
 
       if (!refreshResult) {
         logger.error(`Failed to refresh token for user ${userId}, provider ${providerId}`, {
@@ -177,9 +197,27 @@ export async function refreshAccessTokenIfNeeded(
   if (shouldRefresh) {
     logger.info(`[${requestId}] Token expired, attempting to refresh for credential`)
     try {
+      // Extract account URL and OAuth credentials for Snowflake
+      let metadata: { accountUrl?: string; clientId?: string; clientSecret?: string } | undefined
+      if (credential.providerId === 'snowflake' && credential.accountId) {
+        metadata = { accountUrl: credential.accountId }
+
+        // Extract clientId and clientSecret from the password field (stored as JSON)
+        if (credential.password) {
+          try {
+            const oauthCredentials = JSON.parse(credential.password)
+            metadata.clientId = oauthCredentials.clientId
+            metadata.clientSecret = oauthCredentials.clientSecret
+          } catch (e) {
+            logger.error('Failed to parse Snowflake OAuth credentials', { error: e })
+          }
+        }
+      }
+
       const refreshedToken = await refreshOAuthToken(
         credential.providerId,
-        credential.refreshToken!
+        credential.refreshToken!,
+        metadata
       )
 
       if (!refreshedToken) {
@@ -251,7 +289,28 @@ export async function refreshTokenIfNeeded(
   }
 
   try {
-    const refreshResult = await refreshOAuthToken(credential.providerId, credential.refreshToken!)
+    // Extract account URL and OAuth credentials for Snowflake
+    let metadata: { accountUrl?: string; clientId?: string; clientSecret?: string } | undefined
+    if (credential.providerId === 'snowflake' && credential.accountId) {
+      metadata = { accountUrl: credential.accountId }
+
+      // Extract clientId and clientSecret from the password field (stored as JSON)
+      if (credential.password) {
+        try {
+          const oauthCredentials = JSON.parse(credential.password)
+          metadata.clientId = oauthCredentials.clientId
+          metadata.clientSecret = oauthCredentials.clientSecret
+        } catch (e) {
+          logger.error('Failed to parse Snowflake OAuth credentials', { error: e })
+        }
+      }
+    }
+
+    const refreshResult = await refreshOAuthToken(
+      credential.providerId,
+      credential.refreshToken!,
+      metadata
+    )
 
     if (!refreshResult) {
       logger.error(`[${requestId}] Failed to refresh token for credential`)

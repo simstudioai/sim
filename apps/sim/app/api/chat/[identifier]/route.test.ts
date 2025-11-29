@@ -106,12 +106,20 @@ describe('Chat Identifier API Route', () => {
 
     vi.doMock('@/lib/workflows/streaming', () => ({
       createStreamingResponse: mockCreateStreamingResponse,
+    }))
+
+    vi.doMock('@/lib/utils', () => ({
+      generateRequestId: vi.fn().mockReturnValue('test-request-id'),
       SSE_HEADERS: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
         'X-Accel-Buffering': 'no',
       },
+    }))
+
+    vi.doMock('@/app/api/workflows/[id]/execute/route', () => ({
+      createFilteredResult: vi.fn().mockReturnValue((result: any) => result),
     }))
 
     vi.doMock('@/lib/logs/console/logger', () => ({
