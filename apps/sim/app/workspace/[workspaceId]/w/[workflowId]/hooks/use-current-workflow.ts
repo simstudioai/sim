@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { Edge } from 'reactflow'
-import { shallow } from 'zustand/shallow'
+import { useShallow } from 'zustand/react/shallow'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import type { DeploymentStatus } from '@/stores/workflows/registry/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -24,6 +24,7 @@ export interface CurrentWorkflow {
   // Mode information
   isDiffMode: boolean
   isNormalMode: boolean
+  isSnapshotView: boolean
 
   // Full workflow state (for cases that need the complete object)
   workflowState: WorkflowState
@@ -43,31 +44,33 @@ export interface CurrentWorkflow {
 export function useCurrentWorkflow(): CurrentWorkflow {
   // Get normal workflow state - optimized with shallow comparison
   // This prevents re-renders when only subblock values change (not block structure)
-  const normalWorkflow = useWorkflowStore((state) => {
-    const workflow = state.getWorkflowState()
-    return {
-      blocks: workflow.blocks,
-      edges: workflow.edges,
-      loops: workflow.loops,
-      parallels: workflow.parallels,
-      lastSaved: workflow.lastSaved,
-      isDeployed: workflow.isDeployed,
-      deployedAt: workflow.deployedAt,
-      deploymentStatuses: workflow.deploymentStatuses,
-      needsRedeployment: workflow.needsRedeployment,
-    }
-  }, shallow)
+  const normalWorkflow = useWorkflowStore(
+    useShallow((state) => {
+      const workflow = state.getWorkflowState()
+      return {
+        blocks: workflow.blocks,
+        edges: workflow.edges,
+        loops: workflow.loops,
+        parallels: workflow.parallels,
+        lastSaved: workflow.lastSaved,
+        isDeployed: workflow.isDeployed,
+        deployedAt: workflow.deployedAt,
+        deploymentStatuses: workflow.deploymentStatuses,
+        needsRedeployment: workflow.needsRedeployment,
+      }
+    })
+  )
 
   // Get diff state - now including isDiffReady
-  const { isShowingDiff, isDiffReady, diffWorkflow } = useWorkflowDiffStore()
+  const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore()
 
   // Create the abstracted interface - optimized to prevent unnecessary re-renders
   const currentWorkflow = useMemo((): CurrentWorkflow => {
-    // Determine which workflow to use - only use diff if it's ready
-    const hasDiffBlocks =
-      !!diffWorkflow && Object.keys((diffWorkflow as any).blocks || {}).length > 0
-    const shouldUseDiff = isShowingDiff && isDiffReady && hasDiffBlocks
-    const activeWorkflow = shouldUseDiff ? diffWorkflow : normalWorkflow
+    // Determine which workflow to use
+    const isSnapshotView =
+      Boolean(baselineWorkflow) && hasActiveDiff && isDiffReady && !isShowingDiff
+
+    const activeWorkflow = isSnapshotView ? (baselineWorkflow as WorkflowState) : normalWorkflow
 
     return {
       // Current workflow state
@@ -82,8 +85,9 @@ export function useCurrentWorkflow(): CurrentWorkflow {
       needsRedeployment: activeWorkflow.needsRedeployment,
 
       // Mode information - update to reflect ready state
-      isDiffMode: shouldUseDiff,
-      isNormalMode: !shouldUseDiff,
+      isDiffMode: hasActiveDiff && isShowingDiff,
+      isNormalMode: !hasActiveDiff || (!isShowingDiff && !isSnapshotView),
+      isSnapshotView: Boolean(isSnapshotView),
 
       // Full workflow state (for cases that need the complete object)
       workflowState: activeWorkflow as WorkflowState,
@@ -95,7 +99,7 @@ export function useCurrentWorkflow(): CurrentWorkflow {
       hasBlocks: () => Object.keys(activeWorkflow.blocks || {}).length > 0,
       hasEdges: () => (activeWorkflow.edges || []).length > 0,
     }
-  }, [normalWorkflow, isShowingDiff, isDiffReady, diffWorkflow])
+  }, [normalWorkflow, isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow])
 
   return currentWorkflow
 }

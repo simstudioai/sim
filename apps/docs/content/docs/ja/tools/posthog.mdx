@@ -1,0 +1,1112 @@
+---
+title: PostHog
+description: プロダクトアナリティクスと機能管理
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="posthog"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[PostHog](https://posthog.com/)ツールは、強力なプロダクトアナリティクス、機能フラグ管理、実験、ユーザー行動インサイトをエージェントワークフローに直接統合します。現代のチーム向けに設計されており、ユーザーデータをリアルタイムでキャプチャ、分析、活用することができ、より良い製品の構築、エンゲージメントの理解、コンバージョン率の向上に役立ちます。
+
+PostHogツールでは以下のことが可能です：
+
+- **イベントの追跡と分析**: `posthog_capture_event`および`posthog_batch_events`操作を使用して、個別または複数のユーザーアクション、ページビュー、カスタムイベントを記録し、詳細な分析を行います。
+- **イベントデータの探索**: `posthog_list_events`操作を使用して、履歴またはリアルタイムのイベントを取得・一覧表示し、高度なイベント分析を行います。
+- **ユーザーの理解**: `posthog_list_persons`、`posthog_get_person`、および`posthog_delete_person`操作を活用して、ユーザープロファイルを管理し、詳細なユーザーインサイトを取得したり、必要に応じてユーザーを削除したりします。
+- **実用的な製品インサイトの獲得**: `posthog_list_insights`、`posthog_get_insight`、および`posthog_create_insight`操作を通じて、ユーザージャーニー、機能の使用状況、エンゲージメントを可視化します。
+- **機能の安全な管理とロールアウト**: `posthog_list_feature_flags`、`posthog_get_feature_flag`、`posthog_create_feature_flag`、`posthog_update_feature_flag`、および`posthog_delete_feature_flag`などの操作を使用して、機能を切り替えたり、A/Bテストや多変量テストを大規模に実行したりします。
+- **オーディエンスのセグメント化とターゲティング**: `posthog_list_cohorts`、`posthog_get_cohort`、および`posthog_create_cohort`でコホートの構築、一覧表示、管理を行います。
+- **直接的なフィードバックの収集**: `posthog_list_surveys`、`posthog_get_survey`、`posthog_create_survey`、および`posthog_update_survey`を通じて、アンケートの設計、展開、分析を行います。
+- **ユーザーエクスペリエンスのモニタリング**: `posthog_list_session_recordings`および`posthog_get_session_recording`操作を通じてセッション記録にアクセスし分析します。
+- **チームとのコラボレーション**: ダッシュボード(`posthog_list_dashboards`、`posthog_get_dashboard`)の整理、インサイトやイベントの作成・注釈付け、PostHog内でのプロジェクトや組織の管理を行います。
+
+製品分析の完全実装、ユーザーオンボーディングの強化、製品ロードマップの改善、または実際の使用データに基づく意思決定の自動化など、どのようなニーズにも対応できるPostHogツールは、高度な分析機能や製品内実験機能をエージェントやワークフローに提供します — すべてが一つの統合プラットフォームで実現します。
+
+プライバシー、スケーラビリティ、オープンソースオプションを備えた真の製品分析をお探しですか？PostHogは世界中の俊敏なチームや企業から信頼されています。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+PostHogをワークフローに統合しましょう。イベントの追跡、機能フラグの管理、ユーザー行動の分析、実験の実施、アンケートの作成、セッション記録へのアクセスが可能です。
+
+## ツール
+
+### `posthog_capture_event`
+
+PostHogで単一のイベントをキャプチャします。ユーザーアクション、ページビュー、またはカスタムイベントを追跡するために使用します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectApiKey` | string | はい | PostHogプロジェクトAPIキー（イベント取り込み用の公開トークン） |
+| `region` | string | いいえ | PostHogリージョン：us（デフォルト）またはeu |
+| `event` | string | はい | キャプチャするイベントの名前（例："page_view"、"button_clicked"） |
+| `distinctId` | string | はい | ユーザーまたはデバイスの一意の識別子。ユーザーID、デバイスID、または匿名IDが使用可能 |
+| `properties` | string | いいえ | イベントプロパティのJSON文字列（例：\{"button_name": "signup", "page": "homepage"\}） |
+| `timestamp` | string | いいえ | イベントが発生した時刻のISO 8601タイムスタンプ。提供されない場合は現在時刻を使用 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | イベントが正常にキャプチャされたかどうかを示すステータスメッセージ |
+
+### `posthog_batch_events`
+
+PostHogで複数のイベントを一度に取得します。バルクイベント取り込みによりパフォーマンスを向上させるために使用します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectApiKey` | string | はい | PostHogプロジェクトAPIキー（イベント取り込み用の公開トークン） |
+| `region` | string | いいえ | PostHogリージョン: us （デフォルト）または eu |
+| `batch` | string | はい | 取得するイベントのJSON配列。各イベントには以下が必要: event、distinct_id、およびオプションのproperties、timestamp。例: \[\{"event": "page_view", "distinct_id": "user123", "properties": \{"page": "/"\}\}\] |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | バッチが正常に取得されたかどうかを示すステータスメッセージ |
+| `eventsProcessed` | number | バッチで処理されたイベントの数 |
+
+### `posthog_list_events`
+
+PostHogでイベントを一覧表示します。注意: このエンドポイントは非推奨ですが、後方互換性のために維持されています。本番環境では、HogQLを使用したQueryエンドポイントを推奨します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | string | はい | PostHog個人APIキー（認証されたAPIアクセス用） |
+| `region` | string | いいえ | PostHogリージョン: us （デフォルト）または eu |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `limit` | number | いいえ | 返すイベントの数（デフォルト: 100、最大: 100） |
+| `offset` | number | いいえ | ページネーション用にスキップするイベントの数 |
+| `event` | string | いいえ | 特定のイベント名でフィルタリング |
+| `distinctId` | string | いいえ | 特定のdistinct_idでフィルタリング |
+| `before` | string | いいえ | ISO 8601タイムスタンプ - この時間より前のイベントのみを返す |
+| `after` | string | いいえ | ISO 8601タイムスタンプ - この時間より後のイベントのみを返す |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `events` | array | プロパティとメタデータを含むイベントのリスト |
+
+### `posthog_list_persons`
+
+PostHogの人物（ユーザー）を一覧表示します。プロパティと個別IDを含むユーザープロファイルを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | string | はい | PostHog個人APIキー（認証済みAPIアクセス用） |
+| `region` | string | いいえ | PostHogリージョン：us（デフォルト）またはeu |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `limit` | number | いいえ | 返す人物の数（デフォルト：100、最大：100） |
+| `offset` | number | いいえ | ページネーション用にスキップする人物の数 |
+| `search` | string | いいえ | メール、名前、または個別IDで人物を検索 |
+| `distinctId` | string | いいえ | 特定のdistinct_idでフィルタリング |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `persons` | array | プロパティと識別子を含む人物のリスト |
+
+### `posthog_get_person`
+
+IDまたはUUIDによってPostHogの特定の人物に関する詳細情報を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | string | はい | PostHog個人APIキー（認証済みAPIアクセス用） |
+| `region` | string | いいえ | PostHogリージョン：us（デフォルト）またはeu |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `personId` | string | はい | 取得する人物IDまたはUUID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `person` | object | プロパティと識別子を含む人物の詳細 |
+
+### `posthog_delete_person`
+
+PostHogから人物を削除します。これにより、関連するすべてのイベントとデータが削除されます。注意して使用してください。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | string | はい | PostHog個人APIキー（認証されたAPIアクセス用） |
+| `region` | string | いいえ | PostHogリージョン：us（デフォルト）またはeu |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `personId` | string | はい | 削除する人物IDまたはUUID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | 人物が正常に削除されたかどうかを示すステータスメッセージ |
+
+### `posthog_query`
+
+PostHogでHogQLクエリを実行します。HogQLはPostHogです
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | string | はい | PostHog個人APIキー（認証されたAPIアクセス用） |
+| `region` | string | いいえ | PostHogリージョン：us（デフォルト）またはeu |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `query` | string | はい | 実行するHogQLクエリ。例：\{"kind": "HogQLQuery", "query": "SELECT event, count\(\) FROM events WHERE timestamp &gt; now\(\) - INTERVAL 1 DAY GROUP BY event"\} |
+| `Example` | string | いいえ | 説明なし |
+| `values` | string | いいえ | パラメータ化されたクエリのパラメータ値のオプションJSONストリング。例：\{"user_id": "123"\} |
+| `Example` | string | いいえ | 説明なし |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `results` | array | 行の配列としてのクエリ結果 |
+
+### `posthog_list_insights`
+
+PostHogプロジェクト内のすべてのインサイトを一覧表示します。インサイトの設定、フィルター、およびメタデータを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | いいえ | PostHogクラウドリージョン：「us」または「eu」\(デフォルト：「us」\) |
+| `limit` | number | いいえ | ページごとに返す結果の数\(デフォルト：100\) |
+| `offset` | number | いいえ | ページネーションのためにスキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `count` | number | プロジェクト内のインサイトの総数 |
+| `next` | string | 結果の次のページのURL |
+| `previous` | string | 結果の前のページのURL |
+| `results` | array | 設定とメタデータを含むインサイトのリスト |
+
+### `posthog_get_insight`
+
+IDによって特定のインサイトをPostHogから取得します。詳細なインサイト設定、フィルター、およびメタデータを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `insightId` | string | はい | 取得するインサイトID |
+| `region` | string | いいえ | PostHogクラウドリージョン：「us」または「eu」\(デフォルト：「us」\) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | インサイトの一意の識別子 |
+| `name` | string | インサイトの名前 |
+| `description` | string | インサイトの説明 |
+| `filters` | object | インサイトのフィルター設定 |
+| `query` | object | インサイトのクエリ設定 |
+| `created_at` | string | インサイトが作成されたISO形式のタイムスタンプ |
+| `created_by` | object | インサイトを作成したユーザー |
+| `last_modified_at` | string | インサイトが最後に変更されたISO形式のタイムスタンプ |
+| `last_modified_by` | object | インサイトを最後に変更したユーザー |
+| `saved` | boolean | インサイトが保存されているかどうか |
+| `dashboards` | array | このインサイトが表示されるダッシュボードのID |
+| `tags` | array | インサイトに関連付けられたタグ |
+| `favorited` | boolean | インサイトがお気に入りに登録されているかどうか |
+
+### `posthog_create_insight`
+
+PostHogで新しいインサイトを作成します。インサイト名と設定フィルターまたはクエリが必要です。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | いいえ | PostHogクラウドリージョン: "us"または"eu"（デフォルト: "us"） |
+| `name` | string | いいえ | インサイトの名前（オプション - 提供されない場合、PostHogは派生した名前を生成します） |
+| `description` | string | いいえ | インサイトの説明 |
+| `filters` | string | いいえ | インサイトのフィルター設定のJSON文字列 |
+| `query` | string | いいえ | インサイトのクエリ設定のJSON文字列 |
+| `dashboards` | string | いいえ | このインサイトを追加するダッシュボードIDのカンマ区切りリスト |
+| `tags` | string | いいえ | インサイト用タグのカンマ区切りリスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | 作成されたインサイトの一意の識別子 |
+| `name` | string | インサイトの名前 |
+| `description` | string | インサイトの説明 |
+| `filters` | object | インサイトのフィルター設定 |
+| `query` | object | インサイトのクエリ設定 |
+| `created_at` | string | インサイトが作成されたISO形式のタイムスタンプ |
+| `created_by` | object | インサイトを作成したユーザー |
+| `last_modified_at` | string | インサイトが最後に変更されたISO形式のタイムスタンプ |
+| `saved` | boolean | インサイトが保存されているかどうか |
+| `dashboards` | array | このインサイトが表示されるダッシュボードのID |
+| `tags` | array | インサイトに関連付けられたタグ |
+
+### `posthog_list_dashboards`
+
+PostHogプロジェクト内のすべてのダッシュボードを一覧表示します。ダッシュボードの設定、タイル、およびメタデータを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | いいえ | PostHogクラウドリージョン：「us」または「eu」\(デフォルト：「us」\) |
+| `limit` | number | いいえ | ページごとに返す結果の数\(デフォルト：100\) |
+| `offset` | number | いいえ | ページネーションのためにスキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `count` | number | プロジェクト内のダッシュボードの総数 |
+| `next` | string | 結果の次のページのURL |
+| `previous` | string | 結果の前のページのURL |
+| `results` | array | 設定とメタデータを含むダッシュボードのリスト |
+
+### `posthog_get_dashboard`
+
+IDを指定してPostHogからダッシュボードを取得します。詳細なダッシュボード設定、タイル、メタデータを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `dashboardId` | string | はい | 取得するダッシュボードID |
+| `region` | string | いいえ | PostHogクラウドリージョン: "us"または"eu"（デフォルト: "us"） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | ダッシュボードの一意の識別子 |
+| `name` | string | ダッシュボードの名前 |
+| `description` | string | ダッシュボードの説明 |
+| `pinned` | boolean | ダッシュボードがピン留めされているかどうか |
+| `created_at` | string | ダッシュボードが作成されたISO形式のタイムスタンプ |
+| `created_by` | object | ダッシュボードを作成したユーザー |
+| `last_modified_at` | string | ダッシュボードが最後に変更されたISO形式のタイムスタンプ |
+| `last_modified_by` | object | ダッシュボードを最後に変更したユーザー |
+| `tiles` | array | ダッシュボード上のタイル/ウィジェットとその設定 |
+| `filters` | object | ダッシュボードに適用されるグローバルフィルター |
+| `tags` | array | ダッシュボードに関連付けられたタグ |
+| `restriction_level` | number | ダッシュボードのアクセス制限レベル |
+
+### `posthog_list_actions`
+
+PostHogプロジェクト内のすべてのアクションをリストします。アクション定義、ステップ、メタデータを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | いいえ | PostHogクラウドリージョン：「us」または「eu」（デフォルト：「us」） |
+| `limit` | number | いいえ | ページごとに返す結果の数（デフォルト：100） |
+| `offset` | number | いいえ | ページネーションのためにスキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `count` | number | プロジェクト内のアクションの総数 |
+| `next` | string | 結果の次のページのURL |
+| `previous` | string | 結果の前のページのURL |
+| `results` | array | 定義とメタデータを含むアクションのリスト |
+
+### `posthog_list_cohorts`
+
+PostHogプロジェクト内のすべてのコホートをリストします。コホートの定義、フィルター、ユーザー数を返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | いいえ | PostHogクラウドリージョン：「us」または「eu」（デフォルト：「us」） |
+| `limit` | number | いいえ | ページごとに返す結果の数（デフォルト：100） |
+| `offset` | number | いいえ | ページネーションのためにスキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `count` | number | プロジェクト内のコホートの総数 |
+| `next` | string | 次のページの結果のURL |
+| `previous` | string | 前のページの結果のURL |
+| `results` | array | 定義とメタデータを含むコホートのリスト |
+
+### `posthog_get_cohort`
+
+PostHogから特定のコホートをIDで取得します。詳細なコホート定義、フィルター、ユーザー数を返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `cohortId` | string | はい | 取得するコホートID |
+| `region` | string | いいえ | PostHogクラウドリージョン：「us」または「eu」\(デフォルト：「us」\) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | コホートの一意の識別子 |
+| `name` | string | コホートの名前 |
+| `description` | string | コホートの説明 |
+| `groups` | array | コホートを定義するグループ |
+| `deleted` | boolean | コホートが削除されているかどうか |
+| `filters` | object | コホートのフィルター設定 |
+| `query` | object | コホートのクエリ設定 |
+| `created_at` | string | コホートが作成されたISO形式のタイムスタンプ |
+| `created_by` | object | コホートを作成したユーザー |
+| `is_calculating` | boolean | コホートが計算中かどうか |
+| `last_calculation` | string | 最後の計算のISO形式のタイムスタンプ |
+| `errors_calculating` | number | 計算中のエラー数 |
+| `count` | number | コホート内のユーザー数 |
+| `is_static` | boolean | コホートが静的かどうか |
+| `version` | number | コホートのバージョン番号 |
+
+### `posthog_create_cohort`
+
+PostHogで新しいコホートを作成します。コホート名とフィルターまたはクエリ設定が必要です。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | いいえ | PostHogクラウドリージョン: "us"または"eu"（デフォルト: "us"） |
+| `name` | string | いいえ | コホートの名前（オプション - 提供されない場合、PostHogは「Untitled cohort」を使用します） |
+| `description` | string | いいえ | コホートの説明 |
+| `filters` | string | いいえ | コホートのフィルター設定のJSON文字列 |
+| `query` | string | いいえ | コホートのクエリ設定のJSON文字列 |
+| `is_static` | boolean | いいえ | コホートが静的かどうか（デフォルト: false） |
+| `groups` | string | いいえ | コホートを定義するグループのJSON文字列 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | 作成されたコホートの一意の識別子 |
+| `name` | string | コホートの名前 |
+| `description` | string | コホートの説明 |
+| `groups` | array | コホートを定義するグループ |
+| `deleted` | boolean | コホートが削除されているかどうか |
+| `filters` | object | コホートのフィルター設定 |
+| `query` | object | コホートのクエリ設定 |
+| `created_at` | string | コホートが作成されたISO形式のタイムスタンプ |
+| `created_by` | object | コホートを作成したユーザー |
+| `is_calculating` | boolean | コホートが計算中かどうか |
+| `count` | number | コホート内のユーザー数 |
+| `is_static` | boolean | コホートが静的かどうか |
+| `version` | number | コホートのバージョン番号 |
+
+### `posthog_list_annotations`
+
+PostHogプロジェクト内のすべてのアノテーションを一覧表示します。アノテーションの内容、タイムスタンプ、関連するインサイトを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | いいえ | PostHogクラウドリージョン: "us"または"eu"（デフォルト: "us"） |
+| `limit` | number | いいえ | ページごとに返す結果の数（デフォルト: 100） |
+| `offset` | number | いいえ | ページネーションのためにスキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `count` | number | プロジェクト内のアノテーションの総数 |
+| `next` | string | 結果の次のページのURL |
+| `previous` | string | 結果の前のページのURL |
+| `results` | array | 内容とメタデータを含むアノテーションのリスト |
+
+### `posthog_create_annotation`
+
+PostHogに新しいアノテーションを作成します。日付と説明でグラフ上の重要なイベントをマークします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | いいえ | PostHogクラウドリージョン: "us"または"eu"（デフォルト: "us"） |
+| `content` | string | はい | アノテーションの内容/テキスト |
+| `date_marker` | string | はい | アノテーションが適用される時刻を示すISOタイムスタンプ（例: "2024-01-15T10:00:00Z"） |
+| `scope` | string | いいえ | アノテーションの範囲: "project"または"dashboard_item"（デフォルト: "project"） |
+| `dashboard_item` | string | いいえ | このアノテーションを添付するダッシュボードアイテムのID |
+| `insight_short_id` | string | いいえ | このアノテーションを添付するインサイトの短いID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | 作成されたアノテーションの一意の識別子 |
+| `content` | string | アノテーションの内容/テキスト |
+| `date_marker` | string | アノテーションが適用される時刻を示すISO形式のタイムスタンプ |
+| `created_at` | string | アノテーションが作成された時刻のISO形式のタイムスタンプ |
+| `updated_at` | string | アノテーションが最後に更新された時刻のISO形式のタイムスタンプ |
+| `created_by` | object | アノテーションを作成したユーザー |
+| `dashboard_item` | number | このアノテーションが添付されているダッシュボード項目のID |
+| `insight_short_id` | string | このアノテーションが添付されているインサイトの短いID |
+| `insight_name` | string | このアノテーションが添付されているインサイトの名前 |
+| `scope` | string | アノテーションの範囲（プロジェクトまたはダッシュボード項目） |
+| `deleted` | boolean | アノテーションが削除されているかどうか |
+
+### `posthog_list_feature_flags`
+
+PostHogプロジェクト内のすべての機能フラグを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | はい | PostHogクラウドリージョン: usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `limit` | number | いいえ | 返す結果の数 |
+| `offset` | number | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `results` | array | 機能フラグのリスト |
+
+### `posthog_get_feature_flag`
+
+特定の機能フラグの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `flagId` | string | はい | 機能フラグID |
+| `region` | string | はい | PostHogクラウドリージョン: usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `flag` | object | 機能フラグの詳細 |
+
+### `posthog_create_feature_flag`
+
+PostHogに新しい機能フラグを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | はい | PostHogクラウドリージョン: usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `name` | string | いいえ | 機能フラグ名（オプション - 空でも可） |
+| `key` | string | はい | 機能フラグキー（一意の識別子） |
+| `filters` | string | いいえ | JSON文字列としての機能フラグフィルター |
+| `active` | boolean | いいえ | フラグがアクティブかどうか（デフォルト: true） |
+| `ensureExperienceContinuity` | boolean | いいえ | 体験の継続性を確保するかどうか（デフォルト: false） |
+| `rolloutPercentage` | number | いいえ | ロールアウト割合（0-100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `flag` | object | 作成されたフィーチャーフラグ |
+
+### `posthog_update_feature_flag`
+
+PostHogの既存のフィーチャーフラグを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `flagId` | string | はい | フィーチャーフラグID |
+| `region` | string | はい | PostHogクラウドリージョン：usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `name` | string | いいえ | フィーチャーフラグ名 |
+| `key` | string | いいえ | フィーチャーフラグキー（一意の識別子） |
+| `filters` | string | いいえ | JSON文字列としてのフィーチャーフラグフィルター |
+| `active` | boolean | いいえ | フラグがアクティブかどうか |
+| `ensureExperienceContinuity` | boolean | いいえ | 体験の継続性を確保するかどうか |
+| `rolloutPercentage` | number | いいえ | ロールアウト割合（0-100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `flag` | object | 更新されたフィーチャーフラグ |
+
+### `posthog_delete_feature_flag`
+
+PostHogからフィーチャーフラグを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `flagId` | string | はい | 削除するフィーチャーフラグID |
+| `region` | string | はい | PostHogクラウドリージョン：usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 削除が成功したかどうか |
+| `message` | string | 確認メッセージ |
+
+### `posthog_evaluate_flags`
+
+特定のユーザーまたはグループに対する機能フラグを評価します。これはプロジェクトAPIキーを使用する公開エンドポイントです。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | PostHogクラウドリージョン: usまたはeu |
+| `projectApiKey` | string | はい | PostHogプロジェクトAPIキー（個人APIキーではない） |
+| `distinctId` | string | はい | フラグを評価するユーザーの固有ID |
+| `groups` | string | いいえ | グループをJSON文字列として（例：\{"company": "company_id_in_your_db"\}） |
+| `personProperties` | string | いいえ | ユーザープロパティをJSON文字列として |
+| `groupProperties` | string | いいえ | グループプロパティをJSON文字列として |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `featureFlags` | object | 機能フラグの評価（キーと値のペアで、値はブールまたは文字列バリアント） |
+| `featureFlagPayloads` | object | 機能フラグに添付された追加のペイロード |
+| `errorsWhileComputingFlags` | boolean | フラグの計算中にエラーが発生したかどうか |
+
+### `posthog_list_experiments`
+
+PostHogプロジェクト内のすべての実験をリストアップします
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | はい | PostHogクラウドリージョン: usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `limit` | number | いいえ | 返す結果の数 |
+| `offset` | number | いいえ | スキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `results` | array | 実験のリスト |
+
+### `posthog_get_experiment`
+
+特定の実験の詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `experimentId` | string | はい | 実験ID |
+| `region` | string | はい | PostHogクラウドリージョン: usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `experiment` | object | 実験の詳細 |
+
+### `posthog_create_experiment`
+
+PostHogで新しい実験を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | はい | PostHogクラウドリージョン: usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `name` | string | いいえ | 実験名（オプション） |
+| `description` | string | いいえ | 実験の説明 |
+| `featureFlagKey` | string | はい | 実験に使用するフィーチャーフラグキー |
+| `parameters` | string | いいえ | JSON文字列としての実験パラメータ |
+| `filters` | string | いいえ | JSON文字列としての実験フィルター |
+| `variants` | string | いいえ | JSON文字列としての実験バリアント |
+| `startDate` | string | いいえ | 実験開始日（ISO形式） |
+| `endDate` | string | いいえ | 実験終了日（ISO形式） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `experiment` | object | 作成された実験 |
+
+### `posthog_list_surveys`
+
+PostHogプロジェクト内のすべてのアンケートを一覧表示します。アンケートを使用すると、ユーザーからフィードバックを収集できます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | いいえ | PostHogクラウドリージョン: usまたはeu（デフォルト: us） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト: 100） |
+| `offset` | number | いいえ | ページネーション用にスキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `surveys` | array | プロジェクト内のアンケート一覧 |
+
+### `posthog_get_survey`
+
+IDによってPostHogの特定のアンケートの詳細を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `surveyId` | string | はい | 取得するアンケートID |
+| `region` | string | いいえ | PostHogクラウドリージョン: usまたはeu（デフォルト: us） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `survey` | object | アンケートの詳細 |
+
+### `posthog_create_survey`
+
+PostHogで新しいアンケートを作成します。対応している質問タイプ：基本（オープン）、リンク、評価、および複数選択。
+
+#### 入力
+
+| パラメータ | タイプ | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | いいえ | PostHogクラウドリージョン：usまたはeu（デフォルト：us） |
+| `name` | string | いいえ | アンケート名（任意） |
+| `description` | string | いいえ | アンケートの説明 |
+| `type` | string | いいえ | アンケートタイプ：popover（アプリ内）またはapi（カスタム実装）（デフォルト：popover） |
+| `questions` | string | はい | アンケート質問の配列のJSON文字列。各質問にはタイプ（open/link/rating/multiple_choice）と質問テキストが必要です。評価質問にはスケール（1-10）、lowerBoundLabel、upperBoundLabelを設定できます。複数選択質問にはchoices配列が必要です。リンク質問にはbuttonTextを設定できます。 |
+| `startDate` | string | いいえ | ISO 8601形式のアンケート開始日 |
+| `endDate` | string | いいえ | ISO 8601形式のアンケート終了日 |
+| `appearance` | string | いいえ | 外観設定（色、位置など）のJSON文字列 |
+| `conditions` | string | いいえ | 表示条件（URLマッチングなど）のJSON文字列 |
+| `targetingFlagFilters` | string | いいえ | ターゲティング用のフィーチャーフラグフィルターのJSON文字列 |
+| `linkedFlagId` | string | いいえ | このアンケートにリンクするフィーチャーフラグID |
+| `responsesLimit` | number | いいえ | 収集する回答の最大数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `survey` | object | 作成されたアンケートの詳細 |
+
+### `posthog_update_survey`
+
+PostHogの既存のアンケートを更新します。質問、外観、条件、その他の設定を変更できます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `surveyId` | string | はい | 更新するアンケートID |
+| `region` | string | いいえ | PostHogクラウドリージョン: usまたはeu（デフォルト: us） |
+| `name` | string | いいえ | アンケート名 |
+| `description` | string | いいえ | アンケートの説明 |
+| `type` | string | いいえ | アンケートタイプ: popoverまたはapi |
+| `questions` | string | いいえ | アンケート質問配列のJSON文字列。各質問にはタイプ（open/link/rating/multiple_choice）と質問テキストが必要です。 |
+| `startDate` | string | いいえ | アンケート開始日（ISO 8601形式） |
+| `endDate` | string | いいえ | アンケート終了日（ISO 8601形式） |
+| `appearance` | string | いいえ | 外観設定のJSON文字列（色、位置など） |
+| `conditions` | string | いいえ | 表示条件のJSON文字列（URLマッチングなど） |
+| `targetingFlagFilters` | string | いいえ | ターゲティング用のフィーチャーフラグフィルターのJSON文字列 |
+| `linkedFlagId` | string | いいえ | このアンケートにリンクするフィーチャーフラグID |
+| `responsesLimit` | number | いいえ | 収集する回答の最大数 |
+| `archived` | boolean | いいえ | アンケートをアーカイブまたはアーカイブ解除する |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `survey` | object | 更新されたアンケートの詳細 |
+
+### `posthog_list_session_recordings`
+
+PostHogプロジェクト内のセッション録画を一覧表示します。セッション録画はアプリケーションとのユーザーインタラクションを記録します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | いいえ | PostHogクラウドリージョン: usまたはeu（デフォルト: us） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト: 50） |
+| `offset` | number | いいえ | ページネーション用にスキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `recordings` | array | セッション録画のリスト |
+
+### `posthog_get_session_recording`
+
+IDによってPostHogの特定のセッション録画の詳細を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `recordingId` | string | はい | 取得するセッション録画ID |
+| `region` | string | いいえ | PostHogクラウドリージョン: usまたはeu（デフォルト: us） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `recording` | object | セッション録画の詳細 |
+
+### `posthog_list_recording_playlists`
+
+PostHogプロジェクト内のセッション録画プレイリストを一覧表示します。プレイリストを使用すると、セッション録画を整理およびキュレーションできます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | いいえ | PostHogクラウドリージョン: usまたはeu（デフォルト: us） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト: 100） |
+| `offset` | number | いいえ | ページネーション用にスキップする結果の数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `playlists` | array | セッション録画プレイリストのリスト |
+
+### `posthog_list_event_definitions`
+
+PostHogプロジェクト内のすべてのイベント定義を一覧表示します。イベント定義は、説明、タグ、使用統計などのメタデータを持つ追跡されたイベントを表します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | はい | PostHogクラウドリージョン: usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `limit` | number | いいえ | ページごとに返す結果の数（デフォルト: 100） |
+| `offset` | number | いいえ | 結果を返す初期インデックス |
+| `search` | string | いいえ | 名前でイベント定義をフィルタリングする検索語 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `count` | number | イベント定義の総数 |
+| `next` | string | 次のページの結果のURL |
+| `previous` | string | 前のページの結果のURL |
+| `results` | array | イベント定義のリスト |
+
+### `posthog_get_event_definition`
+
+PostHogの特定のイベント定義の詳細を取得します。メタデータ、使用統計、検証ステータスなど、イベントに関する包括的な情報を返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `eventDefinitionId` | string | はい | 取得するイベント定義ID |
+| `region` | string | はい | PostHogクラウドリージョン: usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | イベント定義の一意の識別子 |
+| `name` | string | イベント名 |
+| `description` | string | イベントの説明 |
+| `tags` | array | イベントに関連付けられたタグ |
+| `volume_30_day` | number | 過去30日間に受信したイベントの数 |
+| `query_usage_30_day` | number | 過去30日間にこのイベントがクエリされた回数 |
+| `created_at` | string | イベントが作成されたISOタイムスタンプ |
+| `last_seen_at` | string | イベントが最後に確認されたISOタイムスタンプ |
+| `updated_at` | string | イベントが更新されたISOタイムスタンプ |
+| `updated_by` | object | イベントを最後に更新したユーザー |
+| `verified` | boolean | イベントが検証されているかどうか |
+| `verified_at` | string | イベントが検証されたISOタイムスタンプ |
+| `verified_by` | string | イベントを検証したユーザー |
+
+### `posthog_update_event_definition`
+
+PostHogでイベント定義を更新します。説明、タグ、検証ステータスを変更して、整理されたイベントスキーマを維持できます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `eventDefinitionId` | string | はい | 更新するイベント定義ID |
+| `region` | string | はい | PostHogクラウドリージョン: usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `description` | string | いいえ | イベントの更新された説明 |
+| `tags` | string | いいえ | イベントに関連付けるタグのカンマ区切りリスト |
+| `verified` | boolean | いいえ | イベントを検証済みとしてマークするかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | イベント定義の一意の識別子 |
+| `name` | string | イベント名 |
+| `description` | string | 更新されたイベントの説明 |
+| `tags` | array | イベントに関連付けられた更新されたタグ |
+| `volume_30_day` | number | 過去30日間に受信したイベントの数 |
+| `query_usage_30_day` | number | 過去30日間にこのイベントが照会された回数 |
+| `created_at` | string | イベントが作成されたISO形式のタイムスタンプ |
+| `last_seen_at` | string | イベントが最後に確認されたISO形式のタイムスタンプ |
+| `updated_at` | string | イベントが更新されたISO形式のタイムスタンプ |
+| `updated_by` | object | イベントを最後に更新したユーザー |
+| `verified` | boolean | イベントが検証済みかどうか |
+| `verified_at` | string | イベントが検証されたISO形式のタイムスタンプ |
+| `verified_by` | string | イベントを検証したユーザー |
+
+### `posthog_list_property_definitions`
+
+PostHogプロジェクト内のすべてのプロパティ定義をリストします。プロパティ定義は、説明、タグ、タイプ、使用統計などのメタデータを持つ追跡されたプロパティを表します。
+
+#### 入力
+
+| パラメータ | タイプ | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `region` | string | はい | PostHogクラウドリージョン: usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `limit` | number | いいえ | ページごとに返す結果の数（デフォルト: 100） |
+| `offset` | number | いいえ | 結果を返す初期インデックス |
+| `search` | string | いいえ | 名前でプロパティ定義をフィルタリングする検索語 |
+| `type` | string | いいえ | プロパティタイプでフィルタリング: event、person、またはgroup |
+
+#### 出力
+
+| パラメータ | タイプ | 説明 |
+| --------- | ---- | ----------- |
+| `count` | number | プロパティ定義の総数 |
+| `next` | string | 結果の次のページのURL |
+| `previous` | string | 結果の前のページのURL |
+| `results` | array | プロパティ定義のリスト |
+
+### `posthog_get_property_definition`
+
+PostHogの特定のプロパティ定義の詳細を取得します。メタデータ、タイプ、使用統計、検証ステータスなど、プロパティに関する包括的な情報を返します。
+
+#### 入力
+
+| パラメータ | タイプ | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `propertyDefinitionId` | string | はい | 取得するプロパティ定義ID |
+| `region` | string | はい | PostHogクラウドリージョン: usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | プロパティ定義の一意識別子 |
+| `name` | string | プロパティ名 |
+| `description` | string | プロパティの説明 |
+| `tags` | array | プロパティに関連付けられたタグ |
+| `is_numerical` | boolean | プロパティが数値かどうか |
+| `is_seen_on_filtered_events` | boolean | プロパティがフィルタリングされたイベントで表示されるかどうか |
+| `property_type` | string | プロパティのデータ型 |
+| `type` | string | プロパティタイプ：イベント、人物、またはグループ |
+| `volume_30_day` | number | 過去30日間にプロパティが表示された回数 |
+| `query_usage_30_day` | number | 過去30日間にこのプロパティが照会された回数 |
+| `created_at` | string | プロパティが作成されたときのISO形式のタイムスタンプ |
+| `updated_at` | string | プロパティが更新されたときのISO形式のタイムスタンプ |
+| `updated_by` | object | プロパティを最後に更新したユーザー |
+| `verified` | boolean | プロパティが検証済みかどうか |
+| `verified_at` | string | プロパティが検証されたときのISO形式のタイムスタンプ |
+| `verified_by` | string | プロパティを検証したユーザー |
+| `example` | string | プロパティのサンプル値 |
+
+### `posthog_update_property_definition`
+
+PostHogでプロパティ定義を更新します。説明、タグ、プロパティタイプ、検証ステータスを変更して、整理されたプロパティスキーマを維持できます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | PostHogプロジェクトID |
+| `propertyDefinitionId` | string | はい | 更新するプロパティ定義ID |
+| `region` | string | はい | PostHogクラウドリージョン：usまたはeu |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `description` | string | いいえ | プロパティの更新された説明 |
+| `tags` | string | いいえ | プロパティに関連付けるタグのカンマ区切りリスト |
+| `verified` | boolean | いいえ | プロパティを検証済みとしてマークするかどうか |
+| `property_type` | string | いいえ | プロパティのデータ型（例：String、Numeric、Boolean、DateTimeなど） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | プロパティ定義の一意識別子 |
+| `name` | string | プロパティ名 |
+| `description` | string | 更新されたプロパティの説明 |
+| `tags` | array | プロパティに関連付けられた更新済みタグ |
+| `is_numerical` | boolean | プロパティが数値かどうか |
+| `is_seen_on_filtered_events` | boolean | プロパティがフィルタリングされたイベントで表示されるかどうか |
+| `property_type` | string | プロパティのデータ型 |
+| `type` | string | プロパティタイプ：イベント、人物、またはグループ |
+| `volume_30_day` | number | 過去30日間にプロパティが表示された回数 |
+| `query_usage_30_day` | number | 過去30日間にこのプロパティが照会された回数 |
+| `created_at` | string | プロパティが作成されたときのISO形式のタイムスタンプ |
+| `updated_at` | string | プロパティが更新されたときのISO形式のタイムスタンプ |
+| `updated_by` | object | プロパティを最後に更新したユーザー |
+| `verified` | boolean | プロパティが検証されているかどうか |
+| `verified_at` | string | プロパティが検証されたときのISO形式のタイムスタンプ |
+| `verified_by` | string | プロパティを検証したユーザー |
+| `example` | string | プロパティのサンプル値 |
+
+### `posthog_list_projects`
+
+組織内のすべてのプロジェクトを一覧表示します。ID、名前、APIトークン、設定などのプロジェクト詳細を返します。他のエンドポイントで必要なプロジェクトIDを取得するのに役立ちます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `region` | string | いいえ | クラウドリージョン: usまたはeu（デフォルト: us） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `projects` | array | 設定と設定を含むプロジェクトのリスト |
+
+### `posthog_get_project`
+
+IDで特定のプロジェクトに関する詳細情報を取得します。プロジェクトの包括的な設定、設定、機能フラグを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトID（数値IDまたはUUID） |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `region` | string | いいえ | クラウドリージョン: usまたはeu（デフォルト: us） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `project` | object | すべての設定を含む詳細なプロジェクト情報 |
+
+### `posthog_list_organizations`
+
+ユーザーがアクセスできるすべての組織をリストします。組織名、スラグ、メンバーシップレベル、利用可能な製品機能など、組織の詳細を返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `region` | string | いいえ | クラウドリージョン: usまたはeu（デフォルト: us） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `organizations` | array | 設定と機能を含む組織のリスト |
+
+### `posthog_get_organization`
+
+IDによって特定の組織に関する詳細情報を取得します。包括的な組織設定、機能、使用状況、チーム情報を返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `organizationId` | string | はい | 組織ID（UUID） |
+| `apiKey` | string | はい | PostHog個人APIキー |
+| `region` | string | いいえ | クラウドリージョン：usまたはeu（デフォルト：us） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `organization` | object | 設定と機能を含む詳細な組織情報 |
+
+## 注意事項
+
+- カテゴリ: `tools`
+- タイプ: `posthog`

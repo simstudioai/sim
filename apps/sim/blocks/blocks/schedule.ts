@@ -10,6 +10,7 @@ export const ScheduleBlock: BlockConfig = {
   triggerAllowed: true,
   name: 'Schedule',
   description: 'Trigger workflow execution on a schedule',
+  docsLink: 'https://docs.sim.ai/triggers/schedule',
   longDescription:
     'Integrate Schedule into the workflow. Can trigger a workflow on a schedule configuration.',
   bestPractices: `
@@ -158,6 +159,7 @@ export const ScheduleBlock: BlockConfig = {
       id: 'scheduleSave',
       type: 'schedule-save',
       mode: 'trigger',
+      hideFromPreview: true,
     },
 
     {

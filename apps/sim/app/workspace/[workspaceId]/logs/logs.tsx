@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, ArrowUpRight, Info, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { createLogger } from '@/lib/logs/console/logger'
+import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import { cn } from '@/lib/utils'
 import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
@@ -12,38 +12,14 @@ import { AutocompleteSearch } from '@/app/workspace/[workspaceId]/logs/component
 import { Sidebar } from '@/app/workspace/[workspaceId]/logs/components/sidebar/sidebar'
 import Dashboard from '@/app/workspace/[workspaceId]/logs/dashboard'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
+import { useFolders } from '@/hooks/queries/folders'
+import { useLogDetail, useLogsList } from '@/hooks/queries/logs'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
-import type { LogsResponse, WorkflowLog } from '@/stores/logs/filters/types'
+import type { WorkflowLog } from '@/stores/logs/filters/types'
 
-const logger = createLogger('Logs')
 const LOGS_PER_PAGE = 50
-
-/**
- * Returns the background color for a trigger type badge.
- *
- * @param trigger - The trigger type (manual, schedule, webhook, chat, api)
- * @returns Hex color code for the trigger type
- */
-const getTriggerColor = (trigger: string | null | undefined): string => {
-  if (!trigger) return '#9ca3af'
-
-  switch (trigger.toLowerCase()) {
-    case 'manual':
-      return '#9ca3af' // gray-400 (matches secondary styling better)
-    case 'schedule':
-      return '#10b981' // green (emerald-500)
-    case 'webhook':
-      return '#f97316' // orange (orange-500)
-    case 'chat':
-      return '#8b5cf6' // purple (violet-500)
-    case 'api':
-      return '#3b82f6' // blue (blue-500)
-    default:
-      return '#9ca3af' // gray-400
-  }
-}
 
 const selectedRowAnimation = `
   @keyframes borderPulse {
@@ -57,24 +33,26 @@ const selectedRowAnimation = `
   }
 `
 
+const TriggerBadge = React.memo(({ trigger }: { trigger: string }) => {
+  const metadata = getIntegrationMetadata(trigger)
+  return (
+    <div
+      className='inline-flex items-center rounded-[6px] px-[8px] py-[2px] font-medium text-[12px] text-white'
+      style={{ backgroundColor: metadata.color }}
+    >
+      {metadata.label}
+    </div>
+  )
+})
+
+TriggerBadge.displayName = 'TriggerBadge'
+
 export default function Logs() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
   const {
-    logs,
-    loading,
-    error,
-    setLogs,
-    setLoading,
-    setError,
     setWorkspaceId,
-    page,
-    setPage,
-    hasMore,
-    setHasMore,
-    isFetchingMore,
-    setIsFetchingMore,
     initializeFromURL,
     timeRange,
     level,
@@ -94,10 +72,6 @@ export default function Logs() {
   const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
   const [selectedLogIndex, setSelectedLogIndex] = useState<number>(-1)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [isDetailsLoading, setIsDetailsLoading] = useState(false)
-  const detailsCacheRef = useRef<Map<string, any>>(new Map())
-  const detailsAbortRef = useRef<AbortController | null>(null)
-  const currentDetailsIdRef = useRef<string | null>(null)
   const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
   const loaderRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -106,21 +80,43 @@ export default function Logs() {
   const [searchQuery, setSearchQuery] = useState(storeSearchQuery)
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
-  const [availableWorkflows, setAvailableWorkflows] = useState<string[]>([])
-  const [availableFolders, setAvailableFolders] = useState<string[]>([])
+  const [, setAvailableWorkflows] = useState<string[]>([])
+  const [, setAvailableFolders] = useState<string[]>([])
 
-  // Live and refresh state
   const [isLive, setIsLive] = useState(false)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const liveIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const isSearchOpenRef = useRef<boolean>(false)
 
-  // Sync local search query with store search query
+  const logFilters = useMemo(
+    () => ({
+      timeRange,
+      level,
+      workflowIds,
+      folderIds,
+      triggers,
+      searchQuery: debouncedSearchQuery,
+      limit: LOGS_PER_PAGE,
+    }),
+    [timeRange, level, workflowIds, folderIds, triggers, debouncedSearchQuery]
+  )
+
+  const logsQuery = useLogsList(workspaceId, logFilters, {
+    enabled: Boolean(workspaceId) && isInitialized.current,
+    refetchInterval: isLive ? 5000 : false,
+  })
+
+  const logDetailQuery = useLogDetail(selectedLog?.id)
+
+  const logs = useMemo(() => {
+    if (!logsQuery.data?.pages) return []
+    return logsQuery.data.pages.flatMap((page) => page.logs)
+  }, [logsQuery.data?.pages])
+
   useEffect(() => {
     setSearchQuery(storeSearchQuery)
   }, [storeSearchQuery])
 
-  const { fetchFolders, getFolderTree } = useFolderStore()
+  const foldersQuery = useFolders(workspaceId)
+  const { getFolderTree } = useFolderStore()
 
   useEffect(() => {
     let cancelled = false
@@ -138,7 +134,6 @@ export default function Logs() {
           if (!cancelled) setAvailableWorkflows([])
         }
 
-        await fetchFolders(workspaceId)
         const tree = getFolderTree(workspaceId)
 
         const flatten = (nodes: any[], parentPath = ''): string[] => {
@@ -168,7 +163,7 @@ export default function Logs() {
     return () => {
       cancelled = true
     }
-  }, [workspaceId, fetchFolders, getFolderTree])
+  }, [workspaceId, getFolderTree, foldersQuery.data])
 
   useEffect(() => {
     if (isInitialized.current && debouncedSearchQuery !== storeSearchQuery) {
@@ -181,62 +176,6 @@ export default function Logs() {
     const index = logs.findIndex((l) => l.id === log.id)
     setSelectedLogIndex(index)
     setIsSidebarOpen(true)
-    setIsDetailsLoading(true)
-
-    const currentId = log.id
-    const prevId = index > 0 ? logs[index - 1]?.id : undefined
-    const nextId = index < logs.length - 1 ? logs[index + 1]?.id : undefined
-
-    if (detailsAbortRef.current) {
-      try {
-        detailsAbortRef.current.abort()
-      } catch {
-        /* no-op */
-      }
-    }
-    const controller = new AbortController()
-    detailsAbortRef.current = controller
-    currentDetailsIdRef.current = currentId
-
-    const idsToFetch: Array<{ id: string; merge: boolean }> = []
-    const cachedCurrent = currentId ? detailsCacheRef.current.get(currentId) : undefined
-    if (currentId && !cachedCurrent) idsToFetch.push({ id: currentId, merge: true })
-    if (prevId && !detailsCacheRef.current.has(prevId))
-      idsToFetch.push({ id: prevId, merge: false })
-    if (nextId && !detailsCacheRef.current.has(nextId))
-      idsToFetch.push({ id: nextId, merge: false })
-
-    if (cachedCurrent) {
-      setSelectedLog((prev) =>
-        prev && prev.id === currentId
-          ? ({ ...(prev as any), ...(cachedCurrent as any) } as any)
-          : prev
-      )
-      setIsDetailsLoading(false)
-    }
-    if (idsToFetch.length === 0) return
-
-    Promise.all(
-      idsToFetch.map(async ({ id, merge }) => {
-        try {
-          const res = await fetch(`/api/logs/${id}`, { signal: controller.signal })
-          if (!res.ok) return
-          const body = await res.json()
-          const detailed = body?.data
-          if (detailed) {
-            detailsCacheRef.current.set(id, detailed)
-            if (merge && id === currentId) {
-              setSelectedLog((prev) =>
-                prev && prev.id === id ? ({ ...(prev as any), ...(detailed as any) } as any) : prev
-              )
-              if (currentDetailsIdRef.current === id) setIsDetailsLoading(false)
-            }
-          }
-        } catch (e: any) {
-          if (e?.name === 'AbortError') return
-        }
-      })
-    ).catch(() => {})
   }
 
   const handleNavigateNext = useCallback(() => {
@@ -245,54 +184,6 @@ export default function Logs() {
       setSelectedLogIndex(nextIndex)
       const nextLog = logs[nextIndex]
       setSelectedLog(nextLog)
-      if (detailsAbortRef.current) {
-        try {
-          detailsAbortRef.current.abort()
-        } catch {
-          /* no-op */
-        }
-      }
-      const controller = new AbortController()
-      detailsAbortRef.current = controller
-
-      const cached = detailsCacheRef.current.get(nextLog.id)
-      if (cached) {
-        setSelectedLog((prev) =>
-          prev && prev.id === nextLog.id ? ({ ...(prev as any), ...(cached as any) } as any) : prev
-        )
-      } else {
-        const prevId = nextIndex > 0 ? logs[nextIndex - 1]?.id : undefined
-        const afterId = nextIndex < logs.length - 1 ? logs[nextIndex + 1]?.id : undefined
-        const idsToFetch: Array<{ id: string; merge: boolean }> = []
-        if (nextLog.id && !detailsCacheRef.current.has(nextLog.id))
-          idsToFetch.push({ id: nextLog.id, merge: true })
-        if (prevId && !detailsCacheRef.current.has(prevId))
-          idsToFetch.push({ id: prevId, merge: false })
-        if (afterId && !detailsCacheRef.current.has(afterId))
-          idsToFetch.push({ id: afterId, merge: false })
-        Promise.all(
-          idsToFetch.map(async ({ id, merge }) => {
-            try {
-              const res = await fetch(`/api/logs/${id}`, { signal: controller.signal })
-              if (!res.ok) return
-              const body = await res.json()
-              const detailed = body?.data
-              if (detailed) {
-                detailsCacheRef.current.set(id, detailed)
-                if (merge && id === nextLog.id) {
-                  setSelectedLog((prev) =>
-                    prev && prev.id === id
-                      ? ({ ...(prev as any), ...(detailed as any) } as any)
-                      : prev
-                  )
-                }
-              }
-            } catch (e: any) {
-              if (e?.name === 'AbortError') return
-            }
-          })
-        ).catch(() => {})
-      }
     }
   }, [selectedLogIndex, logs])
 
@@ -302,54 +193,6 @@ export default function Logs() {
       setSelectedLogIndex(prevIndex)
       const prevLog = logs[prevIndex]
       setSelectedLog(prevLog)
-      if (detailsAbortRef.current) {
-        try {
-          detailsAbortRef.current.abort()
-        } catch {
-          /* no-op */
-        }
-      }
-      const controller = new AbortController()
-      detailsAbortRef.current = controller
-
-      const cached = detailsCacheRef.current.get(prevLog.id)
-      if (cached) {
-        setSelectedLog((prev) =>
-          prev && prev.id === prevLog.id ? ({ ...(prev as any), ...(cached as any) } as any) : prev
-        )
-      } else {
-        const beforeId = prevIndex > 0 ? logs[prevIndex - 1]?.id : undefined
-        const afterId = prevIndex < logs.length - 1 ? logs[prevIndex + 1]?.id : undefined
-        const idsToFetch: Array<{ id: string; merge: boolean }> = []
-        if (prevLog.id && !detailsCacheRef.current.has(prevLog.id))
-          idsToFetch.push({ id: prevLog.id, merge: true })
-        if (beforeId && !detailsCacheRef.current.has(beforeId))
-          idsToFetch.push({ id: beforeId, merge: false })
-        if (afterId && !detailsCacheRef.current.has(afterId))
-          idsToFetch.push({ id: afterId, merge: false })
-        Promise.all(
-          idsToFetch.map(async ({ id, merge }) => {
-            try {
-              const res = await fetch(`/api/logs/${id}`, { signal: controller.signal })
-              if (!res.ok) return
-              const body = await res.json()
-              const detailed = body?.data
-              if (detailed) {
-                detailsCacheRef.current.set(id, detailed)
-                if (merge && id === prevLog.id) {
-                  setSelectedLog((prev) =>
-                    prev && prev.id === id
-                      ? ({ ...(prev as any), ...(detailed as any) } as any)
-                      : prev
-                  )
-                }
-              }
-            } catch (e: any) {
-              if (e?.name === 'AbortError') return
-            }
-          })
-        ).catch(() => {})
-      }
     }
   }, [selectedLogIndex, logs])
 
@@ -368,104 +211,11 @@ export default function Logs() {
     }
   }, [selectedLogIndex])
 
-  const fetchLogs = useCallback(async (pageNum: number, append = false) => {
-    try {
-      // Don't fetch if workspaceId is not set
-      const { workspaceId: storeWorkspaceId } = useFilterStore.getState()
-      if (!storeWorkspaceId) {
-        return
-      }
-
-      if (pageNum === 1) {
-        setLoading(true)
-      } else {
-        setIsFetchingMore(true)
-      }
-
-      const { buildQueryParams: getCurrentQueryParams } = useFilterStore.getState()
-      const queryParams = getCurrentQueryParams(pageNum, LOGS_PER_PAGE)
-
-      const { searchQuery: currentSearchQuery } = useFilterStore.getState()
-      const parsedQuery = parseQuery(currentSearchQuery)
-      const enhancedParams = queryToApiParams(parsedQuery)
-
-      const allParams = new URLSearchParams(queryParams)
-      Object.entries(enhancedParams).forEach(([key, value]) => {
-        if (key === 'triggers' && allParams.has('triggers')) {
-          const existingTriggers = allParams.get('triggers')?.split(',') || []
-          const searchTriggers = value.split(',')
-          const combined = [...new Set([...existingTriggers, ...searchTriggers])]
-          allParams.set('triggers', combined.join(','))
-        } else {
-          allParams.set(key, value)
-        }
-      })
-
-      allParams.set('details', 'basic')
-      const response = await fetch(`/api/logs?${allParams.toString()}`)
-
-      if (!response.ok) {
-        throw new Error(`Error fetching logs: ${response.statusText}`)
-      }
-
-      const data: LogsResponse = await response.json()
-
-      setHasMore(data.data.length === LOGS_PER_PAGE && data.page < data.totalPages)
-
-      setLogs(data.data, append)
-
-      setError(null)
-    } catch (err) {
-      logger.error('Failed to fetch logs:', { err })
-      setError(err instanceof Error ? err.message : 'An unknown error occurred')
-    } finally {
-      if (pageNum === 1) {
-        setLoading(false)
-      } else {
-        setIsFetchingMore(false)
-      }
-    }
-  }, [])
-
   const handleRefresh = async () => {
-    if (isRefreshing) return
-
-    setIsRefreshing(true)
-
-    try {
-      await fetchLogs(1)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred')
-    } finally {
-      setIsRefreshing(false)
+    await logsQuery.refetch()
+    if (selectedLog?.id) {
+      await logDetailQuery.refetch()
     }
-  }
-
-  // Setup or clear the live refresh interval when isLive changes
-  useEffect(() => {
-    if (liveIntervalRef.current) {
-      clearInterval(liveIntervalRef.current)
-      liveIntervalRef.current = null
-    }
-
-    if (isLive) {
-      handleRefresh()
-      liveIntervalRef.current = setInterval(() => {
-        handleRefresh()
-      }, 5000)
-    }
-
-    return () => {
-      if (liveIntervalRef.current) {
-        clearInterval(liveIntervalRef.current)
-        liveIntervalRef.current = null
-      }
-    }
-  }, [isLive])
-
-  const toggleLive = () => {
-    setIsLive(!isLive)
   }
 
   const handleExport = async () => {
@@ -505,101 +255,14 @@ export default function Logs() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [initializeFromURL])
 
-  useEffect(() => {
-    if (!isInitialized.current) {
-      return
-    }
-
-    // Don't fetch if workspaceId is not set yet
-    if (!workspaceId) {
-      return
-    }
-
-    setPage(1)
-    setHasMore(true)
-
-    const fetchWithFilters = async () => {
-      try {
-        setLoading(true)
-
-        const params = new URLSearchParams()
-        params.set('details', 'basic')
-        params.set('limit', LOGS_PER_PAGE.toString())
-        params.set('offset', '0') // Always start from page 1
-        params.set('workspaceId', workspaceId)
-
-        const parsedQuery = parseQuery(debouncedSearchQuery)
-        const enhancedParams = queryToApiParams(parsedQuery)
-
-        if (level !== 'all') params.set('level', level)
-        if (triggers.length > 0) params.set('triggers', triggers.join(','))
-        if (workflowIds.length > 0) params.set('workflowIds', workflowIds.join(','))
-        if (folderIds.length > 0) params.set('folderIds', folderIds.join(','))
-
-        Object.entries(enhancedParams).forEach(([key, value]) => {
-          if (key === 'triggers' && params.has('triggers')) {
-            const storeTriggers = params.get('triggers')?.split(',') || []
-            const searchTriggers = value.split(',')
-            const combined = [...new Set([...storeTriggers, ...searchTriggers])]
-            params.set('triggers', combined.join(','))
-          } else {
-            params.set(key, value)
-          }
-        })
-
-        if (timeRange !== 'All time') {
-          const now = new Date()
-          let startDate: Date
-          switch (timeRange) {
-            case 'Past 30 minutes':
-              startDate = new Date(now.getTime() - 30 * 60 * 1000)
-              break
-            case 'Past hour':
-              startDate = new Date(now.getTime() - 60 * 60 * 1000)
-              break
-            case 'Past 24 hours':
-              startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-              break
-            default:
-              startDate = new Date(0)
-          }
-          params.set('startDate', startDate.toISOString())
-        }
-
-        const response = await fetch(`/api/logs?${params.toString()}`)
-
-        if (!response.ok) {
-          throw new Error(`Error fetching logs: ${response.statusText}`)
-        }
-
-        const data: LogsResponse = await response.json()
-        setHasMore(data.data.length === LOGS_PER_PAGE && data.page < data.totalPages)
-        setLogs(data.data, false)
-        setError(null)
-      } catch (err) {
-        logger.error('Failed to fetch logs:', { err })
-        setError(err instanceof Error ? err.message : 'An unknown error occurred')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchWithFilters()
-  }, [workspaceId, timeRange, level, workflowIds, folderIds, debouncedSearchQuery, triggers])
-
   const loadMoreLogs = useCallback(() => {
-    if (!isFetchingMore && hasMore) {
-      const nextPage = page + 1
-      setPage(nextPage)
-      setIsFetchingMore(true)
-      setTimeout(() => {
-        fetchLogs(nextPage, true)
-      }, 50)
+    if (!logsQuery.isFetching && logsQuery.hasNextPage) {
+      logsQuery.fetchNextPage()
     }
-  }, [fetchLogs, isFetchingMore, hasMore, page])
+  }, [logsQuery])
 
   useEffect(() => {
-    if (loading || !hasMore) return
+    if (logsQuery.isLoading || !logsQuery.hasNextPage) return
 
     const scrollContainer = scrollContainerRef.current
     if (!scrollContainer) return
@@ -611,7 +274,7 @@ export default function Logs() {
 
       const scrollPercentage = (scrollTop / (scrollHeight - clientHeight)) * 100
 
-      if (scrollPercentage > 60 && !isFetchingMore && hasMore) {
+      if (scrollPercentage > 60 && !logsQuery.isFetchingNextPage && logsQuery.hasNextPage) {
         loadMoreLogs()
       }
     }
@@ -621,13 +284,14 @@ export default function Logs() {
     return () => {
       scrollContainer.removeEventListener('scroll', handleScroll)
     }
-  }, [loading, hasMore, isFetchingMore, loadMoreLogs])
+  }, [logsQuery.isLoading, logsQuery.hasNextPage, logsQuery.isFetchingNextPage, loadMoreLogs])
 
   useEffect(() => {
     const currentLoaderRef = loaderRef.current
     const scrollContainer = scrollContainerRef.current
 
-    if (!currentLoaderRef || !scrollContainer || loading || !hasMore) return
+    if (!currentLoaderRef || !scrollContainer || logsQuery.isLoading || !logsQuery.hasNextPage)
+      return
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -635,7 +299,7 @@ export default function Logs() {
         if (!e?.isIntersecting) return
         const { scrollTop, scrollHeight, clientHeight } = scrollContainer
         const pct = (scrollTop / (scrollHeight - clientHeight)) * 100
-        if (pct > 70 && !isFetchingMore) {
+        if (pct > 70 && !logsQuery.isFetchingNextPage) {
           loadMoreLogs()
         }
       },
@@ -651,7 +315,7 @@ export default function Logs() {
     return () => {
       observer.unobserve(currentLoaderRef)
     }
-  }, [loading, hasMore, isFetchingMore, loadMoreLogs])
+  }, [logsQuery.isLoading, logsQuery.hasNextPage, logsQuery.isFetchingNextPage, loadMoreLogs])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -685,7 +349,6 @@ export default function Logs() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [logs, selectedLogIndex, isSidebarOpen, selectedLog, handleNavigateNext, handleNavigatePrev])
 
-  // If in dashboard mode, show the dashboard
   if (viewMode === 'dashboard') {
     return <Dashboard />
   }
@@ -700,7 +363,7 @@ export default function Logs() {
       <div className='flex min-w-0 flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col p-[24px]'>
           <Controls
-            isRefetching={isRefreshing}
+            isRefetching={logsQuery.isFetching}
             resetToNow={handleRefresh}
             live={isLive}
             setLive={(fn) => setIsLive(fn)}
@@ -711,9 +374,7 @@ export default function Logs() {
                 value={searchQuery}
                 onChange={setSearchQuery}
                 placeholder='Search logs...'
-                availableWorkflows={availableWorkflows}
-                availableFolders={availableFolders}
-                onOpenChange={(open) => {
+                onOpenChange={(open: boolean) => {
                   isSearchOpenRef.current = open
                 }}
               />
@@ -751,18 +412,20 @@ export default function Logs() {
 
             {/* Table body - scrollable */}
             <div className='flex-1 overflow-y-auto overflow-x-hidden' ref={scrollContainerRef}>
-              {loading && page === 1 ? (
+              {logsQuery.isLoading && !logsQuery.data ? (
                 <div className='flex h-full items-center justify-center'>
                   <div className='flex items-center gap-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
                     <Loader2 className='h-[16px] w-[16px] animate-spin' />
                     <span className='text-[13px]'>Loading logs...</span>
                   </div>
                 </div>
-              ) : error ? (
+              ) : logsQuery.isError ? (
                 <div className='flex h-full items-center justify-center'>
                   <div className='flex items-center gap-[8px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
                     <AlertCircle className='h-[16px] w-[16px]' />
-                    <span className='text-[13px]'>Error: {error}</span>
+                    <span className='text-[13px]'>
+                      Error: {logsQuery.error?.message || 'Failed to load logs'}
+                    </span>
                   </div>
                 </div>
               ) : logs.length === 0 ? (
@@ -779,7 +442,6 @@ export default function Logs() {
                     const isSelected = selectedLog?.id === log.id
                     const baseLevel = (log.level || 'info').toLowerCase()
                     const isError = baseLevel === 'error'
-                    // If it's an error, don't treat it as pending even if hasPendingPause is true
                     const isPending = !isError && log.hasPendingPause === true
                     const statusLabel = isPending
                       ? 'Pending'
@@ -840,8 +502,16 @@ export default function Logs() {
 
                           {/* Workflow */}
                           <div className='min-w-0'>
-                            <div className='truncate font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-                              {log.workflow?.name || 'Unknown Workflow'}
+                            <div className='flex items-center gap-2 truncate'>
+                              <div
+                                className='h-[12px] w-[12px] flex-shrink-0 rounded'
+                                style={{
+                                  backgroundColor: log.workflow?.color || '#64748b',
+                                }}
+                              />
+                              <span className='truncate font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                                {log.workflow?.name || 'Unknown Workflow'}
+                              </span>
                             </div>
                           </div>
 
@@ -857,12 +527,7 @@ export default function Logs() {
                           {/* Trigger */}
                           <div className='hidden xl:block'>
                             {log.trigger ? (
-                              <div
-                                className='inline-flex items-center rounded-[6px] px-[8px] py-[2px] font-medium text-[12px] text-white'
-                                style={{ backgroundColor: getTriggerColor(log.trigger) }}
-                              >
-                                {log.trigger}
-                              </div>
+                              <TriggerBadge trigger={log.trigger} />
                             ) : (
                               <div className='font-medium text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
                                 —
@@ -899,13 +564,13 @@ export default function Logs() {
                   })}
 
                   {/* Infinite scroll loader */}
-                  {hasMore && (
+                  {logsQuery.hasNextPage && (
                     <div className='flex items-center justify-center py-[16px]'>
                       <div
                         ref={loaderRef}
                         className='flex items-center gap-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'
                       >
-                        {isFetchingMore ? (
+                        {logsQuery.isFetchingNextPage ? (
                           <>
                             <Loader2 className='h-[16px] w-[16px] animate-spin' />
                             <span className='text-[13px]'>Loading more...</span>
@@ -925,8 +590,9 @@ export default function Logs() {
 
       {/* Log Sidebar */}
       <Sidebar
-        log={selectedLog}
+        log={logDetailQuery.data || selectedLog}
         isOpen={isSidebarOpen}
+        isLoadingDetails={logDetailQuery.isLoading}
         onClose={handleCloseSidebar}
         onNavigateNext={handleNavigateNext}
         onNavigatePrev={handleNavigatePrev}

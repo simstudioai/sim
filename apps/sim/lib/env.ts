@@ -76,7 +76,12 @@ export const env = createEnv({
     ANTHROPIC_API_KEY_1:                   z.string().min(1).optional(),           // Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_2:                   z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3:                   z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
+    GEMINI_API_KEY_1:                      z.string().min(1).optional(),           // Primary Gemini API key
+    GEMINI_API_KEY_2:                      z.string().min(1).optional(),           // Additional Gemini API key for load balancing
+    GEMINI_API_KEY_3:                      z.string().min(1).optional(),           // Additional Gemini API key for load balancing
     OLLAMA_URL:                            z.string().url().optional(),            // Ollama local LLM server URL
+    VLLM_BASE_URL:                         z.string().url().optional(),            // vLLM self-hosted base URL (OpenAI-compatible)
+    VLLM_API_KEY:                          z.string().optional(),                  // Optional bearer token for vLLM
     ELEVENLABS_API_KEY:                    z.string().min(1).optional(),           // ElevenLabs API key for text-to-speech in deployed chat
     SERPER_API_KEY:                        z.string().min(1).optional(),           // Serper API key for online search
     EXA_API_KEY:                           z.string().min(1).optional(),           // Exa AI API key for enhanced online search
@@ -186,6 +191,7 @@ export const env = createEnv({
     ASANA_CLIENT_SECRET:                   z.string().optional(),                  // Asana OAuth client secret
     AIRTABLE_CLIENT_ID:                    z.string().optional(),                  // Airtable OAuth client ID
     AIRTABLE_CLIENT_SECRET:                z.string().optional(),                  // Airtable OAuth client secret
+    APOLLO_API_KEY:                        z.string().optional(),                  // Apollo API key (optional system-wide config)
     SUPABASE_CLIENT_ID:                    z.string().optional(),                  // Supabase OAuth client ID
     SUPABASE_CLIENT_SECRET:                z.string().optional(),                  // Supabase OAuth client secret
     NOTION_CLIENT_ID:                      z.string().optional(),                  // Notion OAuth client ID

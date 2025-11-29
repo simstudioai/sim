@@ -35,6 +35,8 @@ export type GenerationType =
   | 'mongodb-sort'
   | 'mongodb-documents'
   | 'mongodb-update'
+  | 'neo4j-cypher'
+  | 'neo4j-parameters'
 
 export type SubBlockType =
   | 'short-input' // Single line input
@@ -71,6 +73,9 @@ export type SubBlockType =
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema
   | 'variables-input' // Variable assignments for updating workflow variables
+  | 'messages-input' // Multiple message inputs with role and content for LLM message history
+  | 'workflow-selector' // Workflow selector for agent tools
+  | 'workflow-input-mapper' // Dynamic workflow input mapper based on selected workflow
   | 'text' // Read-only text display
 
 /**
@@ -84,8 +89,11 @@ export const SELECTOR_TYPES_HYDRATION_REQUIRED: SubBlockType[] = [
   'folder-selector',
   'project-selector',
   'knowledge-base-selector',
+  'workflow-selector',
   'document-selector',
   'variables-input',
+  'mcp-server-selector',
+  'mcp-tool-selector',
 ] as const
 
 export type ExtractToolOutput<T> = T extends ToolResponse ? T['output'] : never
@@ -135,7 +143,28 @@ export interface SubBlockConfig {
   type: SubBlockType
   mode?: 'basic' | 'advanced' | 'both' | 'trigger' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode
   canonicalParamId?: string
-  required?: boolean
+  required?:
+    | boolean
+    | {
+        field: string
+        value: string | number | boolean | Array<string | number | boolean>
+        not?: boolean
+        and?: {
+          field: string
+          value: string | number | boolean | Array<string | number | boolean> | undefined
+          not?: boolean
+        }
+      }
+    | (() => {
+        field: string
+        value: string | number | boolean | Array<string | number | boolean>
+        not?: boolean
+        and?: {
+          field: string
+          value: string | number | boolean | Array<string | number | boolean> | undefined
+          not?: boolean
+        }
+      })
   defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
   options?:
     | {
@@ -189,7 +218,7 @@ export interface SubBlockConfig {
         }
       })
   // Props specific to 'code' sub-block type
-  language?: 'javascript' | 'json'
+  language?: 'javascript' | 'json' | 'python'
   generationType?: GenerationType
   collapsible?: boolean // Whether the code block can be collapsed
   defaultCollapsed?: boolean // Whether the code block is collapsed by default

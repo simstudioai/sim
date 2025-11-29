@@ -1,0 +1,642 @@
+---
+title: Zendesk
+description: Zendeskでサポートチケット、ユーザー、組織を管理する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zendesk"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Zendesk](https://www.zendesk.com/)は、強力なツールとAPIを通じて組織がサポートチケット、ユーザー、組織を効率的に管理できるようにする、主要なカスタマーサービスおよびサポートプラットフォームです。SimにおけるZendesk統合により、エージェントは主要なサポート操作を自動化し、サポートデータをワークフローの残りの部分と同期させることができます。
+
+SimでZendeskを使用すると、以下のことが可能です：
+
+- **チケット管理：**
+  - 高度なフィルタリングと並べ替えによるサポートチケットのリスト取得。
+  - 追跡と解決のための単一チケットの詳細情報の取得。
+  - 顧客の問題をプログラムで記録するための新規チケットの個別または一括作成。
+  - 複雑なワークフローを効率化するためのチケットの更新または一括更新の適用。
+  - ケースが解決されたり重複が発生したりした場合のチケットの削除または統合。
+
+- **ユーザー管理：**
+  - 顧客とエージェントのディレクトリを最新の状態に保つための、条件によるユーザーリストの取得またはユーザー検索。
+  - 個々のユーザーまたは現在ログインしているユーザーに関する詳細情報の取得。
+  - 顧客とエージェントのプロビジョニングを自動化する新規ユーザーの作成または一括オンボーディング。
+  - 情報の正確性を確保するためのユーザー詳細の更新または一括更新。
+  - プライバシーまたはアカウント管理のために必要に応じたユーザーの削除。
+
+- **組織管理：**
+  - 合理化されたサポートとアカウント管理のための組織のリスト表示、検索、オートコンプリート。
+  - 組織の詳細を取得し、データベースを整理。
+  - 顧客基盤の変化を反映するための組織の作成、更新、または削除。
+  - 大規模なオンボーディング作業のための組織の一括作成。
+
+- **高度な検索と分析：**
+  - 多目的な検索エンドポイントを使用して、任意のフィールドからチケット、ユーザー、または組織をすばやく見つけることができます。
+  - 検索結果の数を取得してレポートや分析に活用できます。
+
+Zendeskのシム統合を活用することで、自動化されたワークフローがサポートチケットの振り分け、ユーザーのオンボーディング/オフボーディング、企業管理をシームレスに処理し、サポート業務をスムーズに運営できます。製品、CRM、または自動化システムとサポートを統合する場合でも、シムのZendeskツールは、大規模な一流のサポートを提供するための堅牢なプログラム制御を提供します。
+{/* MANUAL-CONTENT-END */}
+
+## 使用手順
+
+Zendeskをワークフローに統合します。チケットの取得、チケットの取得、チケットの作成、チケットの一括作成、チケットの更新、チケットの一括更新、チケットの削除、チケットの統合、ユーザーの取得、ユーザーの取得、現在のユーザーの取得、ユーザーの検索、ユーザーの作成、ユーザーの一括作成、ユーザーの更新、ユーザーの一括更新、ユーザーの削除、組織の取得、組織の取得、組織のオートコンプリート、組織の作成、組織の一括作成、組織の更新、組織の削除、検索、検索数の取得が可能です。
+
+## ツール
+
+### `zendesk_get_tickets`
+
+オプションのフィルタリングを使用してZendeskからチケットのリストを取得する
+
+#### 入力
+
+| パラメータ | タイプ | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン（例：「mycompany」（mycompany.zendesk.com用）） |
+| `status` | string | いいえ | ステータスでフィルタリング（new, open, pending, hold, solved, closed） |
+| `priority` | string | いいえ | 優先度でフィルタリング（low, normal, high, urgent） |
+| `type` | string | いいえ | タイプでフィルタリング（problem, incident, question, task） |
+| `assigneeId` | string | いいえ | 担当者ユーザーIDでフィルタリング |
+| `organizationId` | string | いいえ | 組織IDでフィルタリング |
+| `sortBy` | string | いいえ | ソートフィールド（created_at, updated_at, priority, status） |
+| `sortOrder` | string | いいえ | ソート順（asc または desc） |
+| `perPage` | string | いいえ | ページあたりの結果数（デフォルト：100、最大：100） |
+| `page` | string | いいえ | ページ番号 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | チケットデータとメタデータ |
+
+### `zendesk_get_ticket`
+
+IDによってZendeskから単一のチケットを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `ticketId` | string | はい | 取得するチケットID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | チケットデータ |
+
+### `zendesk_create_ticket`
+
+カスタムフィールドをサポートするZendeskに新しいチケットを作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `subject` | string | いいえ | チケットの件名（オプション - 提供されない場合は自動生成されます） |
+| `description` | string | はい | チケットの説明（最初のコメント） |
+| `priority` | string | いいえ | 優先度（low、normal、high、urgent） |
+| `status` | string | いいえ | ステータス（new、open、pending、hold、solved、closed） |
+| `type` | string | いいえ | タイプ（problem、incident、question、task） |
+| `tags` | string | いいえ | カンマ区切りのタグ |
+| `assigneeId` | string | いいえ | 担当者ユーザーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成されたチケットデータ |
+
+### `zendesk_create_tickets_bulk`
+
+Zendeskで一度に複数のチケットを作成（最大100件）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `tickets` | string | はい | 作成するチケットオブジェクトのJSON配列（最大100件）。各チケットにはsubjectとcommentプロパティが必要です。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 一括作成ジョブステータス |
+
+### `zendesk_update_ticket`
+
+カスタムフィールドをサポートしたZendeskの既存チケットの更新
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `ticketId` | string | はい | 更新するチケットID |
+| `subject` | string | いいえ | 新しいチケットの件名 |
+| `comment` | string | いいえ | チケットにコメントを追加 |
+| `priority` | string | いいえ | 優先度（low、normal、high、urgent） |
+| `status` | string | いいえ | ステータス（new、open、pending、hold、solved、closed） |
+| `type` | string | いいえ | タイプ（problem、incident、question、task） |
+| `tags` | string | いいえ | カンマ区切りのタグ |
+| `assigneeId` | string | いいえ | 担当者ユーザーID |
+| `groupId` | string | いいえ | グループID |
+| `customFields` | string | いいえ | JSONオブジェクトとしてのカスタムフィールド |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 更新されたチケットデータ |
+
+### `zendesk_update_tickets_bulk`
+
+Zendeskで複数のチケットを一度に更新（最大100件）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | ZendeskのEメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | Zendeskのサブドメイン |
+| `ticketIds` | string | はい | 更新するチケットIDをカンマ区切りで指定（最大100件） |
+| `status` | string | いいえ | すべてのチケットの新しいステータス |
+| `priority` | string | いいえ | すべてのチケットの新しい優先度 |
+| `assigneeId` | string | いいえ | すべてのチケットの新しい担当者ID |
+| `groupId` | string | いいえ | すべてのチケットの新しいグループID |
+| `tags` | string | いいえ | すべてのチケットに追加するタグ（カンマ区切り） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 一括更新ジョブのステータス |
+
+### `zendesk_delete_ticket`
+
+Zendeskからチケットを削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | ZendeskのEメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | Zendeskのサブドメイン |
+| `ticketId` | string | はい | 削除するチケットID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除確認 |
+
+### `zendesk_merge_tickets`
+
+複数のチケットをターゲットチケットに統合する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `targetTicketId` | string | はい | ターゲットチケットID（チケットはこれに統合されます） |
+| `sourceTicketIds` | string | はい | 統合するソースチケットIDのカンマ区切りリスト |
+| `targetComment` | string | いいえ | 統合後にターゲットチケットに追加するコメント |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 統合ジョブステータス |
+
+### `zendesk_get_users`
+
+オプションのフィルタリングを使用してZendeskからユーザーリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン（例：「mycompany」はmycompany.zendesk.com用） |
+| `role` | string | いいえ | ロールでフィルタリング（end-user、agent、admin） |
+| `permissionSet` | string | いいえ | 権限セットIDでフィルタリング |
+| `perPage` | string | いいえ | ページあたりの結果数（デフォルト：100、最大：100） |
+| `page` | string | いいえ | ページ番号 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | ユーザーデータとメタデータ |
+
+### `zendesk_get_user`
+
+ZendeskからIDで単一のユーザーを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `userId` | string | はい | 取得するユーザーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | ユーザーデータ |
+
+### `zendesk_get_current_user`
+
+Zendeskから現在認証されているユーザーを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 現在のユーザーデータ |
+
+### `zendesk_search_users`
+
+クエリ文字列を使用してZendeskでユーザーを検索
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | Zendeskのメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | Zendeskのサブドメイン |
+| `query` | string | いいえ | 検索クエリ文字列 |
+| `externalId` | string | いいえ | 検索する外部ID |
+| `perPage` | string | いいえ | ページあたりの結果数（デフォルト：100、最大：100） |
+| `page` | string | いいえ | ページ番号 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | ユーザー検索結果 |
+
+### `zendesk_create_user`
+
+Zendeskに新しいユーザーを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | Zendeskのメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | Zendeskのサブドメイン |
+| `name` | string | はい | ユーザー名 |
+| `userEmail` | string | いいえ | ユーザーメール |
+| `role` | string | いいえ | ユーザーロール（end-user、agent、admin） |
+| `phone` | string | いいえ | ユーザーの電話番号 |
+| `organizationId` | string | いいえ | 組織ID |
+| `verified` | string | いいえ | メール確認をスキップするには「true」に設定 |
+| `tags` | string | いいえ | カンマ区切りのタグ |
+| `customFields` | string | いいえ | JSONオブジェクトとしてのカスタムフィールド（例：\{"field_id": "value"\}） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成されたユーザーデータ |
+
+### `zendesk_create_users_bulk`
+
+一括インポートを使用してZendeskに複数のユーザーを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `users` | string | はい | 作成するユーザーオブジェクトのJSON配列 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 一括作成ジョブのステータス |
+
+### `zendesk_update_user`
+
+Zendeskの既存ユーザーを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `userId` | string | はい | 更新するユーザーID |
+| `name` | string | いいえ | 新しいユーザー名 |
+| `userEmail` | string | いいえ | 新しいユーザーメール |
+| `role` | string | いいえ | ユーザーロール（エンドユーザー、エージェント、管理者） |
+| `phone` | string | いいえ | ユーザーの電話番号 |
+| `organizationId` | string | いいえ | 組織ID |
+| `verified` | string | いいえ | ユーザーを確認済みとしてマークするには「true」に設定 |
+| `tags` | string | いいえ | カンマ区切りのタグ |
+| `customFields` | string | いいえ | JSONオブジェクトとしてのカスタムフィールド |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 更新されたユーザーデータ |
+
+### `zendesk_update_users_bulk`
+
+一括更新を使用してZendeskで複数のユーザーを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `users` | string | はい | 更新するユーザーオブジェクトのJSON配列（idフィールドを含む必要があります） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 一括更新ジョブステータス |
+
+### `zendesk_delete_user`
+
+Zendeskからユーザーを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `userId` | string | はい | 削除するユーザーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除されたユーザーデータ |
+
+### `zendesk_get_organizations`
+
+Zendeskから組織のリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン（例："mycompany"（mycompany.zendesk.com用）） |
+| `perPage` | string | いいえ | ページあたりの結果数（デフォルト：100、最大：100） |
+| `page` | string | いいえ | ページ番号 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 組織データとメタデータ |
+
+### `zendesk_get_organization`
+
+ZendeskからIDで単一の組織を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `organizationId` | string | はい | 取得する組織ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 組織データ |
+
+### `zendesk_autocomplete_organizations`
+
+名前のプレフィックスによるZendesk内の組織のオートコンプリート（名前マッチング/オートコンプリート用）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `name` | string | はい | 検索する組織名 |
+| `perPage` | string | いいえ | ページあたりの結果数（デフォルト：100、最大：100） |
+| `page` | string | いいえ | ページ番号 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 組織検索結果 |
+
+### `zendesk_create_organization`
+
+Zendeskで新しい組織を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `name` | string | はい | 組織名 |
+| `domainNames` | string | いいえ | カンマ区切りのドメイン名 |
+| `details` | string | いいえ | 組織の詳細 |
+| `notes` | string | いいえ | 組織のメモ |
+| `tags` | string | いいえ | カンマ区切りのタグ |
+| `customFields` | string | いいえ | JSONオブジェクトとしてのカスタムフィールド（例：\{"field_id": "value"\}） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成された組織データ |
+
+### `zendesk_create_organizations_bulk`
+
+一括インポートを使用してZendeskに複数の組織を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `organizations` | string | はい | 作成する組織オブジェクトのJSON配列 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 一括作成ジョブステータス |
+
+### `zendesk_update_organization`
+
+Zendeskで既存の組織を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `organizationId` | string | はい | 更新する組織ID |
+| `name` | string | いいえ | 新しい組織名 |
+| `domainNames` | string | いいえ | カンマ区切りのドメイン名 |
+| `details` | string | いいえ | 組織の詳細 |
+| `notes` | string | いいえ | 組織のメモ |
+| `tags` | string | いいえ | カンマ区切りのタグ |
+| `customFields` | string | いいえ | JSONオブジェクトとしてのカスタムフィールド |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 更新された組織データ |
+
+### `zendesk_delete_organization`
+
+Zendeskから組織を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `organizationId` | string | はい | 削除する組織ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除された組織データ |
+
+### `zendesk_search`
+
+Zendeskでチケット、ユーザー、組織を横断した統合検索
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `query` | string | はい | 検索クエリ文字列 |
+| `sortBy` | string | いいえ | ソートフィールド（relevance、created_at、updated_at、priority、status、ticket_type） |
+| `sortOrder` | string | いいえ | ソート順（ascまたはdesc） |
+| `perPage` | string | いいえ | ページあたりの結果数（デフォルト：100、最大：100） |
+| `page` | string | いいえ | ページ番号 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 検索結果 |
+
+### `zendesk_search_count`
+
+Zendeskでクエリに一致する検索結果の数をカウント
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | あなたのZendeskメールアドレス |
+| `apiToken` | string | はい | Zendesk APIトークン |
+| `subdomain` | string | はい | あなたのZendeskサブドメイン |
+| `query` | string | はい | 検索クエリ文字列 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 検索カウント結果 |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `zendesk`

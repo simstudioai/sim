@@ -4,6 +4,7 @@ import { idempotencyKey } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
+import { extractProviderIdentifierFromBody } from '@/lib/webhooks/provider-utils'
 
 const logger = createLogger('IdempotencyService')
 
@@ -451,13 +452,25 @@ export class IdempotencyService {
 
   /**
    * Create an idempotency key from a webhook payload following RFC best practices
-   * Standard webhook headers (webhook-id, x-webhook-id, etc.)
+   * Checks both headers and body for unique identifiers to prevent duplicate executions
+   *
+   * @param webhookId - The webhook database ID
+   * @param headers - HTTP headers from the webhook request
+   * @param body - Parsed webhook body (optional, used for provider-specific identifiers)
+   * @param provider - Provider name for body extraction (optional)
+   * @returns A unique idempotency key for this webhook event
    */
-  static createWebhookIdempotencyKey(webhookId: string, headers?: Record<string, string>): string {
+  static createWebhookIdempotencyKey(
+    webhookId: string,
+    headers?: Record<string, string>,
+    body?: any,
+    provider?: string
+  ): string {
     const normalizedHeaders = headers
       ? Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]))
       : undefined
 
+    // Check standard webhook headers first
     const webhookIdHeader =
       normalizedHeaders?.['webhook-id'] ||
       normalizedHeaders?.['x-webhook-id'] ||
@@ -470,7 +483,22 @@ export class IdempotencyService {
       return `${webhookId}:${webhookIdHeader}`
     }
 
+    // Check body for provider-specific unique identifiers
+    if (body && provider) {
+      const bodyIdentifier = extractProviderIdentifierFromBody(provider, body)
+
+      if (bodyIdentifier) {
+        return `${webhookId}:${bodyIdentifier}`
+      }
+    }
+
+    // No unique identifier found - generate random UUID
+    // This means duplicate detection will not work for this webhook
     const uniqueId = randomUUID()
+    logger.warn('No unique identifier found, duplicate executions may occur', {
+      webhookId,
+      provider,
+    })
     return `${webhookId}:${uniqueId}`
   }
 }

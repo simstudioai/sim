@@ -37,8 +37,8 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: [
-        'https://www.googleapis.com/auth/drive.readonly',
         'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
       ],
       placeholder: 'Select Google Drive account',
     },
@@ -107,8 +107,8 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: [
-        'https://www.googleapis.com/auth/drive.readonly',
         'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
       ],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a parent folder',
@@ -180,8 +180,8 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: [
-        'https://www.googleapis.com/auth/drive.readonly',
         'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
       ],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a parent folder',
@@ -208,8 +208,8 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: [
-        'https://www.googleapis.com/auth/drive.readonly',
         'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
       ],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a folder to list files from',
@@ -250,8 +250,8 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: [
-        'https://www.googleapis.com/auth/drive.readonly',
         'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
       ],
       placeholder: 'Select a file to download',
       mode: 'basic',

@@ -12,10 +12,10 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { getEnv, isFalsy, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { inter } from '@/app/_styles/fonts/inter/inter'
+import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
-import { inter } from '@/app/fonts/inter/inter'
-import { soehne } from '@/app/fonts/soehne/soehne'
 
 const logger = createLogger('SignupForm')
 
@@ -513,7 +513,7 @@ function SignupFormContent({
             disabled={isLoading}
           >
             <span className='flex items-center gap-1'>
-              {isLoading ? 'Creating account...' : 'Create account'}
+              {isLoading ? 'Creating account' : 'Create account'}
               <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
                 {isButtonHovered ? (
                   <ArrowRight className='h-4 w-4' aria-hidden='true' />

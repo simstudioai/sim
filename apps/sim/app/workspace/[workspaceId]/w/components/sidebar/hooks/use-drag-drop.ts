@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useUpdateFolder } from '@/hooks/queries/folders'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -31,7 +33,10 @@ export function useDragDrop() {
   const hoverExpandTimerRef = useRef<number | null>(null)
   const lastDragYRef = useRef<number>(0)
 
-  const { updateFolderAPI, getFolderPath, setExpanded, expandedFolders } = useFolderStore()
+  const params = useParams()
+  const workspaceId = params.workspaceId as string | undefined
+  const updateFolderMutation = useUpdateFolder()
+  const { setExpanded, expandedFolders } = useFolderStore()
   const { updateWorkflow } = useWorkflowRegistry()
 
   /**
@@ -192,13 +197,21 @@ export function useDragDrop() {
           return
         }
 
-        await updateFolderAPI(draggedFolderId, { parentId: targetFolderId })
+        if (!workspaceId) {
+          logger.warn('No workspaceId available for folder move')
+          return
+        }
+        await updateFolderMutation.mutateAsync({
+          workspaceId,
+          id: draggedFolderId,
+          updates: { parentId: targetFolderId },
+        })
         logger.info(`Moved folder to ${targetFolderId ? `folder ${targetFolderId}` : 'root'}`)
       } catch (error) {
         logger.error('Failed to move folder:', error)
       }
     },
-    [updateFolderAPI]
+    [updateFolderMutation, workspaceId]
   )
 
   /**

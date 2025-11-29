@@ -132,29 +132,6 @@ export function setupWorkflowHandlers(
     }
   })
 
-  socket.on('request-sync', async ({ workflowId }) => {
-    try {
-      if (!socket.userId) {
-        socket.emit('error', { type: 'NOT_AUTHENTICATED', message: 'Not authenticated' })
-        return
-      }
-
-      const accessInfo = await verifyWorkflowAccess(socket.userId, workflowId)
-      if (!accessInfo.hasAccess) {
-        socket.emit('error', { type: 'ACCESS_DENIED', message: 'Access denied' })
-        return
-      }
-
-      const workflowState = await getWorkflowState(workflowId)
-      socket.emit('workflow-state', workflowState)
-
-      logger.info(`Sent sync data to ${socket.userId} for workflow ${workflowId}`)
-    } catch (error) {
-      logger.error('Error handling sync request:', error)
-      socket.emit('error', { type: 'SYNC_FAILED', message: 'Failed to sync workflow state' })
-    }
-  })
-
   socket.on('leave-workflow', () => {
     const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
     const session = roomManager.getUserSession(socket.id)

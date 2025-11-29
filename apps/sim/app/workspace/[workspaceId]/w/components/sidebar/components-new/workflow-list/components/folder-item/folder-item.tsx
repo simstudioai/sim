@@ -13,8 +13,9 @@ import {
   useItemRename,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDeleteFolder, useDuplicateFolder } from '@/app/workspace/[workspaceId]/w/hooks'
-import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useUpdateFolder } from '@/hooks/queries/folders'
+import { useCreateWorkflow } from '@/hooks/queries/workflows'
+import type { FolderTreeNode } from '@/stores/folders/store'
 
 interface FolderItemProps {
   folder: FolderTreeNode
@@ -37,8 +38,8 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
-  const { updateFolderAPI } = useFolderStore()
-  const { createWorkflow } = useWorkflowRegistry()
+  const updateFolderMutation = useUpdateFolder()
+  const createWorkflowMutation = useCreateWorkflow()
 
   // Delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -57,18 +58,18 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   })
 
   /**
-   * Handle create workflow in folder
+   * Handle create workflow in folder using React Query mutation
    */
   const handleCreateWorkflowInFolder = useCallback(async () => {
-    const workflowId = await createWorkflow({
+    const result = await createWorkflowMutation.mutateAsync({
       workspaceId,
       folderId: folder.id,
     })
 
-    if (workflowId) {
-      router.push(`/workspace/${workspaceId}/w/${workflowId}`)
+    if (result.id) {
+      router.push(`/workspace/${workspaceId}/w/${result.id}`)
     }
-  }, [createWorkflow, workspaceId, folder.id, router])
+  }, [createWorkflowMutation, workspaceId, folder.id, router])
 
   // Folder expand hook
   const {
@@ -125,7 +126,11 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   } = useItemRename({
     initialName: folder.name,
     onSave: async (newName) => {
-      await updateFolderAPI(folder.id, { name: newName })
+      await updateFolderMutation.mutateAsync({
+        workspaceId,
+        id: folder.id,
+        updates: { name: newName },
+      })
     },
     itemType: 'folder',
     itemId: folder.id,

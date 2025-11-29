@@ -498,7 +498,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     manualChannel: { type: 'string', description: 'Manual channel identifier' },
     text: { type: 'string', description: 'Message text' },
     attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    files: { type: 'json', description: 'Files to attach (UserFile array)' },
+    files: { type: 'array', description: 'Files to attach (UserFile array)' },
     title: { type: 'string', description: 'Canvas title' },
     content: { type: 'string', description: 'Canvas content' },
     limit: { type: 'string', description: 'Message limit' },
@@ -520,24 +520,42 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     threadReaderTs: { type: 'string', description: 'Thread timestamp for reading thread' },
   },
   outputs: {
-    // slack_message outputs
+    // slack_message outputs (send operation)
+    message: {
+      type: 'json',
+      description:
+        'Complete message object with all properties: ts, text, user, channel, reactions, threads, files, attachments, blocks, stars, pins, and edit history',
+    },
+    // Legacy properties for send operation (backward compatibility)
     ts: { type: 'string', description: 'Message timestamp returned by Slack API' },
     channel: { type: 'string', description: 'Channel identifier where message was sent' },
+    fileCount: {
+      type: 'number',
+      description: 'Number of files uploaded (when files are attached)',
+    },
 
     // slack_canvas outputs
     canvas_id: { type: 'string', description: 'Canvas identifier for created canvases' },
     title: { type: 'string', description: 'Canvas title' },
 
-    // slack_message_reader outputs
+    // slack_message_reader outputs (read operation)
     messages: {
       type: 'json',
-      description: 'Array of message objects with text, user, timestamp, and file attachments',
+      description:
+        'Array of message objects with comprehensive properties: text, user, timestamp, reactions, threads, files, attachments, blocks, stars, pins, and edit history',
     },
 
     // slack_download outputs
     file: {
       type: 'json',
       description: 'Downloaded file stored in execution files',
+    },
+
+    // slack_update_message outputs (update operation)
+    content: { type: 'string', description: 'Success message for update operation' },
+    metadata: {
+      type: 'json',
+      description: 'Updated message metadata (legacy, use message object instead)',
     },
 
     // Trigger outputs (when used as webhook trigger)

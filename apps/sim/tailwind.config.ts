@@ -126,17 +126,6 @@ export default {
             strokeDashoffset: '-24',
           },
         },
-        'pulse-ring': {
-          '0%': {
-            boxShadow: '0 0 0 0 hsl(var(--border))',
-          },
-          '50%': {
-            boxShadow: '0 0 0 8px hsl(var(--border))',
-          },
-          '100%': {
-            boxShadow: '0 0 0 0 hsl(var(--border))',
-          },
-        },
         'code-shimmer': {
           '0%': {
             transform: 'translateX(-100%)',
@@ -153,17 +142,25 @@ export default {
             opacity: '0.8',
           },
         },
+        'ring-pulse': {
+          '0%, 100%': {
+            'box-shadow': '0 0 0 1.5px var(--border-success)',
+          },
+          '50%': {
+            'box-shadow': '0 0 0 4px var(--border-success)',
+          },
+        },
       },
       animation: {
         'caret-blink': 'caret-blink 1.25s ease-out infinite',
         'slide-left': 'slide-left 80s linear infinite',
         'slide-right': 'slide-right 80s linear infinite',
         'dash-animation': 'dash-animation 1.5s linear infinite',
-        'pulse-ring': 'pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'code-shimmer': 'code-shimmer 1.5s infinite',
         'placeholder-pulse': 'placeholder-pulse 1.5s ease-in-out infinite',
+        'ring-pulse': 'ring-pulse 1.5s ease-in-out infinite',
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography')],
 } satisfies Config

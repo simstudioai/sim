@@ -33,6 +33,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
     },
     {
       id: 'code',
+      title: 'Code',
       type: 'code',
       wandConfig: {
         enabled: true,

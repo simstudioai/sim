@@ -441,7 +441,7 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      case 'microsoftteams': {
+      case 'microsoft-teams': {
         const hmacSecret = providerConfig.hmacSecret
 
         if (!hmacSecret) {

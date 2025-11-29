@@ -5,10 +5,11 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { BookOpen, Layout, RepeatIcon, ScrollText, Search, SplitIcon } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/utils'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/trigger-utils'
+import { searchItems } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/search-modal/search-utils'
 import { getAllBlocks } from '@/blocks'
 
 interface SearchModalProps {
@@ -98,7 +99,6 @@ export function SearchModal({
   const workspaceId = params.workspaceId as string
   const brand = useBrandConfig()
 
-  // Get all available blocks - only when on workflow page
   const blocks = useMemo(() => {
     if (!isOnWorkflowPage) return []
 
@@ -118,7 +118,6 @@ export function SearchModal({
         })
       )
 
-    // Add special blocks (loop and parallel)
     const specialBlocks: BlockItem[] = [
       {
         id: 'loop',
@@ -147,7 +146,6 @@ export function SearchModal({
     const allTriggers = getTriggersForSidebar()
     const priorityOrder = ['Start', 'Schedule', 'Webhook']
 
-    // Sort triggers with priority order matching toolbar
     const sortedTriggers = allTriggers.sort((a, b) => {
       const aIndex = priorityOrder.indexOf(a.name)
       const bIndex = priorityOrder.indexOf(b.name)
@@ -173,7 +171,6 @@ export function SearchModal({
     )
   }, [isOnWorkflowPage])
 
-  // Get all available tools - only when on workflow page
   const tools = useMemo(() => {
     if (!isOnWorkflowPage) return []
 
@@ -192,7 +189,6 @@ export function SearchModal({
       )
   }, [isOnWorkflowPage])
 
-  // Define pages
   const pages = useMemo(
     (): PageItem[] => [
       {
@@ -218,7 +214,6 @@ export function SearchModal({
     [workspaceId, brand.documentationUrl]
   )
 
-  // Define docs
   const docs = useMemo((): DocItem[] => {
     const allBlocks = getAllBlocks()
     const docsItems: DocItem[] = []
@@ -238,11 +233,9 @@ export function SearchModal({
     return docsItems
   }, [])
 
-  // Combine all items into a single flattened list
   const allItems = useMemo((): SearchItem[] => {
     const items: SearchItem[] = []
 
-    // Add workspaces
     workspaces.forEach((workspace) => {
       items.push({
         id: workspace.id,
@@ -253,7 +246,6 @@ export function SearchModal({
       })
     })
 
-    // Add workflows
     workflows.forEach((workflow) => {
       items.push({
         id: workflow.id,
@@ -265,7 +257,6 @@ export function SearchModal({
       })
     })
 
-    // Add pages
     pages.forEach((page) => {
       items.push({
         id: page.id,
@@ -277,7 +268,6 @@ export function SearchModal({
       })
     })
 
-    // Add blocks
     blocks.forEach((block) => {
       items.push({
         id: block.id,
@@ -290,7 +280,6 @@ export function SearchModal({
       })
     })
 
-    // Add triggers
     triggers.forEach((trigger) => {
       items.push({
         id: trigger.id,
@@ -304,7 +293,6 @@ export function SearchModal({
       })
     })
 
-    // Add tools
     tools.forEach((tool) => {
       items.push({
         id: tool.id,
@@ -317,7 +305,6 @@ export function SearchModal({
       })
     })
 
-    // Add docs
     docs.forEach((doc) => {
       items.push({
         id: doc.id,
@@ -331,23 +318,84 @@ export function SearchModal({
     return items
   }, [workspaces, workflows, pages, blocks, triggers, tools, docs])
 
-  // Filter items based on search query
+  const sectionOrder = useMemo<SearchItem['type'][]>(
+    () => ['block', 'tool', 'trigger', 'workflow', 'workspace', 'page', 'doc'],
+    []
+  )
+
   const filteredItems = useMemo(() => {
-    if (!searchQuery.trim()) return allItems
-
-    const query = searchQuery.toLowerCase()
-    return allItems.filter(
-      (item) =>
-        item.name.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query)
+    const orderMap = sectionOrder.reduce<Record<SearchItem['type'], number>>(
+      (acc, type, index) => {
+        acc[type] = index
+        return acc
+      },
+      {} as Record<SearchItem['type'], number>
     )
-  }, [allItems, searchQuery])
 
-  // Reset selected index when filtered items change
-  useEffect(() => {
-    setSelectedIndex(0)
+    if (!searchQuery.trim()) {
+      return [...allItems].sort((a, b) => {
+        const aOrder = orderMap[a.type] ?? Number.MAX_SAFE_INTEGER
+        const bOrder = orderMap[b.type] ?? Number.MAX_SAFE_INTEGER
+        return aOrder - bOrder
+      })
+    }
+
+    const searchResults = searchItems(searchQuery, allItems)
+
+    return searchResults
+      .sort((a, b) => {
+        if (a.score !== b.score) {
+          return b.score - a.score
+        }
+
+        const aOrder = orderMap[a.item.type] ?? Number.MAX_SAFE_INTEGER
+        const bOrder = orderMap[b.item.type] ?? Number.MAX_SAFE_INTEGER
+        if (aOrder !== bOrder) {
+          return aOrder - bOrder
+        }
+
+        return a.item.name.localeCompare(b.item.name)
+      })
+      .map((result) => result.item)
+  }, [allItems, searchQuery, sectionOrder])
+
+  const groupedItems = useMemo(() => {
+    const groups: Record<string, SearchItem[]> = {
+      workspace: [],
+      workflow: [],
+      page: [],
+      trigger: [],
+      block: [],
+      tool: [],
+      doc: [],
+    }
+
+    filteredItems.forEach((item) => {
+      if (groups[item.type]) {
+        groups[item.type].push(item)
+      }
+    })
+
+    return groups
   }, [filteredItems])
 
-  // Clear search when modal closes
+  const displayedItemsInVisualOrder = useMemo(() => {
+    const visualOrder: SearchItem[] = []
+
+    sectionOrder.forEach((type) => {
+      const items = groupedItems[type] || []
+      items.forEach((item) => {
+        visualOrder.push(item)
+      })
+    })
+
+    return visualOrder
+  }, [groupedItems, sectionOrder])
+
+  useEffect(() => {
+    setSelectedIndex(0)
+  }, [displayedItemsInVisualOrder])
+
   useEffect(() => {
     if (!open) {
       setSearchQuery('')
@@ -355,7 +403,6 @@ export function SearchModal({
     }
   }, [open])
 
-  // Handle item selection
   const handleItemClick = useCallback(
     (item: SearchItem) => {
       switch (item.type) {
@@ -392,7 +439,6 @@ export function SearchModal({
     [router, onOpenChange]
   )
 
-  // Handle keyboard navigation
   useEffect(() => {
     if (!open) return
 
@@ -400,7 +446,7 @@ export function SearchModal({
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
-          setSelectedIndex((prev) => Math.min(prev + 1, filteredItems.length - 1))
+          setSelectedIndex((prev) => Math.min(prev + 1, displayedItemsInVisualOrder.length - 1))
           break
         case 'ArrowUp':
           e.preventDefault()
@@ -408,8 +454,8 @@ export function SearchModal({
           break
         case 'Enter':
           e.preventDefault()
-          if (filteredItems[selectedIndex]) {
-            handleItemClick(filteredItems[selectedIndex])
+          if (displayedItemsInVisualOrder[selectedIndex]) {
+            handleItemClick(displayedItemsInVisualOrder[selectedIndex])
           }
           break
         case 'Escape':
@@ -421,40 +467,20 @@ export function SearchModal({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, selectedIndex, filteredItems, handleItemClick, onOpenChange])
+  }, [open, selectedIndex, displayedItemsInVisualOrder, handleItemClick, onOpenChange])
 
-  // Scroll selected item into view
   useEffect(() => {
     if (open && selectedIndex >= 0) {
       const element = document.querySelector(`[data-search-item-index="${selectedIndex}"]`)
       if (element) {
-        element.scrollIntoView({ block: 'nearest' })
+        element.scrollIntoView({
+          block: 'nearest',
+          behavior: 'auto',
+        })
       }
     }
   }, [selectedIndex, open])
 
-  // Group items by type for sectioned display
-  const groupedItems = useMemo(() => {
-    const groups: Record<string, SearchItem[]> = {
-      workspace: [],
-      workflow: [],
-      page: [],
-      trigger: [],
-      block: [],
-      tool: [],
-      doc: [],
-    }
-
-    filteredItems.forEach((item) => {
-      if (groups[item.type]) {
-        groups[item.type].push(item)
-      }
-    })
-
-    return groups
-  }, [filteredItems])
-
-  // Section titles mapping
   const sectionTitles: Record<string, string> = {
     workspace: 'Workspaces',
     workflow: 'Workflows',
@@ -462,16 +488,13 @@ export function SearchModal({
     trigger: 'Triggers',
     block: 'Blocks',
     tool: 'Tools',
-    doc: 'Documentation',
+    doc: 'Docs',
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
-        <DialogOverlay
-          className='bg-white/80 dark:bg-[#1b1b1b]/90'
-          style={{ backdropFilter: 'blur(4px)' }}
-        />
+        <DialogPrimitive.Overlay className='fixed inset-0 z-40 backdrop-blur-md' />
         <DialogPrimitive.Content className='fixed top-[15%] left-[50%] z-50 flex w-[500px] translate-x-[-50%] flex-col gap-[12px] p-0 focus:outline-none focus-visible:outline-none'>
           <VisuallyHidden.Root>
             <DialogTitle>Search</DialogTitle>
@@ -479,21 +502,22 @@ export function SearchModal({
 
           {/* Search input container */}
           <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-5)] px-[12px] py-[8px] shadow-sm dark:border-[var(--border)] dark:bg-[var(--surface-5)]'>
-            <Search className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-subtle)] dark:text-[var(--text-subtle)]' />
+            <Search className='h-[15px] w-[15px] flex-shrink-0 text-[var(--text-subtle)] dark:text-[var(--text-subtle)]' />
             <input
               type='text'
               placeholder='Search anything...'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className='w-full border-0 bg-transparent font-base text-[18px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-secondary)]'
+              className='w-full border-0 bg-transparent font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-secondary)]'
               autoFocus
             />
           </div>
 
           {/* Floating results container */}
-          {filteredItems.length > 0 ? (
+          {displayedItemsInVisualOrder.length > 0 ? (
             <div className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto rounded-[10px] py-[10px] shadow-sm'>
-              {Object.entries(groupedItems).map(([type, items]) => {
+              {sectionOrder.map((type) => {
+                const items = groupedItems[type] || []
                 if (items.length === 0) return null
 
                 return (
@@ -507,8 +531,8 @@ export function SearchModal({
                     <div className='space-y-[2px]'>
                       {items.map((item, itemIndex) => {
                         const Icon = item.icon
-                        const globalIndex = filteredItems.indexOf(item)
-                        const isSelected = globalIndex === selectedIndex
+                        const visualIndex = displayedItemsInVisualOrder.indexOf(item)
+                        const isSelected = visualIndex === selectedIndex
                         const showColoredIcon =
                           item.type === 'block' || item.type === 'trigger' || item.type === 'tool'
                         const isWorkflow = item.type === 'workflow'
@@ -517,8 +541,9 @@ export function SearchModal({
                         return (
                           <button
                             key={`${item.type}-${item.id}`}
-                            data-search-item-index={globalIndex}
+                            data-search-item-index={visualIndex}
                             onClick={() => handleItemClick(item)}
+                            onMouseDown={(e) => e.preventDefault()}
                             className={cn(
                               'group flex h-[28px] w-full items-center gap-[8px] rounded-[6px] bg-[var(--surface-4)]/60 px-[10px] text-left text-[15px] transition-all focus:outline-none dark:bg-[var(--surface-4)]/60',
                               isSelected

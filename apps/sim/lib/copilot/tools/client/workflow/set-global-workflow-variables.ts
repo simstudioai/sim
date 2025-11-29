@@ -48,6 +48,38 @@ export class SetGlobalWorkflowVariablesClientTool extends BaseClientTool {
       accept: { text: 'Apply', icon: Settings2 },
       reject: { text: 'Skip', icon: XCircle },
     },
+    getDynamicText: (params, state) => {
+      if (params?.operations && Array.isArray(params.operations)) {
+        const varNames = params.operations
+          .slice(0, 2)
+          .map((op: any) => op.name)
+          .filter(Boolean)
+
+        if (varNames.length > 0) {
+          const varList = varNames.join(', ')
+          const more = params.operations.length > 2 ? '...' : ''
+          const displayText = `${varList}${more}`
+
+          switch (state) {
+            case ClientToolCallState.success:
+              return `Set ${displayText}`
+            case ClientToolCallState.executing:
+              return `Setting ${displayText}`
+            case ClientToolCallState.generating:
+              return `Preparing to set ${displayText}`
+            case ClientToolCallState.pending:
+              return `Set ${displayText}?`
+            case ClientToolCallState.error:
+              return `Failed to set ${displayText}`
+            case ClientToolCallState.aborted:
+              return `Aborted setting ${displayText}`
+            case ClientToolCallState.rejected:
+              return `Skipped setting ${displayText}`
+          }
+        }
+      }
+      return undefined
+    },
   }
 
   async handleReject(): Promise<void> {

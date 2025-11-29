@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { v4 as uuidv4 } from 'uuid'
-import { shallow } from 'zustand/shallow'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
@@ -10,7 +10,9 @@ import {
   triggerNeedsMockPayload,
 } from '@/lib/workflows/trigger-utils'
 import { resolveStartCandidates, StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
+import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
+import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -21,7 +23,6 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useCurrentWorkflow } from './use-current-workflow'
 
 const logger = createLogger('useWorkflowExecution')
 
@@ -84,8 +85,9 @@ function extractExecutionResult(error: unknown): ExecutionResult | null {
 export function useWorkflowExecution() {
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
+  const queryClient = useQueryClient()
   const { toggleConsole, addConsole } = useTerminalConsoleStore()
-  const { getAllVariables, loadWorkspaceEnvironment } = useEnvironmentStore()
+  const { getAllVariables } = useEnvironmentStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
   const {
     isExecuting,
@@ -99,29 +101,12 @@ export function useWorkflowExecution() {
     setExecutor,
     setDebugContext,
     setActiveBlocks,
+    setBlockRunStatus,
+    setEdgeRunStatus,
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const executionStream = useExecutionStream()
-  const {
-    diffWorkflow: executionDiffWorkflow,
-    isDiffReady: isDiffWorkflowReady,
-    isShowingDiff: isViewingDiff,
-  } = useWorkflowDiffStore(
-    useCallback(
-      (state) => ({
-        diffWorkflow: state.diffWorkflow,
-        isDiffReady: state.isDiffReady,
-        isShowingDiff: state.isShowingDiff,
-      }),
-      []
-    ),
-    shallow
-  )
-  const hasActiveDiffWorkflow =
-    isDiffWorkflowReady &&
-    isViewingDiff &&
-    !!executionDiffWorkflow &&
-    Object.keys(executionDiffWorkflow.blocks || {}).length > 0
+  const isViewingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
 
   /**
    * Validates debug state before performing debug operations
@@ -414,7 +399,7 @@ export function useWorkflowExecution() {
                 if (!streamingExecution.stream) return
                 const reader = streamingExecution.stream.getReader()
                 const blockId = (streamingExecution.execution as any)?.blockId
-                const streamStartTime = Date.now()
+
                 let isFirstChunk = true
 
                 if (blockId) {
@@ -575,6 +560,10 @@ export function useWorkflowExecution() {
                   logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
                 }
 
+                // Invalidate subscription query to update usage
+                queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+                queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
+
                 const { encodeSSE } = await import('@/lib/utils')
                 controller.enqueue(encodeSSE({ event: 'final', data: result }))
                 // Note: Logs are already persisted server-side via execution-core.ts
@@ -637,6 +626,10 @@ export function useWorkflowExecution() {
             }
             ;(result.metadata as any).source = 'chat'
           }
+
+          // Invalidate subscription query to update usage
+          queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+          queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
         }
         return result
       } catch (error: any) {
@@ -650,7 +643,6 @@ export function useWorkflowExecution() {
       currentWorkflow,
       toggleConsole,
       getAllVariables,
-      loadWorkspaceEnvironment,
       getVariablesByWorkflowId,
       setIsExecuting,
       setIsDebugging,
@@ -669,9 +661,13 @@ export function useWorkflowExecution() {
     overrideTriggerType?: 'chat' | 'manual' | 'api'
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use diff workflow for execution when available, regardless of canvas view state
-    const executionWorkflowState =
-      hasActiveDiffWorkflow && executionDiffWorkflow ? executionDiffWorkflow : null
-    const usingDiffForExecution = executionWorkflowState !== null
+    const executionWorkflowState = null as {
+      blocks?: any
+      edges?: any
+      loops?: any
+      parallels?: any
+    } | null
+    const usingDiffForExecution = false
 
     // Read blocks and edges directly from store to ensure we get the latest state,
     // even if React hasn't re-rendered yet after adding blocks/edges
@@ -681,10 +677,10 @@ export function useWorkflowExecution() {
     const workflowEdges = (executionWorkflowState?.edges ??
       latestWorkflowState.edges) as typeof currentWorkflow.edges
 
-    // Filter out blocks without type (these are layout-only blocks)
+    // Filter out blocks without type (these are layout-only blocks) and disabled blocks
     const validBlocks = Object.entries(workflowBlocks).reduce(
       (acc, [blockId, block]) => {
-        if (block?.type) {
+        if (block?.type && block.enabled !== false) {
           acc[blockId] = block
         }
         return acc
@@ -724,11 +720,16 @@ export function useWorkflowExecution() {
       }
     })
 
-    // Do not filter out trigger blocks; executor may need to start from them
+    // Filter out blocks without type and disabled blocks
     const filteredStates = Object.entries(mergedStates).reduce(
       (acc, [id, block]) => {
         if (!block || !block.type) {
           logger.warn(`Skipping block with undefined type: ${id}`, block)
+          return acc
+        }
+        // Skip disabled blocks to prevent them from being passed to executor
+        if (block.enabled === false) {
+          logger.warn(`Skipping disabled block: ${id}`)
           return acc
         }
         acc[id] = block
@@ -892,6 +893,12 @@ export function useWorkflowExecution() {
               activeBlocksSet.add(data.blockId)
               // Create a new Set to trigger React re-render
               setActiveBlocks(new Set(activeBlocksSet))
+
+              // Track edges that led to this block as soon as execution starts
+              const incomingEdges = workflowEdges.filter((edge) => edge.target === data.blockId)
+              incomingEdges.forEach((edge) => {
+                setEdgeRunStatus(edge.id, 'success')
+              })
             },
 
             onBlockCompleted: (data) => {
@@ -900,6 +907,11 @@ export function useWorkflowExecution() {
               activeBlocksSet.delete(data.blockId)
               // Create a new Set to trigger React re-render
               setActiveBlocks(new Set(activeBlocksSet))
+
+              // Track successful block execution in run path
+              setBlockRunStatus(data.blockId, 'success')
+
+              // Edges already tracked in onBlockStarted, no need to track again
 
               // Add to console
               addConsole({
@@ -933,6 +945,8 @@ export function useWorkflowExecution() {
               // Create a new Set to trigger React re-render
               setActiveBlocks(new Set(activeBlocksSet))
 
+              // Track failed block execution in run path
+              setBlockRunStatus(data.blockId, 'error')
               // Add error to console
               addConsole({
                 input: data.input || {},

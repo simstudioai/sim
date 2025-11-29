@@ -1,13 +1,22 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { AlertCircle, Plus, Search } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Label } from '@/components/emcn'
-import { Alert, AlertDescription, Input, Skeleton } from '@/components/ui'
+import {
+  Button,
+  Label,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/emcn'
+import { Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
-import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
+import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
 const logger = createLogger('CustomToolsSettings')
 
@@ -32,25 +41,17 @@ function CustomToolSkeleton() {
 export function CustomTools() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { tools, isLoading, error, fetchTools, deleteTool, clearError } = useCustomToolsStore()
+
+  // React Query hooks
+  const { data: tools = [], isLoading, error, refetch: refetchTools } = useCustomTools(workspaceId)
+  const deleteToolMutation = useDeleteCustomTool()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [deletingTools, setDeletingTools] = useState<Set<string>>(new Set())
   const [editingTool, setEditingTool] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
-
-  useEffect(() => {
-    if (workspaceId) {
-      fetchTools(workspaceId)
-    }
-  }, [workspaceId, fetchTools])
-
-  // Clear store errors when modal opens (errors should show in modal, not in settings)
-  useEffect(() => {
-    if (showAddForm || editingTool) {
-      clearError()
-    }
-  }, [showAddForm, editingTool, clearError])
+  const [toolToDelete, setToolToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   const filteredTools = tools.filter((tool) => {
     if (!searchTerm.trim()) return true
@@ -62,51 +63,54 @@ export function CustomTools() {
     )
   })
 
-  const handleDeleteTool = async (toolId: string) => {
+  const handleDeleteClick = (toolId: string) => {
     const tool = tools.find((t) => t.id === toolId)
     if (!tool) return
 
-    setDeletingTools((prev) => new Set(prev).add(toolId))
+    setToolToDelete({
+      id: toolId,
+      name: tool.title || tool.schema?.function?.name || 'this custom tool',
+    })
+    setShowDeleteDialog(true)
+  }
+
+  const handleDeleteTool = async () => {
+    if (!toolToDelete) return
+
+    const tool = tools.find((t) => t.id === toolToDelete.id)
+    if (!tool) return
+
+    setDeletingTools((prev) => new Set(prev).add(toolToDelete.id))
+    setShowDeleteDialog(false)
+
     try {
-      // Pass null workspaceId for user-scoped tools (legacy tools without workspaceId)
-      await deleteTool(tool.workspaceId ?? null, toolId)
-      logger.info(`Deleted custom tool: ${toolId}`)
-      // Silently refresh the list - no toast notification
-      if (workspaceId) {
-        await fetchTools(workspaceId)
-      }
+      await deleteToolMutation.mutateAsync({
+        workspaceId: tool.workspaceId ?? null,
+        toolId: toolToDelete.id,
+      })
+      logger.info(`Deleted custom tool: ${toolToDelete.id}`)
     } catch (error) {
       logger.error('Error deleting custom tool:', error)
-      // Silently handle error - no toast notification
     } finally {
       setDeletingTools((prev) => {
         const next = new Set(prev)
-        next.delete(toolId)
+        next.delete(toolToDelete.id)
         return next
       })
+      setToolToDelete(null)
     }
   }
 
   const handleToolSaved = () => {
     setShowAddForm(false)
     setEditingTool(null)
-    if (workspaceId) {
-      fetchTools(workspaceId)
-    }
+    refetchTools()
   }
 
   return (
     <div className='relative flex h-full flex-col'>
       {/* Fixed Header with Search */}
       <div className='px-6 pt-4 pb-2'>
-        {/* Error Alert - only show when modal is not open */}
-        {error && !showAddForm && !editingTool && (
-          <Alert variant='destructive' className='mb-4'>
-            <AlertCircle className='h-4 w-4' />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
         {/* Search Input */}
         {isLoading ? (
           <Skeleton className='h-9 w-56 rounded-[8px]' />
@@ -131,6 +135,12 @@ export function CustomTools() {
               <CustomToolSkeleton />
               <CustomToolSkeleton />
               <CustomToolSkeleton />
+            </div>
+          ) : error ? (
+            <div className='flex h-full flex-col items-center justify-center gap-2'>
+              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                {error instanceof Error ? error.message : 'Failed to load tools'}
+              </p>
             </div>
           ) : tools.length === 0 && !showAddForm && !editingTool ? (
             <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
@@ -167,7 +177,7 @@ export function CustomTools() {
                         </Button>
                         <Button
                           variant='ghost'
-                          onClick={() => handleDeleteTool(tool.id)}
+                          onClick={() => handleDeleteClick(tool.id)}
                           disabled={deletingTools.has(tool.id)}
                           className='h-8'
                         >
@@ -229,8 +239,53 @@ export function CustomTools() {
         onSave={handleToolSaved}
         onDelete={() => {}}
         blockId=''
-        initialValues={editingTool ? tools.find((t) => t.id === editingTool) : undefined}
+        initialValues={
+          editingTool
+            ? (() => {
+                const tool = tools.find((t) => t.id === editingTool)
+                return tool?.schema
+                  ? { id: tool.id, schema: tool.schema, code: tool.code }
+                  : undefined
+              })()
+            : undefined
+        }
       />
+
+      {/* Delete Confirmation Dialog */}
+      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>Delete custom tool?</ModalTitle>
+            <ModalDescription>
+              Deleting "{toolToDelete?.name}" will permanently remove this custom tool from your
+              workspace.{' '}
+              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                This action cannot be undone.
+              </span>
+            </ModalDescription>
+          </ModalHeader>
+          <ModalFooter>
+            <Button
+              className='h-[32px] px-[12px]'
+              variant='outline'
+              onClick={() => {
+                setShowDeleteDialog(false)
+                setToolToDelete(null)
+              }}
+              disabled={deleteToolMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              onClick={handleDeleteTool}
+              disabled={deleteToolMutation.isPending}
+            >
+              {deleteToolMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   )
 }

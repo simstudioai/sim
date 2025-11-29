@@ -1,8 +1,14 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { createLogger } from '@/lib/logs/console/logger'
 import { redactApiKeys } from '@/lib/utils'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from './types'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useNotificationStore } from '@/stores/notifications'
+import { useGeneralStore } from '@/stores/settings/general/store'
+import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from '@/stores/terminal/console/types'
+
+const logger = createLogger('TerminalConsoleStore')
 
 /**
  * Updates a NormalizedBlockOutput with new content
@@ -94,21 +100,52 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
             return { entries: [newEntry, ...state.entries] }
           })
 
-          return get().entries[0]
+          const newEntry = get().entries[0]
+
+          // Surface error notifications immediately when error entries are added
+          // Only show if error notifications are enabled in settings
+          if (newEntry?.error) {
+            const { isErrorNotificationsEnabled } = useGeneralStore.getState()
+
+            if (isErrorNotificationsEnabled) {
+              try {
+                const errorMessage = String(newEntry.error)
+
+                useNotificationStore.getState().addNotification({
+                  level: 'error',
+                  message: errorMessage,
+                  workflowId: entry.workflowId,
+                  action: {
+                    type: 'copilot',
+                    message: errorMessage,
+                  },
+                })
+              } catch (notificationError) {
+                logger.error('Failed to create block error notification', {
+                  entryId: newEntry.id,
+                  error: notificationError,
+                })
+              }
+            }
+          }
+
+          return newEntry
         },
 
         /**
-         * Clears console entries for a specific workflow
+         * Clears console entries for a specific workflow and clears the run path
          * @param workflowId - The workflow ID to clear entries for
          */
         clearWorkflowConsole: (workflowId: string) => {
           set((state) => ({
             entries: state.entries.filter((entry) => entry.workflowId !== workflowId),
           }))
+          // Clear run path indicators when console is cleared
+          useExecutionStore.getState().clearRunPath()
         },
 
         /**
-         * Clears all console entries or entries for a specific workflow
+         * Clears all console entries or entries for a specific workflow and clears the run path
          * @param workflowId - The workflow ID to clear entries for, or null to clear all
          * @deprecated Use clearWorkflowConsole for clearing specific workflows
          */
@@ -118,6 +155,8 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               ? state.entries.filter((entry) => entry.workflowId !== workflowId)
               : [],
           }))
+          // Clear run path indicators when console is cleared
+          useExecutionStore.getState().clearRunPath()
         },
 
         exportConsoleCSV: (workflowId: string) => {

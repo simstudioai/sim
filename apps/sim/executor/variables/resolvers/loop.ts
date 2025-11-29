@@ -1,7 +1,11 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
 import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
-import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
+import {
+  navigatePath,
+  type ResolutionContext,
+  type Resolver,
+} from '@/executor/variables/resolvers/reference'
 import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('LoopResolver')
@@ -28,7 +32,7 @@ export class LoopResolver implements Resolver {
       return undefined
     }
 
-    const [_, property] = parts
+    const [_, property, ...pathParts] = parts
     let loopScope = context.loopScope
 
     if (!loopScope) {
@@ -43,19 +47,31 @@ export class LoopResolver implements Resolver {
       logger.warn('Loop scope not found', { reference })
       return undefined
     }
+
+    let value: any
     switch (property) {
       case 'iteration':
       case 'index':
-        return loopScope.iteration
+        value = loopScope.iteration
+        break
       case 'item':
       case 'currentItem':
-        return loopScope.item
+        value = loopScope.item
+        break
       case 'items':
-        return loopScope.items
+        value = loopScope.items
+        break
       default:
         logger.warn('Unknown loop property', { property })
         return undefined
     }
+
+    // If there are additional path parts, navigate deeper
+    if (pathParts.length > 0) {
+      return navigatePath(value, pathParts)
+    }
+
+    return value
   }
 
   private findLoopForBlock(blockId: string): string | undefined {

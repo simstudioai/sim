@@ -87,7 +87,16 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
   },
 
   outputs: {
+    message: {
+      type: 'object',
+      description: 'Complete message object with all properties returned by Slack',
+    },
+    // Legacy properties for backward compatibility
     ts: { type: 'string', description: 'Message timestamp' },
     channel: { type: 'string', description: 'Channel ID where message was sent' },
+    fileCount: {
+      type: 'number',
+      description: 'Number of files uploaded (when files are attached)',
+    },
   },
 }

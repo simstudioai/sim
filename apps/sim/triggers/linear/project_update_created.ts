@@ -1,6 +1,6 @@
 import { LinearIcon } from '@/components/icons'
+import { buildProjectUpdateOutputs, linearSetupInstructions } from '@/triggers/linear/utils'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildProjectUpdateOutputs, linearSetupInstructions } from './utils'
 
 export const linearProjectUpdateCreatedTrigger: TriggerConfig = {
   id: 'linear_project_update_created',

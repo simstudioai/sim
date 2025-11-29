@@ -1,10 +1,11 @@
 import { useCallback, useMemo } from 'react'
-import { cn } from '@/lib/utils'
-import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
+import { useBlockState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks'
+import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
+import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import { getBlockRingStyles } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-ring-utils'
+import { useExecutionStore } from '@/stores/execution/store'
+import { usePanelEditorStore } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useBlockState } from '../components/workflow-block/hooks'
-import type { WorkflowBlockProps } from '../components/workflow-block/types'
-import { useCurrentWorkflow } from './use-current-workflow'
 
 interface UseBlockCoreOptions {
   blockId: string
@@ -28,6 +29,10 @@ export function useBlockCore({ blockId, data, isPending = false }: UseBlockCoreO
     data
   )
 
+  // Run path state (from last execution)
+  const lastRunPath = useExecutionStore((state) => state.lastRunPath)
+  const runPathStatus = lastRunPath.get(blockId)
+
   // Focus management
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
@@ -38,27 +43,19 @@ export function useBlockCore({ blockId, data, isPending = false }: UseBlockCoreO
   }, [blockId, setCurrentBlockId])
 
   // Ring styling based on all states
-  const { hasRing, ringStyles } = useMemo(() => {
-    const hasRing =
-      isActive ||
-      isPending ||
-      isFocused ||
-      diffStatus === 'new' ||
-      diffStatus === 'edited' ||
-      isDeletedBlock
-
-    const ringStyles = cn(
-      hasRing && 'ring-[1.75px]',
-      isActive && 'ring-[#8C10FF] animate-pulse-ring',
-      isPending && 'ring-[var(--warning)]',
-      isFocused && 'ring-[var(--brand-secondary)]',
-      diffStatus === 'new' && 'ring-[#22C55F]',
-      diffStatus === 'edited' && 'ring-[var(--warning)]',
-      isDeletedBlock && 'ring-[var(--text-error)]'
-    )
-
-    return { hasRing, ringStyles }
-  }, [isActive, isPending, isFocused, diffStatus, isDeletedBlock])
+  // Priority: active (executing) > pending > focused > deleted > diff > run path
+  const { hasRing, ringClassName: ringStyles } = useMemo(
+    () =>
+      getBlockRingStyles({
+        isActive,
+        isPending,
+        isFocused,
+        isDeletedBlock,
+        diffStatus,
+        runPathStatus,
+      }),
+    [isActive, isPending, isFocused, isDeletedBlock, diffStatus, runPathStatus]
+  )
 
   return {
     // Workflow context
@@ -78,5 +75,6 @@ export function useBlockCore({ blockId, data, isPending = false }: UseBlockCoreO
     // Ring styling
     hasRing,
     ringStyles,
+    runPathStatus,
   }
 }

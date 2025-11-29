@@ -1,9 +1,9 @@
 'use client'
 
 import { isHosted } from '@/lib/environment'
+import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import Footer from '@/app/(landing)/components/footer/footer'
 import Nav from '@/app/(landing)/components/nav/nav'
-import { soehne } from '@/app/fonts/soehne/soehne'
 
 interface LegalLayoutProps {
   title: string

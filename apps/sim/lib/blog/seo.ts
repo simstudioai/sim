@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import type { BlogMeta } from './schema'
+import type { BlogMeta } from '@/lib/blog/schema'
 
 export function buildPostMetadata(post: BlogMeta): Metadata {
   const base = new URL(post.canonical)

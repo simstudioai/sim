@@ -91,6 +91,14 @@ export const linearListAttachmentsTool: ToolConfig<
       }
     }
 
+    if (!data.data?.issue) {
+      return {
+        success: false,
+        error: 'Issue not found',
+        output: {},
+      }
+    }
+
     const result = data.data.issue.attachments
     return {
       success: true,

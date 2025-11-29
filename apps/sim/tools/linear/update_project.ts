@@ -50,19 +50,19 @@ export const linearUpdateProjectTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Project start date (ISO format)',
+      description: 'Project start date (ISO format: YYYY-MM-DD)',
     },
     targetDate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Project target date (ISO format)',
+      description: 'Project target date (ISO format: YYYY-MM-DD)',
     },
     priority: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Project priority (0-4)',
+      description: 'Project priority (0=No priority, 1=Urgent, 2=High, 3=Normal, 4=Low)',
     },
   },
 
@@ -81,13 +81,27 @@ export const linearUpdateProjectTool: ToolConfig<
     body: (params) => {
       const input: Record<string, any> = {}
 
-      if (params.name !== undefined) input.name = params.name
-      if (params.description !== undefined) input.description = params.description
-      if (params.state !== undefined) input.state = params.state
-      if (params.leadId !== undefined) input.leadId = params.leadId
-      if (params.startDate !== undefined) input.startDate = params.startDate
-      if (params.targetDate !== undefined) input.targetDate = params.targetDate
-      if (params.priority !== undefined) input.priority = Number(params.priority)
+      if (params.name != null && params.name !== '') {
+        input.name = params.name
+      }
+      if (params.description != null && params.description !== '') {
+        input.description = params.description
+      }
+      if (params.state != null && params.state !== '') {
+        input.state = params.state
+      }
+      if (params.leadId != null && params.leadId !== '') {
+        input.leadId = params.leadId
+      }
+      if (params.startDate != null && params.startDate !== '') {
+        input.startDate = params.startDate
+      }
+      if (params.targetDate != null && params.targetDate !== '') {
+        input.targetDate = params.targetDate
+      }
+      if (params.priority != null) {
+        input.priority = Number(params.priority)
+      }
 
       return {
         query: `
@@ -175,6 +189,8 @@ export const linearUpdateProjectTool: ToolConfig<
         description: { type: 'string', description: 'Project description' },
         state: { type: 'string', description: 'Project state' },
         priority: { type: 'number', description: 'Project priority' },
+        startDate: { type: 'string', description: 'Project start date' },
+        targetDate: { type: 'string', description: 'Project target date' },
         lead: { type: 'object', description: 'Project lead' },
         teams: { type: 'array', description: 'Associated teams' },
       },

@@ -1,17 +1,15 @@
 import { useCallback } from 'react'
 import { useReactFlow } from 'reactflow'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/blocks/block-dimensions'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('NodeUtilities')
-
-const DEFAULT_CONTAINER_WIDTH = 500
-const DEFAULT_CONTAINER_HEIGHT = 300
 
 /**
  * Hook providing utilities for node position, hierarchy, and dimension calculations
  */
 export function useNodeUtilities(blocks: Record<string, any>) {
-  const { getNodes, project } = useReactFlow()
+  const { getNodes } = useReactFlow()
 
   /**
    * Check if a block is a container type (loop, parallel, or subflow)
@@ -27,40 +25,43 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   const getBlockDimensions = useCallback(
     (blockId: string): { width: number; height: number } => {
       const block = blocks[blockId]
-      if (!block) return { width: 250, height: 100 }
+      if (!block) {
+        return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: BLOCK_DIMENSIONS.MIN_HEIGHT }
+      }
 
       if (isContainerType(block.type)) {
         return {
-          width: block.data?.width ? Math.max(block.data.width, 400) : DEFAULT_CONTAINER_WIDTH,
-          height: block.data?.height ? Math.max(block.data.height, 200) : DEFAULT_CONTAINER_HEIGHT,
+          width: block.data?.width
+            ? Math.max(block.data.width, CONTAINER_DIMENSIONS.MIN_WIDTH)
+            : CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+          height: block.data?.height
+            ? Math.max(block.data.height, CONTAINER_DIMENSIONS.MIN_HEIGHT)
+            : CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
         }
       }
 
       // Workflow block nodes have fixed visual width
-      const width = 250
+      const width = BLOCK_DIMENSIONS.FIXED_WIDTH
 
       // Prefer deterministic height published by the block component; fallback to estimate
       let height = block.height
 
       if (!height) {
         // Estimate height for workflow blocks before ResizeObserver measures them
-        // Block structure: header (40px) + content area with subblocks
+        // Block structure: header + content area with subblocks
         // Each subblock row is approximately 29px (14px text + 8px gap + padding)
-        const headerHeight = 40
-        const subblockRowHeight = 29
-        const contentPadding = 16 // p-[8px] top and bottom = 16px total
-
-        // Estimate number of visible subblock rows
-        // This is a rough estimate - actual rendering may vary
         const estimatedRows = 3 // Conservative estimate for typical blocks
         const hasErrorRow = block.type !== 'starter' && block.type !== 'response' ? 1 : 0
 
-        height = headerHeight + contentPadding + (estimatedRows + hasErrorRow) * subblockRowHeight
+        height =
+          BLOCK_DIMENSIONS.HEADER_HEIGHT +
+          BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
+          (estimatedRows + hasErrorRow) * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT
       }
 
       return {
         width,
-        height: Math.max(height, 100),
+        height: Math.max(height, BLOCK_DIMENSIONS.MIN_HEIGHT),
       }
     },
     [blocks, isContainerType]
@@ -205,9 +206,9 @@ export function useNodeUtilities(blocks: Record<string, any>) {
           const absolutePos = getNodeAbsolutePosition(n.id)
           const rect = {
             left: absolutePos.x,
-            right: absolutePos.x + (n.data?.width || DEFAULT_CONTAINER_WIDTH),
+            right: absolutePos.x + (n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
             top: absolutePos.y,
-            bottom: absolutePos.y + (n.data?.height || DEFAULT_CONTAINER_HEIGHT),
+            bottom: absolutePos.y + (n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
           }
 
           return (
@@ -222,8 +223,8 @@ export function useNodeUtilities(blocks: Record<string, any>) {
           // Return absolute position so callers can compute relative placement correctly
           loopPosition: getNodeAbsolutePosition(n.id),
           dimensions: {
-            width: n.data?.width || DEFAULT_CONTAINER_WIDTH,
-            height: n.data?.height || DEFAULT_CONTAINER_HEIGHT,
+            width: n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+            height: n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
           },
         }))
 
@@ -247,8 +248,8 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    */
   const calculateLoopDimensions = useCallback(
     (nodeId: string): { width: number; height: number } => {
-      const minWidth = DEFAULT_CONTAINER_WIDTH
-      const minHeight = DEFAULT_CONTAINER_HEIGHT
+      const minWidth = CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+      const minHeight = CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
 
       // Match styling in subflow-node.tsx:
       // - Header section: 50px total height

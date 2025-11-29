@@ -3,8 +3,14 @@
 import { useRef, useState } from 'react'
 import { AlertCircle, Check, Loader2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Button,
+  Modal,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -149,11 +155,11 @@ export function UploadModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className='flex max-h-[95vh] flex-col overflow-hidden sm:max-w-[600px]'>
-        <DialogHeader>
-          <DialogTitle>Upload Documents</DialogTitle>
-        </DialogHeader>
+    <Modal open={open} onOpenChange={handleClose}>
+      <ModalContent className='flex max-h-[95vh] flex-col overflow-hidden sm:max-w-[600px]'>
+        <ModalHeader>
+          <ModalTitle>Upload Documents</ModalTitle>
+        </ModalHeader>
 
         <div className='flex-1 space-y-6 overflow-auto'>
           {/* File Upload Section */}
@@ -253,7 +259,6 @@ export function UploadModal({
                           <Button
                             type='button'
                             variant='ghost'
-                            size='sm'
                             onClick={() => removeFile(index)}
                             disabled={isUploading}
                             className='h-8 w-8 p-0 text-muted-foreground hover:text-destructive'
@@ -286,29 +291,31 @@ export function UploadModal({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className='flex justify-between border-t pt-4'>
-          <div className='flex gap-3' />
-          <div className='flex gap-3'>
-            <Button variant='outline' onClick={handleClose} disabled={isUploading}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={files.length === 0 || isUploading}
-              className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
-            >
-              {isUploading
-                ? uploadProgress.stage === 'uploading'
-                  ? `Uploading ${uploadProgress.filesCompleted + 1}/${uploadProgress.totalFiles}...`
-                  : uploadProgress.stage === 'processing'
-                    ? 'Processing...'
-                    : 'Uploading...'
-                : `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        <ModalFooter>
+          <Button
+            variant='outline'
+            onClick={handleClose}
+            disabled={isUploading}
+            className='h-[32px] px-[12px]'
+          >
+            Cancel
+          </Button>
+          <Button
+            variant='primary'
+            onClick={handleUpload}
+            disabled={files.length === 0 || isUploading}
+            className='h-[32px] px-[12px]'
+          >
+            {isUploading
+              ? uploadProgress.stage === 'uploading'
+                ? `Uploading ${uploadProgress.filesCompleted + 1}/${uploadProgress.totalFiles}...`
+                : uploadProgress.stage === 'processing'
+                  ? 'Processing...'
+                  : 'Uploading...'
+              : `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`}
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   )
 }

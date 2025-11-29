@@ -9,11 +9,7 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import {
-  prepareToolExecution,
-  prepareToolsWithUsageControl,
-  trackForcedToolUsage,
-} from '@/providers/utils'
+import { prepareToolExecution } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import { executeTool } from '@/tools'
 
@@ -78,13 +74,13 @@ export const ollamaProvider: ProviderConfig = {
     try {
       const response = await fetch(`${OLLAMA_HOST}/api/tags`)
       if (!response.ok) {
-        useProvidersStore.getState().setModels('ollama', [])
+        useProvidersStore.getState().setProviderModels('ollama', [])
         logger.warn('Ollama service is not available. The provider will be disabled.')
         return
       }
       const data = (await response.json()) as ModelsObject
       this.models = data.models.map((model) => model.name)
-      useProvidersStore.getState().setModels('ollama', this.models)
+      useProvidersStore.getState().setProviderModels('ollama', this.models)
     } catch (error) {
       logger.warn('Ollama model instantiation failed. The provider will be disabled.', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -173,20 +169,42 @@ export const ollamaProvider: ProviderConfig = {
     }
 
     // Handle tools and tool usage control
-    let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
-
+    // NOTE: Ollama does NOT support the tool_choice parameter beyond basic 'auto' behavior
+    // According to official documentation, tool_choice is silently ignored
+    // Ollama only supports basic function calling where the model autonomously decides
     if (tools?.length) {
-      preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'ollama')
-      const { tools: filteredTools, toolChoice } = preparedTools
+      // Filter out tools with usageControl='none'
+      // Treat 'force' as 'auto' since Ollama doesn't support forced tool selection
+      const filteredTools = tools.filter((tool) => {
+        const toolId = tool.function?.name
+        const toolConfig = request.tools?.find((t) => t.id === toolId)
+        // Only filter out 'none', treat 'force' as 'auto'
+        return toolConfig?.usageControl !== 'none'
+      })
 
-      if (filteredTools?.length && toolChoice) {
+      // Check if any tools were forcibly marked
+      const hasForcedTools = tools.some((tool) => {
+        const toolId = tool.function?.name
+        const toolConfig = request.tools?.find((t) => t.id === toolId)
+        return toolConfig?.usageControl === 'force'
+      })
+
+      if (hasForcedTools) {
+        logger.warn(
+          'Ollama does not support forced tool selection (tool_choice parameter is ignored). ' +
+            'Tools marked with usageControl="force" will behave as "auto" instead.'
+        )
+      }
+
+      if (filteredTools?.length) {
         payload.tools = filteredTools
-        // Ollama supports 'auto' but not forced tool selection - convert 'force' to 'auto'
-        payload.tool_choice = typeof toolChoice === 'string' ? toolChoice : 'auto'
+        // Ollama only supports 'auto' behavior - model decides whether to use tools
+        payload.tool_choice = 'auto'
 
         logger.info('Ollama request configuration:', {
           toolCount: filteredTools.length,
-          toolChoice: payload.tool_choice,
+          toolChoice: 'auto', // Ollama always uses auto
+          forcedToolsIgnored: hasForcedTools,
           model: request.model,
         })
       }
@@ -295,33 +313,6 @@ export const ollamaProvider: ProviderConfig = {
       // Make the initial API request
       const initialCallTime = Date.now()
 
-      // Track the original tool_choice for forced tool tracking
-      const originalToolChoice = payload.tool_choice
-
-      // Track forced tools and their usage
-      const forcedTools = preparedTools?.forcedTools || []
-      let usedForcedTools: string[] = []
-
-      // Helper function to check for forced tool usage in responses
-      const checkForForcedToolUsage = (
-        response: any,
-        toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
-      ) => {
-        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-          const toolCallsResponse = response.choices[0].message.tool_calls
-          const result = trackForcedToolUsage(
-            toolCallsResponse,
-            toolChoice,
-            logger,
-            'ollama',
-            forcedTools,
-            usedForcedTools
-          )
-          hasUsedForcedTool = result.hasUsedForcedTool
-          usedForcedTools = result.usedForcedTools
-        }
-      }
-
       let currentResponse = await ollama.chat.completions.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
 
@@ -349,9 +340,6 @@ export const ollamaProvider: ProviderConfig = {
       let modelTime = firstResponseTime
       let toolsTime = 0
 
-      // Track if a forced tool has been used
-      let hasUsedForcedTool = false
-
       // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
@@ -362,9 +350,6 @@ export const ollamaProvider: ProviderConfig = {
           duration: firstResponseTime,
         },
       ]
-
-      // Check if a forced tool was used in the first response
-      checkForForcedToolUsage(currentResponse, originalToolChoice)
 
       while (iterationCount < MAX_ITERATIONS) {
         // Check for tool calls
@@ -470,30 +455,11 @@ export const ollamaProvider: ProviderConfig = {
           messages: currentMessages,
         }
 
-        // Update tool_choice based on which forced tools have been used
-        if (typeof originalToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
-          // If we have remaining forced tools, get the next one to force
-          const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
-
-          if (remainingTools.length > 0) {
-            // Ollama doesn't support forced tool selection, so we keep using 'auto'
-            nextPayload.tool_choice = 'auto'
-            logger.info(`Ollama doesn't support forced tools, using auto for: ${remainingTools[0]}`)
-          } else {
-            // All forced tools have been used, continue with auto
-            nextPayload.tool_choice = 'auto'
-            logger.info('All forced tools have been used, continuing with auto tool_choice')
-          }
-        }
-
         // Time the next model call
         const nextModelStartTime = Date.now()
 
         // Make the next request
         currentResponse = await ollama.chat.completions.create(nextPayload)
-
-        // Check if any forced tools were used in this response
-        checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
 
         const nextModelEndTime = Date.now()
         const thisModelTime = nextModelEndTime - nextModelStartTime
@@ -529,8 +495,8 @@ export const ollamaProvider: ProviderConfig = {
       }
 
       // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
-      if (request.stream && iterationCount > 0) {
-        logger.info('Using streaming for final response after tool calls')
+      if (request.stream) {
+        logger.info('Using streaming for final response after tool processing')
 
         const streamingPayload = {
           ...payload,

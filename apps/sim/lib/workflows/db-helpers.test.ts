@@ -124,6 +124,58 @@ const mockBlocksFromDb = [
     parentId: 'loop-1',
     extent: 'parent',
   },
+  {
+    id: 'loop-1',
+    workflowId: mockWorkflowId,
+    type: 'loop',
+    name: 'Loop Container',
+    positionX: 50,
+    positionY: 50,
+    enabled: true,
+    horizontalHandles: true,
+    advancedMode: false,
+    triggerMode: false,
+    height: 250,
+    subBlocks: {},
+    outputs: {},
+    data: { width: 500, height: 300, loopType: 'for', count: 5 },
+    parentId: null,
+    extent: null,
+  },
+  {
+    id: 'parallel-1',
+    workflowId: mockWorkflowId,
+    type: 'parallel',
+    name: 'Parallel Container',
+    positionX: 600,
+    positionY: 50,
+    enabled: true,
+    horizontalHandles: true,
+    advancedMode: false,
+    triggerMode: false,
+    height: 250,
+    subBlocks: {},
+    outputs: {},
+    data: { width: 500, height: 300, parallelType: 'count', count: 3 },
+    parentId: null,
+    extent: null,
+  },
+  {
+    id: 'block-3',
+    workflowId: mockWorkflowId,
+    type: 'api',
+    name: 'Parallel Child',
+    positionX: 650,
+    positionY: 150,
+    enabled: true,
+    horizontalHandles: true,
+    height: 200,
+    subBlocks: {},
+    outputs: {},
+    data: { parentId: 'parallel-1', extent: 'parent' },
+    parentId: 'parallel-1',
+    extent: 'parent',
+  },
 ]
 
 const mockEdgesFromDb = [
@@ -186,6 +238,42 @@ const mockWorkflowState: WorkflowState = {
       horizontalHandles: true,
       height: 200,
       data: { parentId: 'loop-1', extent: 'parent' },
+    },
+    'loop-1': {
+      id: 'loop-1',
+      type: 'loop',
+      name: 'Loop Container',
+      position: { x: 200, y: 50 },
+      subBlocks: {},
+      outputs: {},
+      enabled: true,
+      horizontalHandles: true,
+      height: 250,
+      data: { width: 500, height: 300, count: 5, loopType: 'for' },
+    },
+    'parallel-1': {
+      id: 'parallel-1',
+      type: 'parallel',
+      name: 'Parallel Container',
+      position: { x: 600, y: 50 },
+      subBlocks: {},
+      outputs: {},
+      enabled: true,
+      horizontalHandles: true,
+      height: 250,
+      data: { width: 500, height: 300, parallelType: 'count', count: 3 },
+    },
+    'block-3': {
+      id: 'block-3',
+      type: 'api',
+      name: 'Parallel Child',
+      position: { x: 650, y: 150 },
+      subBlocks: {},
+      outputs: {},
+      enabled: true,
+      horizontalHandles: true,
+      height: 180,
+      data: { parentId: 'parallel-1', extent: 'parent' },
     },
   },
   edges: [
@@ -567,20 +655,36 @@ describe('Database Helpers', () => {
 
       await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, mockWorkflowState)
 
-      expect(capturedBlockInserts).toHaveLength(2)
-      expect(capturedBlockInserts[0]).toMatchObject({
-        id: 'block-1',
-        workflowId: mockWorkflowId,
-        type: 'starter',
-        name: 'Start Block',
-        positionX: '100',
-        positionY: '100',
-        enabled: true,
-        horizontalHandles: true,
-        height: '150',
-        parentId: null,
-        extent: null,
-      })
+      expect(capturedBlockInserts).toHaveLength(5)
+      expect(capturedBlockInserts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'block-1',
+            workflowId: mockWorkflowId,
+            type: 'starter',
+            name: 'Start Block',
+            positionX: '100',
+            positionY: '100',
+            enabled: true,
+            horizontalHandles: true,
+            height: '150',
+            parentId: null,
+            extent: null,
+          }),
+          expect.objectContaining({
+            id: 'loop-1',
+            workflowId: mockWorkflowId,
+            type: 'loop',
+            parentId: null,
+          }),
+          expect.objectContaining({
+            id: 'parallel-1',
+            workflowId: mockWorkflowId,
+            type: 'parallel',
+            parentId: null,
+          }),
+        ])
+      )
 
       expect(capturedEdgeInserts).toHaveLength(1)
       expect(capturedEdgeInserts[0]).toMatchObject({
@@ -598,6 +702,48 @@ describe('Database Helpers', () => {
         workflowId: mockWorkflowId,
         type: 'loop',
       })
+    })
+
+    it('should regenerate missing loop and parallel definitions from block data', async () => {
+      let capturedSubflowInserts: any[] = []
+
+      const mockTransaction = vi.fn().mockImplementation(async (callback) => {
+        const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]),
+            }),
+          }),
+          delete: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([]),
+          }),
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockImplementation((data) => {
+              if (data.length > 0 && (data[0].type === 'loop' || data[0].type === 'parallel')) {
+                capturedSubflowInserts = data
+              }
+              return Promise.resolve([])
+            }),
+          }),
+        }
+        return await callback(tx)
+      })
+
+      mockDb.transaction = mockTransaction
+
+      const staleWorkflowState = JSON.parse(JSON.stringify(mockWorkflowState)) as WorkflowState
+      staleWorkflowState.loops = {}
+      staleWorkflowState.parallels = {}
+
+      await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, staleWorkflowState)
+
+      expect(capturedSubflowInserts).toHaveLength(2)
+      expect(capturedSubflowInserts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'loop-1', type: 'loop' }),
+          expect.objectContaining({ id: 'parallel-1', type: 'parallel' }),
+        ])
+      )
     })
   })
 
@@ -642,101 +788,6 @@ describe('Database Helpers', () => {
       const result = await dbHelpers.workflowExistsInNormalizedTables(mockWorkflowId)
 
       expect(result).toBe(false)
-    })
-  })
-
-  describe('migrateWorkflowToNormalizedTables', () => {
-    const mockJsonState = {
-      blocks: mockWorkflowState.blocks,
-      edges: mockWorkflowState.edges,
-      loops: mockWorkflowState.loops,
-      parallels: mockWorkflowState.parallels,
-      lastSaved: Date.now(),
-      isDeployed: false,
-      deploymentStatuses: {},
-    }
-
-    it('should successfully migrate workflow from JSON to normalized tables', async () => {
-      const mockTransaction = vi.fn().mockImplementation(async (callback) => {
-        const tx = {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockResolvedValue([]),
-            }),
-          }),
-          delete: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue([]),
-          }),
-          insert: vi.fn().mockReturnValue({
-            values: vi.fn().mockResolvedValue([]),
-          }),
-        }
-        return await callback(tx)
-      })
-
-      mockDb.transaction = mockTransaction
-
-      const result = await dbHelpers.migrateWorkflowToNormalizedTables(
-        mockWorkflowId,
-        mockJsonState
-      )
-
-      expect(result.success).toBe(true)
-      expect(result.error).toBeUndefined()
-    })
-
-    it('should return error when migration fails', async () => {
-      const mockTransaction = vi.fn().mockRejectedValue(new Error('Migration failed'))
-      mockDb.transaction = mockTransaction
-
-      const result = await dbHelpers.migrateWorkflowToNormalizedTables(
-        mockWorkflowId,
-        mockJsonState
-      )
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('Migration failed')
-    })
-
-    it('should handle missing properties in JSON state gracefully', async () => {
-      const incompleteJsonState = {
-        blocks: mockWorkflowState.blocks,
-        edges: mockWorkflowState.edges,
-        // Missing loops, parallels, and other properties
-      }
-
-      const mockTransaction = vi.fn().mockImplementation(async (callback) => {
-        const tx = {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockResolvedValue([]),
-            }),
-          }),
-          delete: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue([]),
-          }),
-          insert: vi.fn().mockReturnValue({
-            values: vi.fn().mockResolvedValue([]),
-          }),
-        }
-        return await callback(tx)
-      })
-
-      mockDb.transaction = mockTransaction
-
-      const result = await dbHelpers.migrateWorkflowToNormalizedTables(
-        mockWorkflowId,
-        incompleteJsonState
-      )
-
-      expect(result.success).toBe(true)
-    })
-
-    it('should handle null/undefined JSON state', async () => {
-      const result = await dbHelpers.migrateWorkflowToNormalizedTables(mockWorkflowId, null)
-
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('Cannot read properties')
     })
   })
 
@@ -1210,6 +1261,318 @@ describe('Database Helpers', () => {
       const loadedState = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
       expect(loadedState).toBeDefined()
       expect(loadedState?.blocks['block-1'].advancedMode).toBe(true)
+    })
+  })
+
+  describe('migrateAgentBlocksToMessagesFormat', () => {
+    it('should migrate agent block with both systemPrompt and userPrompt', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          name: 'Test Agent',
+          position: { x: 0, y: 0 },
+          subBlocks: {
+            systemPrompt: {
+              id: 'systemPrompt',
+              type: 'textarea',
+              value: 'You are a helpful assistant',
+            },
+            userPrompt: {
+              id: 'userPrompt',
+              type: 'textarea',
+              value: 'Hello world',
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      expect(migrated['agent-1'].subBlocks.messages).toBeDefined()
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'system', content: 'You are a helpful assistant' },
+        { role: 'user', content: 'Hello world' },
+      ])
+      // Old format should be preserved
+      expect(migrated['agent-1'].subBlocks.systemPrompt).toBeDefined()
+      expect(migrated['agent-1'].subBlocks.userPrompt).toBeDefined()
+    })
+
+    it('should migrate agent block with only systemPrompt', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            systemPrompt: {
+              id: 'systemPrompt',
+              type: 'textarea',
+              value: 'You are helpful',
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'system', content: 'You are helpful' },
+      ])
+    })
+
+    it('should migrate agent block with only userPrompt', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            userPrompt: {
+              id: 'userPrompt',
+              type: 'textarea',
+              value: 'Hello',
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'user', content: 'Hello' },
+      ])
+    })
+
+    it('should handle userPrompt as object with input field', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            userPrompt: {
+              id: 'userPrompt',
+              type: 'textarea',
+              value: { input: 'Hello from object' },
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'user', content: 'Hello from object' },
+      ])
+    })
+
+    it('should stringify userPrompt object without input field', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            userPrompt: {
+              id: 'userPrompt',
+              type: 'textarea',
+              value: { foo: 'bar', baz: 123 },
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'user', content: '{"foo":"bar","baz":123}' },
+      ])
+    })
+
+    it('should not migrate if messages array already exists', () => {
+      const existingMessages = [{ role: 'user', content: 'Existing message' }]
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            systemPrompt: {
+              id: 'systemPrompt',
+              type: 'textarea',
+              value: 'Old system',
+            },
+            userPrompt: {
+              id: 'userPrompt',
+              type: 'textarea',
+              value: 'Old user',
+            },
+            messages: {
+              id: 'messages',
+              type: 'messages-input',
+              value: existingMessages,
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      // Should not change existing messages
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual(existingMessages)
+    })
+
+    it('should not migrate if no old format prompts exist', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            model: {
+              id: 'model',
+              type: 'select',
+              value: 'gpt-4o',
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      // Should not add messages if no old format
+      expect(migrated['agent-1'].subBlocks.messages).toBeUndefined()
+    })
+
+    it('should handle non-agent blocks without modification', () => {
+      const blocks = {
+        'api-1': {
+          id: 'api-1',
+          type: 'api',
+          subBlocks: {
+            url: {
+              id: 'url',
+              type: 'input',
+              value: 'https://example.com',
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      // Non-agent block should remain unchanged
+      expect(migrated['api-1']).toEqual(blocks['api-1'])
+      expect(migrated['api-1'].subBlocks.messages).toBeUndefined()
+    })
+
+    it('should handle multiple blocks with mixed types', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System 1' },
+          },
+          outputs: {},
+        } as any,
+        'api-1': {
+          id: 'api-1',
+          type: 'api',
+          subBlocks: {},
+          outputs: {},
+        } as any,
+        'agent-2': {
+          id: 'agent-2',
+          type: 'agent',
+          subBlocks: {
+            userPrompt: { id: 'userPrompt', type: 'textarea', value: 'User 2' },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      // First agent should be migrated
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'system', content: 'System 1' },
+      ])
+
+      // API block unchanged
+      expect(migrated['api-1']).toEqual(blocks['api-1'])
+
+      // Second agent should be migrated
+      expect(migrated['agent-2'].subBlocks.messages?.value).toEqual([
+        { role: 'user', content: 'User 2' },
+      ])
+    })
+
+    it('should handle empty string prompts by not migrating', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            systemPrompt: { id: 'systemPrompt', type: 'textarea', value: '' },
+            userPrompt: { id: 'userPrompt', type: 'textarea', value: '' },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      // Empty strings are falsy, so migration should not occur
+      expect(migrated['agent-1'].subBlocks.messages).toBeUndefined()
+    })
+
+    it('should handle numeric prompt values by converting to string', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 123 },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'system', content: '123' },
+      ])
+    })
+
+    it('should be idempotent - running twice should not double migrate', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System' },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      // First migration
+      const migrated1 = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const messages1 = migrated1['agent-1'].subBlocks.messages?.value
+
+      // Second migration on already migrated blocks
+      const migrated2 = dbHelpers.migrateAgentBlocksToMessagesFormat(migrated1)
+      const messages2 = migrated2['agent-1'].subBlocks.messages?.value
+
+      // Should be identical - no double migration
+      expect(messages2).toEqual(messages1)
+      expect(messages2).toEqual([{ role: 'system', content: 'System' }])
     })
   })
 })

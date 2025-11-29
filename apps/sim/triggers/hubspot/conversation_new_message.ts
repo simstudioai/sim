@@ -1,10 +1,10 @@
 import { HubspotIcon } from '@/components/icons'
-import type { TriggerConfig } from '@/triggers/types'
 import {
   buildConversationNewMessageOutputs,
   hubspotConversationTriggerOptions,
   hubspotSetupInstructions,
-} from './utils'
+} from '@/triggers/hubspot/utils'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const hubspotConversationNewMessageTrigger: TriggerConfig = {
   id: 'hubspot_conversation_new_message',

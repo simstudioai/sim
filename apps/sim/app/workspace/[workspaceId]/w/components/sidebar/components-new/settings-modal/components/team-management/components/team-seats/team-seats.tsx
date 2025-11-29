@@ -1,22 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Tooltip } from '@/components/emcn'
-import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  Button,
+  Combobox,
+  type ComboboxOption,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+  Tooltip,
+} from '@/components/emcn'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
 import { env } from '@/lib/env'
 
@@ -28,6 +23,7 @@ interface TeamSeatsProps {
   currentSeats?: number
   initialSeats?: number
   isLoading: boolean
+  error?: Error | null
   onConfirm: (seats: number) => Promise<void>
   confirmButtonText: string
   showCostBreakdown?: boolean
@@ -42,6 +38,7 @@ export function TeamSeats({
   currentSeats,
   initialSeats = 1,
   isLoading,
+  error,
   onConfirm,
   confirmButtonText,
   showCostBreakdown = false,
@@ -63,31 +60,27 @@ export function TeamSeats({
     await onConfirm(selectedSeats)
   }
 
+  const seatOptions: ComboboxOption[] = [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map((num) => ({
+    value: num.toString(),
+    label: `${num} ${num === 1 ? 'seat' : 'seats'} ($${num * costPerSeat}/month)`,
+  }))
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
+    <Modal open={open} onOpenChange={onOpenChange}>
+      <ModalContent>
+        <ModalHeader>
+          <ModalTitle>{title}</ModalTitle>
+          <ModalDescription>{description}</ModalDescription>
+        </ModalHeader>
 
         <div className='py-4'>
           <Label htmlFor='seats'>Number of seats</Label>
-          <Select
+          <Combobox
+            options={seatOptions}
             value={selectedSeats.toString()}
-            onValueChange={(value) => setSelectedSeats(Number.parseInt(value))}
-          >
-            <SelectTrigger id='seats' className='rounded-[8px]'>
-              <SelectValue placeholder='Select number of seats' />
-            </SelectTrigger>
-            <SelectContent>
-              {[1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map((num) => (
-                <SelectItem key={num} value={num.toString()}>
-                  {num} {num === 1 ? 'seat' : 'seats'} (${num * costPerSeat}/month)
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={(value) => setSelectedSeats(Number.parseInt(value))}
+            placeholder='Select number of seats'
+          />
 
           <p className='mt-2 text-muted-foreground text-sm'>
             Your team will have {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} with a
@@ -112,10 +105,21 @@ export function TeamSeats({
               </div>
             </div>
           )}
+
+          {error && (
+            <p className='mt-3 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+              {error instanceof Error && error.message ? error.message : String(error)}
+            </p>
+          )}
         </div>
 
-        <DialogFooter>
-          <Button variant='outline' onClick={() => onOpenChange(false)} disabled={isLoading}>
+        <ModalFooter>
+          <Button
+            variant='outline'
+            onClick={() => onOpenChange(false)}
+            disabled={isLoading}
+            className='h-[32px] px-[12px]'
+          >
             Cancel
           </Button>
 
@@ -123,12 +127,14 @@ export function TeamSeats({
             <Tooltip.Trigger asChild>
               <span>
                 <Button
+                  variant='primary'
                   onClick={handleConfirm}
                   disabled={
                     isLoading ||
                     (showCostBreakdown && selectedSeats === currentSeats) ||
                     isCancelledAtPeriodEnd
                   }
+                  className='h-[32px] px-[12px]'
                 >
                   {isLoading ? (
                     <div className='flex items-center space-x-2'>
@@ -150,8 +156,8 @@ export function TeamSeats({
               </Tooltip.Content>
             )}
           </Tooltip.Root>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   )
 }

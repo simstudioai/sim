@@ -21,6 +21,7 @@ import type {
   ExecutionContext,
   NormalizedBlockOutput,
 } from '@/executor/types'
+import { streamingResponseFormatProcessor } from '@/executor/utils'
 import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
@@ -71,6 +72,9 @@ export class BlockExecutor {
 
     try {
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
+      if (blockLog) {
+        blockLog.input = resolvedInputs
+      }
     } catch (error) {
       cleanupSelfReference?.()
       return this.handleBlockError(
@@ -100,11 +104,14 @@ export class BlockExecutor {
         const streamingExec = output as { stream: ReadableStream; execution: any }
 
         if (ctx.onStream) {
-          try {
-            await ctx.onStream(streamingExec)
-          } catch (error) {
-            logger.error('Error in onStream callback', { blockId: node.id, error })
-          }
+          await this.handleStreamingExecution(
+            ctx,
+            node,
+            block,
+            streamingExec,
+            resolvedInputs,
+            ctx.selectedOutputs ?? []
+          )
         }
 
         normalizedOutput = this.normalizeOutput(
@@ -180,16 +187,27 @@ export class BlockExecutor {
   ): NormalizedBlockOutput {
     const duration = Date.now() - startTime
     const errorMessage = normalizeError(error)
+    const hasResolvedInputs =
+      resolvedInputs && typeof resolvedInputs === 'object' && Object.keys(resolvedInputs).length > 0
+    const input =
+      hasResolvedInputs && resolvedInputs
+        ? resolvedInputs
+        : ((block.config?.params as Record<string, any> | undefined) ?? {})
 
     if (blockLog) {
       blockLog.endedAt = new Date().toISOString()
       blockLog.durationMs = duration
       blockLog.success = false
       blockLog.error = errorMessage
+      blockLog.input = input
     }
 
     const errorOutput: NormalizedBlockOutput = {
       error: errorMessage,
+    }
+
+    if (error && typeof error === 'object' && 'childTraceSpans' in error) {
+      errorOutput.childTraceSpans = (error as any).childTraceSpans
     }
 
     this.state.setBlockOutput(node.id, errorOutput, duration)
@@ -204,7 +222,7 @@ export class BlockExecutor {
     )
 
     if (!isSentinel) {
-      this.callOnBlockComplete(ctx, node, block, resolvedInputs, errorOutput, duration)
+      this.callOnBlockComplete(ctx, node, block, input, errorOutput, duration)
     }
 
     const hasErrorPort = this.hasErrorPortEdge(node)
@@ -445,5 +463,137 @@ export class BlockExecutor {
         this.state.deleteBlockState(blockId)
       }
     }
+  }
+
+  private async handleStreamingExecution(
+    ctx: ExecutionContext,
+    node: DAGNode,
+    block: SerializedBlock,
+    streamingExec: { stream: ReadableStream; execution: any },
+    resolvedInputs: Record<string, any>,
+    selectedOutputs: string[]
+  ): Promise<void> {
+    const blockId = node.id
+
+    const responseFormat =
+      resolvedInputs?.responseFormat ??
+      (block.config?.params as Record<string, any> | undefined)?.responseFormat ??
+      (block.config as Record<string, any> | undefined)?.responseFormat
+
+    const stream = streamingExec.stream
+    if (typeof stream.tee !== 'function') {
+      await this.forwardStream(ctx, blockId, streamingExec, stream, responseFormat, selectedOutputs)
+      return
+    }
+
+    const [clientStream, executorStream] = stream.tee()
+
+    const processedClientStream = streamingResponseFormatProcessor.processStream(
+      clientStream,
+      blockId,
+      selectedOutputs,
+      responseFormat
+    )
+
+    const clientStreamingExec = {
+      ...streamingExec,
+      stream: processedClientStream,
+    }
+
+    const executorConsumption = this.consumeExecutorStream(
+      executorStream,
+      streamingExec,
+      blockId,
+      responseFormat
+    )
+
+    const clientConsumption = (async () => {
+      try {
+        await ctx.onStream?.(clientStreamingExec)
+      } catch (error) {
+        logger.error('Error in onStream callback', { blockId, error })
+      }
+    })()
+
+    await Promise.all([clientConsumption, executorConsumption])
+  }
+
+  private async forwardStream(
+    ctx: ExecutionContext,
+    blockId: string,
+    streamingExec: { stream: ReadableStream; execution: any },
+    stream: ReadableStream,
+    responseFormat: any,
+    selectedOutputs: string[]
+  ): Promise<void> {
+    const processedStream = streamingResponseFormatProcessor.processStream(
+      stream,
+      blockId,
+      selectedOutputs,
+      responseFormat
+    )
+
+    try {
+      await ctx.onStream?.({
+        ...streamingExec,
+        stream: processedStream,
+      })
+    } catch (error) {
+      logger.error('Error in onStream callback', { blockId, error })
+    }
+  }
+
+  private async consumeExecutorStream(
+    stream: ReadableStream,
+    streamingExec: { execution: any },
+    blockId: string,
+    responseFormat: any
+  ): Promise<void> {
+    const reader = stream.getReader()
+    const decoder = new TextDecoder()
+    let fullContent = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        fullContent += decoder.decode(value, { stream: true })
+      }
+    } catch (error) {
+      logger.error('Error reading executor stream for block', { blockId, error })
+    } finally {
+      try {
+        reader.releaseLock()
+      } catch {}
+    }
+
+    if (!fullContent) {
+      return
+    }
+
+    const executionOutput = streamingExec.execution?.output
+    if (!executionOutput || typeof executionOutput !== 'object') {
+      return
+    }
+
+    if (responseFormat) {
+      try {
+        const parsed = JSON.parse(fullContent.trim())
+
+        streamingExec.execution.output = {
+          ...parsed,
+          tokens: executionOutput.tokens,
+          toolCalls: executionOutput.toolCalls,
+          providerTiming: executionOutput.providerTiming,
+          cost: executionOutput.cost,
+          model: executionOutput.model,
+        }
+        return
+      } catch (error) {
+        logger.warn('Failed to parse streamed content for response format', { blockId, error })
+      }
+    }
+
+    executionOutput.content = fullContent
   }
 }

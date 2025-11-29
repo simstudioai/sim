@@ -91,6 +91,14 @@ export const linearListCommentsTool: ToolConfig<
       }
     }
 
+    if (!data.data?.issue) {
+      return {
+        success: false,
+        error: 'Issue not found',
+        output: {},
+      }
+    }
+
     const result = data.data.issue.comments
     return {
       success: true,

@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -6,10 +7,10 @@ import {
   extractWorkflowsFromFiles,
   extractWorkflowsFromZip,
 } from '@/lib/workflows/import-export'
-import { useFolderStore } from '@/stores/folders/store'
+import { folderKeys, useCreateFolder } from '@/hooks/queries/folders'
+import { useCreateWorkflow, workflowKeys } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { parseWorkflowJson } from '@/stores/workflows/json/importer'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('useImportWorkflow')
 
@@ -29,7 +30,9 @@ interface UseImportWorkflowProps {
  */
 export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
   const router = useRouter()
-  const { createWorkflow, loadWorkflows } = useWorkflowRegistry()
+  const createWorkflowMutation = useCreateWorkflow()
+  const queryClient = useQueryClient()
+  const createFolderMutation = useCreateFolder()
   const [isImporting, setIsImporting] = useState(false)
 
   /**
@@ -52,12 +55,13 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
       const workflowColor =
         parsedContent.state?.metadata?.color || parsedContent.metadata?.color || '#3972F6'
 
-      const newWorkflowId = await createWorkflow({
+      const result = await createWorkflowMutation.mutateAsync({
         name: workflowName,
         description: workflowData.metadata?.description || 'Imported from JSON',
         workspaceId,
         folderId: folderId || undefined,
       })
+      const newWorkflowId = result.id
 
       // Update workflow color if we extracted one
       if (workflowColor !== '#3972F6') {
@@ -95,7 +99,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
       logger.info(`Imported workflow: ${workflowName}`)
       return newWorkflowId
     },
-    [createWorkflow, workspaceId]
+    [createWorkflowMutation, workspaceId]
   )
 
   /**
@@ -119,9 +123,11 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           const zipFile = fileArray[0]
           const { workflows: extractedWorkflows, metadata } = await extractWorkflowsFromZip(zipFile)
 
-          const { createFolder } = useFolderStore.getState()
           const folderName = metadata?.workspaceName || zipFile.name.replace(/\.zip$/i, '')
-          const importFolder = await createFolder({ name: folderName, workspaceId })
+          const importFolder = await createFolderMutation.mutateAsync({
+            name: folderName,
+            workspaceId,
+          })
           const folderMap = new Map<string, string>()
 
           for (const workflow of extractedWorkflows) {
@@ -139,7 +145,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
                     const pathSegment = workflow.folderPath.slice(0, i + 1).join('/')
 
                     if (!folderMap.has(pathSegment)) {
-                      const subFolder = await createFolder({
+                      const subFolder = await createFolderMutation.mutateAsync({
                         name: workflow.folderPath[i],
                         workspaceId,
                         parentId,
@@ -179,9 +185,9 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           }
         }
 
-        // Reload workflows to show newly imported ones
-        await loadWorkflows(workspaceId)
-        await useFolderStore.getState().fetchFolders(workspaceId)
+        // Reload workflows and folders to show newly imported ones
+        await queryClient.invalidateQueries({ queryKey: workflowKeys.list(workspaceId) })
+        await queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId) })
 
         logger.info(`Import complete. Imported ${importedWorkflowIds.length} workflow(s)`)
 
@@ -200,7 +206,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         }
       }
     },
-    [importSingleWorkflow, workspaceId, loadWorkflows, router]
+    [importSingleWorkflow, workspaceId, router, createFolderMutation, queryClient]
   )
 
   return {

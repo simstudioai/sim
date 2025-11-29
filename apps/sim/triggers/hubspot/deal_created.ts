@@ -1,10 +1,10 @@
 import { HubspotIcon } from '@/components/icons'
-import type { TriggerConfig } from '@/triggers/types'
 import {
   buildDealCreatedOutputs,
   hubspotDealTriggerOptions,
   hubspotSetupInstructions,
-} from './utils'
+} from '@/triggers/hubspot/utils'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const hubspotDealCreatedTrigger: TriggerConfig = {
   id: 'hubspot_deal_created',

@@ -63,18 +63,10 @@ export const linearCreateProjectMilestoneTool: ToolConfig<
         name: params.name,
       }
 
-      if (
-        params.description !== undefined &&
-        params.description !== null &&
-        params.description !== ''
-      ) {
+      if (params.description != null && params.description !== '') {
         input.description = params.description
       }
-      if (
-        params.targetDate !== undefined &&
-        params.targetDate !== null &&
-        params.targetDate !== ''
-      ) {
+      if (params.targetDate != null && params.targetDate !== '') {
         input.targetDate = params.targetDate
       }
 
@@ -114,8 +106,16 @@ export const linearCreateProjectMilestoneTool: ToolConfig<
     }
 
     const result = data.data.projectMilestoneCreate
+    if (!result.success) {
+      return {
+        success: false,
+        error: 'Project milestone creation was not successful',
+        output: {},
+      }
+    }
+
     return {
-      success: result.success,
+      success: true,
       output: {
         projectMilestone: result.projectMilestone,
       },

@@ -94,7 +94,6 @@ export class NodeExecutionOrchestrator {
             shouldContinue: true,
             shouldExit: false,
             selectedRoute: continuationResult.selectedRoute,
-            loopIteration: continuationResult.currentIteration,
           }
         }
 

@@ -1,0 +1,256 @@
+---
+title: テキスト読み上げ
+description: AIボイスを使用してテキストを音声に変換
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tts"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+最新のAIボイスを使用してテキストを自然な音声に変換します。SimのText-to-Speech（TTS）ツールは、数十の言語で書かれたテキストから音声を生成でき、表現力豊かな声、フォーマット、速度、スタイル、感情などの高度なコントロールを選択できます。
+
+**対応プロバイダーとモデル：**
+
+- **[OpenAI Text-to-Speech](https://platform.openai.com/docs/guides/text-to-speech/voice-options)** (OpenAI):  
+  OpenAIのTTS APIは、`tts-1`、`tts-1-hd`、`gpt-4o-mini-tts`などの高度なAIモデルを使用した超リアルな音声を提供します。男性と女性の両方の声があり、alloy、echo、fable、onyx、nova、shimmer、ash、ballad、coral、sage、verseなどのオプションがあります。複数の音声フォーマット（mp3、opus、aac、flac、wav、pcm）、調整可能な速度、ストリーミング合成をサポートしています。
+
+- **[Deepgram Aura](https://deepgram.com/products/text-to-speech)** (Deepgram Inc.):  
+  DeepgramのAuraは、会話の明瞭さ、低遅延、カスタマイズに最適化された、表現力豊かな英語と多言語AIボイスを提供します。`aura-asteria-en`、`aura-luna-en`などのモデルが利用可能です。複数のエンコーディング形式（linear16、mp3、opus、aac、flac）と速度、サンプルレート、スタイルの微調整をサポートしています。
+
+- **[ElevenLabs Text-to-Speech](https://elevenlabs.io/text-to-speech)** (ElevenLabs):  
+  ElevenLabsは、29以上の言語で数十の声を提供し、カスタム音声のクローンを作成する能力を持つ、リアルで感情豊かなTTSをリードしています。モデルは音声デザイン、音声合成、直接APIアクセスをサポートし、スタイル、感情、安定性、類似性の高度なコントロールを備えています。オーディオブック、コンテンツ作成、アクセシビリティなどに適しています。
+
+- **[Cartesia TTS](https://docs.cartesia.ai/)** (Cartesia):  
+  Cartesiaは、プライバシーと柔軟な展開に焦点を当てた、高品質で高速かつ安全なテキスト読み上げを提供します。即時ストリーミング、リアルタイム合成を提供し、シンプルなAPIを通じてアクセス可能な複数の国際的な声とアクセントをサポートしています。
+
+- **[Google Cloud Text-to-Speech](https://cloud.google.com/text-to-speech)** (Google Cloud):  
+  GoogleはDeepMind WaveNetとNeural2モデルを使用して、50以上の言語とバリアントで高忠実度の音声を提供しています。機能には、音声選択、ピッチ、発話速度、音量調整、SSMLタグ、標準音声とスタジオグレードのプレミアム音声へのアクセスが含まれます。アクセシビリティ、IVR、メディアで広く使用されています。
+
+- **[Microsoft Azure Speech](https://azure.microsoft.com/en-us/products/ai-services/text-to-speech)** (Microsoft Azure):  
+  Azureは140以上の言語とロケールにわたって400以上のニューラル音声を提供し、独自の音声カスタマイズ、スタイル、感情、役割、リアルタイム制御が可能です。発音、イントネーションなどのSSMLサポートを提供します。グローバル、エンタープライズ、またはクリエイティブなTTSニーズに最適です。
+
+- **[PlayHT](https://play.ht/)** (PlayHT):  
+  PlayHTは、100以上の言語で800以上の音声を使用したリアルな音声合成、音声クローニング、インスタントストリーミング再生を専門としています。機能には、感情、ピッチと速度の制御、マルチボイスオーディオ、APIまたはオンラインスタジオを通じたカスタム音声作成が含まれます。
+
+**選び方：**  
+言語、サポートされている音声タイプ、希望するフォーマット（mp3、wavなど）、制御の粒度（速度、感情など）、特殊機能（音声クローニング、アクセント、ストリーミング）を優先して、プロバイダーとモデルを選択してください。クリエイティブ、アクセシビリティ、または開発者のユースケースでは、アプリケーションの要件との互換性を確保し、コストを比較してください。
+
+最新の機能、価格、ドキュメントの詳細については、各プロバイダーの公式サイトをご覧ください！
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+OpenAI、Deepgram、ElevenLabs、Cartesia、Google Cloud、Azure、PlayHTの最先端AI音声を使用して、テキストから自然な音声を生成します。複数の音声、言語、オーディオフォーマットをサポートしています。
+
+## ツール
+
+### `tts_openai`
+
+OpenAI TTSモデルを使用してテキストを音声に変換
+
+#### 入力
+
+| パラメータ | タイプ | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | はい | 音声に変換するテキスト |
+| `apiKey` | string | はい | OpenAI APIキー |
+| `model` | string | いいえ | 使用するTTSモデル（tts-1、tts-1-hd、またはgpt-4o-mini-tts） |
+| `voice` | string | いいえ | 使用する音声（alloy、ash、ballad、cedar、coral、echo、marin、sage、shimmer、verse） |
+| `responseFormat` | string | いいえ | オーディオフォーマット（mp3、opus、aac、flac、wav、pcm） |
+| `speed` | number | いいえ | 発話速度（0.25から4.0、デフォルト：1.0） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成された音声ファイルのURL |
+| `audioFile` | file | 生成された音声ファイルオブジェクト |
+| `duration` | number | 音声の長さ（秒） |
+| `characterCount` | number | 処理された文字数 |
+| `format` | string | 音声フォーマット |
+| `provider` | string | 使用されたTTSプロバイダー |
+
+### `tts_deepgram`
+
+Deepgram Auraを使用してテキストを音声に変換する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | はい | 音声に変換するテキスト |
+| `apiKey` | string | はい | Deepgram APIキー |
+| `model` | string | いいえ | Deepgramモデル/音声（例：aura-asteria-en、aura-luna-en） |
+| `voice` | string | いいえ | 音声識別子（modelパラメータの代替） |
+| `encoding` | string | いいえ | 音声エンコーディング（linear16、mp3、opus、aac、flac） |
+| `sampleRate` | number | いいえ | サンプルレート（8000、16000、24000、48000） |
+| `bitRate` | number | いいえ | 圧縮フォーマットのビットレート |
+| `container` | string | いいえ | コンテナフォーマット（none、wav、ogg） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成された音声ファイルのURL |
+| `audioFile` | file | 生成された音声ファイルオブジェクト |
+| `duration` | number | 音声の長さ（秒） |
+| `characterCount` | number | 処理された文字数 |
+| `format` | string | 音声フォーマット |
+| `provider` | string | 使用されたTTSプロバイダー |
+
+### `tts_elevenlabs`
+
+ElevenLabsの音声を使用してテキストを音声に変換する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | はい | 音声に変換するテキスト |
+| `voiceId` | string | はい | 使用する音声のID |
+| `apiKey` | string | はい | ElevenLabs APIキー |
+| `modelId` | string | いいえ | 使用するモデル（例：eleven_monolingual_v1、eleven_turbo_v2_5、eleven_flash_v2_5） |
+| `stability` | number | いいえ | 音声の安定性（0.0から1.0、デフォルト：0.5） |
+| `similarityBoost` | number | いいえ | 類似性ブースト（0.0から1.0、デフォルト：0.8） |
+| `style` | number | いいえ | スタイル誇張（0.0から1.0） |
+| `useSpeakerBoost` | boolean | いいえ | スピーカーブーストを使用（デフォルト：true） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成された音声ファイルのURL |
+| `audioFile` | file | 生成された音声ファイルオブジェクト |
+| `duration` | number | 音声の長さ（秒） |
+| `characterCount` | number | 処理された文字数 |
+| `format` | string | 音声フォーマット |
+| `provider` | string | 使用されたTTSプロバイダー |
+
+### `tts_cartesia`
+
+Cartesia Sonic（超低遅延）を使用してテキストを音声に変換する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | はい | 音声に変換するテキスト |
+| `apiKey` | string | はい | Cartesia APIキー |
+| `modelId` | string | いいえ | モデルID（sonic-english、sonic-multilingual） |
+| `voice` | string | いいえ | 音声IDまたは埋め込み |
+| `language` | string | いいえ | 言語コード（en、es、fr、de、it、ptなど） |
+| `outputFormat` | json | いいえ | 出力フォーマット設定（コンテナ、エンコーディング、サンプルレート） |
+| `speed` | number | いいえ | 速度乗数 |
+| `emotion` | array | いいえ | Sonic-3用の感情タグ（例：['positivity:high']） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成された音声ファイルのURL |
+| `audioFile` | file | 生成された音声ファイルオブジェクト |
+| `duration` | number | 音声の長さ（秒） |
+| `characterCount` | number | 処理された文字数 |
+| `format` | string | 音声フォーマット |
+| `provider` | string | 使用されたTTSプロバイダー |
+
+### `tts_google`
+
+Google Cloud Text-to-Speechを使用してテキストを音声に変換
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | はい | 音声に変換するテキスト |
+| `apiKey` | string | はい | Google Cloud APIキー |
+| `voiceId` | string | いいえ | 音声ID（例：en-US-Neural2-A、en-US-Wavenet-D） |
+| `languageCode` | string | はい | 言語コード（例：en-US、es-ES、fr-FR） |
+| `gender` | string | いいえ | 音声の性別（MALE、FEMALE、NEUTRAL） |
+| `audioEncoding` | string | いいえ | 音声エンコーディング（LINEAR16、MP3、OGG_OPUS、MULAW、ALAW） |
+| `speakingRate` | number | いいえ | 発話速度（0.25～2.0、デフォルト：1.0） |
+| `pitch` | number | いいえ | 音声のピッチ（-20.0～20.0、デフォルト：0.0） |
+| `volumeGainDb` | number | いいえ | 音量ゲイン（dB）（-96.0～16.0） |
+| `sampleRateHertz` | number | いいえ | サンプルレート（Hz） |
+| `effectsProfileId` | array | いいえ | エフェクトプロファイル（例：\['headphone-class-device'\]） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成された音声ファイルのURL |
+| `audioFile` | file | 生成された音声ファイルオブジェクト |
+| `duration` | number | 音声の長さ（秒） |
+| `characterCount` | number | 処理された文字数 |
+| `format` | string | 音声フォーマット |
+| `provider` | string | 使用されたTTSプロバイダー |
+
+### `tts_azure`
+
+Azure Cognitive Servicesを使用してテキストを音声に変換
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | はい | 音声に変換するテキスト |
+| `apiKey` | string | はい | Azure Speech Services APIキー |
+| `voiceId` | string | いいえ | 音声ID（例：en-US-JennyNeural、en-US-GuyNeural） |
+| `region` | string | いいえ | Azureリージョン（例：eastus、westus、westeurope） |
+| `outputFormat` | string | いいえ | 出力音声フォーマット |
+| `rate` | string | いいえ | 話速（例：+10%、-20%、1.5） |
+| `pitch` | string | いいえ | 音声のピッチ（例：+5Hz、-2st、low） |
+| `style` | string | いいえ | 話し方のスタイル（例：cheerful、sad、angry - ニューラル音声のみ） |
+| `styleDegree` | number | いいえ | スタイル強度（0.01〜2.0） |
+| `role` | string | いいえ | 役割（例：Girl、Boy、YoungAdultFemale） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成された音声ファイルのURL |
+| `audioFile` | file | 生成された音声ファイルオブジェクト |
+| `duration` | number | 音声の長さ（秒） |
+| `characterCount` | number | 処理された文字数 |
+| `format` | string | 音声フォーマット |
+| `provider` | string | 使用されたTTSプロバイダー |
+
+### `tts_playht`
+
+PlayHT（音声クローニング）を使用してテキストを音声に変換
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | はい | 音声に変換するテキスト |
+| `apiKey` | string | はい | PlayHT APIキー（AUTHORIZATIONヘッダー） |
+| `userId` | string | はい | PlayHT ユーザーID（X-USER-IDヘッダー） |
+| `voice` | string | いいえ | 音声IDまたはマニフェストURL |
+| `quality` | string | いいえ | 品質レベル（draft、standard、premium） |
+| `outputFormat` | string | いいえ | 出力形式（mp3、wav、ogg、flac、mulaw） |
+| `speed` | number | いいえ | 速度倍率（0.5〜2.0） |
+| `temperature` | number | いいえ | 創造性/ランダム性（0.0〜2.0） |
+| `voiceGuidance` | number | いいえ | 音声の安定性（1.0〜6.0） |
+| `textGuidance` | number | いいえ | テキスト忠実度（1.0〜6.0） |
+| `sampleRate` | number | いいえ | サンプルレート（8000、16000、22050、24000、44100、48000） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成された音声ファイルのURL |
+| `audioFile` | file | 生成された音声ファイルオブジェクト |
+| `duration` | number | 音声の長さ（秒） |
+| `characterCount` | number | 処理された文字数 |
+| `format` | string | 音声フォーマット |
+| `provider` | string | 使用されたTTSプロバイダー |
+
+## メモ
+
+- カテゴリー: `tools`
+- タイプ: `tts`

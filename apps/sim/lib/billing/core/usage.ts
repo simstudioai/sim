@@ -1,7 +1,11 @@
 import { db } from '@sim/db'
 import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { eq, inArray } from 'drizzle-orm'
-import { getEmailSubject, renderUsageThresholdEmail } from '@/components/emails/render-email'
+import {
+  getEmailSubject,
+  renderFreeTierUpgradeEmail,
+  renderUsageThresholdEmail,
+} from '@/components/emails/render-email'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import {
   canEditUsageLimit,
@@ -614,60 +618,113 @@ export async function maybeSendUsageThresholdEmail(params: {
 }): Promise<void> {
   try {
     if (!isBillingEnabled) return
-    // Only on upward crossing to >= 80%
-    if (!(params.percentBefore < 80 && params.percentAfter >= 80)) return
     if (params.limit <= 0 || params.currentUsageAfter <= 0) return
 
     const baseUrl = getBaseUrl()
-    const ctaLink = `${baseUrl}/workspace?billing=usage`
-    const sendTo = async (email: string, name?: string) => {
-      const prefs = await getEmailPreferences(email)
-      if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
+    const isFreeUser = params.planName === 'Free'
 
-      const html = await renderUsageThresholdEmail({
-        userName: name,
-        planName: params.planName,
-        percentUsed: Math.min(100, Math.round(params.percentAfter)),
-        currentUsage: params.currentUsageAfter,
-        limit: params.limit,
-        ctaLink,
-      })
+    // Check for 80% threshold (all users)
+    const crosses80 = params.percentBefore < 80 && params.percentAfter >= 80
+    // Check for 90% threshold (free users only)
+    const crosses90 = params.percentBefore < 90 && params.percentAfter >= 90
 
-      await sendEmail({
-        to: email,
-        subject: getEmailSubject('usage-threshold'),
-        html,
-        emailType: 'notifications',
-      })
+    // Skip if no thresholds crossed
+    if (!crosses80 && !crosses90) return
+
+    // For 80% threshold email (all users)
+    if (crosses80) {
+      const ctaLink = `${baseUrl}/workspace?billing=usage`
+      const sendTo = async (email: string, name?: string) => {
+        const prefs = await getEmailPreferences(email)
+        if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
+
+        const html = await renderUsageThresholdEmail({
+          userName: name,
+          planName: params.planName,
+          percentUsed: Math.min(100, Math.round(params.percentAfter)),
+          currentUsage: params.currentUsageAfter,
+          limit: params.limit,
+          ctaLink,
+        })
+
+        await sendEmail({
+          to: email,
+          subject: getEmailSubject('usage-threshold'),
+          html,
+          emailType: 'notifications',
+        })
+      }
+
+      if (params.scope === 'user' && params.userId && params.userEmail) {
+        const rows = await db
+          .select({ enabled: settings.billingUsageNotificationsEnabled })
+          .from(settings)
+          .where(eq(settings.userId, params.userId))
+          .limit(1)
+        if (rows.length > 0 && rows[0].enabled === false) return
+        await sendTo(params.userEmail, params.userName)
+      } else if (params.scope === 'organization' && params.organizationId) {
+        const admins = await db
+          .select({
+            email: user.email,
+            name: user.name,
+            enabled: settings.billingUsageNotificationsEnabled,
+            role: member.role,
+          })
+          .from(member)
+          .innerJoin(user, eq(member.userId, user.id))
+          .leftJoin(settings, eq(settings.userId, member.userId))
+          .where(eq(member.organizationId, params.organizationId))
+
+        for (const a of admins) {
+          const isAdmin = a.role === 'owner' || a.role === 'admin'
+          if (!isAdmin) continue
+          if (a.enabled === false) continue
+          if (!a.email) continue
+          await sendTo(a.email, a.name || undefined)
+        }
+      }
     }
 
-    if (params.scope === 'user' && params.userId && params.userEmail) {
-      const rows = await db
-        .select({ enabled: settings.billingUsageNotificationsEnabled })
-        .from(settings)
-        .where(eq(settings.userId, params.userId))
-        .limit(1)
-      if (rows.length > 0 && rows[0].enabled === false) return
-      await sendTo(params.userEmail, params.userName)
-    } else if (params.scope === 'organization' && params.organizationId) {
-      const admins = await db
-        .select({
-          email: user.email,
-          name: user.name,
-          enabled: settings.billingUsageNotificationsEnabled,
-          role: member.role,
-        })
-        .from(member)
-        .innerJoin(user, eq(member.userId, user.id))
-        .leftJoin(settings, eq(settings.userId, member.userId))
-        .where(eq(member.organizationId, params.organizationId))
+    // For 90% threshold email (free users only)
+    if (crosses90 && isFreeUser) {
+      const upgradeLink = `${baseUrl}/workspace?billing=upgrade`
+      const sendFreeTierEmail = async (email: string, name?: string) => {
+        const prefs = await getEmailPreferences(email)
+        if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
 
-      for (const a of admins) {
-        const isAdmin = a.role === 'owner' || a.role === 'admin'
-        if (!isAdmin) continue
-        if (a.enabled === false) continue
-        if (!a.email) continue
-        await sendTo(a.email, a.name || undefined)
+        const html = await renderFreeTierUpgradeEmail({
+          userName: name,
+          percentUsed: Math.min(100, Math.round(params.percentAfter)),
+          currentUsage: params.currentUsageAfter,
+          limit: params.limit,
+          upgradeLink,
+        })
+
+        await sendEmail({
+          to: email,
+          subject: getEmailSubject('free-tier-upgrade'),
+          html,
+          emailType: 'notifications',
+        })
+
+        logger.info('Free tier upgrade email sent', {
+          email,
+          percentUsed: Math.round(params.percentAfter),
+          currentUsage: params.currentUsageAfter,
+          limit: params.limit,
+        })
+      }
+
+      // Free users are always individual scope (not organization)
+      if (params.scope === 'user' && params.userId && params.userEmail) {
+        const rows = await db
+          .select({ enabled: settings.billingUsageNotificationsEnabled })
+          .from(settings)
+          .where(eq(settings.userId, params.userId))
+          .limit(1)
+        if (rows.length > 0 && rows[0].enabled === false) return
+        await sendFreeTierEmail(params.userEmail, params.userName)
       }
     }
   } catch (error) {

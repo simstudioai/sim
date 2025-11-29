@@ -84,6 +84,10 @@ export const account = pgTable(
   },
   (table) => ({
     userIdIdx: index('account_user_id_idx').on(table.userId),
+    accountProviderIdx: index('idx_account_on_account_id_provider_id').on(
+      table.accountId,
+      table.providerId
+    ),
   })
 )
 
@@ -188,7 +192,6 @@ export const workflowBlocks = pgTable(
   },
   (table) => ({
     workflowIdIdx: index('workflow_blocks_workflow_id_idx').on(table.workflowId),
-    workflowTypeIdx: index('workflow_blocks_workflow_type_idx').on(table.workflowId, table.type),
   })
 )
 
@@ -300,7 +303,6 @@ export const workflowExecutionLogs = pgTable(
   },
   (table) => ({
     workflowIdIdx: index('workflow_execution_logs_workflow_id_idx').on(table.workflowId),
-    executionIdIdx: index('workflow_execution_logs_execution_id_idx').on(table.executionId),
     stateSnapshotIdIdx: index('workflow_execution_logs_state_snapshot_id_idx').on(
       table.stateSnapshotId
     ),
@@ -406,7 +408,6 @@ export const settings = pgTable('settings', {
   // General settings
   theme: text('theme').notNull().default('system'),
   autoConnect: boolean('auto_connect').notNull().default(true),
-  autoFillEnvVars: boolean('auto_fill_env_vars').notNull().default(true), // DEPRECATED: autofill feature removed
   autoPan: boolean('auto_pan').notNull().default(true),
   consoleExpandedByDefault: boolean('console_expanded_by_default').notNull().default(true),
 
@@ -425,6 +426,9 @@ export const settings = pgTable('settings', {
   showFloatingControls: boolean('show_floating_controls').notNull().default(true),
   showTrainingControls: boolean('show_training_controls').notNull().default(false),
   superUserModeEnabled: boolean('super_user_mode_enabled').notNull().default(true),
+
+  // Notification preferences
+  errorNotificationsEnabled: boolean('error_notifications_enabled').notNull().default(true),
 
   // Copilot preferences - maps model_id to enabled/disabled boolean
   copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),
@@ -474,6 +478,8 @@ export const webhook = pgTable(
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
     providerConfig: json('provider_config'), // Store provider-specific configuration
     isActive: boolean('is_active').notNull().default(true),
+    failedCount: integer('failed_count').default(0), // Track consecutive failures
+    lastFailedAt: timestamp('last_failed_at'), // When the webhook last failed
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -481,6 +487,11 @@ export const webhook = pgTable(
     return {
       // Ensure webhook paths are unique
       pathIdx: uniqueIndex('path_idx').on(table.path),
+      // Optimize queries for webhooks by workflow and block
+      workflowBlockIdx: index('idx_webhook_on_workflow_id_block_id').on(
+        table.workflowId,
+        table.blockId
+      ),
     }
   }
 )
@@ -645,6 +656,10 @@ export const customTools = pgTable(
   },
   (table) => ({
     workspaceIdIdx: index('custom_tools_workspace_id_idx').on(table.workspaceId),
+    workspaceTitleUnique: uniqueIndex('custom_tools_workspace_title_unique').on(
+      table.workspaceId,
+      table.title
+    ),
   })
 )
 
@@ -916,9 +931,8 @@ export const memory = pgTable(
   {
     id: text('id').primaryKey(),
     workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
-    key: text('key').notNull(), // Identifier for the memory within its context
-    type: text('type').notNull(), // 'agent' or 'raw'
-    data: json('data').notNull(), // Stores either agent message data or raw data
+    key: text('key').notNull(), // Conversation ID provided by user with format: conversationId:blockId
+    data: jsonb('data').notNull(), // Stores agent messages as array of {role, content} objects
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     deletedAt: timestamp('deleted_at'),
@@ -1023,12 +1037,10 @@ export const document = pgTable(
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Primary access pattern - documents by knowledge base
+    // Primary access pattern - filter by knowledge base
     knowledgeBaseIdIdx: index('doc_kb_id_idx').on(table.knowledgeBaseId),
-    // Search by filename (for search functionality)
+    // Search by filename
     filenameIdx: index('doc_filename_idx').on(table.filename),
-    // Order by upload date (for listing documents)
-    kbUploadedAtIdx: index('doc_kb_uploaded_at_idx').on(table.knowledgeBaseId, table.uploadedAt),
     // Processing status filtering
     processingStatusIdx: index('doc_processing_status_idx').on(
       table.knowledgeBaseId,
@@ -1249,6 +1261,8 @@ export const copilotChats = pgTable(
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
     conversationId: text('conversation_id'),
     previewYaml: text('preview_yaml'), // YAML content for pending workflow preview
+    planArtifact: text('plan_artifact'), // Plan/design document artifact for the chat
+    config: jsonb('config'), // JSON config storing model and mode settings { model, mode }
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -1455,7 +1469,6 @@ export const workflowDeploymentVersion = pgTable(
     createdBy: text('created_by'),
   },
   (table) => ({
-    workflowIdIdx: index('workflow_deployment_version_workflow_id_idx').on(table.workflowId),
     workflowVersionUnique: uniqueIndex('workflow_deployment_version_workflow_version_unique').on(
       table.workflowId,
       table.version

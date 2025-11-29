@@ -81,9 +81,7 @@ function Container({
         'bg-[#1F1F1F] font-medium font-mono text-sm transition-colors',
         'dark:border-[var(--border-strong)]',
         // Overflow handling for long content
-        'overflow-x-auto',
-        // Vertical resize handle
-        'resize-y overflow-y-auto',
+        'overflow-x-auto overflow-y-auto',
         // Streaming state
         isStreaming && 'streaming-effect',
         className
@@ -335,7 +333,7 @@ function Viewer({
                     {idx + 1}
                   </div>
                   <pre
-                    className='m-0 min-w-0 whitespace-pre-wrap pr-2 pl-2 font-mono text-[#eeeeee] text-[13px] leading-[21px]'
+                    className='m-0 min-w-0 whitespace-pre-wrap break-words pr-2 pl-2 font-mono text-[#eeeeee] text-[13px] leading-[21px]'
                     // Using per-line highlighting keeps the gutter height in sync with wrapped content
                     dangerouslySetInnerHTML={{ __html: perLineHighlighted || '&nbsp;' }}
                   />

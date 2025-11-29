@@ -72,30 +72,21 @@ export const slackUpdateMessageTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      return {
-        success: false,
-        output: {
-          content: data.error || 'Failed to update message',
-          metadata: {
-            channel: '',
-            timestamp: '',
-            text: '',
-          },
-        },
-        error: data.error,
-      }
+      throw new Error(data.error || 'Failed to update message')
     }
 
     return {
       success: true,
-      output: {
-        content: data.output.content,
-        metadata: data.output.metadata,
-      },
+      output: data.output,
     }
   },
 
   outputs: {
+    message: {
+      type: 'object',
+      description: 'Complete updated message object with all properties returned by Slack',
+    },
+    // Legacy properties for backward compatibility
     content: { type: 'string', description: 'Success message' },
     metadata: {
       type: 'object',

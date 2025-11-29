@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createFileResponse, extractFilename, findLocalFile } from './utils'
+import { createFileResponse, extractFilename, findLocalFile } from '@/app/api/files/utils'
 
 describe('extractFilename', () => {
   describe('legitimate file paths', () => {

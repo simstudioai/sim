@@ -12,6 +12,7 @@ export type ProviderId =
   | 'mistral'
   | 'ollama'
   | 'openrouter'
+  | 'vllm'
 
 /**
  * Model pricing information per million tokens

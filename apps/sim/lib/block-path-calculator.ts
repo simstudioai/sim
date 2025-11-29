@@ -85,9 +85,10 @@ export class BlockPathCalculator {
       const pathNodes = BlockPathCalculator.findAllPathNodes(workflow.connections, block.id)
       pathNodes.forEach((nodeId) => accessibleBlocks.add(nodeId))
 
-      // Always allow referencing the starter block (special case)
+      // Only add starter block if it's actually upstream (already in pathNodes)
+      // Don't add it just because it exists on the canvas
       const starterBlock = workflow.blocks.find((b) => b.metadata?.id === 'starter')
-      if (starterBlock && starterBlock.id !== block.id) {
+      if (starterBlock && starterBlock.id !== block.id && pathNodes.includes(starterBlock.id)) {
         accessibleBlocks.add(starterBlock.id)
       }
 

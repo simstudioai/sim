@@ -912,7 +912,7 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
         type: 'string',
         required: false,
         description: "Condition to evaluate (for 'while' and 'doWhile' loopType)",
-        example: '<loop.currentIteration> < 10',
+        example: '<loop.index> < 10',
       },
       maxConcurrency: {
         type: 'number',

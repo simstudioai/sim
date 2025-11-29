@@ -1,4 +1,4 @@
-interface CerebrasMessage {
+export interface CerebrasMessage {
   role: string
   content: string | null
   tool_calls?: Array<{
@@ -12,19 +12,19 @@ interface CerebrasMessage {
   tool_call_id?: string
 }
 
-interface CerebrasChoice {
+export interface CerebrasChoice {
   message: CerebrasMessage
   index: number
   finish_reason: string
 }
 
-interface CerebrasUsage {
+export interface CerebrasUsage {
   prompt_tokens: number
   completion_tokens: number
   total_tokens: number
 }
 
-interface CerebrasResponse {
+export interface CerebrasResponse {
   id: string
   object: string
   created: number

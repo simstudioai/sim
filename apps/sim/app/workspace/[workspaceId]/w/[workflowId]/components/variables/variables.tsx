@@ -373,7 +373,7 @@ export function Variables() {
 
   return (
     <div
-      className='fixed z-30 flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)] px-[10px] pt-[2px] pb-[8px]'
+      className='fixed z-30 flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--surface-1)] px-[10px] pt-[2px] pb-[8px]'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -421,7 +421,7 @@ export function Variables() {
       {/* Content */}
       <div className='flex flex-1 flex-col overflow-hidden pt-[8px]'>
         {workflowVariables.length === 0 ? (
-          <div className='flex flex-1 items-center justify-center text-[13px] text-[var(--text-tertiary)]'>
+          <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
             {STRINGS.emptyState}
           </div>
         ) : (

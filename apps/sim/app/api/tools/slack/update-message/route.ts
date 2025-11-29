@@ -78,14 +78,22 @@ export async function POST(request: NextRequest) {
       timestamp: data.ts,
     })
 
+    const messageObj = data.message || {
+      type: 'message',
+      ts: data.ts,
+      text: data.text || validatedData.text,
+      channel: data.channel,
+    }
+
     return NextResponse.json({
       success: true,
       output: {
+        message: messageObj,
         content: 'Message updated successfully',
         metadata: {
           channel: data.channel,
           timestamp: data.ts,
-          text: data.text,
+          text: data.text || validatedData.text,
         },
       },
     })

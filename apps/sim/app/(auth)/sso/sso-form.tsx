@@ -11,8 +11,8 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isFalsy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { inter } from '@/app/fonts/inter/inter'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { inter } from '@/app/_styles/fonts/inter/inter'
+import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 
 const logger = createLogger('SSOForm')
 

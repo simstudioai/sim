@@ -16,9 +16,8 @@ export default defineConfig({
   dirs: ['./background'],
   build: {
     extensions: [
-      // pdf-parse has native bindings, keep as external package
       additionalPackages({
-        packages: ['pdf-parse'],
+        packages: ['unpdf'],
       }),
     ],
   },

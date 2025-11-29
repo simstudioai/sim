@@ -9,7 +9,6 @@ import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { decryptSecret } from '@/lib/utils'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
@@ -153,12 +152,14 @@ export async function executeWorkflowCore(
     // Merge block states
     const mergedStates = mergeSubblockState(blocks)
 
-    // Get and decrypt environment variables
-    const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
-      userId,
-      providedWorkspaceId
-    )
+    const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } =
+      await getPersonalAndWorkspaceEnv(userId, providedWorkspaceId)
+
+    // Use encrypted values for logging (don't log decrypted secrets)
     const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
+
+    // Use already-decrypted values for execution (no redundant decryption)
+    const decryptedEnvVars: Record<string, string> = { ...personalDecrypted, ...workspaceDecrypted }
 
     await loggingSession.safeStart({
       userId,
@@ -167,13 +168,11 @@ export async function executeWorkflowCore(
       skipLogCreation, // Skip if resuming an existing execution
     })
 
-    // Process block states with env var substitution
-    const currentBlockStates = await Object.entries(mergedStates).reduce(
-      async (accPromise, [id, block]) => {
-        const acc = await accPromise
-        acc[id] = await Object.entries(block.subBlocks).reduce(
-          async (subAccPromise, [key, subBlock]) => {
-            const subAcc = await subAccPromise
+    // Process block states with env var substitution using pre-decrypted values
+    const currentBlockStates = Object.entries(mergedStates).reduce(
+      (acc, [id, block]) => {
+        acc[id] = Object.entries(block.subBlocks).reduce(
+          (subAcc, [key, subBlock]) => {
             let value = subBlock.value
 
             if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
@@ -181,10 +180,9 @@ export async function executeWorkflowCore(
               if (matches) {
                 for (const match of matches) {
                   const varName = match.slice(2, -2)
-                  const encryptedValue = variables[varName]
-                  if (encryptedValue) {
-                    const { decrypted } = await decryptSecret(encryptedValue)
-                    value = (value as string).replace(match, decrypted)
+                  const decryptedValue = decryptedEnvVars[varName]
+                  if (decryptedValue !== undefined) {
+                    value = (value as string).replace(match, decryptedValue)
                   }
                 }
               }
@@ -193,19 +191,12 @@ export async function executeWorkflowCore(
             subAcc[key] = value
             return subAcc
           },
-          Promise.resolve({} as Record<string, any>)
+          {} as Record<string, any>
         )
         return acc
       },
-      Promise.resolve({} as Record<string, Record<string, any>>)
+      {} as Record<string, Record<string, any>>
     )
-
-    // Decrypt all env vars
-    const decryptedEnvVars: Record<string, string> = {}
-    for (const [key, encryptedValue] of Object.entries(variables)) {
-      const { decrypted } = await decryptSecret(encryptedValue)
-      decryptedEnvVars[key] = decrypted
-    }
 
     // Process response format
     const processedBlockStates = Object.entries(currentBlockStates).reduce(
@@ -257,12 +248,7 @@ export async function executeWorkflowCore(
       const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
 
       if (!startBlock) {
-        const errorMsg =
-          executionKind === 'api'
-            ? 'No API trigger block found. Add an API Trigger block to this workflow.'
-            : executionKind === 'chat'
-              ? 'No chat trigger block found. Add a Chat Trigger block to this workflow.'
-              : 'No trigger block found for this workflow.'
+        const errorMsg = 'No start block found. Add a start block to this workflow.'
         logger.error(`[${requestId}] ${errorMsg}`)
         throw new Error(errorMsg)
       }

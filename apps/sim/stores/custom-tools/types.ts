@@ -24,27 +24,12 @@ export interface CustomToolDefinition {
 
 export interface CustomToolsState {
   tools: CustomToolDefinition[]
-  isLoading: boolean
-  error: string | null
 }
 
 export interface CustomToolsActions {
-  fetchTools: (workspaceId: string) => Promise<void>
-  createTool: (
-    workspaceId: string,
-    tool: Omit<CustomToolDefinition, 'id' | 'workspaceId' | 'userId' | 'createdAt' | 'updatedAt'>
-  ) => Promise<CustomToolDefinition>
-  updateTool: (
-    workspaceId: string,
-    id: string,
-    updates: Partial<
-      Omit<CustomToolDefinition, 'id' | 'workspaceId' | 'userId' | 'createdAt' | 'updatedAt'>
-    >
-  ) => Promise<void>
-  deleteTool: (workspaceId: string | null, id: string) => Promise<void>
+  setTools: (tools: CustomToolDefinition[]) => void
   getTool: (id: string) => CustomToolDefinition | undefined
   getAllTools: () => CustomToolDefinition[]
-  clearError: () => void
   reset: () => void
 }
 

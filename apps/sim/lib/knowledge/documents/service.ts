@@ -7,12 +7,12 @@ import { generateEmbeddings } from '@/lib/embeddings/utils'
 import { env } from '@/lib/env'
 import { getSlotsForFieldType, type TAG_SLOT_CONFIG } from '@/lib/knowledge/consts'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { DocumentProcessingQueue } from '@/lib/knowledge/documents/queue'
+import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { getNextAvailableSlot } from '@/lib/knowledge/tags/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
-import { DocumentProcessingQueue } from './queue'
-import type { DocumentSortField, SortOrder } from './types'
 
 const logger = createLogger('DocumentService')
 

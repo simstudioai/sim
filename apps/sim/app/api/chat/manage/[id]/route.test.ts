@@ -19,10 +19,13 @@ describe('Chat Edit API Route', () => {
   const mockCreateErrorResponse = vi.fn()
   const mockEncryptSecret = vi.fn()
   const mockCheckChatAccess = vi.fn()
+  const mockDeployWorkflow = vi.fn()
 
   beforeEach(() => {
     vi.resetModules()
 
+    // Set default return values
+    mockLimit.mockResolvedValue([])
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
     mockWhere.mockReturnValue({ limit: mockLimit })
@@ -81,6 +84,15 @@ describe('Chat Edit API Route', () => {
     vi.doMock('@/app/api/chat/utils', () => ({
       checkChatAccess: mockCheckChatAccess,
     }))
+
+    mockDeployWorkflow.mockResolvedValue({ success: true, version: 1 })
+    vi.doMock('@/lib/workflows/db-helpers', () => ({
+      deployWorkflow: mockDeployWorkflow,
+    }))
+
+    vi.doMock('drizzle-orm', () => ({
+      eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
+    }))
   })
 
   afterEach(() => {
@@ -98,7 +110,8 @@ describe('Chat Edit API Route', () => {
       const response = await GET(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(401)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Unauthorized', 401)
+      const data = await response.json()
+      expect(data.error).toBe('Unauthorized')
     })
 
     it('should return 404 when chat not found or access denied', async () => {
@@ -115,7 +128,8 @@ describe('Chat Edit API Route', () => {
       const response = await GET(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(404)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Chat not found or access denied', 404)
+      const data = await response.json()
+      expect(data.error).toBe('Chat not found or access denied')
       expect(mockCheckChatAccess).toHaveBeenCalledWith('chat-123', 'user-id')
     })
 
@@ -142,15 +156,12 @@ describe('Chat Edit API Route', () => {
       const response = await GET(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)
-      expect(mockCreateSuccessResponse).toHaveBeenCalledWith({
-        id: 'chat-123',
-        identifier: 'test-chat',
-        title: 'Test Chat',
-        description: 'A test chat',
-        customizations: { primaryColor: '#000000' },
-        chatUrl: 'http://localhost:3000/chat/test-chat',
-        hasPassword: true,
-      })
+      const data = await response.json()
+      expect(data.id).toBe('chat-123')
+      expect(data.identifier).toBe('test-chat')
+      expect(data.title).toBe('Test Chat')
+      expect(data.chatUrl).toBe('http://localhost:3000/chat/test-chat')
+      expect(data.hasPassword).toBe(true)
     })
   })
 
@@ -168,7 +179,8 @@ describe('Chat Edit API Route', () => {
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(401)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Unauthorized', 401)
+      const data = await response.json()
+      expect(data.error).toBe('Unauthorized')
     })
 
     it('should return 404 when chat not found or access denied', async () => {
@@ -188,7 +200,8 @@ describe('Chat Edit API Route', () => {
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(404)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Chat not found or access denied', 404)
+      const data = await response.json()
+      expect(data.error).toBe('Chat not found or access denied')
       expect(mockCheckChatAccess).toHaveBeenCalledWith('chat-123', 'user-id')
     })
 
@@ -204,9 +217,11 @@ describe('Chat Edit API Route', () => {
         identifier: 'test-chat',
         title: 'Test Chat',
         authType: 'public',
+        workflowId: 'workflow-123',
       }
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
+      mockLimit.mockResolvedValueOnce([]) // No identifier conflict
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
@@ -217,11 +232,10 @@ describe('Chat Edit API Route', () => {
 
       expect(response.status).toBe(200)
       expect(mockUpdate).toHaveBeenCalled()
-      expect(mockCreateSuccessResponse).toHaveBeenCalledWith({
-        id: 'chat-123',
-        chatUrl: 'http://localhost:3000/chat/test-chat',
-        message: 'Chat deployment updated successfully',
-      })
+      const data = await response.json()
+      expect(data.id).toBe('chat-123')
+      expect(data.chatUrl).toBe('http://localhost:3000/chat/test-chat')
+      expect(data.message).toBe('Chat deployment updated successfully')
     })
 
     it('should handle identifier conflicts', async () => {
@@ -235,11 +249,15 @@ describe('Chat Edit API Route', () => {
         id: 'chat-123',
         identifier: 'test-chat',
         title: 'Test Chat',
+        workflowId: 'workflow-123',
       }
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
-      // Mock identifier conflict
-      mockLimit.mockResolvedValueOnce([{ id: 'other-chat-id', identifier: 'new-identifier' }])
+
+      // Reset and reconfigure mockLimit to return the conflict
+      mockLimit.mockReset()
+      mockLimit.mockResolvedValue([{ id: 'other-chat-id', identifier: 'new-identifier' }])
+      mockWhere.mockReturnValue({ limit: mockLimit })
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
@@ -249,7 +267,8 @@ describe('Chat Edit API Route', () => {
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(400)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Identifier already in use', 400)
+      const data = await response.json()
+      expect(data.error).toBe('Identifier already in use')
     })
 
     it('should validate password requirement for password auth', async () => {
@@ -265,6 +284,7 @@ describe('Chat Edit API Route', () => {
         title: 'Test Chat',
         authType: 'public',
         password: null,
+        workflowId: 'workflow-123',
       }
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
@@ -277,10 +297,8 @@ describe('Chat Edit API Route', () => {
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(400)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
-        'Password is required when using password protection',
-        400
-      )
+      const data = await response.json()
+      expect(data.error).toBe('Password is required when using password protection')
     })
 
     it('should allow access when user has workspace admin permission', async () => {
@@ -295,10 +313,12 @@ describe('Chat Edit API Route', () => {
         identifier: 'test-chat',
         title: 'Test Chat',
         authType: 'public',
+        workflowId: 'workflow-123',
       }
 
       // User doesn't own chat but has workspace admin access
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
+      mockLimit.mockResolvedValueOnce([]) // No identifier conflict
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
@@ -325,7 +345,8 @@ describe('Chat Edit API Route', () => {
       const response = await DELETE(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(401)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Unauthorized', 401)
+      const data = await response.json()
+      expect(data.error).toBe('Unauthorized')
     })
 
     it('should return 404 when chat not found or access denied', async () => {
@@ -344,7 +365,8 @@ describe('Chat Edit API Route', () => {
       const response = await DELETE(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(404)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Chat not found or access denied', 404)
+      const data = await response.json()
+      expect(data.error).toBe('Chat not found or access denied')
       expect(mockCheckChatAccess).toHaveBeenCalledWith('chat-123', 'user-id')
     })
 
@@ -366,9 +388,8 @@ describe('Chat Edit API Route', () => {
 
       expect(response.status).toBe(200)
       expect(mockDelete).toHaveBeenCalled()
-      expect(mockCreateSuccessResponse).toHaveBeenCalledWith({
-        message: 'Chat deployment deleted successfully',
-      })
+      const data = await response.json()
+      expect(data.message).toBe('Chat deployment deleted successfully')
     })
 
     it('should allow deletion when user has workspace admin permission', async () => {

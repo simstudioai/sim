@@ -1,0 +1,574 @@
+---
+title: Apollo
+description: Apollo.ioで連絡先の検索、情報強化、管理を行う
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="apollo"
+  color="#EBF212"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Apollo.io](https://apollo.io/)は、ユーザーが大規模に連絡先や企業を見つけ、情報を強化し、エンゲージメントを行うことができる、先進的な営業インテリジェンスおよびエンゲージメントプラットフォームです。Apollo.ioは、広範な連絡先データベースと堅牢な情報強化およびワークフロー自動化ツールを組み合わせ、営業、マーケティング、採用チームの成長を加速させるのに役立ちます。
+
+Apollo.ioでは、以下のことが可能です：
+
+- **数百万の連絡先と企業を検索**: 高度なフィルターを使用して正確なリードを見つける
+- **リードとアカウントの情報を強化**: 検証済みデータと最新情報で不足している詳細を補完
+- **CRMレコードの管理と整理**: 人物と企業のデータを正確かつ実用的に保つ
+- **アウトリーチの自動化**: Apollo.ioから直接連絡先をシーケンスに追加し、フォローアップタスクを作成
+
+Simでは、Apollo.io統合により、エージェントがプログラムによって主要なApollo操作を実行できます：
+
+- **人物と企業の検索**: `apollo_people_search`を使用して、柔軟なフィルターで新しいリードを発見します。
+- **人物データの強化**: `apollo_people_enrich`を使用して、連絡先を検証済み情報で補強します。
+- **人物の一括強化**: `apollo_people_bulk_enrich`を使用して、複数の連絡先を一度に大規模に強化します。
+- **企業の検索と強化**: `apollo_company_search`と`apollo_company_enrich`を使用して、主要な企業情報を発見し更新します。
+
+これにより、エージェントは手動でのデータ入力やタブの切り替えなしに、見込み客の発掘、CRM情報強化、自動化のための強力なワークフローを構築できます。Apollo.ioを動的なデータソースとCRMエンジンとして統合することで、エージェントが日常業務の一部として、リードを特定し、資格を評価し、シームレスにアプローチすることができます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用手順
+
+Apollo.ioをワークフローに統合します。人物や企業を検索し、連絡先データを充実させ、CRMの連絡先やアカウントを管理し、連絡先をシーケンスに追加し、タスクを作成できます。
+
+## ツール
+
+### `apollo_people_search`
+
+Apolloを検索
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `person_titles` | array | いいえ | 検索する役職（例：["CEO", "VP of Sales"]） |
+| `person_locations` | array | いいえ | 検索する場所（例：["San Francisco, CA", "New York, NY"]） |
+| `person_seniorities` | array | いいえ | 役職レベル（例：["senior", "executive", "manager"]） |
+| `organization_names` | array | いいえ | 検索対象の企業名 |
+| `q_keywords` | string | いいえ | 検索するキーワード |
+| `page` | number | いいえ | ページネーションのページ番号（デフォルト：1） |
+| `per_page` | number | いいえ | 1ページあたりの結果数（デフォルト：25、最大：100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `people` | json | 検索条件に一致する人物の配列 |
+| `metadata` | json | ページ、per_page、total_entriesを含むページネーション情報 |
+
+### `apollo_people_enrich`
+
+Apolloを使用して1人のデータを充実させる
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `first_name` | string | いいえ | 人物の名 |
+| `last_name` | string | いいえ | 人物の姓 |
+| `email` | string | いいえ | 人物のメールアドレス |
+| `organization_name` | string | いいえ | 人物が勤務する企業名 |
+| `domain` | string | いいえ | 企業ドメイン（例：apollo.io） |
+| `linkedin_url` | string | いいえ | LinkedInプロフィールURL |
+| `reveal_personal_emails` | boolean | いいえ | 個人メールアドレスを表示（クレジットを使用） |
+| `reveal_phone_number` | boolean | いいえ | 電話番号を表示（クレジットを使用） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `person` | json | Apolloからの充実した人物データ |
+| `metadata` | json | 充実ステータスを含むエンリッチメントメタデータ |
+
+### `apollo_people_bulk_enrich`
+
+Apolloを使用して一度に最大10人のデータを充実させる
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `people` | array | はい | 充実させる人物の配列（最大10人） |
+| `reveal_personal_emails` | boolean | いいえ | 個人メールアドレスを表示（クレジットを使用） |
+| `reveal_phone_number` | boolean | いいえ | 電話番号を表示（クレジットを使用） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `people` | json | 充実した人物データの配列 |
+| `metadata` | json | 合計数と充実数を含む一括充実メタデータ |
+
+### `apollo_organization_search`
+
+Apolloを検索
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `organization_locations` | array | いいえ | 検索する会社の所在地 |
+| `organization_num_employees_ranges` | array | いいえ | 従業員数の範囲（例：["1-10", "11-50"]） |
+| `q_organization_keyword_tags` | array | いいえ | 業界またはキーワードタグ |
+| `q_organization_name` | string | いいえ | 検索する組織名 |
+| `page` | number | いいえ | ページネーションのページ番号 |
+| `per_page` | number | いいえ | ページあたりの結果数（最大：100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `organizations` | json | 検索条件に一致する組織の配列 |
+| `metadata` | json | ページ、per_page、total_entriesを含むページネーション情報 |
+
+### `apollo_organization_enrich`
+
+Apolloを使用して単一の組織のデータを充実させる
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `organization_name` | string | いいえ | 組織名（organization_nameまたはdomainの少なくとも1つが必要） |
+| `domain` | string | いいえ | 会社ドメイン（例：apollo.io）（domainまたはorganization_nameの少なくとも1つが必要） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `organization` | json | Apolloからの充実した組織データ |
+| `metadata` | json | 充実ステータスを含むエンリッチメントメタデータ |
+
+### `apollo_organization_bulk_enrich`
+
+Apolloを使用して最大10の組織のデータを一度に充実させる
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `organizations` | array | はい | 充実させる組織の配列（最大10） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `organizations` | json | 充実した組織データの配列 |
+| `metadata` | json | 合計数と充実数を含む一括エンリッチメントメタデータ |
+
+### `apollo_contact_create`
+
+Apolloデータベースに新しい連絡先を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `first_name` | string | はい | 連絡先の名 |
+| `last_name` | string | はい | 連絡先の姓 |
+| `email` | string | いいえ | 連絡先のメールアドレス |
+| `title` | string | いいえ | 役職 |
+| `account_id` | string | いいえ | 関連付けるApolloアカウントID |
+| `owner_id` | string | いいえ | 連絡先所有者のユーザーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `contact` | json | Apolloから作成された連絡先データ |
+| `metadata` | json | 作成ステータスを含む作成メタデータ |
+
+### `apollo_contact_update`
+
+Apolloデータベースの既存の連絡先を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `contact_id` | string | はい | 更新する連絡先のID |
+| `first_name` | string | いいえ | 連絡先の名 |
+| `last_name` | string | いいえ | 連絡先の姓 |
+| `email` | string | いいえ | メールアドレス |
+| `title` | string | いいえ | 役職 |
+| `account_id` | string | いいえ | Apolloアカウント ID |
+| `owner_id` | string | いいえ | 連絡先所有者のユーザーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `contact` | json | Apolloから更新された連絡先データ |
+| `metadata` | json | 更新ステータスを含む更新メタデータ |
+
+### `apollo_contact_search`
+
+チームを検索
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `q_keywords` | string | いいえ | 検索するキーワード |
+| `contact_stage_ids` | array | いいえ | 連絡先ステージIDでフィルタリング |
+| `page` | number | いいえ | ページネーションのページ番号 |
+| `per_page` | number | いいえ | 1ページあたりの結果数（最大：100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `contacts` | json | 検索条件に一致する連絡先の配列 |
+| `metadata` | json | ページ、per_page、total_entriesを含むページネーション情報 |
+
+### `apollo_contact_bulk_create`
+
+Apolloデータベースに一度に最大100件の連絡先を作成します。重複を防ぐための重複排除をサポートしています。マスターキーが必要です。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー（マスターキーが必要） |
+| `contacts` | array | はい | 作成する連絡先の配列（最大100件）。各連絡先にはfirst_name、last_nameを含め、オプションでemail、title、account_id、owner_idを含めることができます |
+| `run_dedupe` | boolean | いいえ | 重複する連絡先の作成を防ぐための重複排除を有効にします。trueの場合、既存の連絡先は変更せずに返されます |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `created_contacts` | json | 新しく作成された連絡先の配列 |
+| `existing_contacts` | json | 既存の連絡先の配列（重複排除が有効な場合） |
+| `metadata` | json | 作成された連絡先と既存の連絡先の数を含む一括作成メタデータ |
+
+### `apollo_contact_bulk_update`
+
+Apolloデータベース内の最大100件の既存の連絡先を一度に更新します。各連絡先にはidフィールドが含まれている必要があります。マスターキーが必要です。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー（マスターキーが必要） |
+| `contacts` | array | はい | 更新する連絡先の配列（最大100件）。各連絡先にはidフィールドが必須で、オプションでfirst_name、last_name、email、title、account_id、owner_idを含めることができます |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `updated_contacts` | json | 正常に更新された連絡先の配列 |
+| `failed_contacts` | json | 更新に失敗した連絡先の配列 |
+| `metadata` | json | 更新された連絡先と失敗した連絡先の数を含む一括更新メタデータ |
+
+### `apollo_account_create`
+
+Apolloデータベースに新しいアカウント（会社）を作成します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `name` | string | はい | 会社名 |
+| `website_url` | string | いいえ | 会社のウェブサイトURL |
+| `phone` | string | いいえ | 会社の電話番号 |
+| `owner_id` | string | いいえ | アカウント所有者のユーザーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `account` | json | Apolloから作成されたアカウントデータ |
+| `metadata` | json | 作成ステータスを含む作成メタデータ |
+
+### `apollo_account_update`
+
+Apolloデータベース内の既存のアカウントを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `account_id` | string | はい | 更新するアカウントのID |
+| `name` | string | いいえ | 会社名 |
+| `website_url` | string | いいえ | 会社のウェブサイトURL |
+| `phone` | string | いいえ | 会社の電話番号 |
+| `owner_id` | string | いいえ | アカウント所有者のユーザーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `account` | json | Apolloから更新されたアカウントデータ |
+| `metadata` | json | 更新ステータスを含む更新メタデータ |
+
+### `apollo_account_search`
+
+チームを検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー（マスターキーが必要） |
+| `q_keywords` | string | いいえ | アカウントデータで検索するキーワード |
+| `owner_id` | string | いいえ | アカウント所有者のユーザーIDでフィルタリング |
+| `account_stage_ids` | array | いいえ | アカウントステージIDでフィルタリング |
+| `page` | number | いいえ | ページネーションのページ番号 |
+| `per_page` | number | いいえ | 1ページあたりの結果数（最大：100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `accounts` | json | 検索条件に一致するアカウントの配列 |
+| `metadata` | json | ページ、per_page、total_entriesを含むページネーション情報 |
+
+### `apollo_account_bulk_create`
+
+Apolloデータベースに一度に最大100のアカウントを作成できます。注意：Apolloは重複排除を適用しないため、エントリが類似した名前やドメインを共有している場合、重複アカウントが作成される可能性があります。マスターキーが必要です。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー（マスターキーが必要） |
+| `accounts` | array | はい | 作成するアカウントの配列（最大100）。各アカウントには名前（必須）、およびオプションでwebsite_url、phone、owner_idを含める必要があります |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `created_accounts` | json | 新しく作成されたアカウントの配列 |
+| `failed_accounts` | json | 作成に失敗したアカウントの配列 |
+| `metadata` | json | 作成されたアカウントと失敗したアカウントの数を含む一括作成メタデータ |
+
+### `apollo_account_bulk_update`
+
+Apolloデータベースで一度に最大1000の既存アカウントを更新します（連絡先よりも高い制限！）。各アカウントにはidフィールドを含める必要があります。マスターキーが必要です。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー（マスターキーが必要） |
+| `accounts` | array | はい | 更新するアカウントの配列（最大1000）。各アカウントにはidフィールドを含め、オプションでname、website_url、phone、owner_idを含める必要があります |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `updated_accounts` | json | 正常に更新されたアカウントの配列 |
+| `failed_accounts` | json | 更新に失敗したアカウントの配列 |
+| `metadata` | json | 更新および失敗したアカウント数を含む一括更新メタデータ |
+
+### `apollo_opportunity_create`
+
+Apolloデータベースのアカウントに新しい取引を作成します（マスターキーが必要）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー（マスターキーが必要） |
+| `name` | string | はい | 商談/取引の名前 |
+| `account_id` | string | はい | この商談が属するアカウントのID |
+| `amount` | number | いいえ | 商談の金銭的価値 |
+| `stage_id` | string | いいえ | 取引ステージのID |
+| `owner_id` | string | いいえ | 商談所有者のユーザーID |
+| `close_date` | string | いいえ | 予想クローズ日（ISO 8601形式） |
+| `description` | string | いいえ | 商談に関する説明またはメモ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `opportunity` | json | Apolloから作成された商談データ |
+| `metadata` | json | 作成ステータスを含む作成メタデータ |
+
+### `apollo_opportunity_search`
+
+チーム内のすべての取引/商談を検索してリスト表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `q_keywords` | string | いいえ | 案件名で検索するキーワード |
+| `account_ids` | array | いいえ | 特定のアカウントIDでフィルタリング |
+| `stage_ids` | array | いいえ | 商談ステージIDでフィルタリング |
+| `owner_ids` | array | いいえ | 案件担当者IDでフィルタリング |
+| `page` | number | いいえ | ページネーション用のページ番号 |
+| `per_page` | number | いいえ | 1ページあたりの結果数（最大：100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `opportunities` | json | 検索条件に一致する案件の配列 |
+| `metadata` | json | ページ、per_page、total_entriesを含むページネーション情報 |
+
+### `apollo_opportunity_get`
+
+IDで特定の商談/案件の詳細情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `opportunity_id` | string | はい | 取得する案件のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `opportunity` | json | Apolloからの完全な案件データ |
+| `metadata` | json | 検索状態を含む取得メタデータ |
+
+### `apollo_opportunity_update`
+
+Apolloデータベース内の既存の商談/案件を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー |
+| `opportunity_id` | string | はい | 更新する案件のID |
+| `name` | string | いいえ | 案件/取引の名前 |
+| `amount` | number | いいえ | 案件の金銭的価値 |
+| `stage_id` | string | いいえ | 取引ステージのID |
+| `owner_id` | string | いいえ | 案件所有者のユーザーID |
+| `close_date` | string | いいえ | 予定成約日（ISO 8601形式） |
+| `description` | string | いいえ | 案件に関する説明やメモ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `opportunity` | json | Apolloからの更新された案件データ |
+| `metadata` | json | 更新ステータスを含む更新メタデータ |
+
+### `apollo_sequence_search`
+
+チーム内のシーケンス/キャンペーンを検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー（マスターキーが必要） |
+| `q_name` | string | いいえ | 名前でシーケンスを検索 |
+| `active` | boolean | いいえ | アクティブステータスでフィルタリング（アクティブなシーケンスはtrue、非アクティブはfalse） |
+| `page` | number | いいえ | ページネーションのページ番号 |
+| `per_page` | number | いいえ | 1ページあたりの結果数（最大：100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `sequences` | json | 検索条件に一致するシーケンス/キャンペーンの配列 |
+| `metadata` | json | ページ、per_page、total_entriesを含むページネーション情報 |
+
+### `apollo_sequence_add_contacts`
+
+Apolloシーケンスに連絡先を追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー（マスターキーが必要） |
+| `sequence_id` | string | はい | 連絡先を追加するシーケンスのID |
+| `contact_ids` | array | はい | シーケンスに追加する連絡先IDの配列 |
+| `emailer_campaign_id` | string | いいえ | オプションのメーラーキャンペーンID |
+| `send_email_from_user_id` | string | いいえ | メールの送信元となるユーザーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `contacts_added` | json | シーケンスに追加された連絡先IDの配列 |
+| `metadata` | json | sequence_idとtotal_added数を含むシーケンスメタデータ |
+
+### `apollo_task_create`
+
+Apolloで新しいタスクを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー（マスターキーが必要） |
+| `note` | string | はい | タスクのメモ/説明 |
+| `contact_id` | string | いいえ | 関連付ける連絡先ID |
+| `account_id` | string | いいえ | 関連付けるアカウントID |
+| `due_at` | string | いいえ | ISO形式の期日 |
+| `priority` | string | いいえ | タスクの優先度 |
+| `type` | string | いいえ | タスクのタイプ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `task` | json | Apolloから作成されたタスクデータ |
+| `metadata` | json | 作成ステータスを含む作成メタデータ |
+
+### `apollo_task_search`
+
+Apolloでタスクを検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー（マスターキーが必要） |
+| `contact_id` | string | いいえ | 連絡先IDでフィルタリング |
+| `account_id` | string | いいえ | アカウントIDでフィルタリング |
+| `completed` | boolean | いいえ | 完了ステータスでフィルタリング |
+| `page` | number | いいえ | ページネーション用のページ番号 |
+| `per_page` | number | いいえ | 1ページあたりの結果数（最大：100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `tasks` | json | 検索条件に一致するタスクの配列 |
+| `metadata` | json | ページ、per_page、total_entriesを含むページネーション情報 |
+
+### `apollo_email_accounts`
+
+チームのリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Apollo APIキー（マスターキーが必要） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `email_accounts` | json | Apolloにリンクされているチームのメールアカウントの配列 |
+| `metadata` | json | メールアカウントの総数を含むメタデータ |
+
+## メモ
+
+- カテゴリー: `tools`
+- タイプ: `apollo`

@@ -9,8 +9,8 @@ import { GithubIcon } from '@/components/icons'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
-import { soehne } from '@/app/fonts/soehne/soehne'
 
 const logger = createLogger('nav')
 
@@ -20,7 +20,7 @@ interface NavProps {
 }
 
 export default function Nav({ hideAuthButtons = false, variant = 'landing' }: NavProps = {}) {
-  const [githubStars, setGithubStars] = useState('18k')
+  const [githubStars, setGithubStars] = useState('18.5k')
   const [isHovered, setIsHovered] = useState(false)
   const [isLoginHovered, setIsLoginHovered] = useState(false)
   const router = useRouter()

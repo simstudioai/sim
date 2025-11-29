@@ -1,0 +1,796 @@
+---
+title: Pylon
+description: 在 Pylon 中管理客户支持问题、账户、联系人、用户、团队和标签
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pylon"
+  color="#E8F4FA"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Pylon](https://usepylon.com/) 是一个先进的客户支持和成功平台，旨在帮助您管理客户关系的各个方面——从支持问题到账户、联系人、用户、团队等。Pylon 通过丰富的 API 和全面的工具集，使支持和成功团队能够高效且程序化地运作。
+
+在 Sim 中使用 Pylon，您可以：
+
+- **管理支持问题：**
+  - 列出、创建、获取、更新和删除支持问题，以实现高效的案例跟踪。
+  - 搜索和延后问题，帮助代理专注并保持有序。
+  - 处理问题关注者和外部问题，与内部和外部利益相关者无缝协作。
+
+- **全面的账户管理：**
+  - 列出、创建、获取、更新和删除客户账户。
+  - 以编程方式批量更新账户。
+  - 搜索账户，快速找到与支持或外联相关的客户信息。
+
+- **联系人管理：**
+  - 列出、创建、获取、更新、删除和搜索联系人——管理与您的账户相关的所有人。
+
+- **用户和团队操作：**
+  - 列出、获取、更新和搜索 Pylon 工作区中的用户。
+  - 列出、创建、获取和更新团队，以构建您的支持组织和工作流程。
+
+- **标签和组织：**
+  - 列出、获取、创建、更新和删除标签，用于对问题、账户或联系人进行分类。
+
+- **消息处理：**
+  - 直接从您的工作流程中编辑敏感消息内容，以确保隐私和合规性。
+
+通过将 Pylon 工具集成到 Sim 中，您的代理可以自动化支持操作的各个方面：
+- 在客户事件发生时自动打开、更新或分类新问题。
+- 在您的技术堆栈中保持账户和联系人数据的同步。
+- 使用标签和团队路由对话、处理升级并组织您的支持数据。
+- 确保敏感数据得到妥善管理，根据需要编辑消息。
+
+Pylon 的端点提供了对客户问题和关系全生命周期管理的精细控制。无论是扩展支持服务台、推动主动客户成功，还是与其他系统集成，Sim 中的 Pylon 都能实现一流的 CRM 自动化——安全、灵活且可扩展。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Pylon 集成到工作流程中。管理问题（列表、创建、获取、更新、删除、搜索、延迟、关注者、外部问题）、账户（列表、创建、获取、更新、删除、批量更新、搜索）、联系人（列表、创建、获取、更新、删除、搜索）、用户（列表、获取、更新、搜索）、团队（列表、获取、创建、更新）、标签（列表、获取、创建、更新、删除）和消息（编辑）。
+
+## 工具
+
+### `pylon_list_issues`
+
+检索指定时间范围内的问题列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `startTime` | string | 是 | RFC3339 格式的开始时间 \(例如：2024-01-01T00:00:00Z\) |
+| `endTime` | string | 是 | RFC3339 格式的结束时间 \(例如：2024-01-31T23:59:59Z\) |
+| `cursor` | string | 否 | 下一页结果的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 问题列表 |
+
+### `pylon_create_issue`
+
+创建具有指定属性的新问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `title` | string | 是 | 问题标题 |
+| `bodyHtml` | string | 是 | HTML 格式的问题正文 |
+| `accountId` | string | 否 | 要与问题关联的账户 ID |
+| `assigneeId` | string | 否 | 要分配问题的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的问题数据 |
+
+### `pylon_get_issue`
+
+通过 ID 获取特定问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `issueId` | string | 是 | 要检索的问题 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 问题数据 |
+
+### `pylon_update_issue`
+
+更新现有问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `issueId` | string | 是 | 要更新的问题 ID |
+| `state` | string | 否 | 问题状态 |
+| `assigneeId` | string | 否 | 分配问题的用户 ID |
+| `teamId` | string | 否 | 分配问题的团队 ID |
+| `tags` | string | 否 | 逗号分隔的标签 ID |
+| `customFields` | string | 否 | 作为 JSON 对象的自定义字段 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的问题数据 |
+
+### `pylon_delete_issue`
+
+通过 ID 删除问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `issueId` | string | 是 | 要删除的问题 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 删除结果 |
+
+### `pylon_search_issues`
+
+使用筛选器查询问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `filter` | string | 是 | 作为 JSON 字符串的筛选条件 |
+| `cursor` | string | 否 | 下一页结果的分页游标 |
+| `limit` | number | 否 | 要返回的最大结果数 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 搜索结果 |
+
+### `pylon_snooze_issue`
+
+推迟问题的可见性直到指定时间
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `issueId` | string | 是 | 要推迟的问题 ID |
+| `snoozeUntil` | string | 是 | 问题应重新出现的 RFC3339 时间戳 \(例如，2024-01-01T00:00:00Z\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 延期问题数据 |
+
+### `pylon_list_issue_followers`
+
+获取特定问题的关注者列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `issueId` | string | 是 | 问题的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 关注者列表 |
+
+### `pylon_manage_issue_followers`
+
+添加或移除问题的关注者
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `issueId` | string | 是 | 问题的 ID |
+| `userIds` | string | 否 | 逗号分隔的用户 ID 列表，用于添加/移除 |
+| `contactIds` | string | 否 | 逗号分隔的联系人 ID 列表，用于添加/移除 |
+| `operation` | string | 否 | 要执行的操作："add" 或 "remove" \(默认值："add"\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新后的关注者列表 |
+
+### `pylon_link_external_issue`
+
+将问题链接到外部系统问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `issueId` | string | 是 | Pylon 问题的 ID |
+| `externalIssueId` | string | 是 | 外部问题的 ID |
+| `source` | string | 是 | 来源系统（例如："jira", "linear", "github"） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 已链接的外部问题数据 |
+
+### `pylon_list_accounts`
+
+检索账户的分页列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `limit` | string | 否 | 要返回的账户数量（1-1000，默认 100） |
+| `cursor` | string | 否 | 下一页结果的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 账户列表 |
+
+### `pylon_create_account`
+
+使用指定属性创建新账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `name` | string | 是 | 账户名称 |
+| `domains` | string | 否 | 逗号分隔的域名列表 |
+| `primaryDomain` | string | 否 | 账户的主域名 |
+| `customFields` | string | 否 | 作为 JSON 对象的自定义字段 |
+| `tags` | string | 否 | 逗号分隔的标签 ID |
+| `channels` | string | 否 | 逗号分隔的频道 ID |
+| `externalIds` | string | 否 | 逗号分隔的外部 ID |
+| `ownerId` | string | 否 | 所有者用户 ID |
+| `logoUrl` | string | 否 | 账户徽标的 URL |
+| `subaccountIds` | string | 否 | 逗号分隔的子账户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的账户数据 |
+
+### `pylon_get_account`
+
+通过 ID 检索单个账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `accountId` | string | 是 | 要检索的账户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 账户数据 |
+
+### `pylon_update_account`
+
+使用新属性更新现有账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `accountId` | string | 是 | 要更新的账户 ID |
+| `name` | string | 否 | 账户名称 |
+| `domains` | string | 否 | 逗号分隔的域名列表 |
+| `primaryDomain` | string | 否 | 账户的主域名 |
+| `customFields` | string | 否 | 作为 JSON 对象的自定义字段 |
+| `tags` | string | 否 | 逗号分隔的标签 ID |
+| `channels` | string | 否 | 逗号分隔的频道 ID |
+| `externalIds` | string | 否 | 逗号分隔的外部 ID |
+| `ownerId` | string | 否 | 所有者用户 ID |
+| `logoUrl` | string | 否 | 账户标志的 URL |
+| `subaccountIds` | string | 否 | 逗号分隔的子账户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的账户数据 |
+
+### `pylon_delete_account`
+
+通过 ID 删除账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `accountId` | string | 是 | 要删除的账户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 删除确认 |
+
+### `pylon_bulk_update_accounts`
+
+一次更新多个账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `accountIds` | string | 是 | 逗号分隔的账户 ID 列表 |
+| `customFields` | string | 否 | 自定义字段（JSON 对象） |
+| `tags` | string | 否 | 逗号分隔的标签 ID |
+| `ownerId` | string | 否 | 所有者用户 ID |
+| `tagsApplyMode` | string | 否 | 标签应用模式：append_only、remove_only 或 replace |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 批量更新的账户数据 |
+
+### `pylon_search_accounts`
+
+使用自定义筛选器搜索账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `filter` | string | 是 | 以 JSON 字符串形式表示的筛选器，包含字段/操作符/值结构 |
+| `limit` | string | 否 | 要返回的账户数量 \(1-1000，默认 100\) |
+| `cursor` | string | 否 | 用于下一页结果的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 搜索结果 |
+
+### `pylon_list_contacts`
+
+检索联系人列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `cursor` | string | 否 | 用于下一页结果的分页游标 |
+| `limit` | string | 否 | 要返回的最大联系人数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 联系人列表 |
+
+### `pylon_create_contact`
+
+创建具有指定属性的新联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `name` | string | 是 | 联系人姓名 |
+| `email` | string | 否 | 联系人电子邮件地址 |
+| `accountId` | string | 否 | 要与联系人关联的账户 ID |
+| `accountExternalId` | string | 否 | 要与联系人关联的外部账户 ID |
+| `avatarUrl` | string | 否 | 联系人头像图片的 URL |
+| `customFields` | string | 否 | 以 JSON 对象形式表示的自定义字段 |
+| `portalRole` | string | 否 | 联系人的门户角色 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的联系人数据 |
+
+### `pylon_get_contact`
+
+通过 ID 检索特定联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `contactId` | string | 是 | 要检索的联系人 ID |
+| `cursor` | string | 否 | 下一页结果的分页游标 |
+| `limit` | string | 否 | 要返回的最大项目数 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 联系人数据 |
+
+### `pylon_update_contact`
+
+使用指定属性更新现有联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `contactId` | string | 是 | 要更新的联系人 ID |
+| `name` | string | 否 | 联系人姓名 |
+| `email` | string | 否 | 联系人电子邮件地址 |
+| `accountId` | string | 否 | 要与联系人关联的账户 ID |
+| `accountExternalId` | string | 否 | 要与联系人关联的外部账户 ID |
+| `avatarUrl` | string | 否 | 联系人头像图片的 URL |
+| `customFields` | string | 否 | 作为 JSON 对象的自定义字段 |
+| `portalRole` | string | 否 | 联系人的门户角色 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的联系人数据 |
+
+### `pylon_delete_contact`
+
+通过 ID 删除特定联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `contactId` | string | 是 | 要删除的联系人 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 删除操作结果 |
+
+### `pylon_search_contacts`
+
+使用筛选器搜索联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `filter` | string | 是 | 作为 JSON 对象的筛选器 |
+| `limit` | string | 否 | 要返回的最大联系人数量 |
+| `cursor` | string | 否 | 下一页结果的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 搜索结果 |
+
+### `pylon_list_users`
+
+检索用户列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 用户列表 |
+
+### `pylon_get_user`
+
+通过 ID 检索特定用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `userId` | string | 是 | 要检索的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 用户数据 |
+
+### `pylon_update_user`
+
+使用指定属性更新现有用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `userId` | string | 是 | 要更新的用户 ID |
+| `roleId` | string | 否 | 要分配给用户的角色 ID |
+| `status` | string | 否 | 用户状态 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的用户数据 |
+
+### `pylon_search_users`
+
+使用电子邮件字段的过滤器搜索用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `filter` | string | 是 | 包含电子邮件字段的 JSON 对象过滤器 |
+| `cursor` | string | 否 | 下一页结果的分页游标 |
+| `limit` | string | 否 | 要返回的最大用户数 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 搜索结果 |
+
+### `pylon_list_teams`
+
+检索团队列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 团队列表 |
+
+### `pylon_get_team`
+
+通过 ID 检索特定团队
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `teamId` | string | 是 | 要检索的团队 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 团队数据 |
+
+### `pylon_create_team`
+
+使用指定属性创建新团队
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `name` | string | 否 | 团队名称 |
+| `userIds` | string | 否 | 以逗号分隔的用户 ID，用于添加为团队成员 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的团队数据 |
+
+### `pylon_update_team`
+
+使用指定属性更新现有团队（userIds 将替换整个成员列表）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `teamId` | string | 是 | 要更新的团队 ID |
+| `name` | string | 否 | 团队名称 |
+| `userIds` | string | 否 | 逗号分隔的用户 ID（替换整个团队成员列表） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的团队数据 |
+
+### `pylon_list_tags`
+
+检索标签列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 标签列表 |
+
+### `pylon_get_tag`
+
+通过 ID 检索特定标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `tagId` | string | 是 | 要检索的标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 标签数据 |
+
+### `pylon_create_tag`
+
+使用指定属性创建一个新标签（objectType: account/issue/contact）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `objectType` | string | 是 | 标签的对象类型 \(account, issue, 或 contact\) |
+| `value` | string | 是 | 标签值/名称 |
+| `hexColor` | string | 否 | 标签的十六进制颜色代码 \(例如：#FF5733\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的标签数据 |
+
+### `pylon_update_tag`
+
+使用指定属性更新现有标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `tagId` | string | 是 | 要更新的标签 ID |
+| `hexColor` | string | 否 | 标签的十六进制颜色代码 \(例如：#FF5733\) |
+| `value` | string | 否 | 标签值/名称 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的标签数据 |
+
+### `pylon_delete_tag`
+
+通过 ID 删除特定标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `tagId` | string | 是 | 要删除的标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 删除操作结果 |
+
+### `pylon_redact_message`
+
+编辑问题中的特定消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | 是 | Pylon API 令牌 |
+| `issueId` | string | 是 | 包含消息的问题 ID |
+| `messageId` | string | 是 | 要编辑的消息 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 编辑操作结果 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`pylon`

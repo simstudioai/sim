@@ -1,5 +1,8 @@
+import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
+import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 
@@ -34,6 +37,54 @@ export async function POST(
 
   const resumeInput = payload?.input ?? payload ?? {}
   const userId = workflow.userId ?? ''
+
+  const resumeExecutionId = randomUUID()
+  const requestId = generateRequestId()
+
+  logger.info(`[${requestId}] Preprocessing resume execution`, {
+    workflowId,
+    parentExecutionId: executionId,
+    resumeExecutionId,
+    userId,
+  })
+
+  const preprocessResult = await preprocessExecution({
+    workflowId,
+    userId,
+    triggerType: 'manual', // Resume is a manual trigger
+    executionId: resumeExecutionId,
+    requestId,
+    checkRateLimit: false, // Manual triggers bypass rate limits
+    checkDeployment: false, // Resuming existing execution, deployment already checked
+    skipUsageLimits: true, // Resume is continuation of authorized execution - don't recheck limits
+    workspaceId: workflow.workspaceId || undefined,
+    isResumeContext: true, // Enable billing fallback for paused workflow resumes
+  })
+
+  if (!preprocessResult.success) {
+    logger.warn(`[${requestId}] Preprocessing failed for resume`, {
+      workflowId,
+      parentExecutionId: executionId,
+      error: preprocessResult.error?.message,
+      statusCode: preprocessResult.error?.statusCode,
+    })
+
+    return NextResponse.json(
+      {
+        error:
+          preprocessResult.error?.message ||
+          'Failed to validate resume execution. Please try again.',
+      },
+      { status: preprocessResult.error?.statusCode || 400 }
+    )
+  }
+
+  logger.info(`[${requestId}] Preprocessing passed, proceeding with resume`, {
+    workflowId,
+    parentExecutionId: executionId,
+    resumeExecutionId,
+    actorUserId: preprocessResult.actorUserId,
+  })
 
   try {
     const enqueueResult = await PauseResumeManager.enqueueOrStartResume({

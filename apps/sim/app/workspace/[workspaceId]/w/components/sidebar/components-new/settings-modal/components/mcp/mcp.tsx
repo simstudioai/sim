@@ -1,32 +1,37 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, Plus, Search } from 'lucide-react'
+import { useCallback, useRef, useState } from 'react'
+import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
-import { Alert, AlertDescription, Input, Skeleton } from '@/components/ui'
+import { Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
-import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
+import { createMcpToolId } from '@/lib/mcp/utils'
+import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
+import { AddServerForm } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/mcp/components/add-server-form'
+import type { McpServerFormData } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/mcp/types'
+import {
+  useCreateMcpServer,
+  useDeleteMcpServer,
+  useMcpServers,
+  useMcpToolsQuery,
+} from '@/hooks/queries/mcp'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
-import { useMcpTools } from '@/hooks/use-mcp-tools'
-import { useMcpServersStore } from '@/stores/mcp-servers/store'
-import { AddServerForm } from './components/add-server-form'
-import type { McpServerFormData } from './types'
 
 const logger = createLogger('McpSettings')
 
 export function MCP() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { mcpTools, error: toolsError, refreshTools } = useMcpTools(workspaceId)
+
   const {
-    servers,
+    data: servers = [],
     isLoading: serversLoading,
     error: serversError,
-    fetchServers,
-    createServer,
-    deleteServer,
-  } = useMcpServersStore()
+  } = useMcpServers(workspaceId)
+  const { data: mcpToolsData = [], error: toolsError } = useMcpToolsQuery(workspaceId)
+  const createServerMutation = useCreateMcpServer()
+  const deleteServerMutation = useDeleteMcpServer()
 
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -36,7 +41,7 @@ export function MCP() {
     transport: 'streamable-http',
     url: '',
     timeout: 30000,
-    headers: {}, // Start with no headers
+    headers: {},
   })
 
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -162,13 +167,16 @@ export function MCP() {
         return
       }
 
-      await createServer(workspaceId, {
-        name: formData.name.trim(),
-        transport: formData.transport,
-        url: formData.url,
-        timeout: formData.timeout || 30000,
-        headers: formData.headers,
-        enabled: true,
+      await createServerMutation.mutateAsync({
+        workspaceId,
+        config: {
+          name: formData.name.trim(),
+          transport: formData.transport,
+          url: formData.url,
+          timeout: formData.timeout || 30000,
+          headers: formData.headers,
+          enabled: true,
+        },
       })
 
       logger.info(`Added MCP server: ${formData.name}`)
@@ -185,30 +193,19 @@ export function MCP() {
       setActiveInputField(null)
       setActiveHeaderIndex(null)
       clearTestResult()
-
-      refreshTools(true) // Force refresh after adding server
     } catch (error) {
       logger.error('Failed to add MCP server:', error)
     } finally {
       setIsAddingServer(false)
     }
-  }, [
-    formData,
-    testResult,
-    testConnection,
-    createServer,
-    refreshTools,
-    clearTestResult,
-    workspaceId,
-  ])
+  }, [formData, testResult, testConnection, createServerMutation, clearTestResult, workspaceId])
 
   const handleRemoveServer = useCallback(
     async (serverId: string) => {
       setDeletingServers((prev) => new Set(prev).add(serverId))
 
       try {
-        await deleteServer(workspaceId, serverId)
-        await refreshTools(true)
+        await deleteServerMutation.mutateAsync({ workspaceId, serverId })
 
         logger.info(`Removed MCP server: ${serverId}`)
       } catch (error) {
@@ -226,15 +223,10 @@ export function MCP() {
         })
       }
     },
-    [deleteServer, refreshTools, workspaceId]
+    [deleteServerMutation, workspaceId]
   )
 
-  useEffect(() => {
-    fetchServers(workspaceId)
-    refreshTools()
-  }, [fetchServers, refreshTools, workspaceId])
-
-  const toolsByServer = (mcpTools || []).reduce(
+  const toolsByServer = (mcpToolsData || []).reduce(
     (acc, tool) => {
       if (!tool || !tool.serverId) {
         return acc
@@ -245,7 +237,7 @@ export function MCP() {
       acc[tool.serverId].push(tool)
       return acc
     },
-    {} as Record<string, typeof mcpTools>
+    {} as Record<string, typeof mcpToolsData>
   )
 
   const filteredServers = (servers || []).filter((server) =>
@@ -270,21 +262,23 @@ export function MCP() {
             />
           </div>
         )}
-
-        {/* Error Alert */}
-        {(toolsError || serversError) && (
-          <Alert variant='destructive' className='mt-4'>
-            <AlertCircle className='h-4 w-4' />
-            <AlertDescription>{toolsError || serversError}</AlertDescription>
-          </Alert>
-        )}
       </div>
 
       {/* Scrollable Content */}
       <div className='min-h-0 flex-1 overflow-y-auto px-6'>
         <div className='space-y-2 pt-2 pb-6'>
           {/* Server List */}
-          {serversLoading ? (
+          {toolsError || serversError ? (
+            <div className='flex h-full flex-col items-center justify-center gap-2'>
+              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                {toolsError instanceof Error
+                  ? toolsError.message
+                  : serversError instanceof Error
+                    ? serversError.message
+                    : 'Failed to load MCP servers'}
+              </p>
+            </div>
+          ) : serversLoading ? (
             <div className='space-y-2'>
               <McpServerSkeleton />
               <McpServerSkeleton />
@@ -342,7 +336,6 @@ export function MCP() {
           ) : (
             <div className='space-y-2'>
               {filteredServers.map((server: any) => {
-                // Add defensive checks for server properties
                 if (!server || !server.id) {
                   return null
                 }
@@ -379,7 +372,7 @@ export function MCP() {
                       <div className='mt-1 ml-2 flex flex-wrap gap-1'>
                         {tools.map((tool) => (
                           <span
-                            key={tool.id}
+                            key={createMcpToolId(tool.serverId, tool.name)}
                             className='inline-flex h-5 items-center rounded bg-muted/50 px-2 text-muted-foreground text-xs'
                           >
                             {tool.name}

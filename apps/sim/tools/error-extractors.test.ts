@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ErrorExtractorId, type ErrorInfo, extractErrorMessage } from './error-extractors'
+import { ErrorExtractorId, type ErrorInfo, extractErrorMessage } from '@/tools/error-extractors'
 
 describe('Error Extractors', () => {
   describe('extractErrorMessage', () => {
@@ -100,6 +100,42 @@ describe('Error Extractors', () => {
       expect(extractErrorMessage(errorInfo)).toBe('Email is required')
     })
 
+    it('should extract plain text error responses', () => {
+      const errorInfo: ErrorInfo = {
+        status: 401,
+        statusText: 'Unauthorized',
+        data: 'Invalid access token',
+      }
+      expect(extractErrorMessage(errorInfo)).toBe('Invalid access token')
+    })
+
+    it('should extract plain text error from APIs like Apollo', () => {
+      const errorInfo: ErrorInfo = {
+        status: 403,
+        statusText: 'Forbidden',
+        data: 'Invalid API key provided',
+      }
+      expect(extractErrorMessage(errorInfo)).toBe('Invalid API key provided')
+    })
+
+    it('should trim whitespace from plain text errors', () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        statusText: 'Bad Request',
+        data: '  Error message with spaces  ',
+      }
+      expect(extractErrorMessage(errorInfo)).toBe('Error message with spaces')
+    })
+
+    it('should skip empty plain text and use HTTP status text fallback', () => {
+      const errorInfo: ErrorInfo = {
+        status: 500,
+        statusText: 'Internal Server Error',
+        data: '   ',
+      }
+      expect(extractErrorMessage(errorInfo)).toBe('Internal Server Error')
+    })
+
     it('should use HTTP status text as fallback', () => {
       const errorInfo: ErrorInfo = {
         status: 404,
@@ -128,7 +164,6 @@ describe('Error Extractors', () => {
           message: '',
         },
       }
-      // Should skip empty message and use fallback
       expect(extractErrorMessage(errorInfo)).toBe('Request failed with status 400')
     })
   })
@@ -143,7 +178,6 @@ describe('Error Extractors', () => {
         },
       }
 
-      // With explicit extractor ID, should use Telegram extractor
       expect(extractErrorMessage(errorInfo, ErrorExtractorId.TELEGRAM_DESCRIPTION)).toBe(
         "Forbidden: bots can't send messages to bots"
       )
@@ -153,12 +187,11 @@ describe('Error Extractors', () => {
       const errorInfo: ErrorInfo = {
         status: 400,
         data: {
-          errors: [{ message: 'GraphQL error' }], // This would match first normally
-          message: 'Standard message', // Explicitly request this one
+          errors: [{ message: 'GraphQL error' }],
+          message: 'Standard message',
         },
       }
 
-      // With explicit ID, should skip GraphQL and use standard message
       expect(extractErrorMessage(errorInfo, ErrorExtractorId.STANDARD_MESSAGE)).toBe(
         'Standard message'
       )
@@ -172,7 +205,6 @@ describe('Error Extractors', () => {
         },
       }
 
-      // Telegram extractor won't find anything, should fallback
       expect(extractErrorMessage(errorInfo, ErrorExtractorId.TELEGRAM_DESCRIPTION)).toBe(
         'Request failed with status 404'
       )
@@ -186,9 +218,20 @@ describe('Error Extractors', () => {
         },
       }
 
-      // Non-existent extractor should fallback
       expect(extractErrorMessage(errorInfo, 'non-existent-extractor')).toBe(
         'Request failed with status 500'
+      )
+    })
+
+    it('should use plain text extractor when explicitly specified', () => {
+      const errorInfo: ErrorInfo = {
+        status: 403,
+        statusText: 'Forbidden',
+        data: 'Plain text error message',
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.PLAIN_TEXT_DATA)).toBe(
+        'Plain text error message'
       )
     })
   })

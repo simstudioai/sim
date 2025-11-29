@@ -1,4 +1,4 @@
-export type ProviderName = 'ollama' | 'openrouter' | 'base'
+export type ProviderName = 'ollama' | 'vllm' | 'openrouter' | 'base'
 
 export interface ProviderState {
   models: string[]
@@ -7,13 +7,7 @@ export interface ProviderState {
 
 export interface ProvidersStore {
   providers: Record<ProviderName, ProviderState>
-  setModels: (provider: ProviderName, models: string[]) => void
-  fetchModels: (provider: ProviderName) => Promise<void>
+  setProviderModels: (provider: ProviderName, models: string[]) => void
+  setProviderLoading: (provider: ProviderName, isLoading: boolean) => void
   getProvider: (provider: ProviderName) => ProviderState
-}
-
-export interface ProviderConfig {
-  apiEndpoint: string
-  dedupeModels?: boolean
-  updateFunction: (models: string[]) => void | Promise<void>
 }

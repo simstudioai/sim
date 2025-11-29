@@ -78,9 +78,16 @@ export async function POST(request: NextRequest) {
       }
 
       logger.info(`[${requestId}] Message sent successfully`)
+      const messageObj = data.message || {
+        type: 'message',
+        ts: data.ts,
+        text: validatedData.text,
+        channel: data.channel,
+      }
       return NextResponse.json({
         success: true,
         output: {
+          message: messageObj,
           ts: data.ts,
           channel: data.channel,
         },
@@ -107,9 +114,16 @@ export async function POST(request: NextRequest) {
       })
 
       const data = await response.json()
+      const messageObj = data.message || {
+        type: 'message',
+        ts: data.ts,
+        text: validatedData.text,
+        channel: data.channel,
+      }
       return NextResponse.json({
         success: true,
         output: {
+          message: messageObj,
           ts: data.ts,
           channel: data.channel,
         },
@@ -174,9 +188,16 @@ export async function POST(request: NextRequest) {
       })
 
       const data = await response.json()
+      const messageObj = data.message || {
+        type: 'message',
+        ts: data.ts,
+        text: validatedData.text,
+        channel: data.channel,
+      }
       return NextResponse.json({
         success: true,
         output: {
+          message: messageObj,
           ts: data.ts,
           channel: data.channel,
         },
@@ -211,10 +232,28 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Files uploaded and shared successfully`)
 
+    // For file uploads, construct a message object
+    const fileTs = completeData.files?.[0]?.created?.toString() || (Date.now() / 1000).toString()
+    const fileMessage = {
+      type: 'message',
+      ts: fileTs,
+      text: validatedData.text,
+      channel: validatedData.channel,
+      files: completeData.files?.map((file: any) => ({
+        id: file?.id,
+        name: file?.name,
+        mimetype: file?.mimetype,
+        size: file?.size,
+        url_private: file?.url_private,
+        permalink: file?.permalink,
+      })),
+    }
+
     return NextResponse.json({
       success: true,
       output: {
-        ts: completeData.files?.[0]?.created || Date.now() / 1000,
+        message: fileMessage,
+        ts: fileTs,
         channel: validatedData.channel,
         fileCount: uploadedFileIds.length,
       },

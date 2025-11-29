@@ -33,7 +33,7 @@ import {
   SupabaseIcon,
 } from '@/components/icons'
 import { LandingPromptStorage } from '@/lib/browser-storage'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import {
   CARD_WIDTH,
   IconButton,
@@ -41,7 +41,7 @@ import {
   type LandingGroupData,
   type LandingManualBlock,
   type LandingViewportApi,
-} from './components'
+} from '@/app/(landing)/components/hero/components'
 
 /**
  * Service-specific template messages for the hero input
@@ -215,7 +215,7 @@ export default function Hero() {
     { key: 'linear', icon: LinearIcon, label: 'Linear', style: { color: '#5E6AD2' } },
     { key: 'discord', icon: DiscordIcon, label: 'Discord', style: { color: '#5765F2' } },
     { key: 'airtable', icon: AirtableIcon, label: 'Airtable' },
-    { key: 'stripe', icon: StripeIcon, label: 'Stripe' },
+    { key: 'stripe', icon: StripeIcon, label: 'Stripe', style: { color: '#635BFF' } },
     { key: 'notion', icon: NotionIcon, label: 'Notion' },
     { key: 'googleSheets', icon: GoogleSheetsIcon, label: 'Google Sheets' },
     { key: 'googleDrive', icon: GoogleDriveIcon, label: 'Google Drive' },

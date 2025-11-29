@@ -182,6 +182,9 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
         case 'variable':
           await handleVariableOperationTx(tx, workflowId, op, payload)
           break
+        case 'workflow':
+          await handleWorkflowOperationTx(tx, workflowId, op, payload)
+          break
         default:
           throw new Error(`Unknown operation target: ${target}`)
       }
@@ -1060,5 +1063,103 @@ async function handleVariableOperationTx(
     default:
       logger.warn(`Unknown variable operation: ${operation}`)
       throw new Error(`Unsupported variable operation: ${operation}`)
+  }
+}
+
+// Workflow operations - handles complete state replacement
+async function handleWorkflowOperationTx(
+  tx: any,
+  workflowId: string,
+  operation: string,
+  payload: any
+) {
+  switch (operation) {
+    case 'replace-state': {
+      if (!payload.state) {
+        throw new Error('Missing state for replace-state operation')
+      }
+
+      const { blocks, edges, loops, parallels } = payload.state
+
+      logger.info(`Replacing workflow state for ${workflowId}`, {
+        blockCount: Object.keys(blocks || {}).length,
+        edgeCount: (edges || []).length,
+        loopCount: Object.keys(loops || {}).length,
+        parallelCount: Object.keys(parallels || {}).length,
+      })
+
+      // Delete all existing blocks (this will cascade delete edges via ON DELETE CASCADE)
+      await tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId))
+
+      // Delete all existing subflows
+      await tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId))
+
+      // Insert all blocks from the new state
+      if (blocks && Object.keys(blocks).length > 0) {
+        const blockValues = Object.values(blocks).map((block: any) => ({
+          id: block.id,
+          workflowId,
+          type: block.type,
+          name: block.name,
+          positionX: block.position.x,
+          positionY: block.position.y,
+          data: block.data || {},
+          subBlocks: block.subBlocks || {},
+          outputs: block.outputs || {},
+          enabled: block.enabled ?? true,
+          horizontalHandles: block.horizontalHandles ?? true,
+          advancedMode: block.advancedMode ?? false,
+          triggerMode: block.triggerMode ?? false,
+          height: block.height || 0,
+        }))
+
+        await tx.insert(workflowBlocks).values(blockValues)
+      }
+
+      // Insert all edges from the new state
+      if (edges && edges.length > 0) {
+        const edgeValues = edges.map((edge: any) => ({
+          id: edge.id,
+          workflowId,
+          sourceBlockId: edge.source,
+          targetBlockId: edge.target,
+          sourceHandle: edge.sourceHandle || null,
+          targetHandle: edge.targetHandle || null,
+        }))
+
+        await tx.insert(workflowEdges).values(edgeValues)
+      }
+
+      // Insert all loops from the new state
+      if (loops && Object.keys(loops).length > 0) {
+        const loopValues = Object.entries(loops).map(([id, loop]: [string, any]) => ({
+          id,
+          workflowId,
+          type: 'loop',
+          config: loop,
+        }))
+
+        await tx.insert(workflowSubflows).values(loopValues)
+      }
+
+      // Insert all parallels from the new state
+      if (parallels && Object.keys(parallels).length > 0) {
+        const parallelValues = Object.entries(parallels).map(([id, parallel]: [string, any]) => ({
+          id,
+          workflowId,
+          type: 'parallel',
+          config: parallel,
+        }))
+
+        await tx.insert(workflowSubflows).values(parallelValues)
+      }
+
+      logger.info(`Successfully replaced workflow state for ${workflowId}`)
+      break
+    }
+
+    default:
+      logger.warn(`Unknown workflow operation: ${operation}`)
+      throw new Error(`Unsupported workflow operation: ${operation}`)
   }
 }

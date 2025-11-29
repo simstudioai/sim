@@ -30,6 +30,7 @@ import { ollamaProvider } from '@/providers/ollama'
 import { openaiProvider } from '@/providers/openai'
 import { openRouterProvider } from '@/providers/openrouter'
 import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
+import { vllmProvider } from '@/providers/vllm'
 import { xAIProvider } from '@/providers/xai'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useProvidersStore } from '@/stores/providers/store'
@@ -86,6 +87,11 @@ export const providers: Record<
     models: getProviderModelsFromDefinitions('groq'),
     modelPatterns: PROVIDER_DEFINITIONS.groq.modelPatterns,
   },
+  vllm: {
+    ...vllmProvider,
+    models: getProviderModelsFromDefinitions('vllm'),
+    modelPatterns: PROVIDER_DEFINITIONS.vllm.modelPatterns,
+  },
   mistral: {
     ...mistralProvider,
     models: getProviderModelsFromDefinitions('mistral'),
@@ -123,6 +129,12 @@ export function updateOllamaProviderModels(models: string[]): void {
   providers.ollama.models = getProviderModelsFromDefinitions('ollama')
 }
 
+export function updateVLLMProviderModels(models: string[]): void {
+  const { updateVLLMModels } = require('@/providers/models')
+  updateVLLMModels(models)
+  providers.vllm.models = getProviderModelsFromDefinitions('vllm')
+}
+
 export async function updateOpenRouterProviderModels(models: string[]): Promise<void> {
   const { updateOpenRouterModels } = await import('@/providers/models')
   updateOpenRouterModels(models)
@@ -131,7 +143,10 @@ export async function updateOpenRouterProviderModels(models: string[]): Promise<
 
 export function getBaseModelProviders(): Record<string, ProviderId> {
   const allProviders = Object.entries(providers)
-    .filter(([providerId]) => providerId !== 'ollama' && providerId !== 'openrouter')
+    .filter(
+      ([providerId]) =>
+        providerId !== 'ollama' && providerId !== 'vllm' && providerId !== 'openrouter'
+    )
     .reduce(
       (map, [providerId, config]) => {
         config.models.forEach((model) => {
@@ -476,7 +491,7 @@ export async function transformBlockTool(
   const userProvidedParams = block.params || {}
 
   // Create LLM schema that excludes user-provided parameters
-  const llmSchema = createLLMToolSchema(toolConfig, userProvidedParams)
+  const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
 
   // Return formatted tool config
   return {
@@ -622,15 +637,16 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
     return 'empty' // Ollama uses 'empty' as a placeholder API key
   }
 
-  // Use server key rotation for all OpenAI models and Anthropic's Claude models on the hosted platform
+  // Use server key rotation for all OpenAI models, Anthropic's Claude models, and Google's Gemini models on the hosted platform
   const isOpenAIModel = provider === 'openai'
   const isClaudeModel = provider === 'anthropic'
+  const isGeminiModel = provider === 'google'
 
-  if (isHosted && (isOpenAIModel || isClaudeModel)) {
+  if (isHosted && (isOpenAIModel || isClaudeModel || isGeminiModel)) {
     try {
       // Import the key rotation function
       const { getRotatingApiKey } = require('@/lib/utils')
-      const serverKey = getRotatingApiKey(provider)
+      const serverKey = getRotatingApiKey(isGeminiModel ? 'gemini' : provider)
       return serverKey
     } catch (_error) {
       // If server key fails and we have a user key, fallback to that
@@ -918,7 +934,8 @@ export function trackForcedToolUsage(
       } else {
         // All forced tools have been used, switch to auto mode
         if (provider === 'anthropic') {
-          nextToolChoice = null // Anthropic requires null to remove the parameter
+          // Anthropic: return null to signal the parameter should be deleted/omitted
+          nextToolChoice = null
         } else if (provider === 'google') {
           nextToolConfig = { functionCallingConfig: { mode: 'AUTO' } }
         } else {

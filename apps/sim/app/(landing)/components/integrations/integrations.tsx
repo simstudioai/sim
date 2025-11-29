@@ -1,7 +1,6 @@
 import * as Icons from '@/components/icons'
-import { inter } from '@/app/fonts/inter/inter'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 
-// AI models and providers
 const modelProviderIcons = [
   { icon: Icons.OpenAIIcon, label: 'OpenAI' },
   { icon: Icons.AnthropicIcon, label: 'Anthropic' },
@@ -14,9 +13,9 @@ const modelProviderIcons = [
   { icon: Icons.OllamaIcon, label: 'Ollama' },
   { icon: Icons.DeepseekIcon, label: 'Deepseek' },
   { icon: Icons.ElevenLabsIcon, label: 'ElevenLabs' },
+  { icon: Icons.VllmIcon, label: 'vLLM' },
 ]
 
-// Communication and productivity tools
 const communicationIcons = [
   { icon: Icons.SlackIcon, label: 'Slack' },
   { icon: Icons.GmailIcon, label: 'Gmail' },
@@ -28,6 +27,7 @@ const communicationIcons = [
   { icon: Icons.ConfluenceIcon, label: 'Confluence' },
   { icon: Icons.TelegramIcon, label: 'Telegram' },
   { icon: Icons.GoogleCalendarIcon, label: 'Google Calendar' },
+  { icon: Icons.CalendlyIcon, label: 'Calendly' },
   { icon: Icons.GoogleDocsIcon, label: 'Google Docs' },
   { icon: Icons.BrowserUseIcon, label: 'BrowserUse' },
   { icon: Icons.TypeformIcon, label: 'Typeform' },
@@ -37,7 +37,6 @@ const communicationIcons = [
   { icon: Icons.AirtableIcon, label: 'Airtable' },
 ]
 
-// Data, storage and search services
 const dataStorageIcons = [
   { icon: Icons.PineconeIcon, label: 'Pinecone' },
   { icon: Icons.SupabaseIcon, label: 'Supabase' },
@@ -90,7 +89,6 @@ interface TickerRowProps {
 }
 
 function TickerRow({ direction, offset, showOdd, icons }: TickerRowProps) {
-  // Create multiple copies of the icons array for seamless looping
   const extendedIcons = [...icons, ...icons, ...icons, ...icons]
 
   return (

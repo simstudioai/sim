@@ -10,7 +10,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react'
-import type { PlanFeature } from './components/plan-card'
+import type { PlanFeature } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/subscription/components/plan-card'
 
 export const PRO_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: '25 runs per minute (sync)' },

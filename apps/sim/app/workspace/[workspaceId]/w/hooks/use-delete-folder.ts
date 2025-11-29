@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useDeleteFolderMutation } from '@/hooks/queries/folders'
 import { useFolderStore } from '@/stores/folders/store'
 
 const logger = createLogger('useDeleteFolder')
@@ -34,7 +35,7 @@ interface UseDeleteFolderProps {
  * @returns Delete folder handlers and state
  */
 export function useDeleteFolder({ workspaceId, getFolderIds, onSuccess }: UseDeleteFolderProps) {
-  const { deleteFolder } = useFolderStore()
+  const deleteFolderMutation = useDeleteFolderMutation()
   const [isDeleting, setIsDeleting] = useState(false)
 
   /**
@@ -58,7 +59,7 @@ export function useDeleteFolder({ workspaceId, getFolderIds, onSuccess }: UseDel
 
       // Delete each folder sequentially
       for (const folderId of folderIdsToDelete) {
-        await deleteFolder(folderId, workspaceId)
+        await deleteFolderMutation.mutateAsync({ id: folderId, workspaceId })
       }
 
       // Clear selection after successful deletion
@@ -73,7 +74,7 @@ export function useDeleteFolder({ workspaceId, getFolderIds, onSuccess }: UseDel
     } finally {
       setIsDeleting(false)
     }
-  }, [getFolderIds, isDeleting, deleteFolder, workspaceId, onSuccess])
+  }, [getFolderIds, isDeleting, deleteFolderMutation, workspaceId, onSuccess])
 
   return {
     isDeleting,

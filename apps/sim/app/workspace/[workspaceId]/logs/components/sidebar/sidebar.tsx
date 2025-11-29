@@ -10,6 +10,7 @@ import { Button, Tooltip } from '@/components/emcn'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
+import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { FrozenCanvasModal } from '@/app/workspace/[workspaceId]/logs/components/frozen-canvas/frozen-canvas-modal'
 import { FileDownload } from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/file-download'
 import LogMarkdownRenderer from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/markdown-renderer'
@@ -23,6 +24,7 @@ import '@/components/emcn/components/code/code.css'
 interface LogSidebarProps {
   log: WorkflowLog | null
   isOpen: boolean
+  isLoadingDetails?: boolean
   onClose: () => void
   onNavigateNext?: () => void
   onNavigatePrev?: () => void
@@ -49,49 +51,6 @@ const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string 
   } catch (_e) {
     return { isJson: false, formatted: content }
   }
-}
-
-/**
- * Formats JSON content for display, handling multiple JSON objects separated by '--'
- */
-const formatJsonContent = (content: string, blockInput?: Record<string, any>): React.ReactNode => {
-  const blockPattern = /^(Block .+?\(.+?\):)\s*/
-  const match = content.match(blockPattern)
-
-  if (match) {
-    const systemComment = match[1]
-    const actualContent = content.substring(match[0].length).trim()
-    const { isJson, formatted } = tryPrettifyJson(actualContent)
-
-    return (
-      <BlockContentDisplay
-        systemComment={systemComment}
-        formatted={formatted}
-        isJson={isJson}
-        blockInput={blockInput}
-      />
-    )
-  }
-
-  const { isJson, formatted } = tryPrettifyJson(content)
-
-  return (
-    <div className='group relative w-full rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] p-3'>
-      <CopyButton text={formatted} className='z-10 h-7 w-7' />
-      {isJson ? (
-        <div className='code-editor-theme'>
-          <pre
-            className='max-h-[500px] w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all font-mono text-[#eeeeee] text-[11px] leading-[16px]'
-            dangerouslySetInnerHTML={{
-              __html: highlight(formatted, languages.json, 'json'),
-            }}
-          />
-        </div>
-      ) : (
-        <LogMarkdownRenderer content={formatted} />
-      )}
-    </div>
-  )
 }
 
 const BlockContentDisplay = ({
@@ -192,6 +151,7 @@ const BlockContentDisplay = ({
 export function Sidebar({
   log,
   isOpen,
+  isLoadingDetails = false,
   onClose,
   onNavigateNext,
   onNavigatePrev,
@@ -210,23 +170,12 @@ export function Sidebar({
   const [isFrozenCanvasOpen, setIsFrozenCanvasOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-  // Update currentLogId when log changes
   useEffect(() => {
     if (log?.id) {
       setCurrentLogId(log.id)
-      // Reset trace expanded state when log changes
       setIsTraceExpanded(false)
     }
   }, [log?.id])
-
-  const isLoadingDetails = useMemo(() => {
-    if (!log) return false
-    // Only show while we expect details to arrive (has executionId)
-    if (!log.executionId) return false
-    const hasEnhanced = !!log.executionData?.enhanced
-    const hasAnyDetails = hasEnhanced || !!log.cost || Array.isArray(log.executionData?.traceSpans)
-    return !hasAnyDetails
-  }, [log])
 
   const formattedContent = useMemo(() => {
     if (!log) return null
@@ -266,6 +215,11 @@ export function Sidebar({
   const isWorkflowWithCost = useMemo(() => {
     return isWorkflowExecutionLog && hasCostInfo
   }, [isWorkflowExecutionLog, hasCostInfo])
+
+  const triggerMetadata = useMemo(
+    () => (log?.trigger ? getIntegrationMetadata(log.trigger) : null),
+    [log?.trigger]
+  )
 
   const handleTraceSpanToggle = (expanded: boolean) => {
     setIsTraceExpanded(expanded)
@@ -472,14 +426,14 @@ export function Sidebar({
                 </div>
 
                 {/* Trigger */}
-                {log.trigger && (
+                {log.trigger && triggerMetadata && (
                   <div>
                     <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
                       Trigger
                     </h3>
-                    <div className='group relative text-[13px] capitalize'>
+                    <div className='group relative text-[13px]'>
                       <CopyButton text={log.trigger} />
-                      {log.trigger}
+                      {triggerMetadata.label}
                     </div>
                   </div>
                 )}

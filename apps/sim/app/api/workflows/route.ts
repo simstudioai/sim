@@ -7,7 +7,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
-import { verifyWorkspaceMembership } from './utils'
+import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowAPI')
 
@@ -118,18 +118,18 @@ export async function POST(req: NextRequest) {
 
     logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${session.user.id}`)
 
-    // Track workflow creation
-    try {
-      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
-      trackPlatformEvent('platform.workflow.created', {
-        'workflow.id': workflowId,
-        'workflow.name': name,
-        'workflow.has_workspace': !!workspaceId,
-        'workflow.has_folder': !!folderId,
+    import('@/lib/telemetry/tracer')
+      .then(({ trackPlatformEvent }) => {
+        trackPlatformEvent('platform.workflow.created', {
+          'workflow.id': workflowId,
+          'workflow.name': name,
+          'workflow.has_workspace': !!workspaceId,
+          'workflow.has_folder': !!folderId,
+        })
       })
-    } catch (_e) {
-      // Silently fail
-    }
+      .catch(() => {
+        // Silently fail
+      })
 
     await db.insert(workflow).values({
       id: workflowId,
