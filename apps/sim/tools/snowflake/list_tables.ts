@@ -3,7 +3,7 @@ import type {
   SnowflakeListTablesParams,
   SnowflakeListTablesResponse,
 } from '@/tools/snowflake/types'
-import { extractResponseData, parseAccountUrl } from '@/tools/snowflake/utils'
+import { extractResponseData, parseAccountUrl, sanitizeIdentifier } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SnowflakeListTablesTool')
@@ -73,9 +73,14 @@ export const snowflakeListTablesTool: ToolConfig<
       'X-Snowflake-Authorization-Token-Type': 'OAUTH',
     }),
     body: (params: SnowflakeListTablesParams) => {
-      const requestBody: any = {
-        statement: `SHOW TABLES IN ${params.database}.${params.schema}`,
+      const sanitizedDatabase = sanitizeIdentifier(params.database)
+      const sanitizedSchema = sanitizeIdentifier(params.schema)
+
+      const requestBody: Record<string, any> = {
+        statement: `SHOW TABLES IN ${sanitizedDatabase}.${sanitizedSchema}`,
         timeout: 60,
+        database: params.database,
+        schema: params.schema,
       }
 
       if (params.warehouse) {
@@ -86,7 +91,7 @@ export const snowflakeListTablesTool: ToolConfig<
         requestBody.role = params.role
       }
 
-      return JSON.stringify(requestBody)
+      return requestBody
     },
   },
 

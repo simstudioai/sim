@@ -3,7 +3,7 @@ import type {
   SnowflakeDescribeTableParams,
   SnowflakeDescribeTableResponse,
 } from '@/tools/snowflake/types'
-import { extractResponseData, parseAccountUrl } from '@/tools/snowflake/utils'
+import { extractResponseData, parseAccountUrl, sanitizeIdentifier } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SnowflakeDescribeTableTool')
@@ -79,9 +79,16 @@ export const snowflakeDescribeTableTool: ToolConfig<
       'X-Snowflake-Authorization-Token-Type': 'OAUTH',
     }),
     body: (params: SnowflakeDescribeTableParams) => {
-      const requestBody: any = {
-        statement: `DESCRIBE TABLE ${params.database}.${params.schema}.${params.table}`,
+      const sanitizedDatabase = sanitizeIdentifier(params.database)
+      const sanitizedSchema = sanitizeIdentifier(params.schema)
+      const sanitizedTable = sanitizeIdentifier(params.table)
+      const fullTableName = `${sanitizedDatabase}.${sanitizedSchema}.${sanitizedTable}`
+
+      const requestBody: Record<string, any> = {
+        statement: `DESCRIBE TABLE ${fullTableName}`,
         timeout: 60,
+        database: params.database,
+        schema: params.schema,
       }
 
       if (params.warehouse) {
@@ -92,7 +99,7 @@ export const snowflakeDescribeTableTool: ToolConfig<
         requestBody.role = params.role
       }
 
-      return JSON.stringify(requestBody)
+      return requestBody
     },
   },
 

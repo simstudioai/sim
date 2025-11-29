@@ -89,7 +89,7 @@ export const snowflakeExecuteQueryTool: ToolConfig<
       'X-Snowflake-Authorization-Token-Type': 'OAUTH',
     }),
     body: (params: SnowflakeExecuteQueryParams) => {
-      const requestBody: any = {
+      const requestBody: Record<string, any> = {
         statement: params.query,
         timeout: params.timeout || 60,
       }
@@ -110,7 +110,7 @@ export const snowflakeExecuteQueryTool: ToolConfig<
         requestBody.role = params.role
       }
 
-      return JSON.stringify(requestBody)
+      return requestBody
     },
   },
 

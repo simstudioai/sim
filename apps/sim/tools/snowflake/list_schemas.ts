@@ -3,7 +3,7 @@ import type {
   SnowflakeListSchemasParams,
   SnowflakeListSchemasResponse,
 } from '@/tools/snowflake/types'
-import { extractResponseData, parseAccountUrl } from '@/tools/snowflake/utils'
+import { extractResponseData, parseAccountUrl, sanitizeIdentifier } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SnowflakeListSchemasTool')
@@ -67,9 +67,12 @@ export const snowflakeListSchemasTool: ToolConfig<
       'X-Snowflake-Authorization-Token-Type': 'OAUTH',
     }),
     body: (params: SnowflakeListSchemasParams) => {
-      const requestBody: any = {
-        statement: `SHOW SCHEMAS IN DATABASE ${params.database}`,
+      const sanitizedDatabase = sanitizeIdentifier(params.database)
+
+      const requestBody: Record<string, any> = {
+        statement: `SHOW SCHEMAS IN DATABASE ${sanitizedDatabase}`,
         timeout: 60,
+        database: params.database,
       }
 
       if (params.warehouse) {
@@ -80,7 +83,7 @@ export const snowflakeListSchemasTool: ToolConfig<
         requestBody.role = params.role
       }
 
-      return JSON.stringify(requestBody)
+      return requestBody
     },
   },
 

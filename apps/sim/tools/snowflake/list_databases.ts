@@ -61,7 +61,7 @@ export const snowflakeListDatabasesTool: ToolConfig<
       'X-Snowflake-Authorization-Token-Type': 'OAUTH',
     }),
     body: (params: SnowflakeListDatabasesParams) => {
-      const requestBody: any = {
+      const requestBody: Record<string, any> = {
         statement: 'SHOW DATABASES',
         timeout: 60,
       }
@@ -74,7 +74,7 @@ export const snowflakeListDatabasesTool: ToolConfig<
         requestBody.role = params.role
       }
 
-      return JSON.stringify(requestBody)
+      return requestBody
     },
   },
 
