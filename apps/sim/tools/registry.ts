@@ -419,6 +419,7 @@ import {
   linearUpdateProjectTool,
   linearUpdateWorkflowStateTool,
 } from '@/tools/linear'
+import { linkedInGetProfileTool, linkedInSharePostTool } from '@/tools/linkedin'
 import { linkupSearchTool } from '@/tools/linkup'
 import {
   mailchimpAddMemberTagsTool,
@@ -495,6 +496,16 @@ import {
   mailchimpUpdateSegmentTool,
   mailchimpUpdateTemplateTool,
 } from '@/tools/mailchimp'
+import {
+  mailgunAddListMemberTool,
+  mailgunCreateMailingListTool,
+  mailgunGetDomainTool,
+  mailgunGetMailingListTool,
+  mailgunGetMessageTool,
+  mailgunListDomainsTool,
+  mailgunListMessagesTool,
+  mailgunSendMessageTool,
+} from '@/tools/mailgun'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from '@/tools/mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
@@ -809,6 +820,7 @@ import {
   slackUpdateMessageTool,
 } from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'
+import { smtpSendMailTool } from '@/tools/smtp'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
 import {
   stripeCancelPaymentIntentTool,
@@ -1043,6 +1055,8 @@ export const tools: Record<string, ToolConfig> = {
   jina_read_url: readUrlTool,
   jina_search: jinaSearchTool,
   linkup_search: linkupSearchTool,
+  linkedin_share_post: linkedInSharePostTool,
+  linkedin_get_profile: linkedInGetProfileTool,
   resend_send: mailSendTool,
   sendgrid_send_mail: sendGridSendMailTool,
   sendgrid_add_contact: sendGridAddContactTool,
@@ -1060,6 +1074,15 @@ export const tools: Record<string, ToolConfig> = {
   sendgrid_list_templates: sendGridListTemplatesTool,
   sendgrid_delete_template: sendGridDeleteTemplateTool,
   sendgrid_create_template_version: sendGridCreateTemplateVersionTool,
+  smtp_send_mail: smtpSendMailTool,
+  mailgun_send_message: mailgunSendMessageTool,
+  mailgun_get_message: mailgunGetMessageTool,
+  mailgun_list_messages: mailgunListMessagesTool,
+  mailgun_create_mailing_list: mailgunCreateMailingListTool,
+  mailgun_get_mailing_list: mailgunGetMailingListTool,
+  mailgun_add_list_member: mailgunAddListMemberTool,
+  mailgun_list_domains: mailgunListDomainsTool,
+  mailgun_get_domain: mailgunGetDomainTool,
   sms_send: smsSendTool,
   jira_retrieve: jiraRetrieveTool,
   jira_update: jiraUpdateTool,

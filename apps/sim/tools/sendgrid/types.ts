@@ -5,22 +5,21 @@ export interface SendGridBaseParams {
   apiKey: string
 }
 
-// Mail Send types
 export interface SendMailParams extends SendGridBaseParams {
   from: string
   fromName?: string
   to: string
   toName?: string
-  subject: string
-  content: string
+  subject?: string
+  content?: string
   contentType?: 'text/plain' | 'text/html'
   cc?: string
   bcc?: string
   replyTo?: string
   replyToName?: string
-  attachments?: string // JSON string of attachment objects
+  attachments?: string
   templateId?: string
-  dynamicTemplateData?: string // JSON string
+  dynamicTemplateData?: string
 }
 
 export interface SendMailResult extends ToolResponse {

@@ -81,11 +81,10 @@ export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = 
       description: 'Reply-to name',
     },
     attachments: {
-      type: 'json',
+      type: 'file[]',
       required: false,
-      visibility: 'user-or-llm',
-      description:
-        'JSON array of attachment objects with content (base64), filename, type, and disposition',
+      visibility: 'user-only',
+      description: 'Files to attach to the email',
     },
     templateId: {
       type: 'string',

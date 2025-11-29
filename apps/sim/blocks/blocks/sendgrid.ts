@@ -148,13 +148,28 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
       placeholder: '{"name": "John", "order_id": "12345"}',
       condition: { field: 'operation', value: 'send_mail' },
     },
+    // File upload (basic mode)
+    {
+      id: 'attachmentFiles',
+      title: 'Attachments',
+      type: 'file-upload',
+      canonicalParamId: 'attachments',
+      placeholder: 'Upload files to attach',
+      condition: { field: 'operation', value: 'send_mail' },
+      mode: 'basic',
+      multiple: true,
+      required: false,
+    },
+    // Variable reference (advanced mode)
     {
       id: 'attachments',
       title: 'Attachments',
-      type: 'code',
-      placeholder:
-        '[{"content": "base64string", "filename": "file.pdf", "type": "application/pdf"}]',
+      type: 'short-input',
+      canonicalParamId: 'attachments',
+      placeholder: 'Reference files from previous blocks',
       condition: { field: 'operation', value: 'send_mail' },
+      mode: 'advanced',
+      required: false,
     },
     // Contact fields
     {
@@ -415,7 +430,8 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
     replyToName: { type: 'string', description: 'Reply-to name' },
     mailTemplateId: { type: 'string', description: 'Template ID for sending mail' },
     dynamicTemplateData: { type: 'json', description: 'Dynamic template data' },
-    attachments: { type: 'json', description: 'Email attachments' },
+    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
+    attachments: { type: 'array', description: 'Files to attach (UserFile array)' },
     // Contact inputs
     email: { type: 'string', description: 'Contact email' },
     firstName: { type: 'string', description: 'Contact first name' },

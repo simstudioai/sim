@@ -411,7 +411,7 @@ export function Panel() {
                   </PopoverItem> */}
                   <PopoverItem
                     onClick={handleExportJson}
-                    disabled={isExporting || !currentWorkflow}
+                    disabled={!userPermissions.canEdit || isExporting || !currentWorkflow}
                   >
                     <Braces className='h-3 w-3' />
                     <span>Export workflow</span>

@@ -36,7 +36,8 @@ export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult>
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'JSON object of custom field key-value pairs',
+      description:
+        'JSON object of custom field key-value pairs (use field IDs like e1_T, e2_N, e3_D, not field names)',
     },
     listIds: {
       type: 'string',

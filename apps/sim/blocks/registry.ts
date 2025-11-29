@@ -41,8 +41,10 @@ import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LinearBlock } from '@/blocks/blocks/linear'
+import { LinkedInBlock } from '@/blocks/blocks/linkedin'
 import { LinkupBlock } from '@/blocks/blocks/linkup'
 import { MailchimpBlock } from '@/blocks/blocks/mailchimp'
+import { MailgunBlock } from '@/blocks/blocks/mailgun'
 import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
@@ -79,6 +81,7 @@ import { SentryBlock } from '@/blocks/blocks/sentry'
 import { SerperBlock } from '@/blocks/blocks/serper'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { SlackBlock } from '@/blocks/blocks/slack'
+import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { StagehandBlock } from '@/blocks/blocks/stagehand'
 import { StagehandAgentBlock } from '@/blocks/blocks/stagehand_agent'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
@@ -153,6 +156,7 @@ export const registry: Record<string, BlockConfig> = {
   jira: JiraBlock,
   knowledge: KnowledgeBlock,
   linear: LinearBlock,
+  linkedin: LinkedInBlock,
   linkup: LinkupBlock,
   mailchimp: MailchimpBlock,
   mcp: McpBlock,
@@ -180,6 +184,8 @@ export const registry: Record<string, BlockConfig> = {
   qdrant: QdrantBlock,
   resend: ResendBlock,
   sendgrid: SendGridBlock,
+  mailgun: MailgunBlock,
+  smtp: SmtpBlock,
   memory: MemoryBlock,
   reddit: RedditBlock,
   response: ResponseBlock,
