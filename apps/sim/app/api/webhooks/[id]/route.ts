@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { validateInteger } from '@/lib/security/input-validation'
 import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('WebhookAPI')
@@ -95,7 +96,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const body = await request.json()
-    const { path, provider, providerConfig, isActive } = body
+    const { path, provider, providerConfig, isActive, failedCount } = body
+
+    if (failedCount !== undefined) {
+      const validation = validateInteger(failedCount, 'failedCount', { min: 0 })
+      if (!validation.isValid) {
+        logger.warn(`[${requestId}] ${validation.error}`)
+        return NextResponse.json({ error: validation.error }, { status: 400 })
+      }
+    }
 
     let resolvedProviderConfig = providerConfig
     if (providerConfig) {
@@ -172,6 +181,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       hasProviderUpdate: provider !== undefined,
       hasConfigUpdate: providerConfig !== undefined,
       hasActiveUpdate: isActive !== undefined,
+      hasFailedCountUpdate: failedCount !== undefined,
     })
 
     // Update the webhook
@@ -185,6 +195,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             ? resolvedProviderConfig
             : webhooks[0].webhook.providerConfig,
         isActive: isActive !== undefined ? isActive : webhooks[0].webhook.isActive,
+        failedCount: failedCount !== undefined ? failedCount : webhooks[0].webhook.failedCount,
         updatedAt: new Date(),
       })
       .where(eq(webhook.id, id))

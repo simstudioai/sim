@@ -1,0 +1,1475 @@
+---
+title: Mailchimp
+description: Gestiona audiencias, campañas y automatización de marketing en Mailchimp
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mailchimp"
+  color="#FFE01B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Mailchimp](https://mailchimp.com/) es una potente plataforma de automatización de marketing que te permite gestionar audiencias, campañas y una amplia gama de actividades de marketing en un solo lugar. La robusta API e integraciones de Mailchimp te permiten automatizar la comunicación, el marketing por correo electrónico, los informes y la gestión de audiencias directamente desde tus flujos de trabajo en Sim.
+
+Con las herramientas de Mailchimp en Sim, puedes:
+
+- **Gestionar audiencias (listas):**
+  - Listar y recuperar todas tus audiencias de Mailchimp (listas) para una fácil gestión.
+  - Obtener información completa sobre una audiencia específica.
+  - Crear nuevas audiencias y mantener tu segmentación actualizada.
+
+- **Listar miembros:**
+  - Acceder y gestionar miembros de listas (suscriptores), recuperar detalles de miembros y mantener tus listas de correo electrónico sincronizadas.
+
+- **Gestión de campañas:**
+  - Automatizar la creación de campañas, enviar campañas y analizar el rendimiento de las campañas con informes completos.
+
+- **Automatización de marketing:**
+  - Gestionar flujos de trabajo automatizados, configurar disparadores y programar correos electrónicos para optimizar tus procesos de nutrición.
+
+- **Plantillas, segmentos y etiquetas:**
+  - Recuperar y gestionar tus plantillas de correo electrónico para mantener una imagen de marca consistente.
+  - Acceder y actualizar segmentos de audiencia para dirigirte a grupos específicos.
+  - Crear y gestionar etiquetas para organizar mejor tus contactos.
+
+- **Controles avanzados de listas:**
+  - Gestionar campos de combinación y categorías de interés (grupos) para recopilar datos ricos y estructurados de tus suscriptores.
+  - Manejar páginas de destino, formularios de registro y otras herramientas de captura de leads para maximizar las conversiones.
+
+- **Operaciones por lotes e informes:**
+  - Ejecutar trabajos por lotes para operaciones masivas y agilizar grandes actualizaciones.
+  - Obtener informes detallados sobre campañas, automatizaciones y crecimiento de audiencia para informar tu estrategia de marketing.
+
+Al usar Mailchimp dentro de Sim, tus agentes y flujos de trabajo pueden automatizar el marketing por correo electrónico a escala—haciendo crecer tu audiencia, personalizando el alcance, optimizando la participación y tomando decisiones basadas en datos. Ya sea que estés sincronizando registros de CRM, activando campañas en respuesta a acciones dentro del producto o gestionando datos de suscriptores, las herramientas de Mailchimp en Sim ofrecen un control programático completo sobre tu automatización de marketing.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Mailchimp en el flujo de trabajo. Puede gestionar audiencias (listas), miembros de listas, campañas, flujos de trabajo de automatización, plantillas, informes, segmentos, etiquetas, campos de combinación, categorías de interés, páginas de destino, formularios de registro y operaciones por lotes.
+
+## Herramientas
+
+### `mailchimp_get_audiences`
+
+Obtener una lista de audiencias (listas) de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máximo: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de audiencias y metadatos |
+
+### `mailchimp_get_audience`
+
+Obtener detalles de una audiencia específica (lista) de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de la audiencia |
+
+### `mailchimp_create_audience`
+
+Crear una nueva audiencia (lista) en Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `audienceName` | string | Sí | El nombre de la lista |
+| `contact` | string | Sí | Objeto JSON de información de contacto |
+| `permissionReminder` | string | Sí | Texto recordatorio de permiso |
+| `campaignDefaults` | string | Sí | Objeto JSON de configuración predeterminada de campaña |
+| `emailTypeOption` | string | Sí | Admite múltiples formatos de correo electrónico |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la audiencia creada |
+
+### `mailchimp_update_audience`
+
+Actualizar una audiencia existente (lista) en Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `audienceName` | string | No | El nombre de la lista |
+| `permissionReminder` | string | No | Texto recordatorio de permiso |
+| `campaignDefaults` | string | No | Objeto JSON de configuración predeterminada de campaña |
+| `emailTypeOption` | string | No | Admite múltiples formatos de correo electrónico |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos actualizados de la audiencia |
+
+### `mailchimp_delete_audience`
+
+Eliminar una audiencia (lista) de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+### `mailchimp_get_members`
+
+Obtener una lista de miembros de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `status` | string | No | Filtrar por estado \(subscribed, unsubscribed, cleaned, pending\) |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máximo: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de miembros y metadatos |
+
+### `mailchimp_get_member`
+
+Recuperar detalles de un miembro específico de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `subscriberEmail` | string | Sí | Dirección de correo electrónico del miembro o hash MD5 |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del miembro y metadatos |
+
+### `mailchimp_add_member`
+
+Añadir un nuevo miembro a una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `emailAddress` | string | Sí | Dirección de correo electrónico del miembro |
+| `status` | string | Sí | Estado del suscriptor |
+| `mergeFields` | string | No | Objeto JSON de campos combinados |
+| `interests` | string | No | Objeto JSON de intereses |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del miembro añadido |
+
+### `mailchimp_add_or_update_member`
+
+Añadir un nuevo miembro o actualizar un miembro existente en una audiencia de Mailchimp (upsert)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `subscriberEmail` | string | Sí | Dirección de correo electrónico del miembro o hash MD5 |
+| `emailAddress` | string | Sí | Dirección de correo electrónico del miembro |
+| `statusIfNew` | string | Sí | Estado del suscriptor si es un nuevo miembro |
+| `mergeFields` | string | No | Objeto JSON de campos combinados |
+| `interests` | string | No | Objeto JSON de intereses |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del miembro |
+
+### `mailchimp_update_member`
+
+Actualizar un miembro existente en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `subscriberEmail` | string | Sí | Dirección de correo electrónico del miembro o hash MD5 |
+| `emailAddress` | string | No | Dirección de correo electrónico del miembro |
+| `status` | string | No | Estado del suscriptor |
+| `mergeFields` | string | No | Objeto JSON de campos combinados |
+| `interests` | string | No | Objeto JSON de intereses |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos actualizados del miembro |
+
+### `mailchimp_delete_member`
+
+Eliminar un miembro de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `subscriberEmail` | string | Sí | Dirección de correo electrónico del miembro o hash MD5 |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+### `mailchimp_archive_member`
+
+Archivar permanentemente (eliminar) un miembro de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `subscriberEmail` | string | Sí | Dirección de correo electrónico del miembro o hash MD5 |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de archivo |
+
+### `mailchimp_unarchive_member`
+
+Restaurar un miembro archivado a una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `subscriberEmail` | string | Sí | Dirección de correo electrónico del miembro o hash MD5 |
+| `emailAddress` | string | Sí | Dirección de correo electrónico del miembro |
+| `status` | string | Sí | Estado del suscriptor |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del miembro desarchivado |
+
+### `mailchimp_get_campaigns`
+
+Obtener una lista de campañas de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `campaignType` | string | No | Filtrar por tipo de campaña \(regular, plaintext, absplit, rss, variate\) |
+| `status` | string | No | Filtrar por estado \(save, paused, schedule, sending, sent\) |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máximo: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de las campañas |
+
+### `mailchimp_get_campaign`
+
+Recuperar detalles de una campaña específica de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `campaignId` | string | Sí | El ID único para la campaña |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la campaña y metadatos |
+
+### `mailchimp_create_campaign`
+
+Crear una nueva campaña en Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `campaignType` | string | Sí | Tipo de campaña |
+| `campaignSettings` | string | Sí | Objeto JSON de configuración de campaña |
+| `recipients` | string | No | Objeto JSON de destinatarios |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la campaña creada |
+
+### `mailchimp_update_campaign`
+
+Actualizar una campaña existente en Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `campaignId` | string | Sí | El ID único para la campaña |
+| `campaignSettings` | string | No | Objeto JSON de configuración de campaña |
+| `recipients` | string | No | Objeto JSON de destinatarios |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos actualizados de la campaña |
+
+### `mailchimp_delete_campaign`
+
+Eliminar una campaña de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `campaignId` | string | Sí | El ID único para la campaña a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+### `mailchimp_send_campaign`
+
+Enviar una campaña de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `campaignId` | string | Sí | El ID único para la campaña a enviar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de envío |
+
+### `mailchimp_schedule_campaign`
+
+Programar una campaña de Mailchimp para ser enviada en un momento específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `campaignId` | string | Sí | El ID único para la campaña a programar |
+| `scheduleTime` | string | Sí | Fecha y hora en formato ISO 8601 |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de programación |
+
+### `mailchimp_unschedule_campaign`
+
+Cancelar la programación de una campaña de Mailchimp previamente programada
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `campaignId` | string | Sí | El ID único para la campaña a desprogramar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de cancelación de programación |
+
+### `mailchimp_replicate_campaign`
+
+Crear una copia de una campaña de Mailchimp existente
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `campaignId` | string | Sí | El ID único para la campaña a replicar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la campaña replicada |
+
+### `mailchimp_get_campaign_content`
+
+Recuperar el contenido HTML y de texto plano para una campaña de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `campaignId` | string | Sí | El ID único para la campaña |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de contenido de la campaña |
+
+### `mailchimp_set_campaign_content`
+
+Establecer el contenido para una campaña de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `campaignId` | string | Sí | El ID único para la campaña |
+| `html` | string | No | El contenido HTML para la campaña |
+| `plainText` | string | No | El contenido de texto plano para la campaña |
+| `templateId` | string | No | El ID de la plantilla a utilizar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de contenido de la campaña |
+
+### `mailchimp_get_automations`
+
+Obtener una lista de automatizaciones de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máximo: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de automatizaciones |
+
+### `mailchimp_get_automation`
+
+Recuperar detalles de una automatización específica de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `workflowId` | string | Sí | El ID único para el flujo de trabajo de automatización |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de automatización |
+
+### `mailchimp_start_automation`
+
+Iniciar todos los correos electrónicos en un flujo de trabajo de automatización de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `workflowId` | string | Sí | El ID único para el flujo de trabajo de automatización |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de inicio |
+
+### `mailchimp_pause_automation`
+
+Pausar todos los correos electrónicos en un flujo de trabajo de automatización de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `workflowId` | string | Sí | El ID único para el flujo de trabajo de automatización |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de pausa |
+
+### `mailchimp_add_subscriber_to_automation`
+
+Añadir manualmente un suscriptor a la cola de correo electrónico de un flujo de trabajo
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `workflowId` | string | Sí | El ID único para el flujo de trabajo de automatización |
+| `workflowEmailId` | string | Sí | El ID único para el correo electrónico del flujo de trabajo |
+| `emailAddress` | string | Sí | Dirección de correo electrónico del suscriptor |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la cola del suscriptor |
+
+### `mailchimp_get_templates`
+
+Obtener una lista de plantillas de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máximo: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de las plantillas |
+
+### `mailchimp_get_template`
+
+Obtener detalles de una plantilla específica de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `templateId` | string | Sí | El ID único para la plantilla |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de la plantilla |
+
+### `mailchimp_create_template`
+
+Crear una nueva plantilla en Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `templateName` | string | Sí | El nombre de la plantilla |
+| `templateHtml` | string | Sí | El contenido HTML para la plantilla |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la plantilla creada |
+
+### `mailchimp_update_template`
+
+Actualizar una plantilla existente en Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `templateId` | string | Sí | El ID único para la plantilla |
+| `templateName` | string | No | El nombre de la plantilla |
+| `templateHtml` | string | No | El contenido HTML para la plantilla |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la plantilla actualizada |
+
+### `mailchimp_delete_template`
+
+Eliminar una plantilla de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `templateId` | string | Sí | El ID único para la plantilla a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+### `mailchimp_get_campaign_reports`
+
+Obtener una lista de informes de campaña de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máximo: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos e información de los informes de campaña |
+
+### `mailchimp_get_campaign_report`
+
+Obtener el informe de una campaña específica de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `campaignId` | string | Sí | El ID único para la campaña |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos e información del informe de campaña |
+
+### `mailchimp_get_segments`
+
+Obtener una lista de segmentos de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máximo: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos e información de los segmentos |
+
+### `mailchimp_get_segment`
+
+Obtener detalles de un segmento específico de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `segmentId` | string | Sí | El ID único para el segmento |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos e información del segmento |
+
+### `mailchimp_create_segment`
+
+Crear un nuevo segmento en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `segmentName` | string | Sí | El nombre del segmento |
+| `segmentOptions` | string | No | Objeto JSON de opciones de segmento |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del segmento creado |
+
+### `mailchimp_update_segment`
+
+Actualizar un segmento existente en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `segmentId` | string | Sí | El ID único para el segmento |
+| `segmentName` | string | No | El nombre del segmento |
+| `segmentOptions` | string | No | Objeto JSON de opciones de segmento |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del segmento actualizado |
+
+### `mailchimp_delete_segment`
+
+Eliminar un segmento de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `segmentId` | string | Sí | El ID único para el segmento a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+### `mailchimp_get_segment_members`
+
+Recuperar miembros de un segmento específico de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `segmentId` | string | Sí | El ID único para el segmento |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máximo: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de los miembros del segmento |
+
+### `mailchimp_add_segment_member`
+
+Añadir un miembro a un segmento específico en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `segmentId` | string | Sí | El ID único para el segmento |
+| `emailAddress` | string | Sí | Dirección de correo electrónico del miembro |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del miembro añadido |
+
+### `mailchimp_remove_segment_member`
+
+Eliminar un miembro de un segmento específico en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `segmentId` | string | Sí | El ID único para el segmento |
+| `subscriberEmail` | string | Sí | Dirección de correo electrónico del miembro o hash MD5 |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+### `mailchimp_get_member_tags`
+
+Obtener etiquetas asociadas a un miembro en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `subscriberEmail` | string | Sí | Dirección de correo electrónico del miembro o hash MD5 |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de etiquetas del miembro |
+
+### `mailchimp_add_member_tags`
+
+Añadir etiquetas a un miembro en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `subscriberEmail` | string | Sí | Dirección de correo electrónico del miembro o hash MD5 |
+| `tags` | string | Sí | Array JSON de etiquetas |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de adición de etiqueta |
+
+### `mailchimp_remove_member_tags`
+
+Eliminar etiquetas de un miembro en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `subscriberEmail` | string | Sí | Dirección de correo electrónico del miembro o hash MD5 |
+| `tags` | string | Sí | Array JSON de etiquetas con estado inactivo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación de etiqueta |
+
+### `mailchimp_get_merge_fields`
+
+Recuperar una lista de campos de combinación de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máximo: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de campos de combinación |
+
+### `mailchimp_get_merge_field`
+
+Recuperar detalles de un campo de combinación específico de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `mergeId` | string | Sí | El ID único para el campo de combinación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos del campo de combinación |
+
+### `mailchimp_create_merge_field`
+
+Crear un nuevo campo de combinación en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `mergeName` | string | Sí | El nombre del campo de combinación |
+| `mergeType` | string | Sí | El tipo del campo de combinación \(text, number, address, phone, date, url, imageurl, radio, dropdown, birthday, zip\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del campo de combinación creado |
+
+### `mailchimp_update_merge_field`
+
+Actualizar un campo de combinación existente en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `mergeId` | string | Sí | El ID único para el campo de combinación |
+| `mergeName` | string | No | El nombre del campo de combinación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del campo de combinación actualizado |
+
+### `mailchimp_delete_merge_field`
+
+Eliminar un campo de combinación de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `mergeId` | string | Sí | El ID único del campo de combinación a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+### `mailchimp_get_interest_categories`
+
+Recuperar una lista de categorías de interés de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máximo: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de categorías de interés |
+
+### `mailchimp_get_interest_category`
+
+Recuperar detalles de una categoría de interés específica de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `interestCategoryId` | string | Sí | El ID único para la categoría de interés |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de la categoría de interés |
+
+### `mailchimp_create_interest_category`
+
+Crear una nueva categoría de interés en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `interestCategoryTitle` | string | Sí | El título de la categoría de interés |
+| `interestCategoryType` | string | Sí | El tipo de categoría de interés \(casillas de verificación, desplegable, radio, oculto\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la categoría de interés creada |
+
+### `mailchimp_update_interest_category`
+
+Actualizar una categoría de interés existente en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `interestCategoryId` | string | Sí | El ID único para la categoría de interés |
+| `interestCategoryTitle` | string | No | El título de la categoría de interés |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la categoría de interés actualizada |
+
+### `mailchimp_delete_interest_category`
+
+Eliminar una categoría de interés de una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `interestCategoryId` | string | Sí | El ID único para la categoría de interés a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+### `mailchimp_get_interests`
+
+Recuperar una lista de intereses de una categoría de interés en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `interestCategoryId` | string | Sí | El ID único para la categoría de interés |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máximo: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de intereses y metadatos |
+
+### `mailchimp_get_interest`
+
+Recuperar detalles de un interés específico de una categoría de interés en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `interestCategoryId` | string | Sí | El ID único para la categoría de interés |
+| `interestId` | string | Sí | El ID único para el interés |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de interés y metadatos |
+
+### `mailchimp_create_interest`
+
+Crear un nuevo interés en una categoría de interés en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `interestCategoryId` | string | Sí | El ID único para la categoría de interés |
+| `interestName` | string | Sí | El nombre del interés |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del interés creado |
+
+### `mailchimp_update_interest`
+
+Actualizar un interés existente en una categoría de interés en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `interestCategoryId` | string | Sí | El ID único para la categoría de interés |
+| `interestId` | string | Sí | El ID único para el interés |
+| `interestName` | string | No | El nombre del interés |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del interés actualizado |
+
+### `mailchimp_delete_interest`
+
+Eliminar un interés de una categoría de interés en una audiencia de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `listId` | string | Sí | El ID único para la lista |
+| `interestCategoryId` | string | Sí | El ID único para la categoría de interés |
+| `interestId` | string | Sí | El ID único para el interés a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+### `mailchimp_get_landing_pages`
+
+Obtener una lista de páginas de destino de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máximo: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de las páginas de destino |
+
+### `mailchimp_get_landing_page`
+
+Obtener detalles de una página de destino específica de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `pageId` | string | Sí | El ID único para la página de destino |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de la página de destino |
+
+### `mailchimp_create_landing_page`
+
+Crear una nueva página de destino en Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `landingPageType` | string | Sí | El tipo de página de destino \(signup\) |
+| `landingPageTitle` | string | No | El título de la página de destino |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la página de destino creada |
+
+### `mailchimp_update_landing_page`
+
+Actualizar una página de destino existente en Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `pageId` | string | Sí | El ID único para la página de destino |
+| `landingPageTitle` | string | No | El título de la página de destino |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la página de destino actualizada |
+
+### `mailchimp_delete_landing_page`
+
+Eliminar una página de destino de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `pageId` | string | Sí | El ID único para la página de destino a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+### `mailchimp_publish_landing_page`
+
+Publicar una página de destino en Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `pageId` | string | Sí | El ID único para la página de destino |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de publicación |
+
+### `mailchimp_unpublish_landing_page`
+
+Cancelar la publicación de una página de destino en Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `pageId` | string | Sí | El ID único para la página de destino |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de cancelación de publicación |
+
+### `mailchimp_get_batch_operations`
+
+Recuperar una lista de operaciones por lotes de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `count` | string | No | Número de resultados \(predeterminado: 10, máx: 1000\) |
+| `offset` | string | No | Número de resultados a omitir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de operaciones por lotes |
+
+### `mailchimp_get_batch_operation`
+
+Recuperar detalles de una operación por lotes específica de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `batchId` | string | Sí | El ID único para la operación por lotes |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de la operación por lotes |
+
+### `mailchimp_create_batch_operation`
+
+Crear una nueva operación por lotes en Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `operations` | string | Sí | Array JSON de operaciones |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la operación por lotes creada |
+
+### `mailchimp_delete_batch_operation`
+
+Eliminar una operación por lotes de Mailchimp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailchimp con prefijo de servidor |
+| `batchId` | string | Sí | El ID único para la operación por lotes a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `mailchimp`

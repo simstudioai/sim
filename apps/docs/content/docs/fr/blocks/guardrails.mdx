@@ -64,9 +64,9 @@ Utilise la génération augmentée par récupération (RAG) avec notation LLM po
 
 **Configuration :**
 - **Base de connaissances** : Sélectionnez parmi vos bases de connaissances existantes
-- **Modèle** : Choisissez le LLM pour la notation (nécessite un raisonnement solide - GPT-4o, Claude 3.7 Sonnet recommandés)
-- **Clé API** : Authentification pour le fournisseur LLM sélectionné (automatiquement masquée pour les modèles hébergés/Ollama)
-- **Seuil de confiance** : Score minimum pour réussir (0-10, par défaut : 3)
+- **Modèle** : Choisissez le LLM pour l'évaluation (nécessite un raisonnement solide - GPT-4o, Claude 3.7 Sonnet recommandés)
+- **Clé API** : Authentification pour le fournisseur LLM sélectionné (masquée automatiquement pour les modèles hébergés/Ollama ou compatibles VLLM)
+- **Seuil de confiance** : Score minimum pour valider (0-10, par défaut : 3)
 - **Top K** (Avancé) : Nombre de fragments de base de connaissances à récupérer (par défaut : 10)
 
 **Sortie :**

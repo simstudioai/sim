@@ -233,7 +233,6 @@ export function TeamManagement() {
       await updateSeatsMutation.mutateAsync({
         orgId: activeOrganization?.id,
         seats: currentSeats - 1,
-        subscriptionId: subscriptionData.id,
       })
     } catch (error) {
       logger.error('Failed to reduce seats', error)
@@ -258,7 +257,6 @@ export function TeamManagement() {
         await updateSeatsMutation.mutateAsync({
           orgId: activeOrganization?.id,
           seats: seatsToUse,
-          subscriptionId: subscriptionData.id,
         })
         setIsAddSeatDialogOpen(false)
       } catch (error) {

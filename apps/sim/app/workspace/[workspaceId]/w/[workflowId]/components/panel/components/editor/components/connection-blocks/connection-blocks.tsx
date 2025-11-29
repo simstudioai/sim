@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronDown, RepeatIcon, SplitIcon } from 'lucide-react'
-import { shallow } from 'zustand/shallow'
+import { useShallow } from 'zustand/react/shallow'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   FieldItem,
@@ -190,10 +190,9 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
   const connectionRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const { blocks } = useWorkflowStore(
-    (state) => ({
+    useShallow((state) => ({
       blocks: state.blocks,
-    }),
-    shallow
+    }))
   )
 
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)

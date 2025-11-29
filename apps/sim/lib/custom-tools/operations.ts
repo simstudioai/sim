@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { customTools } from '@sim/db/schema'
 import { and, desc, eq, isNull } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 
@@ -23,14 +24,11 @@ export async function upsertCustomTools(params: {
 }) {
   const { tools, workspaceId, userId, requestId = generateRequestId() } = params
 
-  // Use a transaction for multi-step database operations
   return await db.transaction(async (tx) => {
-    // Process each tool: either update existing or create new
     for (const tool of tools) {
       const nowTime = new Date()
 
       if (tool.id) {
-        // First, check if tool exists in the workspace
         const existingWorkspaceTool = await tx
           .select()
           .from(customTools)
@@ -38,20 +36,6 @@ export async function upsertCustomTools(params: {
           .limit(1)
 
         if (existingWorkspaceTool.length > 0) {
-          // Tool exists in workspace
-          const newFunctionName = tool.schema?.function?.name
-          if (!newFunctionName) {
-            throw new Error('Tool schema must include a function name')
-          }
-
-          // Check if function name has changed
-          if (tool.id !== newFunctionName) {
-            throw new Error(
-              `Cannot change function name from "${tool.id}" to "${newFunctionName}". Please create a new tool instead.`
-            )
-          }
-
-          // Update existing workspace tool
           await tx
             .update(customTools)
             .set({
@@ -64,7 +48,6 @@ export async function upsertCustomTools(params: {
           continue
         }
 
-        // Check if this is a legacy tool (no workspaceId, belongs to user)
         const existingLegacyTool = await tx
           .select()
           .from(customTools)
@@ -78,7 +61,6 @@ export async function upsertCustomTools(params: {
           .limit(1)
 
         if (existingLegacyTool.length > 0) {
-          // Legacy tool found - update it without migrating to workspace
           await tx
             .update(customTools)
             .set({
@@ -94,28 +76,18 @@ export async function upsertCustomTools(params: {
         }
       }
 
-      // Creating new tool - use function name as ID for consistency
-      const functionName = tool.schema?.function?.name
-      if (!functionName) {
-        throw new Error('Tool schema must include a function name')
-      }
-
-      // Check for duplicate function names in workspace
-      const duplicateFunction = await tx
+      const duplicateTitle = await tx
         .select()
         .from(customTools)
-        .where(and(eq(customTools.workspaceId, workspaceId), eq(customTools.id, functionName)))
+        .where(and(eq(customTools.workspaceId, workspaceId), eq(customTools.title, tool.title)))
         .limit(1)
 
-      if (duplicateFunction.length > 0) {
-        throw new Error(
-          `A tool with the function name "${functionName}" already exists in this workspace`
-        )
+      if (duplicateTitle.length > 0) {
+        throw new Error(`A tool with the title "${tool.title}" already exists in this workspace`)
       }
 
-      // Create new tool using function name as ID
       await tx.insert(customTools).values({
-        id: functionName,
+        id: nanoid(),
         workspaceId,
         userId,
         title: tool.title,
@@ -126,7 +98,6 @@ export async function upsertCustomTools(params: {
       })
     }
 
-    // Fetch and return the created/updated tools
     const resultTools = await tx
       .select()
       .from(customTools)

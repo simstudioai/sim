@@ -287,7 +287,7 @@ export function generatePassword(length = 24): string {
  * @throws Error if no API keys are configured for rotation
  */
 export function getRotatingApiKey(provider: string): string {
-  if (provider !== 'openai' && provider !== 'anthropic') {
+  if (provider !== 'openai' && provider !== 'anthropic' && provider !== 'gemini') {
     throw new Error(`No rotation implemented for provider: ${provider}`)
   }
 
@@ -301,6 +301,10 @@ export function getRotatingApiKey(provider: string): string {
     if (env.ANTHROPIC_API_KEY_1) keys.push(env.ANTHROPIC_API_KEY_1)
     if (env.ANTHROPIC_API_KEY_2) keys.push(env.ANTHROPIC_API_KEY_2)
     if (env.ANTHROPIC_API_KEY_3) keys.push(env.ANTHROPIC_API_KEY_3)
+  } else if (provider === 'gemini') {
+    if (env.GEMINI_API_KEY_1) keys.push(env.GEMINI_API_KEY_1)
+    if (env.GEMINI_API_KEY_2) keys.push(env.GEMINI_API_KEY_2)
+    if (env.GEMINI_API_KEY_3) keys.push(env.GEMINI_API_KEY_3)
   }
 
   if (keys.length === 0) {

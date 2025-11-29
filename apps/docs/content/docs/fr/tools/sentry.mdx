@@ -1,0 +1,305 @@
+---
+title: Sentry
+description: Gérez les problèmes, projets, événements et versions de Sentry
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sentry"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Optimisez votre surveillance des erreurs et la fiabilité de vos applications avec [Sentry](https://sentry.io/) — la plateforme leader du secteur pour le suivi des erreurs en temps réel, la surveillance des performances et la gestion des versions. Intégrez Sentry de manière transparente dans vos flux de travail d'agents automatisés pour surveiller facilement les problèmes, suivre les événements critiques, gérer les projets et orchestrer les versions à travers toutes vos applications et services.
+
+Avec l'outil Sentry, vous pouvez :
+
+- **Surveiller et trier les problèmes** : récupérez des listes complètes de problèmes à l'aide de l'opération `sentry_issues_list` et obtenez des informations détaillées sur les erreurs et bugs individuels via `sentry_issues_get`. Accédez instantanément aux métadonnées, tags, traces d'appel et statistiques pour réduire le temps moyen de résolution.
+- **Suivre les données d'événements** : analysez des instances d'erreurs et d'événements spécifiques avec `sentry_events_list` et `sentry_events_get`, offrant un aperçu approfondi des occurrences d'erreurs et de leur impact sur les utilisateurs.
+- **Gérer les projets et les équipes** : utilisez `sentry_projects_list` et `sentry_project_get` pour énumérer et examiner tous vos projets Sentry, assurant une collaboration fluide entre les équipes et une configuration centralisée.
+- **Coordonner les versions** : automatisez le suivi des versions, la santé des déploiements et la gestion des changements dans votre code avec des opérations comme `sentry_releases_list`, `sentry_release_get`, et plus encore.
+- **Obtenir des insights puissants sur vos applications** : utilisez des filtres et requêtes avancés pour trouver des problèmes non résolus ou de haute priorité, agréger des statistiques d'événements au fil du temps et suivre les régressions à mesure que votre code évolue.
+
+L'intégration de Sentry permet aux équipes d'ingénierie et de DevOps de détecter les problèmes tôt, de prioriser les bugs les plus impactants et d'améliorer continuellement la santé des applications à travers les différentes piles de développement. Orchestrez de manière programmatique l'automatisation des flux de travail pour une observabilité moderne, une réponse aux incidents et une gestion du cycle de vie des versions, réduisant ainsi les temps d'arrêt et augmentant la satisfaction des utilisateurs.
+
+**Opérations Sentry clés disponibles** :
+- `sentry_issues_list` : Liste des problèmes Sentry pour les organisations et les projets, avec des fonctionnalités puissantes de recherche et de filtrage.
+- `sentry_issues_get` : Récupère des informations détaillées pour un problème Sentry spécifique.
+- `sentry_events_list` : Énumère les événements pour un problème particulier pour l'analyse des causes profondes.
+- `sentry_events_get` : Obtient tous les détails sur un événement individuel, y compris les traces d'appel, le contexte et les métadonnées.
+- `sentry_projects_list` : Liste tous les projets Sentry au sein de votre organisation.
+- `sentry_project_get` : Récupère la configuration et les détails d'un projet spécifique.
+- `sentry_releases_list` : Liste les versions récentes et leur statut de déploiement.
+- `sentry_release_get` : Récupère des informations détaillées sur les versions, y compris les commits et les problèmes associés.
+
+Que vous gériez de manière proactive la santé de votre application, que vous résoudiez des erreurs en production ou que vous automatisiez les flux de travail de publication, Sentry vous équipe d'une surveillance de classe mondiale, d'alertes exploitables et d'une intégration DevOps transparente. Améliorez la qualité de votre logiciel et la visibilité dans les recherches en utilisant Sentry pour le suivi des erreurs, l'observabilité et la gestion des versions, le tout depuis vos flux de travail agentiques.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Sentry dans le flux de travail. Surveillez les problèmes, gérez les projets, suivez les événements et coordonnez les versions à travers vos applications.
+
+## Outils
+
+### `sentry_issues_list`
+
+Liste les problèmes de Sentry pour une organisation spécifique et éventuellement un projet spécifique. Renvoie les détails des problèmes, y compris le statut, le nombre d'erreurs et les horodatages de dernière apparition.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton d'authentification de l'API Sentry |
+| `organizationSlug` | chaîne | Oui | Le slug de l'organisation |
+| `projectSlug` | chaîne | Non | Filtrer les problèmes par slug de projet spécifique (facultatif) |
+| `query` | chaîne | Non | Requête de recherche pour filtrer les problèmes. Prend en charge la syntaxe de recherche Sentry (par exemple, "is:unresolved", "level:error") |
+| `statsPeriod` | chaîne | Non | Période pour les statistiques (par exemple, "24h", "7d", "30d"). Par défaut à 24h si non spécifié. |
+| `cursor` | chaîne | Non | Curseur de pagination pour récupérer la page suivante de résultats |
+| `limit` | nombre | Non | Nombre de problèmes à renvoyer par page (par défaut : 25, max : 100) |
+| `status` | chaîne | Non | Filtrer par statut du problème : unresolved, resolved, ignored ou muted |
+| `sort` | chaîne | Non | Ordre de tri : date, new, freq, priority ou user (par défaut : date) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `issues` | array | Liste des problèmes Sentry |
+
+### `sentry_issues_get`
+
+Récupère des informations détaillées sur un problème Sentry spécifique par son ID. Renvoie les détails complets du problème, y compris les métadonnées, les tags et les statistiques.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Jeton d'authentification de l'API Sentry |
+| `organizationSlug` | string | Oui | Le slug de l'organisation |
+| `issueId` | string | Oui | L'ID unique du problème à récupérer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `issue` | object | Informations détaillées sur le problème Sentry |
+
+### `sentry_issues_update`
+
+Met à jour un problème Sentry en modifiant son statut, son attribution, son état de signet ou d'autres propriétés. Renvoie les détails du problème mis à jour.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Jeton d'authentification de l'API Sentry |
+| `organizationSlug` | string | Oui | Le slug de l'organisation |
+| `issueId` | string | Oui | L'ID unique du problème à mettre à jour |
+| `status` | string | Non | Nouveau statut pour le problème : resolved, unresolved, ignored, ou resolvedInNextRelease |
+| `assignedTo` | string | Non | ID utilisateur ou email à qui attribuer le problème. Utilisez une chaîne vide pour retirer l'attribution. |
+| `isBookmarked` | boolean | Non | Indique si le problème doit être mis en signet |
+| `isSubscribed` | boolean | Non | Indique si l'on souhaite s'abonner aux mises à jour du problème |
+| `isPublic` | boolean | Non | Indique si le problème doit être visible publiquement |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `issue` | objet | Le problème Sentry mis à jour |
+
+### `sentry_projects_list`
+
+Liste tous les projets dans une organisation Sentry. Renvoie les détails du projet, y compris le nom, la plateforme, les équipes et la configuration.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton d'authentification de l'API Sentry |
+| `organizationSlug` | chaîne | Oui | Le slug de l'organisation |
+| `cursor` | chaîne | Non | Curseur de pagination pour récupérer la page suivante de résultats |
+| `limit` | nombre | Non | Nombre de projets à renvoyer par page \(par défaut : 25, max : 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | tableau | Liste des projets Sentry |
+
+### `sentry_projects_get`
+
+Récupère des informations détaillées sur un projet Sentry spécifique par son slug. Renvoie les détails complets du projet, y compris les équipes, les fonctionnalités et la configuration.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton d'authentification de l'API Sentry |
+| `organizationSlug` | chaîne | Oui | Le slug de l'organisation |
+| `projectSlug` | chaîne | Oui | L'ID ou le slug du projet à récupérer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | objet | Informations détaillées sur le projet Sentry |
+
+### `sentry_projects_create`
+
+Créez un nouveau projet Sentry dans une organisation. Nécessite une équipe à laquelle associer le projet. Renvoie les détails du projet créé.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton d'authentification de l'API Sentry |
+| `organizationSlug` | chaîne | Oui | Le slug de l'organisation |
+| `name` | chaîne | Oui | Le nom du projet |
+| `teamSlug` | chaîne | Oui | Le slug de l'équipe qui sera propriétaire de ce projet |
+| `slug` | chaîne | Non | Identifiant de projet compatible URL \(généré automatiquement à partir du nom si non fourni\) |
+| `platform` | chaîne | Non | Plateforme/langage pour le projet \(par exemple, javascript, python, node, react-native\). Si non spécifié, la valeur par défaut est "other" |
+| `defaultRules` | booléen | Non | Indique s'il faut créer des règles d'alerte par défaut \(par défaut : true\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | objet | Le projet Sentry nouvellement créé |
+
+### `sentry_projects_update`
+
+Mettez à jour un projet Sentry en modifiant son nom, son slug, sa plateforme ou d'autres paramètres. Renvoie les détails du projet mis à jour.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton d'authentification de l'API Sentry |
+| `organizationSlug` | chaîne | Oui | Le slug de l'organisation |
+| `projectSlug` | chaîne | Oui | Le slug du projet à mettre à jour |
+| `name` | chaîne | Non | Nouveau nom pour le projet |
+| `slug` | chaîne | Non | Nouvel identifiant de projet compatible URL |
+| `platform` | chaîne | Non | Nouvelle plateforme/langage pour le projet \(par exemple, javascript, python, node\) |
+| `isBookmarked` | booléen | Non | Indique s'il faut mettre le projet en favori |
+| `digestsMinDelay` | nombre | Non | Délai minimum \(en secondes\) pour les notifications par digest |
+| `digestsMaxDelay` | nombre | Non | Délai maximum \(en secondes\) pour les notifications par digest |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | objet | Le projet Sentry mis à jour |
+
+### `sentry_events_list`
+
+Liste les événements d'un projet Sentry. Peut être filtré par ID de problème, requête ou période. Renvoie les détails de l'événement, y compris le contexte, les balises et les informations utilisateur.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton d'authentification de l'API Sentry |
+| `organizationSlug` | chaîne | Oui | Le slug de l'organisation |
+| `projectSlug` | chaîne | Oui | Le slug du projet dont on veut lister les événements |
+| `issueId` | chaîne | Non | Filtrer les événements par un ID de problème spécifique |
+| `query` | chaîne | Non | Requête de recherche pour filtrer les événements. Prend en charge la syntaxe de recherche Sentry \(ex. : "user.email:*@example.com"\) |
+| `cursor` | chaîne | Non | Curseur de pagination pour récupérer la page suivante de résultats |
+| `limit` | nombre | Non | Nombre d'événements à renvoyer par page \(par défaut : 50, max : 100\) |
+| `statsPeriod` | chaîne | Non | Période à interroger \(ex. : "24h", "7d", "30d"\). Par défaut 90j si non spécifié. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | tableau | Liste des événements Sentry |
+
+### `sentry_events_get`
+
+Récupère des informations détaillées sur un événement Sentry spécifique par son ID. Renvoie les détails complets de l'événement, y compris les traces de pile, les fils d'Ariane, le contexte et les informations utilisateur.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | string | Oui | Jeton d'authentification de l'API Sentry |
+| `organizationSlug` | string | Oui | Le slug de l'organisation |
+| `projectSlug` | string | Oui | Le slug du projet |
+| `eventId` | string | Oui | L'identifiant unique de l'événement à récupérer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | Informations détaillées sur l'événement Sentry |
+
+### `sentry_releases_list`
+
+Liste les versions pour une organisation ou un projet Sentry. Renvoie les détails des versions, y compris la version, les commits, les informations de déploiement et les projets associés.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | string | Oui | Jeton d'authentification de l'API Sentry |
+| `organizationSlug` | string | Oui | Le slug de l'organisation |
+| `projectSlug` | string | Non | Filtrer les versions par slug de projet spécifique \(facultatif\) |
+| `query` | string | Non | Requête de recherche pour filtrer les versions \(par exemple, modèle de nom de version\) |
+| `cursor` | string | Non | Curseur de pagination pour récupérer la page suivante de résultats |
+| `limit` | number | Non | Nombre de versions à renvoyer par page \(par défaut : 25, max : 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `releases` | array | Liste des versions Sentry |
+
+### `sentry_releases_create`
+
+Créez une nouvelle version dans Sentry. Une version est une version de votre code déployée dans un environnement. Peut inclure des informations de commit et des projets associés. Renvoie les détails de la version créée.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton d'authentification de l'API Sentry |
+| `organizationSlug` | chaîne | Oui | Le slug de l'organisation |
+| `version` | chaîne | Oui | Identifiant de version pour la release (par exemple, "2.0.0", "my-app@1.0.0", ou un SHA de commit git) |
+| `projects` | chaîne | Oui | Liste séparée par des virgules des slugs de projet à associer à cette version |
+| `ref` | chaîne | Non | Référence Git (SHA de commit, tag ou branche) pour cette version |
+| `url` | chaîne | Non | URL pointant vers la version (par exemple, page de version GitHub) |
+| `dateReleased` | chaîne | Non | Horodatage ISO 8601 indiquant quand la version a été déployée (par défaut : heure actuelle) |
+| `commits` | chaîne | Non | Tableau JSON d'objets de commit avec id, repository (facultatif) et message (facultatif). Exemple : `[{"id":"abc123","message":"Fix bug"}]` |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `release` | objet | La version Sentry nouvellement créée |
+
+### `sentry_releases_deploy`
+
+Créez un enregistrement de déploiement pour une version Sentry dans un environnement spécifique. Les déploiements suivent quand et où les versions sont déployées. Renvoie les détails du déploiement créé.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Jeton d'authentification de l'API Sentry |
+| `organizationSlug` | string | Oui | Le slug de l'organisation |
+| `version` | string | Oui | Identifiant de version de la release en cours de déploiement |
+| `environment` | string | Oui | Nom de l'environnement où la release est déployée \(par ex., "production", "staging"\) |
+| `name` | string | Non | Nom optionnel pour ce déploiement \(par ex., "Déploiement v2.0 en production"\) |
+| `url` | string | Non | URL pointant vers le déploiement \(par ex., URL du pipeline CI/CD\) |
+| `dateStarted` | string | Non | Horodatage ISO 8601 indiquant quand le déploiement a commencé \(par défaut : heure actuelle\) |
+| `dateFinished` | string | Non | Horodatage ISO 8601 indiquant quand le déploiement s'est terminé |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deploy` | object | L'enregistrement du déploiement nouvellement créé |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `sentry`

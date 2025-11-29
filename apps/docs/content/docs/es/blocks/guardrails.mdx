@@ -63,11 +63,11 @@ Utiliza Generación Aumentada por Recuperación (RAG) con puntuación LLM para d
 4. La validación se aprueba si la puntuación ≥ umbral (predeterminado: 3)
 
 **Configuración:**
-- **Base de conocimientos**: Selecciona entre tus bases de conocimientos existentes
-- **Modelo**: Elige LLM para puntuación (requiere razonamiento sólido - se recomienda GPT-4o, Claude 3.7 Sonnet)
-- **Clave API**: Autenticación para el proveedor LLM seleccionado (oculta automáticamente para modelos alojados/Ollama)
+- **Base de conocimiento**: Selecciona entre tus bases de conocimiento existentes
+- **Modelo**: Elige el LLM para la puntuación (requiere razonamiento sólido - se recomienda GPT-4o, Claude 3.7 Sonnet)
+- **Clave API**: Autenticación para el proveedor LLM seleccionado (se oculta automáticamente para modelos alojados/Ollama o compatibles con VLLM)
 - **Umbral de confianza**: Puntuación mínima para aprobar (0-10, predeterminado: 3)
-- **Top K** (Avanzado): Número de fragmentos de la base de conocimientos a recuperar (predeterminado: 10)
+- **Top K** (Avanzado): Número de fragmentos de la base de conocimiento a recuperar (predeterminado: 10)
 
 **Salida:**
 - `passed`: `true` si la puntuación de confianza ≥ umbral

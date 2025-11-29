@@ -47,51 +47,73 @@ La répartition des modèles montre :
 
 ## Options de tarification
 
-<Tabs items={['Modèles hébergés', 'Apportez votre propre clé API']}>
+<Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
   <Tab>
     **Modèles hébergés** - Sim fournit des clés API avec un multiplicateur de prix de 2,5x :
-    
+
+    **OpenAI**
     | Modèle | Prix de base (Entrée/Sortie) | Prix hébergé (Entrée/Sortie) |
     |-------|---------------------------|----------------------------|
+    | GPT-5.1 | 1,25 $ / 10,00 $ | 3,13 $ / 25,00 $ |
+    | GPT-5 | 1,25 $ / 10,00 $ | 3,13 $ / 25,00 $ |
+    | GPT-5 Mini | 0,25 $ / 2,00 $ | 0,63 $ / 5,00 $ |
+    | GPT-5 Nano | 0,05 $ / 0,40 $ | 0,13 $ / 1,00 $ |
     | GPT-4o | 2,50 $ / 10,00 $ | 6,25 $ / 25,00 $ |
     | GPT-4.1 | 2,00 $ / 8,00 $ | 5,00 $ / 20,00 $ |
+    | GPT-4.1 Mini | 0,40 $ / 1,60 $ | 1,00 $ / 4,00 $ |
+    | GPT-4.1 Nano | 0,10 $ / 0,40 $ | 0,25 $ / 1,00 $ |
     | o1 | 15,00 $ / 60,00 $ | 37,50 $ / 150,00 $ |
     | o3 | 2,00 $ / 8,00 $ | 5,00 $ / 20,00 $ |
-    | Claude 3.5 Sonnet | 3,00 $ / 15,00 $ | 7,50 $ / 37,50 $ |
-    | Claude Opus 4.0 | 15,00 $ / 75,00 $ | 37,50 $ / 187,50 $ |
-    
+    | o4 Mini | 1,10 $ / 4,40 $ | 2,75 $ / 11,00 $ |
+
+    **Anthropic**
+    | Modèle | Prix de base (Entrée/Sortie) | Prix hébergé (Entrée/Sortie) |
+    |-------|---------------------------|----------------------------|
+    | Claude Opus 4.5 | 5,00 $ / 25,00 $ | 12,50 $ / 62,50 $ |
+    | Claude Opus 4.1 | 15,00 $ / 75,00 $ | 37,50 $ / 187,50 $ |
+    | Claude Sonnet 4.5 | 3,00 $ / 15,00 $ | 7,50 $ / 37,50 $ |
+    | Claude Sonnet 4.0 | 3,00 $ / 15,00 $ | 7,50 $ / 37,50 $ |
+    | Claude Haiku 4.5 | 1,00 $ / 5,00 $ | 2,50 $ / 12,50 $ |
+
+    **Google**
+    | Modèle | Prix de base (Entrée/Sortie) | Prix hébergé (Entrée/Sortie) |
+    |-------|---------------------------|----------------------------|
+    | Gemini 3 Pro Preview | 2,00 $ / 12,00 $ | 5,00 $ / 30,00 $ |
+    | Gemini 2.5 Pro | 0,15 $ / 0,60 $ | 0,38 $ / 1,50 $ |
+    | Gemini 2.5 Flash | 0,15 $ / 0,60 $ | 0,38 $ / 1,50 $ |
+
     *Le multiplicateur de 2,5x couvre les coûts d'infrastructure et de gestion des API.*
   </Tab>
-  
+
   <Tab>
     **Vos propres clés API** - Utilisez n'importe quel modèle au prix de base :
-    
-    | Fournisseur | Modèles | Entrée / Sortie |
-    |----------|---------|----------------|
-    | Google | Gemini 2.5 | 0,15 $ / 0,60 $ |
+
+    | Fournisseur | Exemples de modèles | Entrée / Sortie |
+    |----------|----------------|----------------|
     | Deepseek | V3, R1 | 0,75 $ / 1,00 $ |
-    | xAI | Grok 4, Grok 3 | 5,00 $ / 25,00 $ |
-    | Groq | Llama 4 Scout | 0,40 $ / 0,60 $ |
-    | Cerebras | Llama 3.3 70B | 0,94 $ / 0,94 $ |
+    | xAI | Grok 4 Latest, Grok 3 | 3,00 $ / 15,00 $ |
+    | Groq | Llama 4 Scout, Llama 3.3 70B | 0,11 $ / 0,34 $ |
+    | Cerebras | Llama 4 Scout, Llama 3.3 70B | 0,11 $ / 0,34 $ |
     | Ollama | Modèles locaux | Gratuit |
-    
+    | VLLM | Modèles locaux | Gratuit |
+
     *Payez directement les fournisseurs sans majoration*
   </Tab>
 </Tabs>
 
 <Callout type="warning">
-  Les tarifs indiqués reflètent les taux en vigueur au 10 septembre 2025. Consultez la documentation du fournisseur pour connaître les tarifs actuels.
+  Les prix indiqués reflètent les tarifs en date du 10 septembre 2025. Consultez la documentation des fournisseurs pour les tarifs actuels.
 </Callout>
 
 ## Stratégies d'optimisation des coûts
 
 - **Sélection du modèle** : choisissez les modèles en fonction de la complexité de la tâche. Les tâches simples peuvent utiliser GPT-4.1-nano tandis que le raisonnement complexe pourrait nécessiter o1 ou Claude Opus.
 - **Ingénierie de prompt** : des prompts bien structurés et concis réduisent l'utilisation de tokens sans sacrifier la qualité.
-- **Modèles locaux** : utilisez Ollama pour les tâches non critiques afin d'éliminer complètement les coûts d'API.
-- **Mise en cache et réutilisation** : stockez les résultats fréquemment utilisés dans des variables ou des fichiers pour éviter les appels répétés au modèle d'IA.
+- **Modèles locaux** : utilisez Ollama ou VLLM pour les tâches non critiques afin d'éliminer complètement les coûts d'API.
+- **Mise en cache et réutilisation** : stockez les résultats fréquemment utilisés dans des variables ou des fichiers pour éviter des appels répétés aux modèles d'IA.
 - **Traitement par lots** : traitez plusieurs éléments dans une seule requête d'IA plutôt que de faire des appels individuels.
 
-## Surveillance de l'utilisation
+## Suivi de l'utilisation
 
 Surveillez votre utilisation et votre facturation dans Paramètres → Abonnement :
 
@@ -100,9 +122,9 @@ Surveillez votre utilisation et votre facturation dans Paramètres → Abonnemen
 - **Détails de facturation** : frais prévisionnels et engagements minimums
 - **Gestion du forfait** : options de mise à niveau et historique de facturation
 
-### Suivi programmatique de l'utilisation
+### Suivi d'utilisation programmatique
 
-Vous pouvez interroger votre utilisation actuelle et vos limites par programmation à l'aide de l'API :
+Vous pouvez interroger votre utilisation actuelle et vos limites par programmation en utilisant l'API :
 
 **Point de terminaison :**
 
@@ -138,9 +160,9 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 ```
 
 **Champs de réponse :**
-- `currentPeriodCost` reflète l'utilisation dans la période de facturation en cours
-- `limit` est dérivé des limites individuelles (Gratuit/Pro) ou des limites d'organisation mutualisées (Équipe/Entreprise)
-- `plan` est le forfait actif de plus haute priorité associé à votre utilisateur
+- `currentPeriodCost` reflète l'utilisation dans la période de facturation actuelle
+- `limit` est dérivé des limites individuelles (Gratuit/Pro) ou des limites mutualisées de l'organisation (Équipe/Entreprise)
+- `plan` est le plan actif de plus haute priorité associé à votre utilisateur
 
 ## Limites des forfaits
 
@@ -152,6 +174,38 @@ Les différents forfaits d'abonnement ont des limites d'utilisation différentes
 | **Pro** | 100 $ | 10 sync, 50 async |
 | **Équipe** | 500 $ (mutualisé) | 50 sync, 100 async |
 | **Entreprise** | Personnalisé | Personnalisé |
+
+## Modèle de facturation
+
+Sim utilise un modèle de facturation **abonnement de base + dépassement** :
+
+### Comment ça fonctionne
+
+**Forfait Pro (20 $/mois) :**
+- L'abonnement mensuel inclut 20 $ d'utilisation
+- Utilisation inférieure à 20 $ → Pas de frais supplémentaires
+- Utilisation supérieure à 20 $ → Paiement du dépassement en fin de mois
+- Exemple : 35 $ d'utilisation = 20 $ (abonnement) + 15 $ (dépassement)
+
+**Forfait Équipe (40 $/siège/mois) :**
+- Utilisation mutualisée entre tous les membres de l'équipe
+- Dépassement calculé à partir de l'utilisation totale de l'équipe
+- Le propriétaire de l'organisation reçoit une seule facture
+
+**Forfaits Entreprise :**
+- Prix mensuel fixe, pas de dépassements
+- Limites d'utilisation personnalisées selon l'accord
+
+### Facturation par seuil
+
+Lorsque le dépassement non facturé atteint 50 $, Sim facture automatiquement le montant total non facturé.
+
+**Exemple :**
+- Jour 10 : 70 $ de dépassement → Facturation immédiate de 70 $
+- Jour 15 : 35 $ d'utilisation supplémentaire (105 $ au total) → Déjà facturé, aucune action
+- Jour 20 : 50 $ d'utilisation supplémentaire (155 $ au total, 85 $ non facturés) → Facturation immédiate de 85 $
+
+Cela répartit les frais de dépassement importants tout au long du mois au lieu d'une seule facture importante en fin de période.
 
 ## Meilleures pratiques de gestion des coûts
 
@@ -166,39 +220,4 @@ Les différents forfaits d'abonnement ont des limites d'utilisation différentes
 - Examinez votre utilisation actuelle dans [Paramètres → Abonnement](https://sim.ai/settings/subscription)
 - Apprenez-en plus sur la [Journalisation](/execution/logging) pour suivre les détails d'exécution
 - Explorez l'[API externe](/execution/api) pour la surveillance programmatique des coûts
-- Découvrez les [techniques d'optimisation de flux de travail](/blocks) pour réduire les coûts
-
-**Forfait Équipe (40 $/siège/mois) :**
-- Utilisation mutualisée entre tous les membres de l'équipe
-- Dépassement calculé sur l'utilisation totale de l'équipe
-- Le propriétaire de l'organisation reçoit une seule facture
-
-**Forfaits Entreprise :**
-- Prix mensuel fixe, sans dépassements
-- Limites d'utilisation personnalisées selon l'accord
-
-### Facturation par seuil
-
-Lorsque le dépassement non facturé atteint 50 $, Sim facture automatiquement le montant total non facturé.
-
-**Exemple :**
-- Jour 10 : 70 $ de dépassement → Facturation immédiate de 70 $
-- Jour 15 : 35 $ d'utilisation supplémentaire (105 $ au total) → Déjà facturé, aucune action
-- Jour 20 : 50 $ d'utilisation supplémentaire (155 $ au total, 85 $ non facturés) → Facturation immédiate de 85 $
-
-Cela répartit les frais de dépassement importants tout au long du mois au lieu d'une seule grosse facture en fin de période.
-
-## Bonnes pratiques de gestion des coûts
-
-1. **Surveillance régulière** : vérifiez fréquemment votre tableau de bord d'utilisation pour éviter les surprises
-2. **Définir des budgets** : utilisez les limites du forfait comme garde-fous pour vos dépenses
-3. **Optimiser les flux de travail** : examinez les exécutions à coût élevé et optimisez les prompts ou la sélection de modèles
-4. **Utiliser des modèles appropriés** : adaptez la complexité du modèle aux exigences de la tâche
-5. **Regrouper les tâches similaires** : combinez plusieurs requêtes lorsque c'est possible pour réduire les frais généraux
-
-## Prochaines étapes
-
-- Consultez votre utilisation actuelle dans [Paramètres → Abonnement](https://sim.ai/settings/subscription)
-- Découvrez la [Journalisation](/execution/logging) pour suivre les détails d'exécution
-- Explorez l'[API externe](/execution/api) pour la surveillance programmatique des coûts
-- Consultez les [techniques d'optimisation des flux de travail](/blocks) pour réduire les coûts
+- Consultez les [techniques d'optimisation de flux de travail](/blocks) pour réduire les coûts

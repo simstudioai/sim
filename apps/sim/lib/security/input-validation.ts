@@ -296,6 +296,80 @@ export function validateNumericId(
 }
 
 /**
+ * Validates an integer value (from JSON body or other sources)
+ *
+ * This is stricter than validateNumericId - it requires:
+ * - Value must already be a number type (not string)
+ * - Must be an integer (no decimals)
+ * - Must be finite (not NaN or Infinity)
+ *
+ * @param value - The value to validate
+ * @param paramName - Name of the parameter for error messages
+ * @param options - Additional options (min, max)
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * const result = validateInteger(failedCount, 'failedCount', { min: 0 })
+ * if (!result.isValid) {
+ *   return NextResponse.json({ error: result.error }, { status: 400 })
+ * }
+ * ```
+ */
+export function validateInteger(
+  value: unknown,
+  paramName = 'value',
+  options: { min?: number; max?: number } = {}
+): ValidationResult {
+  if (value === null || value === undefined) {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  if (typeof value !== 'number') {
+    logger.warn('Value is not a number', { paramName, valueType: typeof value })
+    return {
+      isValid: false,
+      error: `${paramName} must be a number`,
+    }
+  }
+
+  if (Number.isNaN(value) || !Number.isFinite(value)) {
+    logger.warn('Invalid number value', { paramName, value })
+    return {
+      isValid: false,
+      error: `${paramName} must be a valid number`,
+    }
+  }
+
+  if (!Number.isInteger(value)) {
+    logger.warn('Value is not an integer', { paramName, value })
+    return {
+      isValid: false,
+      error: `${paramName} must be an integer`,
+    }
+  }
+
+  if (options.min !== undefined && value < options.min) {
+    return {
+      isValid: false,
+      error: `${paramName} must be at least ${options.min}`,
+    }
+  }
+
+  if (options.max !== undefined && value > options.max) {
+    return {
+      isValid: false,
+      error: `${paramName} must be at most ${options.max}`,
+    }
+  }
+
+  return { isValid: true }
+}
+
+/**
  * Validates that a value is in an allowed list (enum validation)
  *
  * @param value - The value to validate

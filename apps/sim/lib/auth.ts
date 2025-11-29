@@ -27,6 +27,7 @@ import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { getPlans } from '@/lib/billing/plans'
+import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
 import {
   handleInvoiceFinalized,
@@ -1654,6 +1655,7 @@ export const auth = betterAuth({
                 await sendPlanWelcomeEmail(subscription)
               },
               onSubscriptionUpdate: async ({
+                event,
                 subscription,
               }: {
                 event: Stripe.Event
@@ -1673,6 +1675,35 @@ export const auth = betterAuth({
                     referenceId: subscription.referenceId,
                     error,
                   })
+                }
+
+                // Sync seat count from Stripe subscription quantity for team plans
+                if (subscription.plan === 'team') {
+                  try {
+                    const stripeSubscription = event.data.object as Stripe.Subscription
+                    const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
+
+                    const result = await syncSeatsFromStripeQuantity(
+                      subscription.id,
+                      subscription.seats,
+                      quantity
+                    )
+
+                    if (result.synced) {
+                      logger.info('[onSubscriptionUpdate] Synced seat count from Stripe', {
+                        subscriptionId: subscription.id,
+                        referenceId: subscription.referenceId,
+                        previousSeats: result.previousSeats,
+                        newSeats: result.newSeats,
+                      })
+                    }
+                  } catch (error) {
+                    logger.error('[onSubscriptionUpdate] Failed to sync seat count', {
+                      subscriptionId: subscription.id,
+                      referenceId: subscription.referenceId,
+                      error,
+                    })
+                  }
                 }
               },
               onSubscriptionDeleted: async ({

@@ -499,29 +499,36 @@ async function handleInternalRequest(
 
     const response = await fetch(fullUrl, requestOptions)
 
-    // For non-OK responses, attempt JSON first; if parsing fails, preserve legacy error expected by tests
+    // For non-OK responses, attempt JSON first; if parsing fails, fall back to text
     if (!response.ok) {
       let errorData: any
       try {
         errorData = await response.json()
       } catch (jsonError) {
-        logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
-          error: jsonError instanceof Error ? jsonError.message : String(jsonError),
-        })
-        throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
+        // JSON parsing failed, fall back to reading as text for error extraction
+        logger.warn(`[${requestId}] Response is not JSON for ${toolId}, reading as text`)
+        try {
+          errorData = await response.text()
+        } catch (textError) {
+          logger.error(`[${requestId}] Failed to read response body for ${toolId}`)
+          errorData = null
+        }
       }
 
-      const { isError, errorInfo } = isErrorResponse(response, errorData)
-      if (isError) {
-        const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
-
-        logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
-          status: errorInfo?.status,
-          errorData: errorInfo?.data,
-        })
-
-        throw errorToTransform
+      const errorInfo: ErrorInfo = {
+        status: response.status,
+        statusText: response.statusText,
+        data: errorData,
       }
+
+      const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
+
+      logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
+        status: errorInfo.status,
+        errorData: errorInfo.data,
+      })
+
+      throw errorToTransform
     }
 
     // Parse response data once with guard for empty 202 bodies

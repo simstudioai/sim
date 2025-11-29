@@ -59,7 +59,8 @@ async function initializeOpenTelemetry() {
     const exporter = new OTLPTraceExporter({
       url: telemetryConfig.endpoint,
       headers: {},
-      timeoutMillis: telemetryConfig.batchSettings.exportTimeoutMillis,
+      timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000), // Max 10s
+      keepAlive: false,
     })
 
     const spanProcessor = new BatchSpanProcessor(exporter, {

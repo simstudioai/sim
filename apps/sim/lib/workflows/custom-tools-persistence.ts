@@ -33,7 +33,6 @@ export function extractCustomToolsFromWorkflowState(workflowState: any): CustomT
     try {
       const blockData = block as any
 
-      // Only process agent blocks
       if (!blockData || blockData.type !== 'agent') {
         continue
       }
@@ -47,7 +46,6 @@ export function extractCustomToolsFromWorkflowState(workflowState: any): CustomT
 
       let tools = toolsSubBlock.value
 
-      // Parse if it's a string
       if (typeof tools === 'string') {
         try {
           tools = JSON.parse(tools)
@@ -61,7 +59,6 @@ export function extractCustomToolsFromWorkflowState(workflowState: any): CustomT
         continue
       }
 
-      // Extract custom tools
       for (const tool of tools) {
         if (
           tool &&
@@ -71,10 +68,8 @@ export function extractCustomToolsFromWorkflowState(workflowState: any): CustomT
           tool.schema?.function &&
           tool.code
         ) {
-          // Use toolId if available, otherwise generate one from title
           const toolKey = tool.toolId || tool.title
 
-          // Deduplicate by toolKey (if same tool appears in multiple blocks)
           if (!customToolsMap.has(toolKey)) {
             customToolsMap.set(toolKey, tool as CustomTool)
           }
@@ -101,8 +96,6 @@ export async function persistCustomToolsToDatabase(
     return { saved: 0, errors: [] }
   }
 
-  // Only persist if workspaceId is provided (new workspace-scoped tools)
-  // Skip persistence for existing user-scoped tools to maintain backward compatibility
   if (!workspaceId) {
     logger.debug('Skipping custom tools persistence - no workspaceId provided (user-scoped tools)')
     return { saved: 0, errors: [] }
@@ -111,7 +104,6 @@ export async function persistCustomToolsToDatabase(
   const errors: string[] = []
   let saved = 0
 
-  // Filter out tools without function names
   const validTools = customToolsList.filter((tool) => {
     if (!tool.schema?.function?.name) {
       logger.warn(`Skipping custom tool without function name: ${tool.title}`)
@@ -125,10 +117,9 @@ export async function persistCustomToolsToDatabase(
   }
 
   try {
-    // Call the upsert function from lib
     await upsertCustomTools({
       tools: validTools.map((tool) => ({
-        id: tool.schema.function.name, // Use function name as ID for updates
+        id: tool.toolId,
         title: tool.title,
         schema: tool.schema,
         code: tool.code,
@@ -149,7 +140,7 @@ export async function persistCustomToolsToDatabase(
 }
 
 /**
- * Extract and persist custom tools from workflow state in one operation
+ * Extract and persist custom tools from workflow state
  */
 export async function extractAndPersistCustomTools(
   workflowState: any,

@@ -1,0 +1,642 @@
+---
+title: Zendesk
+description: Gestiona tickets de soporte, usuarios y organizaciones en Zendesk
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zendesk"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Zendesk](https://www.zendesk.com/) es una plataforma líder de servicio y soporte al cliente que permite a las organizaciones gestionar eficientemente tickets de soporte, usuarios y organizaciones a través de un sólido conjunto de herramientas y APIs. La integración de Zendesk en Sim permite a tus agentes automatizar operaciones clave de soporte y sincronizar tus datos de soporte con el resto de tu flujo de trabajo.
+
+Con Zendesk en Sim, puedes:
+
+- **Gestionar tickets:**
+  - Recuperar listas de tickets de soporte con filtrado y ordenación avanzados.
+  - Obtener información detallada sobre un ticket individual para seguimiento y resolución.
+  - Crear nuevos tickets individualmente o en masa para registrar problemas de clientes de forma programática.
+  - Actualizar tickets o aplicar actualizaciones masivas para optimizar flujos de trabajo complejos.
+  - Eliminar o fusionar tickets cuando los casos se resuelven o surgen duplicados.
+
+- **Gestión de usuarios:**
+  - Recuperar listas de usuarios o buscar usuarios por criterios para mantener actualizados tus directorios de clientes y agentes.
+  - Obtener información detallada sobre usuarios individuales o el usuario actualmente conectado.
+  - Crear nuevos usuarios o incorporarlos en masa, automatizando la provisión de clientes y agentes.
+  - Actualizar o actualizar en masa los detalles de usuarios para garantizar la precisión de la información.
+  - Eliminar usuarios según sea necesario para privacidad o gestión de cuentas.
+
+- **Gestión de organizaciones:**
+  - Listar, buscar y autocompletar organizaciones para una gestión optimizada de soporte y cuentas.
+  - Obtener detalles de la organización y mantener tu base de datos organizada.
+  - Crear, actualizar o eliminar organizaciones para reflejar cambios en tu base de clientes.
+  - Realizar creación masiva de organizaciones para grandes esfuerzos de incorporación.
+
+- **Búsqueda avanzada y análisis:**
+  - Utiliza endpoints de búsqueda versátiles para localizar rápidamente tickets, usuarios u organizaciones por cualquier campo.
+  - Obtén recuentos de resultados de búsqueda para potenciar informes y análisis.
+
+Al aprovechar la integración de Zendesk con Sim, tus flujos de trabajo automatizados pueden gestionar sin problemas la clasificación de tickets de soporte, la incorporación/desvinculación de usuarios, la gestión de empresas y mantener tus operaciones de soporte funcionando sin problemas. Ya sea que estés integrando el soporte con productos, CRM o sistemas de automatización, las herramientas de Zendesk en Sim proporcionan un control robusto y programático para potenciar un soporte de primera clase a escala.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Zendesk en el flujo de trabajo. Puede obtener tickets, obtener ticket, crear ticket, crear tickets en masa, actualizar ticket, actualizar tickets en masa, eliminar ticket, fusionar tickets, obtener usuarios, obtener usuario, obtener usuario actual, buscar usuarios, crear usuario, crear usuarios en masa, actualizar usuario, actualizar usuarios en masa, eliminar usuario, obtener organizaciones, obtener organización, autocompletar organizaciones, crear organización, crear organizaciones en masa, actualizar organización, eliminar organización, buscar, recuento de búsqueda.
+
+## Herramientas
+
+### `zendesk_get_tickets`
+
+Recupera una lista de tickets de Zendesk con filtrado opcional
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk \(p. ej., "miempresa" para miempresa.zendesk.com\) |
+| `status` | string | No | Filtrar por estado \(new, open, pending, hold, solved, closed\) |
+| `priority` | string | No | Filtrar por prioridad \(low, normal, high, urgent\) |
+| `type` | string | No | Filtrar por tipo \(problem, incident, question, task\) |
+| `assigneeId` | string | No | Filtrar por ID de usuario asignado |
+| `organizationId` | string | No | Filtrar por ID de organización |
+| `sortBy` | string | No | Campo de ordenación \(created_at, updated_at, priority, status\) |
+| `sortOrder` | string | No | Orden de clasificación \(asc o desc\) |
+| `perPage` | string | No | Resultados por página \(predeterminado: 100, máx: 100\) |
+| `page` | string | No | Número de página |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de los tickets |
+
+### `zendesk_get_ticket`
+
+Obtener un solo ticket por ID desde Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `ticketId` | string | Sí | ID del ticket a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del ticket |
+
+### `zendesk_create_ticket`
+
+Crear un nuevo ticket en Zendesk con soporte para campos personalizados
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `subject` | string | No | Asunto del ticket \(opcional - se generará automáticamente si no se proporciona\) |
+| `description` | string | Sí | Descripción del ticket \(primer comentario\) |
+| `priority` | string | No | Prioridad \(low, normal, high, urgent\) |
+| `status` | string | No | Estado \(new, open, pending, hold, solved, closed\) |
+| `type` | string | No | Tipo \(problem, incident, question, task\) |
+| `tags` | string | No | Etiquetas separadas por comas |
+| `assigneeId` | string | No | ID de usuario asignado |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del ticket creado |
+
+### `zendesk_create_tickets_bulk`
+
+Crear múltiples tickets en Zendesk a la vez (máximo 100)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `tickets` | string | Sí | Array JSON de objetos de ticket para crear \(máximo 100\). Cada ticket debe tener propiedades de asunto y comentario. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Estado del trabajo de creación masiva |
+
+### `zendesk_update_ticket`
+
+Actualizar un ticket existente en Zendesk con soporte para campos personalizados
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `ticketId` | string | Sí | ID del ticket a actualizar |
+| `subject` | string | No | Nuevo asunto del ticket |
+| `comment` | string | No | Añadir un comentario al ticket |
+| `priority` | string | No | Prioridad \(baja, normal, alta, urgente\) |
+| `status` | string | No | Estado \(nuevo, abierto, pendiente, en espera, resuelto, cerrado\) |
+| `type` | string | No | Tipo \(problema, incidente, pregunta, tarea\) |
+| `tags` | string | No | Etiquetas separadas por comas |
+| `assigneeId` | string | No | ID de usuario asignado |
+| `groupId` | string | No | ID del grupo |
+| `customFields` | string | No | Campos personalizados como objeto JSON |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos actualizados del ticket |
+
+### `zendesk_update_tickets_bulk`
+
+Actualizar múltiples tickets en Zendesk a la vez (máximo 100)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `ticketIds` | string | Sí | IDs de tickets separados por comas para actualizar \(máximo 100\) |
+| `status` | string | No | Nuevo estado para todos los tickets |
+| `priority` | string | No | Nueva prioridad para todos los tickets |
+| `assigneeId` | string | No | Nuevo ID de asignado para todos los tickets |
+| `groupId` | string | No | Nuevo ID de grupo para todos los tickets |
+| `tags` | string | No | Etiquetas separadas por comas para añadir a todos los tickets |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Estado del trabajo de actualización masiva |
+
+### `zendesk_delete_ticket`
+
+Eliminar un ticket de Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `ticketId` | string | Sí | ID del ticket a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+### `zendesk_merge_tickets`
+
+Fusionar múltiples tickets en un ticket objetivo
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `targetTicketId` | string | Sí | ID del ticket objetivo \(los tickets se fusionarán en este\) |
+| `sourceTicketIds` | string | Sí | IDs de tickets de origen separados por comas para fusionar |
+| `targetComment` | string | No | Comentario para añadir al ticket objetivo después de la fusión |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Estado del trabajo de fusión |
+
+### `zendesk_get_users`
+
+Recuperar una lista de usuarios de Zendesk con filtrado opcional
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk \(p. ej., "miempresa" para miempresa.zendesk.com\) |
+| `role` | string | No | Filtrar por rol \(end-user, agent, admin\) |
+| `permissionSet` | string | No | Filtrar por ID de conjunto de permisos |
+| `perPage` | string | No | Resultados por página \(predeterminado: 100, máx: 100\) |
+| `page` | string | No | Número de página |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de usuarios y metadatos |
+
+### `zendesk_get_user`
+
+Obtener un solo usuario por ID desde Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `userId` | string | Sí | ID del usuario a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del usuario |
+
+### `zendesk_get_current_user`
+
+Obtener el usuario actualmente autenticado desde Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del usuario actual |
+
+### `zendesk_search_users`
+
+Buscar usuarios en Zendesk usando una cadena de consulta
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `query` | string | No | Cadena de consulta de búsqueda |
+| `externalId` | string | No | ID externo para buscar |
+| `perPage` | string | No | Resultados por página \(predeterminado: 100, máximo: 100\) |
+| `page` | string | No | Número de página |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de búsqueda de usuarios |
+
+### `zendesk_create_user`
+
+Crear un nuevo usuario en Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `name` | string | Sí | Nombre de usuario |
+| `userEmail` | string | No | Correo electrónico del usuario |
+| `role` | string | No | Rol del usuario \(end-user, agent, admin\) |
+| `phone` | string | No | Número de teléfono del usuario |
+| `organizationId` | string | No | ID de la organización |
+| `verified` | string | No | Establecer como "true" para omitir la verificación por correo electrónico |
+| `tags` | string | No | Etiquetas separadas por comas |
+| `customFields` | string | No | Campos personalizados como objeto JSON \(p. ej., \{"field_id": "value"\}\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del usuario creado |
+
+### `zendesk_create_users_bulk`
+
+Crear múltiples usuarios en Zendesk mediante importación masiva
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `users` | string | Sí | Array JSON de objetos de usuario para crear |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Estado del trabajo de creación masiva |
+
+### `zendesk_update_user`
+
+Actualizar un usuario existente en Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `userId` | string | Sí | ID del usuario a actualizar |
+| `name` | string | No | Nuevo nombre de usuario |
+| `userEmail` | string | No | Nuevo correo electrónico del usuario |
+| `role` | string | No | Rol del usuario \(end-user, agent, admin\) |
+| `phone` | string | No | Número de teléfono del usuario |
+| `organizationId` | string | No | ID de la organización |
+| `verified` | string | No | Establecer como "true" para marcar al usuario como verificado |
+| `tags` | string | No | Etiquetas separadas por comas |
+| `customFields` | string | No | Campos personalizados como objeto JSON |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos actualizados del usuario |
+
+### `zendesk_update_users_bulk`
+
+Actualizar múltiples usuarios en Zendesk usando actualización masiva
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `users` | string | Sí | Array JSON de objetos de usuario para actualizar \(debe incluir el campo id\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Estado del trabajo de actualización masiva |
+
+### `zendesk_delete_user`
+
+Eliminar un usuario de Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `userId` | string | Sí | ID del usuario a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del usuario eliminado |
+
+### `zendesk_get_organizations`
+
+Obtener una lista de organizaciones de Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk \(p. ej., "miempresa" para miempresa.zendesk.com\) |
+| `perPage` | string | No | Resultados por página \(predeterminado: 100, máximo: 100\) |
+| `page` | string | No | Número de página |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de las organizaciones |
+
+### `zendesk_get_organization`
+
+Obtener una única organización por ID desde Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `organizationId` | string | Sí | ID de la organización a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la organización |
+
+### `zendesk_autocomplete_organizations`
+
+Autocompletar organizaciones en Zendesk por prefijo de nombre (para coincidencia de nombres/autocompletado)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `name` | string | Sí | Nombre de la organización a buscar |
+| `perPage` | string | No | Resultados por página \(predeterminado: 100, máximo: 100\) |
+| `page` | string | No | Número de página |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de búsqueda de organizaciones |
+
+### `zendesk_create_organization`
+
+Crear una nueva organización en Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `name` | string | Sí | Nombre de la organización |
+| `domainNames` | string | No | Nombres de dominio separados por comas |
+| `details` | string | No | Detalles de la organización |
+| `notes` | string | No | Notas de la organización |
+| `tags` | string | No | Etiquetas separadas por comas |
+| `customFields` | string | No | Campos personalizados como objeto JSON \(p. ej., \{"field_id": "value"\}\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la organización creada |
+
+### `zendesk_create_organizations_bulk`
+
+Crear múltiples organizaciones en Zendesk mediante importación masiva
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `organizations` | string | Sí | Array JSON de objetos de organización para crear |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Estado del trabajo de creación masiva |
+
+### `zendesk_update_organization`
+
+Actualizar una organización existente en Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `organizationId` | string | Sí | ID de la organización a actualizar |
+| `name` | string | No | Nuevo nombre de la organización |
+| `domainNames` | string | No | Nombres de dominio separados por comas |
+| `details` | string | No | Detalles de la organización |
+| `notes` | string | No | Notas de la organización |
+| `tags` | string | No | Etiquetas separadas por comas |
+| `customFields` | string | No | Campos personalizados como objeto JSON |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la organización actualizada |
+
+### `zendesk_delete_organization`
+
+Eliminar una organización de Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `organizationId` | string | Sí | ID de la organización a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la organización eliminada |
+
+### `zendesk_search`
+
+Búsqueda unificada a través de tickets, usuarios y organizaciones en Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `query` | string | Sí | Cadena de consulta de búsqueda |
+| `sortBy` | string | No | Campo de ordenación \(relevance, created_at, updated_at, priority, status, ticket_type\) |
+| `sortOrder` | string | No | Orden de clasificación \(asc o desc\) |
+| `perPage` | string | No | Resultados por página \(predeterminado: 100, máximo: 100\) |
+| `page` | string | No | Número de página |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de la búsqueda |
+
+### `zendesk_search_count`
+
+Contar el número de resultados de búsqueda que coinciden con una consulta en Zendesk
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Tu dirección de correo electrónico de Zendesk |
+| `apiToken` | string | Sí | Token de API de Zendesk |
+| `subdomain` | string | Sí | Tu subdominio de Zendesk |
+| `query` | string | Sí | Cadena de consulta de búsqueda |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultado del recuento de búsqueda |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `zendesk`
