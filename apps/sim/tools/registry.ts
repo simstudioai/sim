@@ -787,8 +787,8 @@ import {
   slackDeleteMessageTool,
   slackDownloadTool,
   slackMessageReaderTool,
-  slackThreadReaderTool,
   slackMessageTool,
+  slackThreadReaderTool,
   slackUpdateMessageTool,
 } from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'
