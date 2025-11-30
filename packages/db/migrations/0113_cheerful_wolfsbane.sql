@@ -1,1 +1,0 @@
-ALTER TABLE "organization" ADD COLUMN "departed_member_usage" numeric DEFAULT '0' NOT NULL;
