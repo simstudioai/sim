@@ -30,6 +30,7 @@ export interface TemplateCreator {
   email?: string
   website?: string
   profileImageUrl?: string | null
+  verified?: boolean
   details?: {
     about?: string
     xUrl?: string

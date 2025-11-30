@@ -1335,6 +1335,7 @@ export const templateCreators = pgTable(
     name: text('name').notNull(),
     profileImageUrl: text('profile_image_url'),
     details: jsonb('details'),
+    verified: boolean('verified').notNull().default(false),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
