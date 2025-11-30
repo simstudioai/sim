@@ -157,6 +157,7 @@ export const auth = betterAuth({
         'asana',
         'pipedrive',
         'hubspot',
+        'linkedin',
 
         // Common SSO provider patterns
         ...SSO_TRUSTED_PROVIDERS,
@@ -1581,6 +1582,54 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in Webflow getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+        // LinkedIn provider
+        {
+          providerId: 'linkedin',
+          clientId: env.LINKEDIN_CLIENT_ID as string,
+          clientSecret: env.LINKEDIN_CLIENT_SECRET as string,
+          authorizationUrl: 'https://www.linkedin.com/oauth/v2/authorization',
+          tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
+          userInfoUrl: 'https://api.linkedin.com/v2/userinfo',
+          scopes: ['profile', 'openid', 'email', 'w_member_social'],
+          responseType: 'code',
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/linkedin`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching LinkedIn user profile')
+
+              const response = await fetch('https://api.linkedin.com/v2/userinfo', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Failed to fetch LinkedIn user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const profile = await response.json()
+
+              return {
+                id: profile.sub,
+                name: profile.name || 'LinkedIn User',
+                email: profile.email || `${profile.sub}@linkedin.user`,
+                emailVerified: profile.email_verified || true,
+                image: profile.picture || undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in LinkedIn getUserInfo:', { error })
               return null
             }
           },

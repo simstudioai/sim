@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpLandingPage } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpGetLandingPage')
@@ -12,7 +13,7 @@ export interface MailchimpGetLandingPageParams {
 export interface MailchimpGetLandingPageResponse {
   success: boolean
   output: {
-    landingPage: any
+    landingPage: MailchimpLandingPage
     metadata: {
       operation: 'get_landing_page'
       pageId: string

@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpMergeField } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpUpdateMergeField')
@@ -14,7 +15,7 @@ export interface MailchimpUpdateMergeFieldParams {
 export interface MailchimpUpdateMergeFieldResponse {
   success: boolean
   output: {
-    mergeField: any
+    mergeField: MailchimpMergeField
     metadata: {
       operation: 'update_merge_field'
       mergeId: string
@@ -68,7 +69,7 @@ export const mailchimpUpdateMergeFieldTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: any = {}
+      const body: Record<string, unknown> = {}
 
       if (params.mergeName) body.name = params.mergeName
 

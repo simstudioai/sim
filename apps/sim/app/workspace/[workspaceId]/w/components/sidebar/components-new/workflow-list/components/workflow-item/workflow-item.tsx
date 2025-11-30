@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react'
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/delete-modal/delete-modal'
 import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/workflow-item/avatars/avatars'
@@ -40,6 +41,7 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
   const workspaceId = params.workspaceId as string
   const { selectedWorkflows } = useFolderStore()
   const { updateWorkflow, workflows } = useWorkflowRegistry()
+  const userPermissions = useUserPermissionsContext()
   const isSelected = selectedWorkflows.has(workflow.id)
 
   // Delete modal state
@@ -309,6 +311,10 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
         showRename={selectedWorkflows.size <= 1}
         showDuplicate={true}
         showExport={true}
+        disableRename={!userPermissions.canEdit}
+        disableDuplicate={!userPermissions.canEdit}
+        disableExport={!userPermissions.canEdit}
+        disableDelete={!userPermissions.canEdit}
       />
 
       {/* Delete Confirmation Modal */}

@@ -419,6 +419,7 @@ import {
   linearUpdateProjectTool,
   linearUpdateWorkflowStateTool,
 } from '@/tools/linear'
+import { linkedInGetProfileTool, linkedInSharePostTool } from '@/tools/linkedin'
 import { linkupSearchTool } from '@/tools/linkup'
 import {
   mailchimpAddMemberTagsTool,
@@ -495,6 +496,16 @@ import {
   mailchimpUpdateSegmentTool,
   mailchimpUpdateTemplateTool,
 } from '@/tools/mailchimp'
+import {
+  mailgunAddListMemberTool,
+  mailgunCreateMailingListTool,
+  mailgunGetDomainTool,
+  mailgunGetMailingListTool,
+  mailgunGetMessageTool,
+  mailgunListDomainsTool,
+  mailgunListMessagesTool,
+  mailgunSendMessageTool,
+} from '@/tools/mailgun'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from '@/tools/mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
@@ -757,6 +768,24 @@ import {
   salesforceUpdateTaskTool,
 } from '@/tools/salesforce'
 import {
+  sendGridAddContactsToListTool,
+  sendGridAddContactTool,
+  sendGridCreateListTool,
+  sendGridCreateTemplateTool,
+  sendGridCreateTemplateVersionTool,
+  sendGridDeleteContactsTool,
+  sendGridDeleteListTool,
+  sendGridDeleteTemplateTool,
+  sendGridGetContactTool,
+  sendGridGetListTool,
+  sendGridGetTemplateTool,
+  sendGridListAllListsTool,
+  sendGridListTemplatesTool,
+  sendGridRemoveContactsFromListTool,
+  sendGridSearchContactsTool,
+  sendGridSendMailTool,
+} from '@/tools/sendgrid'
+import {
   createDeployTool,
   createProjectTool,
   createReleaseTool,
@@ -791,6 +820,7 @@ import {
   slackUpdateMessageTool,
 } from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'
+import { smtpSendMailTool } from '@/tools/smtp'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
 import {
   stripeCancelPaymentIntentTool,
@@ -1025,7 +1055,34 @@ export const tools: Record<string, ToolConfig> = {
   jina_read_url: readUrlTool,
   jina_search: jinaSearchTool,
   linkup_search: linkupSearchTool,
+  linkedin_share_post: linkedInSharePostTool,
+  linkedin_get_profile: linkedInGetProfileTool,
   resend_send: mailSendTool,
+  sendgrid_send_mail: sendGridSendMailTool,
+  sendgrid_add_contact: sendGridAddContactTool,
+  sendgrid_get_contact: sendGridGetContactTool,
+  sendgrid_search_contacts: sendGridSearchContactsTool,
+  sendgrid_delete_contacts: sendGridDeleteContactsTool,
+  sendgrid_create_list: sendGridCreateListTool,
+  sendgrid_get_list: sendGridGetListTool,
+  sendgrid_list_all_lists: sendGridListAllListsTool,
+  sendgrid_delete_list: sendGridDeleteListTool,
+  sendgrid_add_contacts_to_list: sendGridAddContactsToListTool,
+  sendgrid_remove_contacts_from_list: sendGridRemoveContactsFromListTool,
+  sendgrid_create_template: sendGridCreateTemplateTool,
+  sendgrid_get_template: sendGridGetTemplateTool,
+  sendgrid_list_templates: sendGridListTemplatesTool,
+  sendgrid_delete_template: sendGridDeleteTemplateTool,
+  sendgrid_create_template_version: sendGridCreateTemplateVersionTool,
+  smtp_send_mail: smtpSendMailTool,
+  mailgun_send_message: mailgunSendMessageTool,
+  mailgun_get_message: mailgunGetMessageTool,
+  mailgun_list_messages: mailgunListMessagesTool,
+  mailgun_create_mailing_list: mailgunCreateMailingListTool,
+  mailgun_get_mailing_list: mailgunGetMailingListTool,
+  mailgun_add_list_member: mailgunAddListMemberTool,
+  mailgun_list_domains: mailgunListDomainsTool,
+  mailgun_get_domain: mailgunGetDomainTool,
   sms_send: smsSendTool,
   jira_retrieve: jiraRetrieveTool,
   jira_update: jiraUpdateTool,

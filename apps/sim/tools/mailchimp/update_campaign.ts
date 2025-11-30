@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
+import { buildMailchimpUrl, handleMailchimpError, type MailchimpCampaign } from './types'
 
 const logger = createLogger('MailchimpUpdateCampaign')
 
@@ -14,7 +14,7 @@ export interface MailchimpUpdateCampaignParams {
 export interface MailchimpUpdateCampaignResponse {
   success: boolean
   output: {
-    campaign: any
+    campaign: MailchimpCampaign
     metadata: {
       operation: 'update_campaign'
       campaignId: string
@@ -67,7 +67,7 @@ export const mailchimpUpdateCampaignTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: any = {}
+      const body: Record<string, unknown> = {}
 
       if (params.campaignSettings) {
         try {

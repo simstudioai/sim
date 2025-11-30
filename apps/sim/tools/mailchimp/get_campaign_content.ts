@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
+import { buildMailchimpUrl, handleMailchimpError, type MailchimpCampaignContent } from './types'
 
 const logger = createLogger('MailchimpGetCampaignContent')
 
@@ -12,7 +12,7 @@ export interface MailchimpGetCampaignContentParams {
 export interface MailchimpGetCampaignContentResponse {
   success: boolean
   output: {
-    content: any
+    content: MailchimpCampaignContent
     metadata: {
       operation: 'get_campaign_content'
       campaignId: string

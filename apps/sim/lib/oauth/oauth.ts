@@ -15,6 +15,7 @@ import {
   HubspotIcon,
   JiraIcon,
   LinearIcon,
+  LinkedInIcon,
   MicrosoftExcelIcon,
   MicrosoftIcon,
   MicrosoftOneDriveIcon,
@@ -59,6 +60,7 @@ export type OAuthProvider =
   | 'pipedrive'
   | 'hubspot'
   | 'salesforce'
+  | 'linkedin'
   | string
 
 export type OAuthService =
@@ -94,6 +96,7 @@ export type OAuthService =
   | 'pipedrive'
   | 'hubspot'
   | 'salesforce'
+  | 'linkedin'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -732,6 +735,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'hubspot',
   },
+  linkedin: {
+    id: 'linkedin',
+    name: 'LinkedIn',
+    icon: (props) => LinkedInIcon(props),
+    services: {
+      linkedin: {
+        id: 'linkedin',
+        name: 'LinkedIn',
+        description: 'Share posts and access profile data on LinkedIn.',
+        providerId: 'linkedin',
+        icon: (props) => LinkedInIcon(props),
+        baseProviderIcon: (props) => LinkedInIcon(props),
+        scopes: ['profile', 'openid', 'email', 'w_member_social'],
+      },
+    },
+    defaultService: 'linkedin',
+  },
   salesforce: {
     id: 'salesforce',
     name: 'Salesforce',
@@ -1217,6 +1237,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'linkedin': {
+      const { clientId, clientSecret } = getCredentials(
+        env.LINKEDIN_CLIENT_ID,
+        env.LINKEDIN_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://www.linkedin.com/oauth/v2/accessToken',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
       }
     }
     case 'salesforce': {

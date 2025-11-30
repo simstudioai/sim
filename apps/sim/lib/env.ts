@@ -217,6 +217,8 @@ export const env = createEnv({
     WEBFLOW_CLIENT_ID:                     z.string().optional(),                  // Webflow OAuth client ID
     WEBFLOW_CLIENT_SECRET:                 z.string().optional(),                  // Webflow OAuth client secret
     TRELLO_API_KEY:                        z.string().optional(),                  // Trello API Key
+    LINKEDIN_CLIENT_ID:                    z.string().optional(),                  // LinkedIn OAuth client ID
+    LINKEDIN_CLIENT_SECRET:                z.string().optional(),                  // LinkedIn OAuth client secret
 
     // E2B Remote Code Execution
     E2B_ENABLED:                           z.string().optional(),                  // Enable E2B remote code execution
