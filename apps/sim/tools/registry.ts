@@ -4,6 +4,7 @@ import {
   airtableListRecordsTool,
   airtableUpdateRecordTool,
 } from '@/tools/airtable'
+import { apifyRunActorAsyncTool, apifyRunActorSyncTool } from '@/tools/apify'
 import {
   apolloAccountBulkCreateTool,
   apolloAccountBulkUpdateTool,
@@ -1404,6 +1405,8 @@ export const tools: Record<string, ToolConfig> = {
   airtable_get_record: airtableGetRecordTool,
   airtable_list_records: airtableListRecordsTool,
   airtable_update_record: airtableUpdateRecordTool,
+  apify_run_actor_sync: apifyRunActorSyncTool,
+  apify_run_actor_async: apifyRunActorAsyncTool,
   apollo_people_search: apolloPeopleSearchTool,
   apollo_people_enrich: apolloPeopleEnrichTool,
   apollo_people_bulk_enrich: apolloPeopleBulkEnrichTool,

@@ -1,0 +1,69 @@
+---
+title: Apify
+description: Run Apify actors and retrieve results
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="apify"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Integrate Apify into your workflow. Run any Apify actor with custom input and retrieve results. Supports both synchronous and asynchronous execution with automatic dataset fetching.
+
+
+
+## Tools
+
+### `apify_run_actor_sync`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the actor run succeeded |
+| `runId` | string | Apify run ID |
+| `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |
+| `datasetId` | string | Dataset ID containing results |
+| `items` | json | Dataset items \(if completed\) |
+
+### `apify_run_actor_async`
+
+Run an APIFY actor asynchronously with polling for long-running tasks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
+| `actorId` | string | Yes | Actor ID or username/actor-name \(e.g., "janedoe/my-actor" or actor ID\) |
+| `input` | string | No | Actor input as JSON string |
+| `waitForFinish` | number | No | Initial wait time in seconds \(0-60\) before polling starts |
+| `itemLimit` | number | No | Max dataset items to fetch \(1-250000, default 100\) |
+| `timeout` | number | No | Timeout in seconds \(default: actor default\) |
+| `build` | string | No | Actor build to run \(e.g., "latest", "beta", or build tag/number\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the actor run succeeded |
+| `runId` | string | APIFY run ID |
+| `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |
+| `datasetId` | string | Dataset ID containing results |
+| `items` | array | Dataset items \(if completed\) |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `apify`
