@@ -443,7 +443,6 @@ async function applyDynamicSchemaForWorkflow(
 async function fetchWorkflowInputFields(
   workflowId: string
 ): Promise<Array<{ name: string; type: string }>> {
-  // Check cache first
   const cached = workflowInputFieldsCache.get(workflowId)
   const now = Date.now()
 
@@ -491,7 +490,6 @@ async function fetchWorkflowInputFields(
         }))
     }
 
-    // Cache the result
     workflowInputFieldsCache.set(workflowId, { fields, timestamp: now })
 
     return fields

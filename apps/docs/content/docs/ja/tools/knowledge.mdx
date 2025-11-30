@@ -40,10 +40,14 @@ Simでは、ナレッジベースブロックによってエージェントが�
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `knowledgeBaseId` | string | はい | 検索対象のナレッジベースのID |
-| `query` | string | いいえ | 検索クエリテキスト（タグフィルターを使用する場合は省略可能） |
+| `knowledgeBaseId` | string | はい | 検索対象のナレッジベースID |
+| `query` | string | いいえ | 検索クエリテキスト（タグフィルター使用時はオプション） |
 | `topK` | number | いいえ | 返す最も類似した結果の数（1-100） |
 | `tagFilters` | array | いいえ | tagNameとtagValueプロパティを持つタグフィルターの配列 |
+| `items` | object | いいえ | 説明なし |
+| `properties` | string | いいえ | 説明なし |
+| `tagName` | string | いいえ | 説明なし |
+| `tagValue` | string | いいえ | 説明なし |
 
 #### 出力
 
@@ -87,7 +91,12 @@ Simでは、ナレッジベースブロックによってエージェントが�
 | `tag5` | string | いいえ | ドキュメントのタグ5の値 |
 | `tag6` | string | いいえ | ドキュメントのタグ6の値 |
 | `tag7` | string | いいえ | ドキュメントのタグ7の値 |
-| `documentTagsData` | array | いいえ | 名前、タイプ、値を持つ構造化されたタグデータ |
+| `documentTagsData` | array | いいえ | 名前、タイプ、値を持つ構造化タグデータ |
+| `items` | object | いいえ | 説明なし |
+| `properties` | string | いいえ | 説明なし |
+| `tagName` | string | いいえ | 説明なし |
+| `tagValue` | string | いいえ | 説明なし |
+| `tagType` | string | いいえ | 説明なし |
 
 #### 出力
 

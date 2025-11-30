@@ -1,0 +1,1112 @@
+---
+title: PostHog
+description: 产品分析和功能管理
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="posthog"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[PostHog](https://posthog.com/) 工具将强大的产品分析、功能标志管理、实验和用户行为洞察直接集成到您的智能工作流中。专为现代团队设计，它使您能够实时捕获、分析和利用用户数据，从而帮助您构建更好的产品、了解用户参与度并提高转化率。
+
+使用 PostHog 工具，您可以：
+
+- **跟踪和分析事件**：使用 `posthog_capture_event` 和 `posthog_batch_events` 操作记录单个或多个用户操作、页面浏览或自定义事件以进行深入分析。
+- **探索事件数据**：使用 `posthog_list_events` 操作检索和列出历史或实时事件以进行高级事件分析。
+- **了解用户**：利用 `posthog_list_persons`、`posthog_get_person` 和 `posthog_delete_person` 操作管理用户档案、获取详细的用户洞察或根据需要删除用户。
+- **获取可操作的产品洞察**：通过 `posthog_list_insights`、`posthog_get_insight` 和 `posthog_create_insight` 操作可视化用户旅程、功能使用情况和参与度。
+- **安全地管理和推出功能**：使用 `posthog_list_feature_flags`、`posthog_get_feature_flag`、`posthog_create_feature_flag`、`posthog_update_feature_flag` 和 `posthog_delete_feature_flag` 等操作大规模切换功能并运行 A/B 或多变量测试。
+- **细分和定位受众**：使用 `posthog_list_cohorts`、`posthog_get_cohort` 和 `posthog_create_cohort` 构建、列出或管理群组。
+- **收集直接反馈**：通过 `posthog_list_surveys`、`posthog_get_survey`、`posthog_create_survey` 和 `posthog_update_survey` 设计、部署和分析调查。
+- **监控用户体验**：通过 `posthog_list_session_recordings` 和 `posthog_get_session_recording` 操作访问和分析会话记录。
+- **与团队协作**：组织仪表板（`posthog_list_dashboards`、`posthog_get_dashboard`），创建和注释洞察和事件，并在 PostHog 中管理项目和组织。
+
+无论您是想实施全面的产品分析、优化用户引导流程、完善产品路线图，还是基于实际使用数据自动化决策，PostHog 工具都能通过高级分析和产品内实验为您的代理和工作流程提供支持——这一切都在一个统一的平台上完成。
+
+在寻找具有隐私保护、可扩展性和开源选项的真正产品分析工具吗？PostHog 已被全球快速发展的团队和企业所信赖。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 PostHog 集成到您的工作流程中。跟踪事件、管理功能标志、分析用户行为、运行实验、创建调查问卷并访问会话录制。
+
+## 工具
+
+### `posthog_capture_event`
+
+在 PostHog 中捕获单个事件。使用此功能跟踪用户操作、页面浏览或自定义事件。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectApiKey` | string | 是 | PostHog 项目 API 密钥 \(用于事件摄取的公共令牌\) |
+| `region` | string | 否 | PostHog 区域：us \(默认\) 或 eu |
+| `event` | string | 是 | 要捕获的事件名称 \(例如，"page_view"，"button_clicked"\) |
+| `distinctId` | string | 是 | 用户或设备的唯一标识符。可以是用户 ID、设备 ID 或匿名 ID |
+| `properties` | string | 否 | 事件属性的 JSON 字符串 \(例如，\{"button_name": "signup", "page": "homepage"\}\) |
+| `timestamp` | string | 否 | 事件发生时的 ISO 8601 时间戳。如果未提供，则使用当前时间 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `status` | string | 指示事件是否成功捕获的状态消息 |
+
+### `posthog_batch_events`
+
+在 PostHog 中一次捕获多个事件。使用此功能进行批量事件摄取以提高性能。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectApiKey` | string | 是 | PostHog 项目 API 密钥（用于事件摄取的公共令牌） |
+| `region` | string | 否 | PostHog 区域：us（默认）或 eu |
+| `batch` | string | 是 | 要捕获的事件的 JSON 数组。每个事件应包含：event、distinct_id，以及可选的 properties 和 timestamp。例如：\[\{"event": "page_view", "distinct_id": "user123", "properties": \{"page": "/"\}\}\] |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `status` | string | 状态消息，指示批量是否成功捕获 |
+| `eventsProcessed` | number | 批处理中处理的事件数量 |
+
+### `posthog_list_events`
+
+列出 PostHog 中的事件。注意：此端点已被弃用，但为了向后兼容仍然保留。对于生产环境，建议使用带有 HogQL 的查询端点。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | string | 是 | PostHog 个人 API 密钥（用于认证的 API 访问） |
+| `region` | string | 否 | PostHog 区域：us（默认）或 eu |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `limit` | number | 否 | 要返回的事件数量（默认：100，最大：100） |
+| `offset` | number | 否 | 分页时要跳过的事件数量 |
+| `event` | string | 否 | 按特定事件名称过滤 |
+| `distinctId` | string | 否 | 按特定 distinct_id 过滤 |
+| `before` | string | 否 | ISO 8601 时间戳 - 仅返回此时间之前的事件 |
+| `after` | string | 否 | ISO 8601 时间戳 - 仅返回此时间之后的事件 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `events` | 数组 | 包含其属性和元数据的事件列表 |
+
+### `posthog_list_persons`
+
+列出 PostHog 中的人员（用户）。返回包含其属性和唯一 ID 的用户档案。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | 字符串 | 是 | PostHog 个人 API 密钥（用于认证的 API 访问） |
+| `region` | 字符串 | 否 | PostHog 区域：us（默认）或 eu |
+| `projectId` | 字符串 | 是 | PostHog 项目 ID |
+| `limit` | 数字 | 否 | 返回的人员数量（默认：100，最大：100） |
+| `offset` | 数字 | 否 | 分页时跳过的人员数量 |
+| `search` | 字符串 | 否 | 通过电子邮件、姓名或唯一 ID 搜索人员 |
+| `distinctId` | 字符串 | 否 | 按特定的唯一 ID 过滤 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `persons` | 数组 | 包含其属性和标识符的人员列表 |
+
+### `posthog_get_person`
+
+通过 ID 或 UUID 获取 PostHog 中特定人员的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | 字符串 | 是 | PostHog 个人 API 密钥（用于认证的 API 访问） |
+| `region` | 字符串 | 否 | PostHog 区域：us（默认）或 eu |
+| `projectId` | 字符串 | 是 | PostHog 项目 ID |
+| `personId` | 字符串 | 是 | 要检索的人员 ID 或 UUID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `person` | object | 包含属性和标识符的人员详细信息 |
+
+### `posthog_delete_person`
+
+从 PostHog 中删除一个人员。这将移除所有相关的事件和数据。请谨慎使用。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | string | 是 | PostHog 个人 API 密钥（用于认证的 API 访问） |
+| `region` | string | 否 | PostHog 区域：us（默认）或 eu |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `personId` | string | 是 | 要删除的人员 ID 或 UUID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `status` | string | 状态消息，指示人员是否成功删除 |
+
+### `posthog_query`
+
+在 PostHog 中执行 HogQL 查询。HogQL 是 PostHog
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | string | 是 | PostHog 个人 API 密钥（用于认证的 API 访问） |
+| `region` | string | 否 | PostHog 区域：us（默认）或 eu |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `query` | string | 是 | 要执行的 HogQL 查询。例如：\{"kind": "HogQLQuery", "query": "SELECT event, count\(\) FROM events WHERE timestamp &gt; now\(\) - INTERVAL 1 DAY GROUP BY event"\} |
+| `Example` | string | 否 | 无描述 |
+| `values` | string | 否 | 参数化查询的可选 JSON 字符串参数值。例如：\{"user_id": "123"\} |
+| `Example` | string | 否 | 无描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | array | 查询结果作为行数组 |
+
+### `posthog_list_insights`
+
+列出 PostHog 项目中的所有洞察。返回洞察配置、过滤器和元数据。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 否 | PostHog 云区域："us" 或 "eu" （默认值："us"）|
+| `limit` | number | 否 | 每页返回的结果数量（默认值：100）|
+| `offset` | number | 否 | 分页时跳过的结果数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `count` | number | 项目中洞察的总数 |
+| `next` | string | 下一页结果的 URL |
+| `previous` | string | 上一页结果的 URL |
+| `results` | array | 包含其配置和元数据的洞察列表 |
+
+### `posthog_get_insight`
+
+通过 ID 从 PostHog 获取特定洞察。返回详细的洞察配置、过滤器和元数据。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `insightId` | string | 是 | 要检索的洞察 ID |
+| `region` | string | 否 | PostHog 云区域："us" 或 "eu" （默认值："us"）|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 洞察的唯一标识符 |
+| `name` | string | 洞察的名称 |
+| `description` | string | 洞察的描述 |
+| `filters` | object | 洞察的过滤器配置 |
+| `query` | object | 洞察的查询配置 |
+| `created_at` | string | 洞察创建时的 ISO 时间戳 |
+| `created_by` | object | 创建洞察的用户 |
+| `last_modified_at` | string | 洞察最后修改时的 ISO 时间戳 |
+| `last_modified_by` | object | 最后修改洞察的用户 |
+| `saved` | boolean | 洞察是否已保存 |
+| `dashboards` | array | 此洞察出现在的仪表板 ID |
+| `tags` | array | 与洞察相关的标签 |
+| `favorited` | boolean | 洞察是否被标记为收藏 |
+
+### `posthog_create_insight`
+
+在 PostHog 中创建一个新的洞察。需要提供洞察名称和配置过滤器或查询。
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 否 | PostHog 云区域："us" 或 "eu" \(默认："us"\) |
+| `name` | string | 否 | 洞察的名称 \(可选 - 如果未提供，PostHog 将生成一个派生名称\) |
+| `description` | string | 否 | 洞察的描述 |
+| `filters` | string | 否 | 洞察的过滤器配置的 JSON 字符串 |
+| `query` | string | 否 | 洞察的查询配置的 JSON 字符串 |
+| `dashboards` | string | 否 | 要将此洞察添加到的仪表板 ID 的逗号分隔列表 |
+| `tags` | string | 否 | 洞察的标签的逗号分隔列表 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 创建的洞察的唯一标识符 |
+| `name` | string | 洞察的名称 |
+| `description` | string | 洞察的描述 |
+| `filters` | object | 洞察的过滤器配置 |
+| `query` | object | 洞察的查询配置 |
+| `created_at` | string | 洞察创建时的 ISO 时间戳 |
+| `created_by` | object | 创建洞察的用户 |
+| `last_modified_at` | string | 洞察最后修改时的 ISO 时间戳 |
+| `saved` | boolean | 洞察是否已保存 |
+| `dashboards` | array | 此洞察显示的仪表板 ID 列表 |
+| `tags` | array | 与洞察相关的标签 |
+
+### `posthog_list_dashboards`
+
+列出 PostHog 项目中的所有仪表板。返回仪表板配置、图块和元数据。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 否 | PostHog 云区域："us" 或 "eu" \(默认值："us"\) |
+| `limit` | number | 否 | 每页返回的结果数量 \(默认值：100\) |
+| `offset` | number | 否 | 分页时跳过的结果数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `count` | number | 项目中仪表板的总数 |
+| `next` | string | 下一页结果的 URL |
+| `previous` | string | 上一页结果的 URL |
+| `results` | array | 包含其配置和元数据的仪表板列表 |
+
+### `posthog_get_dashboard`
+
+通过 ID 从 PostHog 获取特定仪表板。返回详细的仪表板配置、组件和元数据。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `dashboardId` | string | 是 | 要检索的仪表板 ID |
+| `region` | string | 否 | PostHog 云区域："us" 或 "eu" \(默认值："us"\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 仪表板的唯一标识符 |
+| `name` | string | 仪表板名称 |
+| `description` | string | 仪表板描述 |
+| `pinned` | boolean | 仪表板是否已固定 |
+| `created_at` | string | 仪表板创建时的 ISO 时间戳 |
+| `created_by` | object | 创建仪表板的用户 |
+| `last_modified_at` | string | 仪表板最后修改时的 ISO 时间戳 |
+| `last_modified_by` | object | 最后修改仪表板的用户 |
+| `tiles` | array | 仪表板上的组件/小部件及其配置 |
+| `filters` | object | 应用于仪表板的全局过滤器 |
+| `tags` | array | 与仪表板关联的标签 |
+| `restriction_level` | number | 仪表板的访问限制级别 |
+
+### `posthog_list_actions`
+
+列出 PostHog 项目中的所有操作。返回操作定义、步骤和元数据。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 否 | PostHog 云区域："us" 或 "eu" \(默认值："us"\) |
+| `limit` | number | 否 | 每页返回的结果数量 \(默认值：100\) |
+| `offset` | number | 否 | 分页时跳过的结果数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `count` | number | 项目中的操作总数 |
+| `next` | string | 下一页结果的 URL |
+| `previous` | string | 上一页结果的 URL |
+| `results` | array | 包含其定义和元数据的操作列表 |
+
+### `posthog_list_cohorts`
+
+列出 PostHog 项目中的所有群组。返回群组定义、过滤器和用户计数。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 否 | PostHog 云区域："us" 或 "eu" \(默认值："us"\) |
+| `limit` | number | 否 | 每页返回的结果数量 \(默认值：100\) |
+| `offset` | number | 否 | 分页时跳过的结果数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `count` | number | 项目中群组的总数 |
+| `next` | string | 下一页结果的 URL |
+| `previous` | string | 上一页结果的 URL |
+| `results` | array | 包含定义和元数据的群组列表 |
+
+### `posthog_get_cohort`
+
+通过 ID 从 PostHog 获取特定群组。返回详细的群组定义、筛选器和用户数量。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `cohortId` | string | 是 | 要检索的群组 ID |
+| `region` | string | 否 | PostHog 云区域："us" 或 "eu" \(默认："us"\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 群组的唯一标识符 |
+| `name` | string | 群组名称 |
+| `description` | string | 群组描述 |
+| `groups` | array | 定义群组的组 |
+| `deleted` | boolean | 群组是否已被删除 |
+| `filters` | object | 群组的筛选器配置 |
+| `query` | object | 群组的查询配置 |
+| `created_at` | string | 群组创建时的 ISO 时间戳 |
+| `created_by` | object | 创建群组的用户 |
+| `is_calculating` | boolean | 群组是否正在计算中 |
+| `last_calculation` | string | 上次计算的 ISO 时间戳 |
+| `errors_calculating` | number | 计算过程中发生的错误数量 |
+| `count` | number | 群组中的用户数量 |
+| `is_static` | boolean | 群组是否为静态群组 |
+| `version` | number | 群组的版本号 |
+
+### `posthog_create_cohort`
+
+在 PostHog 中创建一个新的群组。需要提供群组名称以及过滤器或查询配置。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 否 | PostHog 云区域："us" 或 "eu" \(默认值："us"\) |
+| `name` | string | 否 | 群组名称 \(可选 - 如果未提供，PostHog 将使用 "未命名群组"\) |
+| `description` | string | 否 | 群组描述 |
+| `filters` | string | 否 | 群组过滤器配置的 JSON 字符串 |
+| `query` | string | 否 | 群组查询配置的 JSON 字符串 |
+| `is_static` | boolean | 否 | 群组是否为静态 \(默认值：false\) |
+| `groups` | string | 否 | 定义群组的组的 JSON 字符串 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 创建的群组的唯一标识符 |
+| `name` | string | 群组名称 |
+| `description` | string | 群组描述 |
+| `groups` | array | 定义群组的组 |
+| `deleted` | boolean | 群组是否已被删除 |
+| `filters` | object | 群组的过滤器配置 |
+| `query` | object | 群组的查询配置 |
+| `created_at` | string | 群组创建时的 ISO 时间戳 |
+| `created_by` | object | 创建群组的用户 |
+| `is_calculating` | boolean | 群组是否正在计算中 |
+| `count` | number | 群组中的用户数量 |
+| `is_static` | boolean | 群组是否为静态 |
+| `version` | number | 群组的版本号 |
+
+### `posthog_list_annotations`
+
+列出 PostHog 项目中的所有注释。返回注释内容、时间戳和相关的洞察。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 否 | PostHog 云区域："us" 或 "eu" （默认值："us"）|
+| `limit` | number | 否 | 每页返回的结果数量（默认值：100）|
+| `offset` | number | 否 | 分页时跳过的结果数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `count` | number | 项目中注释的总数 |
+| `next` | string | 下一页结果的 URL |
+| `previous` | string | 上一页结果的 URL |
+| `results` | array | 包含注释内容和元数据的注释列表 |
+
+### `posthog_create_annotation`
+
+在 PostHog 中创建一个新注释。在图表上用日期和描述标记重要事件。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 否 | PostHog 云区域："us" 或 "eu" （默认值："us"）|
+| `content` | string | 是 | 注释的内容/文本 |
+| `date_marker` | string | 是 | 标记注释适用时间的 ISO 时间戳（例如："2024-01-15T10:00:00Z"）|
+| `scope` | string | 否 | 注释的范围："project" 或 "dashboard_item" （默认值："project"）|
+| `dashboard_item` | string | 否 | 要将此注释附加到的仪表板项的 ID |
+| `insight_short_id` | string | 否 | 要将此注释附加到的洞察的短 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 创建的注释的唯一标识符 |
+| `content` | string | 注释的内容/文本 |
+| `date_marker` | string | 注释适用时的 ISO 时间戳 |
+| `created_at` | string | 注释创建时的 ISO 时间戳 |
+| `updated_at` | string | 注释最后更新时的 ISO 时间戳 |
+| `created_by` | object | 创建注释的用户 |
+| `dashboard_item` | number | 此注释附加到的仪表板项的 ID |
+| `insight_short_id` | string | 此注释附加到的洞察的短 ID |
+| `insight_name` | string | 此注释附加到的洞察的名称 |
+| `scope` | string | 注释的范围 \(项目或仪表板项\) |
+| `deleted` | boolean | 注释是否被删除 |
+
+### `posthog_list_feature_flags`
+
+列出 PostHog 项目中的所有功能标志
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `limit` | number | 否 | 要返回的结果数量 |
+| `offset` | number | 否 | 要跳过的结果数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | array | 功能标志列表 |
+
+### `posthog_get_feature_flag`
+
+获取特定功能标志的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `flagId` | string | 是 | 功能标志 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `flag` | object | 功能标志详细信息 |
+
+### `posthog_create_feature_flag`
+
+在 PostHog 中创建一个新的功能标志
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `name` | string | 否 | 功能标志名称（可选 - 可以为空） |
+| `key` | string | 是 | 功能标志键（唯一标识符） |
+| `filters` | string | 否 | 功能标志过滤器（JSON 字符串） |
+| `active` | boolean | 否 | 标志是否激活（默认：true） |
+| `ensureExperienceContinuity` | boolean | 否 | 是否确保体验连续性（默认：false） |
+| `rolloutPercentage` | number | 否 | 发布百分比（0-100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `flag` | object | 创建的功能标志 |
+
+### `posthog_update_feature_flag`
+
+更新 PostHog 中现有的功能标志
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `flagId` | string | 是 | 功能标志 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `name` | string | 否 | 功能标志名称 |
+| `key` | string | 否 | 功能标志键（唯一标识符）|
+| `filters` | string | 否 | 功能标志过滤器（JSON 字符串）|
+| `active` | boolean | 否 | 标志是否激活 |
+| `ensureExperienceContinuity` | boolean | 否 | 是否确保体验连续性 |
+| `rolloutPercentage` | number | 否 | 发布百分比（0-100）|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `flag` | object | 更新的功能标志 |
+
+### `posthog_delete_feature_flag`
+
+从 PostHog 中删除功能标志
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `flagId` | string | 是 | 要删除的功能标志 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否删除成功 |
+| `message` | string | 确认消息 |
+
+### `posthog_evaluate_flags`
+
+为特定用户或群组评估功能标志。这是一个使用项目 API 密钥的公共端点。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `projectApiKey` | string | 是 | PostHog 项目 API 密钥（不是个人 API 密钥） |
+| `distinctId` | string | 是 | 要评估标志的用户的唯一 ID |
+| `groups` | string | 否 | 以 JSON 字符串形式表示的群组（例如，\{"company": "company_id_in_your_db"\}） |
+| `personProperties` | string | 否 | 以 JSON 字符串形式表示的人员属性 |
+| `groupProperties` | string | 否 | 以 JSON 字符串形式表示的群组属性 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `featureFlags` | object | 功能标志评估（键值对，其中值为布尔值或字符串变体） |
+| `featureFlagPayloads` | object | 附加到功能标志的额外负载 |
+| `errorsWhileComputingFlags` | boolean | 计算标志时是否存在错误 |
+
+### `posthog_list_experiments`
+
+列出 PostHog 项目中的所有实验
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `limit` | number | 否 | 要返回的结果数量 |
+| `offset` | number | 否 | 要跳过的结果数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | array | 实验列表 |
+
+### `posthog_get_experiment`
+
+获取特定实验的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `experimentId` | string | 是 | 实验 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `experiment` | object | 实验详情 |
+
+### `posthog_create_experiment`
+
+在 PostHog 中创建一个新实验
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `name` | string | 否 | 实验名称（可选） |
+| `description` | string | 否 | 实验描述 |
+| `featureFlagKey` | string | 是 | 用于实验的功能标志键 |
+| `parameters` | string | 否 | 实验参数（JSON 字符串） |
+| `filters` | string | 否 | 实验过滤器（JSON 字符串） |
+| `variants` | string | 否 | 实验变体（JSON 字符串） |
+| `startDate` | string | 否 | 实验开始日期（ISO 格式） |
+| `endDate` | string | 否 | 实验结束日期（ISO 格式） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `experiment` | object | 创建的实验 |
+
+### `posthog_list_surveys`
+
+列出 PostHog 项目中的所有调查。调查允许您收集用户的反馈。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 否 | PostHog 云区域：us 或 eu \(默认：us\) |
+| `limit` | number | 否 | 返回结果数量 \(默认：100\) |
+| `offset` | number | 否 | 分页时跳过的结果数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `surveys` | array | 项目中的调查列表 |
+
+### `posthog_get_survey`
+
+通过 ID 获取 PostHog 中特定调查的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `surveyId` | string | 是 | 要检索的调查 ID |
+| `region` | string | 否 | PostHog 云区域：us 或 eu \(默认：us\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `survey` | object | 调查详情 |
+
+### `posthog_create_survey`
+
+在 PostHog 中创建一个新调查。支持的问题类型包括：基础（开放式）、链接、评分和多选。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 否 | PostHog 云区域：us 或 eu （默认：us） |
+| `name` | string | 否 | 调查名称（可选） |
+| `description` | string | 否 | 调查描述 |
+| `type` | string | 否 | 调查类型：popover（应用内）或 api（自定义实现）（默认：popover） |
+| `questions` | string | 是 | 调查问题数组的 JSON 字符串。每个问题必须包含类型（open/link/rating/multiple_choice）和问题文本。评分问题可以包含 scale（1-10）、lowerBoundLabel、upperBoundLabel。多选问题需要 choices 数组。链接问题可以包含 buttonText。 |
+| `startDate` | string | 否 | ISO 8601 格式的调查开始日期 |
+| `endDate` | string | 否 | ISO 8601 格式的调查结束日期 |
+| `appearance` | string | 否 | 外观配置的 JSON 字符串（颜色、位置等） |
+| `conditions` | string | 否 | 显示条件的 JSON 字符串（URL 匹配等） |
+| `targetingFlagFilters` | string | 否 | 用于定位的功能标志过滤器的 JSON 字符串 |
+| `linkedFlagId` | string | 否 | 要链接到此调查的功能标志 ID |
+| `responsesLimit` | number | 否 | 要收集的最大响应数 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `survey` | object | 创建的调查详情 |
+
+### `posthog_update_survey`
+
+更新 PostHog 中的现有调查。可以修改问题、外观、条件和其他设置。
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `surveyId` | string | 是 | 要更新的调查 ID |
+| `region` | string | 否 | PostHog 云区域：us 或 eu \(默认：us\) |
+| `name` | string | 否 | 调查名称 |
+| `description` | string | 否 | 调查描述 |
+| `type` | string | 否 | 调查类型：popover 或 api |
+| `questions` | string | 否 | 调查问题数组的 JSON 字符串。每个问题必须包含类型 \(open/link/rating/multiple_choice\) 和问题文本。 |
+| `startDate` | string | 否 | ISO 8601 格式的调查开始日期 |
+| `endDate` | string | 否 | ISO 8601 格式的调查结束日期 |
+| `appearance` | string | 否 | 外观配置的 JSON 字符串 \(颜色、位置等\) |
+| `conditions` | string | 否 | 显示条件的 JSON 字符串 \(URL 匹配等\) |
+| `targetingFlagFilters` | string | 否 | 用于定位的功能标志过滤器的 JSON 字符串 |
+| `linkedFlagId` | string | 否 | 要链接到此调查的功能标志 ID |
+| `responsesLimit` | number | 否 | 要收集的最大响应数 |
+| `archived` | boolean | 否 | 归档或取消归档调查 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `survey` | object | 更新的调查详情 |
+
+### `posthog_list_session_recordings`
+
+列出 PostHog 项目中的会话录制。会话录制捕获用户与您的应用程序的交互。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 否 | PostHog 云区域：us 或 eu \(默认：us\) |
+| `limit` | number | 否 | 返回结果数量 \(默认：50\) |
+| `offset` | number | 否 | 分页时跳过的结果数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `recordings` | array | 会话录制列表 |
+
+### `posthog_get_session_recording`
+
+通过 ID 获取 PostHog 中特定会话录制的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `recordingId` | string | 是 | 要检索的会话录制 ID |
+| `region` | string | 否 | PostHog 云区域：us 或 eu \(默认：us\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `recording` | object | 会话录制详情 |
+
+### `posthog_list_recording_playlists`
+
+列出 PostHog 项目中的会话录制播放列表。播放列表允许您组织和策划会话录制。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 否 | PostHog 云区域：us 或 eu \(默认：us\) |
+| `limit` | number | 否 | 返回结果数量 \(默认：100\) |
+| `offset` | number | 否 | 分页时跳过的结果数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `playlists` | array | 会话录制播放列表 |
+
+### `posthog_list_event_definitions`
+
+列出 PostHog 项目中的所有事件定义。事件定义表示带有描述、标签和使用统计信息等元数据的跟踪事件。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `limit` | number | 否 | 每页返回的结果数量 \(默认：100\) |
+| `offset` | number | 否 | 返回结果的起始索引 |
+| `search` | string | 否 | 按名称筛选事件定义的搜索词 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `count` | number | 事件定义的总数 |
+| `next` | string | 下一页结果的 URL |
+| `previous` | string | 上一页结果的 URL |
+| `results` | array | 事件定义列表 |
+
+### `posthog_get_event_definition`
+
+获取 PostHog 中特定事件定义的详细信息。返回关于该事件的全面信息，包括元数据、使用统计和验证状态。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `eventDefinitionId` | string | 是 | 要检索的事件定义 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 事件定义的唯一标识符 |
+| `name` | string | 事件名称 |
+| `description` | string | 事件描述 |
+| `tags` | array | 与事件关联的标签 |
+| `volume_30_day` | number | 最近 30 天内接收到的事件数量 |
+| `query_usage_30_day` | number | 最近 30 天内查询此事件的次数 |
+| `created_at` | string | 事件创建时的 ISO 时间戳 |
+| `last_seen_at` | string | 事件最后一次被看到时的 ISO 时间戳 |
+| `updated_at` | string | 事件更新时的 ISO 时间戳 |
+| `updated_by` | object | 最后更新事件的用户 |
+| `verified` | boolean | 事件是否已被验证 |
+| `verified_at` | string | 事件被验证时的 ISO 时间戳 |
+| `verified_by` | string | 验证事件的用户 |
+
+### `posthog_update_event_definition`
+
+更新 PostHog 中的事件定义。可以修改描述、标签和验证状态，以保持事件模式的清晰。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `eventDefinitionId` | string | 是 | 要更新的事件定义 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `description` | string | 否 | 事件的更新描述 |
+| `tags` | string | 否 | 与事件关联的逗号分隔标签列表 |
+| `verified` | boolean | 否 | 是否将事件标记为已验证 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 事件定义的唯一标识符 |
+| `name` | string | 事件名称 |
+| `description` | string | 更新后的事件描述 |
+| `tags` | array | 更新后的与事件关联的标签 |
+| `volume_30_day` | number | 最近 30 天内接收到的事件数量 |
+| `query_usage_30_day` | number | 最近 30 天内查询此事件的次数 |
+| `created_at` | string | 事件创建时的 ISO 时间戳 |
+| `last_seen_at` | string | 事件最后一次被看到时的 ISO 时间戳 |
+| `updated_at` | string | 事件更新时的 ISO 时间戳 |
+| `updated_by` | object | 最后更新事件的用户 |
+| `verified` | boolean | 事件是否已验证 |
+| `verified_at` | string | 事件验证时的 ISO 时间戳 |
+| `verified_by` | string | 验证事件的用户 |
+
+### `posthog_list_property_definitions`
+
+列出 PostHog 项目中的所有属性定义。属性定义表示带有元数据（如描述、标签、类型和使用统计信息）的跟踪属性。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `limit` | number | 否 | 每页返回的结果数量 \(默认值：100\) |
+| `offset` | number | 否 | 返回结果的初始索引 |
+| `search` | string | 否 | 按名称筛选属性定义的搜索词 |
+| `type` | string | 否 | 按属性类型筛选：event、person 或 group |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `count` | number | 属性定义的总数 |
+| `next` | string | 下一页结果的 URL |
+| `previous` | string | 上一页结果的 URL |
+| `results` | array | 属性定义列表 |
+
+### `posthog_get_property_definition`
+
+获取 PostHog 中特定属性定义的详细信息。返回有关该属性的全面信息，包括元数据、类型、使用统计信息和验证状态。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `propertyDefinitionId` | string | 是 | 要检索的属性定义 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 属性定义的唯一标识符 |
+| `name` | string | 属性名称 |
+| `description` | string | 属性描述 |
+| `tags` | array | 与属性关联的标签 |
+| `is_numerical` | boolean | 属性是否为数值型 |
+| `is_seen_on_filtered_events` | boolean | 属性是否出现在筛选事件中 |
+| `property_type` | string | 属性的数据类型 |
+| `type` | string | 属性类型：事件、人员或组 |
+| `volume_30_day` | number | 属性在过去 30 天内被查看的次数 |
+| `query_usage_30_day` | number | 属性在过去 30 天内被查询的次数 |
+| `created_at` | string | 属性创建时的 ISO 时间戳 |
+| `updated_at` | string | 属性更新时的 ISO 时间戳 |
+| `updated_by` | object | 最后更新属性的用户 |
+| `verified` | boolean | 属性是否已验证 |
+| `verified_at` | string | 属性验证时的 ISO 时间戳 |
+| `verified_by` | string | 验证属性的用户 |
+| `example` | string | 属性的示例值 |
+
+### `posthog_update_property_definition`
+
+更新 PostHog 中的属性定义。可以修改描述、标签、属性类型和验证状态，以保持属性架构的整洁。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | PostHog 项目 ID |
+| `propertyDefinitionId` | string | 是 | 要更新的属性定义 ID |
+| `region` | string | 是 | PostHog 云区域：us 或 eu |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `description` | string | 否 | 属性的更新描述 |
+| `tags` | string | 否 | 要与属性关联的逗号分隔标签列表 |
+| `verified` | boolean | 否 | 是否将属性标记为已验证 |
+| `property_type` | string | 否 | 属性的数据类型（例如：String、Numeric、Boolean、DateTime 等） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 属性定义的唯一标识符 |
+| `name` | string | 属性名称 |
+| `description` | string | 更新后的属性描述 |
+| `tags` | array | 与属性关联的更新标签 |
+| `is_numerical` | boolean | 属性是否为数值型 |
+| `is_seen_on_filtered_events` | boolean | 属性是否出现在过滤的事件中 |
+| `property_type` | string | 属性的数据类型 |
+| `type` | string | 属性类型：事件、人员或组 |
+| `volume_30_day` | number | 属性在过去 30 天内被看到的次数 |
+| `query_usage_30_day` | number | 属性在过去 30 天内被查询的次数 |
+| `created_at` | string | 属性创建时的 ISO 时间戳 |
+| `updated_at` | string | 属性更新时的 ISO 时间戳 |
+| `updated_by` | object | 最后更新属性的用户 |
+| `verified` | boolean | 属性是否已被验证 |
+| `verified_at` | string | 属性验证时的 ISO 时间戳 |
+| `verified_by` | string | 验证属性的用户 |
+| `example` | string | 属性的示例值 |
+
+### `posthog_list_projects`
+
+列出组织中的所有项目。返回包括 ID、名称、API 令牌和设置在内的项目详细信息。可用于获取其他端点所需的项目 ID。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `region` | string | 否 | 云区域：us 或 eu \(默认：us\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projects` | array | 包含其配置和设置的项目列表 |
+
+### `posthog_get_project`
+
+通过 ID 获取特定项目的详细信息。返回全面的项目配置、设置和功能标志。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID \(数字 ID 或 UUID\) |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `region` | string | 否 | 云区域：us 或 eu \(默认：us\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `project` | object | 包含所有配置设置的详细项目信息 |
+
+### `posthog_list_organizations`
+
+列出用户有权限访问的所有组织。返回组织详细信息，包括名称、slug、成员级别和可用的产品功能。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | PostHog 个人 API 密钥 |
+| `region` | string | 否 | 云区域：us 或 eu \(默认：us\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `organizations` | 数组 | 包含其设置和功能的组织列表 |
+
+### `posthog_get_organization`
+
+通过 ID 获取特定组织的详细信息。返回全面的组织设置、功能、使用情况和团队信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `organizationId` | 字符串 | 是 | 组织 ID \(UUID\) |
+| `apiKey` | 字符串 | 是 | PostHog 个人 API 密钥 |
+| `region` | 字符串 | 否 | 云区域：us 或 eu \(默认：us\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `organization` | 对象 | 包含设置和功能的详细组织信息 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`posthog`

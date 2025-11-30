@@ -1,0 +1,305 @@
+---
+title: Sentry
+description: 管理 Sentry 的问题、项目、事件和发布
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sentry"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+通过 [Sentry](https://sentry.io/) —— 业界领先的实时错误跟踪、性能监控和发布管理平台，增强您的错误监控和应用程序可靠性。将 Sentry 无缝集成到您的自动化代理工作流中，轻松监控问题、跟踪关键事件、管理项目，并协调所有应用程序和服务的发布。
+
+使用 Sentry 工具，您可以：
+
+- **监控和分类问题**：使用 `sentry_issues_list` 操作获取全面的问题列表，并通过 `sentry_issues_get` 检索单个错误和漏洞的详细信息。即时访问元数据、标签、堆栈跟踪和统计数据，以减少平均解决时间。
+- **跟踪事件数据**：通过 `sentry_events_list` 和 `sentry_events_get` 分析特定的错误和事件实例，深入了解错误发生情况及其对用户的影响。
+- **管理项目和团队**：使用 `sentry_projects_list` 和 `sentry_project_get` 枚举和审查所有 Sentry 项目，确保团队协作顺畅和配置集中化。
+- **协调发布**：通过 `sentry_releases_list`、`sentry_release_get` 等操作，自动化版本跟踪、部署健康和变更管理。
+- **获取强大的应用程序洞察**：利用高级过滤器和查询，查找未解决或高优先级问题，汇总事件统计数据，并在代码库演变时跟踪回归。
+
+Sentry 的集成使工程和 DevOps 团队能够及早发现问题，优先处理最具影响力的漏洞，并持续改善开发堆栈中的应用程序健康状况。以编程方式协调现代可观测性、事件响应和发布生命周期管理的工作流自动化——减少停机时间并提高用户满意度。
+
+**可用的 Sentry 关键操作**：
+- `sentry_issues_list`：列出组织和项目的 Sentry 问题，支持强大的搜索和过滤功能。
+- `sentry_issues_get`：检索特定 Sentry 问题的详细信息。
+- `sentry_events_list`：枚举特定问题的事件，用于根本原因分析。
+- `sentry_events_get`：获取单个事件的完整详细信息，包括堆栈跟踪、上下文和元数据。
+- `sentry_projects_list`：列出组织内的所有 Sentry 项目。
+- `sentry_project_get`：检索特定项目的配置和详细信息。
+- `sentry_releases_list`：列出最近的发布及其部署状态。
+- `sentry_release_get`：检索详细的发布信息，包括相关的提交和问题。
+
+无论是主动管理应用健康状况、排查生产错误，还是自动化发布工作流，Sentry 都为您提供世界一流的监控、可操作的警报以及无缝的 DevOps 集成。通过利用 Sentry 进行错误跟踪、可观测性和发布管理，从您的智能工作流中提升软件质量和搜索可见性。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Sentry 集成到工作流中。监控问题、管理项目、跟踪事件，并协调应用程序的发布。
+
+## 工具
+
+### `sentry_issues_list`
+
+列出特定组织（可选特定项目）的 Sentry 问题。返回包括状态、错误计数和最后一次查看时间戳在内的问题详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Sentry API 身份验证令牌 |
+| `organizationSlug` | string | 是 | 组织的 slug |
+| `projectSlug` | string | 否 | 按特定项目 slug 过滤问题（可选） |
+| `query` | string | 否 | 用于过滤问题的搜索查询。支持 Sentry 搜索语法（例如，"is:unresolved"，"level:error"） |
+| `statsPeriod` | string | 否 | 统计的时间范围（例如，"24h"，"7d"，"30d"）。如果未指定，默认为 24h。 |
+| `cursor` | string | 否 | 用于检索下一页结果的分页游标 |
+| `limit` | number | 否 | 每页返回的问题数量（默认：25，最大：100） |
+| `status` | string | 否 | 按问题状态过滤：未解决、已解决、已忽略或已静音 |
+| `sort` | string | 否 | 排序顺序：日期、新、频率、优先级或用户（默认：日期） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `issues` | array | Sentry 问题列表 |
+
+### `sentry_issues_get`
+
+通过问题的 ID 检索特定 Sentry 问题的详细信息。返回完整的问题详情，包括元数据、标签和统计信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Sentry API 身份验证令牌 |
+| `organizationSlug` | string | 是 | 组织的 slug |
+| `issueId` | string | 是 | 要检索的问题的唯一 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `issue` | object | Sentry 问题的详细信息 |
+
+### `sentry_issues_update`
+
+通过更改状态、分配、书签状态或其他属性来更新 Sentry 问题。返回更新后的问题详情。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Sentry API 身份验证令牌 |
+| `organizationSlug` | string | 是 | 组织的 slug |
+| `issueId` | string | 是 | 要更新的问题的唯一 ID |
+| `status` | string | 否 | 问题的新状态：resolved、unresolved、ignored 或 resolvedInNextRelease |
+| `assignedTo` | string | 否 | 要分配问题的用户 ID 或电子邮件。使用空字符串取消分配。 |
+| `isBookmarked` | boolean | 否 | 是否为问题添加书签 |
+| `isSubscribed` | boolean | 否 | 是否订阅问题更新 |
+| `isPublic` | boolean | 否 | 问题是否应公开可见 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `issue` | object | 更新后的 Sentry 问题 |
+
+### `sentry_projects_list`
+
+列出 Sentry 组织中的所有项目。返回的项目详情包括名称、平台、团队和配置。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Sentry API 身份验证令牌 |
+| `organizationSlug` | string | 是 | 组织的 slug |
+| `cursor` | string | 否 | 用于获取下一页结果的分页游标 |
+| `limit` | number | 否 | 每页返回的项目数量 \(默认: 25, 最大: 100\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projects` | array | Sentry 项目列表 |
+
+### `sentry_projects_get`
+
+通过项目的 slug 检索特定 Sentry 项目的详细信息。返回完整的项目详情，包括团队、功能和配置。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Sentry API 身份验证令牌 |
+| `organizationSlug` | string | 是 | 组织的 slug |
+| `projectSlug` | string | 是 | 要检索的项目的 ID 或 slug |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `project` | object | 关于 Sentry 项目的详细信息 |
+
+### `sentry_projects_create`
+
+在组织中创建一个新的 Sentry 项目。需要一个团队来关联该项目。返回创建的项目详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Sentry API 身份验证令牌 |
+| `organizationSlug` | string | 是 | 组织的 slug |
+| `name` | string | 是 | 项目的名称 |
+| `teamSlug` | string | 是 | 将拥有此项目的团队的 slug |
+| `slug` | string | 否 | URL 友好的项目标识符（如果未提供，则根据名称自动生成） |
+| `platform` | string | 否 | 项目的平台/语言（例如，javascript、python、node、react-native）。如果未指定，默认为 "other" |
+| `defaultRules` | boolean | 否 | 是否创建默认的警报规则（默认值：true） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `project` | object | 新创建的 Sentry 项目 |
+
+### `sentry_projects_update`
+
+通过更改名称、slug、平台或其他设置来更新 Sentry 项目。返回更新后的项目详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Sentry API 身份验证令牌 |
+| `organizationSlug` | string | 是 | 组织的 slug |
+| `projectSlug` | string | 是 | 要更新的项目的 slug |
+| `name` | string | 否 | 项目的新名称 |
+| `slug` | string | 否 | 新的 URL 友好的项目标识符 |
+| `platform` | string | 否 | 项目的新平台/语言（例如，javascript、python、node） |
+| `isBookmarked` | boolean | 否 | 是否将项目标记为书签 |
+| `digestsMinDelay` | number | 否 | 摘要通知的最小延迟（以秒为单位） |
+| `digestsMaxDelay` | number | 否 | 摘要通知的最大延迟（以秒为单位） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `project` | object | 更新后的 Sentry 项目 |
+
+### `sentry_events_list`
+
+列出 Sentry 项目中的事件。可以通过问题 ID、查询或时间段进行筛选。返回的事件详情包括上下文、标签和用户信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Sentry API 身份验证令牌 |
+| `organizationSlug` | string | 是 | 组织的 slug |
+| `projectSlug` | string | 是 | 要列出事件的项目的 slug |
+| `issueId` | string | 否 | 按特定问题 ID 筛选事件 |
+| `query` | string | 否 | 用于筛选事件的搜索查询。支持 Sentry 搜索语法（例如："user.email:*@example.com"） |
+| `cursor` | string | 否 | 用于检索下一页结果的分页游标 |
+| `limit` | number | 否 | 每页返回的事件数量（默认：50，最大：100） |
+| `statsPeriod` | string | 否 | 查询的时间段（例如："24h"、"7d"、"30d"）。如果未指定，默认为 90d。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `events` | array | Sentry 事件列表 |
+
+### `sentry_events_get`
+
+通过事件 ID 检索特定 Sentry 事件的详细信息。返回完整的事件详情，包括堆栈跟踪、面包屑、上下文和用户信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Sentry API 身份验证令牌 |
+| `organizationSlug` | string | 是 | 组织的 slug |
+| `projectSlug` | string | 是 | 项目的 slug |
+| `eventId` | string | 是 | 要检索的事件的唯一 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `event` | object | 有关 Sentry 事件的详细信息 |
+
+### `sentry_releases_list`
+
+列出 Sentry 组织或项目的发布版本。返回包括版本、提交、部署信息和相关项目的发布详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Sentry API 身份验证令牌 |
+| `organizationSlug` | string | 是 | 组织的 slug |
+| `projectSlug` | string | 否 | 按特定项目 slug 筛选发布版本（可选） |
+| `query` | string | 否 | 用于筛选发布版本的搜索查询（例如，版本名称模式） |
+| `cursor` | string | 否 | 用于检索下一页结果的分页游标 |
+| `limit` | number | 否 | 每页返回的发布版本数量（默认：25，最大：100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `releases` | array | Sentry 发布版本列表 |
+
+### `sentry_releases_create`
+
+在 Sentry 中创建一个新版本。版本是部署到环境中的代码版本。可以包含提交信息和相关项目。返回创建的版本详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Sentry API 身份验证令牌 |
+| `organizationSlug` | string | 是 | 组织的 slug |
+| `version` | string | 是 | 版本标识符 \(例如，"2.0.0"、"my-app@1.0.0" 或 git 提交 SHA\) |
+| `projects` | string | 是 | 与此版本关联的项目 slug 的逗号分隔列表 |
+| `ref` | string | 否 | 此版本的 Git 引用 \(提交 SHA、标签或分支\) |
+| `url` | string | 否 | 指向版本的 URL \(例如，GitHub 版本页面\) |
+| `dateReleased` | string | 否 | 部署版本时的 ISO 8601 时间戳 \(默认为当前时间\) |
+| `commits` | string | 否 | 包含 id、repository \(可选\) 和 message \(可选\) 的提交对象 JSON 数组。例如：\[\{"id":"abc123","message":"修复错误"\}\] |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `release` | object | 新创建的 Sentry 版本 |
+
+### `sentry_releases_deploy`
+
+为特定环境中的 Sentry 版本创建一个部署记录。部署记录跟踪版本的部署时间和位置。返回创建的部署详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Sentry API 身份验证令牌 |
+| `organizationSlug` | string | 是 | 组织的 slug |
+| `version` | string | 是 | 部署的版本标识符 |
+| `environment` | string | 是 | 部署版本的环境名称（例如，"production"，"staging"） |
+| `name` | string | 否 | 此次部署的可选名称（例如，"Deploy v2.0 to Production"） |
+| `url` | string | 否 | 指向部署的 URL（例如，CI/CD 管道 URL） |
+| `dateStarted` | string | 否 | 部署开始时间的 ISO 8601 时间戳（默认为当前时间） |
+| `dateFinished` | string | 否 | 部署完成时间的 ISO 8601 时间戳 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deploy` | object | 新创建的部署记录 |
+
+## 注意
+
+- 类别: `tools`
+- 类型: `sentry`
