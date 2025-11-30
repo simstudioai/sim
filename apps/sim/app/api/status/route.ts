@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
-import type { IncidentIOWidgetResponse, StatusResponse, StatusType } from './types'
+import { createLogger } from '@/lib/logs/console/logger'
+import type { IncidentIOWidgetResponse, StatusResponse, StatusType } from '@/app/api/status/types'
+
+const logger = createLogger('StatusAPI')
 
 let cachedResponse: { data: StatusResponse; timestamp: number } | null = null
 const CACHE_TTL = 2 * 60 * 1000
@@ -75,7 +78,7 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error('Error fetching status from incident.io:', error)
+    logger.error('Error fetching status from incident.io:', error)
 
     const errorResponse: StatusResponse = {
       status: 'error',

@@ -1,11 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { StatusDotIcon } from '@/components/icons'
-import type { StatusResponse, StatusType } from '@/app/api/status/types'
-
-const POLLING_INTERVAL = 60000
+import type { StatusType } from '@/app/api/status/types'
+import { useStatus } from '@/hooks/queries/status'
 
 const STATUS_COLORS: Record<StatusType, string> = {
   operational: 'text-[#10B981] hover:text-[#059669]',
@@ -17,45 +15,15 @@ const STATUS_COLORS: Record<StatusType, string> = {
 }
 
 export default function StatusIndicator() {
-  const [status, setStatus] = useState<StatusType>('loading')
-  const [message, setMessage] = useState<string>('Checking Status...')
-  const [statusUrl, setStatusUrl] = useState<string>('https://status.sim.ai')
+  const { data, isLoading, isError } = useStatus()
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      const response = await fetch('/api/status')
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch status')
-      }
-
-      const data: StatusResponse = await response.json()
-
-      setStatus(data.status)
-      setMessage(data.message)
-      setStatusUrl(data.url)
-    } catch (error) {
-      console.error('Error fetching status:', error)
-      setStatus('error')
-      setMessage('Status Unknown')
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchStatus()
-
-    const poll = () => {
-      fetchStatus().finally(() => {
-        setTimeout(poll, POLLING_INTERVAL)
-      })
-    }
-
-    const timeoutId = setTimeout(poll, POLLING_INTERVAL)
-
-    return () => {
-      clearTimeout(timeoutId)
-    }
-  }, [fetchStatus])
+  const status = isLoading ? 'loading' : isError ? 'error' : data?.status || 'error'
+  const message = isLoading
+    ? 'Checking Status...'
+    : isError
+      ? 'Status Unknown'
+      : data?.message || 'Status Unknown'
+  const statusUrl = data?.url || 'https://status.sim.ai'
 
   return (
     <Link
