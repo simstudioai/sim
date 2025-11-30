@@ -21,6 +21,11 @@ export const DEFAULT_ENTERPRISE_TIER_COST_LIMIT = 200
 export const BASE_EXECUTION_CHARGE = 0.001
 
 /**
+ * Fixed cost for search tool invocation (in dollars)
+ */
+export const SEARCH_TOOL_COST = 0.01
+
+/**
  * Default threshold (in dollars) for incremental overage billing
  * When unbilled overage reaches this amount, an invoice item is created
  */

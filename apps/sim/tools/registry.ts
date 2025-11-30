@@ -117,7 +117,13 @@ import {
   exaSearchTool,
 } from '@/tools/exa'
 import { fileParseTool } from '@/tools/file'
-import { crawlTool, extractTool, mapTool, scrapeTool, searchTool } from '@/tools/firecrawl'
+import {
+  crawlTool,
+  extractTool,
+  searchTool as firecrawlSearchTool,
+  mapTool,
+  scrapeTool,
+} from '@/tools/firecrawl'
 import { functionExecuteTool } from '@/tools/function'
 import {
   githubAddAssigneesTool,
@@ -768,6 +774,7 @@ import {
   salesforceUpdateOpportunityTool,
   salesforceUpdateTaskTool,
 } from '@/tools/salesforce'
+import { searchTool } from '@/tools/search'
 import {
   sendGridAddContactsToListTool,
   sendGridAddContactTool,
@@ -1047,7 +1054,7 @@ export const tools: Record<string, ToolConfig> = {
   vision_tool: visionTool,
   file_parser: fileParseTool,
   firecrawl_scrape: scrapeTool,
-  firecrawl_search: searchTool,
+  firecrawl_search: firecrawlSearchTool,
   firecrawl_crawl: crawlTool,
   firecrawl_map: mapTool,
   firecrawl_extract: extractTool,
@@ -1455,6 +1462,7 @@ export const tools: Record<string, ToolConfig> = {
   knowledge_search: knowledgeSearchTool,
   knowledge_upload_chunk: knowledgeUploadChunkTool,
   knowledge_create_document: knowledgeCreateDocumentTool,
+  search_tool: searchTool,
   elevenlabs_tts: elevenLabsTtsTool,
   stt_whisper: whisperSttTool,
   stt_deepgram: deepgramSttTool,
