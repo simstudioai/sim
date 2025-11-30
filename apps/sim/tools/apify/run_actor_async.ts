@@ -58,11 +58,13 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.apify.com/v2/acts/${params.actorId}/runs`
+      const encodedActorId = encodeURIComponent(params.actorId)
+      const baseUrl = `https://api.apify.com/v2/acts/${encodedActorId}/runs`
       const queryParams = new URLSearchParams()
 
+      queryParams.set('token', params.apiKey)
+
       if (params.waitForFinish !== undefined) {
-        // Clamp to 0-60 seconds as per Apify API limits
         const waitTime = Math.max(0, Math.min(params.waitForFinish, 60))
         queryParams.set('waitForFinish', waitTime.toString())
       }
@@ -73,8 +75,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
         queryParams.set('build', params.build)
       }
 
-      const query = queryParams.toString()
-      return query ? `${baseUrl}?${query}` : baseUrl
+      return `${baseUrl}?${queryParams.toString()}`
     },
     method: 'POST',
     headers: (params) => ({
@@ -125,8 +126,9 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
       elapsedTime += POLL_INTERVAL_MS
 
+      const encodedActorId = encodeURIComponent(params.actorId)
       const statusResponse = await fetch(
-        `https://api.apify.com/v2/acts/${params.actorId}/runs/${runId}`,
+        `https://api.apify.com/v2/acts/${encodedActorId}/runs/${runId}?token=${params.apiKey}`,
         {
           headers: {
             Authorization: `Bearer ${params.apiKey}`,
@@ -145,18 +147,16 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       const statusData = await statusResponse.json()
       const run = statusData.data
 
-      // Check for terminal statuses
       if (
         run.status === 'SUCCEEDED' ||
         run.status === 'FAILED' ||
         run.status === 'ABORTED' ||
         run.status === 'TIMED-OUT'
       ) {
-        // Fetch results if succeeded
         if (run.status === 'SUCCEEDED') {
           const limit = Math.max(1, Math.min(params.itemLimit || 100, 250000))
           const itemsResponse = await fetch(
-            `https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?limit=${limit}`,
+            `https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?token=${params.apiKey}&limit=${limit}`,
             {
               headers: {
                 Authorization: `Bearer ${params.apiKey}`,
@@ -192,7 +192,6 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       }
     }
 
-    // Timeout after polling
     return {
       success: false,
       output: {

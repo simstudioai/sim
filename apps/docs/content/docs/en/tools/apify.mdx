@@ -10,6 +10,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Apify](https://apify.com/) is a powerful platform for building, deploying, and running web automation and web scraping actors at scale. Apify enables you to extract useful data from any website, automate workflows, and connect your data pipelines seamlessly.
+
+With Apify, you can:
+
+- **Run ready-made or custom actors**: Integrate public actors or develop your own, automating a wide range of web data extraction and browser tasks.
+- **Retrieve datasets**: Access and manage structured datasets collected by actors in real time.
+- **Scale web automation**: Leverage cloud infrastructure to run tasks reliably, asynchronously or synchronously, with robust error handling.
+
+In Sim, the Apify integration allows your agents to perform core Apify operations programmatically:
+
+- **Run Actor (Sync)**: Use `apify_run_actor_sync` to launch an Apify actor and wait for its completion, retrieving the results as soon as the run finishes.
+- **Run Actor (Async)**: Use `apify_run_actor_async` to start an actor in the background and periodically poll for results, suitable for longer or complex jobs.
+
+These operations equip your agents to automate, scrape, and orchestrate data collection or browser automation tasks directly inside workflows — all with flexible configuration and result handling, without the need for manual runs or external tools. Integrate Apify as a dynamic automation and data-extraction engine that programmatically powers your agents' web-scale workflows.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Apify into your workflow. Run any Apify actor with custom input and retrieve results. Supports both synchronous and asynchronous execution with automatic dataset fetching.
@@ -20,20 +38,27 @@ Integrate Apify into your workflow. Run any Apify actor with custom input and re
 
 ### `apify_run_actor_sync`
 
+Run an APIFY actor synchronously and get results (max 5 minutes)
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
+| `actorId` | string | Yes | Actor ID or username/actor-name \(e.g., "janedoe/my-actor" or actor ID\) |
+| `input` | string | No | Actor input as JSON string. See actor documentation for required fields. |
+| `timeout` | number | No | Timeout in seconds \(default: actor default\) |
+| `build` | string | No | Actor build to run \(e.g., "latest", "beta", or build tag/number\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the actor run succeeded |
-| `runId` | string | Apify run ID |
+| `runId` | string | APIFY run ID |
 | `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |
 | `datasetId` | string | Dataset ID containing results |
-| `items` | json | Dataset items \(if completed\) |
+| `items` | array | Dataset items \(if completed\) |
 
 ### `apify_run_actor_async`
 
