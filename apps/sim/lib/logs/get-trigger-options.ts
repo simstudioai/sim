@@ -31,11 +31,11 @@ export function getTriggerOptions(): TriggerOption[] {
   const providerMap = new Map<string, TriggerOption>()
 
   const coreTypes: TriggerOption[] = [
-    { value: 'manual', label: 'Manual', color: '#6b7280' }, // gray-500
-    { value: 'api', label: 'API', color: '#3b82f6' }, // blue-500
-    { value: 'schedule', label: 'Schedule', color: '#10b981' }, // green-500
-    { value: 'chat', label: 'Chat', color: '#8b5cf6' }, // purple-500
-    { value: 'webhook', label: 'Webhook', color: '#f97316' }, // orange-500 (for backward compatibility)
+    { value: 'manual', label: 'Manual', color: '#6b7280' },
+    { value: 'api', label: 'API', color: '#3b82f6' },
+    { value: 'schedule', label: 'Schedule', color: '#10b981' },
+    { value: 'chat', label: 'Chat', color: '#8b5cf6' },
+    { value: 'webhook', label: 'Webhook', color: '#f97316' },
   ]
 
   for (const trigger of triggers) {

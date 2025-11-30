@@ -82,13 +82,12 @@ export const FILTER_DEFINITIONS: FilterDefinition[] = [
   },
 ]
 
-// Core trigger types that are always available
 const CORE_TRIGGERS: TriggerData[] = [
-  { value: 'api', label: 'API', color: '#3b82f6' }, // blue-500
-  { value: 'manual', label: 'Manual', color: '#6b7280' }, // gray-500
-  { value: 'webhook', label: 'Webhook', color: '#f97316' }, // orange-500
-  { value: 'chat', label: 'Chat', color: '#8b5cf6' }, // purple-500
-  { value: 'schedule', label: 'Schedule', color: '#10b981' }, // green-500
+  { value: 'api', label: 'API', color: '#3b82f6' },
+  { value: 'manual', label: 'Manual', color: '#6b7280' },
+  { value: 'webhook', label: 'Webhook', color: '#f97316' },
+  { value: 'chat', label: 'Chat', color: '#8b5cf6' },
+  { value: 'schedule', label: 'Schedule', color: '#10b981' },
 ]
 
 export class SearchSuggestions {
