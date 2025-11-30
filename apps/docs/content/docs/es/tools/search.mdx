@@ -1,0 +1,54 @@
+---
+title: Búsqueda
+description: Busca en la web ($0.01 por búsqueda)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="search"
+  color="#3B82F6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta de **Búsqueda** te permite buscar en la web desde tus flujos de trabajo de Sim utilizando motores de búsqueda de última generación. Úsala para obtener la información más reciente, noticias, hechos y contenido web directamente en tus agentes, automatizaciones o conversaciones.
+
+- **Búsqueda general en la web**: Encuentra información actualizada de internet para complementar tus flujos de trabajo.
+- **Consultas automatizadas**: Permite que los agentes o la lógica del programa envíen consultas de búsqueda y manejen los resultados automáticamente.
+- **Resultados estructurados**: Devuelve los resultados web más relevantes, incluyendo título, enlace, fragmento y fecha para cada resultado.
+
+> **Nota:** Cada búsqueda cuesta **$0.01** por consulta.
+
+Esta herramienta es ideal para cualquier flujo de trabajo donde tus agentes necesiten acceso a datos web en tiempo real o deban hacer referencia a eventos actuales, realizar investigaciones o obtener contenido complementario.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Busca en la web usando la herramienta de Búsqueda. Cada búsqueda cuesta $0.01 por consulta.
+
+## Herramientas
+
+### `search_tool`
+
+Busca en la web. Devuelve los resultados web más relevantes, incluyendo título, enlace, fragmento y fecha para cada resultado.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `query` | string | Sí | La consulta de búsqueda |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `results` | json | Resultados de búsqueda |
+| `query` | string | La consulta de búsqueda |
+| `totalResults` | number | Número total de resultados |
+| `source` | string | Fuente de búsqueda \(exa\) |
+| `cost` | json | Información de costo \($0.01\) |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `search`
