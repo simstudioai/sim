@@ -1,0 +1,353 @@
+---
+title: Intercom
+description: 在 Intercom 中管理联系人、公司、对话、工单和消息
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="intercom"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Intercom](https://www.intercom.com/) 是一个领先的客户沟通平台，能够让您在一个地方管理和自动化与联系人、公司、对话、工单和消息的互动。Sim 中的 Intercom 集成让您的代理可以通过自动化工作流以编程方式管理客户关系、支持请求和对话。
+
+使用 Intercom 工具，您可以：
+
+- **联系人管理：** 创建、获取、更新、列出、搜索和删除联系人——自动化您的 CRM 流程并保持客户记录的最新。
+- **公司管理：** 创建新公司、检索公司详细信息，并列出与您的用户或业务客户相关的所有公司。
+- **对话处理：** 获取、列出、回复和搜索对话——让代理能够跟踪正在进行的支持线程、提供答案并自动执行后续操作。
+- **工单管理：** 以编程方式创建和检索工单，帮助您自动化客户服务、支持问题跟踪和工作流升级。
+- **发送消息：** 向用户或潜在客户触发消息，用于入职、支持或营销，所有这些都可以在您的工作流自动化中完成。
+
+通过将 Intercom 工具集成到 Sim 中，您可以让工作流直接与用户沟通，自动化客户支持流程，管理潜在客户，并大规模简化沟通。无论您是需要创建新联系人、保持客户数据同步、管理支持工单，还是发送个性化的参与消息，Intercom 工具都提供了一种全面的方式，将客户互动管理作为智能自动化的一部分。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Intercom 集成到工作流中。可以创建、获取、更新、列出、搜索和删除联系人；创建、获取和列出公司；获取、列出、回复和搜索对话；创建和获取工单；以及创建消息。
+
+## 工具
+
+### `intercom_create_contact`
+
+使用 email、external_id 或 role 在 Intercom 中创建一个新联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 否 | 联系人的电子邮件地址 |
+| `external_id` | string | 否 | 客户提供的联系人的唯一标识符 |
+| `phone` | string | 否 | 联系人的电话号码 |
+| `name` | string | 否 | 联系人的姓名 |
+| `avatar` | string | 否 | 联系人的头像图片 URL |
+| `signed_up_at` | number | 否 | 用户注册时间（Unix 时间戳） |
+| `last_seen_at` | number | 否 | 用户上次访问时间（Unix 时间戳） |
+| `owner_id` | string | 否 | 被分配为联系人账户所有者的管理员 ID |
+| `unsubscribed_from_emails` | boolean | 否 | 联系人是否取消订阅电子邮件 |
+| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象 \(例如，\{"attribute_name": "value"\}\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的联系人数据 |
+
+### `intercom_get_contact`
+
+通过 ID 从 Intercom 获取单个联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要检索的联系人 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 联系人数据 |
+
+### `intercom_update_contact`
+
+更新 Intercom 中的现有联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要更新的联系人 ID |
+| `email` | string | 否 | 联系人的电子邮件地址 |
+| `phone` | string | 否 | 联系人的电话号码 |
+| `name` | string | 否 | 联系人的姓名 |
+| `avatar` | string | 否 | 联系人的头像图片 URL |
+| `signed_up_at` | number | 否 | 用户注册时间（Unix 时间戳） |
+| `last_seen_at` | number | 否 | 用户上次访问时间（Unix 时间戳） |
+| `owner_id` | string | 否 | 分配了账户所有权的管理员 ID |
+| `unsubscribed_from_emails` | boolean | 否 | 联系人是否取消订阅电子邮件 |
+| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象 \(例如：\{"attribute_name": "value"\}\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新后的联系人数据 |
+
+### `intercom_list_contacts`
+
+列出所有来自 Intercom 的联系人，支持分页
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | 否 | 每页结果数量 \(最大值: 150\) |
+| `starting_after` | string | 否 | 分页游标 - 起始 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 联系人列表 |
+
+### `intercom_search_contacts`
+
+使用查询在 Intercom 中搜索联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 搜索查询 \(例如, \{"field":"email","operator":"=","value":"user@example.com"\}\) |
+| `per_page` | number | 否 | 每页结果数量 \(最大值: 150\) |
+| `starting_after` | string | 否 | 分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 搜索结果 |
+
+### `intercom_delete_contact`
+
+通过 ID 从 Intercom 中删除联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要删除的联系人 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 删除结果 |
+
+### `intercom_create_company`
+
+在 Intercom 中创建或更新公司
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `company_id` | string | 是 | 您的公司唯一标识符 |
+| `name` | string | 否 | 公司的名称 |
+| `website` | string | 否 | 公司网站 |
+| `plan` | string | 否 | 公司计划名称 |
+| `size` | number | 否 | 公司员工数量 |
+| `industry` | string | 否 | 公司所属行业 |
+| `monthly_spend` | number | 否 | 公司为您的业务创造的收入 |
+| `custom_attributes` | string | 否 | 作为 JSON 对象的自定义属性 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建或更新的公司数据 |
+
+### `intercom_get_company`
+
+通过 ID 从 Intercom 检索单个公司
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | 是 | 要检索的公司 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 公司数据 |
+
+### `intercom_list_companies`
+
+列出 Intercom 中的所有公司，并支持分页
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | 数字 | 否 | 每页结果数量 |
+| `page` | 数字 | 否 | 页码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 操作成功状态 |
+| `output` | 对象 | 公司列表 |
+
+### `intercom_get_conversation`
+
+通过 ID 从 Intercom 检索单个会话
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | 字符串 | 是 | 要检索的会话 ID |
+| `display_as` | 字符串 | 否 | 设置为 "plaintext" 以检索纯文本消息 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 操作成功状态 |
+| `output` | 对象 | 会话数据 |
+
+### `intercom_list_conversations`
+
+列出 Intercom 中的所有会话，并支持分页
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | 数字 | 否 | 每页结果数量 \(最大值: 150\) |
+| `starting_after` | 字符串 | 否 | 分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 操作成功状态 |
+| `output` | 对象 | 会话列表 |
+
+### `intercom_reply_conversation`
+
+以管理员身份在 Intercom 中回复对话
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 是 | 要回复的对话 ID |
+| `message_type` | string | 是 | 消息类型："comment" 或 "note" |
+| `body` | string | 是 | 回复的文本内容 |
+| `admin_id` | string | 是 | 撰写回复的管理员 ID |
+| `attachment_urls` | string | 否 | 逗号分隔的图片 URL 列表（最多 10 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 包含回复的更新对话 |
+
+### `intercom_search_conversations`
+
+使用查询在 Intercom 中搜索对话
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 作为 JSON 对象的搜索查询 |
+| `per_page` | number | 否 | 每页结果数量（最大值：150） |
+| `starting_after` | string | 否 | 用于分页的游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 搜索结果 |
+
+### `intercom_create_ticket`
+
+在 Intercom 中创建新工单
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `ticket_type_id` | string | 是 | 工单类型的 ID |
+| `contacts` | string | 是 | 联系人标识符的 JSON 数组（例如，\[\{"id": "contact_id"\}\]） |
+| `ticket_attributes` | string | 是 | 包含工单属性的 JSON 对象，包括 _default_title_ 和 _default_description_ |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的工单数据 |
+
+### `intercom_get_ticket`
+
+从 Intercom 按 ID 检索单个工单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `ticketId` | string | 是 | 要检索的工单 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 工单数据 |
+
+### `intercom_create_message`
+
+在 Intercom 中创建并发送新的管理员发起的消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `message_type` | string | 是 | 消息类型："inapp" 或 "email" |
+| `subject` | string | 否 | 消息主题（针对 email 类型） |
+| `body` | string | 是 | 消息正文 |
+| `from_type` | string | 是 | 发送者类型："admin" |
+| `from_id` | string | 是 | 发送消息的管理员 ID |
+| `to_type` | string | 是 | 接收者类型："contact" |
+| `to_id` | string | 是 | 接收消息的联系人的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的消息数据 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`intercom`

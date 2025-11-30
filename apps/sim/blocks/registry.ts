@@ -36,11 +36,15 @@ import { HunterBlock } from '@/blocks/blocks/hunter'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
 import { IncidentioBlock } from '@/blocks/blocks/incidentio'
 import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
+import { IntercomBlock } from '@/blocks/blocks/intercom'
 import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LinearBlock } from '@/blocks/blocks/linear'
+import { LinkedInBlock } from '@/blocks/blocks/linkedin'
 import { LinkupBlock } from '@/blocks/blocks/linkup'
+import { MailchimpBlock } from '@/blocks/blocks/mailchimp'
+import { MailgunBlock } from '@/blocks/blocks/mailgun'
 import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
@@ -63,6 +67,7 @@ import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock } from '@/blocks/blocks/pipedrive'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { PostHogBlock } from '@/blocks/blocks/posthog'
+import { PylonBlock } from '@/blocks/blocks/pylon'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { ResendBlock } from '@/blocks/blocks/resend'
@@ -71,10 +76,12 @@ import { RouterBlock } from '@/blocks/blocks/router'
 import { S3Block } from '@/blocks/blocks/s3'
 import { SalesforceBlock } from '@/blocks/blocks/salesforce'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
+import { SendGridBlock } from '@/blocks/blocks/sendgrid'
 import { SentryBlock } from '@/blocks/blocks/sentry'
 import { SerperBlock } from '@/blocks/blocks/serper'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { SlackBlock } from '@/blocks/blocks/slack'
+import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { StagehandBlock } from '@/blocks/blocks/stagehand'
 import { StagehandAgentBlock } from '@/blocks/blocks/stagehand_agent'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
@@ -104,6 +111,7 @@ import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { XBlock } from '@/blocks/blocks/x'
 import { YouTubeBlock } from '@/blocks/blocks/youtube'
+import { ZendeskBlock } from '@/blocks/blocks/zendesk'
 import { ZepBlock } from '@/blocks/blocks/zep'
 import type { BlockConfig } from '@/blocks/types'
 
@@ -148,7 +156,9 @@ export const registry: Record<string, BlockConfig> = {
   jira: JiraBlock,
   knowledge: KnowledgeBlock,
   linear: LinearBlock,
+  linkedin: LinkedInBlock,
   linkup: LinkupBlock,
+  mailchimp: MailchimpBlock,
   mcp: McpBlock,
   mem0: Mem0Block,
   zep: ZepBlock,
@@ -170,8 +180,12 @@ export const registry: Record<string, BlockConfig> = {
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
   postgresql: PostgreSQLBlock,
+  pylon: PylonBlock,
   qdrant: QdrantBlock,
   resend: ResendBlock,
+  sendgrid: SendGridBlock,
+  mailgun: MailgunBlock,
+  smtp: SmtpBlock,
   memory: MemoryBlock,
   reddit: RedditBlock,
   response: ResponseBlock,
@@ -180,6 +194,8 @@ export const registry: Record<string, BlockConfig> = {
   s3: S3Block,
   salesforce: SalesforceBlock,
   sentry: SentryBlock,
+  intercom: IntercomBlock,
+  zendesk: ZendeskBlock,
   serper: SerperBlock,
   sharepoint: SharepointBlock,
   stagehand: StagehandBlock,

@@ -1,0 +1,353 @@
+---
+title: Intercom
+description: Intercomで連絡先、企業、会話、チケット、メッセージを管理する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="intercom"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Intercom](https://www.intercom.com/)は、連絡先、企業、会話、チケット、メッセージとのやり取りを一か所で管理・自動化できる主要な顧客コミュニケーションプラットフォームです。SimのIntercom統合により、エージェントは自動化されたワークフローから顧客関係、サポートリクエスト、会話をプログラムで直接管理できます。
+
+Intercomツールでは、以下のことができます：
+
+- **連絡先管理：** 連絡先の作成、取得、更新、一覧表示、検索、削除—CRMプロセスを自動化し、顧客記録を最新の状態に保ちます。
+- **企業管理：** 新しい企業の作成、企業詳細の取得、ユーザーやビジネスクライアントに関連するすべての企業の一覧表示。
+- **会話処理：** 会話の取得、一覧表示、返信、検索—エージェントが進行中のサポートスレッドを追跡し、回答を提供し、フォローアップアクションを自動化できます。
+- **チケット管理：** プログラムでチケットを作成および取得し、カスタマーサービス、サポート問題の追跡、ワークフローのエスカレーションを自動化します。
+- **メッセージ送信：** ワークフロー自動化内からオンボーディング、サポート、マーケティングのためにユーザーやリードにメッセージをトリガーします。
+
+IntercomツールをSimに統合することで、ワークフローがユーザーと直接通信し、カスタマーサポートプロセスを自動化し、リードを管理し、大規模なコミュニケーションを効率化する能力を与えます。新しい連絡先の作成、顧客データの同期、サポートチケットの管理、パーソナライズされたエンゲージメントメッセージの送信など、Intercomツールはインテリジェントな自動化の一部として顧客とのやり取りを管理するための包括的な方法を提供します。
+{/* MANUAL-CONTENT-END */}
+
+## 使用手順
+
+Intercomをワークフローに統合します。連絡先の作成、取得、更新、一覧表示、検索、削除；企業の作成、取得、一覧表示；会話の取得、一覧表示、返信、検索；チケットの作成と取得；およびメッセージの作成が可能です。
+
+## ツール
+
+### `intercom_create_contact`
+
+メール、external_id、または役割を使用してIntercomに新しい連絡先を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | いいえ | 連絡先のメールアドレス |
+| `external_id` | string | いいえ | クライアントが提供する連絡先の一意の識別子 |
+| `phone` | string | いいえ | 連絡先の電話番号 |
+| `name` | string | いいえ | 連絡先の名前 |
+| `avatar` | string | いいえ | 連絡先のアバター画像URL |
+| `signed_up_at` | number | いいえ | ユーザーが登録した時間（Unixタイムスタンプ） |
+| `last_seen_at` | number | いいえ | ユーザーが最後に確認された時間（Unixタイムスタンプ） |
+| `owner_id` | string | いいえ | 連絡先のアカウント所有権が割り当てられた管理者のID |
+| `unsubscribed_from_emails` | boolean | いいえ | 連絡先がメールの配信を解除しているかどうか |
+| `custom_attributes` | string | いいえ | JSONオブジェクトとしてのカスタム属性（例：\{"attribute_name": "value"\}） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | 作成された連絡先データ |
+
+### `intercom_get_contact`
+
+IDからIntercomの単一の連絡先を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | はい | 取得する連絡先ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 連絡先データ |
+
+### `intercom_update_contact`
+
+Intercomの既存の連絡先を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | はい | 更新する連絡先ID |
+| `email` | string | いいえ | 連絡先のメールアドレス |
+| `phone` | string | いいえ | 連絡先の電話番号 |
+| `name` | string | いいえ | 連絡先の名前 |
+| `avatar` | string | いいえ | 連絡先のアバター画像URL |
+| `signed_up_at` | number | いいえ | ユーザーが登録した時間（Unixタイムスタンプ） |
+| `last_seen_at` | number | いいえ | ユーザーが最後に確認された時間（Unixタイムスタンプ） |
+| `owner_id` | string | いいえ | 連絡先のアカウント所有権が割り当てられた管理者のID |
+| `unsubscribed_from_emails` | boolean | いいえ | 連絡先がメールの配信を解除しているかどうか |
+| `custom_attributes` | string | いいえ | JSONオブジェクトとしてのカスタム属性（例：\{"attribute_name": "value"\}） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 更新された連絡先データ |
+
+### `intercom_list_contacts`
+
+ページネーションをサポートしてIntercomからすべての連絡先をリストする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | いいえ | ページあたりの結果数（最大：150） |
+| `starting_after` | string | いいえ | ページネーション用カーソル - 開始するIDの後 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 連絡先リスト |
+
+### `intercom_search_contacts`
+
+クエリを使用してIntercomで連絡先を検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | はい | 検索クエリ（例：\{"field":"email","operator":"=","value":"user@example.com"\}） |
+| `per_page` | number | いいえ | ページあたりの結果数（最大：150） |
+| `starting_after` | string | いいえ | ページネーション用カーソル |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 検索結果 |
+
+### `intercom_delete_contact`
+
+IDでIntercomから連絡先を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | はい | 削除する連絡先ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 削除結果 |
+
+### `intercom_create_company`
+
+Intercomで企業を作成または更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `company_id` | string | はい | 企業の一意の識別子 |
+| `name` | string | いいえ | 企業名 |
+| `website` | string | いいえ | 企業のウェブサイト |
+| `plan` | string | いいえ | 企業のプラン名 |
+| `size` | number | いいえ | 企業の従業員数 |
+| `industry` | string | いいえ | 企業が事業を展開している業界 |
+| `monthly_spend` | number | いいえ | 企業があなたのビジネスにもたらす収益額 |
+| `custom_attributes` | string | いいえ | JSONオブジェクトとしてのカスタム属性 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | 作成または更新された企業データ |
+
+### `intercom_get_company`
+
+IDによってIntercomから単一の企業を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | はい | 取得する企業ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `output` | object | 企業データ |
+
+### `intercom_list_companies`
+
+ページネーションサポート付きでIntercomからすべての企業を一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | いいえ | ページあたりの結果数 |
+| `page` | number | いいえ | ページ番号 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 企業のリスト |
+
+### `intercom_get_conversation`
+
+IDによりIntercomから単一の会話を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | はい | 取得する会話ID |
+| `display_as` | string | いいえ | プレーンテキストでメッセージを取得するには「plaintext」に設定 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 会話データ |
+
+### `intercom_list_conversations`
+
+ページネーションサポート付きでIntercomからすべての会話を一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | いいえ | ページあたりの結果数（最大：150） |
+| `starting_after` | string | いいえ | ページネーション用カーソル |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 会話のリスト |
+
+### `intercom_reply_conversation`
+
+管理者としてIntercomで会話に返信する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | はい | 返信する会話ID |
+| `message_type` | string | はい | メッセージタイプ：「comment」または「note」 |
+| `body` | string | はい | 返信の本文テキスト |
+| `admin_id` | string | はい | 返信を作成する管理者のID |
+| `attachment_urls` | string | いいえ | カンマ区切りの画像URL一覧（最大10件） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 返信を含む更新された会話 |
+
+### `intercom_search_conversations`
+
+クエリを使用してIntercomで会話を検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | はい | JSONオブジェクトとしての検索クエリ |
+| `per_page` | number | いいえ | ページあたりの結果数（最大：150） |
+| `starting_after` | string | いいえ | ページネーション用のカーソル |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 検索結果 |
+
+### `intercom_create_ticket`
+
+Intercomで新しいチケットを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `ticket_type_id` | string | はい | チケットタイプのID |
+| `contacts` | string | はい | 連絡先識別子のJSON配列（例：\[\{"id": "contact_id"\}\]） |
+| `ticket_attributes` | string | はい | _default_title_と_default_description_を含むチケット属性のJSONオブジェクト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成されたチケットデータ |
+
+### `intercom_get_ticket`
+
+IDによりIntercomから単一のチケットを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `ticketId` | string | はい | 取得するチケットID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | チケットデータ |
+
+### `intercom_create_message`
+
+Intercomで管理者が開始した新しいメッセージを作成して送信する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `message_type` | string | はい | メッセージタイプ：「inapp」または「email」 |
+| `subject` | string | いいえ | メッセージの件名（emailタイプの場合） |
+| `body` | string | はい | メッセージの本文 |
+| `from_type` | string | はい | 送信者タイプ：「admin」 |
+| `from_id` | string | はい | メッセージを送信する管理者のID |
+| `to_type` | string | はい | 受信者タイプ：「contact」 |
+| `to_id` | string | はい | メッセージを受信する連絡先のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成されたメッセージデータ |
+
+## メモ
+
+- カテゴリー: `tools`
+- タイプ: `intercom`

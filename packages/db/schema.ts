@@ -656,6 +656,10 @@ export const customTools = pgTable(
   },
   (table) => ({
     workspaceIdIdx: index('custom_tools_workspace_id_idx').on(table.workspaceId),
+    workspaceTitleUnique: uniqueIndex('custom_tools_workspace_title_unique').on(
+      table.workspaceId,
+      table.title
+    ),
   })
 )
 
