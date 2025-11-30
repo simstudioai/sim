@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpAudience } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpUpdateAudience')
@@ -16,7 +17,7 @@ export interface MailchimpUpdateAudienceParams {
 export interface MailchimpUpdateAudienceResponse {
   success: boolean
   output: {
-    list: any
+    list: MailchimpAudience
     metadata: {
       operation: 'update_audience'
       listId: string
@@ -81,7 +82,7 @@ export const mailchimpUpdateAudienceTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: any = {}
+      const body: Record<string, unknown> = {}
 
       if (params.audienceName) body.name = params.audienceName
       if (params.permissionReminder) body.permission_reminder = params.permissionReminder

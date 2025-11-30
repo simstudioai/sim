@@ -1,4 +1,4 @@
-import type { AddContactsToListParams } from '@/tools/sendgrid/types'
+import type { AddContactsToListParams, SendGridContactObject } from '@/tools/sendgrid/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 export const sendGridAddContactsToListTool: ToolConfig<AddContactsToListParams, ToolResponse> = {
@@ -38,7 +38,7 @@ export const sendGridAddContactsToListTool: ToolConfig<AddContactsToListParams, 
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const contactsArray =
+      const contactsArray: SendGridContactObject[] =
         typeof params.contacts === 'string' ? JSON.parse(params.contacts) : params.contacts
 
       return {
@@ -52,11 +52,11 @@ export const sendGridAddContactsToListTool: ToolConfig<AddContactsToListParams, 
 
   transformResponse: async (response): Promise<ToolResponse> => {
     if (!response.ok) {
-      const error = await response.json()
+      const error = (await response.json()) as { errors?: Array<{ message?: string }> }
       throw new Error(error.errors?.[0]?.message || 'Failed to add contacts to list')
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as { job_id: string }
 
     return {
       success: true,

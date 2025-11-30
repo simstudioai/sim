@@ -1,4 +1,4 @@
-import type { ContactResult, GetContactParams } from '@/tools/sendgrid/types'
+import type { ContactResult, GetContactParams, SendGridContact } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridGetContactTool: ToolConfig<GetContactParams, ContactResult> = {
@@ -32,11 +32,11 @@ export const sendGridGetContactTool: ToolConfig<GetContactParams, ContactResult>
 
   transformResponse: async (response): Promise<ContactResult> => {
     if (!response.ok) {
-      const error = await response.json()
+      const error = (await response.json()) as { errors?: Array<{ message?: string }> }
       throw new Error(error.errors?.[0]?.message || 'Failed to get contact')
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as SendGridContact
 
     return {
       success: true,

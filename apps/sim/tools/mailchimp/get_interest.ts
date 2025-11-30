@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpInterest } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpGetInterest')
@@ -14,7 +15,7 @@ export interface MailchimpGetInterestParams {
 export interface MailchimpGetInterestResponse {
   success: boolean
   output: {
-    interest: any
+    interest: MailchimpInterest
     metadata: {
       operation: 'get_interest'
       interestId: string

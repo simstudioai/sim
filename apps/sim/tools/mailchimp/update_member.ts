@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
+import { buildMailchimpUrl, handleMailchimpError, type MailchimpMember } from './types'
 
 const logger = createLogger('MailchimpUpdateMember')
 
@@ -17,7 +17,7 @@ export interface MailchimpUpdateMemberParams {
 export interface MailchimpUpdateMemberResponse {
   success: boolean
   output: {
-    member: any
+    member: MailchimpMember
     metadata: {
       operation: 'update_member'
       subscriberHash: string
@@ -89,7 +89,7 @@ export const mailchimpUpdateMemberTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: any = {}
+      const body: Record<string, unknown> = {}
 
       if (params.emailAddress) body.email_address = params.emailAddress
       if (params.status) body.status = params.status

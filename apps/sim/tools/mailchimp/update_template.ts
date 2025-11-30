@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpTemplate } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpUpdateTemplate')
@@ -14,7 +15,7 @@ export interface MailchimpUpdateTemplateParams {
 export interface MailchimpUpdateTemplateResponse {
   success: boolean
   output: {
-    template: any
+    template: MailchimpTemplate
     metadata: {
       operation: 'update_template'
       templateId: string
@@ -67,7 +68,7 @@ export const mailchimpUpdateTemplateTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: any = {}
+      const body: Record<string, unknown> = {}
 
       if (params.templateName) body.name = params.templateName
       if (params.templateHtml) body.html = params.templateHtml

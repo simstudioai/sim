@@ -1,4 +1,4 @@
-import type { CreateListParams, ListResult } from '@/tools/sendgrid/types'
+import type { CreateListParams, ListResult, SendGridList } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridCreateListTool: ToolConfig<CreateListParams, ListResult> = {
@@ -40,11 +40,11 @@ export const sendGridCreateListTool: ToolConfig<CreateListParams, ListResult> = 
 
   transformResponse: async (response): Promise<ListResult> => {
     if (!response.ok) {
-      const error = await response.json()
+      const error = (await response.json()) as { errors?: Array<{ message?: string }> }
       throw new Error(error.errors?.[0]?.message || 'Failed to create list')
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as SendGridList
 
     return {
       success: true,

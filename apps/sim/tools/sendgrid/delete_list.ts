@@ -32,7 +32,7 @@ export const sendGridDeleteListTool: ToolConfig<DeleteListParams, ToolResponse> 
 
   transformResponse: async (response): Promise<ToolResponse> => {
     if (!response.ok) {
-      const error = await response.json()
+      const error = (await response.json()) as { errors?: Array<{ message?: string }> }
       throw new Error(error.errors?.[0]?.message || 'Failed to delete list')
     }
 

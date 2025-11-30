@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
+import { buildMailchimpUrl, handleMailchimpError, type MailchimpMember } from './types'
 
 const logger = createLogger('MailchimpGetMembers')
 
@@ -15,7 +15,7 @@ export interface MailchimpGetMembersParams {
 export interface MailchimpGetMembersResponse {
   success: boolean
   output: {
-    members: any[]
+    members: MailchimpMember[]
     totalItems: number
     metadata: {
       operation: 'get_members'

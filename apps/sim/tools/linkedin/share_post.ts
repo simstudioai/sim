@@ -1,17 +1,18 @@
+import type {
+  LinkedInProfileOutput,
+  ProfileIdExtractor,
+  SharePostParams,
+  SharePostResponse,
+} from '@/tools/linkedin/types'
 import type { ToolConfig } from '@/tools/types'
 
-interface SharePostParams {
-  text: string
-  visibility: 'PUBLIC' | 'CONNECTIONS'
-  accessToken: string
-}
-
-interface SharePostResponse {
-  success: boolean
-  output: {
-    postId?: string
+// Helper function to extract profile ID from various response formats
+const extractProfileId: ProfileIdExtractor = (output: unknown): string | null => {
+  if (typeof output === 'object' && output !== null) {
+    const profileOutput = output as LinkedInProfileOutput
+    return profileOutput.profile?.id || profileOutput.sub || profileOutput.id || null
   }
-  error?: string
+  return null
 }
 
 export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostResponse> = {
@@ -69,25 +70,18 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
       }
 
       // Get profile data from output
-      const profile = profileResult.output as any
+      const profileOutput = profileResult.output as LinkedInProfileOutput
+      const authorId = extractProfileId(profileOutput)
 
-      // Determine the person URN - handle both direct profile response and wrapped response
-      let sub: string
-      if (profile.profile?.id) {
-        sub = profile.profile.id
-      } else if (profile.sub) {
-        sub = profile.sub
-      } else if (profile.id) {
-        sub = profile.id
-      } else {
+      if (!authorId) {
         return {
           success: false,
           output: {},
-          error: 'Could not determine user ID from profile',
+          error: 'Could not extract LinkedIn profile ID from response',
         }
       }
 
-      const authorUrn = `urn:li:person:${sub}`
+      const authorUrn = `urn:li:person:${authorId}`
 
       // Create the post
       const postData = {

@@ -1,5 +1,83 @@
 import type { ToolResponse } from '@/tools/types'
 
+// Shared type definitions
+export interface SendGridContact {
+  id: string
+  email: string
+  first_name?: string
+  last_name?: string
+  created_at?: string
+  updated_at?: string
+  list_ids?: string[]
+  custom_fields?: Record<string, unknown>
+}
+
+export interface SendGridList {
+  id: string
+  name: string
+  contact_count: number
+  _metadata?: {
+    self?: string
+  }
+}
+
+export interface SendGridTemplateVersion {
+  id: string
+  template_id: string
+  name: string
+  subject: string
+  active: number | boolean
+  html_content?: string
+  plain_content?: string
+  updated_at?: string
+}
+
+export interface SendGridTemplate {
+  id: string
+  name: string
+  generation: 'legacy' | 'dynamic'
+  created_at?: string
+  updated_at?: string
+  versions?: SendGridTemplateVersion[]
+}
+
+export interface SendGridPersonalization {
+  to: Array<{ email: string; name?: string }>
+  cc?: Array<{ email: string }>
+  bcc?: Array<{ email: string }>
+  dynamic_template_data?: Record<string, unknown>
+}
+
+export interface SendGridMailBody {
+  personalizations: SendGridPersonalization[]
+  from: { email: string; name?: string }
+  subject?: string
+  template_id?: string
+  content?: Array<{ type: 'text/plain' | 'text/html'; value?: string }>
+  reply_to?: { email: string; name?: string }
+  attachments?: any[]
+}
+
+export interface SendGridContactObject {
+  email: string
+  first_name?: string
+  last_name?: string
+  [key: string]: unknown
+}
+
+export interface SendGridContactRequest {
+  contacts: SendGridContactObject[]
+  list_ids?: string[]
+}
+
+export interface SendGridTemplateVersionRequest {
+  name: string
+  subject: string
+  active: number | boolean
+  html_content?: string
+  plain_content?: string
+}
+
 // Common types
 export interface SendGridBaseParams {
   apiKey: string
@@ -71,14 +149,14 @@ export interface ContactResult extends ToolResponse {
     createdAt?: string
     updatedAt?: string
     listIds?: string[]
-    customFields?: any
+    customFields?: Record<string, unknown>
     message?: string
   }
 }
 
 export interface ContactsResult extends ToolResponse {
   output: {
-    contacts: any[]
+    contacts: SendGridContact[]
     contactCount?: number
   }
 }
@@ -125,7 +203,7 @@ export interface ListResult extends ToolResponse {
 
 export interface ListsResult extends ToolResponse {
   output: {
-    lists: any[]
+    lists: SendGridList[]
   }
 }
 
@@ -168,13 +246,13 @@ export interface TemplateResult extends ToolResponse {
     name: string
     generation: string
     updatedAt?: string
-    versions?: any[]
+    versions?: SendGridTemplateVersion[]
   }
 }
 
 export interface TemplatesResult extends ToolResponse {
   output: {
-    templates: any[]
+    templates: SendGridTemplate[]
   }
 }
 

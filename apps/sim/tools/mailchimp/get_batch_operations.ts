@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpBatchOperation } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpGetBatchOperations')
@@ -13,7 +14,7 @@ export interface MailchimpGetBatchOperationsParams {
 export interface MailchimpGetBatchOperationsResponse {
   success: boolean
   output: {
-    batches: any[]
+    batches: MailchimpBatchOperation[]
     totalItems: number
     metadata: {
       operation: 'get_batch_operations'

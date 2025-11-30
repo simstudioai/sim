@@ -1,21 +1,5 @@
+import type { GetProfileParams, GetProfileResponse } from '@/tools/linkedin/types'
 import type { ToolConfig } from '@/tools/types'
-
-interface GetProfileParams {
-  accessToken: string
-}
-
-interface GetProfileResponse {
-  success: boolean
-  output: {
-    profile?: {
-      id: string
-      name: string
-      email?: string
-      picture?: string
-    }
-  }
-  error?: string
-}
 
 export const linkedInGetProfileTool: ToolConfig<GetProfileParams, GetProfileResponse> = {
   id: 'linkedin_get_profile',
@@ -40,7 +24,7 @@ export const linkedInGetProfileTool: ToolConfig<GetProfileParams, GetProfileResp
   request: {
     url: () => 'https://api.linkedin.com/v2/userinfo',
     method: 'GET',
-    headers: (params: GetProfileParams) => ({
+    headers: (params: GetProfileParams): Record<string, string> => ({
       Authorization: `Bearer ${params.accessToken}`,
       'X-Restli-Protocol-Version': '2.0.0',
     }),

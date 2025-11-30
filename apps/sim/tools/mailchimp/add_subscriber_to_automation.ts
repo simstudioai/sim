@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpMember } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpAddSubscriberToAutomation')
@@ -14,7 +15,7 @@ export interface MailchimpAddSubscriberToAutomationParams {
 export interface MailchimpAddSubscriberToAutomationResponse {
   success: boolean
   output: {
-    subscriber: any
+    subscriber: MailchimpMember
     metadata: {
       operation: 'add_subscriber_to_automation'
       workflowId: string

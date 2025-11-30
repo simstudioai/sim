@@ -1,4 +1,4 @@
-import type { ListAllListsParams, ListsResult } from '@/tools/sendgrid/types'
+import type { ListAllListsParams, ListsResult, SendGridList } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridListAllListsTool: ToolConfig<ListAllListsParams, ListsResult> = {
@@ -38,11 +38,11 @@ export const sendGridListAllListsTool: ToolConfig<ListAllListsParams, ListsResul
 
   transformResponse: async (response): Promise<ListsResult> => {
     if (!response.ok) {
-      const error = await response.json()
+      const error = (await response.json()) as { errors?: Array<{ message?: string }> }
       throw new Error(error.errors?.[0]?.message || 'Failed to list all lists')
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as { result?: SendGridList[] }
 
     return {
       success: true,

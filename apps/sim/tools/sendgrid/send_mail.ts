@@ -1,4 +1,9 @@
-import type { SendMailParams, SendMailResult } from '@/tools/sendgrid/types'
+import type {
+  SendGridMailBody,
+  SendGridPersonalization,
+  SendMailParams,
+  SendMailResult,
+} from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = {
@@ -108,7 +113,7 @@ export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = 
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const personalizations: any = {
+      const personalizations: SendGridPersonalization = {
         to: [
           {
             email: params.to,
@@ -136,7 +141,7 @@ export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = 
         }
       }
 
-      const mailBody: any = {
+      const mailBody: SendGridMailBody = {
         personalizations: [personalizations],
         from: {
           email: params.from,

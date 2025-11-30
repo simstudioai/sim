@@ -38,11 +38,11 @@ export const sendGridDeleteContactsTool: ToolConfig<DeleteContactParams, ToolRes
 
   transformResponse: async (response): Promise<ToolResponse> => {
     if (!response.ok) {
-      const error = await response.json()
+      const error = (await response.json()) as { errors?: Array<{ message?: string }> }
       throw new Error(error.errors?.[0]?.message || 'Failed to delete contacts')
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as { job_id: string }
 
     return {
       success: true,

@@ -1,4 +1,8 @@
-import type { CreateTemplateVersionParams, TemplateVersionResult } from '@/tools/sendgrid/types'
+import type {
+  CreateTemplateVersionParams,
+  SendGridTemplateVersionRequest,
+  TemplateVersionResult,
+} from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridCreateTemplateVersionTool: ToolConfig<
@@ -63,7 +67,7 @@ export const sendGridCreateTemplateVersionTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: any = {
+      const body: SendGridTemplateVersionRequest = {
         name: params.name,
         subject: params.subject,
         active: params.active !== undefined ? params.active : 1,

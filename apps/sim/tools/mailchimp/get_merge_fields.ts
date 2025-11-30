@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpMergeField } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpGetMergeFields')
@@ -14,7 +15,7 @@ export interface MailchimpGetMergeFieldsParams {
 export interface MailchimpGetMergeFieldsResponse {
   success: boolean
   output: {
-    mergeFields: any[]
+    mergeFields: MailchimpMergeField[]
     totalItems: number
     metadata: {
       operation: 'get_merge_fields'

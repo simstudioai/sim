@@ -1,4 +1,4 @@
-import type { GetTemplateParams, TemplateResult } from '@/tools/sendgrid/types'
+import type { GetTemplateParams, SendGridTemplate, TemplateResult } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridGetTemplateTool: ToolConfig<GetTemplateParams, TemplateResult> = {
@@ -32,11 +32,11 @@ export const sendGridGetTemplateTool: ToolConfig<GetTemplateParams, TemplateResu
 
   transformResponse: async (response): Promise<TemplateResult> => {
     if (!response.ok) {
-      const error = await response.json()
+      const error = (await response.json()) as { errors?: Array<{ message?: string }> }
       throw new Error(error.errors?.[0]?.message || 'Failed to get template')
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as SendGridTemplate
 
     return {
       success: true,

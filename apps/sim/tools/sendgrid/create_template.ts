@@ -1,4 +1,4 @@
-import type { CreateTemplateParams, TemplateResult } from '@/tools/sendgrid/types'
+import type { CreateTemplateParams, SendGridTemplate, TemplateResult } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridCreateTemplateTool: ToolConfig<CreateTemplateParams, TemplateResult> = {
@@ -47,11 +47,11 @@ export const sendGridCreateTemplateTool: ToolConfig<CreateTemplateParams, Templa
 
   transformResponse: async (response): Promise<TemplateResult> => {
     if (!response.ok) {
-      const error = await response.json()
+      const error = (await response.json()) as { errors?: Array<{ message?: string }> }
       throw new Error(error.errors?.[0]?.message || 'Failed to create template')
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as SendGridTemplate
 
     return {
       success: true,

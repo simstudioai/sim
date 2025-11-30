@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       ? `"${validatedData.fromName}" <${validatedData.from}>`
       : validatedData.from
 
-    const mailOptions: any = {
+    const mailOptions: nodemailer.SendMailOptions = {
       from: fromAddress,
       to: validatedData.to,
       subject: validatedData.subject,
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
       to: validatedData.to,
       subject: validatedData.subject,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
       return NextResponse.json(
@@ -178,26 +178,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Type guard for error objects with code property
+    const isNodeError = (err: unknown): err is NodeJS.ErrnoException => {
+      return err instanceof Error && 'code' in err
+    }
+
     let errorMessage = 'Failed to send email via SMTP'
 
-    if (error.code === 'EAUTH') {
-      errorMessage = 'SMTP authentication failed - check username and password'
-    } else if (error.code === 'ECONNECTION' || error.code === 'ECONNREFUSED') {
-      errorMessage = 'Could not connect to SMTP server - check host and port'
-    } else if (error.code === 'ECONNRESET') {
-      errorMessage = 'Connection was reset by SMTP server - check network or firewall settings'
-    } else if (error.code === 'ETIMEDOUT') {
-      errorMessage = 'SMTP server connection timeout - check host, port, and network'
-    } else if (error.responseCode && error.responseCode >= 500) {
-      errorMessage = 'SMTP server error - please try again later'
-    } else if (error.responseCode && error.responseCode >= 400) {
-      errorMessage = 'Email rejected by SMTP server - check recipient addresses'
+    if (isNodeError(error)) {
+      if (error.code === 'EAUTH') {
+        errorMessage = 'SMTP authentication failed - check username and password'
+      } else if (error.code === 'ECONNECTION' || error.code === 'ECONNREFUSED') {
+        errorMessage = 'Could not connect to SMTP server - check host and port'
+      } else if (error.code === 'ECONNRESET') {
+        errorMessage = 'Connection was reset by SMTP server'
+      } else if (error.code === 'ETIMEDOUT') {
+        errorMessage = 'SMTP server connection timeout'
+      }
+    }
+
+    // Check for SMTP response codes
+    const hasResponseCode = (err: unknown): err is { responseCode: number } => {
+      return typeof err === 'object' && err !== null && 'responseCode' in err
+    }
+
+    if (hasResponseCode(error)) {
+      if (error.responseCode >= 500) {
+        errorMessage = 'SMTP server error - please try again later'
+      } else if (error.responseCode >= 400) {
+        errorMessage = 'Email rejected by SMTP server - check recipient addresses'
+      }
     }
 
     logger.error(`[${requestId}] Error sending email via SMTP:`, {
-      error: error.message,
-      code: error.code,
-      responseCode: error.responseCode,
+      error: error instanceof Error ? error.message : String(error),
+      code: isNodeError(error) ? error.code : undefined,
+      responseCode: hasResponseCode(error) ? error.responseCode : undefined,
     })
 
     return NextResponse.json(

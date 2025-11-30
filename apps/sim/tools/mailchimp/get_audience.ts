@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpAudience } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpGetAudience')
@@ -12,7 +13,7 @@ export interface MailchimpGetAudienceParams {
 export interface MailchimpGetAudienceResponse {
   success: boolean
   output: {
-    list: any
+    list: MailchimpAudience
     metadata: {
       operation: 'get_audience'
       listId: string

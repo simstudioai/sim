@@ -1,4 +1,4 @@
-import type { ListTemplatesParams, TemplatesResult } from '@/tools/sendgrid/types'
+import type { ListTemplatesParams, SendGridTemplate, TemplatesResult } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, TemplatesResult> = {
@@ -47,11 +47,14 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
 
   transformResponse: async (response): Promise<TemplatesResult> => {
     if (!response.ok) {
-      const error = await response.json()
+      const error = (await response.json()) as { errors?: Array<{ message?: string }> }
       throw new Error(error.errors?.[0]?.message || 'Failed to list templates')
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as {
+      result?: SendGridTemplate[]
+      templates?: SendGridTemplate[]
+    }
 
     return {
       success: true,

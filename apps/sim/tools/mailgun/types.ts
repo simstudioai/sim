@@ -1,5 +1,42 @@
 import type { ToolResponse } from '@/tools/types'
 
+export interface MailgunMessageHeaders {
+  [key: string]: string | string[]
+}
+
+export interface MailgunMessageItem {
+  timestamp: number
+  event: string
+  recipient: string
+  sender?: string
+  subject?: string
+  deliveryStatus?: string
+  [key: string]: unknown
+}
+
+export interface MailgunDomainItem {
+  name: string
+  state: string
+  type: string
+  created_at?: string
+  smtp_login?: string
+  [key: string]: unknown
+}
+
+export interface MailgunPaging {
+  first?: string
+  next?: string
+  previous?: string
+  last?: string
+}
+
+export interface MailgunMailingListMember {
+  address: string
+  name?: string
+  subscribed: boolean
+  vars?: Record<string, string | number | boolean | null>
+}
+
 // Send Message
 export interface SendMessageParams {
   apiKey: string
@@ -42,8 +79,8 @@ export interface GetMessageResult extends ToolResponse {
     strippedHtml: string
     attachmentCount: number
     timestamp: number
-    messageHeaders: any
-    contentIdMap: any
+    messageHeaders: MailgunMessageHeaders
+    contentIdMap: Record<string, string>
   }
 }
 
@@ -58,8 +95,8 @@ export interface ListMessagesParams {
 export interface ListMessagesResult extends ToolResponse {
   output: {
     success: boolean
-    items: any[]
-    paging: any
+    items: MailgunMessageItem[]
+    paging: MailgunPaging
   }
 }
 
@@ -124,7 +161,7 @@ export interface AddListMemberResult extends ToolResponse {
       address: string
       name: string
       subscribed: boolean
-      vars: any
+      vars: Record<string, string | number | boolean | null>
     }
   }
 }
@@ -138,7 +175,7 @@ export interface ListDomainsResult extends ToolResponse {
   output: {
     success: boolean
     totalCount: number
-    items: any[]
+    items: MailgunDomainItem[]
   }
 }
 

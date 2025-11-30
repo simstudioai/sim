@@ -1,4 +1,9 @@
-import type { AddContactParams, ContactResult } from '@/tools/sendgrid/types'
+import type {
+  AddContactParams,
+  ContactResult,
+  SendGridContactObject,
+  SendGridContactRequest,
+} from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult> = {
@@ -55,7 +60,7 @@ export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult>
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const contact: any = {
+      const contact: SendGridContactObject = {
         email: params.email,
       }
 
@@ -70,7 +75,7 @@ export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult>
         Object.assign(contact, customFields)
       }
 
-      const body: any = {
+      const body: SendGridContactRequest = {
         contacts: [contact],
       }
 

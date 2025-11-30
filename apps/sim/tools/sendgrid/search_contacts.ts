@@ -1,4 +1,4 @@
-import type { ContactsResult, SearchContactsParams } from '@/tools/sendgrid/types'
+import type { ContactsResult, SearchContactsParams, SendGridContact } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridSearchContactsTool: ToolConfig<SearchContactsParams, ContactsResult> = {
@@ -41,11 +41,14 @@ export const sendGridSearchContactsTool: ToolConfig<SearchContactsParams, Contac
 
   transformResponse: async (response): Promise<ContactsResult> => {
     if (!response.ok) {
-      const error = await response.json()
+      const error = (await response.json()) as { errors?: Array<{ message?: string }> }
       throw new Error(error.errors?.[0]?.message || 'Failed to search contacts')
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as {
+      result?: SendGridContact[]
+      contact_count?: number
+    }
 
     return {
       success: true,
