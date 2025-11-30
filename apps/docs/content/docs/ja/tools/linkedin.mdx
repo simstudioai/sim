@@ -1,0 +1,83 @@
+---
+title: LinkedIn
+description: 投稿を共有し、LinkedInのプレゼンスを管理する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linkedin"
+  color="#0072B1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[LinkedIn](https://www.linkedin.com)は世界最大のプロフェッショナルネットワーキングプラットフォームで、ユーザーがキャリアを構築し、ネットワークとつながり、専門的なコンテンツを共有することを可能にします。LinkedInは、個人ブランディング、採用活動、求職活動、ビジネス開発など、様々な業界のプロフェッショナルに広く利用されています。
+
+LinkedInを使用すると、個人フィードに投稿を簡単に共有してネットワークとエンゲージメントを取ったり、プロフェッショナルな実績を強調するためにプロフィール情報にアクセスしたりできます。Simとの自動統合により、LinkedInの機能をプログラムで活用できるようになり、エージェントやワークフローが更新を投稿したり、プロフェッショナルなプレゼンスについてレポートしたり、手動の作業なしにフィードをアクティブに保つことが可能になります。
+
+この統合を通じて利用可能な主なLinkedIn機能には以下が含まれます：
+
+- **投稿の共有：** プロフェッショナルな更新、記事、またはお知らせをLinkedInの個人フィードに自動的に公開します。
+- **プロフィール情報：** LinkedInプロフィールに関する詳細情報を取得し、ワークフロー内での監視や下流タスクでの使用が可能です。
+
+これらの機能により、AIやワークフロー自動化戦略の一部として、LinkedInネットワークとのエンゲージメントを維持し、プロフェッショナルなリーチを効率的に拡大することが容易になります。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+LinkedInをワークフローに統合します。個人フィードに投稿を共有し、LinkedInプロフィール情報にアクセスします。
+
+## ツール
+
+### `linkedin_share_post`
+
+LinkedInの個人フィードに投稿を共有する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | はい | LinkedInの投稿のテキスト内容 |
+| `visibility` | string | いいえ | この投稿を見ることができる人：「PUBLIC」または「CONNECTIONS」\(デフォルト：「PUBLIC」\) |
+| `request` | string | いいえ | 説明なし |
+| `output` | string | いいえ | 説明なし |
+| `output` | string | いいえ | 説明なし |
+| `specificContent` | string | いいえ | 説明なし |
+| `shareCommentary` | string | いいえ | 説明なし |
+| `visibility` | string | いいえ | 説明なし |
+| `headers` | string | いいえ | 説明なし |
+| `output` | string | いいえ | 説明なし |
+| `output` | string | いいえ | 説明なし |
+| `output` | string | いいえ | 説明なし |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `postId` | string | 作成された投稿ID |
+| `profile` | json | LinkedInプロフィール情報 |
+| `error` | string | 操作が失敗した場合のエラーメッセージ |
+
+### `linkedin_get_profile`
+
+LinkedInプロフィール情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `postId` | string | 作成された投稿ID |
+| `profile` | json | LinkedInプロフィール情報 |
+| `error` | string | 操作が失敗した場合のエラーメッセージ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `linkedin`

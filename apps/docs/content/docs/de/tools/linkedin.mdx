@@ -1,0 +1,83 @@
+---
+title: LinkedIn
+description: Teilen Sie Beiträge und verwalten Sie Ihre LinkedIn-Präsenz
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linkedin"
+  color="#0072B1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[LinkedIn](https://www.linkedin.com) ist die weltweit größte professionelle Netzwerkplattform, die Nutzern ermöglicht, ihre Karriere aufzubauen, sich mit ihrem Netzwerk zu verbinden und berufliche Inhalte zu teilen. LinkedIn wird von Fachleuten aus verschiedenen Branchen für persönliches Branding, Recruiting, Jobsuche und Geschäftsentwicklung genutzt.
+
+Mit LinkedIn können Sie ganz einfach Beiträge in Ihrem persönlichen Feed teilen, um mit Ihrem Netzwerk in Kontakt zu treten, und auf Informationen über Ihr Profil zugreifen, um Ihre beruflichen Erfolge hervorzuheben. Die automatisierte Integration mit Sim ermöglicht es Ihnen, LinkedIn-Funktionen programmatisch zu nutzen – so können Agenten und Workflows Updates posten, über Ihre berufliche Präsenz berichten und Ihren Feed aktiv halten, ohne dass manuelle Arbeit erforderlich ist.
+
+Zu den wichtigsten LinkedIn-Funktionen, die über diese Integration verfügbar sind, gehören:
+
+- **Beiträge teilen:** Veröffentlichen Sie automatisch berufliche Updates, Artikel oder Ankündigungen in Ihrem persönlichen LinkedIn-Feed.
+- **Profilinformationen:** Rufen Sie detaillierte Informationen über Ihr LinkedIn-Profil ab, um diese zu überwachen oder in nachgelagerten Aufgaben innerhalb Ihrer Workflows zu verwenden.
+
+Diese Funktionen machen es einfach, Ihr LinkedIn-Netzwerk zu pflegen und Ihre berufliche Reichweite effizient zu erweitern – als Teil Ihrer KI- oder Workflow-Automatisierungsstrategie.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie LinkedIn in Workflows. Teilen Sie Beiträge in Ihrem persönlichen Feed und greifen Sie auf Ihre LinkedIn-Profilinformationen zu.
+
+## Tools
+
+### `linkedin_share_post`
+
+Einen Beitrag in Ihrem persönlichen LinkedIn-Feed teilen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Ja | Der Textinhalt Ihres LinkedIn-Beitrags |
+| `visibility` | string | Nein | Wer diesen Beitrag sehen kann: "PUBLIC" oder "CONNECTIONS" \(Standard: "PUBLIC"\) |
+| `request` | string | Nein | Keine Beschreibung |
+| `output` | string | Nein | Keine Beschreibung |
+| `output` | string | Nein | Keine Beschreibung |
+| `specificContent` | string | Nein | Keine Beschreibung |
+| `shareCommentary` | string | Nein | Keine Beschreibung |
+| `visibility` | string | Nein | Keine Beschreibung |
+| `headers` | string | Nein | Keine Beschreibung |
+| `output` | string | Nein | Keine Beschreibung |
+| `output` | string | Nein | Keine Beschreibung |
+| `output` | string | Nein | Keine Beschreibung |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `postId` | string | Erstellte Beitrags-ID |
+| `profile` | json | LinkedIn-Profilinformationen |
+| `error` | string | Fehlermeldung bei fehlgeschlagener Operation |
+
+### `linkedin_get_profile`
+
+Rufen Sie Ihre LinkedIn-Profilinformationen ab
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `postId` | string | Erstellte Beitrags-ID |
+| `profile` | json | LinkedIn-Profilinformationen |
+| `error` | string | Fehlermeldung bei fehlgeschlagener Operation |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `linkedin`
