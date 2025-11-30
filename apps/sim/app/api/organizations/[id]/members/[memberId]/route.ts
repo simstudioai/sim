@@ -1,6 +1,12 @@
 import { db } from '@sim/db'
-import { member, subscription as subscriptionTable, user, userStats } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import {
+  member,
+  organization,
+  subscription as subscriptionTable,
+  user,
+  userStats,
+} from '@sim/db/schema'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -295,6 +301,44 @@ export async function DELETE(
     // Prevent removing the owner
     if (targetMember[0].role === 'owner') {
       return NextResponse.json({ error: 'Cannot remove organization owner' }, { status: 400 })
+    }
+
+    // Capture departed member's usage and reset their cost to prevent double billing
+    try {
+      const departingUserStats = await db
+        .select({ currentPeriodCost: userStats.currentPeriodCost })
+        .from(userStats)
+        .where(eq(userStats.userId, memberId))
+        .limit(1)
+
+      if (departingUserStats.length > 0 && departingUserStats[0].currentPeriodCost) {
+        const usage = Number.parseFloat(departingUserStats[0].currentPeriodCost)
+        if (usage > 0) {
+          await db
+            .update(organization)
+            .set({
+              departedMemberUsage: sql`${organization.departedMemberUsage} + ${usage}`,
+            })
+            .where(eq(organization.id, organizationId))
+
+          await db
+            .update(userStats)
+            .set({ currentPeriodCost: '0' })
+            .where(eq(userStats.userId, memberId))
+
+          logger.info('Captured departed member usage and reset user cost', {
+            organizationId,
+            memberId,
+            usage,
+          })
+        }
+      }
+    } catch (usageCaptureError) {
+      logger.error('Failed to capture departed member usage', {
+        organizationId,
+        memberId,
+        error: usageCaptureError,
+      })
     }
 
     // Remove member
