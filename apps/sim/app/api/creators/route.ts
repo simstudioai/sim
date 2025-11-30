@@ -27,7 +27,7 @@ const CreateCreatorProfileSchema = z.object({
   details: CreatorProfileDetailsSchema.optional(),
 })
 
-// GET /api/creator-profiles - Get creator profiles for current user
+// GET /api/creators - Get creator profiles for current user
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
   const { searchParams } = new URL(request.url)
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/creator-profiles - Create a new creator profile
+// POST /api/creators - Create a new creator profile
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 

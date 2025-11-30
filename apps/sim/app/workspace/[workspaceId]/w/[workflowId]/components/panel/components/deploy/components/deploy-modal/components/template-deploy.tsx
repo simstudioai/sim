@@ -87,7 +87,7 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
 
     setLoadingCreators(true)
     try {
-      const response = await fetch('/api/creator-profiles')
+      const response = await fetch('/api/creators')
       if (response.ok) {
         const data = await response.json()
         const profiles = (data.profiles || []).map((profile: any) => ({
