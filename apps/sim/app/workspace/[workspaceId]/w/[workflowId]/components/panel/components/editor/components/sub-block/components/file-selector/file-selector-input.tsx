@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
+import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
@@ -59,10 +60,11 @@ export function FileSelectorInput({
         ? ((connectedCredential as Record<string, any>).id ?? '')
         : ''
 
-  const { isForeignCredential } = useForeignCredential(
-    subBlock.serviceId || subBlock.provider,
-    normalizedCredentialId
-  )
+  // Derive provider from serviceId using OAuth config (same pattern as credential-selector)
+  const serviceId = subBlock.serviceId || ''
+  const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
+
+  const { isForeignCredential } = useForeignCredential(effectiveProviderId, normalizedCredentialId)
 
   const selectorResolution = useMemo<SelectorResolution | null>(() => {
     return resolveSelectorForSubBlock(subBlock, {
@@ -109,11 +111,11 @@ export function FileSelectorInput({
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <div className='w-full rounded border border-dashed p-4 text-center text-muted-foreground text-sm'>
-            File selector not supported for provider: {subBlock.provider || subBlock.serviceId}
+            File selector not supported for service: {serviceId || 'unknown'}
           </div>
         </Tooltip.Trigger>
         <Tooltip.Content side='top'>
-          <p>This file selector is not implemented for {subBlock.provider || subBlock.serviceId}</p>
+          <p>This file selector is not implemented for {serviceId || 'unknown'}</p>
         </Tooltip.Content>
       </Tooltip.Root>
     )

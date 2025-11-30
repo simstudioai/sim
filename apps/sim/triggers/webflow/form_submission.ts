@@ -16,7 +16,7 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       title: 'Credentials',
       type: 'oauth-input',
       description: 'This trigger requires webflow credentials to access your account.',
-      provider: 'webflow',
+      serviceId: 'webflow',
       requiredScopes: [],
       required: true,
       mode: 'trigger',

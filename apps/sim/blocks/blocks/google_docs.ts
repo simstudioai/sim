@@ -33,7 +33,6 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       title: 'Google Account',
       type: 'oauth-input',
       required: true,
-      provider: 'google-docs',
       serviceId: 'google-docs',
       requiredScopes: [
         'https://www.googleapis.com/auth/drive.file',
@@ -47,7 +46,6 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       title: 'Select Document',
       type: 'file-selector',
       canonicalParamId: 'documentId',
-      provider: 'google-docs',
       serviceId: 'google-docs',
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.document',
@@ -82,7 +80,6 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       title: 'Select Parent Folder',
       type: 'file-selector',
       canonicalParamId: 'folderId',
-      provider: 'google-docs',
       serviceId: 'google-docs',
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.folder',

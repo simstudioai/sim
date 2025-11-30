@@ -22,7 +22,6 @@ export const jiraWebhookSubBlocks: SubBlockConfig[] = [
     id: 'triggerCredentials',
     title: 'Jira Credentials',
     type: 'oauth-input',
-    provider: 'jira',
     serviceId: 'jira',
     requiredScopes: [
       'read:jira-work',

@@ -48,7 +48,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       id: 'credential',
       title: 'Slack Account',
       type: 'oauth-input',
-      provider: 'slack',
       serviceId: 'slack',
       requiredScopes: [
         'channels:read',
@@ -85,7 +84,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       title: 'Channel',
       type: 'channel-selector',
       canonicalParamId: 'channel',
-      provider: 'slack',
+      serviceId: 'slack',
       placeholder: 'Select Slack channel',
       mode: 'basic',
       dependsOn: ['credential', 'authMethod'],

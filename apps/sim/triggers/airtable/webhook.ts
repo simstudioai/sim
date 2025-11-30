@@ -16,7 +16,7 @@ export const airtableWebhookTrigger: TriggerConfig = {
       title: 'Credentials',
       type: 'oauth-input',
       description: 'This trigger requires airtable credentials to access your account.',
-      provider: 'airtable',
+      serviceId: 'airtable',
       requiredScopes: [],
       required: true,
       mode: 'trigger',

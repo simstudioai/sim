@@ -34,7 +34,6 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       type: 'oauth-input',
 
       required: true,
-      provider: 'asana',
       serviceId: 'asana',
       requiredScopes: ['default'],
       placeholder: 'Select Asana account',

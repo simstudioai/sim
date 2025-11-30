@@ -37,7 +37,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
-      provider: 'sharepoint',
       serviceId: 'sharepoint',
       requiredScopes: [
         'openid',
@@ -56,7 +55,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       title: 'Select Site',
       type: 'file-selector',
       canonicalParamId: 'siteId',
-      provider: 'microsoft',
       serviceId: 'sharepoint',
       requiredScopes: [
         'openid',

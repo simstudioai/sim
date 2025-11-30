@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
@@ -30,14 +31,18 @@ export function FolderSelectorInput({
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
-  const providerKey = (subBlock.provider ?? subBlock.serviceId ?? '').toLowerCase()
-  const credentialProvider = subBlock.serviceId ?? subBlock.provider
+
+  // Derive provider from serviceId using OAuth config (same pattern as credential-selector)
+  const serviceId = subBlock.serviceId || ''
+  const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
+  const providerKey = serviceId.toLowerCase()
+
   const isCopyDestinationSelector =
     subBlock.canonicalParamId === 'copyDestinationId' ||
     subBlock.id === 'copyDestinationFolder' ||
     subBlock.id === 'manualCopyDestinationFolder'
   const { isForeignCredential } = useForeignCredential(
-    credentialProvider,
+    effectiveProviderId,
     (connectedCredential as string) || ''
   )
 

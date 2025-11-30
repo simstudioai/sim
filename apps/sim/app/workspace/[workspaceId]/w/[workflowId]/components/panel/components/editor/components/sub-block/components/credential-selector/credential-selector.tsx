@@ -7,7 +7,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
-  getServiceIdFromScopes,
   OAUTH_PROVIDERS,
   type OAuthProvider,
   parseProvider,
@@ -42,23 +41,19 @@ export function CredentialSelector({
   const { activeWorkflowId } = useWorkflowRegistry()
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
 
-  const provider = subBlock.provider as OAuthProvider
   const requiredScopes = subBlock.requiredScopes || []
   const label = subBlock.placeholder || 'Select credential'
-  const serviceId = subBlock.serviceId
+  const serviceId = subBlock.serviceId || ''
 
   const effectiveValue = isPreview && previewValue !== undefined ? previewValue : storeValue
   const selectedId = typeof effectiveValue === 'string' ? effectiveValue : ''
 
-  const effectiveServiceId = useMemo(
-    () => serviceId || getServiceIdFromScopes(provider, requiredScopes),
-    [provider, requiredScopes, serviceId]
-  )
-
+  // serviceId is now the canonical identifier - derive provider from it
   const effectiveProviderId = useMemo(
-    () => getProviderIdFromServiceId(effectiveServiceId),
-    [effectiveServiceId]
+    () => getProviderIdFromServiceId(serviceId) as OAuthProvider,
+    [serviceId]
   )
+  const provider = effectiveProviderId
 
   const {
     data: credentials = [],
@@ -259,7 +254,7 @@ export function CredentialSelector({
           toolName={getProviderName(provider)}
           requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}
           newScopes={missingRequiredScopes}
-          serviceId={effectiveServiceId}
+          serviceId={serviceId}
         />
       )}
     </>
