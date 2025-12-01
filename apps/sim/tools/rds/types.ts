@@ -6,7 +6,7 @@ export interface RdsConnectionConfig {
   secretAccessKey: string
   resourceArn: string
   secretArn: string
-  database: string
+  database?: string
 }
 
 export interface RdsQueryParams extends RdsConnectionConfig {

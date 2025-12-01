@@ -10,7 +10,7 @@ export const RDSBlock: BlockConfig<RdsResponse> = {
     'Integrate Amazon RDS Aurora Serverless into the workflow using the Data API. Can query, insert, update, delete, and execute raw SQL without managing database connections.',
   docsLink: 'https://docs.sim.ai/tools/rds',
   category: 'tools',
-  bgColor: '#2D72B8',
+  bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
   icon: RDSIcon,
   subBlocks: [
     {
@@ -68,7 +68,7 @@ export const RDSBlock: BlockConfig<RdsResponse> = {
       title: 'Database Name',
       type: 'short-input',
       placeholder: 'your_database',
-      required: true,
+      required: false,
     },
     // Table field for insert/update/delete operations
     {

@@ -13,6 +13,7 @@ import { ClayBlock } from '@/blocks/blocks/clay'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock } from '@/blocks/blocks/confluence'
 import { DiscordBlock } from '@/blocks/blocks/discord'
+import { DynamoDBBlock } from '@/blocks/blocks/dynamodb'
 import { ElevenLabsBlock } from '@/blocks/blocks/elevenlabs'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { ExaBlock } from '@/blocks/blocks/exa'
@@ -191,6 +192,7 @@ export const registry: Record<string, BlockConfig> = {
   pylon: PylonBlock,
   qdrant: QdrantBlock,
   rds: RDSBlock,
+  dynamodb: DynamoDBBlock,
   reddit: RedditBlock,
   resend: ResendBlock,
   response: ResponseBlock,

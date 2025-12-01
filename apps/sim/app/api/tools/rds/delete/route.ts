@@ -12,7 +12,7 @@ const DeleteSchema = z.object({
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   resourceArn: z.string().min(1, 'Resource ARN is required'),
   secretArn: z.string().min(1, 'Secret ARN is required'),
-  database: z.string().min(1, 'Database name is required'),
+  database: z.string().optional(),
   table: z.string().min(1, 'Table name is required'),
   where: z.string().min(1, 'WHERE condition is required'),
 })

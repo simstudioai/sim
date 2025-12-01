@@ -20,13 +20,13 @@ export async function executeStatement(
   client: RDSDataClient,
   resourceArn: string,
   secretArn: string,
-  database: string,
+  database: string | undefined,
   sql: string
 ): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
   const command = new ExecuteStatementCommand({
     resourceArn,
     secretArn,
-    database,
+    ...(database && { database }),
     sql,
     includeResultMetadata: true,
   })
@@ -133,8 +133,8 @@ function sanitizeSingleIdentifier(identifier: string): string {
     )
   }
 
-  // Use backticks for MySQL/Aurora MySQL compatibility, double quotes work for PostgreSQL
-  return `\`${cleaned}\``
+  // Return unquoted - identifiers are validated to be safe alphanumeric (works for both MySQL and PostgreSQL)
+  return cleaned
 }
 
 function validateWhereClause(where: string): void {
@@ -159,7 +159,7 @@ export async function executeInsert(
   client: RDSDataClient,
   resourceArn: string,
   secretArn: string,
-  database: string,
+  database: string | undefined,
   table: string,
   data: Record<string, unknown>
 ): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
@@ -177,7 +177,7 @@ export async function executeUpdate(
   client: RDSDataClient,
   resourceArn: string,
   secretArn: string,
-  database: string,
+  database: string | undefined,
   table: string,
   data: Record<string, unknown>,
   where: string
@@ -200,7 +200,7 @@ export async function executeDelete(
   client: RDSDataClient,
   resourceArn: string,
   secretArn: string,
-  database: string,
+  database: string | undefined,
   table: string,
   where: string
 ): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {

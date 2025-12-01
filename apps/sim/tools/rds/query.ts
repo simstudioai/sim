@@ -40,9 +40,9 @@ export const queryTool: ToolConfig<RdsQueryParams, RdsQueryResponse> = {
     },
     database: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: 'Database name to connect to',
+      description: 'Database name (optional)',
     },
     query: {
       type: 'string',
@@ -64,7 +64,7 @@ export const queryTool: ToolConfig<RdsQueryParams, RdsQueryResponse> = {
       secretAccessKey: params.secretAccessKey,
       resourceArn: params.resourceArn,
       secretArn: params.secretArn,
-      database: params.database,
+      ...(params.database && { database: params.database }),
       query: params.query,
     }),
   },

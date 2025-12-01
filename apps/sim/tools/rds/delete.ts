@@ -40,9 +40,9 @@ export const deleteTool: ToolConfig<RdsDeleteParams, RdsDeleteResponse> = {
     },
     database: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: 'Database name to connect to',
+      description: 'Database name (optional)',
     },
     table: {
       type: 'string',
@@ -70,7 +70,7 @@ export const deleteTool: ToolConfig<RdsDeleteParams, RdsDeleteResponse> = {
       secretAccessKey: params.secretAccessKey,
       resourceArn: params.resourceArn,
       secretArn: params.secretArn,
-      database: params.database,
+      ...(params.database && { database: params.database }),
       table: params.table,
       where: params.where,
     }),

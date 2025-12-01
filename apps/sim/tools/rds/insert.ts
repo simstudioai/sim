@@ -40,9 +40,9 @@ export const insertTool: ToolConfig<RdsInsertParams, RdsInsertResponse> = {
     },
     database: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: 'Database name to connect to',
+      description: 'Database name (optional)',
     },
     table: {
       type: 'string',
@@ -70,7 +70,7 @@ export const insertTool: ToolConfig<RdsInsertParams, RdsInsertResponse> = {
       secretAccessKey: params.secretAccessKey,
       resourceArn: params.resourceArn,
       secretArn: params.secretArn,
-      database: params.database,
+      ...(params.database && { database: params.database }),
       table: params.table,
       data: params.data,
     }),

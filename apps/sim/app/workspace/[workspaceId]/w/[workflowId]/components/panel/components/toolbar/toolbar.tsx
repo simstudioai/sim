@@ -570,7 +570,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                   >
                     <div
                       className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-                      style={{ backgroundColor: trigger.bgColor }}
+                      style={{ background: trigger.bgColor }}
                     >
                       {Icon && (
                         <Icon
@@ -659,7 +659,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                   >
                     <div
                       className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-                      style={{ backgroundColor: block.bgColor }}
+                      style={{ background: block.bgColor }}
                     >
                       {Icon && (
                         <Icon

@@ -12,7 +12,7 @@ const UpdateSchema = z.object({
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   resourceArn: z.string().min(1, 'Resource ARN is required'),
   secretArn: z.string().min(1, 'Secret ARN is required'),
-  database: z.string().min(1, 'Database name is required'),
+  database: z.string().optional(),
   table: z.string().min(1, 'Table name is required'),
   data: z.record(z.unknown()).refine((obj) => Object.keys(obj).length > 0, {
     message: 'Data object must have at least one field',

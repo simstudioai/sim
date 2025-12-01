@@ -188,7 +188,7 @@ export function Editor() {
           {(blockConfig || isSubflow) && (
             <div
               className='flex h-[18px] w-[18px] items-center justify-center rounded-[4px]'
-              style={{ backgroundColor: isSubflow ? subflowBgColor : blockConfig?.bgColor }}
+              style={{ background: isSubflow ? subflowBgColor : blockConfig?.bgColor }}
             >
               <IconComponent
                 icon={isSubflow ? subflowIcon : blockConfig?.icon}
