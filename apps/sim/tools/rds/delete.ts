@@ -50,11 +50,11 @@ export const deleteTool: ToolConfig<RdsDeleteParams, RdsDeleteResponse> = {
       visibility: 'user-or-llm',
       description: 'Table name to delete from',
     },
-    where: {
-      type: 'string',
+    conditions: {
+      type: 'object',
       required: true,
       visibility: 'user-or-llm',
-      description: 'WHERE condition for the delete',
+      description: 'Conditions for the delete (e.g., {"id": 1})',
     },
   },
 
@@ -72,7 +72,7 @@ export const deleteTool: ToolConfig<RdsDeleteParams, RdsDeleteResponse> = {
       secretArn: params.secretArn,
       ...(params.database && { database: params.database }),
       table: params.table,
-      where: params.where,
+      conditions: params.conditions,
     }),
   },
 

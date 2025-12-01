@@ -3,6 +3,7 @@ import {
   type ExecuteStatementCommandOutput,
   type Field,
   RDSDataClient,
+  type SqlParameter,
 } from '@aws-sdk/client-rds-data'
 import type { RdsConnectionConfig } from '@/tools/rds/types'
 
@@ -21,13 +22,15 @@ export async function executeStatement(
   resourceArn: string,
   secretArn: string,
   database: string | undefined,
-  sql: string
+  sql: string,
+  parameters?: SqlParameter[]
 ): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
   const command = new ExecuteStatementCommand({
     resourceArn,
     secretArn,
     ...(database && { database }),
     sql,
+    ...(parameters && parameters.length > 0 && { parameters }),
     includeResultMetadata: true,
   })
 
@@ -65,7 +68,6 @@ function parseFieldValue(field: Field): unknown {
   if (field.booleanValue !== undefined) return field.booleanValue
   if (field.blobValue !== undefined) return Buffer.from(field.blobValue).toString('base64')
   if (field.arrayValue !== undefined) {
-    // Handle array values recursively
     const arr = field.arrayValue
     if (arr.stringValues) return arr.stringValues
     if (arr.longValues) return arr.longValues
@@ -80,7 +82,6 @@ function parseFieldValue(field: Field): unknown {
 export function validateQuery(query: string): { isValid: boolean; error?: string } {
   const trimmedQuery = query.trim().toLowerCase()
 
-  // Block dangerous SQL operations
   const dangerousPatterns = [
     /drop\s+database/i,
     /drop\s+schema/i,
@@ -133,28 +134,38 @@ function sanitizeSingleIdentifier(identifier: string): string {
     )
   }
 
-  // Return unquoted - identifiers are validated to be safe alphanumeric (works for both MySQL and PostgreSQL)
   return cleaned
 }
 
-function validateWhereClause(where: string): void {
-  const dangerousPatterns = [
-    /;\s*(drop|delete|insert|update|create|alter|grant|revoke)/i,
-    /union\s+select/i,
-    /into\s+outfile/i,
-    /load_file/i,
-    /--/,
-    /\/\*/,
-    /\*\//,
-  ]
-
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(where)) {
-      throw new Error('WHERE clause contains potentially dangerous operation')
-    }
+/**
+ * Convert a JS value to an RDS Data API SqlParameter value
+ */
+function toSqlParameterValue(value: unknown): SqlParameter['value'] {
+  if (value === null || value === undefined) {
+    return { isNull: true }
   }
+  if (typeof value === 'boolean') {
+    return { booleanValue: value }
+  }
+  if (typeof value === 'number') {
+    if (Number.isInteger(value)) {
+      return { longValue: value }
+    }
+    return { doubleValue: value }
+  }
+  if (typeof value === 'string') {
+    return { stringValue: value }
+  }
+  if (value instanceof Uint8Array || Buffer.isBuffer(value)) {
+    return { blobValue: value }
+  }
+  // Objects/arrays as JSON strings
+  return { stringValue: JSON.stringify(value) }
 }
 
+/**
+ * Build parameterized INSERT query
+ */
 export async function executeInsert(
   client: RDSDataClient,
   resourceArn: string,
@@ -166,13 +177,21 @@ export async function executeInsert(
   const sanitizedTable = sanitizeIdentifier(table)
   const columns = Object.keys(data)
   const sanitizedColumns = columns.map((col) => sanitizeIdentifier(col))
-  const values = columns.map((col) => formatValue(data[col]))
 
-  const sql = `INSERT INTO ${sanitizedTable} (${sanitizedColumns.join(', ')}) VALUES (${values.join(', ')})`
+  const placeholders = columns.map((col) => `:${col}`)
+  const parameters: SqlParameter[] = columns.map((col) => ({
+    name: col,
+    value: toSqlParameterValue(data[col]),
+  }))
 
-  return executeStatement(client, resourceArn, secretArn, database, sql)
+  const sql = `INSERT INTO ${sanitizedTable} (${sanitizedColumns.join(', ')}) VALUES (${placeholders.join(', ')})`
+
+  return executeStatement(client, resourceArn, secretArn, database, sql, parameters)
 }
 
+/**
+ * Build parameterized UPDATE query with conditions
+ */
 export async function executeUpdate(
   client: RDSDataClient,
   resourceArn: string,
@@ -180,56 +199,68 @@ export async function executeUpdate(
   database: string | undefined,
   table: string,
   data: Record<string, unknown>,
-  where: string
+  conditions: Record<string, unknown>
 ): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
-  validateWhereClause(where)
-
   const sanitizedTable = sanitizeIdentifier(table)
-  const columns = Object.keys(data)
-  const sanitizedColumns = columns.map((col) => sanitizeIdentifier(col))
-  const setClause = sanitizedColumns
-    .map((col, index) => `${col} = ${formatValue(data[columns[index]])}`)
-    .join(', ')
 
-  const sql = `UPDATE ${sanitizedTable} SET ${setClause} WHERE ${where}`
+  // Build SET clause with parameters
+  const dataColumns = Object.keys(data)
+  const setClause = dataColumns.map((col) => `${sanitizeIdentifier(col)} = :set_${col}`).join(', ')
 
-  return executeStatement(client, resourceArn, secretArn, database, sql)
+  // Build WHERE clause with parameters
+  const conditionColumns = Object.keys(conditions)
+  if (conditionColumns.length === 0) {
+    throw new Error('At least one condition is required for UPDATE operations')
+  }
+  const whereClause = conditionColumns
+    .map((col) => `${sanitizeIdentifier(col)} = :where_${col}`)
+    .join(' AND ')
+
+  // Build parameters array (prefixed to avoid name collisions)
+  const parameters: SqlParameter[] = [
+    ...dataColumns.map((col) => ({
+      name: `set_${col}`,
+      value: toSqlParameterValue(data[col]),
+    })),
+    ...conditionColumns.map((col) => ({
+      name: `where_${col}`,
+      value: toSqlParameterValue(conditions[col]),
+    })),
+  ]
+
+  const sql = `UPDATE ${sanitizedTable} SET ${setClause} WHERE ${whereClause}`
+
+  return executeStatement(client, resourceArn, secretArn, database, sql, parameters)
 }
 
+/**
+ * Build parameterized DELETE query with conditions
+ */
 export async function executeDelete(
   client: RDSDataClient,
   resourceArn: string,
   secretArn: string,
   database: string | undefined,
   table: string,
-  where: string
+  conditions: Record<string, unknown>
 ): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
-  validateWhereClause(where)
-
   const sanitizedTable = sanitizeIdentifier(table)
-  const sql = `DELETE FROM ${sanitizedTable} WHERE ${where}`
 
-  return executeStatement(client, resourceArn, secretArn, database, sql)
-}
+  // Build WHERE clause with parameters
+  const conditionColumns = Object.keys(conditions)
+  if (conditionColumns.length === 0) {
+    throw new Error('At least one condition is required for DELETE operations')
+  }
+  const whereClause = conditionColumns
+    .map((col) => `${sanitizeIdentifier(col)} = :${col}`)
+    .join(' AND ')
 
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined) {
-    return 'NULL'
-  }
-  if (typeof value === 'number') {
-    return String(value)
-  }
-  if (typeof value === 'boolean') {
-    return value ? 'TRUE' : 'FALSE'
-  }
-  if (typeof value === 'string') {
-    // Escape single quotes
-    const escaped = value.replace(/'/g, "''")
-    return `'${escaped}'`
-  }
-  if (typeof value === 'object') {
-    const escaped = JSON.stringify(value).replace(/'/g, "''")
-    return `'${escaped}'`
-  }
-  return `'${String(value)}'`
+  const parameters: SqlParameter[] = conditionColumns.map((col) => ({
+    name: col,
+    value: toSqlParameterValue(conditions[col]),
+  }))
+
+  const sql = `DELETE FROM ${sanitizedTable} WHERE ${whereClause}`
+
+  return executeStatement(client, resourceArn, secretArn, database, sql, parameters)
 }

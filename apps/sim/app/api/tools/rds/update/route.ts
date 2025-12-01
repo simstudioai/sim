@@ -17,7 +17,9 @@ const UpdateSchema = z.object({
   data: z.record(z.unknown()).refine((obj) => Object.keys(obj).length > 0, {
     message: 'Data object must have at least one field',
   }),
-  where: z.string().min(1, 'WHERE condition is required'),
+  conditions: z.record(z.unknown()).refine((obj) => Object.keys(obj).length > 0, {
+    message: 'At least one condition is required',
+  }),
 })
 
 export async function POST(request: NextRequest) {
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
         params.database,
         params.table,
         params.data,
-        params.where
+        params.conditions
       )
 
       logger.info(`[${requestId}] Update executed successfully, affected ${result.rowCount} rows`)

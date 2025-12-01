@@ -14,7 +14,9 @@ const DeleteSchema = z.object({
   secretArn: z.string().min(1, 'Secret ARN is required'),
   database: z.string().optional(),
   table: z.string().min(1, 'Table name is required'),
-  where: z.string().min(1, 'WHERE condition is required'),
+  conditions: z.record(z.unknown()).refine((obj) => Object.keys(obj).length > 0, {
+    message: 'At least one condition is required',
+  }),
 })
 
 export async function POST(request: NextRequest) {
@@ -42,7 +44,7 @@ export async function POST(request: NextRequest) {
         params.secretArn,
         params.database,
         params.table,
-        params.where
+        params.conditions
       )
 
       logger.info(`[${requestId}] Delete executed successfully, affected ${result.rowCount} rows`)

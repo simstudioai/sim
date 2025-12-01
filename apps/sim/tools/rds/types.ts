@@ -21,12 +21,12 @@ export interface RdsInsertParams extends RdsConnectionConfig {
 export interface RdsUpdateParams extends RdsConnectionConfig {
   table: string
   data: Record<string, unknown>
-  where: string
+  conditions: Record<string, unknown>
 }
 
 export interface RdsDeleteParams extends RdsConnectionConfig {
   table: string
-  where: string
+  conditions: Record<string, unknown>
 }
 
 export interface RdsExecuteParams extends RdsConnectionConfig {

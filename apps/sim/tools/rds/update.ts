@@ -56,11 +56,11 @@ export const updateTool: ToolConfig<RdsUpdateParams, RdsUpdateResponse> = {
       visibility: 'user-or-llm',
       description: 'Data to update as key-value pairs',
     },
-    where: {
-      type: 'string',
+    conditions: {
+      type: 'object',
       required: true,
       visibility: 'user-or-llm',
-      description: 'WHERE condition for the update',
+      description: 'Conditions for the update (e.g., {"id": 1})',
     },
   },
 
@@ -79,7 +79,7 @@ export const updateTool: ToolConfig<RdsUpdateParams, RdsUpdateResponse> = {
       ...(params.database && { database: params.database }),
       table: params.table,
       data: params.data,
-      where: params.where,
+      conditions: params.conditions,
     }),
   },
 

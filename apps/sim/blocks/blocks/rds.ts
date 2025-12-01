@@ -215,20 +215,20 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'update' },
       required: true,
     },
-    // Where clause for update/delete
+    // Conditions for update/delete (parameterized for SQL injection prevention)
     {
-      id: 'where',
-      title: 'WHERE Condition',
-      type: 'short-input',
-      placeholder: 'id = 1',
+      id: 'conditions',
+      title: 'Conditions (JSON)',
+      type: 'code',
+      placeholder: '{\n  "id": 1\n}',
       condition: { field: 'operation', value: 'update' },
       required: true,
     },
     {
-      id: 'where',
-      title: 'WHERE Condition',
-      type: 'short-input',
-      placeholder: 'id = 1',
+      id: 'conditions',
+      title: 'Conditions (JSON)',
+      type: 'code',
+      placeholder: '{\n  "id": 1\n}',
       condition: { field: 'operation', value: 'delete' },
       required: true,
     },
@@ -253,20 +253,26 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
         }
       },
       params: (params) => {
-        const { operation, data, ...rest } = params
+        const { operation, data, conditions, ...rest } = params
 
-        // Parse JSON data if it's a string
-        let parsedData
-        if (data && typeof data === 'string' && data.trim()) {
-          try {
-            parsedData = JSON.parse(data)
-          } catch (parseError) {
-            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
-            throw new Error(`Invalid JSON data format: ${errorMsg}. Please check your JSON syntax.`)
+        // Parse JSON fields
+        const parseJson = (value: unknown, fieldName: string) => {
+          if (!value) return undefined
+          if (typeof value === 'object') return value
+          if (typeof value === 'string' && value.trim()) {
+            try {
+              return JSON.parse(value)
+            } catch (parseError) {
+              const errorMsg =
+                parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+              throw new Error(`Invalid JSON in ${fieldName}: ${errorMsg}`)
+            }
           }
-        } else if (data && typeof data === 'object') {
-          parsedData = data
+          return undefined
         }
+
+        const parsedData = parseJson(data, 'data')
+        const parsedConditions = parseJson(conditions, 'conditions')
 
         // Build connection config
         const connectionConfig = {
@@ -283,7 +289,7 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
 
         if (rest.table) result.table = rest.table
         if (rest.query) result.query = rest.query
-        if (rest.where) result.where = rest.where
+        if (parsedConditions !== undefined) result.conditions = parsedConditions
         if (parsedData !== undefined) result.data = parsedData
 
         return result
@@ -301,7 +307,7 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
     table: { type: 'string', description: 'Table name' },
     query: { type: 'string', description: 'SQL query to execute' },
     data: { type: 'json', description: 'Data for insert/update operations' },
-    where: { type: 'string', description: 'WHERE clause for update/delete' },
+    conditions: { type: 'json', description: 'Conditions for update/delete (e.g., {"id": 1})' },
   },
   outputs: {
     message: {
