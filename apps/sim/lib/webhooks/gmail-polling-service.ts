@@ -205,7 +205,7 @@ export async function pollGmailWebhooks() {
         const emailsToProcess = emails
 
         // Process emails
-        const processed = await processEmails(
+        const { processedCount, failedCount } = await processEmails(
           emailsToProcess,
           webhookData,
           config,
@@ -215,12 +215,23 @@ export async function pollGmailWebhooks() {
 
         // Update webhook with latest history ID and timestamp
         await updateWebhookData(webhookId, now.toISOString(), latestHistoryId || config.historyId)
-        await markWebhookSuccess(webhookId)
-        successCount++
 
-        logger.info(
-          `[${requestId}] Successfully processed ${processed} emails for webhook ${webhookId}`
-        )
+        // If all emails failed, mark webhook as failed. Otherwise mark as success.
+        if (failedCount > 0 && processedCount === 0) {
+          // All emails failed to process - mark webhook as failed
+          await markWebhookFailed(webhookId)
+          failureCount++
+          logger.warn(
+            `[${requestId}] All ${failedCount} emails failed to process for webhook ${webhookId}`
+          )
+        } else {
+          // At least some emails processed successfully
+          await markWebhookSuccess(webhookId)
+          successCount++
+          logger.info(
+            `[${requestId}] Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+          )
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         logger.error(`[${requestId}] Error processing Gmail webhook ${webhookId}:`, error)
@@ -571,6 +582,7 @@ async function processEmails(
   requestId: string
 ) {
   let processedCount = 0
+  let failedCount = 0
 
   for (const email of emails) {
     try {
@@ -717,11 +729,12 @@ async function processEmails(
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       logger.error(`[${requestId}] Error processing email ${email.id}:`, errorMessage)
+      failedCount++
       // Continue processing other emails even if one fails
     }
   }
 
-  return processedCount
+  return { processedCount, failedCount }
 }
 
 async function markEmailAsRead(accessToken: string, messageId: string) {
