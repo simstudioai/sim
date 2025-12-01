@@ -130,7 +130,7 @@ function ConnectionItem({
       >
         <div
           className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-          style={{ backgroundColor: bgColor }}
+          style={{ background: bgColor }}
         >
           {Icon && (
             <Icon
