@@ -7,11 +7,11 @@ import { ThemeProvider as NextThemesProvider } from 'next-themes'
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   const pathname = usePathname()
 
-  // Force dark mode for workspace pages and templates
+  // Force light mode for workspace pages and templates
   // Force light mode for certain public pages
   const forcedTheme =
     pathname.startsWith('/workspace') || pathname.startsWith('/templates')
-      ? 'dark'
+      ? 'light'
       : pathname === '/' ||
           pathname.startsWith('/login') ||
           pathname.startsWith('/signup') ||
@@ -30,8 +30,8 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   return (
     <NextThemesProvider
       attribute='class'
-      defaultTheme='system'
-      enableSystem
+      defaultTheme='light'
+      enableSystem={false}
       disableTransitionOnChange
       storageKey='sim-theme'
       forcedTheme={forcedTheme}
