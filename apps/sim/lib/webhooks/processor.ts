@@ -512,7 +512,6 @@ export async function checkWebhookPreprocessing(
       requestId,
       checkRateLimit: true, // Webhooks need rate limiting
       checkDeployment: true, // Webhooks require deployed workflows
-      skipUsageLimits: testMode, // Skip usage limits for test webhooks
       workspaceId: foundWorkflow.workspaceId,
     })
 
