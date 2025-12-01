@@ -1,0 +1,89 @@
+---
+title: Apify
+description: Führe Apify-Akteure aus und rufe Ergebnisse ab
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="apify"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Apify](https://apify.com/) ist eine leistungsstarke Plattform zum Erstellen, Bereitstellen und Ausführen von Web-Automatisierung und Web-Scraping-Akteuren im großen Maßstab. Apify ermöglicht es dir, nützliche Daten von jeder Website zu extrahieren, Arbeitsabläufe zu automatisieren und deine Datenpipelines nahtlos zu verbinden.
+
+Mit Apify kannst du:
+
+- **Vorgefertigte oder benutzerdefinierte Akteure ausführen**: Integriere öffentliche Akteure oder entwickle deine eigenen, um eine breite Palette von Webdatenextraktions- und Browser-Aufgaben zu automatisieren.
+- **Datensätze abrufen**: Greife auf strukturierte Datensätze zu, die von Akteuren in Echtzeit gesammelt wurden, und verwalte sie.
+- **Web-Automatisierung skalieren**: Nutze Cloud-Infrastruktur, um Aufgaben zuverlässig, asynchron oder synchron mit robuster Fehlerbehandlung auszuführen.
+
+In Sim ermöglicht die Apify-Integration deinen Agenten, grundlegende Apify-Operationen programmatisch durchzuführen:
+
+- **Akteur ausführen (Synchron)**: Verwende `apify_run_actor_sync`, um einen Apify-Akteur zu starten und auf dessen Abschluss zu warten, wobei die Ergebnisse sofort nach Beendigung des Laufs abgerufen werden.
+- **Akteur ausführen (Asynchron)**: Verwende `apify_run_actor_async`, um einen Akteur im Hintergrund zu starten und regelmäßig nach Ergebnissen zu fragen, was für längere oder komplexe Aufgaben geeignet ist.
+
+Diese Operationen statten deine Agenten aus, um Datenerfassungs- oder Browser-Automatisierungsaufgaben direkt in Workflows zu automatisieren, zu scrapen und zu orchestrieren – alles mit flexibler Konfiguration und Ergebnisverarbeitung, ohne dass manuelle Ausführungen oder externe Tools erforderlich sind. Integriere Apify als dynamische Automatisierungs- und Datenextraktions-Engine, die programmatisch die webbasierten Workflows deiner Agenten antreibt.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integriere Apify in deinen Workflow. Führe jeden Apify-Akteur mit benutzerdefinierter Eingabe aus und rufe Ergebnisse ab. Unterstützt sowohl synchrone als auch asynchrone Ausführung mit automatischem Datensatz-Abruf.
+
+## Tools
+
+### `apify_run_actor_sync`
+
+Führe einen APIFY-Aktor synchron aus und erhalte Ergebnisse (maximal 5 Minuten)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | APIFY API-Token von console.apify.com/account#/integrations |
+| `actorId` | string | Ja | Aktor-ID oder Benutzername/Aktor-Name \(z.B. "janedoe/my-actor" oder Aktor-ID\) |
+| `input` | string | Nein | Aktor-Eingabe als JSON-String. Siehe Aktor-Dokumentation für erforderliche Felder. |
+| `timeout` | number | Nein | Timeout in Sekunden \(Standard: Aktor-Standard\) |
+| `build` | string | Nein | Aktor-Build zum Ausführen \(z.B. "latest", "beta" oder Build-Tag/Nummer\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Aktor-Ausführung erfolgreich war |
+| `runId` | string | APIFY-Ausführungs-ID |
+| `status` | string | Ausführungsstatus \(SUCCEEDED, FAILED, usw.\) |
+| `datasetId` | string | Dataset-ID mit Ergebnissen |
+| `items` | array | Dataset-Elemente \(falls abgeschlossen\) |
+
+### `apify_run_actor_async`
+
+Führe einen APIFY-Aktor asynchron mit Polling für lang laufende Aufgaben aus
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | APIFY API-Token von console.apify.com/account#/integrations |
+| `actorId` | string | Ja | Aktor-ID oder Benutzername/Aktor-Name \(z.B. "janedoe/my-actor" oder Aktor-ID\) |
+| `input` | string | Nein | Aktor-Eingabe als JSON-String |
+| `waitForFinish` | number | Nein | Anfängliche Wartezeit in Sekunden \(0-60\) bevor Polling beginnt |
+| `itemLimit` | number | Nein | Maximale Anzahl an Dataset-Elementen zum Abrufen \(1-250000, Standard 100\) |
+| `timeout` | number | Nein | Timeout in Sekunden \(Standard: Aktor-Standard\) |
+| `build` | string | Nein | Aktor-Build zum Ausführen \(z.B. "latest", "beta" oder Build-Tag/Nummer\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Actor-Lauf erfolgreich war |
+| `runId` | string | APIFY-Lauf-ID |
+| `status` | string | Laufstatus \(SUCCEEDED, FAILED, usw.\) |
+| `datasetId` | string | Dataset-ID mit Ergebnissen |
+| `items` | array | Dataset-Elemente \(falls abgeschlossen\) |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `apify`

@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpTemplate } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpGetTemplate')
@@ -12,7 +13,7 @@ export interface MailchimpGetTemplateParams {
 export interface MailchimpGetTemplateResponse {
   success: boolean
   output: {
-    template: any
+    template: MailchimpTemplate
     metadata: {
       operation: 'get_template'
       templateId: string

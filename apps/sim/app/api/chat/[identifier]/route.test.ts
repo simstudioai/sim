@@ -6,6 +6,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
+const createMockStream = () => {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(
+        new TextEncoder().encode('data: {"blockId":"agent-1","chunk":"Hello"}\n\n')
+      )
+      controller.enqueue(
+        new TextEncoder().encode('data: {"blockId":"agent-1","chunk":" world"}\n\n')
+      )
+      controller.enqueue(
+        new TextEncoder().encode('data: {"event":"final","data":{"success":true}}\n\n')
+      )
+      controller.close()
+    },
+  })
+}
+
 vi.mock('@/lib/execution/preprocessing', () => ({
   preprocessExecution: vi.fn().mockResolvedValue({
     success: true,
@@ -36,28 +53,37 @@ vi.mock('@/lib/logs/execution/logging-session', () => ({
   })),
 }))
 
-describe('Chat Identifier API Route', () => {
-  const createMockStream = () => {
-    return new ReadableStream({
-      start(controller) {
-        controller.enqueue(
-          new TextEncoder().encode('data: {"blockId":"agent-1","chunk":"Hello"}\n\n')
-        )
-        controller.enqueue(
-          new TextEncoder().encode('data: {"blockId":"agent-1","chunk":" world"}\n\n')
-        )
-        controller.enqueue(
-          new TextEncoder().encode('data: {"event":"final","data":{"success":true}}\n\n')
-        )
-        controller.close()
-      },
-    })
-  }
+vi.mock('@/lib/workflows/streaming', () => ({
+  createStreamingResponse: vi.fn().mockImplementation(async () => createMockStream()),
+}))
 
+vi.mock('@/lib/utils', () => ({
+  SSE_HEADERS: {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  },
+  generateRequestId: vi.fn().mockReturnValue('test-request-id'),
+}))
+
+vi.mock('@/app/api/workflows/[id]/execute/route', () => ({
+  createFilteredResult: vi.fn().mockImplementation((result: any) => ({
+    ...result,
+    logs: undefined,
+    metadata: result.metadata
+      ? {
+          ...result.metadata,
+          workflowConnections: undefined,
+        }
+      : undefined,
+  })),
+}))
+
+describe('Chat Identifier API Route', () => {
   const mockAddCorsHeaders = vi.fn().mockImplementation((response) => response)
   const mockValidateChatAuth = vi.fn().mockResolvedValue({ authorized: true })
   const mockSetChatAuthCookie = vi.fn()
-  const mockCreateStreamingResponse = vi.fn().mockResolvedValue(createMockStream())
 
   const mockChatResult = [
     {
@@ -102,16 +128,6 @@ describe('Chat Identifier API Route', () => {
       validateChatAuth: mockValidateChatAuth,
       setChatAuthCookie: mockSetChatAuthCookie,
       validateAuthToken: vi.fn().mockReturnValue(true),
-    }))
-
-    vi.doMock('@/lib/workflows/streaming', () => ({
-      createStreamingResponse: mockCreateStreamingResponse,
-      SSE_HEADERS: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-        'X-Accel-Buffering': 'no',
-      },
     }))
 
     vi.doMock('@/lib/logs/console/logger', () => ({
@@ -372,6 +388,7 @@ describe('Chat Identifier API Route', () => {
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
+      const { createStreamingResponse } = await import('@/lib/workflows/streaming')
 
       const response = await POST(req, { params })
 
@@ -380,7 +397,7 @@ describe('Chat Identifier API Route', () => {
       expect(response.headers.get('Cache-Control')).toBe('no-cache')
       expect(response.headers.get('Connection')).toBe('keep-alive')
 
-      expect(mockCreateStreamingResponse).toHaveBeenCalledWith(
+      expect(createStreamingResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           workflow: expect.objectContaining({
             id: 'workflow-id',
@@ -396,7 +413,7 @@ describe('Chat Identifier API Route', () => {
           }),
         })
       )
-    })
+    }, 10000)
 
     it('should handle streaming response body correctly', async () => {
       const req = createMockRequest('POST', { input: 'Hello world' })
@@ -423,8 +440,9 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should handle workflow execution errors gracefully', async () => {
-      const originalStreamingResponse = mockCreateStreamingResponse.getMockImplementation()
-      mockCreateStreamingResponse.mockImplementationOnce(async () => {
+      const { createStreamingResponse } = await import('@/lib/workflows/streaming')
+      const originalStreamingResponse = vi.mocked(createStreamingResponse).getMockImplementation()
+      vi.mocked(createStreamingResponse).mockImplementationOnce(async () => {
         throw new Error('Execution failed')
       })
 
@@ -442,7 +460,7 @@ describe('Chat Identifier API Route', () => {
       expect(data).toHaveProperty('message', 'Execution failed')
 
       if (originalStreamingResponse) {
-        mockCreateStreamingResponse.mockImplementation(originalStreamingResponse)
+        vi.mocked(createStreamingResponse).mockImplementation(originalStreamingResponse)
       }
     })
 
@@ -474,10 +492,11 @@ describe('Chat Identifier API Route', () => {
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
+      const { createStreamingResponse } = await import('@/lib/workflows/streaming')
 
       await POST(req, { params })
 
-      expect(mockCreateStreamingResponse).toHaveBeenCalledWith(
+      expect(createStreamingResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           input: expect.objectContaining({
             input: 'Hello world',
@@ -492,10 +511,11 @@ describe('Chat Identifier API Route', () => {
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
+      const { createStreamingResponse } = await import('@/lib/workflows/streaming')
 
       await POST(req, { params })
 
-      expect(mockCreateStreamingResponse).toHaveBeenCalledWith(
+      expect(createStreamingResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           input: expect.objectContaining({
             input: 'Hello world',

@@ -1,0 +1,54 @@
+---
+title: Recherche
+description: Rechercher sur le web (0,01 $ par recherche)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="search"
+  color="#3B82F6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+L'outil **Recherche** vous permet de rechercher sur le web depuis vos flux de travail Sim en utilisant des moteurs de recherche à la pointe de la technologie. Utilisez-le pour intégrer les dernières informations, actualités, faits et contenus web directement dans vos agents, automatisations ou conversations.
+
+- **Recherche web générale** : trouvez des informations à jour sur internet pour compléter vos flux de travail.
+- **Requêtes automatisées** : laissez les agents ou la logique du programme soumettre des requêtes de recherche et traiter les résultats automatiquement.
+- **Résultats structurés** : renvoie les résultats web les plus pertinents, y compris le titre, le lien, l'extrait et la date pour chaque résultat.
+
+> **Remarque :** chaque recherche coûte **0,01 $** par requête.
+
+Cet outil est idéal pour tout flux de travail où vos agents ont besoin d'accéder à des données web en direct ou doivent faire référence à des événements actuels, effectuer des recherches ou récupérer du contenu supplémentaire.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Recherchez sur le web à l'aide de l'outil Recherche. Chaque recherche coûte 0,01 $ par requête.
+
+## Outils
+
+### `search_tool`
+
+Rechercher sur le web. Renvoie les résultats web les plus pertinents, y compris le titre, le lien, l'extrait et la date pour chaque résultat.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Oui | La requête de recherche |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Résultats de recherche |
+| `query` | string | La requête de recherche |
+| `totalResults` | number | Nombre total de résultats |
+| `source` | string | Source de recherche \(exa\) |
+| `cost` | json | Informations sur les coûts \(0,01 $\) |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `search`

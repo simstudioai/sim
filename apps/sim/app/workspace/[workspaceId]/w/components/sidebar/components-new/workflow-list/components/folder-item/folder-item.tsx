@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/delete-modal/delete-modal'
 import {
@@ -40,6 +41,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   const workspaceId = params.workspaceId as string
   const updateFolderMutation = useUpdateFolder()
   const createWorkflowMutation = useCreateWorkflow()
+  const userPermissions = useUserPermissionsContext()
 
   // Delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -260,6 +262,9 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         onDuplicate={handleDuplicateFolder}
         onDelete={() => setIsDeleteModalOpen(true)}
         showCreate={true}
+        disableRename={!userPermissions.canEdit}
+        disableDuplicate={!userPermissions.canEdit}
+        disableDelete={!userPermissions.canEdit}
       />
 
       {/* Delete Modal */}

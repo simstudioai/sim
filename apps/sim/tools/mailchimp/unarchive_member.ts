@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
+import { buildMailchimpUrl, handleMailchimpError, type MailchimpMember } from './types'
 
 const logger = createLogger('MailchimpUnarchiveMember')
 
@@ -15,7 +15,7 @@ export interface MailchimpUnarchiveMemberParams {
 export interface MailchimpUnarchiveMemberResponse {
   success: boolean
   output: {
-    member: any
+    member: MailchimpMember
     metadata: {
       operation: 'unarchive_member'
       subscriberHash: string

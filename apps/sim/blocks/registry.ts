@@ -2,6 +2,7 @@ import { AgentBlock } from '@/blocks/blocks/agent'
 import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
+import { ApifyBlock } from '@/blocks/blocks/apify'
 import { ApolloBlock } from '@/blocks/blocks/apollo'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
@@ -41,8 +42,10 @@ import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LinearBlock } from '@/blocks/blocks/linear'
+import { LinkedInBlock } from '@/blocks/blocks/linkedin'
 import { LinkupBlock } from '@/blocks/blocks/linkup'
 import { MailchimpBlock } from '@/blocks/blocks/mailchimp'
+import { MailgunBlock } from '@/blocks/blocks/mailgun'
 import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
@@ -74,6 +77,8 @@ import { RouterBlock } from '@/blocks/blocks/router'
 import { S3Block } from '@/blocks/blocks/s3'
 import { SalesforceBlock } from '@/blocks/blocks/salesforce'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
+import { SearchBlock } from '@/blocks/blocks/search'
+import { SendGridBlock } from '@/blocks/blocks/sendgrid'
 import { SentryBlock } from '@/blocks/blocks/sentry'
 import { SerperBlock } from '@/blocks/blocks/serper'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
@@ -90,7 +95,6 @@ import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock } from '@/blocks/blocks/trello'
-import { TtsBlock } from '@/blocks/blocks/tts'
 import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
@@ -115,12 +119,15 @@ import type { BlockConfig } from '@/blocks/types'
 export const registry: Record<string, BlockConfig> = {
   agent: AgentBlock,
   airtable: AirtableBlock,
-  apollo: ApolloBlock,
   api: ApiBlock,
+  api_trigger: ApiTriggerBlock,
+  apify: ApifyBlock,
+  apollo: ApolloBlock,
   arxiv: ArxivBlock,
   asana: AsanaBlock,
   browser_use: BrowserUseBlock,
   calendly: CalendlyBlock,
+  chat_trigger: ChatTriggerBlock,
   clay: ClayBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
@@ -128,8 +135,8 @@ export const registry: Record<string, BlockConfig> = {
   elevenlabs: ElevenLabsBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
-  firecrawl: FirecrawlBlock,
   file: FileBlock,
+  firecrawl: FirecrawlBlock,
   function: FunctionBlock,
   generic_webhook: GenericWebhookBlock,
   github: GitHubBlock,
@@ -148,15 +155,20 @@ export const registry: Record<string, BlockConfig> = {
   hunter: HunterBlock,
   image_generator: ImageGeneratorBlock,
   incidentio: IncidentioBlock,
+  input_trigger: InputTriggerBlock,
+  intercom: IntercomBlock,
   jina: JinaBlock,
   jira: JiraBlock,
   knowledge: KnowledgeBlock,
   linear: LinearBlock,
+  linkedin: LinkedInBlock,
   linkup: LinkupBlock,
   mailchimp: MailchimpBlock,
+  mailgun: MailgunBlock,
+  manual_trigger: ManualTriggerBlock,
   mcp: McpBlock,
   mem0: Mem0Block,
-  zep: ZepBlock,
+  memory: MemoryBlock,
   microsoft_excel: MicrosoftExcelBlock,
   microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
@@ -166,41 +178,35 @@ export const registry: Record<string, BlockConfig> = {
   neo4j: Neo4jBlock,
   note: NoteBlock,
   notion: NotionBlock,
+  onedrive: OneDriveBlock,
   openai: OpenAIBlock,
   outlook: OutlookBlock,
-  onedrive: OneDriveBlock,
   parallel_ai: ParallelBlock,
   perplexity: PerplexityBlock,
-  posthog: PostHogBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
   postgresql: PostgreSQLBlock,
+  posthog: PostHogBlock,
   pylon: PylonBlock,
   qdrant: QdrantBlock,
-  resend: ResendBlock,
-  memory: MemoryBlock,
   reddit: RedditBlock,
+  resend: ResendBlock,
   response: ResponseBlock,
   router: RouterBlock,
-  schedule: ScheduleBlock,
   s3: S3Block,
   salesforce: SalesforceBlock,
+  schedule: ScheduleBlock,
+  search: SearchBlock,
+  sendgrid: SendGridBlock,
   sentry: SentryBlock,
-  intercom: IntercomBlock,
-  zendesk: ZendeskBlock,
   serper: SerperBlock,
   sharepoint: SharepointBlock,
+  slack: SlackBlock,
   stagehand: StagehandBlock,
   stagehand_agent: StagehandAgentBlock,
-  slack: SlackBlock,
   starter: StarterBlock,
-  stt: SttBlock,
-  tts: TtsBlock,
   start_trigger: StartTriggerBlock,
-  input_trigger: InputTriggerBlock,
-  chat_trigger: ChatTriggerBlock,
-  manual_trigger: ManualTriggerBlock,
-  api_trigger: ApiTriggerBlock,
+  stt: SttBlock,
   stripe: StripeBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
@@ -224,6 +230,8 @@ export const registry: Record<string, BlockConfig> = {
   workflow_input: WorkflowInputBlock,
   x: XBlock,
   youtube: YouTubeBlock,
+  zep: ZepBlock,
+  zendesk: ZendeskBlock,
 }
 
 export const getBlock = (type: string): BlockConfig | undefined => registry[type]

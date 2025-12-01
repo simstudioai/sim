@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpSegment } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpCreateSegment')
@@ -14,7 +15,7 @@ export interface MailchimpCreateSegmentParams {
 export interface MailchimpCreateSegmentResponse {
   success: boolean
   output: {
-    segment: any
+    segment: MailchimpSegment
     metadata: {
       operation: 'create_segment'
       segmentId: string
@@ -67,7 +68,7 @@ export const mailchimpCreateSegmentTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: any = {
+      const body: Record<string, unknown> = {
         name: params.segmentName,
       }
 

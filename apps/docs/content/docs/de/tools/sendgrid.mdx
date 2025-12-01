@@ -1,0 +1,391 @@
+---
+title: SendGrid
+description: Senden Sie E-Mails und verwalten Sie Kontakte, Listen und Vorlagen mit SendGrid
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sendgrid"
+  color="#1A82E2"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SendGrid](https://sendgrid.com) ist eine führende cloudbasierte E-Mail-Zustellplattform, der Entwickler und Unternehmen vertrauen, um zuverlässige Transaktions- und Marketing-E-Mails in großem Umfang zu versenden. Mit seinen robusten APIs und leistungsstarken Tools ermöglicht SendGrid die Verwaltung aller Aspekte Ihrer E-Mail-Kommunikation, vom Versenden von Benachrichtigungen und Quittungen bis hin zur Verwaltung komplexer Marketingkampagnen.
+
+SendGrid bietet Benutzern eine vollständige Suite von E-Mail-Funktionen, mit denen Sie kritische E-Mail-Workflows automatisieren und Kontaktlisten, Vorlagen und Empfängerengagement genau verwalten können. Die nahtlose Integration mit Sim ermöglicht es Agenten und Workflows, gezielte Nachrichten zu versenden, dynamische Kontakt- und Empfängerlisten zu pflegen, personalisierte E-Mails über Vorlagen auszulösen und die Ergebnisse in Echtzeit zu verfolgen.
+
+Zu den wichtigsten Funktionen von SendGrid gehören:
+
+- **Transaktions-E-Mails:** Versenden Sie automatisierte und umfangreiche Transaktions-E-Mails (wie Benachrichtigungen, Quittungen und Passwort-Zurücksetzungen).
+- **Dynamische Vorlagen:** Verwenden Sie umfangreiche HTML- oder Textvorlagen mit dynamischen Daten für hochpersonalisierte Kommunikation im großen Maßstab.
+- **Kontaktverwaltung:** Fügen Sie Marketing-Kontakte hinzu und aktualisieren Sie diese, verwalten Sie Empfängerlisten und Zielsegmente für Kampagnen.
+- **Unterstützung für Anhänge:** Fügen Sie Ihren E-Mails einen oder mehrere Dateianhänge hinzu.
+- **Umfassende API-Abdeckung:** Verwalten Sie E-Mails, Kontakte, Listen, Vorlagen, Unterdrückungsgruppen und mehr programmatisch.
+
+Durch die Verbindung von SendGrid mit Sim können Ihre Agenten:
+
+- Sowohl einfache als auch fortgeschrittene (vorlagenbasierte oder an mehrere Empfänger gerichtete) E-Mails als Teil eines beliebigen Workflows versenden.
+- Kontakte und Listen automatisch verwalten und segmentieren.
+- Vorlagen für Konsistenz und dynamische Personalisierung nutzen.
+- E-Mail-Engagement innerhalb Ihrer automatisierten Prozesse verfolgen und darauf reagieren.
+
+Diese Integration ermöglicht es Ihnen, alle kritischen Kommunikationsabläufe zu automatisieren, sicherzustellen, dass Nachrichten die richtige Zielgruppe erreichen, und die Kontrolle über die E-Mail-Strategie Ihrer Organisation direkt aus Sim-Workflows zu behalten.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie SendGrid in Ihren Workflow. Senden Sie transaktionale E-Mails, verwalten Sie Marketing-Kontakte und -Listen und arbeiten Sie mit E-Mail-Vorlagen. Unterstützt dynamische Vorlagen, Anhänge und umfassendes Kontaktmanagement.
+
+## Tools
+
+### `sendgrid_send_mail`
+
+Eine E-Mail über die SendGrid API senden
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `from` | string | Ja | E-Mail-Adresse des Absenders \(muss in SendGrid verifiziert sein\) |
+| `fromName` | string | Nein | Name des Absenders |
+| `to` | string | Ja | E-Mail-Adresse des Empfängers |
+| `toName` | string | Nein | Name des Empfängers |
+| `subject` | string | Nein | E-Mail-Betreff \(erforderlich, es sei denn, es wird eine Vorlage mit vordefiniertem Betreff verwendet\) |
+| `content` | string | Nein | E-Mail-Inhalt \(erforderlich, es sei denn, es wird eine Vorlage mit vordefiniertem Inhalt verwendet\) |
+| `contentType` | string | Nein | Inhaltstyp \(text/plain oder text/html\) |
+| `cc` | string | Nein | CC E-Mail-Adresse |
+| `bcc` | string | Nein | BCC E-Mail-Adresse |
+| `replyTo` | string | Nein | Antwort-an E-Mail-Adresse |
+| `replyToName` | string | Nein | Antwort-an Name |
+| `attachments` | file[] | Nein | Dateien, die der E-Mail angehängt werden sollen |
+| `templateId` | string | Nein | Zu verwendende SendGrid-Vorlagen-ID |
+| `dynamicTemplateData` | json | Nein | JSON-Objekt mit dynamischen Vorlagendaten |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die E-Mail erfolgreich gesendet wurde |
+| `messageId` | string | SendGrid-Nachrichten-ID |
+| `to` | string | E-Mail-Adresse des Empfängers |
+| `subject` | string | E-Mail-Betreff |
+
+### `sendgrid_add_contact`
+
+Einen neuen Kontakt zu SendGrid hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `email` | string | Ja | E-Mail-Adresse des Kontakts |
+| `firstName` | string | Nein | Vorname des Kontakts |
+| `lastName` | string | Nein | Nachname des Kontakts |
+| `customFields` | json | Nein | JSON-Objekt mit benutzerdefinierten Feld-Schlüssel-Wert-Paaren \(verwende Feld-IDs wie e1_T, e2_N, e3_D, nicht Feldnamen\) |
+| `listIds` | string | Nein | Kommagetrennte Listen-IDs, zu denen der Kontakt hinzugefügt werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job-ID zur Verfolgung der asynchronen Kontakterstellung |
+| `email` | string | E-Mail-Adresse des Kontakts |
+| `firstName` | string | Vorname des Kontakts |
+| `lastName` | string | Nachname des Kontakts |
+| `message` | string | Statusmeldung |
+
+### `sendgrid_get_contact`
+
+Einen bestimmten Kontakt anhand der ID von SendGrid abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `contactId` | string | Ja | Kontakt-ID |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Kontakt-ID |
+| `email` | string | E-Mail-Adresse des Kontakts |
+| `firstName` | string | Vorname des Kontakts |
+| `lastName` | string | Nachname des Kontakts |
+| `createdAt` | string | Erstellungszeitstempel |
+| `updatedAt` | string | Zeitstempel der letzten Aktualisierung |
+| `listIds` | json | Array von Listen-IDs, zu denen der Kontakt gehört |
+| `customFields` | json | Benutzerdefinierte Feldwerte |
+
+### `sendgrid_search_contacts`
+
+Suche nach Kontakten in SendGrid mit einer Abfrage
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `query` | string | Ja | Suchabfrage (z.B. "email LIKE '%example.com%' AND CONTAINS(list_ids, 'list-id')") |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `contacts` | json | Array übereinstimmender Kontakte |
+| `contactCount` | number | Gesamtzahl der gefundenen Kontakte |
+
+### `sendgrid_delete_contacts`
+
+Einen oder mehrere Kontakte aus SendGrid löschen
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `contactIds` | string | Ja | Kommagetrennte Kontakt-IDs zum Löschen |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job-ID für die Löschanfrage |
+
+### `sendgrid_create_list`
+
+Erstellen einer neuen Kontaktliste in SendGrid
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `name` | string | Ja | Listenname |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Listen-ID |
+| `name` | string | Listenname |
+| `contactCount` | number | Anzahl der Kontakte in der Liste |
+
+### `sendgrid_get_list`
+
+Eine bestimmte Liste anhand der ID von SendGrid abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `listId` | string | Ja | Listen-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Listen-ID |
+| `name` | string | Listenname |
+| `contactCount` | number | Anzahl der Kontakte in der Liste |
+
+### `sendgrid_list_all_lists`
+
+Alle Kontaktlisten von SendGrid abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `pageSize` | number | Nein | Anzahl der Listen, die pro Seite zurückgegeben werden sollen (Standard: 100) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `lists` | json | Array von Listen |
+
+### `sendgrid_delete_list`
+
+Eine Kontaktliste von SendGrid löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `listId` | string | Ja | Listen-ID zum Löschen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Erfolgsmeldung |
+
+### `sendgrid_add_contacts_to_list`
+
+Kontakte hinzufügen oder aktualisieren und einer Liste in SendGrid zuweisen (verwendet PUT /v3/marketing/contacts)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `listId` | string | Ja | Listen-ID, zu der Kontakte hinzugefügt werden sollen |
+| `contacts` | json | Ja | JSON-Array von Kontaktobjekten. Jeder Kontakt muss mindestens Folgendes enthalten: E-Mail \(oder phone_number_id/external_id/anonymous_id\). Beispiel: \[\{"email": "user@example.com", "first_name": "John"\}\] |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job-ID zur Verfolgung des asynchronen Vorgangs |
+| `message` | string | Statusmeldung |
+
+### `sendgrid_remove_contacts_from_list`
+
+Kontakte aus einer bestimmten Liste in SendGrid entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `listId` | string | Ja | Listen-ID |
+| `contactIds` | string | Ja | Kommagetrennte Kontakt-IDs, die aus der Liste entfernt werden sollen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job-ID für die Anfrage |
+
+### `sendgrid_create_template`
+
+Eine neue E-Mail-Vorlage in SendGrid erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `name` | string | Ja | Vorlagenname |
+| `generation` | string | Nein | Vorlagenerstellungstyp \(legacy oder dynamic, standard: dynamic\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Vorlagen-ID |
+| `name` | string | Vorlagenname |
+| `generation` | string | Vorlagenerstellung |
+| `updatedAt` | string | Zeitstempel der letzten Aktualisierung |
+| `versions` | json | Array von Vorlagenversionen |
+
+### `sendgrid_get_template`
+
+Eine bestimmte Vorlage anhand der ID von SendGrid abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `templateId` | string | Ja | Vorlagen-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Vorlagen-ID |
+| `name` | string | Vorlagenname |
+| `generation` | string | Vorlagenerstellung |
+| `updatedAt` | string | Zeitstempel der letzten Aktualisierung |
+| `versions` | json | Array von Vorlagenversionen |
+
+### `sendgrid_list_templates`
+
+Alle E-Mail-Vorlagen von SendGrid abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `generations` | string | Nein | Nach Generation filtern (legacy, dynamic oder beides) |
+| `pageSize` | number | Nein | Anzahl der Vorlagen pro Seite (Standard: 20) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `templates` | json | Array von Vorlagen |
+
+### `sendgrid_delete_template`
+
+Eine E-Mail-Vorlage von SendGrid löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `templateId` | string | Ja | Zu löschende Vorlagen-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `messageId` | string | E-Mail-Nachrichten-ID (send_mail) |
+| `id` | string | Ressourcen-ID |
+| `jobId` | string | Job-ID für asynchrone Operationen |
+| `email` | string | E-Mail-Adresse |
+| `firstName` | string | Vorname |
+| `lastName` | string | Nachname |
+| `contacts` | json | Array von Kontakten |
+| `contactCount` | number | Anzahl der Kontakte |
+| `lists` | json | Array von Listen |
+| `templates` | json | Array von Vorlagen |
+| `message` | string | Status- oder Erfolgsmeldung |
+| `name` | string | Ressourcenname |
+| `generation` | string | Vorlagengeneration |
+
+### `sendgrid_create_template_version`
+
+Eine neue Version einer E-Mail-Vorlage in SendGrid erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SendGrid API-Schlüssel |
+| `templateId` | string | Ja | Vorlagen-ID |
+| `name` | string | Ja | Versionsname |
+| `subject` | string | Ja | E-Mail-Betreffzeile |
+| `htmlContent` | string | Nein | HTML-Inhalt der Vorlage |
+| `plainContent` | string | Nein | Nur-Text-Inhalt der Vorlage |
+| `active` | boolean | Nein | Ob diese Version aktiv ist \(Standard: true\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Versions-ID |
+| `templateId` | string | Vorlagen-ID |
+| `name` | string | Versionsname |
+| `subject` | string | E-Mail-Betreff |
+| `active` | boolean | Ob diese Version aktiv ist |
+| `htmlContent` | string | HTML-Inhalt |
+| `plainContent` | string | Nur-Text-Inhalt |
+| `updatedAt` | string | Zeitstempel der letzten Aktualisierung |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `sendgrid`

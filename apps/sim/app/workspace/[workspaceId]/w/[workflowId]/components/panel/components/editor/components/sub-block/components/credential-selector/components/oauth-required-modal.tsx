@@ -231,6 +231,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'projects:full': 'Full access to manage your Pipedrive projects',
   'webhooks:read': 'Read your Pipedrive webhooks',
   'webhooks:full': 'Full access to manage your Pipedrive webhooks',
+  w_member_social: 'Access your LinkedIn profile',
 }
 
 function getScopeDescription(scope: string): string {

@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpInterestCategory } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpUpdateInterestCategory')
@@ -14,7 +15,7 @@ export interface MailchimpUpdateInterestCategoryParams {
 export interface MailchimpUpdateInterestCategoryResponse {
   success: boolean
   output: {
-    category: any
+    category: MailchimpInterestCategory
     metadata: {
       operation: 'update_interest_category'
       interestCategoryId: string
@@ -71,7 +72,7 @@ export const mailchimpUpdateInterestCategoryTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: any = {}
+      const body: Record<string, unknown> = {}
 
       if (params.interestCategoryTitle) body.title = params.interestCategoryTitle
 

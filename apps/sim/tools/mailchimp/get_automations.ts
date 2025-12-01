@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
+import type { MailchimpAutomation } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpGetAutomations')
@@ -13,7 +14,7 @@ export interface MailchimpGetAutomationsParams {
 export interface MailchimpGetAutomationsResponse {
   success: boolean
   output: {
-    automations: any[]
+    automations: MailchimpAutomation[]
     totalItems: number
     metadata: {
       operation: 'get_automations'

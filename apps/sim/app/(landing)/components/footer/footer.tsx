@@ -1,97 +1,12 @@
-import Image from 'next/image'
 import Link from 'next/link'
-import {
-  DiscordIcon,
-  GithubIcon,
-  HIPAABadgeIcon,
-  LinkedInIcon,
-  xIcon as XIcon,
-} from '@/components/icons'
 import { inter } from '@/app/_styles/fonts/inter/inter'
-
-const blocks = [
-  'Agent',
-  'API',
-  'Condition',
-  'Evaluator',
-  'Function',
-  'Loop',
-  'Parallel',
-  'Response',
-  'Router',
-  'Starter',
-  'Webhook',
-  'Workflow',
-]
-
-const tools = [
-  'Airtable',
-  'ArXiv',
-  'Browser Use',
-  'Clay',
-  'Confluence',
-  'Discord',
-  'ElevenLabs',
-  'Exa',
-  'File',
-  'Firecrawl',
-  'Generic Webhook',
-  'GitHub',
-  'Gmail',
-  'Google Calendar',
-  'Google Docs',
-  'Google Drive',
-  'Google Vault',
-  'Google Search',
-  'Google Sheets',
-  'HuggingFace',
-  'Hunter',
-  'Image Generator',
-  'Jina',
-  'Jira',
-  'Knowledge',
-  'Linear',
-  'LinkUp',
-  'Mem0',
-  'Memory',
-  'Microsoft Excel',
-  'Microsoft Planner',
-  'Microsoft Teams',
-  'Mistral Parse',
-  'MySQL',
-  'Notion',
-  'OneDrive',
-  'OpenAI',
-  'Outlook',
-  'Parallel AI',
-  'Perplexity',
-  'Pinecone',
-  'PostgreSQL',
-  'Qdrant',
-  'Reddit',
-  'S3',
-  'Schedule',
-  'Serper',
-  'SharePoint',
-  'Slack',
-  'Stagehand',
-  'Stagehand Agent',
-  'Supabase',
-  'Tavily',
-  'Telegram',
-  'Thinking',
-  'Translate',
-  'Twilio SMS',
-  'Typeform',
-  'Vision',
-  'Wealthbox',
-  'Webhook',
-  'WhatsApp',
-  'Wikipedia',
-  'X',
-  'YouTube',
-  'Zep',
-]
+import {
+  ComplianceBadges,
+  Logo,
+  SocialLinks,
+  StatusIndicator,
+} from '@/app/(landing)/components/footer/components'
+import { FOOTER_BLOCKS, FOOTER_TOOLS } from '@/app/(landing)/components/footer/consts'
 
 interface FooterProps {
   fullWidth?: boolean
@@ -110,84 +25,10 @@ export default function Footer({ fullWidth = false }: FooterProps) {
         <div className={`flex gap-[80px] ${fullWidth ? 'justify-center' : ''}`}>
           {/* Logo and social links */}
           <div className='flex flex-col gap-[24px]'>
-            <Link href='/' aria-label='Sim home'>
-              <Image
-                src='/logo/b&w/text/b&w.svg'
-                alt='Sim - Workflows for LLMs'
-                width={49.78314}
-                height={24.276}
-                priority
-                quality={90}
-              />
-            </Link>
-
-            {/* Social links */}
-            <div className='flex items-center gap-[12px]'>
-              <a
-                href='https://discord.gg/Hr4UWYEcTT'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='flex items-center text-[16px] text-muted-foreground transition-colors hover:text-foreground'
-                aria-label='Discord'
-              >
-                <DiscordIcon className='h-[20px] w-[20px]' aria-hidden='true' />
-              </a>
-              <a
-                href='https://x.com/simdotai'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='flex items-center text-[16px] text-muted-foreground transition-colors hover:text-foreground'
-                aria-label='X (Twitter)'
-              >
-                <XIcon className='h-[18px] w-[18px]' aria-hidden='true' />
-              </a>
-              <a
-                href='https://www.linkedin.com/company/simstudioai/'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='flex items-center text-[16px] text-muted-foreground transition-colors hover:text-foreground'
-                aria-label='LinkedIn'
-              >
-                <LinkedInIcon className='h-[18px] w-[18px]' aria-hidden='true' />
-              </a>
-              <a
-                href='https://github.com/simstudioai/sim'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='flex items-center text-[16px] text-muted-foreground transition-colors hover:text-foreground'
-                aria-label='GitHub'
-              >
-                <GithubIcon className='h-[20px] w-[20px]' aria-hidden='true' />
-              </a>
-            </div>
-
-            {/* Compliance badges */}
-            <div className='mt-[6px] flex items-center gap-[12px]'>
-              {/* SOC2 badge */}
-              <Link
-                href='https://trust.delve.co/sim-studio'
-                target='_blank'
-                rel='noopener noreferrer'
-              >
-                <Image
-                  src='/footer/soc2.png'
-                  alt='SOC2 Compliant'
-                  width={54}
-                  height={54}
-                  className='object-contain'
-                  loading='lazy'
-                  quality={75}
-                />
-              </Link>
-              {/* HIPAA badge placeholder - add when available */}
-              <Link
-                href='https://trust.delve.co/sim-studio'
-                target='_blank'
-                rel='noopener noreferrer'
-              >
-                <HIPAABadgeIcon className='h-[54px] w-[54px]' />
-              </Link>
-            </div>
+            <Logo />
+            <SocialLinks />
+            <ComplianceBadges />
+            <StatusIndicator />
           </div>
 
           {/* Links section */}
@@ -229,6 +70,14 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                 Changelog
               </Link>
               <Link
+                href='https://status.sim.ai'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+              >
+                Status
+              </Link>
+              <Link
                 href='/careers'
                 className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
               >
@@ -257,7 +106,7 @@ export default function Footer({ fullWidth = false }: FooterProps) {
           <div className='hidden sm:block'>
             <h2 className='mb-[16px] font-medium text-[14px] text-foreground'>Blocks</h2>
             <div className='flex flex-col gap-[12px]'>
-              {blocks.map((block) => (
+              {FOOTER_BLOCKS.map((block) => (
                 <Link
                   key={block}
                   href={`https://docs.sim.ai/blocks/${block.toLowerCase().replace(' ', '-')}`}
@@ -277,7 +126,7 @@ export default function Footer({ fullWidth = false }: FooterProps) {
             <div className='flex gap-[80px]'>
               {/* First column */}
               <div className='flex flex-col gap-[12px]'>
-                {tools.slice(0, Math.ceil(tools.length / 4)).map((tool) => (
+                {FOOTER_TOOLS.slice(0, Math.ceil(FOOTER_TOOLS.length / 4)).map((tool) => (
                   <Link
                     key={tool}
                     href={`https://docs.sim.ai/tools/${tool.toLowerCase().replace(/\s+/g, '_')}`}
@@ -291,39 +140,41 @@ export default function Footer({ fullWidth = false }: FooterProps) {
               </div>
               {/* Second column */}
               <div className='flex flex-col gap-[12px]'>
-                {tools
-                  .slice(Math.ceil(tools.length / 4), Math.ceil((tools.length * 2) / 4))
-                  .map((tool) => (
-                    <Link
-                      key={tool}
-                      href={`https://docs.sim.ai/tools/${tool.toLowerCase().replace(/\s+/g, '_')}`}
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className='whitespace-nowrap text-[14px] text-muted-foreground transition-colors hover:text-foreground'
-                    >
-                      {tool}
-                    </Link>
-                  ))}
+                {FOOTER_TOOLS.slice(
+                  Math.ceil(FOOTER_TOOLS.length / 4),
+                  Math.ceil((FOOTER_TOOLS.length * 2) / 4)
+                ).map((tool) => (
+                  <Link
+                    key={tool}
+                    href={`https://docs.sim.ai/tools/${tool.toLowerCase().replace(/\s+/g, '_')}`}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='whitespace-nowrap text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                  >
+                    {tool}
+                  </Link>
+                ))}
               </div>
               {/* Third column */}
               <div className='flex flex-col gap-[12px]'>
-                {tools
-                  .slice(Math.ceil((tools.length * 2) / 4), Math.ceil((tools.length * 3) / 4))
-                  .map((tool) => (
-                    <Link
-                      key={tool}
-                      href={`https://docs.sim.ai/tools/${tool.toLowerCase().replace(/\s+/g, '_')}`}
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className='whitespace-nowrap text-[14px] text-muted-foreground transition-colors hover:text-foreground'
-                    >
-                      {tool}
-                    </Link>
-                  ))}
+                {FOOTER_TOOLS.slice(
+                  Math.ceil((FOOTER_TOOLS.length * 2) / 4),
+                  Math.ceil((FOOTER_TOOLS.length * 3) / 4)
+                ).map((tool) => (
+                  <Link
+                    key={tool}
+                    href={`https://docs.sim.ai/tools/${tool.toLowerCase().replace(/\s+/g, '_')}`}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='whitespace-nowrap text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                  >
+                    {tool}
+                  </Link>
+                ))}
               </div>
               {/* Fourth column */}
               <div className='flex flex-col gap-[12px]'>
-                {tools.slice(Math.ceil((tools.length * 3) / 4)).map((tool) => (
+                {FOOTER_TOOLS.slice(Math.ceil((FOOTER_TOOLS.length * 3) / 4)).map((tool) => (
                   <Link
                     key={tool}
                     href={`https://docs.sim.ai/tools/${tool.toLowerCase().replace(/\s+/g, '_')}`}

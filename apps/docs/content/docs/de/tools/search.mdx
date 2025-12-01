@@ -1,0 +1,54 @@
+---
+title: Suche
+description: Durchsuche das Web (0,01 $ pro Suche)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="search"
+  color="#3B82F6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Das **Suche**-Tool ermöglicht es dir, das Web innerhalb deiner Sim-Workflows mit hochmodernen Suchmaschinen zu durchsuchen. Nutze es, um die neuesten Informationen, Nachrichten, Fakten und Webinhalte direkt in deine Agenten, Automatisierungen oder Gespräche einzubinden.
+
+- **Allgemeine Websuche**: Finde aktuelle Informationen aus dem Internet, um deine Workflows zu ergänzen.
+- **Automatisierte Abfragen**: Lass Agenten oder Programmlogik Suchanfragen stellen und die Ergebnisse automatisch verarbeiten.
+- **Strukturierte Ergebnisse**: Liefert die relevantesten Webergebnisse, einschließlich Titel, Link, Textauszug und Datum für jedes Ergebnis.
+
+> **Hinweis:** Jede Suche kostet **0,01 $** pro Anfrage.
+
+Dieses Tool ist ideal für jeden Workflow, bei dem deine Agenten Zugriff auf aktuelle Webdaten benötigen oder auf aktuelle Ereignisse verweisen, Recherchen durchführen oder ergänzende Inhalte abrufen müssen.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Durchsuche das Web mit dem Suche-Tool. Jede Suche kostet 0,01 $ pro Anfrage.
+
+## Tools
+
+### `search_tool`
+
+Durchsuche das Web. Liefert die relevantesten Webergebnisse, einschließlich Titel, Link, Textauszug und Datum für jedes Ergebnis.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Ja | Die Suchanfrage |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `results` | json | Suchergebnisse |
+| `query` | string | Die Suchanfrage |
+| `totalResults` | number | Gesamtzahl der Ergebnisse |
+| `source` | string | Suchquelle \(exa\) |
+| `cost` | json | Kosteninformationen \(0,01 $\) |
+
+## Notizen
+
+- Kategorie: `tools`
+- Typ: `search`

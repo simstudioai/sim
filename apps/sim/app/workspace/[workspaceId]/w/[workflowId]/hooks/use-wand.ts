@@ -164,7 +164,7 @@ export function useWand({
         // Keep track of the current prompt for history
         const currentPrompt = prompt
 
-        const response = await fetch('/api/wand-generate', {
+        const response = await fetch('/api/wand', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

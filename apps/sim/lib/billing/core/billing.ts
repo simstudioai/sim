@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, subscription, user, userStats } from '@sim/db/schema'
+import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getUserUsageData } from '@/lib/billing/core/usage'
@@ -120,7 +120,6 @@ export async function calculateSubscriptionOverage(sub: {
   let totalOverage = 0
 
   if (sub.plan === 'team') {
-    // Team plan: sum all member usage
     const members = await db
       .select({ userId: member.userId })
       .from(member)
@@ -132,13 +131,27 @@ export async function calculateSubscriptionOverage(sub: {
       totalTeamUsage += usage.currentUsage
     }
 
+    const orgData = await db
+      .select({ departedMemberUsage: organization.departedMemberUsage })
+      .from(organization)
+      .where(eq(organization.id, sub.referenceId))
+      .limit(1)
+
+    const departedUsage =
+      orgData.length > 0 && orgData[0].departedMemberUsage
+        ? Number.parseFloat(orgData[0].departedMemberUsage)
+        : 0
+
+    const totalUsageWithDeparted = totalTeamUsage + departedUsage
     const { basePrice } = getPlanPricing(sub.plan)
     const baseSubscriptionAmount = (sub.seats || 1) * basePrice
-    totalOverage = Math.max(0, totalTeamUsage - baseSubscriptionAmount)
+    totalOverage = Math.max(0, totalUsageWithDeparted - baseSubscriptionAmount)
 
     logger.info('Calculated team overage', {
       subscriptionId: sub.id,
-      totalTeamUsage,
+      currentMemberUsage: totalTeamUsage,
+      departedMemberUsage: departedUsage,
+      totalUsage: totalUsageWithDeparted,
       baseSubscriptionAmount,
       totalOverage,
     })

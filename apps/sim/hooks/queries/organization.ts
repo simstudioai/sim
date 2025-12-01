@@ -257,7 +257,7 @@ export function useUpdateOrganizationUsageLimit() {
  */
 interface InviteMemberParams {
   email: string
-  workspaceInvitations?: Array<{ id: string; name: string }>
+  workspaceInvitations?: Array<{ workspaceId: string; permission: 'admin' | 'write' | 'read' }>
   orgId: string
 }
 
