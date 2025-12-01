@@ -58,7 +58,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Jira Account',
       type: 'oauth-input',
       required: true,
-      provider: 'jira',
       serviceId: 'jira',
       requiredScopes: [
         'read:jira-work',
@@ -100,7 +99,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Select Project',
       type: 'project-selector',
       canonicalParamId: 'projectId',
-      provider: 'jira',
       serviceId: 'jira',
       placeholder: 'Select Jira project',
       dependsOn: ['credential', 'domain'],
@@ -122,7 +120,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Select Issue',
       type: 'file-selector',
       canonicalParamId: 'issueKey',
-      provider: 'jira',
       serviceId: 'jira',
       placeholder: 'Select Jira issue',
       dependsOn: ['credential', 'domain', 'projectId'],

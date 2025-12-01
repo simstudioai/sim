@@ -11,7 +11,7 @@ export enum CredentialType {
 // Type for credential requirement
 export interface CredentialRequirement {
   type: CredentialType
-  provider?: string // For OAuth (e.g., 'google-drive', 'slack')
+  serviceId?: string // For OAuth (e.g., 'google-drive', 'slack')
   label: string // Human-readable label
   blockType: string // The block type that requires this
   subBlockId: string // The subblock ID for reference
@@ -72,7 +72,7 @@ export function extractRequiredCredentials(state: any): CredentialRequirement[] 
         seen.add(key)
         credentials.push({
           type: CredentialType.OAUTH,
-          provider: block.type,
+          serviceId: block.type,
           label: `Credential for ${blockName}`,
           blockType: block.type,
           subBlockId: 'oauth',

@@ -48,7 +48,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'credential',
       title: 'Confluence Account',
       type: 'oauth-input',
-      provider: 'confluence',
       serviceId: 'confluence',
       requiredScopes: [
         'read:confluence-content.all',
@@ -82,7 +81,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       title: 'Select Page',
       type: 'file-selector',
       canonicalParamId: 'pageId',
-      provider: 'confluence',
       serviceId: 'confluence',
       placeholder: 'Select Confluence page',
       dependsOn: ['credential', 'domain'],

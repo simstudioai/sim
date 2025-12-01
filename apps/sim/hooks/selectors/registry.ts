@@ -138,6 +138,52 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       }))
     },
   },
+  'microsoft.chats': {
+    key: 'microsoft.chats',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'microsoft.chats',
+      context.credentialId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.credentialId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const body = JSON.stringify({ credential: context.credentialId })
+      const data = await fetchJson<{ chats: { id: string; displayName: string }[] }>(
+        '/api/tools/microsoft-teams/chats',
+        { method: 'POST', body }
+      )
+      return (data.chats || []).map((chat) => ({
+        id: chat.id,
+        label: chat.displayName,
+      }))
+    },
+  },
+  'microsoft.channels': {
+    key: 'microsoft.channels',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'microsoft.channels',
+      context.credentialId ?? 'none',
+      context.teamId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.credentialId && context.teamId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        credential: context.credentialId,
+        teamId: context.teamId,
+      })
+      const data = await fetchJson<{ channels: { id: string; displayName: string }[] }>(
+        '/api/tools/microsoft-teams/channels',
+        { method: 'POST', body }
+      )
+      return (data.channels || []).map((channel) => ({
+        id: channel.id,
+        label: channel.displayName,
+      }))
+    },
+  },
   'wealthbox.contacts': {
     key: 'wealthbox.contacts',
     staleTime: SELECTOR_STALE,

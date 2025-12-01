@@ -34,7 +34,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Google Drive Account',
       type: 'oauth-input',
       required: true,
-      provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: [
         'https://www.googleapis.com/auth/drive.file',
@@ -104,7 +103,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Select Parent Folder',
       type: 'file-selector',
       canonicalParamId: 'folderId',
-      provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: [
         'https://www.googleapis.com/auth/drive.file',
@@ -177,7 +175,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Select Parent Folder',
       type: 'file-selector',
       canonicalParamId: 'folderId',
-      provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: [
         'https://www.googleapis.com/auth/drive.file',
@@ -205,7 +202,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Select Folder',
       type: 'file-selector',
       canonicalParamId: 'folderId',
-      provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: [
         'https://www.googleapis.com/auth/drive.file',
@@ -247,7 +243,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Select File',
       type: 'file-selector',
       canonicalParamId: 'fileId',
-      provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: [
         'https://www.googleapis.com/auth/drive.file',

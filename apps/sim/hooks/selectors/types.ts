@@ -12,6 +12,8 @@ export type SelectorKey =
   | 'linear.teams'
   | 'confluence.pages'
   | 'microsoft.teams'
+  | 'microsoft.chats'
+  | 'microsoft.channels'
   | 'wealthbox.contacts'
   | 'onedrive.files'
   | 'onedrive.folders'
@@ -33,7 +35,6 @@ export interface SelectorContext {
   workspaceId?: string
   workflowId?: string
   credentialId?: string
-  provider?: string
   serviceId?: string
   domain?: string
   teamId?: string
