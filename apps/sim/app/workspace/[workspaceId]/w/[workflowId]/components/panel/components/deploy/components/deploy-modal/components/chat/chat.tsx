@@ -9,7 +9,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal-new/modal'
+} from '@/components/emcn/components/modal/modal'
 import { Alert, AlertDescription, Skeleton } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'

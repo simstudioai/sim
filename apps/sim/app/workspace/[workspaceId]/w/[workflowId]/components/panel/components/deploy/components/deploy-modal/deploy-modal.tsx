@@ -13,7 +13,7 @@ import {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
-} from '@/components/emcn/components/modal-new/modal'
+} from '@/components/emcn/components/modal/modal'
 import { getEnv } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'

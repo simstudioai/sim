@@ -9,7 +9,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal-new/modal'
+} from '@/components/emcn/components/modal/modal'
 import { Skeleton, TagInput } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'

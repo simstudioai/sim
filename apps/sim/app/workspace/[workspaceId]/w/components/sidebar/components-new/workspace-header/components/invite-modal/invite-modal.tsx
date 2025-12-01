@@ -10,7 +10,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal-new/modal'
+} from '@/components/emcn/components/modal/modal'
 import { useSession } from '@/lib/auth/auth-client'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'

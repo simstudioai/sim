@@ -3,8 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '@/components/emcn'
-import { Input, Label } from '@/components/ui'
+import { Button, Label } from '@/components/emcn'
+import {
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn/components/modal/modal'
+import { Input, Skeleton } from '@/components/ui'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
@@ -17,6 +24,68 @@ import {
 
 const logger = createLogger('Credentials')
 
+/**
+ * Static skeleton structure matching OAUTH_PROVIDERS layout
+ * Each entry: [providerName, serviceCount]
+ */
+const SKELETON_STRUCTURE: [string, number][] = [
+  ['Google', 7],
+  ['Microsoft', 6],
+  ['GitHub', 1],
+  ['X', 1],
+  ['Confluence', 1],
+  ['Jira', 1],
+  ['Airtable', 1],
+  ['Notion', 1],
+  ['Linear', 1],
+  ['Slack', 1],
+  ['Reddit', 1],
+  ['Wealthbox', 1],
+  ['Webflow', 1],
+  ['Trello', 1],
+  ['Asana', 1],
+  ['Pipedrive', 1],
+  ['HubSpot', 1],
+  ['Salesforce', 1],
+]
+
+function CredentialsSkeleton() {
+  return (
+    <div className='flex h-full flex-col gap-[16px]'>
+      <div className='flex w-full items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+        <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+        <Input
+          placeholder='Search integrations...'
+          disabled
+          className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+        />
+      </div>
+
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='flex flex-col gap-[16px]'>
+          {SKELETON_STRUCTURE.map(([providerName, serviceCount]) => (
+            <div key={providerName} className='flex flex-col gap-[8px]'>
+              <Skeleton className='h-[14px] w-[60px]' />
+              {Array.from({ length: serviceCount }).map((_, index) => (
+                <div key={index} className='flex items-center justify-between'>
+                  <div className='flex items-center gap-[12px]'>
+                    <Skeleton className='h-9 w-9 flex-shrink-0 rounded-[6px]' />
+                    <div className='flex flex-col justify-center gap-[1px]'>
+                      <Skeleton className='h-[14px] w-[100px]' />
+                      <Skeleton className='h-[13px] w-[200px]' />
+                    </div>
+                  </div>
+                  <Skeleton className='h-[32px] w-[72px] rounded-[6px]' />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface CredentialsProps {
   onOpenChange?: (open: boolean) => void
   registerCloseHandler?: (handler: (open: boolean) => void) => void
@@ -27,18 +96,23 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
   const searchParams = useSearchParams()
   const pendingServiceRef = useRef<HTMLDivElement>(null)
 
-  // React Query hooks - with placeholderData to show cached data immediately
-  const { data: services = [] } = useOAuthConnections()
+  const { data: services = [], isPending } = useOAuthConnections()
   const connectService = useConnectOAuthService()
   const disconnectService = useDisconnectOAuthService()
 
-  // Local UI state
   const [searchTerm, setSearchTerm] = useState('')
   const [pendingService, setPendingService] = useState<string | null>(null)
   const [authSuccess, setAuthSuccess] = useState(false)
   const [showActionRequired, setShowActionRequired] = useState(false)
   const prevConnectedIdsRef = useRef<Set<string>>(new Set())
   const connectionAddedRef = useRef<boolean>(false)
+
+  // Disconnect confirmation dialog state
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false)
+  const [serviceToDisconnect, setServiceToDisconnect] = useState<{
+    service: ServiceInfo
+    accountId: string
+  } | null>(null)
 
   // Check for OAuth callback - just show success message
   useEffect(() => {
@@ -116,8 +190,24 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
     }
   }
 
-  // Handle disconnect button click
-  const handleDisconnect = async (service: ServiceInfo, accountId: string) => {
+  /**
+   * Opens the disconnect confirmation dialog for a service.
+   */
+  const handleDisconnect = (service: ServiceInfo, accountId: string) => {
+    setServiceToDisconnect({ service, accountId })
+    setShowDisconnectDialog(true)
+  }
+
+  /**
+   * Confirms and executes the service disconnection.
+   */
+  const confirmDisconnect = async () => {
+    if (!serviceToDisconnect) return
+
+    setShowDisconnectDialog(false)
+    const { service, accountId } = serviceToDisconnect
+    setServiceToDisconnect(null)
+
     try {
       await disconnectService.mutateAsync({
         provider: service.providerId.split('-')[0],
@@ -176,135 +266,148 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
     }
   }
 
+  if (isPending) {
+    return <CredentialsSkeleton />
+  }
+
   return (
-    <div className='relative flex h-full flex-col'>
-      {/* Search Input */}
-      <div>
-        <div className='flex h-9 w-56 items-center gap-2 rounded-[8px] border bg-transparent pr-2 pl-3'>
-          <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
+    <>
+      <div className='flex h-full flex-col gap-[16px]'>
+        <div className='flex w-full items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+          <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
           <Input
             placeholder='Search services...'
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
           />
         </div>
-      </div>
 
-      {/* Scrollable Content */}
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        <div className='flex flex-col gap-6'>
-          {/* Success message */}
-          {authSuccess && (
-            <div className='rounded-[8px] border border-green-200 bg-green-50 p-4'>
-              <div className='flex'>
-                <div className='flex-shrink-0'>
-                  <Check className='h-5 w-5 text-green-400' />
-                </div>
-                <div className='ml-3'>
-                  <p className='font-medium text-green-800 text-sm'>
-                    Account connected successfully!
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Pending service message - only shown when coming from OAuth required modal */}
-          {pendingService && showActionRequired && (
-            <div className='flex items-start gap-3 rounded-[8px] border border-primary/20 bg-primary/5 p-5 text-sm shadow-sm'>
-              <div className='mt-0.5 min-w-5'>
-                <ExternalLink className='h-4 w-4 text-muted-foreground' />
-              </div>
-              <div className='flex flex-1 flex-col'>
-                <p className='text-muted-foreground'>
-                  <span className='font-medium text-foreground'>Action Required:</span> Please
-                  connect your account to enable the requested features. The required service is
-                  highlighted below.
+        <div className='min-h-0 flex-1 overflow-y-auto'>
+          <div className='flex flex-col gap-[16px]'>
+            {authSuccess && (
+              <div className='flex items-center gap-[12px] rounded-[8px] border border-green-200 bg-green-50 p-[12px]'>
+                <Check className='h-4 w-4 flex-shrink-0 text-green-500' />
+                <p className='font-medium text-[13px] text-green-800'>
+                  Account connected successfully!
                 </p>
-                <Button
-                  variant='outline'
-                  onClick={scrollToHighlightedService}
-                  className='mt-3 flex h-8 items-center gap-1.5 self-start border-primary/20 px-3 font-medium text-muted-foreground text-sm transition-colors hover:border-primary hover:bg-primary/10 hover:text-muted-foreground'
-                >
-                  <span>Go to service</span>
-                  <ChevronDown className='h-3.5 w-3.5' />
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Services list */}
-          <div className='flex flex-col gap-6'>
-            {Object.entries(filteredGroupedServices).map(([providerKey, providerServices]) => (
-              <div key={providerKey} className='flex flex-col gap-2'>
-                <Label className='font-normal text-muted-foreground text-xs uppercase'>
-                  {OAUTH_PROVIDERS[providerKey]?.name || 'Other Services'}
-                </Label>
-                {providerServices.map((service) => (
-                  <div
-                    key={service.id}
-                    className={cn(
-                      'flex items-center justify-between gap-4',
-                      pendingService === service.id && '-m-2 rounded-[8px] bg-primary/5 p-2'
-                    )}
-                    ref={pendingService === service.id ? pendingServiceRef : undefined}
-                  >
-                    <div className='flex items-center gap-3'>
-                      <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-muted'>
-                        {typeof service.icon === 'function'
-                          ? service.icon({ className: 'h-5 w-5' })
-                          : service.icon}
-                      </div>
-                      <div className='min-w-0'>
-                        <div className='flex items-center gap-2'>
-                          <span className='font-normal text-sm'>{service.name}</span>
-                        </div>
-                        {service.accounts && service.accounts.length > 0 ? (
-                          <p className='truncate text-muted-foreground text-xs'>
-                            {service.accounts.map((a) => a.name).join(', ')}
-                          </p>
-                        ) : (
-                          <p className='truncate text-muted-foreground text-xs'>
-                            {service.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {service.accounts && service.accounts.length > 0 ? (
-                      <Button
-                        variant='ghost'
-                        onClick={() => handleDisconnect(service, service.accounts![0].id)}
-                        disabled={disconnectService.isPending}
-                        className='h-8 text-muted-foreground hover:text-foreground'
-                      >
-                        Disconnect
-                      </Button>
-                    ) : (
-                      <Button
-                        variant='outline'
-                        onClick={() => handleConnect(service)}
-                        disabled={connectService.isPending}
-                        className='h-8'
-                      >
-                        Connect
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))}
-
-            {/* Show message when search has no results */}
-            {searchTerm.trim() && Object.keys(filteredGroupedServices).length === 0 && (
-              <div className='py-8 text-center text-muted-foreground text-sm'>
-                No services found matching "{searchTerm}"
               </div>
             )}
+
+            {pendingService && showActionRequired && (
+              <div className='flex items-start gap-[12px] rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[12px]'>
+                <ExternalLink className='mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--text-muted)]' />
+                <div className='flex flex-1 flex-col gap-[8px]'>
+                  <p className='text-[13px] text-[var(--text-muted)]'>
+                    <span className='font-medium text-[var(--text-primary)]'>Action Required:</span>{' '}
+                    Please connect your account to enable the requested features.
+                  </p>
+                  <Button variant='outline' onClick={scrollToHighlightedService}>
+                    <span>Go to service</span>
+                    <ChevronDown className='h-3 w-3' />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className='flex flex-col gap-[16px]'>
+              {Object.entries(filteredGroupedServices).map(([providerKey, providerServices]) => (
+                <div key={providerKey} className='flex flex-col gap-[8px]'>
+                  <Label className='text-[12px] text-[var(--text-muted)]'>
+                    {OAUTH_PROVIDERS[providerKey]?.name || 'Other Services'}
+                  </Label>
+                  {providerServices.map((service) => (
+                    <div
+                      key={service.id}
+                      className={cn(
+                        'flex items-center justify-between',
+                        pendingService === service.id &&
+                          '-m-[8px] rounded-[8px] bg-[var(--bg)] p-[8px]'
+                      )}
+                      ref={pendingService === service.id ? pendingServiceRef : undefined}
+                    >
+                      <div className='flex items-center gap-[12px]'>
+                        <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-[var(--surface-6)]'>
+                          {typeof service.icon === 'function'
+                            ? service.icon({ className: 'h-4 w-4' })
+                            : service.icon}
+                        </div>
+                        <div className='flex flex-col justify-center gap-[1px]'>
+                          <span className='font-medium text-[14px]'>{service.name}</span>
+                          {service.accounts && service.accounts.length > 0 ? (
+                            <p className='truncate text-[13px] text-[var(--text-muted)]'>
+                              {service.accounts.map((a) => a.name).join(', ')}
+                            </p>
+                          ) : (
+                            <p className='truncate text-[13px] text-[var(--text-muted)]'>
+                              {service.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {service.accounts && service.accounts.length > 0 ? (
+                        <Button
+                          variant='ghost'
+                          onClick={() => handleDisconnect(service, service.accounts![0].id)}
+                          disabled={disconnectService.isPending}
+                        >
+                          Disconnect
+                        </Button>
+                      ) : (
+                        <Button
+                          variant='primary'
+                          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+                          onClick={() => handleConnect(service)}
+                          disabled={connectService.isPending}
+                        >
+                          Connect
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+
+              {searchTerm.trim() && Object.keys(filteredGroupedServices).length === 0 && (
+                <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
+                  No services found matching "{searchTerm}"
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <Modal open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Disconnect Service</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              Are you sure you want to disconnect{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {serviceToDisconnect?.service.name}
+              </span>
+              ?{' '}
+              <span className='text-[var(--text-error)]'>
+                This will revoke access and you will need to reconnect to use this service.
+              </span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setShowDisconnectDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant='primary'
+              onClick={confirmDisconnect}
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
+            >
+              Disconnect
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </>
   )
 }

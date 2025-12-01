@@ -29,7 +29,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '../button/button'
-import { Modal, type ModalContentProps, ModalOverlay, ModalPortal } from '../modal-new/modal'
+import { Modal, type ModalContentProps, ModalOverlay, ModalPortal } from '../modal/modal'
 
 const ANIMATION_CLASSES =
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in'
@@ -217,7 +217,7 @@ const SModalMain = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
     <div
       ref={ref}
       className={cn(
-        'flex flex-1 flex-col gap-[16px] rounded-[8px] border-l bg-[var(--surface-2)] p-[14px]',
+        'flex min-w-0 flex-1 flex-col gap-[16px] rounded-[8px] border-l bg-[var(--surface-2)] p-[14px]',
         className
       )}
       {...props}
@@ -251,7 +251,7 @@ SModalMainHeader.displayName = 'SModalMainHeader'
  */
 const SModalMainBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex-1 overflow-y-auto', className)} {...props} />
+    <div ref={ref} className={cn('min-w-0 flex-1 overflow-y-auto', className)} {...props} />
   )
 )
 

@@ -11,7 +11,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal-new/modal'
+} from '@/components/emcn/components/modal/modal'
 import { Input, Skeleton } from '@/components/ui'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { useBrandConfig } from '@/lib/branding/branding'
@@ -345,12 +345,12 @@ export function General({ onOpenChange }: GeneralProps) {
                 />
                 <Button
                   variant='ghost'
-                  className='h-[11px] w-[11px] flex-shrink-0 p-0'
+                  className='h-[12px] w-[12px] flex-shrink-0 p-0'
                   onClick={handleUpdateName}
                   disabled={updateProfile.isPending}
                   aria-label='Save name'
                 >
-                  <Check className='h-[11px] w-[11px]' />
+                  <Check className='h-[12px] w-[12px]' />
                 </Button>
               </>
             ) : (
@@ -358,11 +358,11 @@ export function General({ onOpenChange }: GeneralProps) {
                 <h3 className='font-medium text-[14px]'>{profile?.name || ''}</h3>
                 <Button
                   variant='ghost'
-                  className='h-[11px] w-[11px] flex-shrink-0 p-0'
+                  className='h-[10.5px] w-[10.5px] flex-shrink-0 p-0'
                   onClick={() => setIsEditingName(true)}
                   aria-label='Edit name'
                 >
-                  <Pencil className='h-[11px] w-[11px]' />
+                  <Pencil className='h-[10.5px] w-[10.5px]' />
                 </Button>
               </>
             )}
