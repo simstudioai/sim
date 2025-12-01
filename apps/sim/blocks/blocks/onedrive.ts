@@ -38,7 +38,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
-      provider: 'onedrive',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -144,7 +143,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       title: 'Select Parent Folder',
       type: 'file-selector',
       canonicalParamId: 'folderId',
-      provider: 'microsoft',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -182,7 +180,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       title: 'Select Parent Folder',
       type: 'file-selector',
       canonicalParamId: 'folderId',
-      provider: 'microsoft',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -215,7 +212,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       title: 'Select Folder',
       type: 'file-selector',
       canonicalParamId: 'folderId',
-      provider: 'microsoft',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -262,7 +258,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       title: 'Select File',
       type: 'file-selector',
       canonicalParamId: 'fileId',
-      provider: 'microsoft',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -302,7 +297,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       title: 'Select File to Delete',
       type: 'file-selector',
       canonicalParamId: 'fileId',
-      provider: 'microsoft',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',

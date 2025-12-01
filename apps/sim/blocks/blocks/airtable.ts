@@ -32,7 +32,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       id: 'credential',
       title: 'Airtable Account',
       type: 'oauth-input',
-      provider: 'airtable',
       serviceId: 'airtable',
       requiredScopes: [
         'data.records:read',

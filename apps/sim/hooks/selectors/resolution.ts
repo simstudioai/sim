@@ -64,9 +64,10 @@ function resolveFileSelector(
     mimeType: subBlock.mimeType,
   })
 
-  const provider = subBlock.provider || subBlock.serviceId || ''
+  // Use serviceId as the canonical identifier
+  const serviceId = subBlock.serviceId || ''
 
-  switch (provider) {
+  switch (serviceId) {
     case 'google-calendar':
       return { key: 'google.calendar', context, allowSearch: false }
     case 'confluence':
@@ -74,7 +75,15 @@ function resolveFileSelector(
     case 'jira':
       return { key: 'jira.issues', context, allowSearch: true }
     case 'microsoft-teams':
-      return { key: 'microsoft.teams', context, allowSearch: true }
+      // Route to the correct selector based on what type of resource is being selected
+      if (subBlock.id === 'chatId') {
+        return { key: 'microsoft.chats', context, allowSearch: false }
+      }
+      if (subBlock.id === 'channelId') {
+        return { key: 'microsoft.channels', context, allowSearch: false }
+      }
+      // Default to teams selector for teamId
+      return { key: 'microsoft.teams', context, allowSearch: false }
     case 'wealthbox':
       return { key: 'wealthbox.contacts', context, allowSearch: true }
     case 'microsoft-planner':
@@ -89,36 +98,33 @@ function resolveFileSelector(
       return { key: 'google.drive', context, allowSearch: true }
     case 'google-docs':
       return { key: 'google.drive', context, allowSearch: true }
+    case 'onedrive': {
+      const key: SelectorKey = subBlock.mimeType === 'file' ? 'onedrive.files' : 'onedrive.folders'
+      return { key, context, allowSearch: true }
+    }
+    case 'sharepoint':
+      return { key: 'sharepoint.sites', context, allowSearch: true }
     default:
-      break
+      return { key: null, context, allowSearch: true }
   }
-
-  if (subBlock.serviceId === 'onedrive') {
-    const key: SelectorKey = subBlock.mimeType === 'file' ? 'onedrive.files' : 'onedrive.folders'
-    return { key, context, allowSearch: true }
-  }
-
-  if (subBlock.serviceId === 'sharepoint') {
-    return { key: 'sharepoint.sites', context, allowSearch: true }
-  }
-
-  if (subBlock.serviceId === 'google-sheets') {
-    return { key: 'google.drive', context, allowSearch: true }
-  }
-
-  return { key: null, context, allowSearch: true }
 }
 
 function resolveFolderSelector(
   subBlock: SubBlockConfig,
   args: SelectorResolutionArgs
 ): SelectorResolution {
-  const provider = (subBlock.provider || subBlock.serviceId || 'gmail').toLowerCase()
-  const key: SelectorKey = provider === 'outlook' ? 'outlook.folders' : 'gmail.labels'
-  return {
-    key,
-    context: buildBaseContext(args),
-    allowSearch: true,
+  const serviceId = subBlock.serviceId?.toLowerCase()
+  if (!serviceId) {
+    return { key: null, context: buildBaseContext(args), allowSearch: true }
+  }
+
+  switch (serviceId) {
+    case 'gmail':
+      return { key: 'gmail.labels', context: buildBaseContext(args), allowSearch: true }
+    case 'outlook':
+      return { key: 'outlook.folders', context: buildBaseContext(args), allowSearch: true }
+    default:
+      return { key: null, context: buildBaseContext(args), allowSearch: true }
   }
 }
 
@@ -126,8 +132,8 @@ function resolveChannelSelector(
   subBlock: SubBlockConfig,
   args: SelectorResolutionArgs
 ): SelectorResolution {
-  const provider = subBlock.provider || 'slack'
-  if (provider !== 'slack') {
+  const serviceId = subBlock.serviceId
+  if (serviceId !== 'slack') {
     return { key: null, context: buildBaseContext(args), allowSearch: true }
   }
   return {
@@ -141,22 +147,18 @@ function resolveProjectSelector(
   subBlock: SubBlockConfig,
   args: SelectorResolutionArgs
 ): SelectorResolution {
-  const provider = subBlock.provider || 'jira'
+  const serviceId = subBlock.serviceId
   const context = buildBaseContext(args)
 
-  if (provider === 'linear') {
-    const key: SelectorKey = subBlock.id === 'teamId' ? 'linear.teams' : 'linear.projects'
-    return {
-      key,
-      context,
-      allowSearch: true,
+  switch (serviceId) {
+    case 'linear': {
+      const key: SelectorKey = subBlock.id === 'teamId' ? 'linear.teams' : 'linear.projects'
+      return { key, context, allowSearch: true }
     }
-  }
-
-  return {
-    key: 'jira.projects',
-    context,
-    allowSearch: true,
+    case 'jira':
+      return { key: 'jira.projects', context, allowSearch: true }
+    default:
+      return { key: null, context, allowSearch: true }
   }
 }
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
+import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
@@ -46,8 +47,13 @@ export function ProjectSelectorInput({
   const linearTeamId = previewContextValues?.teamId ?? linearTeamIdFromStore
   const jiraDomain = previewContextValues?.domain ?? jiraDomainFromStore
 
+  // Derive provider from serviceId using OAuth config
+  const serviceId = subBlock.serviceId || ''
+  const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
+  const isLinear = serviceId === 'linear'
+
   const { isForeignCredential } = useForeignCredential(
-    subBlock.provider || subBlock.serviceId || 'jira',
+    effectiveProviderId,
     (connectedCredential as string) || ''
   )
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId) as string | null
@@ -57,10 +63,6 @@ export function ProjectSelectorInput({
     isPreview,
     previewContextValues,
   })
-
-  // Get provider-specific values
-  const provider = subBlock.provider || 'jira'
-  const isLinear = provider === 'linear'
 
   // Jira/Discord upstream fields - use values from previewContextValues or store
   const jiraCredential = connectedCredential
@@ -121,7 +123,7 @@ export function ProjectSelectorInput({
             />
           ) : (
             <div className='w-full rounded border border-dashed p-4 text-center text-muted-foreground text-sm'>
-              Project selector not supported for provider: {subBlock.provider || 'unknown'}
+              Project selector not supported for service: {serviceId}
             </div>
           )}
         </div>

@@ -16,7 +16,7 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
       title: 'Credentials',
       type: 'oauth-input',
       description: 'This trigger requires microsoft teams credentials to access your account.',
-      provider: 'microsoft-teams',
+      serviceId: 'microsoft-teams',
       requiredScopes: [
         'openid',
         'profile',

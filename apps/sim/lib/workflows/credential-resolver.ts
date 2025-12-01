@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { getProviderIdFromServiceId, getServiceIdFromScopes } from '@/lib/oauth/oauth'
+import { getProviderIdFromServiceId } from '@/lib/oauth/oauth'
 import { getBlock } from '@/blocks/index'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -52,7 +52,7 @@ export async function resolveCredentialsForWorkflow(
 
         logger.debug(`Checking credential for ${blockId}.${subBlockId}`, {
           blockType: blockState.type,
-          provider: subBlockConfig.provider,
+          serviceId: subBlockConfig.serviceId,
           hasExistingValue: !!existingValue,
           existingValue,
         })
@@ -70,13 +70,13 @@ export async function resolveCredentialsForWorkflow(
           resolvedValues[blockId][subBlockId] = credentialId
           logger.info(`Auto-selected credential for ${blockId}.${subBlockId}`, {
             blockType: blockState.type,
-            provider: subBlockConfig.provider,
+            serviceId: subBlockConfig.serviceId,
             credentialId,
           })
         } else {
           logger.info(`No credential auto-selected for ${blockId}.${subBlockId}`, {
             blockType: blockState.type,
-            provider: subBlockConfig.provider,
+            serviceId: subBlockConfig.serviceId,
           })
         }
       }
@@ -102,7 +102,6 @@ export async function resolveCredentialsForWorkflow(
  */
 async function resolveCredentialForSubBlock(
   subBlockConfig: SubBlockConfig & {
-    provider?: string
     requiredScopes?: string[]
     serviceId?: string
   },
@@ -110,29 +109,26 @@ async function resolveCredentialForSubBlock(
   userId?: string
 ): Promise<string | null> {
   try {
-    const provider = subBlockConfig.provider
     const requiredScopes = subBlockConfig.requiredScopes || []
     const serviceId = subBlockConfig.serviceId
 
     logger.debug('Resolving credential for subblock', {
       blockType: blockState.type,
-      provider,
       serviceId,
       requiredScopes,
       userId,
     })
 
-    if (!provider) {
-      logger.debug('No provider specified, skipping credential resolution')
+    if (!serviceId) {
+      logger.debug('No serviceId specified, skipping credential resolution')
       return null
     }
 
-    // Derive service and provider IDs
-    const effectiveServiceId = serviceId || getServiceIdFromScopes(provider as any, requiredScopes)
-    const effectiveProviderId = getProviderIdFromServiceId(effectiveServiceId)
+    // Derive providerId from serviceId using OAuth config
+    const effectiveProviderId = getProviderIdFromServiceId(serviceId)
 
     logger.debug('Derived provider info', {
-      effectiveServiceId,
+      serviceId,
       effectiveProviderId,
     })
 

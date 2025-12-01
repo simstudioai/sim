@@ -6,6 +6,7 @@ import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -272,9 +273,12 @@ const SubBlockRow = ({
 
   const credentialSourceId =
     subBlock?.type === 'oauth-input' && typeof rawValue === 'string' ? rawValue : undefined
+  const credentialProviderId = subBlock?.serviceId
+    ? getProviderIdFromServiceId(subBlock.serviceId)
+    : undefined
   const { displayName: credentialName } = useCredentialName(
     credentialSourceId,
-    subBlock?.provider,
+    credentialProviderId,
     workflowId
   )
 

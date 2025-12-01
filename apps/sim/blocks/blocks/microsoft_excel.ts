@@ -31,7 +31,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
-      provider: 'microsoft-excel',
       serviceId: 'microsoft-excel',
       requiredScopes: [
         'openid',
@@ -49,7 +48,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       title: 'Select Sheet',
       type: 'file-selector',
       canonicalParamId: 'spreadsheetId',
-      provider: 'microsoft-excel',
       serviceId: 'microsoft-excel',
       requiredScopes: [],
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
