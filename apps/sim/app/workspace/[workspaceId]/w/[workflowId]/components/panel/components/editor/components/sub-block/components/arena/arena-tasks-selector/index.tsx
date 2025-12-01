@@ -48,7 +48,8 @@ export function ArenaTaskSelector({
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const values = useSubBlockStore((state) => state.workflowValues)
-  const projectId = values?.[activeWorkflowId ?? '']?.[blockId]?.['task-project']
+  const projectValue = values?.[activeWorkflowId ?? '']?.[blockId]?.['task-project']
+  const projectId = typeof projectValue === 'string' ? projectValue : projectValue?.sysId
 
   const previewValue = isPreview && subBlockValues ? subBlockValues[subBlockId]?.value : undefined
   const selectedValue = isPreview ? previewValue : storeValue
@@ -83,17 +84,21 @@ export function ArenaTaskSelector({
 
     return () => {
       setTasks([])
-      setStoreValue('')
     }
   }, [projectId])
 
   const selectedLabel =
-    tasks.find((task) => task.sysId === selectedValue || task.id === selectedValue)?.name ||
+    (typeof selectedValue === 'object' ? selectedValue?.customDisplayValue : null) ||
+    tasks.find(
+      (task) =>
+        task.sysId === (typeof selectedValue === 'object' ? selectedValue?.sysId : selectedValue) ||
+        task.id === (typeof selectedValue === 'object' ? selectedValue?.sysId : selectedValue)
+    )?.name ||
     'Select task...'
 
-  const handleSelect = (taskId: string) => {
+  const handleSelect = (task: Task) => {
     if (!isPreview && !disabled) {
-      setStoreValue(taskId)
+      setStoreValue({ ...task, customDisplayValue: task.name })
       setOpen(false)
     }
   }
@@ -132,24 +137,26 @@ export function ArenaTaskSelector({
             <CommandList>
               <CommandEmpty>No task found.</CommandEmpty>
               <CommandGroup>
-                {tasks.map((task) => (
-                  <CommandItem
-                    key={task.sysId || task.id}
-                    value={task.sysId || task.id}
-                    onSelect={() => handleSelect(task.sysId)}
-                    className='max-w-full whitespace-normal break-words' // ✅ allow wrapping
-                  >
-                    <span className='whitespace-normal break-words'>{task.name}</span>
-                    <Check
-                      className={cn(
-                        'ml-auto h-4 w-4',
-                        selectedValue === task.sysId || selectedValue === task.id
-                          ? 'opacity-100'
-                          : 'opacity-0'
-                      )}
-                    />
-                  </CommandItem>
-                ))}
+                {tasks.map((task) => {
+                  const taskId = task.sysId || task.id
+                  const isSelected =
+                    typeof selectedValue === 'object'
+                      ? selectedValue?.sysId === taskId || selectedValue?.id === taskId
+                      : selectedValue === taskId
+                  return (
+                    <CommandItem
+                      key={taskId}
+                      value={taskId}
+                      onSelect={() => handleSelect(task)}
+                      className='max-w-full whitespace-normal break-words'
+                    >
+                      <span className='whitespace-normal break-words'>{task.name}</span>
+                      <Check
+                        className={cn('ml-auto h-4 w-4', isSelected ? 'opacity-100' : 'opacity-0')}
+                      />
+                    </CommandItem>
+                  )
+                })}
               </CommandGroup>
             </CommandList>
           </Command>

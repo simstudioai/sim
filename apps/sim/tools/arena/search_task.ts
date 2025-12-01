@@ -82,7 +82,13 @@ export const searchTask: ToolConfig<SearchTaskQueryParams, SearchTaskResponse> =
         url += `&account=${params['search-task-client'].name}`
       }
       if (params['search-task-project']) {
-        url += `&projectSysId=${params['search-task-project']}`
+        const projectId =
+          typeof params['search-task-project'] === 'string'
+            ? params['search-task-project']
+            : params['search-task-project']?.sysId
+        if (projectId) {
+          url += `&projectSysId=${projectId}`
+        }
       }
       if (params['search-task-state']) {
         url += `&statusList=${params['search-task-state'].join(',')}`
@@ -96,7 +102,13 @@ export const searchTask: ToolConfig<SearchTaskQueryParams, SearchTaskResponse> =
         }
       }
       if (params['search-task-assignee']) {
-        url += `&assigneeId=${params['search-task-assignee']}`
+        const assigneeId =
+          typeof params['search-task-assignee'] === 'string'
+            ? params['search-task-assignee']
+            : params['search-task-assignee']?.value
+        if (assigneeId) {
+          url += `&assigneeId=${assigneeId}`
+        }
       }
       if (params._context?.workflowId) {
         url += `&workflowId=${params._context?.workflowId}`

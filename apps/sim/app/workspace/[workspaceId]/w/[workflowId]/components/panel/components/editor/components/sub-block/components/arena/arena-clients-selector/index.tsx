@@ -75,7 +75,6 @@ export function ArenaClientsSelector({
 
     return () => {
       setClients([])
-      setStoreValue('')
     }
   }, [])
 
@@ -85,7 +84,7 @@ export function ArenaClientsSelector({
   const handleSelect = (client: Client) => {
     console.log('Selected client:', client)
     if (!isPreview && !disabled) {
-      setStoreValue(client)
+      setStoreValue({ ...client, customDisplayValue: client.name })
       setOpen(false)
     }
   }

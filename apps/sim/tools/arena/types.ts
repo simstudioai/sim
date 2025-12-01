@@ -11,13 +11,14 @@ export type ArenaCreateTaskParams = {
     clientId: string
     name: string
   }
-  'task-project': string
+  'task-project': string | { sysId: string; name: string; customDisplayValue?: string }
   'task-group'?: {
     id: string
     name: string
+    customDisplayValue?: string
   }
-  'task-task'?: string
-  'task-assignee': string
+  'task-task'?: string | { sysId: string; id?: string; name: string; customDisplayValue?: string }
+  'task-assignee': string | { value: string; label: string; customDisplayValue?: string }
   _context: {
     workflowId: string
   }
@@ -48,10 +49,10 @@ export interface SearchTaskQueryParams {
     clientId: string
     name: string
   }
-  'search-task-project': string
+  'search-task-project': string | { sysId: string; name: string; customDisplayValue?: string }
   'search-task-state': string[]
   'search-task-visibility': string
-  'search-task-assignee': string
+  'search-task-assignee': string | { value: string; label: string; customDisplayValue?: string }
   'search-task-due-date': string
   'search-task-max-results': number
   _context: {

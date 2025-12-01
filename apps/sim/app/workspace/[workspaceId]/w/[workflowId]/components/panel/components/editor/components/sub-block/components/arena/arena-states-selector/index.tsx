@@ -82,7 +82,6 @@ export function ArenaStatesSelector({
 
     return () => {
       setStates([])
-      setStoreValue([])
     }
   }, [])
 

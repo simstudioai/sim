@@ -82,13 +82,26 @@ export const createTask: ToolConfig<ArenaCreateTaskParams, ArenaCreateTaskRespon
       if (!params['task-name']) throw new Error('Missing required field: Task Name')
       if (!params['task-description']) throw new Error('Missing required field: Task Description')
       if (!params['task-client']?.clientId) throw new Error('Missing required field: Task Client')
-      if (!params['task-project']) throw new Error('Missing required field: Project')
-      if (!params['task-assignee']) throw new Error('Missing required field: Assignee')
+      const projectId =
+        typeof params['task-project'] === 'string'
+          ? params['task-project']
+          : params['task-project']?.sysId
+      if (!projectId) throw new Error('Missing required field: Project')
+      const assigneeId =
+        typeof params['task-assignee'] === 'string'
+          ? params['task-assignee']
+          : params['task-assignee']?.value
+      if (!assigneeId) throw new Error('Missing required field: Assignee')
 
+      let taskId: string | undefined
       if (isTask) {
         if (!params['task-group']?.id) throw new Error('Missing required field: Task Group')
       } else {
-        if (!params['task-task']) throw new Error('Missing required field: Task')
+        taskId =
+          typeof params['task-task'] === 'string'
+            ? params['task-task']
+            : params['task-task']?.sysId || params['task-task']?.id
+        if (!taskId) throw new Error('Missing required field: Task')
       }
 
       const body: Record<string, any> = {
@@ -99,15 +112,15 @@ export const createTask: ToolConfig<ArenaCreateTaskParams, ArenaCreateTaskRespon
         plannedEndDate: startOfDayTimestamp(nextWeekDay),
         taskType: isTask ? 'MILESTONE' : 'SHOW-ON-TIMELINE',
         clientId: params['task-client']?.clientId,
-        projectId: params['task-project'],
-        assignedToId: params['task-assignee'],
+        projectId: projectId,
+        assignedToId: assigneeId,
       }
 
       if (isTask) {
         body.epicId = params['task-group']?.id
         body.epicName = params['task-group']?.name
       } else {
-        body.deliverableId = params['task-task']
+        body.deliverableId = taskId
       }
 
       return body

@@ -52,7 +52,8 @@ export function ArenaAssigneeSelector({
   const clientKey = subBlockId === 'task-assignee' ? 'task-client' : 'search-task-client'
   const projectKey = subBlockId === 'task-assignee' ? 'task-project' : 'search-task-project'
   const clientId = values?.[activeWorkflowId ?? '']?.[blockId]?.[clientKey]?.clientId
-  const projectId = values?.[activeWorkflowId ?? '']?.[blockId]?.[projectKey]
+  const projectValue = values?.[activeWorkflowId ?? '']?.[blockId]?.[projectKey]
+  const projectId = typeof projectValue === 'string' ? projectValue : projectValue?.sysId
 
   const previewValue = isPreview && subBlockValues ? subBlockValues[subBlockId]?.value : undefined
   const selectedValue = isPreview ? previewValue : storeValue
@@ -102,11 +103,15 @@ export function ArenaAssigneeSelector({
   }, [clientId, projectId, subBlockId])
 
   const selectedLabel =
-    assignees.find((a) => a.value === selectedValue)?.label || 'Select assignee...'
+    (typeof selectedValue === 'object' ? selectedValue?.customDisplayValue : null) ||
+    assignees.find(
+      (a) => a.value === (typeof selectedValue === 'object' ? selectedValue?.value : selectedValue)
+    )?.label ||
+    'Select assignee...'
 
-  const handleSelect = (assigneeId: string) => {
+  const handleSelect = (assignee: Assignee) => {
     if (!isPreview && !disabled) {
-      setStoreValue(assigneeId)
+      setStoreValue({ ...assignee, customDisplayValue: assignee.label })
       setOpen(false)
     }
   }
@@ -139,22 +144,24 @@ export function ArenaAssigneeSelector({
             <CommandList>
               <CommandEmpty>{loading ? 'Loading...' : 'No assignees found.'}</CommandEmpty>
               <CommandGroup>
-                {assignees.map((assignee) => (
-                  <CommandItem
-                    key={assignee.value}
-                    value={assignee.value}
-                    // ✅ FIX: Wrap in closure, don't pass param directly
-                    onSelect={() => handleSelect(assignee.value)}
-                  >
-                    {assignee.label}
-                    <Check
-                      className={cn(
-                        'ml-auto h-4 w-4',
-                        selectedValue === assignee.value ? 'opacity-100' : 'opacity-0'
-                      )}
-                    />
-                  </CommandItem>
-                ))}
+                {assignees.map((assignee) => {
+                  const isSelected =
+                    typeof selectedValue === 'object'
+                      ? selectedValue?.value === assignee.value
+                      : selectedValue === assignee.value
+                  return (
+                    <CommandItem
+                      key={assignee.value}
+                      value={assignee.value}
+                      onSelect={() => handleSelect(assignee)}
+                    >
+                      {assignee.label}
+                      <Check
+                        className={cn('ml-auto h-4 w-4', isSelected ? 'opacity-100' : 'opacity-0')}
+                      />
+                    </CommandItem>
+                  )
+                })}
               </CommandGroup>
             </CommandList>
           </Command>

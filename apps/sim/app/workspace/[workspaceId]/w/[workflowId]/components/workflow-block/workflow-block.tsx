@@ -180,6 +180,9 @@ const getDisplayValue = (value: unknown): string => {
   }
 
   if (isPlainObject(value)) {
+    if (value.customDisplayValue) {
+      return value.customDisplayValue as string
+    }
     const entries = Object.entries(value).filter(
       ([, val]) => val !== null && val !== undefined && val !== ''
     )

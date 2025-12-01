@@ -48,7 +48,8 @@ export function ArenaGroupSelector({
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const values = useSubBlockStore((state) => state.workflowValues)
   const clientId = values?.[activeWorkflowId ?? '']?.[blockId]?.['task-client']?.clientId
-  const projectId = values?.[activeWorkflowId ?? '']?.[blockId]?.['task-project']
+  const projectValue = values?.[activeWorkflowId ?? '']?.[blockId]?.['task-project']
+  const projectId = typeof projectValue === 'string' ? projectValue : projectValue?.sysId
 
   const previewValue = isPreview && subBlockValues ? subBlockValues[subBlockId]?.value : undefined
   const selectedValue = isPreview ? previewValue : storeValue
@@ -89,16 +90,19 @@ export function ArenaGroupSelector({
     fetchGroups()
     return () => {
       setGroups([])
-      setStoreValue(null)
     }
   }, [clientId, projectId])
 
   const selectedLabel =
-    groups.find((grp) => grp.id === selectedValue?.id)?.name || 'Select group...'
+    selectedValue?.customDisplayValue ||
+    groups.find(
+      (grp) => grp.id === (typeof selectedValue === 'object' ? selectedValue?.id : selectedValue)
+    )?.name ||
+    'Select group...'
 
   const handleSelect = (group: Group) => {
     if (!isPreview && !disabled) {
-      setStoreValue(group)
+      setStoreValue({ ...group, customDisplayValue: group.name })
       setOpen(false)
     }
   }
@@ -146,7 +150,10 @@ export function ArenaGroupSelector({
                     <Check
                       className={cn(
                         'ml-auto h-4 w-4',
-                        selectedValue?.id === group.id ? 'opacity-100' : 'opacity-0'
+                        (typeof selectedValue === 'object' ? selectedValue?.id : selectedValue) ===
+                          group.id
+                          ? 'opacity-100'
+                          : 'opacity-0'
                       )}
                     />
                   </CommandItem>

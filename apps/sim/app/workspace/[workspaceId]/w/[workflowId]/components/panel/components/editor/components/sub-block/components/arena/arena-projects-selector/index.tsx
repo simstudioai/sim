@@ -85,16 +85,20 @@ export function ArenaProjectSelector({
 
     return () => {
       setProjects([])
-      setStoreValue('')
     }
   }, [clientId, searchQuery])
 
   const selectedLabel =
-    projects.find((proj) => proj.sysId === selectedValue)?.name || 'Select project...'
+    selectedValue?.customDisplayValue ||
+    projects.find(
+      (proj) =>
+        proj.sysId === (typeof selectedValue === 'string' ? selectedValue : selectedValue?.sysId)
+    )?.name ||
+    'Select project...'
 
-  const handleSelect = (projectId: string) => {
+  const handleSelect = (project: Project) => {
     if (!isPreview && !disabled) {
-      setStoreValue(projectId)
+      setStoreValue({ ...project, customDisplayValue: project.name })
       setOpen(false)
     }
   }
@@ -129,22 +133,25 @@ export function ArenaProjectSelector({
             <CommandList>
               <CommandEmpty>No project found.</CommandEmpty>
               <CommandGroup>
-                {projects.map((project) => (
-                  <CommandItem
-                    key={project.sysId}
-                    value={project.sysId}
-                    onSelect={() => handleSelect(project.sysId)}
-                    className='whitespace-normal break-words'
-                  >
-                    <span className='flex-1 whitespace-normal break-words'>{project.name}</span>
-                    <Check
-                      className={cn(
-                        'ml-auto h-4 w-4',
-                        selectedValue === project.sysId ? 'opacity-100' : 'opacity-0'
-                      )}
-                    />
-                  </CommandItem>
-                ))}
+                {projects.map((project) => {
+                  const isSelected =
+                    typeof selectedValue === 'string'
+                      ? selectedValue === project.sysId
+                      : selectedValue?.sysId === project.sysId
+                  return (
+                    <CommandItem
+                      key={project.sysId}
+                      value={project.sysId}
+                      onSelect={() => handleSelect(project)}
+                      className='whitespace-normal break-words'
+                    >
+                      <span className='flex-1 whitespace-normal break-words'>{project.name}</span>
+                      <Check
+                        className={cn('ml-auto h-4 w-4', isSelected ? 'opacity-100' : 'opacity-0')}
+                      />
+                    </CommandItem>
+                  )
+                })}
               </CommandGroup>
             </CommandList>
           </Command>
