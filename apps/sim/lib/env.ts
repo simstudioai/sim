@@ -72,15 +72,25 @@ export const env = createEnv({
     OPENAI_API_KEY_1:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
     OPENAI_API_KEY_2:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
     OPENAI_API_KEY_3:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
+    XAI_API_KEY:                           z.string().min(1).optional(),  
+    XAI_API_KEY_1:                         z.string().min(1).optional(), 
+    XAI_API_KEY_2:                         z.string().min(1).optional(), 
+    XAI_API_KEY_3:                         z.string().min(1).optional(), 
     MISTRAL_API_KEY:                       z.string().min(1).optional(),           // Mistral AI API key
+    ANTHROPIC_API_KEY:                     z.string().min(1).optional(),           // Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_1:                   z.string().min(1).optional(),           // Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_2:                   z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3:                   z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
     OLLAMA_URL:                            z.string().url().optional(),            // Ollama local LLM server URL
-    VLLM_BASE_URL:                         z.string().url().optional(),            // vLLM self-hosted base URL (OpenAI-compatible)
-    VLLM_API_KEY:                          z.string().optional(),                  // Optional bearer token for vLLM
     ELEVENLABS_API_KEY:                    z.string().min(1).optional(),           // ElevenLabs API key for text-to-speech in deployed chat
     SERPER_API_KEY:                        z.string().min(1).optional(),           // Serper API key for online search
+    SEMRUSH_API_KEY:                       z.string().min(1).optional(),           // Semrush API key for SEO data
+    SPYFU_API_USERNAME:                    z.string().min(1).optional(),           // SpyFu API basic auth username
+    SPYFU_API_PASSWORD:                    z.string().min(1).optional(),           // SpyFu API basic auth password
+    SAMBANOVA_API_KEY:                     z.string().min(1).optional(),           // SambaNova AI API key
+    SAMBANOVA_API_KEY_1:                   z.string().min(1).optional(),           // Additional SambanovaAI API key for load balancing
+    SAMBANOVA_API_KEY_2:                   z.string().min(1).optional(),           // Additional SambanovaAI API key for load balancing
+    SAMBANOVA_API_KEY_3:                   z.string().min(1).optional(),    
     EXA_API_KEY:                           z.string().min(1).optional(),           // Exa AI API key for enhanced online search
     DEEPSEEK_MODELS_ENABLED:               z.boolean().optional().default(false),  // Enable Deepseek models in UI (defaults to false for compliance)
 

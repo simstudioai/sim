@@ -13,6 +13,7 @@ export type ProviderId =
   | 'ollama'
   | 'openrouter'
   | 'vllm'
+  | 'sambanova'
 
 /**
  * Model pricing information per million tokens
