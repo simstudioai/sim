@@ -248,7 +248,7 @@ export async function pollOutlookWebhooks() {
         logger.info(`[${requestId}] Processing ${emails.length} emails for webhook ${webhookId}`)
 
         // Process emails
-        const processed = await processOutlookEmails(
+        const { processedCount, failedCount } = await processOutlookEmails(
           emails,
           webhookData,
           config,
@@ -258,12 +258,23 @@ export async function pollOutlookWebhooks() {
 
         // Update webhook with latest timestamp
         await updateWebhookLastChecked(webhookId, now.toISOString())
-        await markWebhookSuccess(webhookId)
-        successCount++
 
-        logger.info(
-          `[${requestId}] Successfully processed ${processed} emails for webhook ${webhookId}`
-        )
+        // If all emails failed, mark webhook as failed. Otherwise mark as success.
+        if (failedCount > 0 && processedCount === 0) {
+          // All emails failed to process - mark webhook as failed
+          await markWebhookFailed(webhookId)
+          failureCount++
+          logger.warn(
+            `[${requestId}] All ${failedCount} emails failed to process for webhook ${webhookId}`
+          )
+        } else {
+          // At least some emails processed successfully
+          await markWebhookSuccess(webhookId)
+          successCount++
+          logger.info(
+            `[${requestId}] Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+          )
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         logger.error(`[${requestId}] Error processing Outlook webhook ${webhookId}:`, error)
@@ -404,6 +415,7 @@ async function processOutlookEmails(
   requestId: string
 ) {
   let processedCount = 0
+  let failedCount = 0
 
   for (const email of emails) {
     try {
@@ -510,10 +522,11 @@ async function processOutlookEmails(
       processedCount++
     } catch (error) {
       logger.error(`[${requestId}] Error processing email ${email.id}:`, error)
+      failedCount++
     }
   }
 
-  return processedCount
+  return { processedCount, failedCount }
 }
 
 async function downloadOutlookAttachments(
