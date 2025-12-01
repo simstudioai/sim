@@ -75,7 +75,15 @@ function resolveFileSelector(
     case 'jira':
       return { key: 'jira.issues', context, allowSearch: true }
     case 'microsoft-teams':
-      return { key: 'microsoft.teams', context, allowSearch: true }
+      // Route to the correct selector based on what type of resource is being selected
+      if (subBlock.id === 'chatId') {
+        return { key: 'microsoft.chats', context, allowSearch: false }
+      }
+      if (subBlock.id === 'channelId') {
+        return { key: 'microsoft.channels', context, allowSearch: false }
+      }
+      // Default to teams selector for teamId
+      return { key: 'microsoft.teams', context, allowSearch: false }
     case 'wealthbox':
       return { key: 'wealthbox.contacts', context, allowSearch: true }
     case 'microsoft-planner':
