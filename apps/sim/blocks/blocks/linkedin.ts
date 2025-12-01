@@ -32,7 +32,6 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
       id: 'credential',
       title: 'LinkedIn Account',
       type: 'oauth-input',
-      provider: 'linkedin',
       serviceId: 'linkedin',
       requiredScopes: ['profile', 'openid', 'email', 'w_member_social'],
       placeholder: 'Select LinkedIn account',
