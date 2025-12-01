@@ -1,0 +1,188 @@
+---
+title: Amazon DynamoDB
+description: 连接到 Amazon DynamoDB
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dynamodb"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon DynamoDB](https://aws.amazon.com/dynamodb/) 是 AWS 提供的一项完全托管的 NoSQL 数据库服务，具有快速且可预测的性能，并支持无缝扩展。DynamoDB 允许您存储和检索任意数量的数据，并处理任何级别的请求流量，而无需您管理硬件或基础设施。
+
+使用 DynamoDB，您可以：
+
+- **获取项目**：使用主键查找表中的项目
+- **添加项目**：在表中添加或替换项目
+- **查询项目**：通过索引查询检索多个项目
+- **扫描表**：读取表中的全部或部分数据
+- **更新项目**：修改现有项目的特定属性
+- **删除项目**：从表中移除记录
+
+在 Sim 中，DynamoDB 集成使您的代理能够使用 AWS 凭证安全地访问和操作 DynamoDB 表。支持的操作包括：
+
+- **获取**：通过键检索项目
+- **添加**：插入或覆盖项目
+- **查询**：使用键条件和过滤器运行查询
+- **扫描**：通过扫描表或索引读取多个项目
+- **更新**：更改一个或多个项目的特定属性
+- **删除**：从表中移除项目
+
+此集成使 Sim 代理能够以编程方式自动化管理 DynamoDB 表中的数据管理任务，从而构建无需手动操作或服务器管理的工作流，来管理、修改和检索可扩展的 NoSQL 数据。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Amazon DynamoDB 集成到工作流中。支持对 DynamoDB 表执行获取、添加、查询、扫描、更新和删除操作。
+
+## 工具
+
+### `dynamodb_get`
+
+通过主键从 DynamoDB 表中获取一个项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `tableName` | string | 是 | DynamoDB 表名 |
+| `key` | object | 是 | 要检索的项目主键 |
+| `consistentRead` | boolean | 否 | 使用强一致性读取 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `item` | object | 检索到的项目 |
+
+### `dynamodb_put`
+
+将一个项目放入 DynamoDB 表中
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `tableName` | string | 是 | DynamoDB 表名 |
+| `item` | object | 是 | 要放入表中的项目 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `item` | object | 创建的项目 |
+
+### `dynamodb_query`
+
+使用键条件从 DynamoDB 表中查询项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `tableName` | string | 是 | DynamoDB 表名 |
+| `keyConditionExpression` | string | 是 | 键条件表达式 \(例如，"pk = :pk"\) |
+| `filterExpression` | string | 否 | 结果的过滤表达式 |
+| `expressionAttributeNames` | object | 否 | 保留字的属性名称映射 |
+| `expressionAttributeValues` | object | 否 | 表达式属性值 |
+| `indexName` | string | 否 | 要查询的二级索引名称 |
+| `limit` | number | 否 | 要返回的最大项目数 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `items` | array | 返回的项目数组 |
+| `count` | number | 返回的项目数量 |
+
+### `dynamodb_scan`
+
+扫描 DynamoDB 表中的所有项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `tableName` | string | 是 | DynamoDB 表名 |
+| `filterExpression` | string | 否 | 结果的过滤表达式 |
+| `projectionExpression` | string | 否 | 要检索的属性 |
+| `expressionAttributeNames` | object | 否 | 保留字的属性名称映射 |
+| `expressionAttributeValues` | object | 否 | 表达式属性值 |
+| `limit` | number | 否 | 要返回的最大项目数 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `items` | array | 返回的项目数组 |
+| `count` | number | 返回的项目数量 |
+
+### `dynamodb_update`
+
+更新 DynamoDB 表中的项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `tableName` | string | 是 | DynamoDB 表名 |
+| `key` | object | 是 | 要更新项目的主键 |
+| `updateExpression` | string | 是 | 更新表达式 \(例如，"SET #name = :name"\) |
+| `expressionAttributeNames` | object | 否 | 保留字的属性名称映射 |
+| `expressionAttributeValues` | object | 否 | 表达式属性值 |
+| `conditionExpression` | string | 否 | 更新成功所需满足的条件 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `item` | object | 更新后的项目 |
+
+### `dynamodb_delete`
+
+从 DynamoDB 表中删除项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `tableName` | string | 是 | DynamoDB 表名 |
+| `key` | object | 是 | 要删除项目的主键 |
+| `conditionExpression` | string | 否 | 删除成功所需满足的条件 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+
+## 注意
+
+- 类别: `tools`
+- 类型: `dynamodb`

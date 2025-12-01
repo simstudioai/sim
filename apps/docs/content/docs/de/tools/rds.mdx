@@ -1,0 +1,168 @@
+---
+title: Amazon RDS
+description: Verbindung zu Amazon RDS über Data API
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="rds"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon RDS Aurora Serverless](https://aws.amazon.com/rds/aurora/serverless/) ist eine vollständig verwaltete relationale Datenbank, die automatisch startet, herunterfährt und ihre Kapazität basierend auf den Anforderungen Ihrer Anwendung skaliert. Sie ermöglicht es Ihnen, SQL-Datenbanken in der Cloud zu betreiben, ohne Datenbankserver verwalten zu müssen.
+
+Mit RDS Aurora Serverless können Sie:
+
+- **Daten abfragen**: Flexible SQL-Abfragen über Ihre Tabellen ausführen
+- **Neue Datensätze einfügen**: Automatisch Daten zu Ihrer Datenbank hinzufügen
+- **Bestehende Datensätze aktualisieren**: Daten in Ihren Tabellen mit benutzerdefinierten Filtern ändern
+- **Datensätze löschen**: Unerwünschte Daten mit präzisen Kriterien entfernen
+- **Raw-SQL ausführen**: Jeden gültigen SQL-Befehl ausführen, der von Aurora unterstützt wird
+
+In Sim ermöglicht die RDS-Integration Ihren Agenten, sicher und programmatisch mit Amazon Aurora Serverless-Datenbanken zu arbeiten. Zu den unterstützten Operationen gehören:
+
+- **Abfrage**: SELECT und andere SQL-Abfragen ausführen, um Zeilen aus Ihrer Datenbank abzurufen
+- **Einfügen**: Neue Datensätze mit strukturierten Daten in Tabellen einfügen
+- **Aktualisieren**: Daten in Zeilen ändern, die Ihren angegebenen Bedingungen entsprechen
+- **Löschen**: Datensätze aus einer Tabelle nach benutzerdefinierten Filtern oder Kriterien entfernen
+- **Ausführen**: Raw-SQL für fortgeschrittene Szenarien ausführen
+
+Diese Integration ermöglicht es Ihren Agenten, eine breite Palette von Datenbankoperationen ohne manuelle Eingriffe zu automatisieren. Durch die Verbindung von Sim mit Amazon RDS können Sie Agenten erstellen, die relationale Daten innerhalb Ihrer Workflows verwalten, aktualisieren und abrufen – alles ohne Datenbankinfrastruktur oder -verbindungen zu verwalten.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie Amazon RDS Aurora Serverless in den Workflow mit der Data API. Kann Daten abfragen, einfügen, aktualisieren, löschen und Raw-SQL ausführen, ohne Datenbankverbindungen verwalten zu müssen.
+
+## Tools
+
+### `rds_query`
+
+Führen Sie eine SELECT-Abfrage auf Amazon RDS mit der Data API aus
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Ja | AWS-Region (z.B. us-east-1) |
+| `accessKeyId` | string | Ja | AWS-Zugriffsschlüssel-ID |
+| `secretAccessKey` | string | Ja | AWS-Geheimzugriffsschlüssel |
+| `resourceArn` | string | Ja | ARN des Aurora-DB-Clusters |
+| `secretArn` | string | Ja | ARN des Secrets Manager-Geheimnisses mit DB-Anmeldedaten |
+| `database` | string | Nein | Datenbankname (optional) |
+| `query` | string | Ja | SQL-SELECT-Abfrage zur Ausführung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Array der zurückgegebenen Zeilen aus der Abfrage |
+| `rowCount` | number | Anzahl der zurückgegebenen Zeilen |
+
+### `rds_insert`
+
+Daten in eine Amazon RDS-Tabelle mit der Data API einfügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Ja | AWS-Region (z.B. us-east-1) |
+| `accessKeyId` | string | Ja | AWS-Zugriffsschlüssel-ID |
+| `secretAccessKey` | string | Ja | AWS-Geheimzugriffsschlüssel |
+| `resourceArn` | string | Ja | ARN des Aurora-DB-Clusters |
+| `secretArn` | string | Ja | ARN des Secrets Manager-Geheimnisses mit DB-Anmeldedaten |
+| `database` | string | Nein | Datenbankname (optional) |
+| `table` | string | Ja | Tabellenname zum Einfügen |
+| `data` | object | Ja | Einzufügende Daten als Schlüssel-Wert-Paare |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Array der eingefügten Zeilen |
+| `rowCount` | number | Anzahl der eingefügten Zeilen |
+
+### `rds_update`
+
+Daten in einer Amazon RDS-Tabelle über die Data API aktualisieren
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Ja | AWS-Region (z.B. us-east-1) |
+| `accessKeyId` | string | Ja | AWS-Zugriffsschlüssel-ID |
+| `secretAccessKey` | string | Ja | AWS-Geheimzugriffsschlüssel |
+| `resourceArn` | string | Ja | ARN des Aurora-DB-Clusters |
+| `secretArn` | string | Ja | ARN des Secrets Manager-Geheimnisses mit DB-Anmeldedaten |
+| `database` | string | Nein | Datenbankname (optional) |
+| `table` | string | Ja | Name der zu aktualisierenden Tabelle |
+| `data` | object | Ja | Zu aktualisierende Daten als Schlüssel-Wert-Paare |
+| `conditions` | object | Ja | Bedingungen für die Aktualisierung (z.B. `{"id": 1}`) |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Array der aktualisierten Zeilen |
+| `rowCount` | number | Anzahl der aktualisierten Zeilen |
+
+### `rds_delete`
+
+Daten aus einer Amazon RDS-Tabelle über die Data API löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Ja | AWS-Region (z.B. us-east-1) |
+| `accessKeyId` | string | Ja | AWS-Zugriffsschlüssel-ID |
+| `secretAccessKey` | string | Ja | AWS geheimer Zugriffsschlüssel |
+| `resourceArn` | string | Ja | ARN des Aurora-DB-Clusters |
+| `secretArn` | string | Ja | ARN des Secrets Manager-Geheimnisses mit DB-Anmeldedaten |
+| `database` | string | Nein | Datenbankname (optional) |
+| `table` | string | Ja | Tabellenname, aus dem gelöscht werden soll |
+| `conditions` | object | Ja | Bedingungen für das Löschen (z.B. `{"id": 1}`) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Array der gelöschten Zeilen |
+| `rowCount` | number | Anzahl der gelöschten Zeilen |
+
+### `rds_execute`
+
+Rohes SQL auf Amazon RDS über die Data API ausführen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Ja | AWS-Region (z.B. us-east-1) |
+| `accessKeyId` | string | Ja | AWS-Zugriffsschlüssel-ID |
+| `secretAccessKey` | string | Ja | AWS geheimer Zugriffsschlüssel |
+| `resourceArn` | string | Ja | ARN des Aurora-DB-Clusters |
+| `secretArn` | string | Ja | ARN des Secrets Manager-Geheimnisses mit DB-Anmeldedaten |
+| `database` | string | Nein | Datenbankname (optional) |
+| `query` | string | Ja | Rohe SQL-Abfrage zur Ausführung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Array der zurückgegebenen oder betroffenen Zeilen |
+| `rowCount` | number | Anzahl der betroffenen Zeilen |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `rds`
