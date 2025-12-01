@@ -353,7 +353,6 @@ export function Editor() {
                           blockId={currentBlockId}
                           config={subBlock}
                           isPreview={false}
-                          subBlockValues={subBlockState}
                           disabled={!userPermissions.canEdit}
                           fieldDiffStatus={undefined}
                           allowExpandInPreview={false}
