@@ -472,6 +472,33 @@ const WorkflowContent = React.memo(() => {
     }
   }, [debouncedAutoLayout, undo, redo])
 
+  /**
+   * Removes all edges connected to a block, skipping individual edge recording for undo/redo.
+   * Used when moving nodes between containers where edges would violate boundary constraints.
+   */
+  const removeEdgesForNode = useCallback(
+    (blockId: string, edgesToRemove: Edge[]): void => {
+      if (edgesToRemove.length === 0) return
+
+      // Skip individual edge recording - parent update will record as batch
+      window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: true } }))
+
+      try {
+        edgesToRemove.forEach((edge) => {
+          removeEdge(edge.id)
+        })
+
+        logger.debug('Removed edges for node', {
+          blockId,
+          edgeCount: edgesToRemove.length,
+        })
+      } finally {
+        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: false } }))
+      }
+    },
+    [removeEdge]
+  )
+
   // Listen for explicit remove-from-subflow actions from ActionBar
   useEffect(() => {
     const handleRemoveFromSubflow = (event: Event) => {
@@ -490,18 +517,11 @@ const WorkflowContent = React.memo(() => {
           (e) => e.source === blockId || e.target === blockId
         )
 
-        // Set flag to skip individual edge recording for undo/redo
-        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: true } }))
+        // Remove edges using shared helper
+        removeEdgesForNode(blockId, edgesToRemove)
 
-        // Remove edges first
-        edgesToRemove.forEach((edge) => {
-          removeEdge(edge.id)
-        })
-
-        // Then update parent relationship
+        // Update parent relationship (null = remove from parent)
         updateNodeParent(blockId, null, edgesToRemove)
-
-        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: false } }))
       } catch (err) {
         logger.error('Failed to remove from subflow', { err })
       }
@@ -510,7 +530,7 @@ const WorkflowContent = React.memo(() => {
     window.addEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
     return () =>
       window.removeEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
-  }, [getNodes, updateNodeParent, removeEdge, edgesForDisplay])
+  }, [blocks, edgesForDisplay, removeEdgesForNode, updateNodeParent])
 
   // Handle drops
   const findClosestOutput = useCallback(
@@ -1881,6 +1901,21 @@ const WorkflowContent = React.memo(() => {
 
       // Update the node's parent relationship
       if (potentialParentId) {
+        // Remove existing edges before moving into container
+        const edgesToRemove = edgesForDisplay.filter(
+          (e) => e.source === node.id || e.target === node.id
+        )
+
+        if (edgesToRemove.length > 0) {
+          removeEdgesForNode(node.id, edgesToRemove)
+
+          logger.info('Removed edges when moving node into subflow', {
+            blockId: node.id,
+            targetParentId: potentialParentId,
+            edgeCount: edgesToRemove.length,
+          })
+        }
+
         // Compute relative position BEFORE updating parent to avoid stale state
         // Account for header (50px), left padding (16px), and top padding (16px)
         const containerAbsPosBefore = getNodeAbsolutePosition(potentialParentId)
@@ -1954,8 +1989,9 @@ const WorkflowContent = React.memo(() => {
         // Skip recording these edges separately since they're part of the parent update
         window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: true } }))
 
-        // Moving to a new parent container - pass the edges that will be added
-        updateNodeParent(node.id, potentialParentId, edgesToAdd)
+        // Moving to a new parent container - pass both removed and added edges for undo/redo
+        const affectedEdges = [...edgesToRemove, ...edgesToAdd]
+        updateNodeParent(node.id, potentialParentId, affectedEdges)
 
         // Now add the edges after parent update
         edgesToAdd.forEach((edge) => addEdge(edge))
