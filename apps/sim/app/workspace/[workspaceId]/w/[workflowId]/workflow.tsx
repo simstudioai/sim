@@ -2012,6 +2012,8 @@ const WorkflowContent = React.memo(() => {
       addEdge,
       determineSourceHandle,
       blocks,
+      edgesForDisplay,
+      removeEdgesForNode,
       getNodeAbsolutePosition,
       getDragStartPosition,
       setDragStartPosition,
