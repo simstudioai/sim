@@ -498,8 +498,7 @@ export async function verifyProviderAuth(
 export async function checkWebhookPreprocessing(
   foundWorkflow: any,
   foundWebhook: any,
-  requestId: string,
-  testMode: boolean
+  requestId: string
 ): Promise<NextResponse | null> {
   try {
     const executionId = uuidv4()
