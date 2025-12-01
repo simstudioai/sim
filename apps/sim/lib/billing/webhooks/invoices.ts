@@ -1,6 +1,12 @@
 import { render } from '@react-email/components'
 import { db } from '@sim/db'
-import { member, subscription as subscriptionTable, user, userStats } from '@sim/db/schema'
+import {
+  member,
+  organization,
+  subscription as subscriptionTable,
+  user,
+  userStats,
+} from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import PaymentFailedEmail from '@/components/emails/billing/payment-failed-email'
@@ -291,6 +297,11 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
           .where(eq(userStats.userId, m.userId))
       }
     }
+
+    await db
+      .update(organization)
+      .set({ departedMemberUsage: '0' })
+      .where(eq(organization.id, sub.referenceId))
   } else {
     const currentStats = await db
       .select({

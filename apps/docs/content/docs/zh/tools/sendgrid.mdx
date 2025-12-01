@@ -1,0 +1,391 @@
+---
+title: SendGrid
+description: 使用 SendGrid 发送电子邮件并管理联系人、列表和模板
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sendgrid"
+  color="#1A82E2"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SendGrid](https://sendgrid.com) 是一个领先的基于云的电子邮件发送平台，受到开发者和企业的信赖，可大规模发送可靠的事务性和营销电子邮件。通过其强大的 API 和工具，SendGrid 使您能够管理电子邮件通信的各个方面，从发送通知和收据到管理复杂的营销活动。
+
+SendGrid 为用户提供了一整套电子邮件操作功能，使您能够自动化关键的电子邮件工作流，并密切管理联系人列表、模板和收件人参与度。它与 Sim 的无缝集成使代理和工作流能够发送目标消息，维护动态联系人和收件人列表，通过模板触发个性化电子邮件，并实时跟踪结果。
+
+SendGrid 的主要功能包括：
+
+- **事务性电子邮件：** 发送自动化和大批量的事务性电子邮件（如通知、收据和密码重置）。
+- **动态模板：** 使用丰富的 HTML 或文本模板和动态数据，实现大规模高度个性化的通信。
+- **联系人管理：** 添加和更新营销联系人，管理收件人列表，并针对活动目标群体进行细分。
+- **附件支持：** 在电子邮件中包含一个或多个文件附件。
+- **全面的 API 覆盖：** 以编程方式管理电子邮件、联系人、列表、模板、抑制组等。
+
+通过将 SendGrid 与 Sim 连接，您的代理可以：
+
+- 在任何工作流中发送简单或高级（模板化或多收件人）的电子邮件。
+- 自动管理和细分联系人和列表。
+- 利用模板实现一致性和动态个性化。
+- 在自动化流程中跟踪和响应电子邮件参与情况。
+
+此集成允许您自动化所有关键的通信流程，确保消息到达正确的受众，并直接从 Sim 工作流中维护对您组织电子邮件策略的控制。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 SendGrid 集成到您的工作流中。发送事务性电子邮件，管理营销联系人和列表，并使用电子邮件模板。支持动态模板、附件和全面的联系人管理。
+
+## 工具
+
+### `sendgrid_send_mail`
+
+使用 SendGrid API 发送电子邮件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `from` | string | 是 | 发件人电子邮件地址 \(必须在 SendGrid 中验证\) |
+| `fromName` | string | 否 | 发件人名称 |
+| `to` | string | 是 | 收件人电子邮件地址 |
+| `toName` | string | 否 | 收件人名称 |
+| `subject` | string | 否 | 电子邮件主题 \(除非使用具有预定义主题的模板，否则必需\) |
+| `content` | string | 否 | 电子邮件正文内容 \(除非使用具有预定义内容的模板，否则必需\) |
+| `contentType` | string | 否 | 内容类型 \(text/plain 或 text/html\) |
+| `cc` | string | 否 | 抄送电子邮件地址 |
+| `bcc` | string | 否 | 密送电子邮件地址 |
+| `replyTo` | string | 否 | 回复电子邮件地址 |
+| `replyToName` | string | 否 | 回复名称 |
+| `attachments` | file[] | 否 | 附加到电子邮件的文件 |
+| `templateId` | string | 否 | 要使用的 SendGrid 模板 ID |
+| `dynamicTemplateData` | json | 否 | 动态模板数据的 JSON 对象 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 邮件是否成功发送 |
+| `messageId` | string | SendGrid 消息 ID |
+| `to` | string | 收件人邮箱地址 |
+| `subject` | string | 邮件主题 |
+
+### `sendgrid_add_contact`
+
+向 SendGrid 添加新联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `email` | string | 是 | 联系人邮箱地址 |
+| `firstName` | string | 否 | 联系人名字 |
+| `lastName` | string | 否 | 联系人姓氏 |
+| `customFields` | json | 否 | 自定义字段键值对的 JSON 对象 \(使用字段 ID，如 e1_T, e2_N, e3_D，而不是字段名称\) |
+| `listIds` | string | 否 | 用逗号分隔的列表 ID，用于添加联系人 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `jobId` | string | 用于跟踪异步联系人创建的作业 ID |
+| `email` | string | 联系人邮箱地址 |
+| `firstName` | string | 联系人名字 |
+| `lastName` | string | 联系人姓氏 |
+| `message` | string | 状态消息 |
+
+### `sendgrid_get_contact`
+
+通过 ID 从 SendGrid 获取特定联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `contactId` | string | 是 | 联系人 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 联系人 ID |
+| `email` | string | 联系人邮箱地址 |
+| `firstName` | string | 联系人名字 |
+| `lastName` | string | 联系人姓氏 |
+| `createdAt` | string | 创建时间戳 |
+| `updatedAt` | string | 最后更新时间戳 |
+| `listIds` | json | 联系人所属列表 ID 的数组 |
+| `customFields` | json | 自定义字段值 |
+
+### `sendgrid_search_contacts`
+
+使用查询在 SendGrid 中搜索联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `query` | string | 是 | 搜索查询 \(例如，\"email LIKE '%example.com%' AND CONTAINS\(list_ids, 'list-id'\)\"\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contacts` | json | 匹配联系人的数组 |
+| `contactCount` | number | 找到的联系人总数 |
+
+### `sendgrid_delete_contacts`
+
+从 SendGrid 中删除一个或多个联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `contactIds` | string | 是 | 要删除的联系人 ID，逗号分隔 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `jobId` | string | 删除请求的作业 ID |
+
+### `sendgrid_create_list`
+
+在 SendGrid 中创建一个新的联系人列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `name` | string | 是 | 列表名称 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 列表 ID |
+| `name` | string | 列表名称 |
+| `contactCount` | number | 列表中的联系人数量 |
+
+### `sendgrid_get_list`
+
+通过 ID 从 SendGrid 获取特定列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `listId` | string | 是 | 列表 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 列表 ID |
+| `name` | string | 列表名称 |
+| `contactCount` | number | 列表中的联系人数量 |
+
+### `sendgrid_list_all_lists`
+
+从 SendGrid 获取所有联系人列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `pageSize` | number | 否 | 每页返回的列表数量 \(默认值: 100\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `lists` | json | 列表数组 |
+
+### `sendgrid_delete_list`
+
+从 SendGrid 删除联系人列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `listId` | string | 是 | 要删除的列表 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功消息 |
+
+### `sendgrid_add_contacts_to_list`
+
+在 SendGrid 中添加或更新联系人并将其分配到列表中（使用 PUT /v3/marketing/contacts）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `listId` | string | 是 | 要添加联系人的列表 ID |
+| `contacts` | json | 是 | 联系人对象的 JSON 数组。每个联系人必须至少包含：email（或 phone_number_id/external_id/anonymous_id）。示例：\[\{"email": "user@example.com", "first_name": "John"\}\] |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `jobId` | string | 用于跟踪异步操作的作业 ID |
+| `message` | string | 状态消息 |
+
+### `sendgrid_remove_contacts_from_list`
+
+从 SendGrid 的特定列表中移除联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `listId` | string | 是 | 列表 ID |
+| `contactIds` | string | 是 | 要从列表中移除的逗号分隔的联系人 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `jobId` | string | 请求的作业 ID |
+
+### `sendgrid_create_template`
+
+在 SendGrid 中创建一个新的电子邮件模板
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `name` | string | 是 | 模板名称 |
+| `generation` | string | 否 | 模板生成类型（legacy 或 dynamic，默认值：dynamic） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 模板 ID |
+| `name` | string | 模板名称 |
+| `generation` | string | 模板生成 |
+| `updatedAt` | string | 最后更新时间戳 |
+| `versions` | json | 模板版本数组 |
+
+### `sendgrid_get_template`
+
+通过 ID 从 SendGrid 获取特定模板
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `templateId` | string | 是 | 模板 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 模板 ID |
+| `name` | string | 模板名称 |
+| `generation` | string | 模板生成 |
+| `updatedAt` | string | 最后更新时间戳 |
+| `versions` | json | 模板版本数组 |
+
+### `sendgrid_list_templates`
+
+从 SendGrid 获取所有电子邮件模板
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `generations` | string | 否 | 按生成方式筛选 \(legacy、dynamic 或 both\) |
+| `pageSize` | number | 否 | 每页返回的模板数量 \(默认值: 20\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `templates` | json | 模板数组 |
+
+### `sendgrid_delete_template`
+
+从 SendGrid 删除电子邮件模板
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `templateId` | string | 是 | 要删除的模板 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `messageId` | string | 电子邮件消息 ID \(send_mail\) |
+| `id` | string | 资源 ID |
+| `jobId` | string | 异步操作的作业 ID |
+| `email` | string | 电子邮件地址 |
+| `firstName` | string | 名字 |
+| `lastName` | string | 姓氏 |
+| `contacts` | json | 联系人数组 |
+| `contactCount` | number | 联系人数量 |
+| `lists` | json | 列表数组 |
+| `templates` | json | 模板数组 |
+| `message` | string | 状态或成功消息 |
+| `name` | string | 资源名称 |
+| `generation` | string | 模板生成方式 |
+
+### `sendgrid_create_template_version`
+
+在 SendGrid 中创建一个新的电子邮件模板版本
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SendGrid API 密钥 |
+| `templateId` | string | 是 | 模板 ID |
+| `name` | string | 是 | 版本名称 |
+| `subject` | string | 是 | 电子邮件主题行 |
+| `htmlContent` | string | 否 | 模板的 HTML 内容 |
+| `plainContent` | string | 否 | 模板的纯文本内容 |
+| `active` | boolean | 否 | 此版本是否为激活状态（默认：true） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 版本 ID |
+| `templateId` | string | 模板 ID |
+| `name` | string | 版本名称 |
+| `subject` | string | 电子邮件主题 |
+| `active` | boolean | 此版本是否为激活状态 |
+| `htmlContent` | string | HTML 内容 |
+| `plainContent` | string | 纯文本内容 |
+| `updatedAt` | string | 最后更新时间戳 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`sendgrid`

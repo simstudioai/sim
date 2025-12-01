@@ -9,47 +9,51 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const mockDb = {
-  select: vi.fn(),
-  insert: vi.fn(),
-  delete: vi.fn(),
-  transaction: vi.fn(),
-}
+const { mockDb, mockWorkflowBlocks, mockWorkflowEdges, mockWorkflowSubflows } = vi.hoisted(() => {
+  const mockDb = {
+    select: vi.fn(),
+    insert: vi.fn(),
+    delete: vi.fn(),
+    transaction: vi.fn(),
+  }
 
-const mockWorkflowBlocks = {
-  workflowId: 'workflowId',
-  id: 'id',
-  type: 'type',
-  name: 'name',
-  positionX: 'positionX',
-  positionY: 'positionY',
-  enabled: 'enabled',
-  horizontalHandles: 'horizontalHandles',
-  height: 'height',
-  subBlocks: 'subBlocks',
-  outputs: 'outputs',
-  data: 'data',
-  parentId: 'parentId',
-  extent: 'extent',
-}
+  const mockWorkflowBlocks = {
+    workflowId: 'workflowId',
+    id: 'id',
+    type: 'type',
+    name: 'name',
+    positionX: 'positionX',
+    positionY: 'positionY',
+    enabled: 'enabled',
+    horizontalHandles: 'horizontalHandles',
+    height: 'height',
+    subBlocks: 'subBlocks',
+    outputs: 'outputs',
+    data: 'data',
+    parentId: 'parentId',
+    extent: 'extent',
+  }
 
-const mockWorkflowEdges = {
-  workflowId: 'workflowId',
-  id: 'id',
-  sourceBlockId: 'sourceBlockId',
-  targetBlockId: 'targetBlockId',
-  sourceHandle: 'sourceHandle',
-  targetHandle: 'targetHandle',
-}
+  const mockWorkflowEdges = {
+    workflowId: 'workflowId',
+    id: 'id',
+    sourceBlockId: 'sourceBlockId',
+    targetBlockId: 'targetBlockId',
+    sourceHandle: 'sourceHandle',
+    targetHandle: 'targetHandle',
+  }
 
-const mockWorkflowSubflows = {
-  workflowId: 'workflowId',
-  id: 'id',
-  type: 'type',
-  config: 'config',
-}
+  const mockWorkflowSubflows = {
+    workflowId: 'workflowId',
+    id: 'id',
+    type: 'type',
+    config: 'config',
+  }
 
-vi.doMock('@sim/db', () => ({
+  return { mockDb, mockWorkflowBlocks, mockWorkflowEdges, mockWorkflowSubflows }
+})
+
+vi.mock('@sim/db', () => ({
   db: mockDb,
   workflowBlocks: mockWorkflowBlocks,
   workflowEdges: mockWorkflowEdges,
@@ -64,9 +68,11 @@ vi.doMock('@sim/db', () => ({
     createdBy: 'createdBy',
     deployedBy: 'deployedBy',
   },
+  workflow: {},
+  webhook: {},
 }))
 
-vi.doMock('drizzle-orm', () => ({
+vi.mock('drizzle-orm', () => ({
   eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
   and: vi.fn((...conditions) => ({ type: 'and', conditions })),
   desc: vi.fn((field) => ({ field, type: 'desc' })),
@@ -78,7 +84,7 @@ vi.doMock('drizzle-orm', () => ({
   })),
 }))
 
-vi.doMock('@/lib/logs/console/logger', () => ({
+vi.mock('@/lib/logs/console/logger', () => ({
   createLogger: vi.fn(() => ({
     info: vi.fn(),
     error: vi.fn(),
@@ -86,6 +92,8 @@ vi.doMock('@/lib/logs/console/logger', () => ({
     debug: vi.fn(),
   })),
 }))
+
+import * as dbHelpers from '@/lib/workflows/db-helpers'
 
 const mockWorkflowId = 'test-workflow-123'
 
@@ -306,11 +314,8 @@ const mockWorkflowState: WorkflowState = {
 }
 
 describe('Database Helpers', () => {
-  let dbHelpers: typeof import('@/lib/workflows/db-helpers')
-
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks()
-    dbHelpers = await import('@/lib/workflows/db-helpers')
   })
 
   afterEach(() => {
@@ -341,6 +346,7 @@ describe('Database Helpers', () => {
       }))
 
       const result = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+
       expect(result).toBeDefined()
       expect(result?.isFromNormalizedTables).toBe(true)
       expect(result?.blocks).toBeDefined()

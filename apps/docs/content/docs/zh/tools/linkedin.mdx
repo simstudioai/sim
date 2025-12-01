@@ -1,0 +1,83 @@
+---
+title: LinkedIn
+description: 分享帖子并管理您的 LinkedIn 存在
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linkedin"
+  color="#0072B1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[LinkedIn](https://www.linkedin.com) 是全球最大的职业社交平台，帮助用户建立职业生涯，与人脉建立联系，并分享专业内容。LinkedIn 被各行业的专业人士广泛用于个人品牌建设、招聘、求职和业务发展。
+
+通过 LinkedIn，您可以轻松地在个人动态中分享帖子，与您的网络互动，并访问您的个人资料信息以突出您的职业成就。与 Sim 的自动集成使您能够以编程方式利用 LinkedIn 的功能——让代理和工作流发布更新、报告您的职业存在，并在无需手动操作的情况下保持动态活跃。
+
+通过此集成可用的 LinkedIn 关键功能包括：
+
+- **分享帖子：** 自动将专业更新、文章或公告发布到您的 LinkedIn 个人动态。
+- **个人资料信息：** 检索有关您 LinkedIn 个人资料的详细信息，以便在工作流中进行监控或用于后续任务。
+
+这些功能使您能够轻松地保持 LinkedIn 网络的互动，并作为您的 AI 或工作流自动化策略的一部分，高效地扩展您的职业影响力。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 LinkedIn 集成到工作流中。在个人动态中分享帖子并访问您的 LinkedIn 个人资料信息。
+
+## 工具
+
+### `linkedin_share_post`
+
+将帖子分享到您的个人 LinkedIn 动态
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | 是 | 您的 LinkedIn 帖子的文本内容 |
+| `visibility` | string | 否 | 谁可以看到此帖子：“PUBLIC” 或 “CONNECTIONS” \(默认值：“PUBLIC”\) |
+| `request` | string | 否 | 无描述 |
+| `output` | string | 否 | 无描述 |
+| `output` | string | 否 | 无描述 |
+| `specificContent` | string | 否 | 无描述 |
+| `shareCommentary` | string | 否 | 无描述 |
+| `visibility` | string | 否 | 无描述 |
+| `headers` | string | 否 | 无描述 |
+| `output` | string | 否 | 无描述 |
+| `output` | string | 否 | 无描述 |
+| `output` | string | 否 | 无描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `postId` | string | 创建的帖子 ID |
+| `profile` | json | LinkedIn 个人资料信息 |
+| `error` | string | 如果操作失败的错误信息 |
+
+### `linkedin_get_profile`
+
+检索您的 LinkedIn 个人资料信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `postId` | string | 创建的帖子 ID |
+| `profile` | json | LinkedIn 个人资料信息 |
+| `error` | string | 如果操作失败的错误信息 |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `linkedin`

@@ -656,6 +656,10 @@ export const customTools = pgTable(
   },
   (table) => ({
     workspaceIdIdx: index('custom_tools_workspace_id_idx').on(table.workspaceId),
+    workspaceTitleUnique: uniqueIndex('custom_tools_workspace_title_unique').on(
+      table.workspaceId,
+      table.title
+    ),
   })
 )
 
@@ -741,7 +745,8 @@ export const organization = pgTable('organization', {
   logo: text('logo'),
   metadata: json('metadata'),
   orgUsageLimit: decimal('org_usage_limit'),
-  storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0), // Storage tracking for team/enterprise
+  storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
+  departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -1330,6 +1335,7 @@ export const templateCreators = pgTable(
     name: text('name').notNull(),
     profileImageUrl: text('profile_image_url'),
     details: jsonb('details'),
+    verified: boolean('verified').notNull().default(false),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

@@ -1,0 +1,142 @@
+import { ApifyIcon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
+import type { RunActorResult } from '@/tools/apify/types'
+
+export const ApifyBlock: BlockConfig<RunActorResult> = {
+  type: 'apify',
+  name: 'Apify',
+  description: 'Run Apify actors and retrieve results',
+  longDescription:
+    'Integrate Apify into your workflow. Run any Apify actor with custom input and retrieve results. Supports both synchronous and asynchronous execution with automatic dataset fetching.',
+  docsLink: 'https://docs.sim.ai/tools/apify',
+  category: 'tools',
+  bgColor: '#E0E0E0',
+  icon: ApifyIcon,
+
+  subBlocks: [
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      options: [
+        { label: 'Run Actor', id: 'apify_run_actor_sync' },
+        { label: 'Run Actor (Async)', id: 'apify_run_actor_async' },
+      ],
+      value: () => 'apify_run_actor_sync',
+    },
+    {
+      id: 'apiKey',
+      title: 'Apify API Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter your Apify API token',
+      required: true,
+    },
+    {
+      id: 'actorId',
+      title: 'Actor ID',
+      type: 'short-input',
+      placeholder: 'e.g., janedoe/my-actor or actor ID',
+      required: true,
+    },
+    {
+      id: 'input',
+      title: 'Actor Input',
+      type: 'code',
+      language: 'json',
+      placeholder: '{\n  "startUrl": "https://example.com",\n  "maxPages": 10\n}',
+      required: false,
+    },
+    {
+      id: 'timeout',
+      title: 'Timeout',
+      type: 'short-input',
+      placeholder: 'Actor timeout in seconds',
+      required: false,
+    },
+    {
+      id: 'build',
+      title: 'Build',
+      type: 'short-input',
+      placeholder: 'Actor build (e.g., "latest", "beta", or build tag)',
+      required: false,
+    },
+    {
+      id: 'waitForFinish',
+      title: 'Wait For Finish',
+      type: 'short-input',
+      placeholder: 'Initial wait time in seconds (0-60)',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'apify_run_actor_async',
+      },
+    },
+    {
+      id: 'itemLimit',
+      title: 'Item Limit',
+      type: 'short-input',
+      placeholder: 'Max dataset items to fetch (1-250000)',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'apify_run_actor_async',
+      },
+    },
+  ],
+
+  tools: {
+    access: ['apify_run_actor_sync', 'apify_run_actor_async'],
+    config: {
+      tool: (params) => params.operation,
+      params: (params: Record<string, any>) => {
+        const { operation, ...rest } = params
+        const result: Record<string, any> = {
+          apiKey: rest.apiKey,
+          actorId: rest.actorId,
+        }
+
+        if (rest.input) {
+          result.input = rest.input
+        }
+
+        if (rest.timeout) {
+          result.timeout = Number(rest.timeout)
+        }
+
+        if (rest.build) {
+          result.build = rest.build
+        }
+
+        if (rest.waitForFinish) {
+          result.waitForFinish = Number(rest.waitForFinish)
+        }
+
+        if (rest.itemLimit) {
+          result.itemLimit = Number(rest.itemLimit)
+        }
+
+        return result
+      },
+    },
+  },
+
+  inputs: {
+    operation: { type: 'string', description: 'Operation to perform' },
+    apiKey: { type: 'string', description: 'Apify API token' },
+    actorId: { type: 'string', description: 'Actor ID or username/actor-name' },
+    input: { type: 'string', description: 'Actor input as JSON string' },
+    timeout: { type: 'number', description: 'Timeout in seconds' },
+    build: { type: 'string', description: 'Actor build version' },
+    waitForFinish: { type: 'number', description: 'Initial wait time in seconds' },
+    itemLimit: { type: 'number', description: 'Max dataset items to fetch' },
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the actor run succeeded' },
+    runId: { type: 'string', description: 'Apify run ID' },
+    status: { type: 'string', description: 'Run status (SUCCEEDED, FAILED, etc.)' },
+    datasetId: { type: 'string', description: 'Dataset ID containing results' },
+    items: { type: 'json', description: 'Dataset items (if completed)' },
+  },
+}
