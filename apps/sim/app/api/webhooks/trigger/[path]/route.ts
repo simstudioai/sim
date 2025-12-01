@@ -125,12 +125,7 @@ export async function POST(
 
   let preprocessError: NextResponse | null = null
   try {
-    preprocessError = await checkWebhookPreprocessing(
-      foundWorkflow,
-      foundWebhook,
-      requestId,
-      false // testMode
-    )
+    preprocessError = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
     if (preprocessError) {
       return preprocessError
     }
