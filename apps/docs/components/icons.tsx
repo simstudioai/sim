@@ -3835,31 +3835,37 @@ export function ApifyIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-interface StatusDotIconProps extends SVGProps<SVGSVGElement> {
-  status: 'operational' | 'degraded' | 'outage' | 'maintenance' | 'loading' | 'error'
-}
-
-export function StatusDotIcon({ status, className, ...props }: StatusDotIconProps) {
-  const colors = {
-    operational: '#10B981',
-    degraded: '#F59E0B',
-    outage: '#EF4444',
-    maintenance: '#3B82F6',
-    loading: '#9CA3AF',
-    error: '#9CA3AF',
-  }
-
+export function RDSIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={6}
-      height={6}
-      viewBox='0 0 6 6'
-      fill='none'
-      className={className}
       {...props}
+      width='800px'
+      height='800px'
+      viewBox='-16.5 0 289 289'
+      version='1.1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
+      preserveAspectRatio='xMidYMid'
     >
-      <circle cx={3} cy={3} r={3} fill={colors[status]} />
+      <g>
+        <path
+          d='M0,224.742 L29.972,259.867 L32.667,256.666 L32.667,32 L29.972,28.605 L0,63.717 L0,224.742'
+          fill='#1A476F'
+        />
+        <path
+          d='M29.976,259.867 L87.246,288.5 L89.628,284.667 L89.667,3 L87.286,0 L29.976,28.541 L29.976,259.867'
+          fill='#1F5B98'
+        />
+        <path
+          d='M256,63.717 L226.02,28.605 L222.667,29.667 L223.333,257 L226.02,259.867 L256,224.746 L256,63.717'
+          fill='#2D72B8'
+        />
+        <path
+          d='M168.75,288.5 L226.02,259.867 L226.02,28.541 L168.71,0 L166,3.667 L166.039,284.333 L168.75,288.5'
+          fill='#5294CF'
+        />
+        <path d='M87.286,0 L168.71,0 L168.71,288.504 L87.286,288.504 L87.286,0 Z' fill='#2D72B8' />
+      </g>
     </svg>
   )
 }

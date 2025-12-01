@@ -726,6 +726,13 @@ import {
 } from '@/tools/pylon'
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
 import {
+  deleteTool as rdsDeleteTool,
+  executeTool as rdsExecuteTool,
+  insertTool as rdsInsertTool,
+  queryTool as rdsQueryTool,
+  updateTool as rdsUpdateTool,
+} from '@/tools/rds'
+import {
   redditDeleteTool,
   redditEditTool,
   redditGetCommentsTool,
@@ -1227,6 +1234,11 @@ export const tools: Record<string, ToolConfig> = {
   postgresql_update: postgresUpdateTool,
   postgresql_delete: postgresDeleteTool,
   postgresql_execute: postgresExecuteTool,
+  rds_query: rdsQueryTool,
+  rds_insert: rdsInsertTool,
+  rds_update: rdsUpdateTool,
+  rds_delete: rdsDeleteTool,
+  rds_execute: rdsExecuteTool,
   mongodb_query: mongodbQueryTool,
   mongodb_insert: mongodbInsertTool,
   mongodb_update: mongodbUpdateTool,

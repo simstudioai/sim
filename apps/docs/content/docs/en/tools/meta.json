@@ -59,6 +59,7 @@
     "posthog",
     "pylon",
     "qdrant",
+    "rds",
     "reddit",
     "resend",
     "s3",

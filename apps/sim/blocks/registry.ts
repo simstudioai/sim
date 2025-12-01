@@ -70,6 +70,7 @@ import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { PostHogBlock } from '@/blocks/blocks/posthog'
 import { PylonBlock } from '@/blocks/blocks/pylon'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
+import { RDSBlock } from '@/blocks/blocks/rds'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
@@ -189,6 +190,7 @@ export const registry: Record<string, BlockConfig> = {
   posthog: PostHogBlock,
   pylon: PylonBlock,
   qdrant: QdrantBlock,
+  rds: RDSBlock,
   reddit: RedditBlock,
   resend: ResendBlock,
   response: ResponseBlock,
