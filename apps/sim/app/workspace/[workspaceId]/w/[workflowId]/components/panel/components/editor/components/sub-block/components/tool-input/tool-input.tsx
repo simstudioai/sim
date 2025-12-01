@@ -1728,7 +1728,7 @@ export function ToolInput({
                             >
                               <div
                                 className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
-                                style={{ backgroundColor: block.bgColor }}
+                                style={{ background: block.bgColor }}
                               >
                                 <IconComponent
                                   icon={block.icon}
@@ -2257,7 +2257,7 @@ export function ToolInput({
                               >
                                 <div
                                   className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
-                                  style={{ backgroundColor: block.bgColor }}
+                                  style={{ background: block.bgColor }}
                                 >
                                   <IconComponent
                                     icon={block.icon}

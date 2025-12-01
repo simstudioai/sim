@@ -84,7 +84,7 @@ export function McpToolsList({
         >
           <div
             className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
-            style={{ backgroundColor: mcpTool.bgColor }}
+            style={{ background: mcpTool.bgColor }}
           >
             <IconComponent icon={mcpTool.icon} className='h-[11px] w-[11px] text-white' />
           </div>

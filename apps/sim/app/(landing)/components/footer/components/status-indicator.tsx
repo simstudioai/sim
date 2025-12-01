@@ -1,9 +1,38 @@
 'use client'
 
+import type { SVGProps } from 'react'
 import Link from 'next/link'
-import { StatusDotIcon } from '@/components/icons'
 import type { StatusType } from '@/app/api/status/types'
 import { useStatus } from '@/hooks/queries/status'
+
+interface StatusDotIconProps extends SVGProps<SVGSVGElement> {
+  status: 'operational' | 'degraded' | 'outage' | 'maintenance' | 'loading' | 'error'
+}
+
+export function StatusDotIcon({ status, className, ...props }: StatusDotIconProps) {
+  const colors = {
+    operational: '#10B981',
+    degraded: '#F59E0B',
+    outage: '#EF4444',
+    maintenance: '#3B82F6',
+    loading: '#9CA3AF',
+    error: '#9CA3AF',
+  }
+
+  return (
+    <svg
+      xmlns='http://www.w3.org/2000/svg'
+      width={6}
+      height={6}
+      viewBox='0 0 6 6'
+      fill='none'
+      className={className}
+      {...props}
+    >
+      <circle cx={3} cy={3} r={3} fill={colors[status]} />
+    </svg>
+  )
+}
 
 const STATUS_COLORS: Record<StatusType, string> = {
   operational: 'text-[#10B981] hover:text-[#059669]',

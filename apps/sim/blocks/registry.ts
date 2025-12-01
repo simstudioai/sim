@@ -13,6 +13,7 @@ import { ClayBlock } from '@/blocks/blocks/clay'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock } from '@/blocks/blocks/confluence'
 import { DiscordBlock } from '@/blocks/blocks/discord'
+import { DynamoDBBlock } from '@/blocks/blocks/dynamodb'
 import { ElevenLabsBlock } from '@/blocks/blocks/elevenlabs'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { ExaBlock } from '@/blocks/blocks/exa'
@@ -70,6 +71,7 @@ import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { PostHogBlock } from '@/blocks/blocks/posthog'
 import { PylonBlock } from '@/blocks/blocks/pylon'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
+import { RDSBlock } from '@/blocks/blocks/rds'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
@@ -189,6 +191,8 @@ export const registry: Record<string, BlockConfig> = {
   posthog: PostHogBlock,
   pylon: PylonBlock,
   qdrant: QdrantBlock,
+  rds: RDSBlock,
+  dynamodb: DynamoDBBlock,
   reddit: RedditBlock,
   resend: ResendBlock,
   response: ResponseBlock,

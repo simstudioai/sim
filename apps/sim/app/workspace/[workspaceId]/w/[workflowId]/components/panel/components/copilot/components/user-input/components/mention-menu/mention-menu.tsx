@@ -176,7 +176,7 @@ export function MentionMenu({
           icon: (
             <div
               className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-              style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+              style={{ background: blk.bgColor || '#6B7280' }}
             >
               {Icon && <Icon className='!h-[10px] !w-[10px] text-white' />}
             </div>
@@ -198,7 +198,7 @@ export function MentionMenu({
           icon: (
             <div
               className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-              style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+              style={{ background: blk.bgColor || '#6B7280' }}
             >
               {Icon && <Icon className='!h-[10px] !w-[10px] text-white' />}
             </div>
@@ -474,7 +474,7 @@ export function MentionMenu({
                         >
                           <div
                             className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-                            style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+                            style={{ background: blk.bgColor || '#6B7280' }}
                           >
                             {Icon && <Icon className='!h-[10px] !w-[10px] text-white' />}
                           </div>
@@ -503,7 +503,7 @@ export function MentionMenu({
                         >
                           <div
                             className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-                            style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+                            style={{ background: blk.bgColor || '#6B7280' }}
                           >
                             {Icon && <Icon className='!h-[10px] !w-[10px] text-white' />}
                           </div>
@@ -680,7 +680,7 @@ export function MentionMenu({
                       <PopoverItem key={blk.id} onClick={() => insertBlockMention(blk)}>
                         <div
                           className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-                          style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+                          style={{ background: blk.bgColor || '#6B7280' }}
                         >
                           {Icon && <Icon className='!h-[10px] !w-[10px] text-white' />}
                         </div>
@@ -709,7 +709,7 @@ export function MentionMenu({
                       <PopoverItem key={blk.id} onClick={() => insertWorkflowBlockMention(blk)}>
                         <div
                           className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-                          style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+                          style={{ background: blk.bgColor || '#6B7280' }}
                         >
                           {Icon && <Icon className='!h-[10px] !w-[10px] text-white' />}
                         </div>

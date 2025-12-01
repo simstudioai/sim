@@ -1,0 +1,45 @@
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
+import { createDynamoDBClient, scanItems } from '@/app/api/tools/dynamodb/utils'
+
+const ScanSchema = z.object({
+  region: z.string().min(1, 'AWS region is required'),
+  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
+  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
+  tableName: z.string().min(1, 'Table name is required'),
+  filterExpression: z.string().optional(),
+  projectionExpression: z.string().optional(),
+  expressionAttributeNames: z.record(z.string()).optional(),
+  expressionAttributeValues: z.record(z.unknown()).optional(),
+  limit: z.number().positive().optional(),
+})
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json()
+    const validatedData = ScanSchema.parse(body)
+
+    const client = createDynamoDBClient({
+      region: validatedData.region,
+      accessKeyId: validatedData.accessKeyId,
+      secretAccessKey: validatedData.secretAccessKey,
+    })
+
+    const result = await scanItems(client, validatedData.tableName, {
+      filterExpression: validatedData.filterExpression,
+      projectionExpression: validatedData.projectionExpression,
+      expressionAttributeNames: validatedData.expressionAttributeNames,
+      expressionAttributeValues: validatedData.expressionAttributeValues,
+      limit: validatedData.limit,
+    })
+
+    return NextResponse.json({
+      message: `Scan returned ${result.count} items`,
+      items: result.items,
+      count: result.count,
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'DynamoDB scan failed'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
+  }
+}

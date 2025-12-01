@@ -346,10 +346,11 @@ function SubBlockComponent({
     | undefined
 
   // Use dependsOn gating to compute final disabled state
+  // Only pass previewContextValues when in preview mode to avoid format mismatches
   const { finalDisabled: gatedDisabled } = useDependsOnGate(blockId, config, {
     disabled,
     isPreview,
-    previewContextValues: subBlockValues,
+    previewContextValues: isPreview ? subBlockValues : undefined,
   })
 
   const isDisabled = gatedDisabled
@@ -611,7 +612,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
-            previewContextValues={subBlockValues}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
