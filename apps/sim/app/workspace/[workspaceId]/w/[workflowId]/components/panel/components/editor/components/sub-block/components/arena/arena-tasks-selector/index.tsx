@@ -3,6 +3,7 @@
 import * as React from 'react'
 import axios from 'axios'
 import { Check, ChevronsUpDown } from 'lucide-react'
+import { comboboxVariants } from '@/components/emcn/components/combobox/combobox'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -112,7 +113,11 @@ export function ArenaTaskSelector({
             role='combobox'
             aria-expanded={open}
             id={`task-${subBlockId}`}
-            className='w-full max-w-[420px] justify-between'
+            className={cn(
+              comboboxVariants(),
+              'relative cursor-pointer items-center justify-between',
+              layout === 'half' ? 'max-w-md' : 'w-full'
+            )}
             disabled={disabled || !projectId}
           >
             <span className='block flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left'>
@@ -121,7 +126,7 @@ export function ArenaTaskSelector({
             <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className='w-full max-w-[420px] p-0'>
+        <PopoverContent className='w-[var(--radix-popover-trigger-width)] rounded-[4px] p-0'>
           <Command
             filter={(value, search) => {
               // `value` is from CommandItem's "value" prop (sysId or id here)

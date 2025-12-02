@@ -8,10 +8,10 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   const pathname = usePathname()
 
   // Force light mode for workspace pages and templates
-  // Force light mode for certain public 
+  // Force light mode for certain public
   const forcedTheme =
     pathname.startsWith('/workspace') || pathname.startsWith('/templates')
-      ? 'dark'
+      ? 'light'
       : pathname === '/' ||
           pathname.startsWith('/login') ||
           pathname.startsWith('/signup') ||

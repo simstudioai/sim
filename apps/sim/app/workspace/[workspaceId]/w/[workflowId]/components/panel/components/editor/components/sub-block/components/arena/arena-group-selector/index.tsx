@@ -3,6 +3,7 @@
 import * as React from 'react'
 import axios from 'axios'
 import { Check, ChevronsUpDown } from 'lucide-react'
+import { comboboxVariants } from '@/components/emcn/components/combobox/combobox'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -116,14 +117,17 @@ export function ArenaGroupSelector({
             role='combobox'
             aria-expanded={open}
             id={`group-${subBlockId}`}
-            className='w-full justify-between'
+            className={cn(
+              comboboxVariants(),
+              'relative w-full cursor-pointer items-center justify-between'
+            )}
             disabled={disabled || !clientId || !projectId}
           >
             <span className='truncate'>{selectedLabel}</span>
             <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className='w-full p-0'>
+        <PopoverContent className='w-[var(--radix-popover-trigger-width)] rounded-[4px] p-0'>
           <Command
             filter={(value, search) => {
               const group = groups.find((g) => g.id === value || g.name === value)

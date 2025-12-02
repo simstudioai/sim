@@ -3884,7 +3884,6 @@ export function DynamoDBIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-
 export function ArenaIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

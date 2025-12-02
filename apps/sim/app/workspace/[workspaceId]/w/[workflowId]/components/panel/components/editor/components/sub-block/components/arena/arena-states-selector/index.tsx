@@ -3,6 +3,7 @@
 import * as React from 'react'
 import axios from 'axios'
 import { Check, ChevronsUpDown } from 'lucide-react'
+import { comboboxVariants } from '@/components/emcn/components/combobox/combobox'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -109,14 +110,17 @@ export function ArenaStatesSelector({
             role='combobox'
             aria-expanded={open}
             id={`state-${subBlockId}`}
-            className='flex h-auto min-h-[2.5rem] w-full items-start justify-between whitespace-normal break-words py-2 text-left'
+            className={cn(
+              comboboxVariants(),
+              'flex h-auto min-h-[2.5rem] w-full items-start justify-between whitespace-normal break-words py-2 text-left'
+            )}
             disabled={disabled}
           >
             <div className='flex-1 whitespace-normal break-words text-left'>{selectedLabel}</div>
             <ChevronsUpDown className='mt-1 ml-2 h-4 w-4 shrink-0 opacity-50' />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className='w-full p-0'>
+        <PopoverContent className='w-[var(--radix-popover-trigger-width)] rounded-[4px] p-0'>
           <Command
             filter={(value, search) => {
               const state = states.find((s) => s.id === value || s.name === value)
