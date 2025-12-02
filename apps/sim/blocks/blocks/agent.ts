@@ -120,7 +120,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         { label: 'medium', id: 'medium' },
         { label: 'high', id: 'high' },
       ],
-      value: () => 'low',
+      value: () => 'medium',
       condition: {
         field: 'model',
         value: MODELS_WITH_REASONING_EFFORT,
@@ -136,7 +136,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         { label: 'medium', id: 'medium' },
         { label: 'high', id: 'high' },
       ],
-      value: () => 'low',
+      value: () => 'medium',
       condition: {
         field: 'model',
         value: MODELS_WITH_VERBOSITY,
