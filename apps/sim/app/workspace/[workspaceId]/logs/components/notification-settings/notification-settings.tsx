@@ -229,6 +229,8 @@ export function NotificationSettings({
         .filter(Boolean)
       if (emails.length === 0) {
         errors.emailRecipients = 'At least one email address is required'
+      } else if (emails.length > 10) {
+        errors.emailRecipients = 'Maximum 10 email recipients allowed'
       } else {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
         const invalidEmails = emails.filter((e) => !emailRegex.test(e))
@@ -732,7 +734,9 @@ export function NotificationSettings({
               }}
               className='h-9 rounded-[8px]'
             />
-            <p className='text-muted-foreground text-xs'>Comma-separated list of email addresses</p>
+            <p className='text-muted-foreground text-xs'>
+              Comma-separated list of email addresses (max 10)
+            </p>
             {formErrors.emailRecipients && (
               <p className='text-red-400 text-xs'>{formErrors.emailRecipients}</p>
             )}

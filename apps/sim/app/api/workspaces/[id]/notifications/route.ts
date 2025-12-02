@@ -11,6 +11,12 @@ import { encryptSecret } from '@/lib/utils'
 
 const logger = createLogger('WorkspaceNotificationsAPI')
 
+/** Maximum email recipients per notification */
+const MAX_EMAIL_RECIPIENTS = 10
+
+/** Maximum notifications per type per workspace */
+const MAX_NOTIFICATIONS_PER_TYPE = 10
+
 const notificationTypeSchema = z.enum(['webhook', 'email', 'slack'])
 const levelFilterSchema = z.array(z.enum(['info', 'error']))
 const triggerFilterSchema = z.array(z.enum(['api', 'webhook', 'schedule', 'manual', 'chat']))
@@ -48,7 +54,7 @@ const createNotificationSchema = z
     alertConfig: alertConfigSchema.optional(),
     webhookUrl: z.string().url().optional(),
     webhookSecret: z.string().optional(),
-    emailRecipients: z.array(z.string().email()).optional(),
+    emailRecipients: z.array(z.string().email()).max(MAX_EMAIL_RECIPIENTS).optional(),
     slackChannelId: z.string().optional(),
     slackAccountId: z.string().optional(),
   })
@@ -143,6 +149,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const data = validationResult.data
+
+    const existingCount = await db
+      .select({ id: workspaceNotificationSubscription.id })
+      .from(workspaceNotificationSubscription)
+      .where(
+        and(
+          eq(workspaceNotificationSubscription.workspaceId, workspaceId),
+          eq(workspaceNotificationSubscription.notificationType, data.notificationType)
+        )
+      )
+
+    if (existingCount.length >= MAX_NOTIFICATIONS_PER_TYPE) {
+      return NextResponse.json(
+        {
+          error: `Maximum ${MAX_NOTIFICATIONS_PER_TYPE} ${data.notificationType} notifications per workspace`,
+        },
+        { status: 400 }
+      )
+    }
 
     if (!data.allWorkflows && data.workflowIds.length > 0) {
       const workflowsInWorkspace = await db
