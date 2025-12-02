@@ -116,7 +116,7 @@ function McpInputWithTags({
           className={cn(!isPassword && 'text-transparent caret-foreground')}
         />
         {!isPassword && (
-          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
+          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'>
             <div className='whitespace-pre'>
               {formatDisplayText(value?.toString() || '', {
                 accessiblePrefixes,
@@ -237,7 +237,7 @@ function McpTextareaWithTags({
         data-1p-ignore
         className={cn('min-h-[80px] resize-none text-transparent caret-foreground')}
       />
-      <div className='pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words p-3 text-sm'>
+      <div className='pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words px-[8px] py-[8px] font-medium font-sans text-sm'>
         {formatDisplayText(value || '', {
           accessiblePrefixes,
           highlightAll: !accessiblePrefixes,
