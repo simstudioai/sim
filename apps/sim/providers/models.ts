@@ -684,10 +684,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'gemini-2.5-pro',
         pricing: {
-          input: 0.15,
-          cachedInput: 0.075,
-          output: 0.6,
-          updatedAt: '2025-06-17',
+          input: 1.25,
+          cachedInput: 0.125,
+          output: 10.0,
+          updatedAt: '2025-12-02',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -697,10 +697,23 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'gemini-2.5-flash',
         pricing: {
-          input: 0.15,
-          cachedInput: 0.075,
-          output: 0.6,
-          updatedAt: '2025-06-17',
+          input: 0.3,
+          cachedInput: 0.03,
+          output: 2.5,
+          updatedAt: '2025-12-02',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1048576,
+      },
+      {
+        id: 'gemini-2.5-flash-lite',
+        pricing: {
+          input: 0.1,
+          cachedInput: 0.01,
+          output: 0.4,
+          updatedAt: '2025-12-02',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -772,14 +785,53 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'grok-4-latest',
         pricing: {
           input: 3.0,
-          cachedInput: 1.5,
+          cachedInput: 0.75,
           output: 15.0,
-          updatedAt: '2025-10-11',
+          updatedAt: '2025-12-02',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
+      },
+      {
+        id: 'grok-4-0709',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.75,
+          output: 15.0,
+          updatedAt: '2025-12-02',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 256000,
+      },
+      {
+        id: 'grok-4-1-fast-reasoning',
+        pricing: {
+          input: 0.2,
+          cachedInput: 0.05,
+          output: 0.5,
+          updatedAt: '2025-12-02',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 2000000,
+      },
+      {
+        id: 'grok-4-1-fast-non-reasoning',
+        pricing: {
+          input: 0.2,
+          cachedInput: 0.05,
+          output: 0.5,
+          updatedAt: '2025-12-02',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 2000000,
       },
       {
         id: 'grok-4-fast-reasoning',
