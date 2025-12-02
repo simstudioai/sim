@@ -14,6 +14,7 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { sendEmail } from '@/lib/email/mailer'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { decryptSecret } from '@/lib/utils'
 import { RateLimiter } from '@/services/queue'
 
@@ -211,8 +212,7 @@ function formatCost(cost?: Record<string, unknown>): string {
 }
 
 function buildLogUrl(workspaceId: string, executionId: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
-  return `${baseUrl}/workspace/${workspaceId}/logs?search=${encodeURIComponent(executionId)}`
+  return `${getBaseUrl()}/workspace/${workspaceId}/logs?search=${encodeURIComponent(executionId)}`
 }
 
 function formatJsonForEmail(data: unknown, label: string): string {
@@ -235,9 +235,15 @@ async function deliverEmail(
     return { success: false, error: 'No email recipients configured' }
   }
 
-  const statusEmoji = payload.data.status === 'success' ? '✅' : '❌'
-  const statusText = payload.data.status === 'success' ? 'Success' : 'Error'
+  const isError = payload.data.status !== 'success'
+  const statusText = isError ? 'Error' : 'Success'
   const logUrl = buildLogUrl(subscription.workspaceId, payload.data.executionId)
+  const baseUrl = getBaseUrl()
+
+  // Build subject line
+  const subject = isError
+    ? `Error Alert: ${payload.data.workflowName}`
+    : `Workflow Completed: ${payload.data.workflowName}`
 
   let includedDataHtml = ''
   let includedDataText = ''
@@ -268,40 +274,84 @@ async function deliverEmail(
 
   const result = await sendEmail({
     to: subscription.emailRecipients,
-    subject: `${statusEmoji} Workflow Execution: ${payload.data.workflowName}`,
+    subject,
     html: `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #1a1a1a; margin-bottom: 20px;">Workflow Execution ${statusText}</h2>
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 12px 0; color: #666; width: 140px;">Workflow</td>
-            <td style="padding: 12px 0; color: #1a1a1a; font-weight: 500;">${payload.data.workflowName}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 12px 0; color: #666;">Status</td>
-            <td style="padding: 12px 0; color: ${payload.data.status === 'success' ? '#22c55e' : '#ef4444'}; font-weight: 500;">${statusText}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 12px 0; color: #666;">Trigger</td>
-            <td style="padding: 12px 0; color: #1a1a1a;">${payload.data.trigger}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 12px 0; color: #666;">Duration</td>
-            <td style="padding: 12px 0; color: #1a1a1a;">${formatDuration(payload.data.totalDurationMs)}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 12px 0; color: #666;">Cost</td>
-            <td style="padding: 12px 0; color: #1a1a1a;">${formatCost(payload.data.cost)}</td>
-          </tr>
-        </table>
-        <a href="${logUrl}" style="display: inline-block; background: #7f2fff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 500; margin-bottom: 20px;">View Execution Log →</a>
-        ${includedDataHtml}
-        <p style="color: #999; font-size: 11px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
-          This notification was sent from Sim Studio. <a href="${logUrl}" style="color: #7f2fff;">View log</a>
-        </p>
-      </div>
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="background-color: #f5f5f7; font-family: HelveticaNeue, Helvetica, Arial, sans-serif; margin: 0; padding: 0;">
+          <div style="max-width: 580px; margin: 30px auto; background-color: #ffffff; border-radius: 5px; overflow: hidden;">
+            <!-- Header with Logo -->
+            <div style="padding: 30px 0; text-align: center;">
+              <img src="${baseUrl}/logo/reverse/text/medium.png" width="114" alt="Sim Studio" style="margin: 0 auto;" />
+            </div>
+            
+            <!-- Section Border -->
+            <div style="display: flex; width: 100%;">
+              <div style="border-bottom: 1px solid #eeeeee; width: 249px;"></div>
+              <div style="border-bottom: 1px solid #6F3DFA; width: 102px;"></div>
+              <div style="border-bottom: 1px solid #eeeeee; width: 249px;"></div>
+            </div>
+            
+            <!-- Content -->
+            <div style="padding: 5px 30px 20px 30px;">
+              <h2 style="font-size: 20px; color: #333333; margin: 20px 0;">
+                ${isError ? 'Workflow Execution Failed' : 'Workflow Execution Completed'}
+              </h2>
+              
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <tr style="border-bottom: 1px solid #eee;">
+                  <td style="padding: 12px 0; color: #666; width: 140px;">Workflow</td>
+                  <td style="padding: 12px 0; color: #333; font-weight: 500;">${payload.data.workflowName}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #eee;">
+                  <td style="padding: 12px 0; color: #666;">Status</td>
+                  <td style="padding: 12px 0; color: ${isError ? '#ef4444' : '#22c55e'}; font-weight: 500;">${statusText}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #eee;">
+                  <td style="padding: 12px 0; color: #666;">Trigger</td>
+                  <td style="padding: 12px 0; color: #333;">${payload.data.trigger}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #eee;">
+                  <td style="padding: 12px 0; color: #666;">Duration</td>
+                  <td style="padding: 12px 0; color: #333;">${formatDuration(payload.data.totalDurationMs)}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #eee;">
+                  <td style="padding: 12px 0; color: #666;">Cost</td>
+                  <td style="padding: 12px 0; color: #333;">${formatCost(payload.data.cost)}</td>
+                </tr>
+              </table>
+              
+              <a href="${logUrl}" style="display: inline-block; background-color: #6F3DFA; color: #ffffff; font-weight: bold; font-size: 16px; padding: 12px 30px; border-radius: 5px; text-decoration: none; text-align: center; margin: 20px 0;">
+                View Execution Log →
+              </a>
+              
+              ${includedDataHtml}
+              
+              <p style="font-size: 16px; line-height: 1.5; color: #333333; margin-top: 30px;">
+                Best regards,<br />
+                The Sim Team
+              </p>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div style="max-width: 580px; margin: 0 auto; padding: 20px 0; text-align: center;">
+            <p style="font-size: 12px; color: #706a7b; margin: 8px 0 0 0;">
+              © ${new Date().getFullYear()} Sim Studio, All Rights Reserved
+            </p>
+            <p style="font-size: 12px; color: #706a7b; margin: 8px 0 0 0;">
+              <a href="${baseUrl}/privacy" style="color: #706a7b; text-decoration: underline;">Privacy Policy</a> • 
+              <a href="${baseUrl}/terms" style="color: #706a7b; text-decoration: underline;">Terms of Service</a>
+            </p>
+          </div>
+        </body>
+      </html>
     `,
-    text: `Workflow Execution ${statusText}\n\nWorkflow: ${payload.data.workflowName}\nStatus: ${statusText}\nTrigger: ${payload.data.trigger}\nDuration: ${formatDuration(payload.data.totalDurationMs)}\nCost: ${formatCost(payload.data.cost)}\n\nView Log: ${logUrl}${includedDataText}`,
+    text: `${subject}\n\nWorkflow: ${payload.data.workflowName}\nStatus: ${statusText}\nTrigger: ${payload.data.trigger}\nDuration: ${formatDuration(payload.data.totalDurationMs)}\nCost: ${formatCost(payload.data.cost)}\n\nView Log: ${logUrl}${includedDataText}`,
     emailType: 'notifications',
   })
 
