@@ -257,6 +257,7 @@ export async function POST(req: NextRequest) {
     let credentialsText = ''
     const accessTokenMap: Record<string, string> = {} // provider -> accessToken
     let decryptedEnvVars: Record<string, string> = {} // env var name -> decrypted value
+    let envVarNames: string[] = []
 
     try {
       logger.info('Fetching credentials', { userId })
@@ -268,7 +269,6 @@ export async function POST(req: NextRequest) {
       })
 
       const oauthCreds = credentialsResult.oauth?.credentials || []
-      const envVarNames = credentialsResult.environment?.variableNames || []
 
       // Pre-fetch access tokens for all OAuth credentials
       const requestId = generateRequestId()
@@ -300,6 +300,7 @@ export async function POST(req: NextRequest) {
       // Fetch decrypted environment variables for API keys
       try {
         decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+        envVarNames = Object.keys(decryptedEnvVars)
         logger.info('Fetched decrypted environment variables', {
           count: Object.keys(decryptedEnvVars).length,
           keys: Object.keys(decryptedEnvVars),
@@ -318,13 +319,15 @@ export async function POST(req: NextRequest) {
 
       credentialsText = `\n\n**Available Credentials:**\n`
       if (oauthCreds.length > 0) {
-        credentialsText += `\nOAuth Integrations:\n${oauthCreds.map((c: any) => `- ${c.name} (${c.provider})`).join('\n')}`
+        credentialsText += `\nOAuth Integrations (connected):\n${oauthCreds
+          .map((c: any) => `- ${c.name} (${c.provider})`)
+          .join('\n')}`
       }
       if (envVarNames.length > 0) {
-        credentialsText += `\n\nEnvironment Variables:\n${envVarNames.map((v: string) => `- ${v}`).join('\n')}`
+        credentialsText += `\n\nAPI Keys Configured:\n${envVarNames.map((v: string) => `- ${v}`).join('\n')}`
       }
       if (oauthCreds.length === 0 && envVarNames.length === 0) {
-        credentialsText = '\n\n**No credentials configured yet.**'
+        credentialsText = '\n\n**No credentials or API keys configured yet.**'
       }
     } catch (error) {
       logger.warn('Failed to fetch credentials', {
@@ -508,6 +511,10 @@ CRITICAL BEHAVIOR RULES:
 3. Act as if you inherently know how to do everything - just DO IT
 4. When you need a tool, silently search for it and use it without narrating the process
 5. Respond naturally as if the capabilities are built into you
+
+CREDENTIAL RULES:
+- You may ONLY call OAuth-based tools for providers the user has already connected (see "Available Credentials" appended to the user's request). If a required credential is missing, ask the user to connect it before attempting the tool call.
+- You may ONLY call API-key-based tools when the relevant API key name is listed under "API Keys Configured". If it is missing, ask the user to add it first.
 
 INTERNAL WORKFLOW (do not expose to user):
 - Use tool_search_tool_bm25 or tool_search_tool_regex to find tools

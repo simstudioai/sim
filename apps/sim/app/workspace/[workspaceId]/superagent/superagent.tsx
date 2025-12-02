@@ -28,32 +28,36 @@ const MAX_CONTENT_WIDTH = 800
  * Convert raw SSE-formatted content into plain text
  */
 function parseSSEContent(content: string): string {
-  if (!content || !content.includes('data: ')) {
+  if (!content || !content.includes('data:')) {
     return content
   }
 
-  let parsed = ''
+  const pattern = /data:\s*({[\s\S]*?})(?:\n|$)/g
+  const matches = Array.from(content.matchAll(pattern))
 
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed.startsWith('data: ')) continue
-
-    const payload = trimmed.slice(6)
-    if (!payload) continue
-
-    try {
-      const data = JSON.parse(payload)
-      if (data.type === 'text' && typeof data.text === 'string') {
-        parsed += data.text
-      } else if (data.type === 'content' && typeof data.content === 'string') {
-        parsed += data.content
-      }
-    } catch {
-      // Ignore malformed JSON payloads
-    }
+  if (matches.length === 0) {
+    return content
   }
 
-  return parsed || content
+  const parsedSegments = matches
+    .map((match) => {
+      try {
+        const payload = JSON.parse(match[1])
+        if (payload.type === 'text' && typeof payload.text === 'string') {
+          return payload.text
+        }
+        if (payload.type === 'content' && typeof payload.content === 'string') {
+          return payload.content
+        }
+        return ''
+      } catch {
+        return ''
+      }
+    })
+    .join('')
+    .trim()
+
+  return parsedSegments.length > 0 ? parsedSegments : content
 }
 
 /**
