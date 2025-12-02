@@ -108,7 +108,7 @@ export function WorkflowSelector({
           <div
             onClick={() => setOpen(true)}
             className={cn(
-              'relative flex w-full cursor-text rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)] hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
+              'relative flex w-full cursor-text rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
               error && 'border-red-400'
             )}
           >
@@ -125,12 +125,12 @@ export function WorkflowSelector({
                 }
               }}
               className={cn(
-                'flex-1 bg-transparent px-[8px] py-[6px] font-sans font-medium text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none',
+                'flex-1 bg-transparent px-[8px] py-[6px] font-medium font-sans text-[var(--text-primary)] text-sm outline-none placeholder:text-[var(--text-muted)]',
                 hasSelection && !open && 'text-transparent'
               )}
             />
             {hasSelection && !open && (
-              <div className='pointer-events-none absolute inset-y-0 left-0 right-[28px] flex items-center gap-1 overflow-hidden px-[8px]'>
+              <div className='pointer-events-none absolute inset-y-0 right-[28px] left-0 flex items-center gap-1 overflow-hidden px-[8px]'>
                 {allWorkflows ? (
                   <span className='rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs'>
                     All Workflows

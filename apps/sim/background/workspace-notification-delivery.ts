@@ -362,7 +362,7 @@ async function deliverSlack(
 
   if (payload.data.finalOutput) {
     const outputStr = JSON.stringify(payload.data.finalOutput, null, 2)
-    const truncated = outputStr.length > 2900 ? outputStr.slice(0, 2900) + '...' : outputStr
+    const truncated = outputStr.length > 2900 ? `${outputStr.slice(0, 2900)}...` : outputStr
     blocks.push({
       type: 'section',
       text: {
