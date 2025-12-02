@@ -90,7 +90,6 @@ export const WebhookBlock: BlockConfig = {
       id: 'gmailCredential',
       title: 'Gmail Account',
       type: 'oauth-input',
-      provider: 'google-email',
       serviceId: 'gmail',
       requiredScopes: [
         'https://www.googleapis.com/auth/gmail.modify',
@@ -104,7 +103,6 @@ export const WebhookBlock: BlockConfig = {
       id: 'outlookCredential',
       title: 'Microsoft Account',
       type: 'oauth-input',
-      provider: 'outlook',
       serviceId: 'outlook',
       requiredScopes: [
         'Mail.ReadWrite',

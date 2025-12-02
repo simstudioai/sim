@@ -18,6 +18,7 @@ import { Toggle } from '@/components/ui/toggle'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   getCanonicalScopesForProvider,
+  getProviderIdFromServiceId,
   type OAuthProvider,
   type OAuthService,
 } from '@/lib/oauth/oauth'
@@ -168,7 +169,6 @@ function FileSelectorSyncWrapper({
           id: paramId,
           type: 'file-selector' as const,
           title: paramId,
-          provider: uiComponent.provider,
           serviceId: uiComponent.serviceId,
           mimeType: uiComponent.mimeType,
           requiredScopes: uiComponent.requiredScopes || [],
@@ -467,7 +467,7 @@ function ChannelSelectorSyncWrapper({
           id: paramId,
           type: 'channel-selector' as const,
           title: paramId,
-          provider: uiComponent.provider || 'slack',
+          serviceId: uiComponent.serviceId,
           placeholder: uiComponent.placeholder,
           dependsOn: uiComponent.dependsOn,
         }}
@@ -1404,7 +1404,6 @@ export function ToolInput({
               id: `tool-${toolIndex || 0}-${param.id}`,
               type: 'project-selector' as const,
               title: param.id,
-              provider: uiComponent.provider || 'jira',
               serviceId: uiComponent.serviceId,
               placeholder: uiComponent.placeholder,
               requiredScopes: uiComponent.requiredScopes,
@@ -1421,7 +1420,7 @@ export function ToolInput({
           <ToolCredentialSelector
             value={value}
             onChange={onChange}
-            provider={(uiComponent.provider || uiComponent.serviceId) as OAuthProvider}
+            provider={getProviderIdFromServiceId(uiComponent.serviceId || '') as OAuthProvider}
             serviceId={uiComponent.serviceId as OAuthService}
             disabled={disabled}
             requiredScopes={uiComponent.requiredScopes || []}
@@ -1729,7 +1728,7 @@ export function ToolInput({
                             >
                               <div
                                 className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
-                                style={{ backgroundColor: block.bgColor }}
+                                style={{ background: block.bgColor }}
                               >
                                 <IconComponent
                                   icon={block.icon}
@@ -2258,7 +2257,7 @@ export function ToolInput({
                               >
                                 <div
                                   className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
-                                  style={{ backgroundColor: block.bgColor }}
+                                  style={{ background: block.bgColor }}
                                 >
                                   <IconComponent
                                     icon={block.icon}

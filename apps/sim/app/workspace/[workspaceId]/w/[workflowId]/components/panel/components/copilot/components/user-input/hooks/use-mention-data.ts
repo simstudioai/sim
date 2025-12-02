@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { shallow } from 'zustand/shallow'
+import { useShallow } from 'zustand/react/shallow'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -112,8 +112,7 @@ export function useMentionData(props: UseMentionDataProps) {
 
   // Only subscribe to block keys to avoid re-rendering on position updates
   const blockKeys = useWorkflowStore(
-    useCallback((state) => Object.keys(state.blocks), []),
-    shallow
+    useShallow(useCallback((state) => Object.keys(state.blocks), []))
   )
 
   // Use workflow registry as source of truth for workflows

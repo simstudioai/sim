@@ -1,12 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
 
-const DEFAULT_STARS = '15.4k'
+const DEFAULT_STARS = '18.6k'
 
 const logger = createLogger('GitHubStars')
 
 export async function getFormattedGitHubStars(): Promise<string> {
   try {
-    const response = await fetch('/api/github-stars', {
+    const response = await fetch('/api/stars', {
       headers: {
         'Cache-Control': 'max-age=3600', // Cache for 1 hour
       },

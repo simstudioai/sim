@@ -104,7 +104,7 @@ export class GenericBlockHandler implements BlockHandler {
       const output = result.output
       let cost = null
 
-      if (block.config.tool?.startsWith('knowledge_') && output?.cost) {
+      if (output?.cost) {
         cost = output.cost
       }
 

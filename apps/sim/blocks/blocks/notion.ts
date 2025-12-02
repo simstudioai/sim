@@ -34,7 +34,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'credential',
       title: 'Notion Account',
       type: 'oauth-input',
-      provider: 'notion',
       serviceId: 'notion',
       requiredScopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
       placeholder: 'Select Notion account',

@@ -39,7 +39,6 @@ export interface CopilotSubblockMetadata {
   language?: string
   generationType?: string
   // OAuth/credential properties
-  provider?: string
   serviceId?: string
   requiredScopes?: string[]
   // File properties
@@ -627,7 +626,6 @@ function processSubBlock(sb: any): CopilotSubblockMetadata {
     generationType: sb.generationType,
 
     // OAuth/credential properties
-    provider: sb.provider,
     serviceId: sb.serviceId,
     requiredScopes: sb.requiredScopes,
 

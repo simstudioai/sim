@@ -18,7 +18,6 @@ export const GoogleFormsBlock: BlockConfig = {
       title: 'Google Account',
       type: 'oauth-input',
       required: true,
-      provider: 'google-forms',
       serviceId: 'google-forms',
       requiredScopes: [
         'https://www.googleapis.com/auth/userinfo.email',

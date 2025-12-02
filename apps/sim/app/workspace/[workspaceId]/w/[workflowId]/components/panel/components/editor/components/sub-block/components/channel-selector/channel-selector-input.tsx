@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
+import { getProviderIdFromServiceId } from '@/lib/oauth/oauth'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
@@ -41,8 +42,11 @@ export function ChannelSelectorInput({
   const effectiveCredential = previewContextValues?.credential ?? connectedCredential
   const [_channelInfo, setChannelInfo] = useState<string | null>(null)
 
-  const provider = subBlock.provider || 'slack'
-  const isSlack = provider === 'slack'
+  // Use serviceId to identify the service and derive providerId for credential lookup
+  const serviceId = subBlock.serviceId || ''
+  const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
+  const isSlack = serviceId === 'slack'
+
   // Central dependsOn gating
   const { finalDisabled, dependsOn } = useDependsOnGate(blockId, subBlock, {
     disabled,
@@ -58,7 +62,7 @@ export function ChannelSelectorInput({
 
   // Determine if connected OAuth credential is foreign (not applicable for bot tokens)
   const { isForeignCredential } = useForeignCredential(
-    'slack',
+    effectiveProviderId,
     (effectiveAuthMethod as string) === 'bot_token' ? '' : (effectiveCredential as string) || ''
   )
 
@@ -87,11 +91,11 @@ export function ChannelSelectorInput({
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <div className='w-full rounded border border-dashed p-4 text-center text-muted-foreground text-sm'>
-            Channel selector not supported for provider: {provider}
+            Channel selector not supported for service: {serviceId || 'unknown'}
           </div>
         </Tooltip.Trigger>
         <Tooltip.Content side='top'>
-          <p>This channel selector is not yet implemented for {provider}</p>
+          <p>This channel selector is not yet implemented for {serviceId || 'unknown'}</p>
         </Tooltip.Content>
       </Tooltip.Root>
     )

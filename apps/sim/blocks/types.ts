@@ -228,8 +228,7 @@ export interface SubBlockConfig {
   generationType?: GenerationType
   collapsible?: boolean // Whether the code block can be collapsed
   defaultCollapsed?: boolean // Whether the code block is collapsed by default
-  // OAuth specific properties
-  provider?: string
+  // OAuth specific properties - serviceId is the canonical identifier for OAuth services
   serviceId?: string
   requiredScopes?: string[]
   // File selector specific properties
