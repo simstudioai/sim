@@ -8,14 +8,9 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { encryptSecret } from '@/lib/utils'
+import { MAX_EMAIL_RECIPIENTS, MAX_NOTIFICATIONS_PER_TYPE, MAX_WORKFLOW_IDS } from './constants'
 
 const logger = createLogger('WorkspaceNotificationsAPI')
-
-/** Maximum email recipients per notification */
-const MAX_EMAIL_RECIPIENTS = 10
-
-/** Maximum notifications per type per workspace */
-const MAX_NOTIFICATIONS_PER_TYPE = 10
 
 const notificationTypeSchema = z.enum(['webhook', 'email', 'slack'])
 const levelFilterSchema = z.array(z.enum(['info', 'error']))
@@ -43,7 +38,7 @@ const alertConfigSchema = z
 const createNotificationSchema = z
   .object({
     notificationType: notificationTypeSchema,
-    workflowIds: z.array(z.string()).default([]),
+    workflowIds: z.array(z.string()).max(MAX_WORKFLOW_IDS).default([]),
     allWorkflows: z.boolean().default(false),
     levelFilter: levelFilterSchema.default(['info', 'error']),
     triggerFilter: triggerFilterSchema.default(['api', 'webhook', 'schedule', 'manual', 'chat']),
@@ -68,6 +63,9 @@ const createNotificationSchema = z
     },
     { message: 'Missing required fields for notification type' }
   )
+  .refine((data) => !(data.allWorkflows && data.workflowIds.length > 0), {
+    message: 'Cannot specify both allWorkflows and workflowIds',
+  })
 
 async function checkWorkspaceWriteAccess(
   userId: string,

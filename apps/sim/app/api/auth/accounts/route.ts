@@ -3,6 +3,9 @@ import { account } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('AuthAccountsAPI')
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,7 +33,8 @@ export async function GET(request: NextRequest) {
       .where(and(...whereConditions))
 
     return NextResponse.json({ accounts })
-  } catch {
+  } catch (error) {
+    logger.error('Failed to fetch accounts', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

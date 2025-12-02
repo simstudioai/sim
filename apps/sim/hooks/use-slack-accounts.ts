@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 interface SlackAccount {
   id: string
@@ -13,12 +13,16 @@ interface UseSlackAccountsResult {
   refetch: () => Promise<void>
 }
 
+/**
+ * Fetches and manages connected Slack accounts for the current user.
+ * @returns Object containing accounts array, loading state, error state, and refetch function
+ */
 export function useSlackAccounts(): UseSlackAccountsResult {
   const [accounts, setAccounts] = useState<SlackAccount[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchAccounts = async () => {
+  const fetchAccounts = useCallback(async () => {
     try {
       setIsLoading(true)
       setError(null)
@@ -27,6 +31,8 @@ export function useSlackAccounts(): UseSlackAccountsResult {
         const data = await response.json()
         setAccounts(data.accounts || [])
       } else {
+        const data = await response.json().catch(() => ({}))
+        setError(data.error || 'Failed to load Slack accounts')
         setAccounts([])
       }
     } catch {
@@ -35,7 +41,7 @@ export function useSlackAccounts(): UseSlackAccountsResult {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchAccounts()

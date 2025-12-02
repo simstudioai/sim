@@ -7,6 +7,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { encryptSecret } from '@/lib/utils'
+import { MAX_EMAIL_RECIPIENTS, MAX_WORKFLOW_IDS } from '../constants'
 
 const logger = createLogger('WorkspaceNotificationAPI')
 
@@ -32,23 +33,27 @@ const alertConfigSchema = z
   )
   .nullable()
 
-const updateNotificationSchema = z.object({
-  workflowIds: z.array(z.string()).optional(),
-  allWorkflows: z.boolean().optional(),
-  levelFilter: levelFilterSchema.optional(),
-  triggerFilter: triggerFilterSchema.optional(),
-  includeFinalOutput: z.boolean().optional(),
-  includeTraceSpans: z.boolean().optional(),
-  includeRateLimits: z.boolean().optional(),
-  includeUsageData: z.boolean().optional(),
-  alertConfig: alertConfigSchema.optional(),
-  webhookUrl: z.string().url().optional(),
-  webhookSecret: z.string().optional(),
-  emailRecipients: z.array(z.string().email()).optional(),
-  slackChannelId: z.string().optional(),
-  slackAccountId: z.string().optional(),
-  active: z.boolean().optional(),
-})
+const updateNotificationSchema = z
+  .object({
+    workflowIds: z.array(z.string()).max(MAX_WORKFLOW_IDS).optional(),
+    allWorkflows: z.boolean().optional(),
+    levelFilter: levelFilterSchema.optional(),
+    triggerFilter: triggerFilterSchema.optional(),
+    includeFinalOutput: z.boolean().optional(),
+    includeTraceSpans: z.boolean().optional(),
+    includeRateLimits: z.boolean().optional(),
+    includeUsageData: z.boolean().optional(),
+    alertConfig: alertConfigSchema.optional(),
+    webhookUrl: z.string().url().optional(),
+    webhookSecret: z.string().optional(),
+    emailRecipients: z.array(z.string().email()).max(MAX_EMAIL_RECIPIENTS).optional(),
+    slackChannelId: z.string().optional(),
+    slackAccountId: z.string().optional(),
+    active: z.boolean().optional(),
+  })
+  .refine((data) => !(data.allWorkflows && data.workflowIds && data.workflowIds.length > 0), {
+    message: 'Cannot specify both allWorkflows and workflowIds',
+  })
 
 type RouteParams = { params: Promise<{ id: string; notificationId: string }> }
 

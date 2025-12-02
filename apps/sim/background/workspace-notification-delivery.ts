@@ -13,7 +13,7 @@ import { checkUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { sendEmail } from '@/lib/email/mailer'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { WorkflowExecutionLog } from '@/lib/logs/types'
+import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { decryptSecret } from '@/lib/utils'
 import { RateLimiter } from '@/services/queue'
 
@@ -377,8 +377,8 @@ async function deliverSlack(
     Array.isArray(payload.data.traceSpans) &&
     payload.data.traceSpans.length > 0
   ) {
-    const spansSummary = payload.data.traceSpans
-      .map((span: any) => {
+    const spansSummary = (payload.data.traceSpans as TraceSpan[])
+      .map((span) => {
         const status = span.status === 'success' ? '✓' : '✗'
         return `${status} ${span.name || 'Unknown'} (${formatDuration(span.duration || 0)})`
       })
