@@ -532,6 +532,16 @@ export const workspaceNotificationSubscription = pgTable(
     emailRecipients: text('email_recipients').array(),
     slackChannelId: text('slack_channel_id'),
     slackAccountId: text('slack_account_id'),
+
+    // Alert rule configuration (if null, sends on every execution)
+    alertConfig: jsonb('alert_config').$type<{
+      rule: 'consecutive_failures' | 'failure_rate'
+      consecutiveFailures?: number
+      failureRatePercent?: number
+      windowHours?: number
+    }>(),
+    lastAlertAt: timestamp('last_alert_at'),
+
     active: boolean('active').notNull().default(true),
     createdBy: text('created_by')
       .notNull()

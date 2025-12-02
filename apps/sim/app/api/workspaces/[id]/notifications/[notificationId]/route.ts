@@ -13,6 +13,25 @@ const logger = createLogger('WorkspaceNotificationAPI')
 const levelFilterSchema = z.array(z.enum(['info', 'error']))
 const triggerFilterSchema = z.array(z.enum(['api', 'webhook', 'schedule', 'manual', 'chat']))
 
+const alertConfigSchema = z
+  .object({
+    rule: z.enum(['consecutive_failures', 'failure_rate']),
+    consecutiveFailures: z.number().int().min(1).max(100).optional(),
+    failureRatePercent: z.number().int().min(1).max(100).optional(),
+    windowHours: z.number().int().min(1).max(168).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.rule === 'consecutive_failures') return data.consecutiveFailures !== undefined
+      if (data.rule === 'failure_rate') {
+        return data.failureRatePercent !== undefined && data.windowHours !== undefined
+      }
+      return false
+    },
+    { message: 'Missing required fields for alert rule' }
+  )
+  .nullable()
+
 const updateNotificationSchema = z.object({
   workflowIds: z.array(z.string()).optional(),
   allWorkflows: z.boolean().optional(),
@@ -22,6 +41,7 @@ const updateNotificationSchema = z.object({
   includeTraceSpans: z.boolean().optional(),
   includeRateLimits: z.boolean().optional(),
   includeUsageData: z.boolean().optional(),
+  alertConfig: alertConfigSchema.optional(),
   webhookUrl: z.string().url().optional(),
   webhookSecret: z.string().optional(),
   emailRecipients: z.array(z.string().email()).optional(),
@@ -91,6 +111,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         emailRecipients: subscription.emailRecipients,
         slackChannelId: subscription.slackChannelId,
         slackAccountId: subscription.slackAccountId,
+        alertConfig: subscription.alertConfig,
         active: subscription.active,
         createdAt: subscription.createdAt,
         updatedAt: subscription.updatedAt,
@@ -162,6 +183,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (data.includeTraceSpans !== undefined) updateData.includeTraceSpans = data.includeTraceSpans
     if (data.includeRateLimits !== undefined) updateData.includeRateLimits = data.includeRateLimits
     if (data.includeUsageData !== undefined) updateData.includeUsageData = data.includeUsageData
+    if (data.alertConfig !== undefined) updateData.alertConfig = data.alertConfig
     if (data.webhookUrl !== undefined) updateData.webhookUrl = data.webhookUrl
     if (data.emailRecipients !== undefined) updateData.emailRecipients = data.emailRecipients
     if (data.slackChannelId !== undefined) updateData.slackChannelId = data.slackChannelId
@@ -204,6 +226,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         emailRecipients: subscription.emailRecipients,
         slackChannelId: subscription.slackChannelId,
         slackAccountId: subscription.slackAccountId,
+        alertConfig: subscription.alertConfig,
         active: subscription.active,
         createdAt: subscription.createdAt,
         updatedAt: subscription.updatedAt,

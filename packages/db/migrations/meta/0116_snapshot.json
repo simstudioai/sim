@@ -1,5 +1,5 @@
 {
-  "id": "325e3f5e-204b-4db5-b4eb-8388e879de84",
+  "id": "77614909-122b-4458-be99-c60683c9b478",
   "prevId": "462d46ca-8c69-4c3e-b11d-373938063d38",
   "version": "7",
   "dialect": "postgresql",
@@ -7626,6 +7626,18 @@
         "slack_account_id": {
           "name": "slack_account_id",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "alert_config": {
+          "name": "alert_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_alert_at": {
+          "name": "last_alert_at",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },

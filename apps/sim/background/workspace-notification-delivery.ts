@@ -9,10 +9,13 @@ import {
 import { task } from '@trigger.dev/sdk'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { checkUsageStatus } from '@/lib/billing/calculations/usage-monitor'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { sendEmail } from '@/lib/email/mailer'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import { decryptSecret } from '@/lib/utils'
+import { RateLimiter } from '@/services/queue'
 
 const logger = createLogger('WorkspaceNotificationDelivery')
 
@@ -58,13 +61,14 @@ async function buildPayload(
   subscription: typeof workspaceNotificationSubscription.$inferSelect
 ): Promise<NotificationPayload> {
   const workflowData = await db
-    .select({ name: workflowTable.name })
+    .select({ name: workflowTable.name, userId: workflowTable.userId })
     .from(workflowTable)
     .where(eq(workflowTable.id, log.workflowId))
     .limit(1)
 
   const timestamp = Date.now()
   const executionData = (log.executionData || {}) as Record<string, unknown>
+  const userId = workflowData[0]?.userId
 
   const payload: NotificationPayload = {
     id: `evt_${uuidv4()}`,
@@ -80,7 +84,7 @@ async function buildPayload(
       startedAt: log.startedAt,
       endedAt: log.endedAt,
       totalDurationMs: log.totalDurationMs,
-      cost: executionData.cost as Record<string, unknown>,
+      cost: log.cost as Record<string, unknown>,
     },
   }
 
@@ -92,12 +96,51 @@ async function buildPayload(
     payload.data.traceSpans = executionData.traceSpans as unknown[]
   }
 
-  if (subscription.includeRateLimits && executionData.rateLimits) {
-    payload.data.rateLimits = executionData.rateLimits as Record<string, unknown>
+  if (subscription.includeRateLimits && userId) {
+    try {
+      const userSubscription = await getHighestPrioritySubscription(userId)
+      const rateLimiter = new RateLimiter()
+      const triggerType = log.trigger === 'api' ? 'api' : 'manual'
+
+      const [syncStatus, asyncStatus] = await Promise.all([
+        rateLimiter.getRateLimitStatusWithSubscription(
+          userId,
+          userSubscription,
+          triggerType,
+          false
+        ),
+        rateLimiter.getRateLimitStatusWithSubscription(userId, userSubscription, triggerType, true),
+      ])
+
+      payload.data.rateLimits = {
+        sync: {
+          limit: syncStatus.limit,
+          remaining: syncStatus.remaining,
+          resetAt: syncStatus.resetAt.toISOString(),
+        },
+        async: {
+          limit: asyncStatus.limit,
+          remaining: asyncStatus.remaining,
+          resetAt: asyncStatus.resetAt.toISOString(),
+        },
+      }
+    } catch (error) {
+      logger.warn('Failed to fetch rate limits for notification', { error, userId })
+    }
   }
 
-  if (subscription.includeUsageData && executionData.usage) {
-    payload.data.usage = executionData.usage as Record<string, unknown>
+  if (subscription.includeUsageData && userId) {
+    try {
+      const usageData = await checkUsageStatus(userId)
+      payload.data.usage = {
+        currentPeriodCost: usageData.currentUsage,
+        limit: usageData.limit,
+        percentUsed: usageData.percentUsed,
+        isExceeded: usageData.isExceeded,
+      }
+    } catch (error) {
+      logger.warn('Failed to fetch usage data for notification', { error, userId })
+    }
   }
 
   return payload

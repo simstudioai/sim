@@ -10,7 +10,6 @@ import {
   Pencil,
   Play,
   Plus,
-  Search,
   Trash2,
   Webhook,
 } from 'lucide-react'
@@ -45,6 +44,14 @@ const logger = createLogger('NotificationSettings')
 type NotificationType = 'webhook' | 'email' | 'slack'
 type LogLevel = 'info' | 'error'
 type TriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
+type AlertRule = 'consecutive_failures' | 'failure_rate'
+
+interface AlertConfig {
+  rule: AlertRule
+  consecutiveFailures?: number
+  failureRatePercent?: number
+  windowHours?: number
+}
 
 interface NotificationSubscription {
   id: string
@@ -61,6 +68,7 @@ interface NotificationSubscription {
   emailRecipients?: string[] | null
   slackChannelId?: string | null
   slackAccountId?: string | null
+  alertConfig?: AlertConfig | null
   active: boolean
   createdAt: string
   updatedAt: string
@@ -96,7 +104,6 @@ export function NotificationSettings({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
   const [testStatus, setTestStatus] = useState<{
     id: string
     success: boolean
@@ -117,6 +124,11 @@ export function NotificationSettings({
     emailRecipients: '',
     slackChannelId: '',
     slackAccountId: '',
+    useAlertRule: false,
+    alertRule: 'consecutive_failures' as AlertRule,
+    consecutiveFailures: 3,
+    failureRatePercent: 50,
+    windowHours: 24,
   })
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
@@ -124,16 +136,8 @@ export function NotificationSettings({
   const { accounts: slackAccounts, isLoading: isLoadingSlackAccounts } = useSlackAccounts()
 
   const filteredSubscriptions = useMemo(() => {
-    return subscriptions
-      .filter((s) => s.notificationType === activeTab)
-      .filter((s) => {
-        if (!searchTerm) return true
-        const term = searchTerm.toLowerCase()
-        if (s.webhookUrl?.toLowerCase().includes(term)) return true
-        if (s.emailRecipients?.some((e) => e.toLowerCase().includes(term))) return true
-        return false
-      })
-  }, [subscriptions, activeTab, searchTerm])
+    return subscriptions.filter((s) => s.notificationType === activeTab)
+  }, [subscriptions, activeTab])
 
   const loadSubscriptions = useCallback(async () => {
     try {
@@ -171,6 +175,11 @@ export function NotificationSettings({
       emailRecipients: '',
       slackChannelId: '',
       slackAccountId: '',
+      useAlertRule: false,
+      alertRule: 'consecutive_failures',
+      consecutiveFailures: 3,
+      failureRatePercent: 50,
+      windowHours: 24,
     })
     setFormErrors({})
     setEditingId(null)
@@ -179,7 +188,6 @@ export function NotificationSettings({
   const handleClose = useCallback(() => {
     resetForm()
     setShowForm(false)
-    setSearchTerm('')
     setTestStatus(null)
     onOpenChange(false)
   }, [onOpenChange, resetForm])
@@ -239,6 +247,21 @@ export function NotificationSettings({
       }
     }
 
+    if (formData.useAlertRule) {
+      if (formData.alertRule === 'consecutive_failures') {
+        if (formData.consecutiveFailures < 1 || formData.consecutiveFailures > 100) {
+          errors.consecutiveFailures = 'Must be between 1 and 100'
+        }
+      } else if (formData.alertRule === 'failure_rate') {
+        if (formData.failureRatePercent < 1 || formData.failureRatePercent > 100) {
+          errors.failureRatePercent = 'Must be between 1 and 100'
+        }
+        if (formData.windowHours < 1 || formData.windowHours > 168) {
+          errors.windowHours = 'Must be between 1 and 168 hours'
+        }
+      }
+    }
+
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -248,6 +271,19 @@ export function NotificationSettings({
 
     setIsSaving(true)
     try {
+      const alertConfig: AlertConfig | null = formData.useAlertRule
+        ? {
+            rule: formData.alertRule,
+            ...(formData.alertRule === 'consecutive_failures' && {
+              consecutiveFailures: formData.consecutiveFailures,
+            }),
+            ...(formData.alertRule === 'failure_rate' && {
+              failureRatePercent: formData.failureRatePercent,
+              windowHours: formData.windowHours,
+            }),
+          }
+        : null
+
       const payload = {
         notificationType: activeTab,
         workflowIds: formData.workflowIds,
@@ -258,6 +294,7 @@ export function NotificationSettings({
         includeTraceSpans: formData.includeTraceSpans,
         includeRateLimits: formData.includeRateLimits,
         includeUsageData: formData.includeUsageData,
+        alertConfig,
         ...(activeTab === 'webhook' && {
           webhookUrl: formData.webhookUrl,
           webhookSecret: formData.webhookSecret || undefined,
@@ -318,6 +355,11 @@ export function NotificationSettings({
       emailRecipients: subscription.emailRecipients?.join(', ') || '',
       slackChannelId: subscription.slackChannelId || '',
       slackAccountId: subscription.slackAccountId || '',
+      useAlertRule: !!subscription.alertConfig,
+      alertRule: subscription.alertConfig?.rule || 'consecutive_failures',
+      consecutiveFailures: subscription.alertConfig?.consecutiveFailures || 3,
+      failureRatePercent: subscription.alertConfig?.failureRatePercent || 50,
+      windowHours: subscription.alertConfig?.windowHours || 24,
     })
     setShowForm(true)
   }
@@ -487,6 +529,16 @@ export function NotificationSettings({
               +{subscription.triggerFilter.length - 3}
             </span>
           )}
+          {subscription.alertConfig && (
+            <>
+              <span className='text-muted-foreground'>•</span>
+              <span className='rounded-md bg-amber-100 px-1.5 py-0.5 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'>
+                {subscription.alertConfig.rule === 'consecutive_failures'
+                  ? `${subscription.alertConfig.consecutiveFailures} consecutive failures`
+                  : `${subscription.alertConfig.failureRatePercent}% failure rate in ${subscription.alertConfig.windowHours}h`}
+              </span>
+            </>
+          )}
         </div>
       </div>
     )
@@ -523,6 +575,115 @@ export function NotificationSettings({
           }}
           error={formErrors.workflows}
         />
+
+        <div className='space-y-4'>
+          <div className='flex items-center justify-between'>
+            <div className='flex flex-col'>
+              <Label className='font-medium text-sm'>Alert Mode</Label>
+              <p className='text-muted-foreground text-xs'>
+                {formData.useAlertRule
+                  ? 'Notify when failure patterns are detected'
+                  : 'Notify on every matching execution'}
+              </p>
+            </div>
+            <Switch
+              checked={formData.useAlertRule}
+              onCheckedChange={(checked) => setFormData({ ...formData, useAlertRule: checked })}
+            />
+          </div>
+
+          {formData.useAlertRule && (
+            <div className='space-y-4 rounded-lg border bg-muted/30 p-4'>
+              <div className='space-y-2'>
+                <Label className='font-medium text-sm'>Alert Rule</Label>
+                <select
+                  value={formData.alertRule}
+                  onChange={(e) =>
+                    setFormData({ ...formData, alertRule: e.target.value as AlertRule })
+                  }
+                  className='h-9 w-full rounded-[8px] border bg-background px-3 text-sm'
+                >
+                  <option value='consecutive_failures'>Consecutive Failures</option>
+                  <option value='failure_rate'>Failure Rate</option>
+                </select>
+              </div>
+
+              {formData.alertRule === 'consecutive_failures' && (
+                <div className='space-y-2'>
+                  <Label className='font-medium text-sm'>Consecutive Failures Threshold</Label>
+                  <Input
+                    type='number'
+                    min={1}
+                    max={100}
+                    value={formData.consecutiveFailures}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        consecutiveFailures: Number.parseInt(e.target.value) || 1,
+                      })
+                    }
+                    className='h-9 w-32 rounded-[8px]'
+                  />
+                  <p className='text-muted-foreground text-xs'>
+                    Alert after this many consecutive failed executions
+                  </p>
+                  {formErrors.consecutiveFailures && (
+                    <p className='text-red-400 text-xs'>{formErrors.consecutiveFailures}</p>
+                  )}
+                </div>
+              )}
+
+              {formData.alertRule === 'failure_rate' && (
+                <>
+                  <div className='space-y-2'>
+                    <Label className='font-medium text-sm'>Failure Rate Threshold (%)</Label>
+                    <Input
+                      type='number'
+                      min={1}
+                      max={100}
+                      value={formData.failureRatePercent}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          failureRatePercent: Number.parseInt(e.target.value) || 1,
+                        })
+                      }
+                      className='h-9 w-32 rounded-[8px]'
+                    />
+                    <p className='text-muted-foreground text-xs'>
+                      Alert when failure rate exceeds this percentage
+                    </p>
+                    {formErrors.failureRatePercent && (
+                      <p className='text-red-400 text-xs'>{formErrors.failureRatePercent}</p>
+                    )}
+                  </div>
+                  <div className='space-y-2'>
+                    <Label className='font-medium text-sm'>Time Window (hours)</Label>
+                    <Input
+                      type='number'
+                      min={1}
+                      max={168}
+                      value={formData.windowHours}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          windowHours: Number.parseInt(e.target.value) || 1,
+                        })
+                      }
+                      className='h-9 w-32 rounded-[8px]'
+                    />
+                    <p className='text-muted-foreground text-xs'>
+                      Calculate failure rate over this sliding window (max 168 hours / 7 days)
+                    </p>
+                    {formErrors.windowHours && (
+                      <p className='text-red-400 text-xs'>{formErrors.windowHours}</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
 
         {activeTab === 'webhook' && (
           <>
@@ -743,10 +904,7 @@ export function NotificationSettings({
                 {NOTIFICATION_TYPES.map(({ type, label, icon: Icon }) => (
                   <button
                     key={type}
-                    onClick={() => {
-                      setActiveTab(type)
-                      setSearchTerm('')
-                    }}
+                    onClick={() => setActiveTab(type)}
                     className={cn(
                       'flex items-center gap-2 rounded-[8px] px-3 py-1.5 font-medium text-sm transition-colors',
                       activeTab === type
@@ -758,15 +916,6 @@ export function NotificationSettings({
                     {label}
                   </button>
                 ))}
-              </div>
-              <div className='flex h-9 w-56 items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
-                <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' />
-                <Input
-                  placeholder='Search...'
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className='flex-1 border-0 bg-transparent px-0 text-sm placeholder:text-muted-foreground focus-visible:ring-0'
-                />
               </div>
             </div>
           )}
@@ -786,9 +935,7 @@ export function NotificationSettings({
                 </div>
               ) : filteredSubscriptions.length === 0 ? (
                 <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
-                  {searchTerm
-                    ? `No notifications found matching "${searchTerm}"`
-                    : `No ${activeTab} notifications configured`}
+                  No {activeTab} notifications configured
                 </div>
               ) : (
                 <div>{filteredSubscriptions.map(renderSubscriptionItem)}</div>

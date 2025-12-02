@@ -15,6 +15,25 @@ const notificationTypeSchema = z.enum(['webhook', 'email', 'slack'])
 const levelFilterSchema = z.array(z.enum(['info', 'error']))
 const triggerFilterSchema = z.array(z.enum(['api', 'webhook', 'schedule', 'manual', 'chat']))
 
+const alertConfigSchema = z
+  .object({
+    rule: z.enum(['consecutive_failures', 'failure_rate']),
+    consecutiveFailures: z.number().int().min(1).max(100).optional(),
+    failureRatePercent: z.number().int().min(1).max(100).optional(),
+    windowHours: z.number().int().min(1).max(168).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.rule === 'consecutive_failures') return data.consecutiveFailures !== undefined
+      if (data.rule === 'failure_rate') {
+        return data.failureRatePercent !== undefined && data.windowHours !== undefined
+      }
+      return false
+    },
+    { message: 'Missing required fields for alert rule' }
+  )
+  .nullable()
+
 const createNotificationSchema = z
   .object({
     notificationType: notificationTypeSchema,
@@ -26,6 +45,7 @@ const createNotificationSchema = z
     includeTraceSpans: z.boolean().default(false),
     includeRateLimits: z.boolean().default(false),
     includeUsageData: z.boolean().default(false),
+    alertConfig: alertConfigSchema.optional(),
     webhookUrl: z.string().url().optional(),
     webhookSecret: z.string().optional(),
     emailRecipients: z.array(z.string().email()).optional(),
@@ -82,6 +102,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         emailRecipients: workspaceNotificationSubscription.emailRecipients,
         slackChannelId: workspaceNotificationSubscription.slackChannelId,
         slackAccountId: workspaceNotificationSubscription.slackAccountId,
+        alertConfig: workspaceNotificationSubscription.alertConfig,
         active: workspaceNotificationSubscription.active,
         createdAt: workspaceNotificationSubscription.createdAt,
         updatedAt: workspaceNotificationSubscription.updatedAt,
@@ -160,6 +181,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         includeTraceSpans: data.includeTraceSpans,
         includeRateLimits: data.includeRateLimits,
         includeUsageData: data.includeUsageData,
+        alertConfig: data.alertConfig || null,
         webhookUrl: data.webhookUrl || null,
         webhookSecret: encryptedSecret,
         emailRecipients: data.emailRecipients || null,
@@ -191,6 +213,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         emailRecipients: subscription.emailRecipients,
         slackChannelId: subscription.slackChannelId,
         slackAccountId: subscription.slackAccountId,
+        alertConfig: subscription.alertConfig,
         active: subscription.active,
         createdAt: subscription.createdAt,
         updatedAt: subscription.updatedAt,

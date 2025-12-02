@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, Search, X } from 'lucide-react'
 import { Button, Input, Label, Skeleton } from '@/components/ui'
 import { cn } from '@/lib/utils'
@@ -29,6 +29,23 @@ export function WorkflowSelector({
   const [isLoading, setIsLoading] = useState(true)
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen])
 
   const loadWorkflows = useCallback(async () => {
     try {
@@ -97,7 +114,7 @@ export function WorkflowSelector({
   return (
     <div className='space-y-2'>
       <Label className='font-medium text-sm'>Workflows</Label>
-      <div className='relative'>
+      <div ref={containerRef} className='relative'>
         <Button
           type='button'
           variant='outline'
@@ -109,9 +126,7 @@ export function WorkflowSelector({
         >
           <div className='flex flex-wrap gap-1'>
             {allWorkflows ? (
-              <span className='rounded-md bg-[var(--brand-primary-hex)]/10 px-2 py-0.5 text-[var(--brand-primary-hex)] text-xs'>
-                All Workflows
-              </span>
+              <span className='rounded-md bg-muted px-2 py-0.5 text-xs'>All Workflows</span>
             ) : selectedWorkflows.length > 0 ? (
               selectedWorkflows.slice(0, 3).map((w) => (
                 <span
@@ -220,17 +235,6 @@ export function WorkflowSelector({
                   </button>
                 ))
               )}
-            </div>
-
-            <div className='mt-2 flex justify-end border-t pt-2'>
-              <Button
-                type='button'
-                size='sm'
-                onClick={() => setIsOpen(false)}
-                className='h-7 rounded-[6px] text-xs'
-              >
-                Done
-              </Button>
             </div>
           </div>
         )}

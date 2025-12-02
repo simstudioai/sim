@@ -33,6 +33,8 @@ CREATE TABLE "workspace_notification_subscription" (
 	"email_recipients" text[],
 	"slack_channel_id" text,
 	"slack_account_id" text,
+	"alert_config" jsonb,
+	"last_alert_at" timestamp,
 	"active" boolean DEFAULT true NOT NULL,
 	"created_by" text NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -78,8 +80,7 @@ SELECT
 	wlw.updated_at
 FROM workflow_log_webhook wlw
 JOIN workflow w ON w.id = wlw.workflow_id
-WHERE w.workspace_id IS NOT NULL;
---> statement-breakpoint
+WHERE w.workspace_id IS NOT NULL;--> statement-breakpoint
 DROP TABLE "workflow_log_webhook_delivery" CASCADE;--> statement-breakpoint
 DROP TABLE "workflow_log_webhook" CASCADE;--> statement-breakpoint
 ALTER TABLE "workspace_notification_delivery" ADD CONSTRAINT "workspace_notification_delivery_subscription_id_workspace_notification_subscription_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."workspace_notification_subscription"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
