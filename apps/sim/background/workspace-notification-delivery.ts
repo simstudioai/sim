@@ -155,6 +155,35 @@ async function deliverWebhook(
   }
 }
 
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+  return `${(ms / 60000).toFixed(1)}m`
+}
+
+function formatCost(cost?: Record<string, unknown>): string {
+  if (!cost?.total) return 'N/A'
+  const total = cost.total as number
+  return `$${total.toFixed(4)}`
+}
+
+function buildLogUrl(workspaceId: string, executionId: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+  return `${baseUrl}/workspace/${workspaceId}/logs?search=${encodeURIComponent(executionId)}`
+}
+
+function formatJsonForEmail(data: unknown, label: string): string {
+  if (!data) return ''
+  const json = JSON.stringify(data, null, 2)
+  const escapedJson = json.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `
+    <div style="margin-top: 20px;">
+      <h3 style="color: #1a1a1a; font-size: 14px; margin-bottom: 8px;">${label}</h3>
+      <pre style="background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; color: #333; white-space: pre-wrap; word-wrap: break-word;">${escapedJson}</pre>
+    </div>
+  `
+}
+
 async function deliverEmail(
   subscription: typeof workspaceNotificationSubscription.$inferSelect,
   payload: NotificationPayload
@@ -165,6 +194,34 @@ async function deliverEmail(
 
   const statusEmoji = payload.data.status === 'success' ? '✅' : '❌'
   const statusText = payload.data.status === 'success' ? 'Success' : 'Error'
+  const logUrl = buildLogUrl(subscription.workspaceId, payload.data.executionId)
+
+  let includedDataHtml = ''
+  let includedDataText = ''
+
+  if (payload.data.finalOutput) {
+    includedDataHtml += formatJsonForEmail(payload.data.finalOutput, 'Final Output')
+    includedDataText += `\n\nFinal Output:\n${JSON.stringify(payload.data.finalOutput, null, 2)}`
+  }
+
+  if (
+    payload.data.traceSpans &&
+    Array.isArray(payload.data.traceSpans) &&
+    payload.data.traceSpans.length > 0
+  ) {
+    includedDataHtml += formatJsonForEmail(payload.data.traceSpans, 'Trace Spans')
+    includedDataText += `\n\nTrace Spans:\n${JSON.stringify(payload.data.traceSpans, null, 2)}`
+  }
+
+  if (payload.data.rateLimits) {
+    includedDataHtml += formatJsonForEmail(payload.data.rateLimits, 'Rate Limits')
+    includedDataText += `\n\nRate Limits:\n${JSON.stringify(payload.data.rateLimits, null, 2)}`
+  }
+
+  if (payload.data.usage) {
+    includedDataHtml += formatJsonForEmail(payload.data.usage, 'Usage Data')
+    includedDataText += `\n\nUsage Data:\n${JSON.stringify(payload.data.usage, null, 2)}`
+  }
 
   const result = await sendEmail({
     to: subscription.emailRecipients,
@@ -187,19 +244,21 @@ async function deliverEmail(
           </tr>
           <tr style="border-bottom: 1px solid #eee;">
             <td style="padding: 12px 0; color: #666;">Duration</td>
-            <td style="padding: 12px 0; color: #1a1a1a;">${payload.data.totalDurationMs}ms</td>
+            <td style="padding: 12px 0; color: #1a1a1a;">${formatDuration(payload.data.totalDurationMs)}</td>
           </tr>
           <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 12px 0; color: #666;">Execution ID</td>
-            <td style="padding: 12px 0; color: #666; font-family: monospace; font-size: 12px;">${payload.data.executionId}</td>
+            <td style="padding: 12px 0; color: #666;">Cost</td>
+            <td style="padding: 12px 0; color: #1a1a1a;">${formatCost(payload.data.cost)}</td>
           </tr>
         </table>
-        <p style="color: #666; font-size: 12px; margin-top: 30px;">
-          This notification was sent from Sim Studio workspace notifications.
+        <a href="${logUrl}" style="display: inline-block; background: #7f2fff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 500; margin-bottom: 20px;">View Execution Log →</a>
+        ${includedDataHtml}
+        <p style="color: #999; font-size: 11px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+          This notification was sent from Sim Studio. <a href="${logUrl}" style="color: #7f2fff;">View log</a>
         </p>
       </div>
     `,
-    text: `Workflow Execution ${statusText}\n\nWorkflow: ${payload.data.workflowName}\nStatus: ${statusText}\nTrigger: ${payload.data.trigger}\nDuration: ${payload.data.totalDurationMs}ms\nExecution ID: ${payload.data.executionId}`,
+    text: `Workflow Execution ${statusText}\n\nWorkflow: ${payload.data.workflowName}\nStatus: ${statusText}\nTrigger: ${payload.data.trigger}\nDuration: ${formatDuration(payload.data.totalDurationMs)}\nCost: ${formatCost(payload.data.cost)}\n\nView Log: ${logUrl}${includedDataText}`,
     emailType: 'notifications',
   })
 
@@ -226,44 +285,100 @@ async function deliverSlack(
 
   const statusEmoji = payload.data.status === 'success' ? ':white_check_mark:' : ':x:'
   const statusColor = payload.data.status === 'success' ? '#22c55e' : '#ef4444'
+  const logUrl = buildLogUrl(subscription.workspaceId, payload.data.executionId)
+
+  const blocks: Array<Record<string, unknown>> = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `${statusEmoji} *Workflow Execution: ${payload.data.workflowName}*`,
+      },
+    },
+    {
+      type: 'section',
+      fields: [
+        { type: 'mrkdwn', text: `*Status:*\n${payload.data.status}` },
+        { type: 'mrkdwn', text: `*Trigger:*\n${payload.data.trigger}` },
+        { type: 'mrkdwn', text: `*Duration:*\n${formatDuration(payload.data.totalDurationMs)}` },
+        { type: 'mrkdwn', text: `*Cost:*\n${formatCost(payload.data.cost)}` },
+      ],
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'View Log →', emoji: true },
+          url: logUrl,
+          style: 'primary',
+        },
+      ],
+    },
+  ]
+
+  if (payload.data.finalOutput) {
+    const outputStr = JSON.stringify(payload.data.finalOutput, null, 2)
+    const truncated = outputStr.length > 2900 ? outputStr.slice(0, 2900) + '...' : outputStr
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Final Output:*\n\`\`\`${truncated}\`\`\``,
+      },
+    })
+  }
+
+  if (
+    payload.data.traceSpans &&
+    Array.isArray(payload.data.traceSpans) &&
+    payload.data.traceSpans.length > 0
+  ) {
+    const spansSummary = payload.data.traceSpans
+      .map((span: any) => {
+        const status = span.status === 'success' ? '✓' : '✗'
+        return `${status} ${span.name || 'Unknown'} (${formatDuration(span.duration || 0)})`
+      })
+      .join('\n')
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Trace Spans:*\n\`\`\`${spansSummary}\`\`\``,
+      },
+    })
+  }
+
+  if (payload.data.rateLimits) {
+    const limitsStr = JSON.stringify(payload.data.rateLimits, null, 2)
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Rate Limits:*\n\`\`\`${limitsStr}\`\`\``,
+      },
+    })
+  }
+
+  if (payload.data.usage) {
+    const usageStr = JSON.stringify(payload.data.usage, null, 2)
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Usage Data:*\n\`\`\`${usageStr}\`\`\``,
+      },
+    })
+  }
+
+  blocks.push({
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: `Execution ID: \`${payload.data.executionId}\`` }],
+  })
 
   const slackPayload = {
     channel: subscription.slackChannelId,
-    attachments: [
-      {
-        color: statusColor,
-        blocks: [
-          {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: `${statusEmoji} *Workflow Execution: ${payload.data.workflowName}*`,
-            },
-          },
-          {
-            type: 'section',
-            fields: [
-              { type: 'mrkdwn', text: `*Status:*\n${payload.data.status}` },
-              { type: 'mrkdwn', text: `*Trigger:*\n${payload.data.trigger}` },
-              { type: 'mrkdwn', text: `*Duration:*\n${payload.data.totalDurationMs}ms` },
-              {
-                type: 'mrkdwn',
-                text: `*Cost:*\n${payload.data.cost?.total ? `$${(payload.data.cost.total as number).toFixed(4)}` : 'N/A'}`,
-              },
-            ],
-          },
-          {
-            type: 'context',
-            elements: [
-              {
-                type: 'mrkdwn',
-                text: `Execution ID: \`${payload.data.executionId}\``,
-              },
-            ],
-          },
-        ],
-      },
-    ],
+    attachments: [{ color: statusColor, blocks }],
     text: `${payload.data.status === 'success' ? '✅' : '❌'} Workflow ${payload.data.workflowName}: ${payload.data.status}`,
   }
 

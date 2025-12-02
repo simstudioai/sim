@@ -60,7 +60,6 @@ export default function Logs() {
     level,
     workflowIds,
     folderIds,
-    searchQuery: storeSearchQuery,
     setSearchQuery: setStoreSearchQuery,
     triggers,
     viewMode,
@@ -79,8 +78,16 @@ export default function Logs() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isInitialized = useRef<boolean>(false)
 
-  const [searchQuery, setSearchQuery] = useState(storeSearchQuery)
+  const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
+  // Sync search query from URL on mount (client-side only)
+  useEffect(() => {
+    const urlSearch = new URLSearchParams(window.location.search).get('search') || ''
+    if (urlSearch && urlSearch !== searchQuery) {
+      setSearchQuery(urlSearch)
+    }
+  }, [])
 
   const [, setAvailableWorkflows] = useState<string[]>([])
   const [, setAvailableFolders] = useState<string[]>([])
@@ -114,10 +121,6 @@ export default function Logs() {
     if (!logsQuery.data?.pages) return []
     return logsQuery.data.pages.flatMap((page) => page.logs)
   }, [logsQuery.data?.pages])
-
-  useEffect(() => {
-    setSearchQuery(storeSearchQuery)
-  }, [storeSearchQuery])
 
   const foldersQuery = useFolders(workspaceId)
   const { getFolderTree } = useFolderStore()
@@ -170,10 +173,10 @@ export default function Logs() {
   }, [workspaceId, getFolderTree, foldersQuery.data])
 
   useEffect(() => {
-    if (isInitialized.current && debouncedSearchQuery !== storeSearchQuery) {
+    if (isInitialized.current) {
       setStoreSearchQuery(debouncedSearchQuery)
     }
-  }, [debouncedSearchQuery, storeSearchQuery])
+  }, [debouncedSearchQuery, setStoreSearchQuery])
 
   const handleLogClick = (log: WorkflowLog) => {
     setSelectedLog(log)
@@ -253,6 +256,8 @@ export default function Logs() {
   useEffect(() => {
     const handlePopState = () => {
       initializeFromURL()
+      const params = new URLSearchParams(window.location.search)
+      setSearchQuery(params.get('search') || '')
     }
 
     window.addEventListener('popstate', handlePopState)
