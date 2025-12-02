@@ -40,6 +40,7 @@ function McpInputWithTags({
   const [cursorPosition, setCursorPosition] = useState(0)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const inputNameRef = useRef(`mcp_input_${Math.random()}`)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
@@ -104,7 +105,7 @@ function McpInputWithTags({
           onDragOver={handleDragOver}
           placeholder={placeholder}
           disabled={disabled}
-          name={`mcp_input_${Math.random()}`}
+          name={inputNameRef.current}
           autoComplete='off'
           autoCapitalize='off'
           spellCheck='false'
@@ -165,6 +166,7 @@ function McpTextareaWithTags({
   const [cursorPosition, setCursorPosition] = useState(0)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const textareaNameRef = useRef(`mcp_textarea_${Math.random()}`)
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value
@@ -228,7 +230,7 @@ function McpTextareaWithTags({
         placeholder={placeholder}
         disabled={disabled}
         rows={rows}
-        name={`mcp_textarea_${Math.random()}`}
+        name={textareaNameRef.current}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'

@@ -262,12 +262,8 @@ export class McpClient {
     return typeof serverVersion === 'string' ? serverVersion : undefined
   }
 
-  /**
-   * Get the session ID from the transport (available after successful connection)
-   * This can be used to restore the session on subsequent connections
-   */
   getSessionId(): string | undefined {
-    return (this.transport as unknown as { sessionId?: string }).sessionId
+    return this.transport.sessionId
   }
 
   /**
