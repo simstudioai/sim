@@ -45,7 +45,15 @@ export const anthropicProvider: ProviderConfig = {
       throw new Error('API key is required for Anthropic')
     }
 
-    const anthropic = new Anthropic({ apiKey: request.apiKey })
+    // Initialize Anthropic client with beta headers if requested
+    const anthropic = request.betas?.length
+      ? new Anthropic({ 
+          apiKey: request.apiKey,
+          defaultHeaders: {
+            'anthropic-beta': request.betas.join(','),
+          },
+        })
+      : new Anthropic({ apiKey: request.apiKey })
 
     // Helper function to generate a simple unique ID for tool uses
     const generateToolUseId = (toolName: string) => {
@@ -114,15 +122,24 @@ export const anthropicProvider: ProviderConfig = {
 
     // Transform tools to Anthropic format if provided
     let anthropicTools = request.tools?.length
-      ? request.tools.map((tool) => ({
-          name: tool.id,
-          description: tool.description,
-          input_schema: {
-            type: 'object',
-            properties: tool.parameters.properties,
-            required: tool.parameters.required,
-          },
-        }))
+      ? request.tools.map((tool) => {
+          // Handle native Anthropic tool types (like tool_search_tool_regex)
+          if ((tool as any).type && (tool as any).type.startsWith('tool_search_tool')) {
+            return tool as any // Pass through native tools as-is
+          }
+          
+          // Transform regular tools
+          return {
+            name: tool.id || (tool as any).name,
+            description: tool.description,
+            input_schema: {
+              type: 'object',
+              properties: tool.parameters?.properties || {},
+              required: tool.parameters?.required || [],
+            },
+            ...(((tool as any).defer_loading !== undefined) ? { defer_loading: (tool as any).defer_loading } : {}),
+          }
+        })
       : undefined
 
     // Set tool_choice based on usage control settings
@@ -249,6 +266,11 @@ ${fieldDescriptions}
       max_tokens: Number.parseInt(String(request.maxTokens)) || 1024,
       temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
     }
+    
+    // Log beta features (they're sent as headers via the client, not in payload)
+    if (request.betas?.length) {
+      logger.info('Using beta features via header', { betas: request.betas })
+    }
 
     // Use the tools in the payload
     if (anthropicTools?.length) {
@@ -272,10 +294,15 @@ ${fieldDescriptions}
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
       // Create a streaming request
-      const streamResponse: any = await anthropic.messages.create({
+      // Create streaming request - use beta client if betas are present
+      const streamPayload = {
         ...payload,
         stream: true,
-      })
+      }
+      
+      const streamResponse: any = request.betas?.length
+        ? await anthropic.beta.messages.create(streamPayload)
+        : await anthropic.messages.create(streamPayload)
 
       // Start collecting token usage
       const tokenUsage = {
@@ -348,7 +375,10 @@ ${fieldDescriptions}
         const forcedTools = preparedTools?.forcedTools || []
         let usedForcedTools: string[] = []
 
-        let currentResponse = await anthropic.messages.create(payload)
+        // Call the API - use beta client if betas are present
+        let currentResponse = request.betas?.length
+          ? await anthropic.beta.messages.create(payload)
+          : await anthropic.messages.create(payload)
         const firstResponseTime = Date.now() - initialCallTime
 
         let content = ''

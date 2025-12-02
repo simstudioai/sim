@@ -5,9 +5,6 @@ import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-cr
 import { createLogger } from '@/lib/logs/console/logger'
 import { tools } from '@/tools/registry'
 import { executeProviderRequest } from '@/providers'
-import { transformBlockTool } from '@/providers/utils'
-import { getAllBlocks } from '@/blocks'
-import { getToolAsync, getTool } from '@/tools/utils'
 import { env } from '@/lib/env'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@sim/db'
@@ -15,6 +12,7 @@ import { account, superagentChats } from '@sim/db/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/utils'
 import { generateChatTitle } from '@/lib/sim-agent/utils'
+import { searchToolsDefinition } from '@/lib/superagent/search-tools'
 
 const logger = createLogger('SuperagentChatAPI')
 
@@ -109,9 +107,10 @@ const ChatMessageSchema = z.object({
       'claude-4.1-opus',
       'claude-sonnet-4-5',
       'claude-sonnet-4-0',
+      'claude-sonnet-4-5-20250929', // Official Anthropic model name for Sonnet 4.5
     ])
     .optional()
-    .default('claude-sonnet-4-5'),
+    .default('claude-sonnet-4-5-20250929'),
 })
 
 /**
@@ -328,13 +327,27 @@ export async function POST(req: NextRequest) {
     // Build enhanced message
     const enhancedMessage = `${message}${credentialsText}`
 
-    // Get tools directly from the registry and inject credentials
-    logger.info('Loading tools from registry', {
+    // Implement Anthropic's Advanced Tool Use with defer_loading
+    logger.info('Setting up Anthropic tool search pattern', {
       totalToolsInRegistry: Object.keys(tools).length,
     })
     
-    const validTools = Object.entries(tools).map(([toolId, toolConfig]) => {
-      // Auto-inject access token if tool requires OAuth
+    // Add Anthropic's native tool search tools (both BM25 and regex)
+    // BM25 for better semantic search, regex for pattern matching
+    const searchTools = [
+      {
+        type: 'tool_search_tool_bm25_20251119',
+        name: 'tool_search_tool_bm25',
+      },
+      {
+        type: 'tool_search_tool_regex_20251119',
+        name: 'tool_search_tool_regex',
+      },
+    ]
+    
+    // Mark all integration tools with defer_loading: true
+    // This means they won't be loaded into context until Claude searches for them
+    const deferredIntegrationTools = Object.entries(tools).map(([toolId, toolConfig]) => {
       const params: Record<string, any> = {}
       
       if (toolConfig.oauth?.required && toolConfig.oauth.provider) {
@@ -342,33 +355,27 @@ export async function POST(req: NextRequest) {
         const accessToken = accessTokenMap[provider]
         
         if (accessToken) {
-          // Inject the access token directly - no need for credential lookup
           params.accessToken = accessToken
-          logger.info(`Auto-injecting access token for ${toolId}`, {
-            provider,
-            hasToken: true,
-          })
-        } else {
-          logger.warn(`Tool ${toolId} requires OAuth for ${provider} but no access token available`)
         }
       }
       
       return {
-        id: toolId,
-        name: toolConfig.name || toolId,
-        description: toolConfig.description || '',
-        params,
-        parameters: {
+        name: toolId, // Anthropic uses 'name' not 'id'
+        description: toolConfig.description || toolConfig.name || toolId,
+        input_schema: {
           type: 'object' as const,
           properties: {},
           required: [],
         },
+        defer_loading: true, // Don't load into context upfront!
+        params, // Pre-configured params (access tokens)
       }
     })
     
-    logger.info('Tools loaded with credentials', {
-      totalTools: validTools.length,
-      toolsWithCredentials: validTools.filter((t) => t.params.credential).length,
+    logger.info('Tools configured with Anthropic defer_loading', {
+      searchToolTypes: ['tool_search_tool_bm25_20251119', 'tool_search_tool_regex_20251119'],
+      deferredTools: deferredIntegrationTools.length,
+      toolsWithCredentials: deferredIntegrationTools.filter((t) => t.params.accessToken).length,
     })
 
     // Build messages with previous history
@@ -385,9 +392,18 @@ export async function POST(req: NextRequest) {
       previousCount: previousMessages.length,
     })
     
-    const systemPrompt = `You are a helpful AI assistant with access to 600+ integration tools including GitHub, Slack, Google Drive, Gmail, Calendar, Notion, Airtable, Discord, Jira, and many more.
+    const systemPrompt = `You are a helpful AI assistant with access to 600+ integration tools.
 
-Use the available tools to help the user accomplish their tasks.`
+IMPORTANT: Use tool_search_tool_bm25 or tool_search_tool_regex to discover available tools before using them. Tools are loaded on-demand based on your search queries.
+
+Workflow:
+1. Search for tools using tool_search_tool_bm25 (better for semantic search) or tool_search_tool_regex (better for pattern matching)
+2. Review the search results to find the best tool(s)
+3. Call the discovered tools directly using their exact names
+
+Available integrations include GitHub, Slack, Google Drive, Gmail, Calendar, Notion, Airtable, Discord, Jira, Linear, Salesforce, Stripe, HubSpot, and 600+ more.
+
+Use BM25 for general queries like "github pull request" and regex for specific patterns like ".*_list" to find all list operations.`
 
     // Call provider directly
     // Use server-side API key from environment variables
@@ -399,22 +415,23 @@ Use the available tools to help the user accomplish their tasks.`
     logger.info('Calling provider API', {
       provider: 'anthropic',
       model,
-      toolsCount: validTools.length,
+      toolsCount: deferredIntegrationTools.length + 2, // +2 for BM25 and regex search tools
     })
     
     const response = await executeProviderRequest('anthropic', {
       model,
       systemPrompt,
       messages,
-      tools: validTools,
+      tools: [...searchTools, ...deferredIntegrationTools] as any,
       temperature: 0.7,
       maxTokens: 4000,
       apiKey,
       stream: true,
-      streamToolCalls: true, // Enable streaming of tool calls to show what's being executed
-      workflowId: undefined, // Don't pass a fake workflowId - let tools use session auth instead
+      streamToolCalls: true,
+      betas: ['advanced-tool-use-2025-11-20'], // Enable Anthropic's advanced tool use beta
+      workflowId: undefined,
       workspaceId,
-      userId, // Pass userId so tools can access OAuth credentials
+      userId,
       environmentVariables: {},
       workflowVariables: {},
       blockData: {},
