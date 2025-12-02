@@ -104,7 +104,15 @@ function McpInputWithTags({
           onDragOver={handleDragOver}
           placeholder={placeholder}
           disabled={disabled}
+          name={`mcp_input_${Math.random()}`}
           autoComplete='off'
+          autoCapitalize='off'
+          spellCheck='false'
+          data-form-type='other'
+          data-lpignore='true'
+          data-1p-ignore
+          readOnly
+          onFocus={(e) => e.currentTarget.removeAttribute('readOnly')}
           className={cn(!isPassword && 'text-transparent caret-foreground')}
         />
         {!isPassword && (
@@ -220,6 +228,13 @@ function McpTextareaWithTags({
         placeholder={placeholder}
         disabled={disabled}
         rows={rows}
+        name={`mcp_textarea_${Math.random()}`}
+        autoComplete='off'
+        autoCapitalize='off'
+        spellCheck='false'
+        data-form-type='other'
+        data-lpignore='true'
+        data-1p-ignore
         className={cn('min-h-[80px] resize-none text-transparent caret-foreground')}
       />
       <div className='pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words p-3 text-sm'>
@@ -520,7 +535,32 @@ export function McpDynamicArgs({
   }
 
   return (
-    <div className='space-y-4'>
+    <div className='relative space-y-4'>
+      {/* Hidden dummy inputs to prevent browser password manager autofill */}
+      <input
+        type='text'
+        name='fakeusernameremembered'
+        autoComplete='username'
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        tabIndex={-1}
+        readOnly
+      />
+      <input
+        type='password'
+        name='fakepasswordremembered'
+        autoComplete='current-password'
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        tabIndex={-1}
+        readOnly
+      />
+      <input
+        type='email'
+        name='fakeemailremembered'
+        autoComplete='email'
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        tabIndex={-1}
+        readOnly
+      />
       {toolSchema.properties &&
         Object.entries(toolSchema.properties).map(([paramName, paramSchema]) => {
           const inputType = getInputType(paramSchema as any)
