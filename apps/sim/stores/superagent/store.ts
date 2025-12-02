@@ -4,6 +4,12 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SuperagentStore')
 
+// Store version - increment to force cache refresh  
+const STORE_VERSION = '2.1.0'
+
+// Debug flag to trace SSE parsing
+const DEBUG_SSE = true
+
 interface SuperagentMessage {
   id: string
   role: 'user' | 'assistant'
@@ -127,27 +133,43 @@ export const useSuperagentStore = create<SuperagentStore>()(
         let buffer = ''
         let accumulatedContent = ''
 
+        logger.info('Starting to read stream')
+        
         while (true) {
           const { done, value } = await reader.read()
-          if (done) break
+          if (done) {
+            logger.info('Stream reading done', { accumulatedLength: accumulatedContent.length })
+            break
+          }
 
           const chunk = decoder.decode(value, { stream: true })
-          buffer += chunk
-
-          // Process complete SSE messages
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6))
+          
+          // The SSE format has "data: {...}\n\n" - we need to handle this properly
+          // Process each chunk and look for complete SSE messages
+          const fullText = buffer + chunk
+          
+          // Split on double newline which is the SSE message delimiter
+          const parts = fullText.split('\n\n')
+          
+          // Keep the last part in buffer if it might be incomplete
+          buffer = parts.pop() || ''
+          
+          for (const part of parts) {
+            const lines = part.split('\n')
+            
+            for (const line of lines) {
+              const trimmedLine = line.trim()
+              if (!trimmedLine) continue // Skip empty lines
+              
+              // Check if this is an SSE data line
+              if (trimmedLine.startsWith('data: ')) {
+                const jsonStr = trimmedLine.slice(6) // Remove 'data: ' prefix
                 
-                logger.info('Received SSE chunk', { 
-                  type: data.type,
-                  hasText: !!data.text,
-                  hasContent: !!data.content,
-                })
+                // Skip empty data
+                if (!jsonStr) continue
+                
+                try {
+                  const data = JSON.parse(jsonStr)
                 
                 // Handle different types of streaming data
                 if (data.type === 'text' && data.text) {
@@ -194,19 +216,14 @@ export const useSuperagentStore = create<SuperagentStore>()(
                   // Reload chats to get updated list
                   get().loadChats()
                   break
-                } else {
-                  logger.warn('Unknown chunk type', { type: data.type, data })
                 }
               } catch (e) {
-                logger.warn('Failed to parse SSE data', { error: e, line })
+                // Skip parse errors silently - might be incomplete JSON
               }
             }
           }
+          }
         }
-
-        logger.info('Stream processing complete', {
-          finalContentLength: accumulatedContent.length,
-        })
 
         set({ isSendingMessage: false, abortController: null })
       } catch (error) {

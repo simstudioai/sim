@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Loader2, Plus, Send, Trash2, X } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/emcn'
 import { ScrollArea } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -10,6 +11,35 @@ import { useSuperagentStore } from '@/stores/superagent/store'
 import { cn } from '@/lib/utils'
 
 const logger = createLogger('Superagent')
+
+/**
+ * Parse raw SSE data into plain text if needed
+ */
+function parseContent(content: string): string {
+  if (!content) return ''
+  
+  // Check if content looks like raw SSE data
+  if (content.includes('data: {"type":"text"')) {
+    let result = ''
+    const lines = content.split('\n')
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(trimmed.slice(6))
+          if (data.type === 'text' && data.text) {
+            result += data.text
+          }
+        } catch {
+          // Not valid JSON, skip
+        }
+      }
+    }
+    return result || content
+  }
+  
+  return content
+}
 
 /**
  * Superagent page component - Standalone AI agent with full tool access
@@ -183,7 +213,15 @@ export default function Superagent() {
                             : 'bg-muted'
                         )}
                       >
-                        <div className='whitespace-pre-wrap text-sm'>{msg.content}</div>
+                        {msg.role === 'assistant' ? (
+                          <div className='prose prose-sm dark:prose-invert max-w-none'>
+                            <ReactMarkdown>{parseContent(msg.content)}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <div className='whitespace-pre-wrap text-sm'>
+                            {msg.content}
+                          </div>
+                        )}
                         
                         {/* Show tool calls */}
                         {msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && (

@@ -347,35 +347,50 @@ export async function POST(req: NextRequest) {
     
     // Mark all integration tools with defer_loading: true
     // This means they won't be loaded into context until Claude searches for them
-    const deferredIntegrationTools = Object.entries(tools).map(([toolId, toolConfig]) => {
-      const params: Record<string, any> = {}
-      
-      if (toolConfig.oauth?.required && toolConfig.oauth.provider) {
-        const provider = toolConfig.oauth.provider
-        const accessToken = accessTokenMap[provider]
+    const { createLLMToolSchema } = await import('@/tools/params')
+    
+    const deferredIntegrationTools = await Promise.all(
+      Object.entries(tools).map(async ([toolId, toolConfig]) => {
+        const preConfiguredParams: Record<string, any> = {}
         
-        if (accessToken) {
-          params.accessToken = accessToken
+        if (toolConfig.oauth?.required && toolConfig.oauth.provider) {
+          const provider = toolConfig.oauth.provider
+          const accessToken = accessTokenMap[provider]
+          
+          if (accessToken) {
+            preConfiguredParams.accessToken = accessToken
+          }
         }
-      }
-      
-      return {
-        name: toolId, // Anthropic uses 'name' not 'id'
-        description: toolConfig.description || toolConfig.name || toolId,
-        input_schema: {
-          type: 'object' as const,
-          properties: {},
-          required: [],
-        },
-        defer_loading: true, // Don't load into context upfront!
-        params, // Pre-configured params (access tokens)
-      }
-    })
+        
+        // Use the same schema generation as the agent block
+        // This ensures LLM sees the correct parameters
+        const llmSchema = await createLLMToolSchema(toolConfig, preConfiguredParams)
+        
+        return {
+          name: toolId, // Anthropic uses 'name' not 'id'
+          description: toolConfig.description || toolConfig.name || toolId,
+          input_schema: llmSchema,
+          defer_loading: true, // Don't load into context upfront!
+          params: preConfiguredParams, // Pre-configured params (access tokens)
+        }
+      })
+    )
+    
+    // Log a sample tool to verify schema is correct
+    const sampleTool = deferredIntegrationTools.find(t => t.name === 'google_calendar_create')
+    if (sampleTool) {
+      logger.info('Sample tool schema (google_calendar_create)', {
+        name: sampleTool.name,
+        properties: Object.keys(sampleTool.input_schema.properties || {}),
+        required: sampleTool.input_schema.required,
+      })
+    }
     
     logger.info('Tools configured with Anthropic defer_loading', {
       searchToolTypes: ['tool_search_tool_bm25_20251119', 'tool_search_tool_regex_20251119'],
       deferredTools: deferredIntegrationTools.length,
       toolsWithCredentials: deferredIntegrationTools.filter((t) => t.params.accessToken).length,
+      toolsWithSchemas: deferredIntegrationTools.filter((t) => Object.keys(t.input_schema.properties || {}).length > 0).length,
     })
 
     // Build messages with previous history
@@ -392,18 +407,24 @@ export async function POST(req: NextRequest) {
       previousCount: previousMessages.length,
     })
     
-    const systemPrompt = `You are a helpful AI assistant with access to 600+ integration tools.
+    const systemPrompt = `You are a powerful AI assistant with seamless access to 600+ integrations including GitHub, Slack, Google Drive, Gmail, Calendar, Notion, Airtable, Discord, Jira, Linear, Salesforce, Stripe, HubSpot, and many more.
 
-IMPORTANT: Use tool_search_tool_bm25 or tool_search_tool_regex to discover available tools before using them. Tools are loaded on-demand based on your search queries.
+CRITICAL BEHAVIOR RULES:
+1. NEVER mention that you are "searching for tools", "finding tools", "discovering tools", or "loading tools"
+2. NEVER say things like "Let me search for the appropriate tool" or "I found the right tool"
+3. Act as if you inherently know how to do everything - just DO IT
+4. When you need a tool, silently search for it and use it without narrating the process
+5. Respond naturally as if the capabilities are built into you
 
-Workflow:
-1. Search for tools using tool_search_tool_bm25 (better for semantic search) or tool_search_tool_regex (better for pattern matching)
-2. Review the search results to find the best tool(s)
-3. Call the discovered tools directly using their exact names
+INTERNAL WORKFLOW (do not expose to user):
+- Use tool_search_tool_bm25 or tool_search_tool_regex to find tools
+- Call the discovered tools directly
+- Present results naturally without mentioning the tool discovery process
 
-Available integrations include GitHub, Slack, Google Drive, Gmail, Calendar, Notion, Airtable, Discord, Jira, Linear, Salesforce, Stripe, HubSpot, and 600+ more.
+GOOD RESPONSE: "I'll create that calendar event for you now." [then use tools silently]
+BAD RESPONSE: "Let me search for calendar tools... I found google_calendar_quick_add..."
 
-Use BM25 for general queries like "github pull request" and regex for specific patterns like ".*_list" to find all list operations.`
+Be confident, capable, and seamless. You're not searching for tools - you simply HAVE the capabilities.`
 
     // Call provider directly
     // Use server-side API key from environment variables
@@ -443,6 +464,7 @@ Use BM25 for general queries like "github pull request" and regex for specific p
       responseType: typeof response,
       hasSuccess: !!(response && typeof response === 'object' && 'success' in response),
       hasContent: !!(response && typeof response === 'object' && 'content' in response),
+      responseKeys: response && typeof response === 'object' ? Object.keys(response) : [],
     })
     
     // Track the assistant's response and tool calls for persistence
@@ -461,6 +483,38 @@ Use BM25 for general queries like "github pull request" and regex for specific p
           try {
             logger.info('Starting stream iteration')
             
+            // Get tool calls from execution metadata
+            const executionMetadata = (streamResult as any).execution
+            const executedToolCalls = executionMetadata?.output?.toolCalls?.list || []
+            
+            // Send tool call events first
+            for (const toolCall of executedToolCalls) {
+              toolCalls.push({
+                name: toolCall.name,
+                status: toolCall.success ? 'success' : 'error',
+                result: toolCall.result,
+              })
+              
+              // Send tool call start event
+              const toolCallChunk = {
+                type: 'tool_call',
+                name: toolCall.name,
+                status: 'calling',
+              }
+              const toolData = `data: ${JSON.stringify(toolCallChunk)}\n\n`
+              controller.enqueue(encoder.encode(toolData))
+              
+              // Send tool call complete event
+              const toolCompleteChunk = {
+                type: 'tool_call',
+                name: toolCall.name,
+                status: toolCall.success ? 'success' : 'error',
+                result: toolCall.success ? toolCall.result : { error: toolCall.result },
+              }
+              const toolCompleteData = `data: ${JSON.stringify(toolCompleteChunk)}\n\n`
+              controller.enqueue(encoder.encode(toolCompleteData))
+            }
+            
             // The Anthropic provider returns a ReadableStream with raw text chunks
             // We need to read it and convert to SSE format
             const reader = streamResult.stream.getReader()
@@ -478,12 +532,13 @@ Use BM25 for general queries like "github pull request" and regex for specific p
                 const chunk = { type: 'text', text }
                 const data = `data: ${JSON.stringify(chunk)}\n\n`
                 controller.enqueue(encoder.encode(data))
-                
-                logger.info('Stream chunk sent', { textLength: text.length })
               }
             }
             
-            logger.info('Stream completed', { totalLength: assistantResponse.length })
+            logger.info('Stream completed', { 
+              totalLength: assistantResponse.length,
+              toolCallsExecuted: toolCalls.length,
+            })
             
             // Send done event
             const doneChunk = { type: 'done' }

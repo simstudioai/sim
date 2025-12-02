@@ -122,22 +122,53 @@ export const anthropicProvider: ProviderConfig = {
 
     // Transform tools to Anthropic format if provided
     let anthropicTools = request.tools?.length
-      ? request.tools.map((tool) => {
+      ? request.tools.map((tool, index) => {
           // Handle native Anthropic tool types (like tool_search_tool_regex)
           if ((tool as any).type && (tool as any).type.startsWith('tool_search_tool')) {
             return tool as any // Pass through native tools as-is
           }
           
+          // Get schema - check both input_schema (from superagent) and parameters (from agent block)
+          const toolAny = tool as any
+          const schema = toolAny.input_schema || tool.parameters || {}
+          
+          // Validate and sanitize properties to ensure valid JSON Schema
+          const properties: Record<string, any> = {}
+          if (schema.properties && typeof schema.properties === 'object') {
+            for (const [key, value] of Object.entries(schema.properties)) {
+              if (value && typeof value === 'object') {
+                const prop = value as any
+                // Ensure type is a valid JSON Schema type
+                const validTypes = ['string', 'number', 'integer', 'boolean', 'array', 'object', 'null']
+                const propType = prop.type || 'string'
+                
+                if (validTypes.includes(propType)) {
+                  properties[key] = {
+                    type: propType,
+                    ...(prop.description ? { description: String(prop.description) } : {}),
+                    ...(prop.items && propType === 'array' ? { items: prop.items } : {}),
+                    ...(prop.enum ? { enum: prop.enum } : {}),
+                  }
+                }
+              }
+            }
+          }
+          
+          // Validate required array
+          const required = Array.isArray(schema.required) 
+            ? schema.required.filter((r: any) => typeof r === 'string' && properties[r])
+            : []
+          
           // Transform regular tools
           return {
-            name: tool.id || (tool as any).name,
-            description: tool.description,
+            name: tool.id || toolAny.name,
+            description: tool.description || '',
             input_schema: {
               type: 'object',
-              properties: tool.parameters?.properties || {},
-              required: tool.parameters?.required || [],
+              properties,
+              required,
             },
-            ...(((tool as any).defer_loading !== undefined) ? { defer_loading: (tool as any).defer_loading } : {}),
+            ...(toolAny.defer_loading !== undefined ? { defer_loading: toolAny.defer_loading } : {}),
           }
         })
       : undefined
@@ -357,10 +388,228 @@ ${fieldDescriptions}
     }
 
     // TOOL EXECUTION PATH: Execute all tool calls with streaming
-    if (anthropicTools && anthropicTools.length > 0) {
-      logger.info('Executing Anthropic request with tools and streaming', {
+    if (anthropicTools && anthropicTools.length > 0 && request.stream) {
+      logger.info('Executing Anthropic request with fully streaming tools and text', {
         toolCount: anthropicTools.length,
-        streamingEnabled: request.stream,
+      })
+
+      // Start execution timer
+      const providerStartTime = Date.now()
+      const providerStartTimeISO = new Date(providerStartTime).toISOString()
+
+      // Create a custom streaming implementation that handles tool execution
+      const customStream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder()
+          const tokens = { prompt: 0, completion: 0, total: 0 }
+          const toolCalls: any[] = []
+          const currentMessages = [...messages]
+          let iterationCount = 0
+          const MAX_ITERATIONS = 10
+
+          try {
+            while (iterationCount < MAX_ITERATIONS) {
+              logger.info(`Iteration ${iterationCount + 1}: Calling Anthropic`)
+              
+              // Make streaming call
+              const streamPayload = {
+                ...payload,
+                messages: currentMessages,
+                stream: true,
+              }
+              
+              const streamResponse: any = request.betas?.length
+                ? await anthropic.beta.messages.create(streamPayload)
+                : await anthropic.messages.create(streamPayload)
+              
+              let hasToolCalls = false
+              const pendingToolCalls: any[] = []
+              let accumulatedText = ''
+              
+              // Process stream events
+              for await (const event of streamResponse) {
+                // Log raw SSE event from Anthropic
+                logger.info('Raw Anthropic SSE', {
+                  type: event.type,
+                  index: event.index,
+                  contentBlockType: event.content_block?.type,
+                  deltaType: event.delta?.type,
+                  raw: JSON.stringify(event).slice(0, 800),
+                })
+                
+                // Stream text deltas
+                if (event.type === 'content_block_delta' && event.delta?.text) {
+                  const text = event.delta.text
+                  accumulatedText += text
+                  
+                  // Stream text to client
+                  const textChunk = { type: 'text', text }
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(textChunk)}\n\n`))
+                }
+                
+                // Detect tool use
+                if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+                  hasToolCalls = true
+                  const toolUse = { ...event.content_block, blockIndex: event.index }
+                  pendingToolCalls.push(toolUse)
+                  
+                  logger.info('Tool use detected', {
+                    toolName: toolUse.name,
+                    blockIndex: event.index,
+                    toolUseId: toolUse.id,
+                  })
+                  
+                  // Stream tool call start event
+                  const toolStartChunk = { 
+                    type: 'tool_call', 
+                    name: toolUse.name,
+                    status: 'calling',
+                  }
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(toolStartChunk)}\n\n`))
+                }
+                
+                // Accumulate tool input as it streams
+                if (event.type === 'content_block_delta' && event.delta?.type === 'input_json_delta') {
+                  const blockIndex = event.index
+                  // Find the tool call with matching blockIndex
+                  const toolCall = pendingToolCalls.find((t: any) => t.blockIndex === blockIndex)
+                  if (toolCall) {
+                    if (!toolCall.input_json) {
+                      toolCall.input_json = ''
+                    }
+                    toolCall.input_json += event.delta.partial_json
+                  } else {
+                    logger.warn('No matching tool call for input_json_delta', { blockIndex, pendingCount: pendingToolCalls.length })
+                  }
+                }
+                
+                // Track usage
+                if (event.type === 'message_delta' && event.usage) {
+                  tokens.prompt += event.usage.input_tokens || 0
+                  tokens.completion += event.usage.output_tokens || 0
+                  tokens.total = tokens.prompt + tokens.completion
+                }
+              }
+              
+              // If no tool calls, we're done
+              if (!hasToolCalls || pendingToolCalls.length === 0) {
+                break
+              }
+              
+              // Execute all tool calls
+              for (const toolUse of pendingToolCalls) {
+                const toolName = toolUse.name
+                
+                logger.info('Raw tool use before parsing', {
+                  toolName,
+                  hasInputJson: !!toolUse.input_json,
+                  inputJsonLength: toolUse.input_json?.length || 0,
+                  inputJsonPreview: toolUse.input_json?.slice(0, 300),
+                  hasInput: !!toolUse.input,
+                  inputKeys: toolUse.input ? Object.keys(toolUse.input) : [],
+                })
+                
+                const toolInput = toolUse.input_json ? JSON.parse(toolUse.input_json) : toolUse.input || {}
+                
+                logger.info('Processing tool call', {
+                  toolName,
+                  toolInput: JSON.stringify(toolInput).slice(0, 500),
+                  toolInputKeys: Object.keys(toolInput),
+                })
+                
+                // Find tool in registry
+                const tool = request.tools?.find((t: any) => t.id === toolName || t.name === toolName)
+                if (!tool) {
+                  logger.warn(`Tool not found: ${toolName}`)
+                  continue
+                }
+                
+                logger.info('Found tool in registry', {
+                  toolName,
+                  hasParams: !!(tool as any).params,
+                  paramsKeys: Object.keys((tool as any).params || {}),
+                })
+                
+                // Execute tool
+                const { toolParams, executionParams } = prepareToolExecution(tool, toolInput, request)
+                
+                logger.info('Prepared tool execution', {
+                  toolName,
+                  toolParamsKeys: Object.keys(toolParams),
+                  hasAccessToken: !!toolParams.accessToken,
+                })
+                
+                let result: any
+                try {
+                  result = await executeTool(toolName, executionParams, true)
+                } catch (execError) {
+                  result = {
+                    success: false,
+                    error: execError instanceof Error ? execError.message : String(execError),
+                    output: null,
+                  }
+                  logger.error('Tool execution threw exception', { toolName, error: result.error })
+                }
+                
+                toolCalls.push({
+                  name: toolName,
+                  arguments: toolParams,
+                  result: result.output,
+                  success: result.success,
+                })
+                
+                // Stream tool completion event
+                const toolCompleteChunk = {
+                  type: 'tool_call',
+                  name: toolName,
+                  status: result.success ? 'success' : 'error',
+                  result: result.output,
+                }
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(toolCompleteChunk)}\n\n`))
+                
+                // Add to message history
+                const toolUseId = generateToolUseId(toolName)
+                currentMessages.push({
+                  role: 'assistant',
+                  content: [{ type: 'tool_use', id: toolUseId, name: toolName, input: toolInput }],
+                })
+                currentMessages.push({
+                  role: 'user',
+                  content: [{ type: 'tool_result', tool_use_id: toolUseId, content: JSON.stringify(result.output) }],
+                })
+              }
+              
+              iterationCount++
+            }
+            
+            // Send done event
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`))
+            controller.close()
+            
+          } catch (error) {
+            logger.error('Streaming tool execution error', { error })
+            controller.error(error)
+          }
+        },
+      })
+      
+      // Return streaming execution
+      return {
+        stream: customStream,
+        execution: {
+          success: true,
+          output: { content: '', model: request.model, tokens: { prompt: 0, completion: 0, total: 0 } },
+          logs: [],
+          metadata: { startTime: providerStartTimeISO, endTime: new Date().toISOString(), duration: 0 },
+          isStreaming: true,
+        },
+      } as StreamingExecution
+    }
+    
+    // NON-STREAMING TOOL EXECUTION PATH (original code)
+    if (anthropicTools && anthropicTools.length > 0) {
+      logger.info('Executing Anthropic request with tools (non-streaming)', {
+        toolCount: anthropicTools.length,
       })
 
       // Start execution timer
@@ -379,10 +628,9 @@ ${fieldDescriptions}
         let usedForcedTools: string[] = []
 
         // Make non-streaming call for tool execution
-        // We'll stream the final response after tools complete
         const toolPayload = {
           ...payload,
-          stream: false, // Non-streaming for tool execution
+          stream: false,
         }
 
         // Call the API - use beta client if betas are present
@@ -501,6 +749,8 @@ ${fieldDescriptions}
 
                 // Execute the tool
                 const toolCallStartTime = Date.now()
+                
+                logger.info('Executing tool', { toolName, hasParams: !!tool.params })
 
                 const { toolParams, executionParams } = prepareToolExecution(
                   tool,
@@ -509,9 +759,26 @@ ${fieldDescriptions}
                 )
 
                 // Use general tool system for requests
-                const result = await executeTool(toolName, executionParams, true)
+                let result: any
+                try {
+                  result = await executeTool(toolName, executionParams, true)
+                } catch (execError) {
+                  // Tool threw an exception - convert to error result
+                  result = {
+                    success: false,
+                    error: execError instanceof Error ? execError.message : String(execError),
+                    output: null,
+                  }
+                }
+                
                 const toolCallEndTime = Date.now()
                 const toolCallDuration = toolCallEndTime - toolCallStartTime
+                
+                logger.info('Tool execution completed', { 
+                  toolName, 
+                  success: result.success,
+                  duration: toolCallDuration,
+                })
 
                 // Add to time segments for both success and failure
                 timeSegments.push({
@@ -568,6 +835,7 @@ ${fieldDescriptions}
                       type: 'tool_result',
                       tool_use_id: toolUseId,
                       content: JSON.stringify(resultContent),
+                      is_error: !result.success, // Mark as error for Anthropic
                     } as any,
                   ],
                 })
@@ -859,7 +1127,18 @@ ${fieldDescriptions}
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
 
               // Use general tool system for requests
-              const result = await executeTool(toolName, executionParams, true)
+              let result: any
+              try {
+                result = await executeTool(toolName, executionParams, true)
+              } catch (execError) {
+                // Tool threw an exception - convert to error result
+                result = {
+                  success: false,
+                  error: execError instanceof Error ? execError.message : String(execError),
+                  output: null,
+                }
+              }
+              
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 
@@ -918,6 +1197,7 @@ ${fieldDescriptions}
                     type: 'tool_result',
                     tool_use_id: toolUseId,
                     content: JSON.stringify(resultContent),
+                    is_error: !result.success, // Mark as error for Anthropic
                   } as any,
                 ],
               })
