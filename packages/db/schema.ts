@@ -84,6 +84,10 @@ export const account = pgTable(
   },
   (table) => ({
     userIdIdx: index('account_user_id_idx').on(table.userId),
+    accountProviderIdx: index('idx_account_on_account_id_provider_id').on(
+      table.accountId,
+      table.providerId
+    ),
   })
 )
 
@@ -188,7 +192,6 @@ export const workflowBlocks = pgTable(
   },
   (table) => ({
     workflowIdIdx: index('workflow_blocks_workflow_id_idx').on(table.workflowId),
-    workflowTypeIdx: index('workflow_blocks_workflow_type_idx').on(table.workflowId, table.type),
   })
 )
 
@@ -300,7 +303,6 @@ export const workflowExecutionLogs = pgTable(
   },
   (table) => ({
     workflowIdIdx: index('workflow_execution_logs_workflow_id_idx').on(table.workflowId),
-    executionIdIdx: index('workflow_execution_logs_execution_id_idx').on(table.executionId),
     stateSnapshotIdIdx: index('workflow_execution_logs_state_snapshot_id_idx').on(
       table.stateSnapshotId
     ),
@@ -476,6 +478,8 @@ export const webhook = pgTable(
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
     providerConfig: json('provider_config'), // Store provider-specific configuration
     isActive: boolean('is_active').notNull().default(true),
+    failedCount: integer('failed_count').default(0), // Track consecutive failures
+    lastFailedAt: timestamp('last_failed_at'), // When the webhook last failed
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -483,6 +487,11 @@ export const webhook = pgTable(
     return {
       // Ensure webhook paths are unique
       pathIdx: uniqueIndex('path_idx').on(table.path),
+      // Optimize queries for webhooks by workflow and block
+      workflowBlockIdx: index('idx_webhook_on_workflow_id_block_id').on(
+        table.workflowId,
+        table.blockId
+      ),
     }
   }
 )
@@ -647,6 +656,10 @@ export const customTools = pgTable(
   },
   (table) => ({
     workspaceIdIdx: index('custom_tools_workspace_id_idx').on(table.workspaceId),
+    workspaceTitleUnique: uniqueIndex('custom_tools_workspace_title_unique').on(
+      table.workspaceId,
+      table.title
+    ),
   })
 )
 
@@ -732,7 +745,8 @@ export const organization = pgTable('organization', {
   logo: text('logo'),
   metadata: json('metadata'),
   orgUsageLimit: decimal('org_usage_limit'),
-  storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0), // Storage tracking for team/enterprise
+  storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
+  departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -1024,12 +1038,10 @@ export const document = pgTable(
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Primary access pattern - documents by knowledge base
+    // Primary access pattern - filter by knowledge base
     knowledgeBaseIdIdx: index('doc_kb_id_idx').on(table.knowledgeBaseId),
-    // Search by filename (for search functionality)
+    // Search by filename
     filenameIdx: index('doc_filename_idx').on(table.filename),
-    // Order by upload date (for listing documents)
-    kbUploadedAtIdx: index('doc_kb_uploaded_at_idx').on(table.knowledgeBaseId, table.uploadedAt),
     // Processing status filtering
     processingStatusIdx: index('doc_processing_status_idx').on(
       table.knowledgeBaseId,
@@ -1323,6 +1335,7 @@ export const templateCreators = pgTable(
     name: text('name').notNull(),
     profileImageUrl: text('profile_image_url'),
     details: jsonb('details'),
+    verified: boolean('verified').notNull().default(false),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -1458,7 +1471,6 @@ export const workflowDeploymentVersion = pgTable(
     createdBy: text('created_by'),
   },
   (table) => ({
-    workflowIdIdx: index('workflow_deployment_version_workflow_id_idx').on(table.workflowId),
     workflowVersionUnique: uniqueIndex('workflow_deployment_version_workflow_version_unique').on(
       table.workflowId,
       table.version

@@ -41,9 +41,13 @@ Busca contenido similar en una base de conocimiento utilizando similitud vectori
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `knowledgeBaseId` | string | Sí | ID de la base de conocimiento en la que buscar |
-| `query` | string | No | Texto de consulta de búsqueda \(opcional cuando se utilizan filtros de etiquetas\) |
+| `query` | string | No | Texto de consulta de búsqueda \(opcional cuando se usan filtros de etiquetas\) |
 | `topK` | number | No | Número de resultados más similares a devolver \(1-100\) |
 | `tagFilters` | array | No | Array de filtros de etiquetas con propiedades tagName y tagValue |
+| `items` | object | No | Sin descripción |
+| `properties` | string | No | Sin descripción |
+| `tagName` | string | No | Sin descripción |
+| `tagValue` | string | No | Sin descripción |
 
 #### Salida
 
@@ -88,6 +92,11 @@ Crear un nuevo documento en una base de conocimiento
 | `tag6` | string | No | Valor de etiqueta 6 para el documento |
 | `tag7` | string | No | Valor de etiqueta 7 para el documento |
 | `documentTagsData` | array | No | Datos de etiquetas estructurados con nombres, tipos y valores |
+| `items` | object | No | Sin descripción |
+| `properties` | string | No | Sin descripción |
+| `tagName` | string | No | Sin descripción |
+| `tagValue` | string | No | Sin descripción |
+| `tagType` | string | No | Sin descripción |
 
 #### Salida
 

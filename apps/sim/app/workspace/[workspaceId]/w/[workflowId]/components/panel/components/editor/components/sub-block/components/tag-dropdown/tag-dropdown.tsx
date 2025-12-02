@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { shallow } from 'zustand/shallow'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Popover,
   PopoverAnchor,
@@ -426,13 +426,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   const itemRefs = useRef<Map<number, HTMLElement>>(new Map())
 
   const { blocks, edges, loops, parallels } = useWorkflowStore(
-    (state) => ({
+    useShallow((state) => ({
       blocks: state.blocks,
       edges: state.edges,
       loops: state.loops || {},
       parallels: state.parallels || {},
-    }),
-    shallow
+    }))
   )
 
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)

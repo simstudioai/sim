@@ -445,17 +445,24 @@ describe('Cost Calculation', () => {
 })
 
 describe('getHostedModels', () => {
-  it.concurrent('should return OpenAI and Anthropic models as hosted', () => {
+  it.concurrent('should return OpenAI, Anthropic, and Google models as hosted', () => {
     const hostedModels = getHostedModels()
 
+    // OpenAI models
     expect(hostedModels).toContain('gpt-4o')
-    expect(hostedModels).toContain('claude-sonnet-4-0')
     expect(hostedModels).toContain('o1')
+
+    // Anthropic models
+    expect(hostedModels).toContain('claude-sonnet-4-0')
     expect(hostedModels).toContain('claude-opus-4-0')
 
+    // Google models
+    expect(hostedModels).toContain('gemini-2.5-pro')
+    expect(hostedModels).toContain('gemini-2.5-flash')
+
     // Should not contain models from other providers
-    expect(hostedModels).not.toContain('gemini-2.5-pro')
     expect(hostedModels).not.toContain('deepseek-v3')
+    expect(hostedModels).not.toContain('grok-4-latest')
   })
 
   it.concurrent('should return an array of strings', () => {

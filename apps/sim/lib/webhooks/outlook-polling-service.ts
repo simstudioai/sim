@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { htmlToText } from 'html-to-text'
 import { nanoid } from 'nanoid'
 import { pollingIdempotency } from '@/lib/idempotency'
@@ -9,6 +9,55 @@ import { getBaseUrl } from '@/lib/urls/utils'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('OutlookPollingService')
+
+const MAX_CONSECUTIVE_FAILURES = 10
+
+async function markWebhookFailed(webhookId: string) {
+  try {
+    const result = await db
+      .update(webhook)
+      .set({
+        failedCount: sql`COALESCE(${webhook.failedCount}, 0) + 1`,
+        lastFailedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(webhook.id, webhookId))
+      .returning({ failedCount: webhook.failedCount })
+
+    const newFailedCount = result[0]?.failedCount || 0
+    const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
+
+    if (shouldDisable) {
+      await db
+        .update(webhook)
+        .set({
+          isActive: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(webhook.id, webhookId))
+
+      logger.warn(
+        `Webhook ${webhookId} auto-disabled after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
+      )
+    }
+  } catch (err) {
+    logger.error(`Failed to mark webhook ${webhookId} as failed:`, err)
+  }
+}
+
+async function markWebhookSuccess(webhookId: string) {
+  try {
+    await db
+      .update(webhook)
+      .set({
+        failedCount: 0, // Reset on success
+        updatedAt: new Date(),
+      })
+      .where(eq(webhook.id, webhookId))
+  } catch (err) {
+    logger.error(`Failed to mark webhook ${webhookId} as successful:`, err)
+  }
+}
 
 interface OutlookWebhookConfig {
   credentialId: string
@@ -125,8 +174,9 @@ export async function pollOutlookWebhooks() {
 
     // Limit concurrency to avoid exhausting connections
     const CONCURRENCY = 10
-    const running: Promise<any>[] = []
-    const results: any[] = []
+    const running: Promise<void>[] = []
+    let successCount = 0
+    let failureCount = 0
 
     const enqueue = async (webhookData: (typeof activeWebhooks)[number]) => {
       const webhookId = webhookData.id
@@ -135,14 +185,16 @@ export async function pollOutlookWebhooks() {
       try {
         logger.info(`[${requestId}] Processing Outlook webhook: ${webhookId}`)
 
-        // Extract credentialId and/or userId
+        // Extract metadata
         const metadata = webhookData.providerConfig as any
         const credentialId: string | undefined = metadata?.credentialId
         const userId: string | undefined = metadata?.userId
 
         if (!credentialId && !userId) {
           logger.error(`[${requestId}] Missing credentialId and userId for webhook ${webhookId}`)
-          return { success: false, webhookId, error: 'Missing credentialId and userId' }
+          await markWebhookFailed(webhookId)
+          failureCount++
+          return
         }
 
         // Resolve access token
@@ -153,7 +205,9 @@ export async function pollOutlookWebhooks() {
             logger.error(
               `[${requestId}] Credential ${credentialId} not found for webhook ${webhookId}`
             )
-            return { success: false, webhookId, error: 'Credential not found' }
+            await markWebhookFailed(webhookId)
+            failureCount++
+            return
           }
           const ownerUserId = rows[0].userId
           accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
@@ -166,7 +220,9 @@ export async function pollOutlookWebhooks() {
           logger.error(
             `[${requestId}] Failed to get Outlook access token for webhook ${webhookId} (cred or fallback)`
           )
-          return { success: false, webhookId, error: 'No access token' }
+          await markWebhookFailed(webhookId)
+          failureCount++
+          return
         }
 
         // Get webhook configuration
@@ -181,8 +237,10 @@ export async function pollOutlookWebhooks() {
         if (!emails || !emails.length) {
           // Update last checked timestamp
           await updateWebhookLastChecked(webhookId, now.toISOString())
+          await markWebhookSuccess(webhookId)
           logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
-          return { success: true, webhookId, status: 'no_emails' }
+          successCount++
+          return
         }
 
         logger.info(`[${requestId}] Found ${emails.length} emails for webhook ${webhookId}`)
@@ -190,7 +248,7 @@ export async function pollOutlookWebhooks() {
         logger.info(`[${requestId}] Processing ${emails.length} emails for webhook ${webhookId}`)
 
         // Process emails
-        const processed = await processOutlookEmails(
+        const { processedCount, failedCount } = await processOutlookEmails(
           emails,
           webhookData,
           config,
@@ -201,46 +259,58 @@ export async function pollOutlookWebhooks() {
         // Update webhook with latest timestamp
         await updateWebhookLastChecked(webhookId, now.toISOString())
 
-        return {
-          success: true,
-          webhookId,
-          emailsFound: emails.length,
-          emailsProcessed: processed,
+        // If all emails failed, mark webhook as failed. Otherwise mark as success.
+        if (failedCount > 0 && processedCount === 0) {
+          // All emails failed to process - mark webhook as failed
+          await markWebhookFailed(webhookId)
+          failureCount++
+          logger.warn(
+            `[${requestId}] All ${failedCount} emails failed to process for webhook ${webhookId}`
+          )
+        } else {
+          // At least some emails processed successfully
+          await markWebhookSuccess(webhookId)
+          successCount++
+          logger.info(
+            `[${requestId}] Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+          )
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         logger.error(`[${requestId}] Error processing Outlook webhook ${webhookId}:`, error)
-        return { success: false, webhookId, error: errorMessage }
+        await markWebhookFailed(webhookId)
+        failureCount++
       }
     }
 
     for (const webhookData of activeWebhooks) {
-      running.push(enqueue(webhookData))
+      const promise = enqueue(webhookData)
+        .then(() => {
+          // Result processed, memory released
+        })
+        .catch((err) => {
+          logger.error('Unexpected error in webhook processing:', err)
+          failureCount++
+        })
+
+      running.push(promise)
 
       if (running.length >= CONCURRENCY) {
-        const result = await Promise.race(running)
-        running.splice(running.indexOf(result), 1)
-        results.push(result)
+        const completedIdx = await Promise.race(running.map((p, i) => p.then(() => i)))
+        running.splice(completedIdx, 1)
       }
     }
 
-    while (running.length) {
-      const result = await Promise.race(running)
-      running.splice(running.indexOf(result), 1)
-      results.push(result)
-    }
+    // Wait for remaining webhooks to complete
+    await Promise.allSettled(running)
 
-    // Calculate summary
-    const successful = results.filter((r) => r.success).length
-    const failed = results.filter((r) => !r.success).length
-
-    logger.info(`Outlook polling completed: ${successful} successful, ${failed} failed`)
+    logger.info(`Outlook polling completed: ${successCount} successful, ${failureCount} failed`)
 
     return {
       total: activeWebhooks.length,
-      successful,
-      failed,
-      details: results,
+      successful: successCount,
+      failed: failureCount,
+      details: [], // Don't store details to save memory
     }
   } catch (error) {
     logger.error('Error during Outlook webhook polling:', error)
@@ -345,6 +415,7 @@ async function processOutlookEmails(
   requestId: string
 ) {
   let processedCount = 0
+  let failedCount = 0
 
   for (const email of emails) {
     try {
@@ -451,10 +522,11 @@ async function processOutlookEmails(
       processedCount++
     } catch (error) {
       logger.error(`[${requestId}] Error processing email ${email.id}:`, error)
+      failedCount++
     }
   }
 
-  return processedCount
+  return { processedCount, failedCount }
 }
 
 async function downloadOutlookAttachments(

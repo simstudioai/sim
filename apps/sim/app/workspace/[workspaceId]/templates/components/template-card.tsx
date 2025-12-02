@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Star, User } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
@@ -21,6 +22,7 @@ interface TemplateCardProps {
   className?: string
   state?: WorkflowState
   isStarred?: boolean
+  isVerified?: boolean
 }
 
 export function TemplateCardSkeleton({ className }: { className?: string }) {
@@ -126,6 +128,7 @@ function TemplateCardInner({
   className,
   state,
   isStarred = false,
+  isVerified = false,
 }: TemplateCardProps) {
   const router = useRouter()
   const params = useParams()
@@ -229,7 +232,7 @@ function TemplateCardInner({
                     key={index}
                     className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
                     style={{
-                      backgroundColor: blockConfig.bgColor || 'gray',
+                      background: blockConfig.bgColor || 'gray',
                       marginLeft: index > 0 ? '-4px' : '0',
                     }}
                   >
@@ -254,7 +257,7 @@ function TemplateCardInner({
                   key={index}
                   className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
                   style={{
-                    backgroundColor: blockConfig.bgColor || 'gray',
+                    background: blockConfig.bgColor || 'gray',
                     marginLeft: index > 0 ? '-4px' : '0',
                   }}
                 >
@@ -277,7 +280,10 @@ function TemplateCardInner({
               <User className='h-[18px] w-[18px] text-[#888888]' />
             </div>
           )}
-          <span className='truncate font-medium text-[#888888] text-[12px]'>{author}</span>
+          <div className='flex items-center gap-[4px]'>
+            <span className='truncate font-medium text-[#888888] text-[12px]'>{author}</span>
+            {isVerified && <VerifiedBadge size='sm' />}
+          </div>
         </div>
 
         <div className='flex flex-shrink-0 items-center gap-[6px] font-medium text-[#888888] text-[12px]'>

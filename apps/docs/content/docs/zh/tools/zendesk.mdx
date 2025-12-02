@@ -1,0 +1,642 @@
+---
+title: Zendesk
+description: 在 Zendesk 中管理支持工单、用户和组织
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zendesk"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Zendesk](https://www.zendesk.com/) 是一个领先的客户服务和支持平台，通过一套强大的工具和 API，帮助组织高效管理支持工单、用户和组织。Sim 中的 Zendesk 集成让您的客服人员能够自动化关键支持操作，并将支持数据与您的工作流程的其余部分同步。
+
+在 Sim 中使用 Zendesk，您可以：
+
+- **管理工单：**
+  - 使用高级过滤和排序功能检索支持工单列表。
+  - 获取单个工单的详细信息以进行跟踪和解决。
+  - 单独或批量创建新工单，以编程方式记录客户问题。
+  - 更新工单或应用批量更新以简化复杂的工作流程。
+  - 在问题解决或出现重复时删除或合并工单。
+
+- **用户管理：**
+  - 检索用户列表或按条件搜索用户，以保持客户和客服目录的最新状态。
+  - 获取单个用户或当前登录用户的详细信息。
+  - 创建新用户或批量入职用户，自动化客户和客服的配置。
+  - 更新或批量更新用户详细信息，以确保信息的准确性。
+  - 根据需要删除用户，以满足隐私或账户管理需求。
+
+- **组织管理：**
+  - 列出、搜索和自动补全组织，以简化支持和账户管理。
+  - 获取组织详细信息，保持数据库井然有序。
+  - 创建、更新或删除组织，以反映客户群的变化。
+  - 执行批量组织创建，以支持大规模入职工作。
+
+- **高级搜索与分析：**
+  - 使用多功能搜索端点，通过任意字段快速定位工单、用户或组织。
+  - 检索搜索结果的计数，为报告和分析提供支持。
+
+通过利用 Zendesk 的 Sim 集成，您的自动化工作流程可以无缝处理支持工单分类、用户入职/离职、公司管理，并保持支持运营的顺畅运行。无论您是将支持与产品、CRM 或自动化系统集成，Sim 中的 Zendesk 工具都提供强大的编程控制能力，以大规模提供一流的支持。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Zendesk 集成到工作流程中。可以获取工单、获取单个工单、创建工单、批量创建工单、更新工单、批量更新工单、删除工单、合并工单、获取用户、获取单个用户、获取当前用户、搜索用户、创建用户、批量创建用户、更新用户、批量更新用户、删除用户、获取组织、获取单个组织、自动完成组织、创建组织、批量创建组织、更新组织、删除组织、搜索、搜索计数。
+
+## 工具
+
+### `zendesk_get_tickets`
+
+从 Zendesk 检索工单列表，并可选择过滤
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 \(例如，mycompany.zendesk.com 中的 "mycompany"\) |
+| `status` | string | 否 | 按状态过滤 \(new, open, pending, hold, solved, closed\) |
+| `priority` | string | 否 | 按优先级过滤 \(low, normal, high, urgent\) |
+| `type` | string | 否 | 按类型过滤 \(problem, incident, question, task\) |
+| `assigneeId` | string | 否 | 按分配的用户 ID 过滤 |
+| `organizationId` | string | 否 | 按组织 ID 过滤 |
+| `sortBy` | string | 否 | 排序字段 \(created_at, updated_at, priority, status\) |
+| `sortOrder` | string | 否 | 排序顺序 \(asc 或 desc\) |
+| `perPage` | string | 否 | 每页结果数 \(默认: 100, 最大: 100\) |
+| `page` | string | 否 | 页码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 工单数据和元数据 |
+
+### `zendesk_get_ticket`
+
+通过 ID 从 Zendesk 获取单个工单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `ticketId` | string | 是 | 要检索的工单 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 工单数据 |
+
+### `zendesk_create_ticket`
+
+在 Zendesk 中创建支持自定义字段的新工单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `subject` | string | 否 | 工单主题（可选 - 如果未提供，将自动生成） |
+| `description` | string | 是 | 工单描述（第一条评论） |
+| `priority` | string | 否 | 优先级（低、普通、高、紧急） |
+| `status` | string | 否 | 状态（新建、打开、待处理、挂起、已解决、已关闭） |
+| `type` | string | 否 | 类型（问题、事件、问题、任务） |
+| `tags` | string | 否 | 逗号分隔的标签 |
+| `assigneeId` | string | 否 | 分配的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的工单数据 |
+
+### `zendesk_create_tickets_bulk`
+
+一次在 Zendesk 中创建多个工单（最多 100 个）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `tickets` | string | 是 | 要创建的工单对象的 JSON 数组（最多 100 个）。每个工单应包含 subject 和 comment 属性。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 批量创建任务状态 |
+
+### `zendesk_update_ticket`
+
+更新 Zendesk 中的现有工单，支持自定义字段
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `ticketId` | string | 是 | 要更新的工单 ID |
+| `subject` | string | 否 | 新的工单主题 |
+| `comment` | string | 否 | 向工单添加评论 |
+| `priority` | string | 否 | 优先级（低、正常、高、紧急） |
+| `status` | string | 否 | 状态（新建、打开、待处理、挂起、已解决、已关闭） |
+| `type` | string | 否 | 类型（问题、事件、问题、任务） |
+| `tags` | string | 否 | 逗号分隔的标签 |
+| `assigneeId` | string | 否 | 分配的用户 ID |
+| `groupId` | string | 否 | 组 ID |
+| `customFields` | string | 否 | 自定义字段作为 JSON 对象 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的工单数据 |
+
+### `zendesk_update_tickets_bulk`
+
+一次性更新多个 Zendesk 工单（最多 100 个）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `ticketIds` | string | 是 | 逗号分隔的工单 ID（最多 100 个） |
+| `status` | string | 否 | 所有工单的新状态 |
+| `priority` | string | 否 | 所有工单的新优先级 |
+| `assigneeId` | string | 否 | 所有工单的新负责人 ID |
+| `groupId` | string | 否 | 所有工单的新组 ID |
+| `tags` | string | 否 | 要添加到所有工单的逗号分隔标签 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 批量更新任务状态 |
+
+### `zendesk_delete_ticket`
+
+从 Zendesk 删除工单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `ticketId` | string | 是 | 要删除的工单 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 删除确认 |
+
+### `zendesk_merge_tickets`
+
+将多个工单合并到目标工单中
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `targetTicketId` | string | 是 | 目标工单 ID \(工单将合并到此工单中\) |
+| `sourceTicketIds` | string | 是 | 逗号分隔的源工单 ID，用于合并 |
+| `targetComment` | string | 否 | 合并后添加到目标工单的评论 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 合并任务状态 |
+
+### `zendesk_get_users`
+
+从 Zendesk 检索用户列表并可选进行筛选
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 \(例如："mycompany" 对应 mycompany.zendesk.com\) |
+| `role` | string | 否 | 按角色筛选 \(end-user, agent, admin\) |
+| `permissionSet` | string | 否 | 按权限集 ID 筛选 |
+| `perPage` | string | 否 | 每页结果数 \(默认：100，最大：100\) |
+| `page` | string | 否 | 页码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 用户数据和元数据 |
+
+### `zendesk_get_user`
+
+从 Zendesk 根据 ID 获取单个用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `userId` | string | 是 | 要检索的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 用户数据 |
+
+### `zendesk_get_current_user`
+
+从 Zendesk 获取当前已认证的用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 当前用户数据 |
+
+### `zendesk_search_users`
+
+使用查询字符串在 Zendesk 中搜索用户
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `query` | string | 否 | 搜索查询字符串 |
+| `externalId` | string | 否 | 按外部 ID 搜索 |
+| `perPage` | string | 否 | 每页结果数量 \(默认：100，最大：100\) |
+| `page` | string | 否 | 页码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 用户搜索结果 |
+
+### `zendesk_create_user`
+
+在 Zendesk 中创建新用户
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `name` | string | 是 | 用户名 |
+| `userEmail` | string | 否 | 用户邮箱 |
+| `role` | string | 否 | 用户角色 \(end-user, agent, admin\) |
+| `phone` | string | 否 | 用户电话号码 |
+| `organizationId` | string | 否 | 组织 ID |
+| `verified` | string | 否 | 设置为 "true" 以跳过邮箱验证 |
+| `tags` | string | 否 | 逗号分隔的标签 |
+| `customFields` | string | 否 | 以 JSON 对象形式的自定义字段 \(例如：\{"field_id": "value"\}\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的用户数据 |
+
+### `zendesk_create_users_bulk`
+
+使用批量导入在 Zendesk 中创建多个用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `users` | string | 是 | 要创建的用户对象的 JSON 数组 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 批量创建任务状态 |
+
+### `zendesk_update_user`
+
+更新 Zendesk 中的现有用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `userId` | string | 是 | 要更新的用户 ID |
+| `name` | string | 否 | 新的用户名 |
+| `userEmail` | string | 否 | 新的用户邮箱 |
+| `role` | string | 否 | 用户角色（end-user, agent, admin） |
+| `phone` | string | 否 | 用户电话号码 |
+| `organizationId` | string | 否 | 组织 ID |
+| `verified` | string | 否 | 设置为 "true" 以标记用户为已验证 |
+| `tags` | string | 否 | 逗号分隔的标签 |
+| `customFields` | string | 否 | 作为 JSON 对象的自定义字段 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的用户数据 |
+
+### `zendesk_update_users_bulk`
+
+使用批量更新在 Zendesk 中更新多个用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `users` | string | 是 | 要更新的用户对象的 JSON 数组（必须包含 id 字段） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 批量更新任务状态 |
+
+### `zendesk_delete_user`
+
+从 Zendesk 中删除用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `userId` | string | 是 | 要删除的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 已删除的用户数据 |
+
+### `zendesk_get_organizations`
+
+从 Zendesk 检索组织列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 \(例如，mycompany.zendesk.com 中的 "mycompany"\) |
+| `perPage` | string | 否 | 每页结果数 \(默认值：100，最大值：100\) |
+| `page` | string | 否 | 页码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 组织数据和元数据 |
+
+### `zendesk_get_organization`
+
+通过 ID 从 Zendesk 获取单个组织
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `organizationId` | string | 是 | 要检索的组织 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 组织数据 |
+
+### `zendesk_autocomplete_organizations`
+
+通过名称前缀（用于名称匹配/自动完成）在 Zendesk 中自动完成组织
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `name` | string | 是 | 要搜索的组织名称 |
+| `perPage` | string | 否 | 每页结果数 \(默认值：100，最大值：100\) |
+| `page` | string | 否 | 页码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 组织搜索结果 |
+
+### `zendesk_create_organization`
+
+在 Zendesk 中创建一个新组织
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `name` | string | 是 | 组织名称 |
+| `domainNames` | string | 否 | 逗号分隔的域名 |
+| `details` | string | 否 | 组织详情 |
+| `notes` | string | 否 | 组织备注 |
+| `tags` | string | 否 | 逗号分隔的标签 |
+| `customFields` | string | 否 | 以 JSON 对象形式的自定义字段 \(例如，\{"field_id": "value"\}\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的组织数据 |
+
+### `zendesk_create_organizations_bulk`
+
+通过批量导入在 Zendesk 中创建多个组织
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `organizations` | string | 是 | 要创建的组织对象的 JSON 数组 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 批量创建任务状态 |
+
+### `zendesk_update_organization`
+
+更新 Zendesk 中的现有组织
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `organizationId` | string | 是 | 要更新的组织 ID |
+| `name` | string | 否 | 新的组织名称 |
+| `domainNames` | string | 否 | 逗号分隔的域名 |
+| `details` | string | 否 | 组织详情 |
+| `notes` | string | 否 | 组织备注 |
+| `tags` | string | 否 | 逗号分隔的标签 |
+| `customFields` | string | 否 | JSON 对象格式的自定义字段 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新后的组织数据 |
+
+### `zendesk_delete_organization`
+
+从 Zendesk 中删除一个组织
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `organizationId` | string | 是 | 要删除的组织 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 已删除的组织数据 |
+
+### `zendesk_search`
+
+在 Zendesk 中统一搜索工单、用户和组织
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `query` | string | 是 | 搜索查询字符串 |
+| `sortBy` | string | 否 | 排序字段 \(relevance, created_at, updated_at, priority, status, ticket_type\) |
+| `sortOrder` | string | 否 | 排序顺序 \(asc 或 desc\) |
+| `perPage` | string | 否 | 每页结果数 \(默认: 100, 最大: 100\) |
+| `page` | string | 否 | 页码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 搜索结果 |
+
+### `zendesk_search_count`
+
+统计在 Zendesk 中与查询匹配的搜索结果数量
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 您的 Zendesk 邮箱地址 |
+| `apiToken` | string | 是 | Zendesk API 令牌 |
+| `subdomain` | string | 是 | 您的 Zendesk 子域名 |
+| `query` | string | 是 | 搜索查询字符串 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 搜索计数结果 |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `zendesk`

@@ -27,6 +27,7 @@ import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { getPlans } from '@/lib/billing/plans'
+import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
 import {
   handleInvoiceFinalized,
@@ -156,6 +157,7 @@ export const auth = betterAuth({
         'asana',
         'pipedrive',
         'hubspot',
+        'linkedin',
 
         // Common SSO provider patterns
         ...SSO_TRUSTED_PROVIDERS,
@@ -1584,6 +1586,54 @@ export const auth = betterAuth({
             }
           },
         },
+        // LinkedIn provider
+        {
+          providerId: 'linkedin',
+          clientId: env.LINKEDIN_CLIENT_ID as string,
+          clientSecret: env.LINKEDIN_CLIENT_SECRET as string,
+          authorizationUrl: 'https://www.linkedin.com/oauth/v2/authorization',
+          tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
+          userInfoUrl: 'https://api.linkedin.com/v2/userinfo',
+          scopes: ['profile', 'openid', 'email', 'w_member_social'],
+          responseType: 'code',
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/linkedin`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching LinkedIn user profile')
+
+              const response = await fetch('https://api.linkedin.com/v2/userinfo', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Failed to fetch LinkedIn user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const profile = await response.json()
+
+              return {
+                id: profile.sub,
+                name: profile.name || 'LinkedIn User',
+                email: profile.email || `${profile.sub}@linkedin.user`,
+                emailVerified: profile.email_verified || true,
+                image: profile.picture || undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in LinkedIn getUserInfo:', { error })
+              return null
+            }
+          },
+        },
       ],
     }),
     // Include SSO plugin when enabled
@@ -1654,6 +1704,7 @@ export const auth = betterAuth({
                 await sendPlanWelcomeEmail(subscription)
               },
               onSubscriptionUpdate: async ({
+                event,
                 subscription,
               }: {
                 event: Stripe.Event
@@ -1673,6 +1724,35 @@ export const auth = betterAuth({
                     referenceId: subscription.referenceId,
                     error,
                   })
+                }
+
+                // Sync seat count from Stripe subscription quantity for team plans
+                if (subscription.plan === 'team') {
+                  try {
+                    const stripeSubscription = event.data.object as Stripe.Subscription
+                    const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
+
+                    const result = await syncSeatsFromStripeQuantity(
+                      subscription.id,
+                      subscription.seats,
+                      quantity
+                    )
+
+                    if (result.synced) {
+                      logger.info('[onSubscriptionUpdate] Synced seat count from Stripe', {
+                        subscriptionId: subscription.id,
+                        referenceId: subscription.referenceId,
+                        previousSeats: result.previousSeats,
+                        newSeats: result.newSeats,
+                      })
+                    }
+                  } catch (error) {
+                    logger.error('[onSubscriptionUpdate] Failed to sync seat count', {
+                      subscriptionId: subscription.id,
+                      referenceId: subscription.referenceId,
+                      error,
+                    })
+                  }
                 }
               },
               onSubscriptionDeleted: async ({

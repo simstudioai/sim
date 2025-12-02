@@ -498,8 +498,7 @@ export async function verifyProviderAuth(
 export async function checkWebhookPreprocessing(
   foundWorkflow: any,
   foundWebhook: any,
-  requestId: string,
-  testMode: boolean
+  requestId: string
 ): Promise<NextResponse | null> {
   try {
     const executionId = uuidv4()
@@ -512,7 +511,6 @@ export async function checkWebhookPreprocessing(
       requestId,
       checkRateLimit: true, // Webhooks need rate limiting
       checkDeployment: true, // Webhooks require deployed workflows
-      skipUsageLimits: testMode, // Skip usage limits for test webhooks
       workspaceId: foundWorkflow.workspaceId,
     })
 
