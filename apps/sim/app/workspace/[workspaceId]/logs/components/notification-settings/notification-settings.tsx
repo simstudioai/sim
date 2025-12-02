@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   AlertCircle,
   Bell,
@@ -36,6 +36,15 @@ import {
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import {
+  type NotificationSubscription,
+  useCreateNotification,
+  useDeleteNotification,
+  useNotifications,
+  useTestNotification,
+  useToggleNotificationActive,
+  useUpdateNotification,
+} from '@/hooks/queries/notifications'
 import { useConnectOAuthService } from '@/hooks/queries/oauth-connections'
 import { useSlackAccounts } from '@/hooks/use-slack-accounts'
 import { SlackChannelSelector } from './slack-channel-selector'
@@ -47,34 +56,6 @@ type NotificationType = 'webhook' | 'email' | 'slack'
 type LogLevel = 'info' | 'error'
 type TriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 type AlertRule = 'consecutive_failures' | 'failure_rate'
-
-interface AlertConfig {
-  rule: AlertRule
-  consecutiveFailures?: number
-  failureRatePercent?: number
-  windowHours?: number
-}
-
-interface NotificationSubscription {
-  id: string
-  notificationType: NotificationType
-  workflowIds: string[]
-  allWorkflows: boolean
-  levelFilter: LogLevel[]
-  triggerFilter: TriggerType[]
-  includeFinalOutput: boolean
-  includeTraceSpans: boolean
-  includeRateLimits: boolean
-  includeUsageData: boolean
-  webhookUrl?: string | null
-  emailRecipients?: string[] | null
-  slackChannelId?: string | null
-  slackAccountId?: string | null
-  alertConfig?: AlertConfig | null
-  active: boolean
-  createdAt: string
-  updatedAt: string
-}
 
 interface NotificationSettingsProps {
   workspaceId: string
@@ -96,16 +77,11 @@ export function NotificationSettings({
   open,
   onOpenChange,
 }: NotificationSettingsProps) {
-  const [subscriptions, setSubscriptions] = useState<NotificationSubscription[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<NotificationType>('webhook')
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isTesting, setIsTesting] = useState<string | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
   const [testStatus, setTestStatus] = useState<{
     id: string
     success: boolean
@@ -135,37 +111,20 @@ export function NotificationSettings({
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
-  const {
-    accounts: slackAccounts,
-    isLoading: isLoadingSlackAccounts,
-    refetch: refetchSlackAccounts,
-  } = useSlackAccounts()
+  // React Query hooks
+  const { data: subscriptions = [], isLoading } = useNotifications(open ? workspaceId : undefined)
+  const createNotification = useCreateNotification()
+  const updateNotification = useUpdateNotification()
+  const toggleActive = useToggleNotificationActive()
+  const deleteNotification = useDeleteNotification()
+  const testNotification = useTestNotification()
+
+  const { accounts: slackAccounts, isLoading: isLoadingSlackAccounts } = useSlackAccounts()
   const connectSlack = useConnectOAuthService()
 
   const filteredSubscriptions = useMemo(() => {
     return subscriptions.filter((s) => s.notificationType === activeTab)
   }, [subscriptions, activeTab])
-
-  const loadSubscriptions = useCallback(async () => {
-    try {
-      setIsLoading(true)
-      const response = await fetch(`/api/workspaces/${workspaceId}/notifications`)
-      if (response.ok) {
-        const data = await response.json()
-        setSubscriptions(data.data || [])
-      }
-    } catch (error) {
-      logger.error('Failed to load notifications', { error })
-    } finally {
-      setIsLoading(false)
-    }
-  }, [workspaceId])
-
-  useEffect(() => {
-    if (open) {
-      loadSubscriptions()
-    }
-  }, [open, loadSubscriptions])
 
   const resetForm = useCallback(() => {
     setFormData({
@@ -278,72 +237,64 @@ export function NotificationSettings({
   const handleSave = async () => {
     if (!validateForm()) return
 
-    setIsSaving(true)
+    const alertConfig = formData.useAlertRule
+      ? {
+          rule: formData.alertRule,
+          ...(formData.alertRule === 'consecutive_failures' && {
+            consecutiveFailures: formData.consecutiveFailures,
+          }),
+          ...(formData.alertRule === 'failure_rate' && {
+            failureRatePercent: formData.failureRatePercent,
+            windowHours: formData.windowHours,
+          }),
+        }
+      : null
+
+    const payload = {
+      notificationType: activeTab,
+      workflowIds: formData.workflowIds,
+      allWorkflows: formData.allWorkflows,
+      levelFilter: formData.levelFilter,
+      triggerFilter: formData.triggerFilter,
+      includeFinalOutput: formData.includeFinalOutput,
+      includeTraceSpans: formData.includeTraceSpans,
+      includeRateLimits: formData.includeRateLimits,
+      includeUsageData: formData.includeUsageData,
+      alertConfig,
+      ...(activeTab === 'webhook' && {
+        webhookUrl: formData.webhookUrl,
+        webhookSecret: formData.webhookSecret || undefined,
+      }),
+      ...(activeTab === 'email' && {
+        emailRecipients: formData.emailRecipients
+          .split(',')
+          .map((e) => e.trim())
+          .filter(Boolean),
+      }),
+      ...(activeTab === 'slack' && {
+        slackChannelId: formData.slackChannelId,
+        slackAccountId: formData.slackAccountId,
+      }),
+    }
+
     try {
-      const alertConfig: AlertConfig | null = formData.useAlertRule
-        ? {
-            rule: formData.alertRule,
-            ...(formData.alertRule === 'consecutive_failures' && {
-              consecutiveFailures: formData.consecutiveFailures,
-            }),
-            ...(formData.alertRule === 'failure_rate' && {
-              failureRatePercent: formData.failureRatePercent,
-              windowHours: formData.windowHours,
-            }),
-          }
-        : null
-
-      const payload = {
-        notificationType: activeTab,
-        workflowIds: formData.workflowIds,
-        allWorkflows: formData.allWorkflows,
-        levelFilter: formData.levelFilter,
-        triggerFilter: formData.triggerFilter,
-        includeFinalOutput: formData.includeFinalOutput,
-        includeTraceSpans: formData.includeTraceSpans,
-        includeRateLimits: formData.includeRateLimits,
-        includeUsageData: formData.includeUsageData,
-        alertConfig,
-        ...(activeTab === 'webhook' && {
-          webhookUrl: formData.webhookUrl,
-          webhookSecret: formData.webhookSecret || undefined,
-        }),
-        ...(activeTab === 'email' && {
-          emailRecipients: formData.emailRecipients
-            .split(',')
-            .map((e) => e.trim())
-            .filter(Boolean),
-        }),
-        ...(activeTab === 'slack' && {
-          slackChannelId: formData.slackChannelId,
-          slackAccountId: formData.slackAccountId,
-        }),
-      }
-
-      const url = editingId
-        ? `/api/workspaces/${workspaceId}/notifications/${editingId}`
-        : `/api/workspaces/${workspaceId}/notifications`
-      const method = editingId ? 'PUT' : 'POST'
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (response.ok) {
-        await loadSubscriptions()
-        resetForm()
-        setShowForm(false)
+      if (editingId) {
+        await updateNotification.mutateAsync({
+          workspaceId,
+          notificationId: editingId,
+          data: payload,
+        })
       } else {
-        const error = await response.json()
-        setFormErrors({ general: error.error || 'Failed to save notification' })
+        await createNotification.mutateAsync({
+          workspaceId,
+          data: payload,
+        })
       }
+      resetForm()
+      setShowForm(false)
     } catch (error) {
-      logger.error('Failed to save notification', { error })
-      setFormErrors({ general: 'Failed to save notification' })
-    } finally {
-      setIsSaving(false)
+      const message = error instanceof Error ? error.message : 'Failed to save notification'
+      setFormErrors({ general: message })
     }
   }
 
@@ -376,56 +327,43 @@ export function NotificationSettings({
   const handleDelete = async () => {
     if (!deletingId) return
 
-    setIsDeleting(true)
     try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/notifications/${deletingId}`, {
-        method: 'DELETE',
+      await deleteNotification.mutateAsync({
+        workspaceId,
+        notificationId: deletingId,
       })
-
-      if (response.ok) {
-        await loadSubscriptions()
-      }
     } catch (error) {
       logger.error('Failed to delete notification', { error })
     } finally {
-      setIsDeleting(false)
       setShowDeleteDialog(false)
       setDeletingId(null)
     }
   }
 
   const handleTest = async (id: string) => {
-    setIsTesting(id)
     setTestStatus(null)
     try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/notifications/${id}/test`, {
-        method: 'POST',
+      const result = await testNotification.mutateAsync({
+        workspaceId,
+        notificationId: id,
       })
-      const data = await response.json()
       setTestStatus({
         id,
-        success: data.data?.success ?? false,
+        success: result.data?.success ?? false,
         message:
-          data.data?.error || (data.data?.success ? 'Test sent successfully' : 'Test failed'),
+          result.data?.error || (result.data?.success ? 'Test sent successfully' : 'Test failed'),
       })
     } catch (error) {
       setTestStatus({ id, success: false, message: 'Failed to send test' })
-    } finally {
-      setIsTesting(null)
     }
   }
 
-  const handleToggleActive = async (subscription: NotificationSubscription) => {
-    try {
-      await fetch(`/api/workspaces/${workspaceId}/notifications/${subscription.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: !subscription.active }),
-      })
-      await loadSubscriptions()
-    } catch (error) {
-      logger.error('Failed to toggle notification', { error })
-    }
+  const handleToggleActive = (subscription: NotificationSubscription) => {
+    toggleActive.mutate({
+      workspaceId,
+      notificationId: subscription.id,
+      active: !subscription.active,
+    })
   }
 
   const renderSubscriptionItem = (subscription: NotificationSubscription) => {
@@ -473,7 +411,7 @@ export function NotificationSettings({
                   variant='ghost'
                   size='icon'
                   onClick={() => handleTest(subscription.id)}
-                  disabled={isTesting === subscription.id}
+                  disabled={testNotification.isPending}
                   className='h-8 w-8'
                 >
                   <Play className='h-3.5 w-3.5' />
@@ -982,10 +920,10 @@ export function NotificationSettings({
                 </Button>
                 <Button
                   onClick={handleSave}
-                  disabled={isSaving}
+                  disabled={createNotification.isPending || updateNotification.isPending}
                   className='h-9 rounded-[8px] bg-[var(--brand-primary-hex)] font-[480] text-white hover:bg-[var(--brand-primary-hover-hex)]'
                 >
-                  {isSaving
+                  {createNotification.isPending || updateNotification.isPending
                     ? editingId
                       ? 'Updating...'
                       : 'Creating...'
@@ -1031,17 +969,17 @@ export function NotificationSettings({
             <EmcnButton
               variant='outline'
               className='h-[32px] px-[12px]'
-              disabled={isDeleting}
+              disabled={deleteNotification.isPending}
               onClick={() => setShowDeleteDialog(false)}
             >
               Cancel
             </EmcnButton>
             <EmcnButton
               onClick={handleDelete}
-              disabled={isDeleting}
+              disabled={deleteNotification.isPending}
               className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)]'
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {deleteNotification.isPending ? 'Deleting...' : 'Delete'}
             </EmcnButton>
           </ModalFooter>
         </ModalContent>
