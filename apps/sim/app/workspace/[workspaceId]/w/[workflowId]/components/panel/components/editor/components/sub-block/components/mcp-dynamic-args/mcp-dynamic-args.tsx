@@ -298,6 +298,17 @@ export function McpDynamicArgs({
       if (disabled) return
 
       const current = currentArgs()
+
+      if (value === '' && (current[paramName] === undefined || current[paramName] === null)) {
+        return
+      }
+
+      if (value === '') {
+        const { [paramName]: _, ...rest } = current
+        setToolArgs(Object.keys(rest).length > 0 ? rest : {})
+        return
+      }
+
       const updated = { ...current, [paramName]: value }
       setToolArgs(updated)
     },
