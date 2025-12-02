@@ -74,20 +74,10 @@ const SModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] left-[50%] z-50 flex h-[557px] w-[720px] translate-x-[-50%] translate-y-[-50%] flex-row rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
+          'fixed top-[50%] left-[50%] z-[500] flex h-[620px] w-[760px] translate-x-[-50%] translate-y-[-50%] flex-row rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
           className
         )}
         style={style}
-        onInteractOutside={(e) => {
-          if (!isInteractionReady) {
-            e.preventDefault()
-            return
-          }
-          const target = e.target as Element
-          if (target.closest('[role="dialog"]')) {
-            e.preventDefault()
-          }
-        }}
         onEscapeKeyDown={(e) => {
           if (!isInteractionReady) {
             e.preventDefault()
@@ -130,7 +120,7 @@ const SModalSidebarHeader = React.forwardRef<HTMLDivElement, React.HTMLAttribute
     <div
       ref={ref}
       className={cn(
-        'mb-[20px] px-[12px] font-medium text-[16px] text-[var(--text-primary)]',
+        'mb-[16px] px-[12px] font-medium text-[16px] text-[var(--text-primary)]',
         className
       )}
       {...props}
@@ -164,7 +154,7 @@ const SModalSidebarSectionTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('mb-[4px] font-medium text-[12px] text-[var(--text-muted)]', className)}
+    className={cn('mb-[2px] font-medium text-[12px] text-[var(--text-muted)]', className)}
     {...props}
   />
 ))

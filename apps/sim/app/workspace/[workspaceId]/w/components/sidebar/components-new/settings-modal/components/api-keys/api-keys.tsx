@@ -3,17 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Info, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Button, Input as EmcnInput, Tooltip } from '@/components/emcn'
 import {
-  Button,
   Modal,
+  ModalBody,
   ModalContent,
-  ModalDescription,
   ModalFooter,
   ModalHeader,
-  ModalTitle,
-} from '@/components/emcn'
-import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
-import { Input, Label, Skeleton, Switch } from '@/components/ui'
+} from '@/components/emcn/components/modal/modal'
+import { Input, Skeleton, Switch } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -31,19 +29,6 @@ const logger = createLogger('ApiKeys')
 interface ApiKeysProps {
   onOpenChange?: (open: boolean) => void
   registerCloseHandler?: (handler: (open: boolean) => void) => void
-}
-
-interface ApiKeyDisplayProps {
-  apiKey: ApiKey
-}
-
-function ApiKeyDisplay({ apiKey }: ApiKeyDisplayProps) {
-  const displayValue = apiKey.displayKey || apiKey.key
-  return (
-    <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
-      <code className='font-mono text-foreground text-xs'>{displayValue}</code>
-    </div>
-  )
 }
 
 export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
@@ -110,11 +95,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
       .map((key, index) => ({ key, originalIndex: index }))
       .filter(({ key }) => key.name.toLowerCase().includes(searchTerm.toLowerCase()))
   }, [personalKeys, searchTerm])
-
-  const personalHeaderMarginClass = useMemo(() => {
-    if (!searchTerm.trim()) return 'mt-8'
-    return filteredWorkspaceKeys.length > 0 ? 'mt-8' : 'mt-0'
-  }, [searchTerm, filteredWorkspaceKeys])
 
   const handleCreateKey = async () => {
     if (!userId || !newKeyName.trim()) return
@@ -222,307 +202,314 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   }
 
   return (
-    <div className='relative flex h-full flex-col'>
-      {/* Fixed Header */}
-      <div>
-        {/* Search Input */}
-        {isLoading ? (
-          <Skeleton className='h-9 w-56 rounded-lg' />
-        ) : (
-          <div className='flex h-9 w-56 items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
-            <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
-            <Input
-              placeholder='Search API keys...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
-            />
-          </div>
-        )}
+    <div className='flex h-full flex-col gap-[16px]'>
+      {/* Search Input and Create Button */}
+      <div className='flex items-center gap-[8px]'>
+        <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+          <Search
+            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+            strokeWidth={2}
+          />
+          <Input
+            placeholder='Search API keys...'
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+          />
+        </div>
+        <Button
+          onClick={(e) => {
+            if (createButtonDisabled) {
+              return
+            }
+            e.currentTarget.blur()
+            setIsCreateDialogOpen(true)
+            setKeyType(defaultKeyType)
+            setCreateError(null)
+          }}
+          variant='primary'
+          disabled={createButtonDisabled}
+          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90 disabled:cursor-not-allowed disabled:opacity-60'
+        >
+          <Plus className='mr-[6px] h-[13px] w-[13px]' />
+          Create
+        </Button>
       </div>
 
       {/* Scrollable Content */}
       <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
-        <div className='space-y-2'>
-          {isLoading ? (
-            <div className='space-y-2'>
-              <ApiKeySkeleton />
+        {isLoading ? (
+          <div className='flex flex-col gap-[16px]'>
+            <div className='flex flex-col gap-[8px]'>
+              <Skeleton className='h-[14px] w-[70px]' />
+              <div className='text-[13px] text-[var(--text-muted)]'>
+                <Skeleton className='h-[13px] w-[140px]' />
+              </div>
+            </div>
+            <div className='flex flex-col gap-[8px]'>
+              <Skeleton className='h-[14px] w-[55px]' />
               <ApiKeySkeleton />
               <ApiKeySkeleton />
             </div>
-          ) : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
-            <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
-              Click "Create Key" below to get started
-            </div>
-          ) : (
+          </div>
+        ) : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
+          <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+            Click "Create" above to get started
+          </div>
+        ) : (
+          <div className='flex flex-col gap-[16px]'>
             <>
-              {/* Allow Personal API Keys Toggle */}
-              {!searchTerm.trim() && (
-                <Tooltip.Provider delayDuration={150}>
-                  <div className='mb-6 flex items-center justify-between'>
-                    <div className='flex items-center gap-2'>
-                      <span className='font-medium text-[12px] text-foreground'>
-                        Allow personal API keys
-                      </span>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <button
-                            type='button'
-                            className='rounded-full p-1 text-muted-foreground transition hover:text-foreground'
-                          >
-                            <Info className='h-3 w-3' strokeWidth={2} />
-                          </button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content side='top' className='max-w-xs text-xs'>
-                          Allow collaborators to create and use their own keys with billing charged
-                          to them.
-                        </Tooltip.Content>
-                      </Tooltip.Root>
-                    </div>
-                    {isLoadingSettings ? (
-                      <Skeleton className='h-5 w-16 rounded-full' />
-                    ) : (
-                      <Switch
-                        checked={allowPersonalApiKeys}
-                        disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
-                        onCheckedChange={async (checked) => {
-                          try {
-                            await updateSettingsMutation.mutateAsync({
-                              workspaceId,
-                              allowPersonalApiKeys: checked,
-                            })
-                          } catch (error) {
-                            logger.error('Error updating workspace settings:', { error })
-                          }
-                        }}
-                      />
-                    )}
-                  </div>
-                </Tooltip.Provider>
-              )}
-
               {/* Workspace section */}
               {!searchTerm.trim() ? (
-                <div className='mb-6 space-y-2'>
-                  <div className='font-medium text-[13px] text-foreground'>Workspace</div>
+                <div className='flex flex-col gap-[8px]'>
+                  <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                    Workspace
+                  </div>
                   {workspaceKeys.length === 0 ? (
-                    <div className='text-muted-foreground text-sm'>No workspace API keys yet.</div>
+                    <div className='text-[13px] text-[var(--text-muted)]'>
+                      No workspace API keys yet
+                    </div>
                   ) : (
                     workspaceKeys.map((key) => (
-                      <div key={key.id} className='flex flex-col gap-2'>
-                        <Label className='font-normal text-muted-foreground text-xs uppercase'>
-                          {key.name}
-                        </Label>
-                        <div className='flex items-center justify-between gap-4'>
-                          <div className='flex items-center gap-3'>
-                            <ApiKeyDisplay apiKey={key} />
-                            <p className='text-muted-foreground text-xs'>
-                              Last used: {formatDate(key.lastUsed)}
-                            </p>
+                      <div key={key.id} className='flex items-center justify-between gap-[12px]'>
+                        <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                          <div className='flex items-center gap-[6px]'>
+                            <span className='max-w-[280px] truncate font-medium text-[14px]'>
+                              {key.name}
+                            </span>
+                            <span className='text-[13px] text-[var(--text-secondary)]'>
+                              (last used: {formatDate(key.lastUsed).toLowerCase()})
+                            </span>
                           </div>
-                          <div className='flex items-center gap-2'>
-                            <Button
-                              variant='ghost'
-                              onClick={() => {
-                                setDeleteKey(key)
-                                setShowDeleteDialog(true)
-                              }}
-                              className='h-8 text-muted-foreground hover:text-foreground'
-                              disabled={!canManageWorkspaceKeys}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              ) : filteredWorkspaceKeys.length > 0 ? (
-                <div className='mb-6 space-y-2'>
-                  <div className='font-medium text-[13px] text-foreground'>Workspace</div>
-                  {filteredWorkspaceKeys.map(({ key }) => (
-                    <div key={key.id} className='flex flex-col gap-2'>
-                      <Label className='font-normal text-muted-foreground text-xs uppercase'>
-                        {key.name}
-                      </Label>
-                      <div className='flex items-center justify-between gap-4'>
-                        <div className='flex items-center gap-3'>
-                          <ApiKeyDisplay apiKey={key} />
-                          <p className='text-muted-foreground text-xs'>
-                            Last used: {formatDate(key.lastUsed)}
+                          <p className='truncate text-[13px] text-[var(--text-muted)]'>
+                            {key.displayKey || key.key}
                           </p>
                         </div>
                         <Button
                           variant='ghost'
+                          className='flex-shrink-0'
                           onClick={() => {
                             setDeleteKey(key)
                             setShowDeleteDialog(true)
                           }}
-                          className='h-8 text-muted-foreground hover:text-foreground'
                           disabled={!canManageWorkspaceKeys}
                         >
                           Delete
                         </Button>
                       </div>
+                    ))
+                  )}
+                </div>
+              ) : filteredWorkspaceKeys.length > 0 ? (
+                <div className='flex flex-col gap-[8px]'>
+                  <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                    Workspace
+                  </div>
+                  {filteredWorkspaceKeys.map(({ key }) => (
+                    <div key={key.id} className='flex items-center justify-between gap-[12px]'>
+                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                        <div className='flex items-center gap-[6px]'>
+                          <span className='max-w-[280px] truncate font-medium text-[14px]'>
+                            {key.name}
+                          </span>
+                          <span className='text-[13px] text-[var(--text-secondary)]'>
+                            (last used: {formatDate(key.lastUsed).toLowerCase()})
+                          </span>
+                        </div>
+                        <p className='truncate text-[13px] text-[var(--text-muted)]'>
+                          {key.displayKey || key.key}
+                        </p>
+                      </div>
+                      <Button
+                        variant='ghost'
+                        className='flex-shrink-0'
+                        onClick={() => {
+                          setDeleteKey(key)
+                          setShowDeleteDialog(true)
+                        }}
+                        disabled={!canManageWorkspaceKeys}
+                      >
+                        Delete
+                      </Button>
                     </div>
                   ))}
                 </div>
               ) : null}
 
               {/* Personal section */}
-              <div
-                className={`${personalHeaderMarginClass} mb-2 font-medium text-[13px] text-foreground`}
-              >
-                Personal
-              </div>
-              {filteredPersonalKeys.map(({ key }) => {
-                const isConflict = conflicts.includes(key.name)
-                return (
-                  <div key={key.id} className='flex flex-col gap-2'>
-                    <Label className='font-normal text-muted-foreground text-xs uppercase'>
-                      {key.name}
-                    </Label>
-                    <div className='flex items-center justify-between gap-4'>
-                      <div className='flex items-center gap-3'>
-                        <ApiKeyDisplay apiKey={key} />
-                        <p className='text-muted-foreground text-xs'>
-                          Last used: {formatDate(key.lastUsed)}
-                        </p>
-                      </div>
-                      <div className='flex items-center gap-2'>
-                        <Button
-                          variant='ghost'
-                          onClick={() => {
-                            setDeleteKey(key)
-                            setShowDeleteDialog(true)
-                          }}
-                          className='h-8 text-muted-foreground hover:text-foreground'
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                    {isConflict && (
-                      <div className='col-span-3 mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
-                        Workspace API key with the same name overrides this. Rename your personal
-                        key to use it.
-                      </div>
-                    )}
+              {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
+                <div className='flex flex-col gap-[8px]'>
+                  <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                    Personal
                   </div>
-                )
-              })}
+                  {filteredPersonalKeys.map(({ key }) => {
+                    const isConflict = conflicts.includes(key.name)
+                    return (
+                      <div key={key.id} className='flex flex-col gap-[8px]'>
+                        <div className='flex items-center justify-between gap-[12px]'>
+                          <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                            <div className='flex items-center gap-[6px]'>
+                              <span className='max-w-[280px] truncate font-medium text-[14px]'>
+                                {key.name}
+                              </span>
+                              <span className='text-[13px] text-[var(--text-secondary)]'>
+                                (last used: {formatDate(key.lastUsed).toLowerCase()})
+                              </span>
+                            </div>
+                            <p className='truncate text-[13px] text-[var(--text-muted)]'>
+                              {key.displayKey || key.key}
+                            </p>
+                          </div>
+                          <Button
+                            variant='ghost'
+                            className='flex-shrink-0'
+                            onClick={() => {
+                              setDeleteKey(key)
+                              setShowDeleteDialog(true)
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                        {isConflict && (
+                          <div className='text-[12px] text-[var(--text-error)] leading-tight'>
+                            Workspace API key with the same name overrides this. Rename your
+                            personal key to use it.
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
               {/* Show message when search has no results across both sections */}
               {searchTerm.trim() &&
                 filteredPersonalKeys.length === 0 &&
                 filteredWorkspaceKeys.length === 0 &&
                 (personalKeys.length > 0 || workspaceKeys.length > 0) && (
-                  <div className='py-8 text-center text-muted-foreground text-sm'>
+                  <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
                     No API keys found matching "{searchTerm}"
                   </div>
                 )}
             </>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Footer */}
-      <div className='bg-background'>
-        <div className='flex w-full items-center'>
-          {isLoading ? (
-            <Skeleton className='h-9 w-[117px] rounded-[8px]' />
-          ) : (
-            <Button
-              onClick={(e) => {
-                if (createButtonDisabled) {
-                  return
-                }
-                // Remove focus from button before opening dialog to prevent focus trap
-                e.currentTarget.blur()
-                setIsCreateDialogOpen(true)
-                setKeyType(defaultKeyType)
-                setCreateError(null)
-              }}
-              variant='ghost'
-              disabled={createButtonDisabled}
-              className='h-9 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-60'
-            >
-              <Plus className='h-4 w-4 stroke-[2px]' />
-              Create Key
-            </Button>
-          )}
-        </div>
-      </div>
+      {/* Allow Personal API Keys Toggle - Fixed at bottom */}
+      {!isLoading && canManageWorkspaceKeys && (
+        <Tooltip.Provider delayDuration={150}>
+          <div className='mt-auto flex items-center justify-between'>
+            <div className='flex items-center gap-[8px]'>
+              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                Allow personal API keys
+              </span>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button
+                    type='button'
+                    className='rounded-full p-[4px] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]'
+                  >
+                    <Info className='h-[12px] w-[12px]' strokeWidth={2} />
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top' className='max-w-xs text-[12px]'>
+                  Allow collaborators to create and use their own keys with billing charged to them.
+                </Tooltip.Content>
+              </Tooltip.Root>
+            </div>
+            {isLoadingSettings ? (
+              <Skeleton className='h-5 w-16 rounded-full' />
+            ) : (
+              <Switch
+                checked={allowPersonalApiKeys}
+                disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
+                onCheckedChange={async (checked) => {
+                  try {
+                    await updateSettingsMutation.mutateAsync({
+                      workspaceId,
+                      allowPersonalApiKeys: checked,
+                    })
+                  } catch (error) {
+                    logger.error('Error updating workspace settings:', { error })
+                  }
+                }}
+              />
+            )}
+          </div>
+        </Tooltip.Provider>
+      )}
 
       {/* Create API Key Dialog */}
       <Modal open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <ModalContent className='sm:max-w-md'>
-          <ModalHeader>
-            <ModalTitle>Create new API key</ModalTitle>
-            <ModalDescription>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Create new API key</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               {keyType === 'workspace'
                 ? "This key will have access to all workflows in this workspace. Make sure to copy it after creation as you won't be able to see it again."
                 : "This key will have access to your personal workflows. Make sure to copy it after creation as you won't be able to see it again."}
-            </ModalDescription>
-          </ModalHeader>
+            </p>
 
-          <div className='space-y-4 py-2'>
-            {canManageWorkspaceKeys && (
-              <div className='space-y-2'>
-                <p className='font-[360] text-sm'>API Key Type</p>
-                <div className='flex gap-2'>
-                  <Button
-                    type='button'
-                    variant={keyType === 'personal' ? 'outline' : 'default'}
-                    onClick={() => {
-                      setKeyType('personal')
-                      if (createError) setCreateError(null)
-                    }}
-                    disabled={!allowPersonalApiKeys}
-                    className='h-8 disabled:cursor-not-allowed disabled:opacity-60'
-                  >
-                    Personal
-                  </Button>
-                  <Button
-                    type='button'
-                    variant={keyType === 'workspace' ? 'outline' : 'default'}
-                    onClick={() => {
-                      setKeyType('workspace')
-                      if (createError) setCreateError(null)
-                    }}
-                    className='h-8'
-                  >
-                    Workspace
-                  </Button>
+            <div className='mt-[16px] flex flex-col gap-[16px]'>
+              {canManageWorkspaceKeys && (
+                <div className='flex flex-col gap-[8px]'>
+                  <p className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                    API Key Type
+                  </p>
+                  <div className='flex gap-[8px]'>
+                    <Button
+                      type='button'
+                      variant={keyType === 'personal' ? 'active' : 'default'}
+                      onClick={() => {
+                        setKeyType('personal')
+                        if (createError) setCreateError(null)
+                      }}
+                      disabled={!allowPersonalApiKeys}
+                      className='disabled:cursor-not-allowed disabled:opacity-60'
+                    >
+                      Personal
+                    </Button>
+                    <Button
+                      type='button'
+                      variant={keyType === 'workspace' ? 'active' : 'default'}
+                      onClick={() => {
+                        setKeyType('workspace')
+                        if (createError) setCreateError(null)
+                      }}
+                    >
+                      Workspace
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
-            <div className='space-y-2'>
-              <p className='font-[360] text-sm'>
-                Enter a name for your API key to help you identify it later.
-              </p>
-              <Input
-                value={newKeyName}
-                onChange={(e) => {
-                  setNewKeyName(e.target.value)
-                  if (createError) setCreateError(null) // Clear error when user types
-                }}
-                placeholder='e.g., Development, Production'
-                className='h-9 rounded-[8px]'
-                autoFocus
-              />
-              {createError && (
-                <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                  {createError}
-                </p>
               )}
+              <div className='flex flex-col gap-[8px]'>
+                <p className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                  Enter a name for your API key to help you identify it later.
+                </p>
+                <EmcnInput
+                  value={newKeyName}
+                  onChange={(e) => {
+                    setNewKeyName(e.target.value)
+                    if (createError) setCreateError(null)
+                  }}
+                  placeholder='e.g., Development, Production'
+                  className='h-9'
+                  autoFocus
+                />
+                {createError && (
+                  <p className='text-[11px] text-[var(--text-error)] leading-tight'>
+                    {createError}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
+          </ModalBody>
 
           <ModalFooter>
             <Button
-              variant='outline'
-              className='h-[32px] px-[12px]'
+              variant='default'
               onClick={() => {
                 setIsCreateDialogOpen(false)
                 setNewKeyName('')
@@ -534,13 +521,13 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             <Button
               type='button'
               variant='primary'
-              className='h-[32px] px-[12px]'
               onClick={handleCreateKey}
               disabled={
                 !newKeyName.trim() ||
                 createApiKeyMutation.isPending ||
                 (keyType === 'workspace' && !canManageWorkspaceKeys)
               }
+              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
             >
               {createApiKeyMutation.isPending ? 'Creating...' : 'Create'}
             </Button>
@@ -559,49 +546,56 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
           }
         }}
       >
-        <ModalContent className='sm:max-w-md'>
-          <ModalHeader>
-            <ModalTitle>Your API key has been created</ModalTitle>
-            <ModalDescription>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Your API key has been created</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               This is the only time you will see your API key.{' '}
-              <span className='font-semibold'>Copy it now and store it securely.</span>
-            </ModalDescription>
-          </ModalHeader>
+              <span className='font-semibold text-[var(--text-primary)]'>
+                Copy it now and store it securely.
+              </span>
+            </p>
 
-          {newKey && (
-            <div className='relative'>
-              <div className='flex h-9 items-center rounded-[6px] border-none bg-muted px-3 pr-10'>
-                <code className='flex-1 truncate font-mono text-foreground text-sm'>
-                  {newKey.key}
-                </code>
+            {newKey && (
+              <div className='relative mt-[10px]'>
+                <div className='flex h-9 items-center rounded-[6px] border bg-[var(--surface-1)] px-[10px] pr-[40px]'>
+                  <code className='flex-1 truncate font-mono text-[13px] text-[var(--text-primary)]'>
+                    {newKey.key}
+                  </code>
+                </div>
+                <Button
+                  variant='ghost'
+                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-[4px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  onClick={() => copyToClipboard(newKey.key)}
+                >
+                  {copySuccess ? (
+                    <Check className='h-[14px] w-[14px]' />
+                  ) : (
+                    <Copy className='h-[14px] w-[14px]' />
+                  )}
+                  <span className='sr-only'>Copy to clipboard</span>
+                </Button>
               </div>
-              <Button
-                variant='ghost'
-                className='-translate-y-1/2 absolute top-1/2 right-1 h-7 w-7 rounded-[4px] text-muted-foreground hover:bg-muted hover:text-foreground'
-                onClick={() => copyToClipboard(newKey.key)}
-              >
-                {copySuccess ? <Check className='h-3.5 w-3.5' /> : <Copy className='h-3.5 w-3.5' />}
-                <span className='sr-only'>Copy to clipboard</span>
-              </Button>
-            </div>
-          )}
+            )}
+          </ModalBody>
         </ModalContent>
       </Modal>
 
       {/* Delete Confirmation Dialog */}
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent className='sm:max-w-md'>
-          <ModalHeader>
-            <ModalTitle>Delete API key?</ModalTitle>
-            <ModalDescription>
-              Deleting this API key will immediately revoke access for any integrations using it.{' '}
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete API key</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              Deleting{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{deleteKey?.name}</span> will
+              immediately revoke access for any integrations using it.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </ModalDescription>
-          </ModalHeader>
+            </p>
+          </ModalBody>
           <ModalFooter>
             <Button
-              className='h-[32px] px-[12px]'
-              variant='outline'
+              variant='default'
               onClick={() => {
                 setShowDeleteDialog(false)
                 setDeleteKey(null)
@@ -611,9 +605,10 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
               Cancel
             </Button>
             <Button
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
+              variant='primary'
               onClick={handleDeleteKey}
               disabled={deleteApiKeyMutation.isPending}
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {deleteApiKeyMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>
@@ -626,15 +621,15 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
 
 function ApiKeySkeleton() {
   return (
-    <div className='flex flex-col gap-2'>
-      <Skeleton className='h-4 w-32' /> {/* API key name */}
-      <div className='flex items-center justify-between gap-4'>
-        <div className='flex items-center gap-3'>
-          <Skeleton className='h-8 w-20 rounded-[8px]' /> {/* Key preview */}
-          <Skeleton className='h-4 w-24' /> {/* Last used */}
+    <div className='flex items-center justify-between gap-[12px]'>
+      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+        <div className='flex items-center gap-[6px]'>
+          <Skeleton className='h-[14px] w-[80px]' />
+          <Skeleton className='h-[13px] w-[140px]' />
         </div>
-        <Skeleton className='h-8 w-16' /> {/* Delete button */}
+        <Skeleton className='h-[13px] w-[100px]' />
       </div>
+      <Skeleton className='h-[26px] w-[48px] rounded-[6px]' />
     </div>
   )
 }

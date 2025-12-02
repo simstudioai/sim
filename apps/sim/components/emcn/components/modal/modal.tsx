@@ -78,39 +78,26 @@ const ModalPortal = DialogPrimitive.Portal
 const ModalClose = DialogPrimitive.Close
 
 /**
- * Modal overlay component with stability handling and fade transition.
+ * Modal overlay component with fade transition.
+ * Clicking this overlay closes the dialog via DialogPrimitive.Close.
  */
 const ModalOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, style, ...props }, ref) => {
-  const [isStable, setIsStable] = React.useState(false)
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => setIsStable(true), 150)
-    return () => clearTimeout(timer)
-  }, [])
-
   return (
-    <DialogPrimitive.Overlay
-      ref={ref}
-      className={cn(
-        'fixed inset-0 z-50 bg-[#E4E4E4]/50 backdrop-blur-[0.75px] dark:bg-[#0D0D0D]/50',
-        ANIMATION_CLASSES,
-        className
-      )}
-      style={style}
-      onPointerDown={(e) => {
-        if (!isStable) {
-          e.preventDefault()
-          return
-        }
-        if (e.target !== e.currentTarget) {
-          e.preventDefault()
-        }
-      }}
-      {...props}
-    />
+    <DialogPrimitive.Close asChild>
+      <DialogPrimitive.Overlay
+        ref={ref}
+        className={cn(
+          'fixed inset-0 z-[500] bg-[#E4E4E4]/50 backdrop-blur-[0.75px] dark:bg-[#0D0D0D]/50',
+          ANIMATION_CLASSES,
+          className
+        )}
+        style={style}
+        {...props}
+      />
+    </DialogPrimitive.Close>
   )
 })
 
@@ -148,20 +135,10 @@ const ModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] left-[50%] z-50 flex max-h-[80vh] w-[30vw] min-w-[400px] translate-x-[-50%] translate-y-[-50%] flex-col rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
+          'fixed top-[50%] left-[50%] z-[500] flex max-h-[80vh] w-[30vw] min-w-[400px] translate-x-[-50%] translate-y-[-50%] flex-col rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
           className
         )}
         style={style}
-        onInteractOutside={(e) => {
-          if (!isInteractionReady) {
-            e.preventDefault()
-            return
-          }
-          const target = e.target as Element
-          if (target.closest('[role="dialog"]')) {
-            e.preventDefault()
-          }
-        }}
         onEscapeKeyDown={(e) => {
           if (!isInteractionReady) {
             e.preventDefault()

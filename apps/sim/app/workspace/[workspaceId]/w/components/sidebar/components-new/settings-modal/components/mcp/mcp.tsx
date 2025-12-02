@@ -11,7 +11,7 @@ import {
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn/components/modal/modal'
-import { Input, Skeleton } from '@/components/ui'
+import { Input } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
@@ -372,32 +372,29 @@ export function MCP() {
   return (
     <>
       <div className='flex h-full flex-col gap-[16px]'>
-        {serversLoading ? (
-          <Skeleton className='h-9 w-full rounded-[8px]' />
-        ) : (
-          <div className='flex items-center gap-[8px]'>
-            <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
-              <Search
-                className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <Input
-                placeholder='Search MCPs...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
-            <Button
-              onClick={() => setShowAddForm(!showAddForm)}
-              variant='primary'
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-            >
-              <Plus className='mr-[6px] h-[13px] w-[13px]' />
-              Add
-            </Button>
+        <div className='flex items-center gap-[8px]'>
+          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+            <Search
+              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              strokeWidth={2}
+            />
+            <Input
+              placeholder='Search MCPs...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+            />
           </div>
-        )}
+          <Button
+            onClick={() => setShowAddForm(!showAddForm)}
+            variant='primary'
+            disabled={serversLoading}
+            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+          >
+            <Plus className='mr-[6px] h-[13px] w-[13px]' />
+            Add
+          </Button>
+        </div>
 
         {showAddForm && !serversLoading && (
           <div className='rounded-[8px] border bg-[var(--surface-3)] p-[10px]'>
@@ -498,47 +495,45 @@ export function MCP() {
         )}
 
         <div className='min-h-0 flex-1 overflow-y-auto'>
-          <div className='flex flex-col gap-[16px]'>
-            {error ? (
-              <div className='flex h-full flex-col items-center justify-center gap-[8px]'>
-                <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                  {error instanceof Error ? error.message : 'Failed to load MCP servers'}
-                </p>
-              </div>
-            ) : serversLoading ? (
-              <div className='flex flex-col gap-[8px]'>
-                <McpServerSkeleton />
-                <McpServerSkeleton />
-                <McpServerSkeleton />
-              </div>
-            ) : showEmptyState ? (
-              <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-                Click "Add" above to get started
-              </div>
-            ) : (
-              <div className='flex flex-col gap-[8px]'>
-                {filteredServers.map((server) => {
-                  if (!server?.id) return null
-                  const tools = toolsByServer[server.id] || []
+          {error ? (
+            <div className='flex h-full flex-col items-center justify-center gap-[8px]'>
+              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                {error instanceof Error ? error.message : 'Failed to load MCP servers'}
+              </p>
+            </div>
+          ) : serversLoading ? (
+            <div className='flex flex-col gap-[8px]'>
+              <McpServerSkeleton />
+              <McpServerSkeleton />
+              <McpServerSkeleton />
+            </div>
+          ) : showEmptyState ? (
+            <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+              Click "Add" above to get started
+            </div>
+          ) : (
+            <div className='flex flex-col gap-[8px]'>
+              {filteredServers.map((server) => {
+                if (!server?.id) return null
+                const tools = toolsByServer[server.id] || []
 
-                  return (
-                    <ServerListItem
-                      key={server.id}
-                      server={server}
-                      tools={tools}
-                      isDeleting={deletingServers.has(server.id)}
-                      onRemove={() => handleRemoveServer(server.id, server.name || 'this server')}
-                    />
-                  )
-                })}
-                {showNoResults && (
-                  <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
-                    No servers found matching "{searchTerm}"
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                return (
+                  <ServerListItem
+                    key={server.id}
+                    server={server}
+                    tools={tools}
+                    isDeleting={deletingServers.has(server.id)}
+                    onRemove={() => handleRemoveServer(server.id, server.name || 'this server')}
+                  />
+                )
+              })}
+              {showNoResults && (
+                <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
+                  No servers found matching "{searchTerm}"
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

@@ -8,7 +8,7 @@
 import type React from 'react'
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { WrenchIcon } from 'lucide-react'
+import { McpIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { mcpKeys, useMcpToolsQuery } from '@/hooks/queries/mcp'
@@ -51,7 +51,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
       type: 'mcp' as const,
       inputSchema: tool.inputSchema,
       bgColor: '#6366F1',
-      icon: WrenchIcon,
+      icon: McpIcon,
     }))
   }, [mcpToolsData])
 

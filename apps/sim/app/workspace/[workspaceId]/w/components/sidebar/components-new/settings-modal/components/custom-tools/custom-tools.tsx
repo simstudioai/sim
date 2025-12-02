@@ -13,6 +13,7 @@ import {
 } from '@/components/emcn/components/modal/modal'
 import { Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
+import { cn } from '@/lib/utils'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
@@ -108,87 +109,88 @@ export function CustomTools() {
   return (
     <>
       <div className='flex h-full flex-col gap-[16px]'>
-        {isLoading ? (
-          <Skeleton className='h-9 w-full rounded-[8px]' />
-        ) : (
-          <div className='flex items-center gap-[8px]'>
-            <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
-              <Search
-                className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <Input
-                placeholder='Search tools...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
-            <Button
-              onClick={() => setShowAddForm(true)}
-              variant='primary'
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-            >
-              <Plus className='mr-[6px] h-[13px] w-[13px]' />
-              Add
-            </Button>
+        <div className='flex items-center gap-[8px]'>
+          <div
+            className={cn(
+              'flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]',
+              isLoading && 'opacity-50'
+            )}
+          >
+            <Search
+              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              strokeWidth={2}
+            />
+            <Input
+              placeholder='Search tools...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={isLoading}
+              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-100'
+            />
           </div>
-        )}
+          <Button
+            onClick={() => setShowAddForm(true)}
+            disabled={isLoading}
+            variant='primary'
+            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+          >
+            <Plus className='mr-[6px] h-[13px] w-[13px]' />
+            Add
+          </Button>
+        </div>
 
         <div className='min-h-0 flex-1 overflow-y-auto'>
-          <div className='flex flex-col gap-[16px]'>
-            {error ? (
-              <div className='flex h-full flex-col items-center justify-center gap-[8px]'>
-                <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                  {error instanceof Error ? error.message : 'Failed to load tools'}
-                </p>
-              </div>
-            ) : isLoading ? (
-              <div className='flex flex-col gap-[8px]'>
-                <CustomToolSkeleton />
-                <CustomToolSkeleton />
-                <CustomToolSkeleton />
-              </div>
-            ) : showEmptyState ? (
-              <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-                Click "Create" above to get started
-              </div>
-            ) : (
-              <div className='flex flex-col gap-[8px]'>
-                {filteredTools.map((tool) => (
-                  <div key={tool.id} className='flex items-center justify-between gap-[12px]'>
-                    <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                      <span className='truncate font-medium text-[14px]'>
-                        {tool.title || 'Unnamed Tool'}
-                      </span>
-                      {tool.schema?.function?.description && (
-                        <p className='truncate text-[13px] text-[var(--text-muted)]'>
-                          {tool.schema.function.description}
-                        </p>
-                      )}
-                    </div>
-                    <div className='flex flex-shrink-0 items-center gap-[8px]'>
-                      <Button variant='ghost' onClick={() => setEditingTool(tool.id)}>
-                        Edit
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        onClick={() => handleDeleteClick(tool.id)}
-                        disabled={deletingTools.has(tool.id)}
-                      >
-                        {deletingTools.has(tool.id) ? 'Deleting...' : 'Delete'}
-                      </Button>
-                    </div>
+          {error ? (
+            <div className='flex h-full flex-col items-center justify-center gap-[8px]'>
+              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                {error instanceof Error ? error.message : 'Failed to load tools'}
+              </p>
+            </div>
+          ) : isLoading ? (
+            <div className='flex flex-col gap-[8px]'>
+              <CustomToolSkeleton />
+              <CustomToolSkeleton />
+              <CustomToolSkeleton />
+            </div>
+          ) : showEmptyState ? (
+            <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+              Click "Add" above to get started
+            </div>
+          ) : (
+            <div className='flex flex-col gap-[8px]'>
+              {filteredTools.map((tool) => (
+                <div key={tool.id} className='flex items-center justify-between gap-[12px]'>
+                  <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                    <span className='truncate font-medium text-[14px]'>
+                      {tool.title || 'Unnamed Tool'}
+                    </span>
+                    {tool.schema?.function?.description && (
+                      <p className='truncate text-[13px] text-[var(--text-muted)]'>
+                        {tool.schema.function.description}
+                      </p>
+                    )}
                   </div>
-                ))}
-                {showNoResults && (
-                  <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
-                    No tools found matching "{searchTerm}"
+                  <div className='flex flex-shrink-0 items-center gap-[8px]'>
+                    <Button variant='ghost' onClick={() => setEditingTool(tool.id)}>
+                      Edit
+                    </Button>
+                    <Button
+                      variant='ghost'
+                      onClick={() => handleDeleteClick(tool.id)}
+                      disabled={deletingTools.has(tool.id)}
+                    >
+                      {deletingTools.has(tool.id) ? 'Deleting...' : 'Delete'}
+                    </Button>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+                </div>
+              ))}
+              {showNoResults && (
+                <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
+                  No tools found matching "{searchTerm}"
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

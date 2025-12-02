@@ -1,10 +1,16 @@
 'use client'
 
-import { useState } from 'react'
-import { Check, ChevronDown, Copy, Eye, EyeOff } from 'lucide-react'
-import { Button, Combobox, Input, Label } from '@/components/emcn'
-import { Alert, AlertDescription } from '@/components/ui'
-import { Skeleton } from '@/components/ui/skeleton'
+import { useMemo, useState } from 'react'
+import { ArrowLeft, Check, ChevronDown, Copy, Eye, EyeOff, Plus, Search } from 'lucide-react'
+import { Button, Combobox, Input, Switch, Textarea } from '@/components/emcn'
+import {
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn/components/modal/modal'
+import { Skeleton, Input as UiInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client/utils'
 import { isBillingEnabled } from '@/lib/core/config/environment'
@@ -73,24 +79,55 @@ interface SSOProvider {
   providerType: 'oidc' | 'saml'
 }
 
+const DEFAULT_FORM_DATA = {
+  providerType: 'oidc' as 'oidc' | 'saml',
+  providerId: '',
+  issuerUrl: '',
+  domain: '',
+  clientId: '',
+  clientSecret: '',
+  scopes: 'openid,profile,email',
+  entryPoint: '',
+  cert: '',
+  callbackUrl: '',
+  audience: '',
+  wantAssertionsSigned: true,
+  idpMetadata: '',
+  showAdvanced: false,
+}
+
+const DEFAULT_ERRORS = {
+  providerType: [],
+  providerId: [],
+  issuerUrl: [],
+  domain: [],
+  clientId: [],
+  clientSecret: [],
+  entryPoint: [],
+  cert: [],
+  scopes: [],
+  callbackUrl: [],
+  audience: [],
+}
+
 export function SSO() {
   const { data: session } = useSession()
   const { data: orgsData } = useOrganizations()
   const { data: subscriptionData } = useSubscriptionData()
+  const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders()
+
   const activeOrganization = orgsData?.activeOrganization
+  const providers = providersData?.providers || []
 
   const userEmail = session?.user?.email
   const userId = session?.user?.id
-  const userRole = getUserRole(activeOrganization, userEmail)
+  const userRole = getUserRole(orgsData?.activeOrganization, userEmail)
   const isOwner = userRole === 'owner'
   const isAdmin = userRole === 'admin'
   const canManageSSO = isOwner || isAdmin
   const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
   const hasEnterprisePlan = subscriptionStatus.isEnterprise
 
-  const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders()
-
-  const providers = providersData?.providers || []
   const isSSOProviderOwner =
     !isBillingEnabled && userId ? providers.some((p: any) => p.userId === userId) : null
 
@@ -101,89 +138,56 @@ export function SSO() {
   const [copied, setCopied] = useState(false)
   const [showConfigForm, setShowConfigForm] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [editingProviderId, setEditingProviderId] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
 
-  const [formData, setFormData] = useState({
-    providerType: 'oidc' as 'oidc' | 'saml',
-    providerId: '',
-    issuerUrl: '',
-    domain: '',
-    // OIDC fields
-    clientId: '',
-    clientSecret: '',
-    scopes: 'openid,profile,email',
-    // SAML fields
-    entryPoint: '',
-    cert: '',
-    callbackUrl: '',
-    audience: '',
-    wantAssertionsSigned: true,
-    idpMetadata: '', // Optional IDP metadata XML
-    // Advanced options
-    showAdvanced: false,
-  })
+  // Delete confirmation dialog state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [providerToDelete, setProviderToDelete] = useState<SSOProvider | null>(null)
 
-  const [errors, setErrors] = useState<Record<string, string[]>>({
-    providerType: [],
-    providerId: [],
-    issuerUrl: [],
-    domain: [],
-    clientId: [],
-    clientSecret: [],
-    entryPoint: [],
-    cert: [],
-    scopes: [],
-    callbackUrl: [],
-    audience: [],
-  })
+  const [formData, setFormData] = useState(DEFAULT_FORM_DATA)
+  const [errors, setErrors] = useState<Record<string, string[]>>(DEFAULT_ERRORS)
   const [showErrors, setShowErrors] = useState(false)
 
+  const filteredProviders = useMemo(() => {
+    if (!searchTerm.trim()) return providers
+    const term = searchTerm.toLowerCase()
+    return providers.filter(
+      (p: SSOProvider) =>
+        p.providerId?.toLowerCase().includes(term) || p.domain?.toLowerCase().includes(term)
+    )
+  }, [providers, searchTerm])
+
+  // Permission checks with early returns
   if (isBillingEnabled) {
     if (!activeOrganization) {
       return (
-        <div className='flex h-full items-center justify-center p-6'>
-          <Alert>
-            <AlertDescription>
-              You must be part of an organization to configure Single Sign-On.
-            </AlertDescription>
-          </Alert>
+        <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+          You must be part of an organization to configure Single Sign-On.
         </div>
       )
     }
 
     if (!hasEnterprisePlan) {
       return (
-        <div className='flex h-full items-center justify-center p-6'>
-          <Alert>
-            <AlertDescription>
-              Single Sign-On is available on Enterprise plans only.
-              <br />
-              Contact your admin to upgrade your plan.
-            </AlertDescription>
-          </Alert>
+        <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+          Single Sign-On is available on Enterprise plans only.
         </div>
       )
     }
 
     if (!canManageSSO) {
       return (
-        <div className='flex h-full items-center justify-center p-6'>
-          <Alert>
-            <AlertDescription>
-              Only organization owners and admins can configure Single Sign-On settings.
-            </AlertDescription>
-          </Alert>
+        <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+          Only organization owners and admins can configure Single Sign-On settings.
         </div>
       )
     }
   } else {
     if (!isLoadingProviders && isSSOProviderOwner === false && providers.length > 0) {
       return (
-        <div className='flex h-full items-center justify-center p-6'>
-          <Alert>
-            <AlertDescription>
-              Only the user who configured SSO can manage these settings.
-            </AlertDescription>
-          </Alert>
+        <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+          Only the user who configured SSO can manage these settings.
         </div>
       )
     }
@@ -284,6 +288,16 @@ export function SSO() {
     return false
   }
 
+  const resetForm = () => {
+    setFormData(DEFAULT_FORM_DATA)
+    setErrors(DEFAULT_ERRORS)
+    setShowErrors(false)
+    setShowConfigForm(false)
+    setIsEditing(false)
+    setEditingProviderId(null)
+    setError(null)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -331,26 +345,7 @@ export function SSO() {
       await configureSSOMutation.mutateAsync(requestBody)
 
       logger.info('SSO provider configured', { providerId: formData.providerId })
-
-      setFormData({
-        providerType: 'oidc',
-        providerId: '',
-        issuerUrl: '',
-        domain: '',
-        clientId: '',
-        clientSecret: '',
-        scopes: 'openid,profile,email',
-        entryPoint: '',
-        cert: '',
-        callbackUrl: '',
-        audience: '',
-        wantAssertionsSigned: true,
-        idpMetadata: '',
-        showAdvanced: false,
-      })
-
-      setShowConfigForm(false)
-      setIsEditing(false)
+      resetForm()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error occurred'
       setError(message)
@@ -370,19 +365,7 @@ export function SSO() {
 
       if (field === 'providerType') {
         setShowErrors(false)
-        setErrors({
-          providerType: [],
-          providerId: [],
-          issuerUrl: [],
-          domain: [],
-          clientId: [],
-          clientSecret: [],
-          entryPoint: [],
-          cert: [],
-          scopes: [],
-          callbackUrl: [],
-          audience: [],
-        })
+        setErrors(DEFAULT_ERRORS)
       } else {
         validateAll(next)
       }
@@ -393,12 +376,18 @@ export function SSO() {
 
   const callbackUrl = `${getBaseUrl()}/api/auth/sso/callback/${formData.providerId}`
 
-  const copyCallback = async () => {
+  const copyToClipboard = async (url: string) => {
     try {
-      await navigator.clipboard.writeText(callbackUrl)
+      await navigator.clipboard.writeText(url)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {}
+  }
+
+  const handleAddNew = () => {
+    resetForm()
+    setShowConfigForm(true)
+    setIsEditing(false)
   }
 
   const handleReconfigure = (provider: SSOProvider) => {
@@ -430,642 +419,677 @@ export function SSO() {
         idpMetadata: '',
         showAdvanced: false,
       })
+      setEditingProviderId(provider.id)
       setIsEditing(true)
       setShowConfigForm(true)
-    } catch (error) {
-      logger.error('Failed to parse provider config', { error })
+      setError(null)
+      setShowErrors(false)
+    } catch (err) {
+      logger.error('Failed to parse provider config', { error: err })
       setError('Failed to load provider configuration')
     }
   }
+
+  const hasProviders = providers.length > 0
+  const showEmptyState = !hasProviders && !showConfigForm
+  const showNoResults = searchTerm.trim() && filteredProviders.length === 0 && providers.length > 0
 
   if (isLoadingProviders) {
     return <SsoSkeleton />
   }
 
-  const hasProviders = providers.length > 0
-  const showStatus = hasProviders && !showConfigForm
+  // Form View (Add/Edit)
+  if (showConfigForm) {
+    return (
+      <>
+        <form
+          onSubmit={handleSubmit}
+          autoComplete='off'
+          className='flex h-full flex-col gap-[16px]'
+        >
+          {/* Hidden dummy inputs to prevent browser password manager autofill */}
+          <input
+            type='text'
+            name='fakeusernameremembered'
+            autoComplete='username'
+            style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+            tabIndex={-1}
+            readOnly
+          />
+          <input
+            type='password'
+            name='fakepasswordremembered'
+            autoComplete='current-password'
+            style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+            tabIndex={-1}
+            readOnly
+          />
+          <input
+            type='email'
+            name='fakeemailremembered'
+            autoComplete='email'
+            style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+            tabIndex={-1}
+            readOnly
+          />
+          <input type='text' name='hidden' style={{ display: 'none' }} autoComplete='false' />
 
-  return (
-    <div className='relative flex h-full flex-col'>
-      {/* Hidden dummy inputs to prevent browser password manager autofill */}
-      <input
-        type='text'
-        name='fakeusernameremembered'
-        autoComplete='username'
-        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
-        tabIndex={-1}
-        readOnly
-      />
-      <input
-        type='password'
-        name='fakepasswordremembered'
-        autoComplete='current-password'
-        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
-        tabIndex={-1}
-        readOnly
-      />
-      <input
-        type='email'
-        name='fakeemailremembered'
-        autoComplete='email'
-        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
-        tabIndex={-1}
-        readOnly
-      />
-      <div className='flex-1 overflow-y-auto'>
-        <div className='space-y-6'>
-          {showStatus ? (
-            <div className='space-y-4'>
-              {providers.map((provider: SSOProvider) => (
-                <div key={provider.id} className='rounded-[8px] bg-muted/30 p-4'>
-                  <div className='flex items-start justify-between gap-3'>
-                    <div className='flex-1'>
-                      <h3 className='font-medium text-base'>Single Sign-On Provider</h3>
-                      <p className='mt-1 text-muted-foreground text-sm'>
-                        {provider.providerId} • {provider.domain}
+          {/* Back Button Header */}
+          <div className='mt-[6px] flex items-center gap-[8px]'>
+            <button
+              type='button'
+              onClick={resetForm}
+              className='flex items-center gap-[6px] font-medium text-[13px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
+            >
+              <ArrowLeft className='h-[14px] w-[14px]' />
+              <span>SSO Providers</span>
+            </button>
+          </div>
+
+          {/* Scrollable Content */}
+          <div className='min-h-0 flex-1 overflow-y-auto'>
+            <div className='flex flex-col gap-[16px]'>
+              {/* Provider Type Selection */}
+              <div className='flex flex-col gap-[8px]'>
+                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                  Provider Type
+                </span>
+                <Combobox
+                  value={formData.providerType}
+                  onChange={(value: string) =>
+                    handleInputChange('providerType', value as 'oidc' | 'saml')
+                  }
+                  options={[
+                    { label: 'OIDC', value: 'oidc' },
+                    { label: 'SAML', value: 'saml' },
+                  ]}
+                  placeholder='Select provider type'
+                  editable={false}
+                  className='h-9'
+                />
+                <p className='text-[13px] text-[var(--text-muted)]'>
+                  {formData.providerType === 'oidc'
+                    ? 'OpenID Connect (Okta, Azure AD, Auth0, etc.)'
+                    : 'Security Assertion Markup Language (ADFS, Shibboleth, etc.)'}
+                </p>
+              </div>
+
+              {/* Provider ID */}
+              <div className='flex flex-col gap-[8px]'>
+                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                  Provider ID
+                </span>
+                <Combobox
+                  value={formData.providerId}
+                  onChange={(value: string) => handleInputChange('providerId', value)}
+                  options={TRUSTED_SSO_PROVIDERS.map((id) => ({
+                    label: id,
+                    value: id,
+                  }))}
+                  placeholder='Select a provider ID'
+                  editable={true}
+                  className={cn(
+                    'h-9',
+                    showErrors &&
+                      errors.providerId.length > 0 &&
+                      'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                  )}
+                />
+                {showErrors && errors.providerId.length > 0 && (
+                  <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                    {errors.providerId.join(' ')}
+                  </p>
+                )}
+              </div>
+
+              {/* Issuer URL */}
+              <div className='flex flex-col gap-[8px]'>
+                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                  Issuer URL
+                </span>
+                <Input
+                  type='url'
+                  placeholder='https://your-identity-provider.com/oauth2/default'
+                  value={formData.issuerUrl}
+                  name='sso_issuer_endpoint'
+                  autoComplete='off'
+                  autoCapitalize='none'
+                  spellCheck={false}
+                  readOnly
+                  onFocus={(e) => e.target.removeAttribute('readOnly')}
+                  onChange={(e) => handleInputChange('issuerUrl', e.target.value)}
+                  className={cn(
+                    'h-9',
+                    showErrors &&
+                      errors.issuerUrl.length > 0 &&
+                      'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                  )}
+                />
+                {showErrors && errors.issuerUrl.length > 0 && (
+                  <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                    {errors.issuerUrl.join(' ')}
+                  </p>
+                )}
+              </div>
+
+              {/* Domain */}
+              <div className='flex flex-col gap-[8px]'>
+                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Domain</span>
+                <Input
+                  type='text'
+                  placeholder='your-domain.identityprovider.com'
+                  value={formData.domain}
+                  name='sso_identity_domain'
+                  autoComplete='off'
+                  autoCapitalize='none'
+                  spellCheck={false}
+                  readOnly
+                  onFocus={(e) => e.target.removeAttribute('readOnly')}
+                  onChange={(e) => handleInputChange('domain', e.target.value)}
+                  className={cn(
+                    'h-9',
+                    showErrors &&
+                      errors.domain.length > 0 &&
+                      'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                  )}
+                />
+                {showErrors && errors.domain.length > 0 && (
+                  <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                    {errors.domain.join(' ')}
+                  </p>
+                )}
+              </div>
+
+              {/* Provider-specific fields */}
+              {formData.providerType === 'oidc' ? (
+                <>
+                  <div className='flex flex-col gap-[8px]'>
+                    <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      Client ID
+                    </span>
+                    <Input
+                      type='text'
+                      placeholder='Enter Client ID'
+                      value={formData.clientId}
+                      name='sso_client_identifier'
+                      autoComplete='off'
+                      autoCapitalize='none'
+                      spellCheck={false}
+                      readOnly
+                      onFocus={(e) => e.target.removeAttribute('readOnly')}
+                      onChange={(e) => handleInputChange('clientId', e.target.value)}
+                      className={cn(
+                        'h-9',
+                        showErrors &&
+                          errors.clientId.length > 0 &&
+                          'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                      )}
+                    />
+                    {showErrors && errors.clientId.length > 0 && (
+                      <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                        {errors.clientId.join(' ')}
                       </p>
-                    </div>
-                    <div className='flex items-center space-x-2'>
-                      <Button
-                        variant='ghost'
-                        onClick={() => handleReconfigure(provider)}
-                        className='h-8'
-                      >
-                        Reconfigure
-                      </Button>
-                    </div>
+                    )}
                   </div>
 
-                  <div className='mt-4 border-border border-t pt-4'>
-                    <div className='grid grid-cols-2 gap-4 text-sm'>
-                      <div>
-                        <span className='font-medium text-muted-foreground'>Issuer URL</span>
-                        <p className='mt-1 break-all font-mono text-foreground text-xs'>
-                          {provider.issuer}
-                        </p>
-                      </div>
-                      <div>
-                        <span className='font-medium text-muted-foreground'>Provider ID</span>
-                        <p className='mt-1 text-foreground'>{provider.providerId}</p>
-                      </div>
-                    </div>
-
-                    <div className='mt-4'>
-                      <span className='font-medium text-muted-foreground text-sm'>
-                        Callback URL
-                      </span>
-                      <div className='relative mt-2'>
-                        <Input
-                          readOnly
-                          value={`${getBaseUrl()}/api/auth/sso/callback/${provider.providerId}`}
-                          className='h-9 w-full cursor-text pr-10 font-mono text-xs focus-visible:ring-2 focus-visible:ring-primary/20'
-                          onClick={(e) => (e.target as HTMLInputElement).select()}
-                        />
-                        <button
-                          type='button'
-                          onClick={() => {
-                            const url = `${getBaseUrl()}/api/auth/sso/callback/${provider.providerId}`
-                            navigator.clipboard.writeText(url)
-                            setCopied(true)
-                            setTimeout(() => setCopied(false), 1500)
-                          }}
-                          aria-label='Copy callback URL'
-                          className='-translate-y-1/2 absolute top-1/2 right-3 rounded p-1 text-muted-foreground transition hover:text-foreground'
-                        >
-                          {copied ? (
-                            <Check className='h-4 w-4 text-green-500' />
-                          ) : (
-                            <Copy className='h-4 w-4' />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <>
-              {hasProviders && (
-                <div className='mb-4'>
-                  <Button
-                    variant='ghost'
-                    onClick={() => {
-                      setShowConfigForm(false)
-                      setIsEditing(false)
-                    }}
-                    className='h-8'
-                  >
-                    ← Back to SSO Status
-                  </Button>
-                </div>
-              )}
-              <form onSubmit={handleSubmit} className='space-y-3' autoComplete='off'>
-                {/* Hidden dummy input to prevent autofill */}
-                <input type='text' name='hidden' style={{ display: 'none' }} autoComplete='false' />
-                {/* Provider Type Selection */}
-                <div className='space-y-1'>
-                  <Label>Provider Type</Label>
-                  <div className='flex gap-2 rounded-[10px] border border-[var(--border-muted)] bg-[var(--surface-3)] p-1'>
-                    <button
-                      type='button'
-                      className={cn(
-                        'flex-1 rounded-[6px] px-3 py-2 font-medium text-sm transition-all',
-                        formData.providerType === 'oidc'
-                          ? 'bg-[var(--surface-1)] text-[var(--text-primary)] shadow-sm ring-1 ring-[var(--border-muted)]'
-                          : 'text-muted-foreground hover:bg-[var(--surface-2)] hover:text-foreground'
-                      )}
-                      onClick={() => handleInputChange('providerType', 'oidc')}
-                    >
-                      OIDC
-                    </button>
-                    <button
-                      type='button'
-                      className={cn(
-                        'flex-1 rounded-[6px] px-3 py-2 font-medium text-sm transition-all',
-                        formData.providerType === 'saml'
-                          ? 'bg-[var(--surface-1)] text-[var(--text-primary)] shadow-sm ring-1 ring-[var(--border-muted)]'
-                          : 'text-muted-foreground hover:bg-[var(--surface-2)] hover:text-foreground'
-                      )}
-                      onClick={() => handleInputChange('providerType', 'saml')}
-                    >
-                      SAML
-                    </button>
-                  </div>
-                  <p className='text-muted-foreground text-xs'>
-                    {formData.providerType === 'oidc'
-                      ? 'OpenID Connect (Okta, Azure AD, Auth0, etc.)'
-                      : 'Security Assertion Markup Language (ADFS, Shibboleth, etc.)'}
-                  </p>
-                </div>
-
-                <div className='space-y-1'>
-                  <Label htmlFor='provider-id'>Provider ID</Label>
-                  <Combobox
-                    value={formData.providerId}
-                    onChange={(value: string) => handleInputChange('providerId', value)}
-                    options={TRUSTED_SSO_PROVIDERS.map((id) => ({
-                      label: id,
-                      value: id,
-                    }))}
-                    placeholder='Select a provider ID'
-                    editable={true}
-                    className={cn(
-                      showErrors &&
-                        errors.providerId.length > 0 &&
-                        'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
-                    )}
-                  />
-                  {showErrors && errors.providerId.length > 0 && (
-                    <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                      {errors.providerId.join(' ')}
-                    </p>
-                  )}
-                  <p className='text-muted-foreground text-xs'>
-                    Select a pre-configured provider ID from the trusted providers list
-                  </p>
-                </div>
-
-                <div className='space-y-1'>
-                  <Label htmlFor='issuer-url'>Issuer URL</Label>
-                  <Input
-                    id='issuer-url'
-                    type='url'
-                    placeholder='Enter Issuer URL'
-                    value={formData.issuerUrl}
-                    name='sso_issuer_endpoint'
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    readOnly
-                    onFocus={(e) => e.target.removeAttribute('readOnly')}
-                    onChange={(e) => handleInputChange('issuerUrl', e.target.value)}
-                    className={cn(
-                      'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
-                      showErrors &&
-                        errors.issuerUrl.length > 0 &&
-                        'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
-                    )}
-                  />
-                  {showErrors && errors.issuerUrl.length > 0 && (
-                    <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                      {errors.issuerUrl.join(' ')}
-                    </p>
-                  )}
-                  <p className='text-muted-foreground text-xs' />
-                </div>
-
-                <div className='space-y-1'>
-                  <Label htmlFor='domain'>Domain</Label>
-                  <Input
-                    id='domain'
-                    type='text'
-                    placeholder='Enter Domain'
-                    value={formData.domain}
-                    name='sso_identity_domain'
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    readOnly
-                    onFocus={(e) => e.target.removeAttribute('readOnly')}
-                    onChange={(e) => handleInputChange('domain', e.target.value)}
-                    className={cn(
-                      'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
-                      showErrors &&
-                        errors.domain.length > 0 &&
-                        'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
-                    )}
-                  />
-                  {showErrors && errors.domain.length > 0 && (
-                    <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                      {errors.domain.join(' ')}
-                    </p>
-                  )}
-                </div>
-
-                {/* Provider-specific fields */}
-                {formData.providerType === 'oidc' ? (
-                  <>
-                    <div className='space-y-1'>
-                      <Label htmlFor='client-id'>Client ID</Label>
+                  <div className='flex flex-col gap-[8px]'>
+                    <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      Client Secret
+                    </span>
+                    <div className='relative'>
                       <Input
-                        id='client-id'
                         type='text'
-                        placeholder='Enter Client ID'
-                        value={formData.clientId}
-                        name='sso_client_identifier'
+                        placeholder='Enter Client Secret'
+                        value={formData.clientSecret}
+                        name='sso_client_key'
                         autoComplete='off'
                         autoCapitalize='none'
                         spellCheck={false}
                         readOnly
-                        onFocus={(e) => e.target.removeAttribute('readOnly')}
-                        onChange={(e) => handleInputChange('clientId', e.target.value)}
-                        className={cn(
-                          'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
-                          showErrors &&
-                            errors.clientId.length > 0 &&
-                            'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
-                        )}
-                      />
-                      {showErrors && errors.clientId.length > 0 && (
-                        <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                          {errors.clientId.join(' ')}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className='space-y-1'>
-                      <Label htmlFor='client-secret'>Client Secret</Label>
-                      <div className='relative'>
-                        <Input
-                          id='client-secret'
-                          type='text'
-                          placeholder='Enter Client Secret'
-                          value={formData.clientSecret}
-                          name='sso_client_key'
-                          autoComplete='off'
-                          autoCapitalize='none'
-                          spellCheck={false}
-                          readOnly
-                          onFocus={(e) => {
-                            e.target.removeAttribute('readOnly')
-                            setShowClientSecret(true)
-                          }}
-                          onBlurCapture={() => setShowClientSecret(false)}
-                          onChange={(e) => handleInputChange('clientSecret', e.target.value)}
-                          style={
-                            !showClientSecret
-                              ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
-                              : undefined
-                          }
-                          className={cn(
-                            'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
-                            showErrors &&
-                              errors.clientSecret.length > 0 &&
-                              'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
-                          )}
-                        />
-                        <Button
-                          variant='ghost'
-                          onClick={() => setShowClientSecret((s) => !s)}
-                          className='-translate-y-1/2 absolute top-1/2 right-3 h-6 w-6 rounded-[4px] p-0 text-muted-foreground hover:text-foreground'
-                          aria-label={
-                            showClientSecret ? 'Hide client secret' : 'Show client secret'
-                          }
-                        >
-                          {showClientSecret ? (
-                            <EyeOff className='h-4 w-4' />
-                          ) : (
-                            <Eye className='h-4 w-4' />
-                          )}
-                        </Button>
-                      </div>
-                      {showErrors && errors.clientSecret.length > 0 && (
-                        <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                          {errors.clientSecret.join(' ')}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className='space-y-1'>
-                      <Label htmlFor='scopes'>Scopes</Label>
-                      <Input
-                        id='scopes'
-                        type='text'
-                        placeholder='openid,profile,email'
-                        value={formData.scopes}
-                        autoComplete='off'
-                        autoCapitalize='none'
-                        spellCheck={false}
-                        onChange={(e) => handleInputChange('scopes', e.target.value)}
-                        className={cn(
-                          'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
-                          showErrors &&
-                            errors.scopes.length > 0 &&
-                            'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
-                        )}
-                      />
-                      {showErrors && errors.scopes.length > 0 && (
-                        <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                          {errors.scopes.join(' ')}
-                        </p>
-                      )}
-                      <p className='text-muted-foreground text-xs'>
-                        Comma-separated list of OIDC scopes to request
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className='space-y-1'>
-                      <Label htmlFor='entry-point'>Entry Point URL</Label>
-                      <Input
-                        id='entry-point'
-                        type='url'
-                        placeholder='Enter Entry Point URL'
-                        value={formData.entryPoint}
-                        autoComplete='off'
-                        autoCapitalize='none'
-                        spellCheck={false}
-                        onChange={(e) => handleInputChange('entryPoint', e.target.value)}
-                        className={cn(
-                          'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
-                          showErrors &&
-                            errors.entryPoint.length > 0 &&
-                            'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
-                        )}
-                      />
-                      {showErrors && errors.entryPoint.length > 0 && (
-                        <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                          {errors.entryPoint.join(' ')}
-                        </p>
-                      )}
-                      <p className='text-muted-foreground text-xs' />
-                    </div>
-
-                    <div className='space-y-1'>
-                      <Label htmlFor='cert'>Identity Provider Certificate</Label>
-                      <textarea
-                        id='cert'
-                        placeholder='-----BEGIN CERTIFICATE-----&#10;MIIDBjCCAe4CAQAwDQYJKoZIhvcNAQEFBQAwEjEQMA...&#10;-----END CERTIFICATE-----'
-                        value={formData.cert}
-                        autoComplete='off'
-                        autoCapitalize='none'
-                        spellCheck={false}
-                        onChange={(e) => handleInputChange('cert', e.target.value)}
-                        className={cn(
-                          'min-h-[100px] w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
-                          showErrors &&
-                            errors.cert.length > 0 &&
-                            'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
-                        )}
-                        rows={4}
-                      />
-                      {showErrors && errors.cert.length > 0 && (
-                        <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                          {errors.cert.join(' ')}
-                        </p>
-                      )}
-                      <p className='text-muted-foreground text-xs' />
-                    </div>
-
-                    {/* Advanced SAML Options */}
-                    <div className='space-y-3'>
-                      <button
-                        type='button'
-                        onClick={() =>
-                          handleInputChange(
-                            'showAdvanced',
-                            formData.showAdvanced ? 'false' : 'true'
-                          )
+                        onFocus={(e) => {
+                          e.target.removeAttribute('readOnly')
+                          setShowClientSecret(true)
+                        }}
+                        onBlurCapture={() => setShowClientSecret(false)}
+                        onChange={(e) => handleInputChange('clientSecret', e.target.value)}
+                        style={
+                          !showClientSecret
+                            ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
+                            : undefined
                         }
-                        className='flex items-center gap-2 text-muted-foreground text-sm hover:text-foreground'
+                        className={cn(
+                          'h-9 pr-[36px]',
+                          showErrors &&
+                            errors.clientSecret.length > 0 &&
+                            'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                        )}
+                      />
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        onClick={() => setShowClientSecret((s) => !s)}
+                        className='-translate-y-1/2 absolute top-1/2 right-[8px] h-6 w-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                        aria-label={showClientSecret ? 'Hide client secret' : 'Show client secret'}
                       >
-                        <ChevronDown
-                          className={cn(
-                            'h-4 w-4 transition-transform',
-                            formData.showAdvanced && 'rotate-180'
-                          )}
-                        />
-                        Advanced SAML Options
-                      </button>
-
-                      {formData.showAdvanced && (
-                        <>
-                          <div className='space-y-1'>
-                            <Label htmlFor='audience'>Audience (Entity ID)</Label>
-                            <Input
-                              id='audience'
-                              type='text'
-                              placeholder='Enter Audience'
-                              value={formData.audience}
-                              autoComplete='off'
-                              autoCapitalize='none'
-                              spellCheck={false}
-                              onChange={(e) => handleInputChange('audience', e.target.value)}
-                              className='rounded-[10px] shadow-sm'
-                            />
-                            <p className='text-muted-foreground text-xs'>
-                              The SAML audience restriction (optional, defaults to app URL)
-                            </p>
-                          </div>
-
-                          <div className='space-y-1'>
-                            <Label htmlFor='callback-url'>Callback URL Override</Label>
-                            <Input
-                              id='callback-url'
-                              type='url'
-                              placeholder='Enter Callback URL'
-                              value={formData.callbackUrl}
-                              autoComplete='off'
-                              autoCapitalize='none'
-                              spellCheck={false}
-                              onChange={(e) => handleInputChange('callbackUrl', e.target.value)}
-                              className='rounded-[10px] shadow-sm'
-                            />
-                            <p className='text-muted-foreground text-xs'>
-                              Custom SAML callback URL (optional, auto-generated if empty)
-                            </p>
-                          </div>
-
-                          <div className='flex items-center space-x-2'>
-                            <input
-                              type='checkbox'
-                              id='want-assertions-signed'
-                              checked={formData.wantAssertionsSigned}
-                              onChange={(e) =>
-                                handleInputChange(
-                                  'wantAssertionsSigned',
-                                  e.target.checked ? 'true' : 'false'
-                                )
-                              }
-                              className='rounded'
-                            />
-                            <Label htmlFor='want-assertions-signed' className='text-sm'>
-                              Require signed SAML assertions
-                            </Label>
-                          </div>
-
-                          <div className='space-y-1'>
-                            <Label htmlFor='idp-metadata'>Identity Provider Metadata XML</Label>
-                            <textarea
-                              id='idp-metadata'
-                              placeholder='<?xml version="1.0" encoding="UTF-8"?>&#10;<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">&#10;  ...&#10;</md:EntityDescriptor>'
-                              value={formData.idpMetadata}
-                              autoComplete='off'
-                              autoCapitalize='none'
-                              spellCheck={false}
-                              onChange={(e) => handleInputChange('idpMetadata', e.target.value)}
-                              className='min-h-[100px] w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100'
-                              rows={4}
-                            />
-                            <p className='text-muted-foreground text-xs'>
-                              Paste the complete IDP metadata XML from your identity provider for
-                              advanced configuration
-                            </p>
-                          </div>
-                        </>
-                      )}
+                        {showClientSecret ? (
+                          <EyeOff className='h-4 w-4' />
+                        ) : (
+                          <Eye className='h-4 w-4' />
+                        )}
+                      </Button>
                     </div>
-                  </>
-                )}
+                    {showErrors && errors.clientSecret.length > 0 && (
+                      <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                        {errors.clientSecret.join(' ')}
+                      </p>
+                    )}
+                  </div>
 
-                {error && (
-                  <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                    {error}
-                  </p>
-                )}
+                  <div className='flex flex-col gap-[8px]'>
+                    <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      Scopes
+                    </span>
+                    <Input
+                      type='text'
+                      placeholder='openid,profile,email'
+                      value={formData.scopes}
+                      autoComplete='off'
+                      autoCapitalize='none'
+                      spellCheck={false}
+                      onChange={(e) => handleInputChange('scopes', e.target.value)}
+                      className={cn(
+                        'h-9',
+                        showErrors &&
+                          errors.scopes.length > 0 &&
+                          'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                      )}
+                    />
+                    {showErrors && errors.scopes.length > 0 && (
+                      <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                        {errors.scopes.join(' ')}
+                      </p>
+                    )}
+                    <p className='text-[13px] text-[var(--text-muted)]'>
+                      Comma-separated list of OIDC scopes to request
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className='flex flex-col gap-[8px]'>
+                    <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      Entry Point URL
+                    </span>
+                    <Input
+                      type='url'
+                      placeholder='https://idp.example.com/sso/saml'
+                      value={formData.entryPoint}
+                      autoComplete='off'
+                      autoCapitalize='none'
+                      spellCheck={false}
+                      onChange={(e) => handleInputChange('entryPoint', e.target.value)}
+                      className={cn(
+                        'h-9',
+                        showErrors &&
+                          errors.entryPoint.length > 0 &&
+                          'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                      )}
+                    />
+                    {showErrors && errors.entryPoint.length > 0 && (
+                      <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                        {errors.entryPoint.join(' ')}
+                      </p>
+                    )}
+                  </div>
 
-                <Button
-                  type='submit'
-                  className='h-9 w-full'
-                  disabled={
-                    configureSSOMutation.isPending || hasAnyErrors(errors) || !isFormValid()
-                  }
-                >
-                  {configureSSOMutation.isPending
-                    ? isEditing
-                      ? 'Updating...'
-                      : 'Configuring...'
-                    : isEditing
-                      ? 'Update SSO Provider'
-                      : 'Configure SSO Provider'}
-                </Button>
-              </form>
+                  <div className='flex flex-col gap-[8px]'>
+                    <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      Identity Provider Certificate
+                    </span>
+                    <Textarea
+                      placeholder='-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----'
+                      value={formData.cert}
+                      autoComplete='off'
+                      autoCapitalize='none'
+                      spellCheck={false}
+                      onChange={(e) => handleInputChange('cert', e.target.value)}
+                      className={cn(
+                        'min-h-[80px] font-mono',
+                        showErrors &&
+                          errors.cert.length > 0 &&
+                          'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                      )}
+                      rows={3}
+                    />
+                    {showErrors && errors.cert.length > 0 && (
+                      <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                        {errors.cert.join(' ')}
+                      </p>
+                    )}
+                  </div>
 
-              <div className='space-y-1'>
-                <Label htmlFor='callback-url'>Callback URL</Label>
-                <p className='text-muted-foreground text-xs'>
-                  Configure this URL in your identity provider as the callback/redirect URI
-                </p>
-                <div className='relative flex h-9 items-center rounded-[8px] bg-muted px-3 pr-10'>
-                  <code className='flex-1 truncate font-mono text-foreground text-xs'>
-                    {callbackUrl}
-                  </code>
+                  {/* Advanced SAML Options */}
+                  <div className='flex flex-col gap-[8px]'>
+                    <button
+                      type='button'
+                      onClick={() =>
+                        handleInputChange('showAdvanced', formData.showAdvanced ? 'false' : 'true')
+                      }
+                      className='flex w-fit items-center gap-[6px] text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    >
+                      <ChevronDown
+                        className={cn(
+                          'h-4 w-4 transition-transform',
+                          formData.showAdvanced && 'rotate-180'
+                        )}
+                      />
+                      Advanced Options
+                    </button>
+
+                    {formData.showAdvanced && (
+                      <div className='flex flex-col gap-[16px] pt-[8px]'>
+                        <div className='flex flex-col gap-[8px]'>
+                          <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                            Audience (Entity ID)
+                          </span>
+                          <Input
+                            type='text'
+                            placeholder='Enter Audience'
+                            value={formData.audience}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('audience', e.target.value)}
+                            className='h-9'
+                          />
+                        </div>
+
+                        <div className='flex flex-col gap-[8px]'>
+                          <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                            Callback URL Override
+                          </span>
+                          <Input
+                            type='url'
+                            placeholder='Enter Callback URL'
+                            value={formData.callbackUrl}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('callbackUrl', e.target.value)}
+                            className='h-9'
+                          />
+                        </div>
+
+                        <div className='flex flex-col gap-[8px]'>
+                          <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                            Require signed SAML assertions
+                          </span>
+                          <Switch
+                            checked={formData.wantAssertionsSigned}
+                            onCheckedChange={(checked) =>
+                              handleInputChange('wantAssertionsSigned', checked ? 'true' : 'false')
+                            }
+                          />
+                        </div>
+
+                        <div className='flex flex-col gap-[8px]'>
+                          <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                            IDP Metadata XML
+                          </span>
+                          <Textarea
+                            placeholder='Paste IDP metadata XML here (optional)'
+                            value={formData.idpMetadata}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('idpMetadata', e.target.value)}
+                            className='min-h-[60px] font-mono'
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Callback URL display */}
+              <div className='flex flex-col gap-[8px]'>
+                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                  Callback URL
+                </span>
+                <div className='relative'>
+                  <div className='flex h-9 items-center rounded-[6px] border bg-[var(--surface-1)] px-[10px] pr-[40px]'>
+                    <code className='flex-1 truncate font-mono text-[13px] text-[var(--text-primary)]'>
+                      {callbackUrl}
+                    </code>
+                  </div>
                   <Button
+                    type='button'
                     variant='ghost'
-                    onClick={copyCallback}
-                    aria-label='Copy callback URL'
-                    className='absolute right-1 h-6 w-6 rounded-[4px] p-0 text-muted-foreground hover:text-foreground'
+                    onClick={() => copyToClipboard(callbackUrl)}
+                    className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-[4px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                   >
-                    {copied ? <Check className='h-4 w-4' /> : <Copy className='h-4 w-4' />}
+                    {copied ? (
+                      <Check className='h-[14px] w-[14px]' />
+                    ) : (
+                      <Copy className='h-[14px] w-[14px]' />
+                    )}
+                    <span className='sr-only'>Copy callback URL</span>
                   </Button>
                 </div>
+                <p className='text-[13px] text-[var(--text-muted)]'>
+                  Configure this in your identity provider
+                </p>
               </div>
-            </>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className='mt-auto flex items-center justify-end gap-[8px]'>
+            {error && <p className='mr-auto text-[12px] text-[var(--text-error)]'>{error}</p>}
+            <Button
+              type='submit'
+              variant='primary'
+              disabled={configureSSOMutation.isPending || hasAnyErrors(errors) || !isFormValid()}
+              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+            >
+              {configureSSOMutation.isPending
+                ? isEditing
+                  ? 'Updating...'
+                  : 'Adding...'
+                : isEditing
+                  ? 'Update'
+                  : 'Add Provider'}
+            </Button>
+          </div>
+        </form>
+
+        {/* Delete Confirmation Dialog */}
+        <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <ModalContent className='w-[400px]'>
+            <ModalHeader>Delete SSO Provider</ModalHeader>
+            <ModalBody>
+              <p className='text-[12px] text-[var(--text-tertiary)]'>
+                Are you sure you want to delete{' '}
+                <span className='font-medium text-[var(--text-primary)]'>
+                  {providerToDelete?.providerId}
+                </span>
+                ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              </p>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                variant='default'
+                onClick={() => {
+                  setShowDeleteDialog(false)
+                  setProviderToDelete(null)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant='primary'
+                onClick={() => {
+                  setShowDeleteDialog(false)
+                  setProviderToDelete(null)
+                }}
+                className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
+              >
+                Delete
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      </>
+    )
+  }
+
+  // List View
+  return (
+    <>
+      <div className='flex h-full flex-col gap-[16px]'>
+        {/* Search Input and Add Button */}
+        <div className='flex items-center gap-[8px]'>
+          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+            <Search
+              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              strokeWidth={2}
+            />
+            <UiInput
+              placeholder='Search SSO providers...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+            />
+          </div>
+          <Button
+            onClick={handleAddNew}
+            variant='primary'
+            disabled={isLoadingProviders}
+            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90 disabled:cursor-not-allowed disabled:opacity-60'
+          >
+            <Plus className='mr-[6px] h-[13px] w-[13px]' />
+            Add
+          </Button>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className='min-h-0 flex-1 overflow-y-auto'>
+          {showEmptyState ? (
+            <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+              Click "Add" above to get started
+            </div>
+          ) : (
+            <div className='flex flex-col gap-[8px]'>
+              {/* Provider List */}
+              {filteredProviders.map((provider: SSOProvider) => (
+                <div key={provider.id} className='flex items-center justify-between gap-[12px]'>
+                  <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                    <div className='flex items-center gap-[6px]'>
+                      <span className='max-w-[280px] truncate font-medium text-[14px]'>
+                        {provider.providerId}
+                      </span>
+                      <span className='text-[13px] text-[var(--text-secondary)]'>
+                        ({provider.providerType.toUpperCase()})
+                      </span>
+                    </div>
+                    <p className='truncate text-[13px] text-[var(--text-muted)]'>
+                      {provider.domain}
+                    </p>
+                  </div>
+                  <Button
+                    variant='ghost'
+                    className='flex-shrink-0'
+                    onClick={() => handleReconfigure(provider)}
+                  >
+                    Edit
+                  </Button>
+                </div>
+              ))}
+
+              {showNoResults && (
+                <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
+                  No providers found matching "{searchTerm}"
+                </div>
+              )}
+            </div>
           )}
+        </div>
+      </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete SSO Provider</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {providerToDelete?.providerId}
+              </span>
+              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant='default'
+              onClick={() => {
+                setShowDeleteDialog(false)
+                setProviderToDelete(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='primary'
+              onClick={() => {
+                setShowDeleteDialog(false)
+                setProviderToDelete(null)
+              }}
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
+            >
+              Delete
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </>
+  )
+}
+
+function SsoSkeleton() {
+  return (
+    <div className='flex h-full flex-col gap-[16px]'>
+      {/* Search + Add button skeleton */}
+      <div className='flex items-center gap-[8px]'>
+        <Skeleton className='h-9 flex-1 rounded-[8px]' />
+        <Skeleton className='h-9 w-[70px] rounded-[8px]' />
+      </div>
+
+      {/* List skeleton */}
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='flex flex-col gap-[8px]'>
+          <SsoProviderSkeleton />
+          <SsoProviderSkeleton />
+          <SsoProviderSkeleton />
         </div>
       </div>
     </div>
   )
 }
 
-function SsoSkeleton() {
+function SsoProviderSkeleton() {
   return (
-    <div className='flex h-full flex-col'>
-      <div className='flex-1 overflow-y-auto'>
-        <div className='space-y-3'>
-          {/* Provider type toggle */}
-          <div className='space-y-1'>
-            <Skeleton className='h-4 w-28' />
-            <Skeleton className='h-10 w-full rounded-[10px]' />
-            <Skeleton className='h-3 w-64' />
-          </div>
-
-          {/* Provider ID */}
-          <div className='space-y-1'>
-            <Skeleton className='h-4 w-24' />
-            <Skeleton className='h-9 w-full rounded-[10px]' />
-            <Skeleton className='h-3 w-80' />
-          </div>
-
-          {/* Issuer URL */}
-          <div className='space-y-1'>
-            <Skeleton className='h-4 w-24' />
-            <Skeleton className='h-9 w-full rounded-[10px]' />
-          </div>
-
-          {/* Domain */}
-          <div className='space-y-1'>
-            <Skeleton className='h-4 w-16' />
-            <Skeleton className='h-9 w-full rounded-[10px]' />
-          </div>
-
-          {/* Client ID */}
-          <div className='space-y-1'>
-            <Skeleton className='h-4 w-20' />
-            <Skeleton className='h-9 w-full rounded-[10px]' />
-          </div>
-
-          {/* Client Secret */}
-          <div className='space-y-1'>
-            <Skeleton className='h-4 w-24' />
-            <div className='relative'>
-              <Skeleton className='h-9 w-full rounded-[10px]' />
-              <Skeleton className='-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 rounded' />
-            </div>
-          </div>
-
-          {/* Scopes */}
-          <div className='space-y-1'>
-            <Skeleton className='h-4 w-16' />
-            <Skeleton className='h-9 w-full rounded-[10px]' />
-            <Skeleton className='h-3 w-56' />
-          </div>
-
-          {/* Submit button */}
-          <Skeleton className='h-9 w-full rounded-[10px]' />
-
-          {/* Callback URL */}
-          <div className='space-y-1'>
-            <Skeleton className='h-4 w-24' />
-            <Skeleton className='h-3 w-96' />
-            <div className='relative flex h-9 items-center rounded-[8px] bg-muted px-3'>
-              <Skeleton className='h-3 w-64' />
-            </div>
-          </div>
+    <div className='flex items-center justify-between gap-[12px]'>
+      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+        <div className='flex items-center gap-[6px]'>
+          <Skeleton className='h-[14px] w-[100px]' />
+          <Skeleton className='h-[13px] w-[50px]' />
         </div>
+        <Skeleton className='h-[13px] w-[150px]' />
       </div>
+      <Skeleton className='h-[26px] w-[40px] rounded-[6px]' />
     </div>
   )
 }

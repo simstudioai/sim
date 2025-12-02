@@ -1,7 +1,7 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
+import { Loader2, PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Combobox,
@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
+import { McpIcon } from '@/components/icons'
 import { Switch } from '@/components/ui/switch'
 import { Toggle } from '@/components/ui/toggle'
 import { cn } from '@/lib/core/utils/cn'
@@ -1631,9 +1632,7 @@ export function ToolInput({
                       }}
                       disabled={isPreview}
                     >
-                      <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                        <WrenchIcon className='h-[11px] w-[11px] text-muted-foreground' />
-                      </div>
+                      <WrenchIcon className='h-[14px] w-[14px] flex-shrink-0 text-muted-foreground' />
                       <span className='truncate'>Create Tool</span>
                     </ToolCommand.Item>
 
@@ -1649,9 +1648,7 @@ export function ToolInput({
                       }}
                       disabled={isPreview}
                     >
-                      <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                        <Server className='h-[11px] w-[11px] text-muted-foreground' />
-                      </div>
+                      <McpIcon className='h-[14px] w-[14px] flex-shrink-0 text-muted-foreground' />
                       <span className='truncate'>Add MCP Server</span>
                     </ToolCommand.Item>
 
@@ -1867,7 +1864,7 @@ export function ToolInput({
                       {isCustomTool ? (
                         <WrenchIcon className='h-[10px] w-[10px] text-white' />
                       ) : isMcpTool ? (
-                        <IconComponent icon={Server} className='h-[10px] w-[10px] text-white' />
+                        <IconComponent icon={McpIcon} className='h-[10px] w-[10px] text-white' />
                       ) : (
                         <IconComponent
                           icon={toolBlock?.icon}
@@ -2170,9 +2167,7 @@ export function ToolInput({
                           setCustomToolModalOpen(true)
                         }}
                       >
-                        <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                          <WrenchIcon className='h-[11px] w-[11px] text-muted-foreground' />
-                        </div>
+                        <WrenchIcon className='h-[14px] w-[14px] flex-shrink-0 text-muted-foreground' />
                         <span className='truncate'>Create Tool</span>
                       </ToolCommand.Item>
 
@@ -2185,9 +2180,7 @@ export function ToolInput({
                           )
                         }}
                       >
-                        <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                          <Server className='h-[11px] w-[11px] text-muted-foreground' />
-                        </div>
+                        <McpIcon className='h-[14px] w-[14px] flex-shrink-0 text-muted-foreground' />
                         <span className='truncate'>Add MCP Server</span>
                       </ToolCommand.Item>
 

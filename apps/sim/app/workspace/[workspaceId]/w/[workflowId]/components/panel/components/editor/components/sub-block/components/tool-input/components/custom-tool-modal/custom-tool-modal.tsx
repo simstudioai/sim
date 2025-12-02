@@ -831,7 +831,7 @@ try {
     <>
       <Modal open={open} onOpenChange={handleClose}>
         <ModalContent
-          className='h-[76vh] w-[840px]'
+          className='h-[80vh] w-[900px]'
           onKeyDown={(e) => {
             if (e.key === 'Escape' && (showEnvVars || showTags || showSchemaParams)) {
               e.preventDefault()
@@ -923,12 +923,12 @@ try {
 }`}
                   minHeight='420px'
                   className={cn(
-                    'bg-transparent',
+                    'bg-[var(--bg)]',
                     schemaError && 'border-[var(--text-error)]',
                     (schemaGeneration.isLoading || schemaGeneration.isStreaming) &&
                       'cursor-not-allowed opacity-50'
                   )}
-                  gutterClassName='bg-transparent'
+                  gutterClassName='bg-[var(--bg)]'
                   disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
                   onKeyDown={handleKeyDown}
                 />
@@ -1003,12 +1003,12 @@ try {
                     placeholder={'return schemaVariable + {{environmentVariable}}'}
                     minHeight={schemaParameters.length > 0 ? '380px' : '420px'}
                     className={cn(
-                      'bg-transparent',
+                      'bg-[var(--bg)]',
                       codeError && !codeGeneration.isStreaming && 'border-[var(--text-error)]',
                       (codeGeneration.isLoading || codeGeneration.isStreaming) &&
                         'cursor-not-allowed opacity-50'
                     )}
-                    gutterClassName='bg-transparent'
+                    gutterClassName='bg-[var(--bg)]'
                     highlightVariables={true}
                     disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
                     onKeyDown={handleKeyDown}

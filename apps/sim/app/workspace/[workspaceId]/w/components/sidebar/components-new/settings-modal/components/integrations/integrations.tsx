@@ -22,7 +22,7 @@ import {
   useOAuthConnections,
 } from '@/hooks/queries/oauth-connections'
 
-const logger = createLogger('Credentials')
+const logger = createLogger('Integrations')
 
 /**
  * Static skeleton structure matching OAUTH_PROVIDERS layout
@@ -49,7 +49,7 @@ const SKELETON_STRUCTURE: [string, number][] = [
   ['Salesforce', 1],
 ]
 
-function CredentialsSkeleton() {
+function IntegrationsSkeleton() {
   return (
     <div className='flex h-full flex-col gap-[16px]'>
       <div className='flex w-full items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
@@ -86,12 +86,12 @@ function CredentialsSkeleton() {
   )
 }
 
-interface CredentialsProps {
+interface IntegrationsProps {
   onOpenChange?: (open: boolean) => void
   registerCloseHandler?: (handler: (open: boolean) => void) => void
 }
 
-export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsProps) {
+export function Integrations({ onOpenChange, registerCloseHandler }: IntegrationsProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const pendingServiceRef = useRef<HTMLDivElement>(null)
@@ -267,7 +267,7 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
   }
 
   if (isPending) {
-    return <CredentialsSkeleton />
+    return <IntegrationsSkeleton />
   }
 
   return (

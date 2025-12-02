@@ -4,22 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { useQueryClient } from '@tanstack/react-query'
+import { Files, LogIn, Settings, User, Users, Wrench } from 'lucide-react'
 import {
-  Bot,
-  CreditCard,
-  FileCode,
-  Files,
-  Home,
+  Card,
+  Connections,
+  FolderCode,
+  HexSimple,
   Key,
-  LogIn,
-  Palette,
-  Server,
-  Settings,
-  Users,
-  Waypoints,
-  Wrench,
-} from 'lucide-react'
-import {
   SModal,
   SModalContent,
   SModalMain,
@@ -29,7 +20,9 @@ import {
   SModalSidebarHeader,
   SModalSidebarItem,
   SModalSidebarSection,
+  SModalSidebarSectionTitle,
 } from '@/components/emcn'
+import { McpIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
 import { isHosted } from '@/lib/core/config/environment'
@@ -38,17 +31,17 @@ import { getUserRole } from '@/lib/workspaces/organization'
 import {
   ApiKeys,
   Copilot,
-  Credentials,
   CustomTools,
   EnvironmentVariables,
   FileUploads,
   General,
+  Integrations,
   MCP,
   SSO,
   Subscription,
   TeamManagement,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components'
-import { CreatorProfile } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/creator-profile/creator-profile'
+import { TemplateProfile } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/template-profile/template-profile'
 import { generalSettingsKeys, useGeneralSettings } from '@/hooks/queries/general-settings'
 import { organizationKeys, useOrganizations } from '@/hooks/queries/organization'
 import { ssoKeys, useSSOProviders } from '@/hooks/queries/sso'
@@ -68,8 +61,8 @@ interface SettingsModalProps {
 type SettingsSection =
   | 'general'
   | 'environment'
-  | 'creator-profile'
-  | 'credentials'
+  | 'template-profile'
+  | 'integrations'
   | 'apikeys'
   | 'files'
   | 'subscription'
@@ -79,10 +72,13 @@ type SettingsSection =
   | 'mcp'
   | 'custom-tools'
 
+type NavigationSection = 'account' | 'subscription' | 'tools' | 'system'
+
 type NavigationItem = {
   id: SettingsSection
   label: string
   icon: React.ComponentType<{ className?: string }>
+  section: NavigationSection
   hideWhenBillingDisabled?: boolean
   requiresTeam?: boolean
   requiresEnterprise?: boolean
@@ -90,22 +86,49 @@ type NavigationItem = {
   requiresHosted?: boolean
 }
 
+const sectionConfig: { key: NavigationSection; title: string }[] = [
+  { key: 'account', title: 'Account' },
+  { key: 'tools', title: 'Tools' },
+  { key: 'subscription', title: 'Subscription' },
+  { key: 'system', title: 'System' },
+]
+
 const allNavigationItems: NavigationItem[] = [
-  { id: 'general', label: 'General', icon: Settings },
-  { id: 'credentials', label: 'Integrations', icon: Waypoints },
-  { id: 'mcp', label: 'MCP Servers', icon: Server },
-  { id: 'custom-tools', label: 'Custom Tools', icon: Wrench },
-  { id: 'environment', label: 'Environment', icon: FileCode },
-  { id: 'creator-profile', label: 'Creator Profile', icon: Palette },
-  { id: 'apikeys', label: 'API Keys', icon: Key },
-  { id: 'files', label: 'Files', icon: Files },
-  { id: 'copilot', label: 'Copilot', icon: Bot, requiresHosted: true },
-  { id: 'subscription', label: 'Subscription', icon: CreditCard, hideWhenBillingDisabled: true },
-  { id: 'team', label: 'Team', icon: Users, hideWhenBillingDisabled: true, requiresTeam: true },
+  { id: 'general', label: 'General', icon: Settings, section: 'account' },
+  { id: 'template-profile', label: 'Template Profile', icon: User, section: 'account' },
+  {
+    id: 'subscription',
+    label: 'Subscription',
+    icon: Card,
+    section: 'subscription',
+    hideWhenBillingDisabled: true,
+  },
+  {
+    id: 'team',
+    label: 'Team',
+    icon: Users,
+    section: 'subscription',
+    hideWhenBillingDisabled: true,
+    requiresTeam: true,
+  },
+  { id: 'integrations', label: 'Integrations', icon: Connections, section: 'tools' },
+  { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
+  { id: 'mcp', label: 'MCPs', icon: McpIcon, section: 'tools' },
+  { id: 'environment', label: 'Environment', icon: FolderCode, section: 'system' },
+  { id: 'apikeys', label: 'API Keys', icon: Key, section: 'system' },
+  {
+    id: 'copilot',
+    label: 'Copilot Keys',
+    icon: HexSimple,
+    section: 'system',
+    requiresHosted: true,
+  },
+  { id: 'files', label: 'Files', icon: Files, section: 'system' },
   {
     id: 'sso',
     label: 'Single Sign-On',
     icon: LogIn,
+    section: 'system',
     requiresTeam: true,
     requiresEnterprise: true,
     requiresOwner: true,
@@ -121,8 +144,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
 
   const activeOrganization = organizationsData?.activeOrganization
-  const environmentCloseHandler = useRef<((open: boolean) => void) | null>(null)
-  const credentialsCloseHandler = useRef<((open: boolean) => void) | null>(null)
+  const environmentBeforeLeaveHandler = useRef<((onProceed: () => void) => void) | null>(null)
+  const integrationsCloseHandler = useRef<((open: boolean) => void) | null>(null)
 
   const userEmail = session?.user?.email
   const userId = session?.user?.id
@@ -192,13 +215,30 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   ])
 
   // Memoized callbacks to prevent infinite loops in child components
-  const registerEnvironmentCloseHandler = useCallback((handler: (open: boolean) => void) => {
-    environmentCloseHandler.current = handler
+  const registerEnvironmentBeforeLeaveHandler = useCallback(
+    (handler: (onProceed: () => void) => void) => {
+      environmentBeforeLeaveHandler.current = handler
+    },
+    []
+  )
+
+  const registerIntegrationsCloseHandler = useCallback((handler: (open: boolean) => void) => {
+    integrationsCloseHandler.current = handler
   }, [])
 
-  const registerCredentialsCloseHandler = useCallback((handler: (open: boolean) => void) => {
-    credentialsCloseHandler.current = handler
-  }, [])
+  const handleSectionChange = useCallback(
+    (sectionId: SettingsSection) => {
+      if (sectionId === activeSection) return
+
+      if (activeSection === 'environment' && environmentBeforeLeaveHandler.current) {
+        environmentBeforeLeaveHandler.current(() => setActiveSection(sectionId))
+        return
+      }
+
+      setActiveSection(sectionId)
+    },
+    [activeSection]
+  )
 
   // React Query hook automatically loads and syncs settings
   useGeneralSettings()
@@ -320,16 +360,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     }
   }
 
-  const handleHomepageClick = () => {
-    window.location.href = '/?from=settings'
-  }
-
   // Handle dialog close - delegate to environment component if it's active
   const handleDialogOpenChange = (newOpen: boolean) => {
-    if (!newOpen && activeSection === 'environment' && environmentCloseHandler.current) {
-      environmentCloseHandler.current(newOpen)
-    } else if (!newOpen && activeSection === 'credentials' && credentialsCloseHandler.current) {
-      credentialsCloseHandler.current(newOpen)
+    if (!newOpen && activeSection === 'environment' && environmentBeforeLeaveHandler.current) {
+      environmentBeforeLeaveHandler.current(() => onOpenChange(false))
+    } else if (!newOpen && activeSection === 'integrations' && integrationsCloseHandler.current) {
+      integrationsCloseHandler.current(newOpen)
     } else {
       onOpenChange(newOpen)
     }
@@ -343,32 +379,34 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         </VisuallyHidden.Root>
         <VisuallyHidden.Root>
           <DialogPrimitive.Description>
-            Configure your workspace settings, environment variables, credentials, and preferences
+            Configure your workspace settings, environment variables, integrations, and preferences
           </DialogPrimitive.Description>
         </VisuallyHidden.Root>
 
         <SModalSidebar>
           <SModalSidebarHeader>Settings</SModalSidebarHeader>
-          <SModalSidebarSection>
-            {navigationItems.map((item) => (
-              <SModalSidebarItem
-                key={item.id}
-                active={activeSection === item.id}
-                icon={<item.icon />}
-                onMouseEnter={() => handlePrefetch(item.id)}
-                onClick={() => setActiveSection(item.id)}
-                data-section={item.id}
-              >
-                {item.label}
-              </SModalSidebarItem>
-            ))}
+          {sectionConfig.map(({ key, title }) => {
+            const sectionItems = navigationItems.filter((item) => item.section === key)
+            if (sectionItems.length === 0) return null
 
-            {isHosted && (
-              <SModalSidebarItem icon={<Home />} onClick={handleHomepageClick}>
-                Homepage
-              </SModalSidebarItem>
-            )}
-          </SModalSidebarSection>
+            return (
+              <SModalSidebarSection key={key}>
+                <SModalSidebarSectionTitle>{title}</SModalSidebarSectionTitle>
+                {sectionItems.map((item) => (
+                  <SModalSidebarItem
+                    key={item.id}
+                    active={activeSection === item.id}
+                    icon={<item.icon />}
+                    onMouseEnter={() => handlePrefetch(item.id)}
+                    onClick={() => handleSectionChange(item.id)}
+                    data-section={item.id}
+                  >
+                    {item.label}
+                  </SModalSidebarItem>
+                ))}
+              </SModalSidebarSection>
+            )
+          })}
         </SModalSidebar>
 
         <SModalMain>
@@ -379,15 +417,14 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             {activeSection === 'general' && <General onOpenChange={onOpenChange} />}
             {activeSection === 'environment' && (
               <EnvironmentVariables
-                onOpenChange={onOpenChange}
-                registerCloseHandler={registerEnvironmentCloseHandler}
+                registerBeforeLeaveHandler={registerEnvironmentBeforeLeaveHandler}
               />
             )}
-            {activeSection === 'creator-profile' && <CreatorProfile />}
-            {activeSection === 'credentials' && (
-              <Credentials
+            {activeSection === 'template-profile' && <TemplateProfile />}
+            {activeSection === 'integrations' && (
+              <Integrations
                 onOpenChange={onOpenChange}
-                registerCloseHandler={registerCredentialsCloseHandler}
+                registerCloseHandler={registerIntegrationsCloseHandler}
               />
             )}
             {activeSection === 'apikeys' && <ApiKeys onOpenChange={onOpenChange} />}

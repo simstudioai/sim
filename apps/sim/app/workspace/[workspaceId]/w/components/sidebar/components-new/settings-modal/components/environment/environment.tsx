@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Search, Share2 } from 'lucide-react'
+import { Plus, Search, Share2, Undo2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Input as EmcnInput, Tooltip } from '@/components/emcn'
 import {
@@ -63,10 +63,8 @@ interface UIEnvironmentVariable {
  * Props for the EnvironmentVariables component
  */
 interface EnvironmentVariablesProps {
-  /** Callback to handle modal open/close state changes */
-  onOpenChange: (open: boolean) => void
-  /** Optional callback to register a custom close handler */
-  registerCloseHandler?: (handler: (open: boolean) => void) => void
+  /** Callback to register a handler that intercepts navigation away from this section */
+  registerBeforeLeaveHandler?: (handler: (onProceed: () => void) => void) => void
 }
 
 /**
@@ -77,10 +75,12 @@ interface WorkspaceVariableRowProps {
   value: string
   renamingKey: string | null
   pendingKeyValue: string
+  isNewlyPromoted: boolean
   onRenameStart: (key: string) => void
   onPendingKeyChange: (value: string) => void
   onRenameEnd: (key: string, value: string) => void
   onDelete: (key: string) => void
+  onDemote: (key: string, value: string) => void
 }
 
 /**
@@ -91,10 +91,12 @@ function WorkspaceVariableRow({
   value,
   renamingKey,
   pendingKeyValue,
+  isNewlyPromoted,
   onRenameStart,
   onPendingKeyChange,
   onRenameEnd,
   onDelete,
+  onDemote,
 }: WorkspaceVariableRowProps) {
   return (
     <div className={GRID_COLS}>
@@ -124,6 +126,16 @@ function WorkspaceVariableRow({
         className='h-9'
       />
       <div className='ml-[8px] flex'>
+        {isNewlyPromoted && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button variant='ghost' onClick={() => onDemote(envKey, value)} className='h-9 w-9'>
+                <Undo2 className='h-3.5 w-3.5' />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content>Scope: workspace</Tooltip.Content>
+          </Tooltip.Root>
+        )}
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button variant='ghost' onClick={() => onDelete(envKey)} className='h-9 w-9'>
@@ -142,10 +154,7 @@ function WorkspaceVariableRow({
  * Provides functionality to create, edit, delete, and share environment variables between
  * personal and workspace scopes with conflict detection.
  */
-export function EnvironmentVariables({
-  onOpenChange,
-  registerCloseHandler,
-}: EnvironmentVariablesProps) {
+export function EnvironmentVariables({ registerBeforeLeaveHandler }: EnvironmentVariablesProps) {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
@@ -168,7 +177,7 @@ export function EnvironmentVariables({
   const removeWorkspaceMutation = useRemoveWorkspaceEnvironment()
 
   const isLoading = isPersonalLoading || isWorkspaceLoading
-  const variables = personalEnvData || {}
+  const variables = useMemo(() => personalEnvData || {}, [personalEnvData])
 
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -179,12 +188,14 @@ export function EnvironmentVariables({
   const [conflicts, setConflicts] = useState<string[]>([])
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
+  const [changeToken, setChangeToken] = useState(0)
 
   const initialWorkspaceVarsRef = useRef<Record<string, string>>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const pendingClose = useRef(false)
+  const pendingProceedCallback = useRef<(() => void) | null>(null)
   const initialVarsRef = useRef<UIEnvironmentVariable[]>([])
   const hasChangesRef = useRef(false)
+  const hasSavedRef = useRef(false)
 
   const filteredEnvVars = useMemo(() => {
     const mapped = envVars.map((envVar, index) => ({ envVar, originalIndex: index }))
@@ -227,7 +238,7 @@ export function EnvironmentVariables({
     }
 
     return false
-  }, [envVars, workspaceVars])
+  }, [envVars, workspaceVars, changeToken])
 
   const hasConflicts = useMemo(() => {
     return envVars.some((envVar) => !!envVar.key && Object.hasOwn(workspaceVars, envVar.key))
@@ -237,20 +248,23 @@ export function EnvironmentVariables({
     hasChangesRef.current = hasChanges
   }, [hasChanges])
 
-  // Memoize handleModalClose to prevent infinite loops
-  const handleModalClose = useCallback(
-    (open: boolean) => {
-      if (!open && hasChangesRef.current) {
-        setShowUnsavedChanges(true)
-        pendingClose.current = true
-      } else {
-        onOpenChange(open)
-      }
-    },
-    [onOpenChange]
-  )
+  /**
+   * Handles navigation attempts away from this section.
+   * Shows unsaved changes modal if there are changes, otherwise proceeds immediately.
+   */
+  const handleBeforeLeave = useCallback((onProceed: () => void) => {
+    if (hasChangesRef.current) {
+      setShowUnsavedChanges(true)
+      pendingProceedCallback.current = onProceed
+    } else {
+      onProceed()
+    }
+  }, [])
 
   useEffect(() => {
+    // Skip sync from server after a save - we already have correct local state
+    if (hasSavedRef.current) return
+
     const existingVars = Object.values(variables)
     const initialVars = existingVars.length
       ? existingVars.map((envVar) => ({
@@ -260,23 +274,29 @@ export function EnvironmentVariables({
       : [createEmptyEnvVar()]
     initialVarsRef.current = JSON.parse(JSON.stringify(initialVars))
     setEnvVars(JSON.parse(JSON.stringify(initialVars)))
-    pendingClose.current = false
+    pendingProceedCallback.current = null
   }, [variables])
 
   useEffect(() => {
     if (workspaceEnvData) {
-      setWorkspaceVars(workspaceEnvData?.workspace || {})
-      initialWorkspaceVarsRef.current = workspaceEnvData?.workspace || {}
-      setConflicts(workspaceEnvData?.conflicts || [])
+      if (hasSavedRef.current) {
+        // After a save, only update conflicts - refs were already set optimistically
+        setConflicts(workspaceEnvData?.conflicts || [])
+        hasSavedRef.current = false
+      } else {
+        setWorkspaceVars(workspaceEnvData?.workspace || {})
+        initialWorkspaceVarsRef.current = workspaceEnvData?.workspace || {}
+        setConflicts(workspaceEnvData?.conflicts || [])
+      }
     }
   }, [workspaceEnvData])
 
-  // Register the close handler - now with stable dependencies
+  // Register the before-leave handler
   useEffect(() => {
-    if (registerCloseHandler) {
-      registerCloseHandler(handleModalClose)
+    if (registerBeforeLeaveHandler) {
+      registerBeforeLeaveHandler(handleBeforeLeave)
     }
-  }, [registerCloseHandler, handleModalClose])
+  }, [registerBeforeLeaveHandler, handleBeforeLeave])
 
   useEffect(() => {
     if (shouldScrollToBottom && scrollContainerRef.current) {
@@ -447,18 +467,31 @@ export function EnvironmentVariables({
     setEnvVars(JSON.parse(JSON.stringify(initialVarsRef.current)))
     setWorkspaceVars({ ...initialWorkspaceVarsRef.current })
     setShowUnsavedChanges(false)
-    if (pendingClose.current) {
-      onOpenChange(false)
-    }
-  }, [onOpenChange])
+
+    pendingProceedCallback.current?.()
+    pendingProceedCallback.current = null
+  }, [])
 
   /**
-   * Saves all personal and workspace environment variables
+   * Saves all personal and workspace environment variables with optimistic updates
    */
   const handleSave = useCallback(async () => {
+    const onProceed = pendingProceedCallback.current
+
+    // Save previous state for rollback on error
+    const prevInitialVars = [...initialVarsRef.current]
+    const prevInitialWorkspaceVars = { ...initialWorkspaceVarsRef.current }
+
     try {
       setShowUnsavedChanges(false)
-      onOpenChange(false)
+      hasSavedRef.current = true
+
+      // Optimistically update refs to mark current state as "saved"
+      initialWorkspaceVarsRef.current = { ...workspaceVars }
+      initialVarsRef.current = JSON.parse(JSON.stringify(envVars.filter((v) => v.key && v.value)))
+
+      // Force recomputation of change tracking based on updated baselines
+      setChangeToken((prev) => prev + 1)
 
       const validVariables = envVars
         .filter((v) => v.key && v.value)
@@ -466,7 +499,7 @@ export function EnvironmentVariables({
 
       await savePersonalMutation.mutateAsync({ variables: validVariables })
 
-      const before = initialWorkspaceVarsRef.current
+      const before = prevInitialWorkspaceVars
       const after = workspaceVars
       const toUpsert: Record<string, string> = {}
       const toDelete: string[] = []
@@ -490,15 +523,19 @@ export function EnvironmentVariables({
         }
       }
 
-      initialWorkspaceVarsRef.current = { ...workspaceVars }
+      onProceed?.()
+      pendingProceedCallback.current = null
     } catch (error) {
+      // Rollback optimistic updates on error
+      hasSavedRef.current = false
+      initialVarsRef.current = prevInitialVars
+      initialWorkspaceVarsRef.current = prevInitialWorkspaceVars
       logger.error('Failed to save environment variables:', error)
     }
   }, [
     envVars,
     workspaceVars,
     workspaceId,
-    onOpenChange,
     savePersonalMutation,
     upsertWorkspaceMutation,
     removeWorkspaceMutation,
@@ -518,6 +555,20 @@ export function EnvironmentVariables({
     },
     [workspaceId]
   )
+
+  /**
+   * Demotes a newly promoted workspace variable back to personal scope.
+   * Only works for variables that were promoted during this session (before save).
+   */
+  const demoteToPersonal = useCallback((key: string, value: string) => {
+    if (!key) return
+    setWorkspaceVars((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    setEnvVars((prev) => [...prev, { key, value, id: generateRowId() }])
+  }, [])
 
   const conflictClassName = 'border-[var(--text-error)] bg-[#F6D2D2] dark:bg-[#442929]'
 
@@ -584,10 +635,10 @@ export function EnvironmentVariables({
                     onClick={() => promoteToWorkspace(envVar)}
                     className='h-9 w-9'
                   >
-                    <Share2 className='h-4 w-4' />
+                    <Share2 className='h-3.5 w-3.5' />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content>Make it workspace scoped</Tooltip.Content>
+                <Tooltip.Content>Scope: personal</Tooltip.Content>
               </Tooltip.Root>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -652,49 +703,48 @@ export function EnvironmentVariables({
             readOnly
           />
         </div>
-        {isLoading ? (
-          <Skeleton className='h-9 w-full rounded-[8px]' />
-        ) : (
-          <div className='flex items-center gap-[8px]'>
-            <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
-              <Search
-                className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <Input
-                placeholder='Search variables...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                name='env_search_field'
-                autoComplete='off'
-                autoCapitalize='off'
-                spellCheck='false'
-                readOnly
-                onFocus={(e) => e.target.removeAttribute('readOnly')}
-                className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
-            <Button onClick={addEnvVar} variant='primary' className={PRIMARY_BUTTON_STYLES}>
-              <Plus className='mr-[6px] h-[13px] w-[13px]' />
-              Add
-            </Button>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  onClick={handleSave}
-                  disabled={!hasChanges || hasConflicts}
-                  variant='primary'
-                  className={`${PRIMARY_BUTTON_STYLES} ${hasConflicts ? 'cursor-not-allowed opacity-50' : ''}`}
-                >
-                  Save
-                </Button>
-              </Tooltip.Trigger>
-              {hasConflicts && (
-                <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>
-              )}
-            </Tooltip.Root>
+        <div className='flex items-center gap-[8px]'>
+          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+            <Search
+              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              strokeWidth={2}
+            />
+            <Input
+              placeholder='Search variables...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              name='env_search_field'
+              autoComplete='off'
+              autoCapitalize='off'
+              spellCheck='false'
+              readOnly
+              onFocus={(e) => e.target.removeAttribute('readOnly')}
+              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+            />
           </div>
-        )}
+          <Button
+            onClick={addEnvVar}
+            variant='primary'
+            disabled={isLoading}
+            className={PRIMARY_BUTTON_STYLES}
+          >
+            <Plus className='mr-[6px] h-[13px] w-[13px]' />
+            Add
+          </Button>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                onClick={handleSave}
+                disabled={isLoading || !hasChanges || hasConflicts}
+                variant='primary'
+                className={`${PRIMARY_BUTTON_STYLES} ${hasConflicts ? 'cursor-not-allowed opacity-50' : ''}`}
+              >
+                Save
+              </Button>
+            </Tooltip.Trigger>
+            {hasConflicts && <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>}
+          </Tooltip.Root>
+        </div>
 
         {/* Scrollable Content */}
         <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
@@ -702,28 +752,21 @@ export function EnvironmentVariables({
             {isLoading ? (
               <>
                 <div className='flex flex-col gap-[8px]'>
-                  <Skeleton className='h-[13px] w-[70px]' />
-                  {Array.from({ length: 2 }, (_, i) => (
-                    <div key={`workspace-${i}`} className={GRID_COLS}>
-                      <Skeleton className='h-9 rounded-[4px]' />
-                      <div />
-                      <Skeleton className='h-9 rounded-[4px]' />
-                      <div className='ml-[8px] flex'>
-                        <Skeleton className='h-9 w-9 rounded-[4px]' />
-                      </div>
-                    </div>
-                  ))}
+                  <Skeleton className='h-[14px] w-[70px]' />
+                  <div className='text-[13px] text-[var(--text-muted)]'>
+                    <Skeleton className='h-[13px] w-[160px]' />
+                  </div>
                 </div>
                 <div className='flex flex-col gap-[8px]'>
-                  <Skeleton className='h-[13px] w-[55px]' />
+                  <Skeleton className='h-[14px] w-[55px]' />
                   {Array.from({ length: 2 }, (_, i) => (
                     <div key={`personal-${i}`} className={GRID_COLS}>
-                      <Skeleton className='h-9 rounded-[4px]' />
+                      <Skeleton className='h-9 rounded-[6px]' />
                       <div />
-                      <Skeleton className='h-9 rounded-[4px]' />
-                      <div className='ml-[8px] flex items-center'>
-                        <Skeleton className='h-9 w-9 rounded-[4px]' />
-                        <Skeleton className='h-9 w-9 rounded-[4px]' />
+                      <Skeleton className='h-9 rounded-[6px]' />
+                      <div className='ml-[8px] flex items-center gap-0'>
+                        <Skeleton className='h-9 w-9 rounded-[6px]' />
+                        <Skeleton className='h-9 w-9 rounded-[6px]' />
                       </div>
                     </div>
                   ))}
@@ -739,7 +782,7 @@ export function EnvironmentVariables({
                     </div>
                     {!searchTerm.trim() && Object.keys(workspaceVars).length === 0 ? (
                       <div className='text-[13px] text-[var(--text-muted)]'>
-                        No workspace variables yet.
+                        No workspace variables yet
                       </div>
                     ) : (
                       (searchTerm.trim()
@@ -752,10 +795,12 @@ export function EnvironmentVariables({
                           value={value}
                           renamingKey={renamingKey}
                           pendingKeyValue={pendingKeyValue}
+                          isNewlyPromoted={!Object.hasOwn(initialWorkspaceVarsRef.current, key)}
                           onRenameStart={setRenamingKey}
                           onPendingKeyChange={setPendingKeyValue}
                           onRenameEnd={handleWorkspaceKeyRename}
                           onDelete={handleDeleteWorkspaceVar}
+                          onDemote={demoteToPersonal}
                         />
                       ))
                     )}
