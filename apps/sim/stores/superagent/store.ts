@@ -4,7 +4,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SuperagentStore')
 
-// Store version - increment to force cache refresh  
+// Store version - increment to force cache refresh
 const STORE_VERSION = '2.1.0'
 
 // Debug flag to trace SSE parsing
@@ -41,7 +41,7 @@ interface SuperagentStore {
   chats: Chat[]
   currentChatId: string | null
   isLoadingChats: boolean
-  
+
   setWorkspaceId: (workspaceId: string) => void
   setSelectedModel: (model: string) => void
   sendMessage: (message: string) => Promise<void>
@@ -89,7 +89,7 @@ export const useSuperagentStore = create<SuperagentStore>()(
 
     sendMessage: async (message: string) => {
       const { workspaceId, selectedModel, currentChatId } = get()
-      
+
       if (!workspaceId) {
         logger.error('No workspace ID set')
         return
@@ -134,95 +134,104 @@ export const useSuperagentStore = create<SuperagentStore>()(
         let accumulatedContent = ''
 
         logger.info('Starting to read stream')
-        
+
+        /**
+         * Process a single SSE data line
+         */
+        const processSSELine = (line: string) => {
+          const trimmedLine = line.trim()
+          if (!trimmedLine || !trimmedLine.startsWith('data: ')) return
+
+          const jsonStr = trimmedLine.slice(6) // Remove 'data: ' prefix
+          if (!jsonStr) return
+
+          try {
+            const data = JSON.parse(jsonStr)
+
+            // Handle different types of streaming data
+            if (data.type === 'text' && data.text) {
+              accumulatedContent += data.text
+
+              set((state) => {
+                const newMessages = [...state.messages]
+                const lastMessage = newMessages[newMessages.length - 1]
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  lastMessage.content = accumulatedContent
+                }
+                return { messages: newMessages }
+              })
+            } else if (data.type === 'content' && data.content) {
+              // Handle complete content
+              accumulatedContent = data.content
+
+              set((state) => {
+                const newMessages = [...state.messages]
+                const lastMessage = newMessages[newMessages.length - 1]
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  lastMessage.content = accumulatedContent
+                }
+                return { messages: newMessages }
+              })
+            } else if (data.type === 'tool_call') {
+              // Track tool calls
+              set((state) => {
+                const newMessages = [...state.messages]
+                const lastMessage = newMessages[newMessages.length - 1]
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  if (!lastMessage.toolCalls) {
+                    lastMessage.toolCalls = []
+                  }
+                  lastMessage.toolCalls.push({
+                    name: data.name || data.tool_name || 'unknown',
+                    status: data.status || 'calling',
+                    result: data.result,
+                  })
+                }
+                return { messages: newMessages }
+              })
+            } else if (data.type === 'chat_id' && data.chatId) {
+              // Update current chat ID when a new chat is created
+              set({ currentChatId: data.chatId })
+            } else if (data.type === 'done') {
+              // Reload chats to get updated list
+              get().loadChats()
+            }
+          } catch {
+            // Skip parse errors silently - might be incomplete JSON
+          }
+        }
+
+        /**
+         * Process buffered SSE content
+         */
+        const processBuffer = (text: string): string => {
+          // Split on newlines (SSE messages are separated by \n\n but we process line by line)
+          const lines = text.split('\n')
+
+          // Process all complete lines, keep the last one if it might be incomplete
+          const lastLine = lines.pop() || ''
+
+          for (const line of lines) {
+            processSSELine(line)
+          }
+
+          return lastLine
+        }
+
         while (true) {
           const { done, value } = await reader.read()
+
           if (done) {
+            // Process any remaining buffer content when stream ends
+            if (buffer.trim()) {
+              processBuffer(`${buffer}\n`) // Add newline to ensure last line is processed
+            }
             logger.info('Stream reading done', { accumulatedLength: accumulatedContent.length })
             break
           }
 
           const chunk = decoder.decode(value, { stream: true })
-          
-          // The SSE format has "data: {...}\n\n" - we need to handle this properly
-          // Process each chunk and look for complete SSE messages
-          const fullText = buffer + chunk
-          
-          // Split on double newline which is the SSE message delimiter
-          const parts = fullText.split('\n\n')
-          
-          // Keep the last part in buffer if it might be incomplete
-          buffer = parts.pop() || ''
-          
-          for (const part of parts) {
-            const lines = part.split('\n')
-            
-            for (const line of lines) {
-              const trimmedLine = line.trim()
-              if (!trimmedLine) continue // Skip empty lines
-              
-              // Check if this is an SSE data line
-              if (trimmedLine.startsWith('data: ')) {
-                const jsonStr = trimmedLine.slice(6) // Remove 'data: ' prefix
-                
-                // Skip empty data
-                if (!jsonStr) continue
-                
-                try {
-                  const data = JSON.parse(jsonStr)
-                
-                // Handle different types of streaming data
-                if (data.type === 'text' && data.text) {
-                  accumulatedContent += data.text
-                  
-                  set((state) => {
-                    const newMessages = [...state.messages]
-                    const lastMessage = newMessages[newMessages.length - 1]
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      lastMessage.content = accumulatedContent
-                    }
-                    return { messages: newMessages }
-                  })
-                } else if (data.type === 'content' && data.content) {
-                  // Handle complete content
-                  accumulatedContent = data.content
-                  
-                  set((state) => {
-                    const newMessages = [...state.messages]
-                    const lastMessage = newMessages[newMessages.length - 1]
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      lastMessage.content = accumulatedContent
-                    }
-                    return { messages: newMessages }
-                  })
-                } else if (data.type === 'tool_call') {
-                  // Track tool calls
-                  set((state) => {
-                    const newMessages = [...state.messages]
-                    const lastMessage = newMessages[newMessages.length - 1]
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      if (!lastMessage.toolCalls) {
-                        lastMessage.toolCalls = []
-                      }
-                      lastMessage.toolCalls.push({
-                        name: data.name || data.tool_name || 'unknown',
-                        status: data.status || 'calling',
-                        result: data.result,
-                      })
-                    }
-                    return { messages: newMessages }
-                  })
-                } else if (data.type === 'done') {
-                  // Reload chats to get updated list
-                  get().loadChats()
-                  break
-                }
-              } catch (e) {
-                // Skip parse errors silently - might be incomplete JSON
-              }
-            }
-          }
-          }
+          buffer = processBuffer(buffer + chunk)
         }
 
         set({ isSendingMessage: false, abortController: null })
@@ -235,7 +244,7 @@ export const useSuperagentStore = create<SuperagentStore>()(
             error: error instanceof Error ? error.message : 'Failed to send message',
           })
         }
-        
+
         // Remove the streaming message if there was an error
         set((state) => ({
           messages: state.messages.slice(0, -1),
@@ -270,7 +279,7 @@ export const useSuperagentStore = create<SuperagentStore>()(
         }
 
         const data = await response.json()
-        set({ 
+        set({
           chats: data.chats || [],
           isLoadingChats: false,
         })
@@ -285,14 +294,16 @@ export const useSuperagentStore = create<SuperagentStore>()(
       if (!workspaceId) return
 
       try {
-        const response = await fetch(`/api/superagent/chat?workspaceId=${workspaceId}&chatId=${chatId}`)
+        const response = await fetch(
+          `/api/superagent/chat?workspaceId=${workspaceId}&chatId=${chatId}`
+        )
         if (!response.ok) {
           throw new Error('Failed to load chat')
         }
 
         const data = await response.json()
         const chat = data.chat
-        
+
         set({
           currentChatId: chat.id,
           messages: chat.messages || [],
@@ -312,4 +323,3 @@ export const useSuperagentStore = create<SuperagentStore>()(
     },
   }))
 )
-

@@ -1,18 +1,18 @@
+import { db } from '@sim/db'
+import { account, superagentChats } from '@sim/db/schema'
+import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
-import { createLogger } from '@/lib/logs/console/logger'
-import { tools } from '@/tools/registry'
-import { executeProviderRequest } from '@/providers'
 import { env } from '@/lib/env'
-import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { db } from '@sim/db'
-import { account, superagentChats } from '@sim/db/schema'
-import { and, desc, eq } from 'drizzle-orm'
-import { generateRequestId } from '@/lib/utils'
+import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { createLogger } from '@/lib/logs/console/logger'
 import { generateChatTitle } from '@/lib/sim-agent/utils'
-import { searchToolsDefinition } from '@/lib/superagent/search-tools'
+import { generateRequestId } from '@/lib/utils'
+import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { executeProviderRequest } from '@/providers'
+import { tools } from '@/tools/registry'
 
 const logger = createLogger('SuperagentChatAPI')
 
@@ -27,16 +27,20 @@ async function saveChatMessages(
 ) {
   try {
     // Fetch current chat
-    const chats = await db.select().from(superagentChats).where(eq(superagentChats.id, chatId)).limit(1)
-    
+    const chats = await db
+      .select()
+      .from(superagentChats)
+      .where(eq(superagentChats.id, chatId))
+      .limit(1)
+
     if (chats.length === 0) {
       logger.error('Chat not found for saving messages', { chatId })
       return
     }
-    
+
     const chat = chats[0]
     const currentMessages = (chat.messages as any[]) || []
-    
+
     // Add new messages
     const updatedMessages = [
       ...currentMessages,
@@ -52,12 +56,10 @@ async function saveChatMessages(
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       },
     ]
-    
+
     // Generate title if this is the first message
-    const title = currentMessages.length === 0 
-      ? await generateChatTitle(userMessage)
-      : chat.title
-    
+    const title = currentMessages.length === 0 ? await generateChatTitle(userMessage) : chat.title
+
     // Update chat in database
     await db
       .update(superagentChats)
@@ -67,7 +69,7 @@ async function saveChatMessages(
         updatedAt: new Date(),
       })
       .where(eq(superagentChats.id, chatId))
-    
+
     logger.info('Chat messages saved', {
       chatId,
       messageCount: updatedMessages.length,
@@ -213,7 +215,7 @@ export async function POST(req: NextRequest) {
     // Load or create chat
     let chat
     let previousMessages: any[] = []
-    
+
     if (chatId) {
       // Load existing chat
       const existingChats = await db
@@ -221,7 +223,7 @@ export async function POST(req: NextRequest) {
         .from(superagentChats)
         .where(and(eq(superagentChats.id, chatId), eq(superagentChats.userId, userId)))
         .limit(1)
-      
+
       if (existingChats.length > 0) {
         chat = existingChats[0]
         previousMessages = (chat.messages as any[]) || []
@@ -231,7 +233,7 @@ export async function POST(req: NextRequest) {
         })
       }
     }
-    
+
     if (!chat) {
       // Create new chat
       const newChat = await db
@@ -244,46 +246,40 @@ export async function POST(req: NextRequest) {
           model,
         })
         .returning()
-      
+
       chat = newChat[0]
       logger.info('Created new chat', {
         chatId: chat.id,
       })
     }
 
-    // Get credentials and pre-fetch access tokens
+    // Get credentials and pre-fetch access tokens + environment variables
     let credentialsText = ''
     const accessTokenMap: Record<string, string> = {} // provider -> accessToken
-    
+    let decryptedEnvVars: Record<string, string> = {} // env var name -> decrypted value
+
     try {
       logger.info('Fetching credentials', { userId })
       const credentialsResult = await getCredentialsServerTool.execute({ userId }, { userId })
-      
+
       logger.info('Credentials fetched', {
         oauthCount: credentialsResult.oauth?.credentials?.length || 0,
         envVarCount: credentialsResult.environment?.count || 0,
       })
-      
+
       const oauthCreds = credentialsResult.oauth?.credentials || []
-      const envVars = credentialsResult.environment?.variableNames || []
-      
-      // Pre-fetch access tokens for all credentials
-      // This avoids the need for tools to authenticate themselves
+      const envVarNames = credentialsResult.environment?.variableNames || []
+
+      // Pre-fetch access tokens for all OAuth credentials
       const requestId = generateRequestId()
       for (const cred of oauthCreds) {
         try {
-          // Fetch the account from database
-          const accounts = await db
-            .select()
-            .from(account)
-            .where(eq(account.id, cred.id))
-            .limit(1)
-          
+          const accounts = await db.select().from(account).where(eq(account.id, cred.id)).limit(1)
+
           if (accounts.length > 0) {
             const acc = accounts[0]
-            // Refresh token if needed and get fresh access token
             const { accessToken } = await refreshTokenIfNeeded(requestId, acc as any, cred.id)
-            
+
             if (accessToken) {
               accessTokenMap[cred.provider] = accessToken
               logger.info('Pre-fetched access token', {
@@ -300,20 +296,34 @@ export async function POST(req: NextRequest) {
           })
         }
       }
-      
-      logger.info('Pre-fetched access tokens', {
+
+      // Fetch decrypted environment variables for API keys
+      try {
+        decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+        logger.info('Fetched decrypted environment variables', {
+          count: Object.keys(decryptedEnvVars).length,
+          keys: Object.keys(decryptedEnvVars),
+        })
+      } catch (error) {
+        logger.warn('Failed to fetch decrypted environment variables', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+
+      logger.info('Pre-fetched credentials', {
         providersWithTokens: Object.keys(accessTokenMap),
         tokenCount: Object.keys(accessTokenMap).length,
+        envVarCount: Object.keys(decryptedEnvVars).length,
       })
-      
+
       credentialsText = `\n\n**Available Credentials:**\n`
       if (oauthCreds.length > 0) {
         credentialsText += `\nOAuth Integrations:\n${oauthCreds.map((c: any) => `- ${c.name} (${c.provider})`).join('\n')}`
       }
-      if (envVars.length > 0) {
-        credentialsText += `\n\nEnvironment Variables:\n${envVars.map((v: string) => `- ${v}`).join('\n')}`
+      if (envVarNames.length > 0) {
+        credentialsText += `\n\nEnvironment Variables:\n${envVarNames.map((v: string) => `- ${v}`).join('\n')}`
       }
-      if (oauthCreds.length === 0 && envVars.length === 0) {
+      if (oauthCreds.length === 0 && envVarNames.length === 0) {
         credentialsText = '\n\n**No credentials configured yet.**'
       }
     } catch (error) {
@@ -331,7 +341,7 @@ export async function POST(req: NextRequest) {
     logger.info('Setting up Anthropic tool search pattern', {
       totalToolsInRegistry: Object.keys(tools).length,
     })
-    
+
     // Add Anthropic's native tool search tools (both BM25 and regex)
     // BM25 for better semantic search, regex for pattern matching
     const searchTools = [
@@ -344,40 +354,111 @@ export async function POST(req: NextRequest) {
         name: 'tool_search_tool_regex',
       },
     ]
-    
+
     // Mark all integration tools with defer_loading: true
     // This means they won't be loaded into context until Claude searches for them
     const { createLLMToolSchema } = await import('@/tools/params')
-    
+
+    /**
+     * Maps environment variable names to tool API key parameters
+     * Convention: {PROVIDER}_API_KEY -> apiKey for tools starting with {provider}_
+     */
+    const mapEnvVarsToToolParams = (
+      toolId: string,
+      toolConfig: any,
+      envVars: Record<string, string>
+    ): Record<string, string> => {
+      const params: Record<string, string> = {}
+
+      // Check if tool has an apiKey parameter that needs to be filled
+      const hasApiKeyParam =
+        toolConfig.params?.apiKey &&
+        toolConfig.params.apiKey.visibility === 'user-only' &&
+        toolConfig.params.apiKey.required
+
+      if (!hasApiKeyParam) return params
+
+      // Extract provider prefix from tool ID (e.g., 'exa' from 'exa_search')
+      const toolPrefix = toolId.split('_')[0]?.toUpperCase()
+
+      // Common API key environment variable patterns to check
+      const envKeyPatterns = [
+        `${toolPrefix}_API_KEY`, // EXA_API_KEY
+        `${toolPrefix}AI_API_KEY`, // EXAAI_API_KEY
+        `${toolPrefix}_KEY`, // EXA_KEY
+      ]
+
+      // Special mappings for tools with non-standard naming
+      const specialMappings: Record<string, string[]> = {
+        firecrawl: ['FIRECRAWL_API_KEY', 'FIRECRAWL_KEY'],
+        tavily: ['TAVILY_API_KEY', 'TAVILY_KEY'],
+        exa: ['EXA_API_KEY', 'EXAAI_API_KEY', 'EXA_KEY'],
+        linkup: ['LINKUP_API_KEY', 'LINKUP_KEY'],
+        google: ['GOOGLE_API_KEY', 'GOOGLE_SEARCH_API_KEY'],
+        serper: ['SERPER_API_KEY', 'SERPER_KEY'],
+        serpapi: ['SERPAPI_API_KEY', 'SERPAPI_KEY'],
+        bing: ['BING_API_KEY', 'BING_SEARCH_API_KEY'],
+        brave: ['BRAVE_API_KEY', 'BRAVE_SEARCH_API_KEY'],
+        perplexity: ['PERPLEXITY_API_KEY', 'PPLX_API_KEY'],
+        jina: ['JINA_API_KEY', 'JINA_KEY'],
+      }
+
+      // Combine standard patterns with special mappings
+      const keysToCheck = [...envKeyPatterns]
+      if (specialMappings[toolPrefix.toLowerCase()]) {
+        keysToCheck.push(...specialMappings[toolPrefix.toLowerCase()])
+      }
+
+      // Find the first matching environment variable
+      for (const envKey of keysToCheck) {
+        if (envVars[envKey]) {
+          params.apiKey = envVars[envKey]
+          logger.info('Mapped environment variable to tool apiKey', {
+            toolId,
+            envKey,
+            hasValue: true,
+          })
+          break
+        }
+      }
+
+      return params
+    }
+
     const deferredIntegrationTools = await Promise.all(
       Object.entries(tools).map(async ([toolId, toolConfig]) => {
         const preConfiguredParams: Record<string, any> = {}
-        
+
+        // Add OAuth access token if available
         if (toolConfig.oauth?.required && toolConfig.oauth.provider) {
           const provider = toolConfig.oauth.provider
           const accessToken = accessTokenMap[provider]
-          
+
           if (accessToken) {
             preConfiguredParams.accessToken = accessToken
           }
         }
-        
+
+        // Map environment variables to tool parameters (for API keys)
+        const envParams = mapEnvVarsToToolParams(toolId, toolConfig, decryptedEnvVars)
+        Object.assign(preConfiguredParams, envParams)
+
         // Use the same schema generation as the agent block
         // This ensures LLM sees the correct parameters
         const llmSchema = await createLLMToolSchema(toolConfig, preConfiguredParams)
-        
+
         return {
           name: toolId, // Anthropic uses 'name' not 'id'
           description: toolConfig.description || toolConfig.name || toolId,
           input_schema: llmSchema,
           defer_loading: true, // Don't load into context upfront!
-          params: preConfiguredParams, // Pre-configured params (access tokens)
+          params: preConfiguredParams, // Pre-configured params (access tokens + API keys)
         }
       })
     )
-    
+
     // Log a sample tool to verify schema is correct
-    const sampleTool = deferredIntegrationTools.find(t => t.name === 'google_calendar_create')
+    const sampleTool = deferredIntegrationTools.find((t) => t.name === 'google_calendar_create')
     if (sampleTool) {
       logger.info('Sample tool schema (google_calendar_create)', {
         name: sampleTool.name,
@@ -385,12 +466,14 @@ export async function POST(req: NextRequest) {
         required: sampleTool.input_schema.required,
       })
     }
-    
+
     logger.info('Tools configured with Anthropic defer_loading', {
       searchToolTypes: ['tool_search_tool_bm25_20251119', 'tool_search_tool_regex_20251119'],
       deferredTools: deferredIntegrationTools.length,
       toolsWithCredentials: deferredIntegrationTools.filter((t) => t.params.accessToken).length,
-      toolsWithSchemas: deferredIntegrationTools.filter((t) => Object.keys(t.input_schema.properties || {}).length > 0).length,
+      toolsWithSchemas: deferredIntegrationTools.filter(
+        (t) => Object.keys(t.input_schema.properties || {}).length > 0
+      ).length,
     })
 
     // Build messages with previous history
@@ -401,13 +484,23 @@ export async function POST(req: NextRequest) {
         content: enhancedMessage,
       },
     ]
-    
+
     logger.info('Built message history', {
       totalMessages: messages.length,
       previousCount: previousMessages.length,
     })
-    
-    const systemPrompt = `You are a powerful AI assistant with seamless access to 600+ integrations including GitHub, Slack, Google Drive, Gmail, Calendar, Notion, Airtable, Discord, Jira, Linear, Salesforce, Stripe, HubSpot, and many more.
+
+    // Get current date for system prompt context
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+
+    const systemPrompt = `Current date: ${currentDate}
+
+You are a powerful AI assistant with seamless access to 600+ integrations including GitHub, Slack, Google Drive, Gmail, Calendar, Notion, Airtable, Discord, Jira, Linear, Salesforce, Stripe, HubSpot, and many more.
 
 CRITICAL BEHAVIOR RULES:
 1. NEVER mention that you are "searching for tools", "finding tools", "discovering tools", or "loading tools"
@@ -432,13 +525,13 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
     if (!apiKey) {
       throw new Error('ANTHROPIC_API_KEY_1 not configured')
     }
-    
+
     logger.info('Calling provider API', {
       provider: 'anthropic',
       model,
       toolsCount: deferredIntegrationTools.length + 2, // +2 for BM25 and regex search tools
     })
-    
+
     const response = await executeProviderRequest('anthropic', {
       model,
       systemPrompt,
@@ -458,7 +551,7 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
       blockData: {},
       blockNameMapping: {},
     })
-    
+
     logger.info('Provider response received', {
       hasStream: !!(response && typeof response === 'object' && 'stream' in response),
       responseType: typeof response,
@@ -466,27 +559,31 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
       hasContent: !!(response && typeof response === 'object' && 'content' in response),
       responseKeys: response && typeof response === 'object' ? Object.keys(response) : [],
     })
-    
+
     // Track the assistant's response and tool calls for persistence
     let assistantResponse = ''
-    let toolCalls: any[] = []
+    const toolCalls: any[] = []
 
     // Handle streaming - check if response has a stream property
     if (response && typeof response === 'object' && 'stream' in response) {
       logger.info('Returning streaming response to client')
-      
+
       const streamResult = response as any
       const encoder = new TextEncoder()
-      
+
       const stream = new ReadableStream({
         async start(controller) {
           try {
             logger.info('Starting stream iteration')
-            
+
+            // Send chat ID so client can track the conversation
+            const chatIdChunk = { type: 'chat_id', chatId: chat.id }
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chatIdChunk)}\n\n`))
+
             // Get tool calls from execution metadata
             const executionMetadata = (streamResult as any).execution
             const executedToolCalls = executionMetadata?.output?.toolCalls?.list || []
-            
+
             // Send tool call events first
             for (const toolCall of executedToolCalls) {
               toolCalls.push({
@@ -494,7 +591,7 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
                 status: toolCall.success ? 'success' : 'error',
                 result: toolCall.result,
               })
-              
+
               // Send tool call start event
               const toolCallChunk = {
                 type: 'tool_call',
@@ -503,7 +600,7 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
               }
               const toolData = `data: ${JSON.stringify(toolCallChunk)}\n\n`
               controller.enqueue(encoder.encode(toolData))
-              
+
               // Send tool call complete event
               const toolCompleteChunk = {
                 type: 'tool_call',
@@ -514,43 +611,43 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
               const toolCompleteData = `data: ${JSON.stringify(toolCompleteChunk)}\n\n`
               controller.enqueue(encoder.encode(toolCompleteData))
             }
-            
+
             // The Anthropic provider returns a ReadableStream with raw text chunks
             // We need to read it and convert to SSE format
             const reader = streamResult.stream.getReader()
             const decoder = new TextDecoder()
-            
+
             while (true) {
               const { done, value } = await reader.read()
               if (done) break
-              
+
               const text = decoder.decode(value, { stream: true })
               if (text) {
                 assistantResponse += text
-                
+
                 // Send as SSE chunk
                 const chunk = { type: 'text', text }
                 const data = `data: ${JSON.stringify(chunk)}\n\n`
                 controller.enqueue(encoder.encode(data))
               }
             }
-            
-            logger.info('Stream completed', { 
+
+            logger.info('Stream completed', {
               totalLength: assistantResponse.length,
               toolCallsExecuted: toolCalls.length,
             })
-            
+
             // Send done event
             const doneChunk = { type: 'done' }
             const doneData = `data: ${JSON.stringify(doneChunk)}\n\n`
             controller.enqueue(encoder.encode(doneData))
-            
+
             // Save chat to database
             await saveChatMessages(chat.id, message, assistantResponse, toolCalls)
-            
+
             controller.close()
           } catch (error) {
-            logger.error('Streaming error', { 
+            logger.error('Streaming error', {
               error,
               message: error instanceof Error ? error.message : String(error),
             })
@@ -563,7 +660,7 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
+          Connection: 'keep-alive',
         },
       })
     }
@@ -574,9 +671,13 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          // Send chat ID so client can track the conversation
+          const chatIdChunk = { type: 'chat_id', chatId: chat.id }
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(chatIdChunk)}\n\n`))
+
           const responseContent = (response as any).content || JSON.stringify(response)
           const responseToolCalls = (response as any).toolCalls || []
-          
+
           // Send the content as a single SSE chunk
           const chunk = {
             type: 'content',
@@ -584,15 +685,15 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
           }
           const data = `data: ${JSON.stringify(chunk)}\n\n`
           controller.enqueue(encoder.encode(data))
-          
+
           // Save chat to database
           await saveChatMessages(chat.id, message, responseContent, responseToolCalls)
-          
+
           // Send done event
           const doneChunk = { type: 'done' }
           const doneData = `data: ${JSON.stringify(doneChunk)}\n\n`
           controller.enqueue(encoder.encode(doneData))
-          
+
           controller.close()
         } catch (error) {
           logger.error('Error converting to SSE', { error })
@@ -605,7 +706,7 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
+        Connection: 'keep-alive',
       },
     })
   } catch (error) {
