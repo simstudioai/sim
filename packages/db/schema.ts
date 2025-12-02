@@ -535,10 +535,22 @@ export const workspaceNotificationSubscription = pgTable(
 
     // Alert rule configuration (if null, sends on every execution)
     alertConfig: jsonb('alert_config').$type<{
-      rule: 'consecutive_failures' | 'failure_rate'
+      rule:
+        | 'consecutive_failures'
+        | 'failure_rate'
+        | 'latency_threshold'
+        | 'latency_spike'
+        | 'cost_threshold'
+        | 'no_activity'
+        | 'error_count'
       consecutiveFailures?: number
       failureRatePercent?: number
       windowHours?: number
+      durationThresholdMs?: number
+      latencySpikePercent?: number
+      costThresholdDollars?: number
+      inactivityHours?: number
+      errorCountThreshold?: number
     }>(),
     lastAlertAt: timestamp('last_alert_at'),
 

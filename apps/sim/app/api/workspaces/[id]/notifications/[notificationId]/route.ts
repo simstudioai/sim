@@ -14,20 +14,48 @@ const logger = createLogger('WorkspaceNotificationAPI')
 const levelFilterSchema = z.array(z.enum(['info', 'error']))
 const triggerFilterSchema = z.array(z.enum(['api', 'webhook', 'schedule', 'manual', 'chat']))
 
+const alertRuleSchema = z.enum([
+  'consecutive_failures',
+  'failure_rate',
+  'latency_threshold',
+  'latency_spike',
+  'cost_threshold',
+  'no_activity',
+  'error_count',
+])
+
 const alertConfigSchema = z
   .object({
-    rule: z.enum(['consecutive_failures', 'failure_rate']),
+    rule: alertRuleSchema,
     consecutiveFailures: z.number().int().min(1).max(100).optional(),
     failureRatePercent: z.number().int().min(1).max(100).optional(),
     windowHours: z.number().int().min(1).max(168).optional(),
+    durationThresholdMs: z.number().int().min(1000).max(3600000).optional(),
+    latencySpikePercent: z.number().int().min(10).max(1000).optional(),
+    costThresholdDollars: z.number().min(0.01).max(1000).optional(),
+    inactivityHours: z.number().int().min(1).max(168).optional(),
+    errorCountThreshold: z.number().int().min(1).max(1000).optional(),
   })
   .refine(
     (data) => {
-      if (data.rule === 'consecutive_failures') return data.consecutiveFailures !== undefined
-      if (data.rule === 'failure_rate') {
-        return data.failureRatePercent !== undefined && data.windowHours !== undefined
+      switch (data.rule) {
+        case 'consecutive_failures':
+          return data.consecutiveFailures !== undefined
+        case 'failure_rate':
+          return data.failureRatePercent !== undefined && data.windowHours !== undefined
+        case 'latency_threshold':
+          return data.durationThresholdMs !== undefined
+        case 'latency_spike':
+          return data.latencySpikePercent !== undefined && data.windowHours !== undefined
+        case 'cost_threshold':
+          return data.costThresholdDollars !== undefined
+        case 'no_activity':
+          return data.inactivityHours !== undefined
+        case 'error_count':
+          return data.errorCountThreshold !== undefined && data.windowHours !== undefined
+        default:
+          return false
       }
-      return false
     },
     { message: 'Missing required fields for alert rule' }
   )

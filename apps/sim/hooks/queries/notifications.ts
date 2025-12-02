@@ -20,11 +20,25 @@ type NotificationType = 'webhook' | 'email' | 'slack'
 type LogLevel = 'info' | 'error'
 type TriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 
+type AlertRuleType =
+  | 'consecutive_failures'
+  | 'failure_rate'
+  | 'latency_threshold'
+  | 'latency_spike'
+  | 'cost_threshold'
+  | 'no_activity'
+  | 'error_count'
+
 interface AlertConfig {
-  rule: 'consecutive_failures' | 'failure_rate'
+  rule: AlertRuleType
   consecutiveFailures?: number
   failureRatePercent?: number
   windowHours?: number
+  durationThresholdMs?: number
+  latencySpikePercent?: number
+  costThresholdDollars?: number
+  inactivityHours?: number
+  errorCountThreshold?: number
 }
 
 export interface NotificationSubscription {

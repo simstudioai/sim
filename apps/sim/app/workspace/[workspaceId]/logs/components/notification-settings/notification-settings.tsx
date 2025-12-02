@@ -14,7 +14,10 @@ import {
   Webhook,
 } from 'lucide-react'
 import {
+  Combobox,
   Button as EmcnButton,
+  Input as EmcnInput,
+  Label as EmcnLabel,
   Modal,
   ModalContent,
   ModalDescription,
@@ -55,7 +58,36 @@ const logger = createLogger('NotificationSettings')
 type NotificationType = 'webhook' | 'email' | 'slack'
 type LogLevel = 'info' | 'error'
 type TriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
-type AlertRule = 'consecutive_failures' | 'failure_rate'
+type AlertRule =
+  | 'consecutive_failures'
+  | 'failure_rate'
+  | 'latency_threshold'
+  | 'latency_spike'
+  | 'cost_threshold'
+  | 'no_activity'
+  | 'error_count'
+
+const ALERT_RULES: { value: AlertRule; label: string; description: string }[] = [
+  {
+    value: 'consecutive_failures',
+    label: 'Consecutive Failures',
+    description: 'After X failures in a row',
+  },
+  { value: 'failure_rate', label: 'Failure Rate', description: 'When failure % exceeds threshold' },
+  {
+    value: 'latency_threshold',
+    label: 'Latency Threshold',
+    description: 'When execution exceeds duration',
+  },
+  { value: 'latency_spike', label: 'Latency Spike', description: 'When slower than average by %' },
+  {
+    value: 'cost_threshold',
+    label: 'Cost Threshold',
+    description: 'When execution cost exceeds $',
+  },
+  { value: 'no_activity', label: 'No Activity', description: 'When no executions in time window' },
+  { value: 'error_count', label: 'Error Count', description: 'When errors exceed count in window' },
+]
 
 interface NotificationSettingsProps {
   workspaceId: string
@@ -71,6 +103,37 @@ const NOTIFICATION_TYPES: { type: NotificationType; label: string; icon: typeof 
 
 const LOG_LEVELS: LogLevel[] = ['info', 'error']
 const TRIGGER_TYPES: TriggerType[] = ['api', 'webhook', 'schedule', 'manual', 'chat']
+
+function formatAlertConfigLabel(config: {
+  rule: AlertRule
+  consecutiveFailures?: number
+  failureRatePercent?: number
+  windowHours?: number
+  durationThresholdMs?: number
+  latencySpikePercent?: number
+  costThresholdDollars?: number
+  inactivityHours?: number
+  errorCountThreshold?: number
+}): string {
+  switch (config.rule) {
+    case 'consecutive_failures':
+      return `${config.consecutiveFailures} consecutive failures`
+    case 'failure_rate':
+      return `${config.failureRatePercent}% failure rate in ${config.windowHours}h`
+    case 'latency_threshold':
+      return `>${Math.round((config.durationThresholdMs || 0) / 1000)}s duration`
+    case 'latency_spike':
+      return `${config.latencySpikePercent}% above avg in ${config.windowHours}h`
+    case 'cost_threshold':
+      return `>$${config.costThresholdDollars} per execution`
+    case 'no_activity':
+      return `No activity in ${config.inactivityHours}h`
+    case 'error_count':
+      return `${config.errorCountThreshold} errors in ${config.windowHours}h`
+    default:
+      return 'Alert rule'
+  }
+}
 
 export function NotificationSettings({
   workspaceId,
@@ -107,6 +170,11 @@ export function NotificationSettings({
     consecutiveFailures: 3,
     failureRatePercent: 50,
     windowHours: 24,
+    durationThresholdMs: 30000,
+    latencySpikePercent: 100,
+    costThresholdDollars: 1,
+    inactivityHours: 24,
+    errorCountThreshold: 10,
   })
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
@@ -146,6 +214,11 @@ export function NotificationSettings({
       consecutiveFailures: 3,
       failureRatePercent: 50,
       windowHours: 24,
+      durationThresholdMs: 30000,
+      latencySpikePercent: 100,
+      costThresholdDollars: 1,
+      inactivityHours: 24,
+      errorCountThreshold: 10,
     })
     setFormErrors({})
     setEditingId(null)
@@ -216,17 +289,51 @@ export function NotificationSettings({
     }
 
     if (formData.useAlertRule) {
-      if (formData.alertRule === 'consecutive_failures') {
-        if (formData.consecutiveFailures < 1 || formData.consecutiveFailures > 100) {
-          errors.consecutiveFailures = 'Must be between 1 and 100'
-        }
-      } else if (formData.alertRule === 'failure_rate') {
-        if (formData.failureRatePercent < 1 || formData.failureRatePercent > 100) {
-          errors.failureRatePercent = 'Must be between 1 and 100'
-        }
-        if (formData.windowHours < 1 || formData.windowHours > 168) {
-          errors.windowHours = 'Must be between 1 and 168 hours'
-        }
+      switch (formData.alertRule) {
+        case 'consecutive_failures':
+          if (formData.consecutiveFailures < 1 || formData.consecutiveFailures > 100) {
+            errors.consecutiveFailures = 'Must be between 1 and 100'
+          }
+          break
+        case 'failure_rate':
+          if (formData.failureRatePercent < 1 || formData.failureRatePercent > 100) {
+            errors.failureRatePercent = 'Must be between 1 and 100'
+          }
+          if (formData.windowHours < 1 || formData.windowHours > 168) {
+            errors.windowHours = 'Must be between 1 and 168 hours'
+          }
+          break
+        case 'latency_threshold':
+          if (formData.durationThresholdMs < 1000 || formData.durationThresholdMs > 3600000) {
+            errors.durationThresholdMs = 'Must be between 1s and 1 hour'
+          }
+          break
+        case 'latency_spike':
+          if (formData.latencySpikePercent < 10 || formData.latencySpikePercent > 1000) {
+            errors.latencySpikePercent = 'Must be between 10% and 1000%'
+          }
+          if (formData.windowHours < 1 || formData.windowHours > 168) {
+            errors.windowHours = 'Must be between 1 and 168 hours'
+          }
+          break
+        case 'cost_threshold':
+          if (formData.costThresholdDollars < 0.01 || formData.costThresholdDollars > 1000) {
+            errors.costThresholdDollars = 'Must be between $0.01 and $1000'
+          }
+          break
+        case 'no_activity':
+          if (formData.inactivityHours < 1 || formData.inactivityHours > 168) {
+            errors.inactivityHours = 'Must be between 1 and 168 hours'
+          }
+          break
+        case 'error_count':
+          if (formData.errorCountThreshold < 1 || formData.errorCountThreshold > 1000) {
+            errors.errorCountThreshold = 'Must be between 1 and 1000'
+          }
+          if (formData.windowHours < 1 || formData.windowHours > 168) {
+            errors.windowHours = 'Must be between 1 and 168 hours'
+          }
+          break
       }
     }
 
@@ -245,6 +352,23 @@ export function NotificationSettings({
           }),
           ...(formData.alertRule === 'failure_rate' && {
             failureRatePercent: formData.failureRatePercent,
+            windowHours: formData.windowHours,
+          }),
+          ...(formData.alertRule === 'latency_threshold' && {
+            durationThresholdMs: formData.durationThresholdMs,
+          }),
+          ...(formData.alertRule === 'latency_spike' && {
+            latencySpikePercent: formData.latencySpikePercent,
+            windowHours: formData.windowHours,
+          }),
+          ...(formData.alertRule === 'cost_threshold' && {
+            costThresholdDollars: formData.costThresholdDollars,
+          }),
+          ...(formData.alertRule === 'no_activity' && {
+            inactivityHours: formData.inactivityHours,
+          }),
+          ...(formData.alertRule === 'error_count' && {
+            errorCountThreshold: formData.errorCountThreshold,
             windowHours: formData.windowHours,
           }),
         }
@@ -320,6 +444,11 @@ export function NotificationSettings({
       consecutiveFailures: subscription.alertConfig?.consecutiveFailures || 3,
       failureRatePercent: subscription.alertConfig?.failureRatePercent || 50,
       windowHours: subscription.alertConfig?.windowHours || 24,
+      durationThresholdMs: subscription.alertConfig?.durationThresholdMs || 30000,
+      latencySpikePercent: subscription.alertConfig?.latencySpikePercent || 100,
+      costThresholdDollars: subscription.alertConfig?.costThresholdDollars || 1,
+      inactivityHours: subscription.alertConfig?.inactivityHours || 24,
+      errorCountThreshold: subscription.alertConfig?.errorCountThreshold || 10,
     })
     setShowForm(true)
   }
@@ -480,9 +609,7 @@ export function NotificationSettings({
             <>
               <span className='text-muted-foreground'>•</span>
               <span className='rounded-md bg-amber-100 px-1.5 py-0.5 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'>
-                {subscription.alertConfig.rule === 'consecutive_failures'
-                  ? `${subscription.alertConfig.consecutiveFailures} consecutive failures`
-                  : `${subscription.alertConfig.failureRatePercent}% failure rate in ${subscription.alertConfig.windowHours}h`}
+                {formatAlertConfigLabel(subscription.alertConfig)}
               </span>
             </>
           )}
@@ -542,23 +669,25 @@ export function NotificationSettings({
           {formData.useAlertRule && (
             <div className='space-y-4 rounded-lg border bg-muted/30 p-4'>
               <div className='space-y-2'>
-                <Label className='font-medium text-sm'>Alert Rule</Label>
-                <select
+                <EmcnLabel>Alert Rule</EmcnLabel>
+                <Combobox
+                  options={ALERT_RULES.map((rule) => ({
+                    value: rule.value,
+                    label: rule.label,
+                  }))}
                   value={formData.alertRule}
-                  onChange={(e) =>
-                    setFormData({ ...formData, alertRule: e.target.value as AlertRule })
-                  }
-                  className='h-9 w-full rounded-[8px] border bg-background px-3 text-sm'
-                >
-                  <option value='consecutive_failures'>Consecutive Failures</option>
-                  <option value='failure_rate'>Failure Rate</option>
-                </select>
+                  onChange={(value) => setFormData({ ...formData, alertRule: value as AlertRule })}
+                  placeholder='Select alert rule'
+                />
+                <p className='text-muted-foreground text-xs'>
+                  {ALERT_RULES.find((r) => r.value === formData.alertRule)?.description}
+                </p>
               </div>
 
               {formData.alertRule === 'consecutive_failures' && (
                 <div className='space-y-2'>
-                  <Label className='font-medium text-sm'>Consecutive Failures Threshold</Label>
-                  <Input
+                  <EmcnLabel>Failure Count</EmcnLabel>
+                  <EmcnInput
                     type='number'
                     min={1}
                     max={100}
@@ -569,11 +698,8 @@ export function NotificationSettings({
                         consecutiveFailures: Number.parseInt(e.target.value) || 1,
                       })
                     }
-                    className='h-9 w-32 rounded-[8px]'
+                    className='w-32'
                   />
-                  <p className='text-muted-foreground text-xs'>
-                    Alert after this many consecutive failed executions
-                  </p>
                   {formErrors.consecutiveFailures && (
                     <p className='text-red-400 text-xs'>{formErrors.consecutiveFailures}</p>
                   )}
@@ -581,10 +707,10 @@ export function NotificationSettings({
               )}
 
               {formData.alertRule === 'failure_rate' && (
-                <>
-                  <div className='space-y-2'>
-                    <Label className='font-medium text-sm'>Failure Rate Threshold (%)</Label>
-                    <Input
+                <div className='flex gap-4'>
+                  <div className='flex-1 space-y-2'>
+                    <EmcnLabel>Failure Rate (%)</EmcnLabel>
+                    <EmcnInput
                       type='number'
                       min={1}
                       max={100}
@@ -595,18 +721,14 @@ export function NotificationSettings({
                           failureRatePercent: Number.parseInt(e.target.value) || 1,
                         })
                       }
-                      className='h-9 w-32 rounded-[8px]'
                     />
-                    <p className='text-muted-foreground text-xs'>
-                      Alert when failure rate exceeds this percentage
-                    </p>
                     {formErrors.failureRatePercent && (
                       <p className='text-red-400 text-xs'>{formErrors.failureRatePercent}</p>
                     )}
                   </div>
-                  <div className='space-y-2'>
-                    <Label className='font-medium text-sm'>Time Window (hours)</Label>
-                    <Input
+                  <div className='flex-1 space-y-2'>
+                    <EmcnLabel>Window (hours)</EmcnLabel>
+                    <EmcnInput
                       type='number'
                       min={1}
                       max={168}
@@ -617,16 +739,161 @@ export function NotificationSettings({
                           windowHours: Number.parseInt(e.target.value) || 1,
                         })
                       }
-                      className='h-9 w-32 rounded-[8px]'
                     />
-                    <p className='text-muted-foreground text-xs'>
-                      Calculate failure rate over this sliding window (max 168 hours / 7 days)
-                    </p>
                     {formErrors.windowHours && (
                       <p className='text-red-400 text-xs'>{formErrors.windowHours}</p>
                     )}
                   </div>
-                </>
+                </div>
+              )}
+
+              {formData.alertRule === 'latency_threshold' && (
+                <div className='space-y-2'>
+                  <EmcnLabel>Duration Threshold (seconds)</EmcnLabel>
+                  <EmcnInput
+                    type='number'
+                    min={1}
+                    max={3600}
+                    value={Math.round(formData.durationThresholdMs / 1000)}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        durationThresholdMs: (Number.parseInt(e.target.value) || 1) * 1000,
+                      })
+                    }
+                    className='w-32'
+                  />
+                  {formErrors.durationThresholdMs && (
+                    <p className='text-red-400 text-xs'>{formErrors.durationThresholdMs}</p>
+                  )}
+                </div>
+              )}
+
+              {formData.alertRule === 'latency_spike' && (
+                <div className='flex gap-4'>
+                  <div className='flex-1 space-y-2'>
+                    <EmcnLabel>Above Average (%)</EmcnLabel>
+                    <EmcnInput
+                      type='number'
+                      min={10}
+                      max={1000}
+                      value={formData.latencySpikePercent}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          latencySpikePercent: Number.parseInt(e.target.value) || 10,
+                        })
+                      }
+                    />
+                    {formErrors.latencySpikePercent && (
+                      <p className='text-red-400 text-xs'>{formErrors.latencySpikePercent}</p>
+                    )}
+                  </div>
+                  <div className='flex-1 space-y-2'>
+                    <EmcnLabel>Window (hours)</EmcnLabel>
+                    <EmcnInput
+                      type='number'
+                      min={1}
+                      max={168}
+                      value={formData.windowHours}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          windowHours: Number.parseInt(e.target.value) || 1,
+                        })
+                      }
+                    />
+                    {formErrors.windowHours && (
+                      <p className='text-red-400 text-xs'>{formErrors.windowHours}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {formData.alertRule === 'cost_threshold' && (
+                <div className='space-y-2'>
+                  <EmcnLabel>Cost Threshold ($)</EmcnLabel>
+                  <EmcnInput
+                    type='number'
+                    min={0.01}
+                    max={1000}
+                    step={0.01}
+                    value={formData.costThresholdDollars}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        costThresholdDollars: Number.parseFloat(e.target.value) || 0.01,
+                      })
+                    }
+                    className='w-32'
+                  />
+                  {formErrors.costThresholdDollars && (
+                    <p className='text-red-400 text-xs'>{formErrors.costThresholdDollars}</p>
+                  )}
+                </div>
+              )}
+
+              {formData.alertRule === 'no_activity' && (
+                <div className='space-y-2'>
+                  <EmcnLabel>Inactivity Period (hours)</EmcnLabel>
+                  <EmcnInput
+                    type='number'
+                    min={1}
+                    max={168}
+                    value={formData.inactivityHours}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        inactivityHours: Number.parseInt(e.target.value) || 1,
+                      })
+                    }
+                    className='w-32'
+                  />
+                  {formErrors.inactivityHours && (
+                    <p className='text-red-400 text-xs'>{formErrors.inactivityHours}</p>
+                  )}
+                </div>
+              )}
+
+              {formData.alertRule === 'error_count' && (
+                <div className='flex gap-4'>
+                  <div className='flex-1 space-y-2'>
+                    <EmcnLabel>Error Count</EmcnLabel>
+                    <EmcnInput
+                      type='number'
+                      min={1}
+                      max={1000}
+                      value={formData.errorCountThreshold}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          errorCountThreshold: Number.parseInt(e.target.value) || 1,
+                        })
+                      }
+                    />
+                    {formErrors.errorCountThreshold && (
+                      <p className='text-red-400 text-xs'>{formErrors.errorCountThreshold}</p>
+                    )}
+                  </div>
+                  <div className='flex-1 space-y-2'>
+                    <EmcnLabel>Window (hours)</EmcnLabel>
+                    <EmcnInput
+                      type='number'
+                      min={1}
+                      max={168}
+                      value={formData.windowHours}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          windowHours: Number.parseInt(e.target.value) || 1,
+                        })
+                      }
+                    />
+                    {formErrors.windowHours && (
+                      <p className='text-red-400 text-xs'>{formErrors.windowHours}</p>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )}

@@ -280,7 +280,28 @@ Instead of receiving notifications for every execution, configure alert rules to
 - Requires minimum 5 executions in the window
 - Only triggers after the full time window has elapsed
 
-Both alert types include a 1-hour cooldown to prevent notification spam.
+**Latency Threshold**
+- Alert when any execution takes longer than X seconds
+- Useful for catching slow or hanging workflows
+
+**Latency Spike**
+- Alert when execution is X% slower than the average
+- Compares against the average duration over the configured time window
+- Requires minimum 5 executions to establish baseline
+
+**Cost Threshold**
+- Alert when a single execution costs more than $X
+- Useful for catching expensive LLM calls
+
+**No Activity**
+- Alert when no executions occur within X hours
+- Useful for monitoring scheduled workflows that should run regularly
+
+**Error Count**
+- Alert when error count exceeds X within a time window
+- Tracks total errors, not consecutive
+
+All alert types include a 1-hour cooldown to prevent notification spam.
 
 ### Webhook Configuration
 

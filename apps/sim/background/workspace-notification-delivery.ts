@@ -14,6 +14,7 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { sendEmail } from '@/lib/email/mailer'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
+import type { AlertConfig } from '@/lib/notifications/alert-rules'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { decryptSecret } from '@/lib/utils'
 import { RateLimiter } from '@/services/queue'
@@ -215,6 +216,27 @@ function buildLogUrl(workspaceId: string, executionId: string): string {
   return `${getBaseUrl()}/workspace/${workspaceId}/logs?search=${encodeURIComponent(executionId)}`
 }
 
+function formatAlertReason(alertConfig: AlertConfig): string {
+  switch (alertConfig.rule) {
+    case 'consecutive_failures':
+      return `${alertConfig.consecutiveFailures} consecutive failures detected`
+    case 'failure_rate':
+      return `Failure rate exceeded ${alertConfig.failureRatePercent}% over ${alertConfig.windowHours}h`
+    case 'latency_threshold':
+      return `Execution exceeded ${Math.round((alertConfig.durationThresholdMs || 0) / 1000)}s duration threshold`
+    case 'latency_spike':
+      return `Execution was ${alertConfig.latencySpikePercent}% slower than average`
+    case 'cost_threshold':
+      return `Execution cost exceeded $${alertConfig.costThresholdDollars} threshold`
+    case 'no_activity':
+      return `No workflow activity detected in ${alertConfig.inactivityHours}h`
+    case 'error_count':
+      return `${alertConfig.errorCountThreshold} errors detected in ${alertConfig.windowHours}h window`
+    default:
+      return 'Alert condition met'
+  }
+}
+
 function formatJsonForEmail(data: unknown, label: string): string {
   if (!data) return ''
   const json = JSON.stringify(data, null, 2)
@@ -229,7 +251,8 @@ function formatJsonForEmail(data: unknown, label: string): string {
 
 async function deliverEmail(
   subscription: typeof workspaceNotificationSubscription.$inferSelect,
-  payload: NotificationPayload
+  payload: NotificationPayload,
+  alertConfig?: AlertConfig
 ): Promise<{ success: boolean; error?: string }> {
   if (!subscription.emailRecipients || subscription.emailRecipients.length === 0) {
     return { success: false, error: 'No email recipients configured' }
@@ -239,11 +262,14 @@ async function deliverEmail(
   const statusText = isError ? 'Error' : 'Success'
   const logUrl = buildLogUrl(subscription.workspaceId, payload.data.executionId)
   const baseUrl = getBaseUrl()
+  const alertReason = alertConfig ? formatAlertReason(alertConfig) : null
 
   // Build subject line
-  const subject = isError
-    ? `Error Alert: ${payload.data.workflowName}`
-    : `Workflow Completed: ${payload.data.workflowName}`
+  const subject = alertReason
+    ? `Alert: ${payload.data.workflowName}`
+    : isError
+      ? `Error Alert: ${payload.data.workflowName}`
+      : `Workflow Completed: ${payload.data.workflowName}`
 
   let includedDataHtml = ''
   let includedDataText = ''
@@ -299,8 +325,9 @@ async function deliverEmail(
             <!-- Content -->
             <div style="padding: 5px 30px 20px 30px;">
               <h2 style="font-size: 20px; color: #333333; margin: 20px 0;">
-                ${isError ? 'Workflow Execution Failed' : 'Workflow Execution Completed'}
+                ${alertReason ? 'Alert Triggered' : isError ? 'Workflow Execution Failed' : 'Workflow Execution Completed'}
               </h2>
+              ${alertReason ? `<p style="color: #d97706; background: #fef3c7; padding: 12px; border-radius: 6px; margin-bottom: 20px; font-size: 14px;"><strong>Reason:</strong> ${alertReason}</p>` : ''}
               
               <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                 <tr style="border-bottom: 1px solid #eee;">
@@ -351,7 +378,7 @@ async function deliverEmail(
         </body>
       </html>
     `,
-    text: `${subject}\n\nWorkflow: ${payload.data.workflowName}\nStatus: ${statusText}\nTrigger: ${payload.data.trigger}\nDuration: ${formatDuration(payload.data.totalDurationMs)}\nCost: ${formatCost(payload.data.cost)}\n\nView Log: ${logUrl}${includedDataText}`,
+    text: `${subject}\n${alertReason ? `\nReason: ${alertReason}\n` : ''}\nWorkflow: ${payload.data.workflowName}\nStatus: ${statusText}\nTrigger: ${payload.data.trigger}\nDuration: ${formatDuration(payload.data.totalDurationMs)}\nCost: ${formatCost(payload.data.cost)}\n\nView Log: ${logUrl}${includedDataText}`,
     emailType: 'notifications',
   })
 
@@ -360,7 +387,8 @@ async function deliverEmail(
 
 async function deliverSlack(
   subscription: typeof workspaceNotificationSubscription.$inferSelect,
-  payload: NotificationPayload
+  payload: NotificationPayload,
+  alertConfig?: AlertConfig
 ): Promise<{ success: boolean; error?: string }> {
   if (!subscription.slackChannelId || !subscription.slackAccountId) {
     return { success: false, error: 'No Slack channel or account configured' }
@@ -376,8 +404,17 @@ async function deliverSlack(
     return { success: false, error: 'Slack account not found or not connected' }
   }
 
-  const statusEmoji = payload.data.status === 'success' ? ':white_check_mark:' : ':x:'
-  const statusColor = payload.data.status === 'success' ? '#22c55e' : '#ef4444'
+  const alertReason = alertConfig ? formatAlertReason(alertConfig) : null
+  const statusEmoji = alertReason
+    ? ':warning:'
+    : payload.data.status === 'success'
+      ? ':white_check_mark:'
+      : ':x:'
+  const statusColor = alertReason
+    ? '#d97706'
+    : payload.data.status === 'success'
+      ? '#22c55e'
+      : '#ef4444'
   const logUrl = buildLogUrl(subscription.workspaceId, payload.data.executionId)
 
   const blocks: Array<Record<string, unknown>> = [
@@ -385,9 +422,24 @@ async function deliverSlack(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `${statusEmoji} *Workflow Execution: ${payload.data.workflowName}*`,
+        text: alertReason
+          ? `${statusEmoji} *Alert: ${payload.data.workflowName}*`
+          : `${statusEmoji} *Workflow Execution: ${payload.data.workflowName}*`,
       },
     },
+  ]
+
+  if (alertReason) {
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Reason:* ${alertReason}`,
+      },
+    })
+  }
+
+  blocks.push(
     {
       type: 'section',
       fields: [
@@ -407,8 +459,8 @@ async function deliverSlack(
           style: 'primary',
         },
       ],
-    },
-  ]
+    }
+  )
 
   if (payload.data.finalOutput) {
     const outputStr = JSON.stringify(payload.data.finalOutput, null, 2)
@@ -469,10 +521,14 @@ async function deliverSlack(
     elements: [{ type: 'mrkdwn', text: `Execution ID: \`${payload.data.executionId}\`` }],
   })
 
+  const fallbackText = alertReason
+    ? `⚠️ Alert: ${payload.data.workflowName} - ${alertReason}`
+    : `${payload.data.status === 'success' ? '✅' : '❌'} Workflow ${payload.data.workflowName}: ${payload.data.status}`
+
   const slackPayload = {
     channel: subscription.slackChannelId,
     attachments: [{ color: statusColor, blocks }],
-    text: `${payload.data.status === 'success' ? '✅' : '❌'} Workflow ${payload.data.workflowName}: ${payload.data.status}`,
+    text: fallbackText,
   }
 
   try {
@@ -518,10 +574,11 @@ export interface NotificationDeliveryParams {
   subscriptionId: string
   notificationType: 'webhook' | 'email' | 'slack'
   log: WorkflowExecutionLog
+  alertConfig?: AlertConfig
 }
 
 export async function executeNotificationDelivery(params: NotificationDeliveryParams) {
-  const { deliveryId, subscriptionId, notificationType, log } = params
+  const { deliveryId, subscriptionId, notificationType, log, alertConfig } = params
 
   try {
     const [subscription] = await db
@@ -571,10 +628,10 @@ export async function executeNotificationDelivery(params: NotificationDeliveryPa
         result = await deliverWebhook(subscription, payload)
         break
       case 'email':
-        result = await deliverEmail(subscription, payload)
+        result = await deliverEmail(subscription, payload, alertConfig)
         break
       case 'slack':
-        result = await deliverSlack(subscription, payload)
+        result = await deliverSlack(subscription, payload, alertConfig)
         break
       default:
         result = { success: false, error: 'Unknown notification type' }
