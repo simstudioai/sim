@@ -224,6 +224,7 @@ import {
   googleSheetsUpdateTool,
   googleSheetsWriteTool,
 } from '@/tools/google_sheets'
+import { googleAdsQueryTool } from '@/tools/google_ads'
 import {
   createMattersExportTool,
   createMattersHoldsTool,
@@ -1364,6 +1365,7 @@ export const tools: Record<string, ToolConfig> = {
   google_sheets_write: googleSheetsWriteTool,
   google_sheets_update: googleSheetsUpdateTool,
   google_sheets_append: googleSheetsAppendTool,
+  google_ads_query: googleAdsQueryTool,
   perplexity_chat: perplexityChatTool,
   perplexity_search: perplexitySearchTool,
   posthog_capture_event: posthogCaptureEventTool,
