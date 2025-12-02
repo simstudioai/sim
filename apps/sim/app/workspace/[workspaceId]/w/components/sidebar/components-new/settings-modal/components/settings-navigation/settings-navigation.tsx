@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   Bot,
   CreditCard,
+  Download,
   FileCode,
   Files,
   Home,
@@ -27,6 +28,7 @@ import { generalSettingsKeys } from '@/hooks/queries/general-settings'
 import { organizationKeys, useOrganizations } from '@/hooks/queries/organization'
 import { ssoKeys, useSSOProviders } from '@/hooks/queries/sso'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
+import { useSuperUserStatus } from '@/hooks/queries/super-user'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
@@ -48,6 +50,7 @@ interface SettingsNavigationProps {
       | 'copilot'
       | 'mcp'
       | 'custom-tools'
+      | 'workflow-import'
   ) => void
   hasOrganization: boolean
 }
@@ -68,6 +71,7 @@ type NavigationItem = {
     | 'privacy'
     | 'mcp'
     | 'custom-tools'
+    | 'workflow-import'
   label: string
   icon: React.ComponentType<{ className?: string }>
   hideWhenBillingDisabled?: boolean
@@ -75,6 +79,7 @@ type NavigationItem = {
   requiresEnterprise?: boolean
   requiresOwner?: boolean
   requiresHosted?: boolean
+  requiresSuperUser?: boolean
 }
 
 const allNavigationItems: NavigationItem[] = [
@@ -155,6 +160,12 @@ const allNavigationItems: NavigationItem[] = [
     requiresEnterprise: true,
     requiresOwner: true,
   },
+  {
+    id: 'workflow-import',
+    label: 'Workflow Import',
+    icon: Download,
+    requiresSuperUser: true,
+  },
 ]
 
 export function SettingsNavigation({
@@ -175,6 +186,10 @@ export function SettingsNavigation({
   const canManageSSO = isOwner || isAdmin
   const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
   const hasEnterprisePlan = subscriptionStatus.isEnterprise
+
+  // Check superuser status
+  const { data: superUserData } = useSuperUserStatus()
+  const isSuperUser = superUserData?.isSuperUser ?? false
 
   // Use React Query to check SSO provider ownership (with proper caching)
   // Only fetch if not hosted (hosted uses billing/org checks)
@@ -224,9 +239,13 @@ export function SettingsNavigation({
         return false
       }
 
+      if (item.requiresSuperUser && !isSuperUser) {
+        return false
+      }
+
       return true
     })
-  }, [hasOrganization, hasEnterprisePlan, canManageSSO, isSSOProviderOwner, isOwner])
+  }, [hasOrganization, hasEnterprisePlan, canManageSSO, isSSOProviderOwner, isOwner, isSuperUser])
 
   // Prefetch functions for React Query
   const prefetchGeneral = () => {

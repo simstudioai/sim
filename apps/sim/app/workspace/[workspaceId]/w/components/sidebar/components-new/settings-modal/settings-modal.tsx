@@ -20,6 +20,7 @@ import {
   SSO,
   Subscription,
   TeamManagement,
+  WorkflowImport,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components'
 import { CreatorProfile } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/creator-profile/creator-profile'
 import { useGeneralSettings } from '@/hooks/queries/general-settings'
@@ -49,6 +50,7 @@ type SettingsSection =
   | 'copilot'
   | 'mcp'
   | 'custom-tools'
+  | 'workflow-import'
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
@@ -210,6 +212,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             {activeSection === 'custom-tools' && (
               <div className='h-full'>
                 <CustomTools />
+              </div>
+            )}
+            {activeSection === 'workflow-import' && (
+              <div className='h-full'>
+                <WorkflowImport />
               </div>
             )}
           </div>
