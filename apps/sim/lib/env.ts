@@ -168,6 +168,9 @@ export const env = createEnv({
     KB_CONFIG_DELAY_BETWEEN_BATCHES:       z.number().optional().default(100),     // Delay between batches in ms
     KB_CONFIG_DELAY_BETWEEN_DOCUMENTS:     z.number().optional().default(50),      // Delay between documents in ms
 
+    //Presentation API URL
+    PRESENTATION_API_BASE_URL:             z.string().url().optional(),            // Presentation API base URL
+
     // Real-time Communication
     SOCKET_SERVER_URL:                     z.string().url().optional(),            // WebSocket server URL for real-time features
     SOCKET_PORT:                           z.number().optional(),                  // Port for WebSocket server

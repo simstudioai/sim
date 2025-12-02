@@ -3,9 +3,11 @@ import { downloadTool } from '@/tools/google_drive/download'
 import { getContentTool } from '@/tools/google_drive/get_content'
 import { listTool } from '@/tools/google_drive/list'
 import { uploadTool } from '@/tools/google_drive/upload'
+import { uploadFileTool } from '@/tools/google_drive/upload_file'
 
 export const googleDriveCreateFolderTool = createFolderTool
 export const googleDriveDownloadTool = downloadTool
 export const googleDriveGetContentTool = getContentTool
 export const googleDriveListTool = listTool
 export const googleDriveUploadTool = uploadTool
+export const googleDriveUploadFileTool = uploadFileTool

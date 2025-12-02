@@ -91,6 +91,7 @@ import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
 import { StripeBlock } from '@/blocks/blocks/stripe'
 import { SttBlock } from '@/blocks/blocks/stt'
+import { PresentationBlock } from '@/blocks/blocks/presentation'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
@@ -165,6 +166,7 @@ export const registry: Record<string, BlockConfig> = {
   linear: LinearBlock,
   linkedin: LinkedInBlock,
   linkup: LinkupBlock,
+  presentation: PresentationBlock,
   mailchimp: MailchimpBlock,
   mailgun: MailgunBlock,
   manual_trigger: ManualTriggerBlock,
