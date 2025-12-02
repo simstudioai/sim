@@ -11,10 +11,10 @@ import {
   PopoverTrigger,
 } from '@/components/emcn'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
-import { getEnv } from '@/lib/env'
+import { getEnv } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/db-helpers'
-import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/deployment-utils'
+import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
+import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { ChatDeploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/chat-deploy'
 import { DeployedWorkflowModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/deployed-workflow-modal'
 import { DeploymentInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/deployment-info'

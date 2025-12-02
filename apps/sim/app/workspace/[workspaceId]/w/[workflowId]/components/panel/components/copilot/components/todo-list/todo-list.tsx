@@ -3,7 +3,7 @@
 import { memo, useEffect, useState } from 'react'
 import { Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 /**
  * Represents a single todo item

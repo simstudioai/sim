@@ -1,5 +1,5 @@
+import { getRedisClient } from '@/lib/core/config/redis'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getRedisClient } from '@/lib/redis'
 
 const logger = createLogger('DocumentQueue')
 

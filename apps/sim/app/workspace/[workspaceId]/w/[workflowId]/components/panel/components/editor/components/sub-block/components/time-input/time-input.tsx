@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@/components/emcn'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 
 interface TimeInputProps {

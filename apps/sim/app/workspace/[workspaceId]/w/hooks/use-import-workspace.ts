@@ -1,7 +1,10 @@
 import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
-import { extractWorkflowName, extractWorkflowsFromZip } from '@/lib/workflows/import-export'
+import {
+  extractWorkflowName,
+  extractWorkflowsFromZip,
+} from '@/lib/workflows/operations/import-export'
 import { useCreateFolder } from '@/hooks/queries/folders'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { parseWorkflowJson } from '@/stores/workflows/json/importer'

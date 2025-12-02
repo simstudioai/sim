@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 
 export function checkInternalApiKey(req: NextRequest) {
   const apiKey = req.headers.get('x-api-key')

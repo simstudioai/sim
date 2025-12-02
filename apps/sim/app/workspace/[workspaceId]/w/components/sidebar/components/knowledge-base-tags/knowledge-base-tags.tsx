@@ -33,7 +33,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { MAX_TAG_SLOTS } from '@/lib/knowledge/consts'
+import { MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { DocumentList } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/knowledge-base-tags/components/document-list'

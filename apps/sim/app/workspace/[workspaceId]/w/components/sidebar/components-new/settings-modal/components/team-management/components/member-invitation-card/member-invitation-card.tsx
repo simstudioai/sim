@@ -9,8 +9,8 @@ import {
   PopoverTrigger,
 } from '@/components/emcn'
 import { Checkbox } from '@/components/ui/checkbox'
-import { quickValidateEmail } from '@/lib/email/validation'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 type PermissionType = 'read' | 'write' | 'admin'
 

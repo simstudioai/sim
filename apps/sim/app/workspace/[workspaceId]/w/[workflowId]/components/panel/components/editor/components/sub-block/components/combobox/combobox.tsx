@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useReactFlow } from 'reactflow'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -11,7 +11,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 /**
  * Constants for ComboBox component behavior
  */
-const DEFAULT_MODEL = 'gpt-4o'
+const DEFAULT_MODEL = 'claude-sonnet-4-5'
 const ZOOM_FACTOR_BASE = 0.96
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 1
@@ -99,18 +99,18 @@ export function ComboBox({
 
   /**
    * Determines the default option value to use.
-   * Priority: explicit defaultValue > gpt-4o for model field > first option
+   * Priority: explicit defaultValue > claude-sonnet-4-5 for model field > first option
    */
   const defaultOptionValue = useMemo(() => {
     if (defaultValue !== undefined) {
       return defaultValue
     }
 
-    // For model field, default to gpt-4o if available
+    // For model field, default to claude-sonnet-4-5 if available
     if (subBlockId === 'model') {
-      const gpt4o = evaluatedOptions.find((opt) => getOptionValue(opt) === DEFAULT_MODEL)
-      if (gpt4o) {
-        return getOptionValue(gpt4o)
+      const claudeSonnet45 = evaluatedOptions.find((opt) => getOptionValue(opt) === DEFAULT_MODEL)
+      if (claudeSonnet45) {
+        return getOptionValue(claudeSonnet45)
       }
     }
 

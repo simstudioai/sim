@@ -17,8 +17,8 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn } from '@/lib/utils'
 
 const logger = createLogger('HelpModal')
 

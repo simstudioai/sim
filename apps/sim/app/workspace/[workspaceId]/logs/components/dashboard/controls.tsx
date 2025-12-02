@@ -11,7 +11,7 @@ import {
 } from '@/components/emcn'
 import { MoreHorizontal } from '@/components/emcn/icons'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import Timeline from '@/app/workspace/[workspaceId]/logs/components/filters/components/timeline'
 

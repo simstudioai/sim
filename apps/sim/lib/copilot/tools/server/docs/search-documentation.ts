@@ -23,7 +23,7 @@ export const searchDocumentationServerTool: BaseServerTool<DocsSearchParams, any
     const config = getCopilotConfig()
     const similarityThreshold = threshold ?? config.rag.similarityThreshold
 
-    const { generateSearchEmbedding } = await import('@/lib/embeddings/utils')
+    const { generateSearchEmbedding } = await import('@/lib/knowledge/embeddings')
     const queryEmbedding = await generateSearchEmbedding(query)
     if (!queryEmbedding || queryEmbedding.length === 0) {
       return { results: [], query, totalResults: 0 }

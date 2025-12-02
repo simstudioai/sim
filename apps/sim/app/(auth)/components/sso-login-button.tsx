@@ -2,8 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { getEnv, isTruthy } from '@/lib/env'
-import { cn } from '@/lib/utils'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { cn } from '@/lib/core/utils/cn'
 
 interface SSOLoginButtonProps {
   callbackURL?: string

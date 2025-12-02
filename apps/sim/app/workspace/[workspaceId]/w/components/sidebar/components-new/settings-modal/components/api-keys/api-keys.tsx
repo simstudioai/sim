@@ -14,7 +14,7 @@ import {
 } from '@/components/emcn'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { Input, Label, Skeleton, Switch } from '@/components/ui'
-import { useSession } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {

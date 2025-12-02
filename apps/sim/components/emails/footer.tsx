@@ -1,7 +1,7 @@
 import { Container, Img, Link, Section, Text } from '@react-email/components'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { isHosted } from '@/lib/environment'
-import { getBaseUrl } from '@/lib/urls/utils'
+import { isHosted } from '@/lib/core/config/environment'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 interface UnsubscribeOptions {
   unsubscribeToken?: string

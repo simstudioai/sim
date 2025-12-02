@@ -16,7 +16,7 @@ import {
   getBlocksForSidebar,
   getTriggersForSidebar,
   hasTriggerCapability,
-} from '@/lib/workflows/trigger-utils'
+} from '@/lib/workflows/triggers/trigger-utils'
 import {
   calculateTriggerHeights,
   useToolbarItemInteractions,
