@@ -8,10 +8,12 @@ import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import { cn } from '@/lib/utils'
 import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
+import { NotificationSettings } from '@/app/workspace/[workspaceId]/logs/components/notification-settings/notification-settings'
 import { AutocompleteSearch } from '@/app/workspace/[workspaceId]/logs/components/search/search'
 import { Sidebar } from '@/app/workspace/[workspaceId]/logs/components/sidebar/sidebar'
 import Dashboard from '@/app/workspace/[workspaceId]/logs/dashboard'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogDetail, useLogsList } from '@/hooks/queries/logs'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -85,6 +87,8 @@ export default function Logs() {
 
   const [isLive, setIsLive] = useState(false)
   const isSearchOpenRef = useRef<boolean>(false)
+  const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
+  const userPermissions = useUserPermissionsContext()
 
   const logFilters = useMemo(
     () => ({
@@ -381,6 +385,8 @@ export default function Logs() {
             }
             showExport={true}
             onExport={handleExport}
+            canConfigureNotifications={userPermissions.canEdit}
+            onConfigureNotifications={() => setIsNotificationSettingsOpen(true)}
           />
 
           {/* Table container */}
@@ -598,6 +604,12 @@ export default function Logs() {
         onNavigatePrev={handleNavigatePrev}
         hasNext={selectedLogIndex < logs.length - 1}
         hasPrev={selectedLogIndex > 0}
+      />
+
+      <NotificationSettings
+        workspaceId={workspaceId}
+        open={isNotificationSettingsOpen}
+        onOpenChange={setIsNotificationSettingsOpen}
       />
     </div>
   )

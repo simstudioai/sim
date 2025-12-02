@@ -1,10 +1,35 @@
 import type { ReactNode } from 'react'
-import { ArrowUp, Loader2, RefreshCw, Search } from 'lucide-react'
-import { Button, Tooltip } from '@/components/emcn'
+import { ArrowUp, Bell, Loader2, RefreshCw, Search } from 'lucide-react'
+import {
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverScrollArea,
+  PopoverTrigger,
+  Tooltip,
+} from '@/components/emcn'
+import { MoreHorizontal } from '@/components/emcn/icons'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import Timeline from '@/app/workspace/[workspaceId]/logs/components/filters/components/timeline'
+
+interface ControlsProps {
+  searchQuery?: string
+  setSearchQuery?: (v: string) => void
+  isRefetching: boolean
+  resetToNow: () => void
+  live: boolean
+  setLive: (v: (prev: boolean) => boolean) => void
+  viewMode: string
+  setViewMode: (mode: 'logs' | 'dashboard') => void
+  searchComponent?: ReactNode
+  showExport?: boolean
+  onExport?: () => void
+  canConfigureNotifications?: boolean
+  onConfigureNotifications?: () => void
+}
 
 export function Controls({
   searchQuery,
@@ -17,19 +42,9 @@ export function Controls({
   setViewMode,
   searchComponent,
   onExport,
-}: {
-  searchQuery?: string
-  setSearchQuery?: (v: string) => void
-  isRefetching: boolean
-  resetToNow: () => void
-  live: boolean
-  setLive: (v: (prev: boolean) => boolean) => void
-  viewMode: string
-  setViewMode: (mode: 'logs' | 'dashboard') => void
-  searchComponent?: ReactNode
-  showExport?: boolean
-  onExport?: () => void
-}) {
+  canConfigureNotifications,
+  onConfigureNotifications,
+}: ControlsProps) {
   return (
     <div
       className={cn(
@@ -72,20 +87,29 @@ export function Controls({
 
       <div className='ml-auto flex flex-shrink-0 items-center gap-3'>
         {viewMode !== 'dashboard' && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                onClick={onExport}
-                className='h-9 w-9 p-0 hover:bg-secondary'
-                aria-label='Export CSV'
-              >
-                <ArrowUp className='h-4 w-4' />
-                <span className='sr-only'>Export CSV</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant='ghost' className='h-9 w-9 p-0 hover:bg-secondary'>
+                <MoreHorizontal className='h-4 w-4' />
+                <span className='sr-only'>More options</span>
               </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content>Export CSV</Tooltip.Content>
-          </Tooltip.Root>
+            </PopoverTrigger>
+            <PopoverContent align='end' sideOffset={4}>
+              <PopoverScrollArea>
+                <PopoverItem onClick={onExport}>
+                  <ArrowUp className='h-3 w-3' />
+                  <span>Export as CSV</span>
+                </PopoverItem>
+                <PopoverItem
+                  onClick={canConfigureNotifications ? onConfigureNotifications : undefined}
+                  disabled={!canConfigureNotifications}
+                >
+                  <Bell className='h-3 w-3' />
+                  <span>Configure Notifications</span>
+                </PopoverItem>
+              </PopoverScrollArea>
+            </PopoverContent>
+          </Popover>
         )}
 
         <Tooltip.Root>
