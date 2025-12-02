@@ -281,8 +281,8 @@ ${fieldDescriptions}
       }
     }
 
-    // Check if we should stream tool calls (default: false for chat, true for copilot)
-    const shouldStreamToolCalls = request.streamToolCalls ?? false
+    // Always stream tool calls for better UX - this streams text before/after/between tool calls
+    const shouldStreamToolCalls = true
 
     // EARLY STREAMING: if caller requested streaming and there are no tools to execute,
     // we can directly stream the completion.
@@ -356,16 +356,19 @@ ${fieldDescriptions}
       return streamingResult as StreamingExecution
     }
 
-    // NON-STREAMING WITH FINAL RESPONSE: Execute all tools silently and return only final response
-    if (request.stream && !shouldStreamToolCalls) {
-      logger.info('Using non-streaming mode for Anthropic request (tool calls executed silently)')
+    // TOOL EXECUTION PATH: Execute all tool calls with streaming
+    if (anthropicTools && anthropicTools.length > 0) {
+      logger.info('Executing Anthropic request with tools and streaming', {
+        toolCount: anthropicTools.length,
+        streamingEnabled: request.stream,
+      })
 
-      // Start execution timer for the entire provider execution
+      // Start execution timer
       const providerStartTime = Date.now()
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
       try {
-        // Make the initial API request
+        // Make the initial streaming API request
         const initialCallTime = Date.now()
 
         // Track the original tool_choice for forced tool tracking
@@ -375,10 +378,17 @@ ${fieldDescriptions}
         const forcedTools = preparedTools?.forcedTools || []
         let usedForcedTools: string[] = []
 
+        // Make non-streaming call for tool execution
+        // We'll stream the final response after tools complete
+        const toolPayload = {
+          ...payload,
+          stream: false, // Non-streaming for tool execution
+        }
+
         // Call the API - use beta client if betas are present
         let currentResponse = request.betas?.length
-          ? await anthropic.beta.messages.create(payload)
-          : await anthropic.messages.create(payload)
+          ? await anthropic.beta.messages.create(toolPayload)
+          : await anthropic.messages.create(toolPayload)
         const firstResponseTime = Date.now() - initialCallTime
 
         let content = ''
@@ -480,8 +490,14 @@ ${fieldDescriptions}
                 const toolArgs = toolUse.input as Record<string, any>
 
                 // Get the tool from the tools registry
-                const tool = request.tools?.find((t: any) => t.id === toolName)
-                if (!tool) continue
+                // Check both 'id' and 'name' fields since deferred tools use 'name'
+                const tool = request.tools?.find((t: any) => t.id === toolName || t.name === toolName)
+                if (!tool) {
+                  logger.warn(`Tool ${toolName} not found in registry`, {
+                    availableTools: request.tools?.map((t: any) => t.id || t.name).slice(0, 10),
+                  })
+                  continue
+                }
 
                 // Execute the tool
                 const toolCallStartTime = Date.now()
@@ -1031,7 +1047,9 @@ ${fieldDescriptions}
         // Remove the tool_choice parameter as Anthropic doesn't accept 'none' as a string value
         streamingPayload.tool_choice = undefined
 
-        const streamResponse: any = await anthropic.messages.create(streamingPayload)
+        const streamResponse: any = request.betas?.length
+          ? await anthropic.beta.messages.create(streamingPayload)
+          : await anthropic.messages.create(streamingPayload)
 
         // Create a StreamingExecution response with all collected data
         const streamingResult = {
