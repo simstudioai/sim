@@ -5,7 +5,7 @@ import { db } from '@sim/db'
 import { docsEmbeddings } from '@sim/db/schema'
 import { sql } from 'drizzle-orm'
 import { type DocChunk, DocsChunker } from '@/lib/chunkers'
-import { isDev } from '@/lib/environment'
+import { isDev } from '@/lib/core/config/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ProcessDocs')

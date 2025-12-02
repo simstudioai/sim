@@ -1,6 +1,6 @@
 import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 interface NavigationItemProps {
   item: {

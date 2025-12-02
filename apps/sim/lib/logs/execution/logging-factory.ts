@@ -1,6 +1,6 @@
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from '@/lib/logs/types'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 
 export function createTriggerObject(
   type: ExecutionTrigger['type'],

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { getEnv, isTruthy } from '@/lib/env'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { mergeSubblockState } from '@/stores/workflows/utils'

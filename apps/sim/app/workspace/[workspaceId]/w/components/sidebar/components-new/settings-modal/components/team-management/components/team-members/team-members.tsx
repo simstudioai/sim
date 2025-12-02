@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/emcn'
 import { UserAvatar } from '@/components/user-avatar/user-avatar'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { Invitation, Member, Organization } from '@/lib/organization'
+import type { Invitation, Member, Organization } from '@/lib/workspaces/organization'
 import { useCancelInvitation, useOrganizationMembers } from '@/hooks/queries/organization'
 
 const logger = createLogger('TeamMembers')

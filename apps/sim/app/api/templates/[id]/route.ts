@@ -4,12 +4,12 @@ import { and, eq, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateRequestId } from '@/lib/utils'
 import {
   extractRequiredCredentials,
   sanitizeCredentials,
-} from '@/lib/workflows/credential-extractor'
+} from '@/lib/workflows/credentials/credential-extractor'
 
 const logger = createLogger('TemplateByIdAPI')
 
@@ -163,7 +163,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Only update the state if explicitly requested and the template has a connected workflow
     if (updateState && existingTemplate[0].workflowId) {
       // Load the current workflow state from normalized tables
-      const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/db-helpers')
+      const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/persistence/utils')
       const normalizedData = await loadWorkflowFromNormalizedTables(existingTemplate[0].workflowId)
 
       if (normalizedData) {

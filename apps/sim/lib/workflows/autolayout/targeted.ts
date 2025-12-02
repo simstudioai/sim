@@ -1,4 +1,3 @@
-import { CONTAINER_DIMENSIONS } from '@/lib/blocks/block-dimensions'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   CONTAINER_PADDING,
@@ -14,6 +13,7 @@ import {
   isContainerType,
   shouldSkipAutoLayout,
 } from '@/lib/workflows/autolayout/utils'
+import { CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('AutoLayout:Targeted')

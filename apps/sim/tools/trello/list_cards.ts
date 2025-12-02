@@ -1,4 +1,4 @@
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 import type { TrelloListCardsParams, TrelloListCardsResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
 

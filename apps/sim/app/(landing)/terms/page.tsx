@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { getEnv } from '@/lib/env'
+import { getEnv } from '@/lib/core/config/env'
 import { LegalLayout } from '@/app/(landing)/components'
 
 export default function TermsOfService() {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 
 function formatStarCount(num: number): string {
   if (num < 1000) return String(num)

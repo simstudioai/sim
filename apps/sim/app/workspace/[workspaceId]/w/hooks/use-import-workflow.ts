@@ -6,7 +6,7 @@ import {
   extractWorkflowName,
   extractWorkflowsFromFiles,
   extractWorkflowsFromZip,
-} from '@/lib/workflows/import-export'
+} from '@/lib/workflows/operations/import-export'
 import { folderKeys, useCreateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow, workflowKeys } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'

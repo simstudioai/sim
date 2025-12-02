@@ -5,7 +5,7 @@ import { Maximize2, Minimize2, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import { FrozenCanvas } from '@/app/workspace/[workspaceId]/logs/components/frozen-canvas/frozen-canvas'
 
 interface FrozenCanvasModalProps {

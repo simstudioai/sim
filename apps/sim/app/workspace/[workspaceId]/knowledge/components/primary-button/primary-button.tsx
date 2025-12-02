@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/emcn'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 interface PrimaryButtonProps {
   children: React.ReactNode

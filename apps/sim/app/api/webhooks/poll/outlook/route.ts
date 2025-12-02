@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { createLogger } from '@/lib/logs/console/logger'
-import { acquireLock, releaseLock } from '@/lib/redis'
 import { pollOutlookWebhooks } from '@/lib/webhooks/outlook-polling-service'
 
 const logger = createLogger('OutlookPollingAPI')

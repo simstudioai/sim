@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       throw new FileNotFoundError(`File not found: ${key}`)
     }
 
-    const { getBaseUrl } = await import('@/lib/urls/utils')
+    const { getBaseUrl } = await import('@/lib/core/utils/urls')
     const downloadUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(key)}?context=${storageContext}`
 
     logger.info(`Generated download URL for ${storageContext} file: ${key}`)

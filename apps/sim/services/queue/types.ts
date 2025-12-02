@@ -1,6 +1,6 @@
 import type { userRateLimits } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 
 // Database types
 export type UserRateLimit = InferSelectModel<typeof userRateLimits>

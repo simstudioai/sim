@@ -15,6 +15,7 @@ import {
 } from '@/components/emcn'
 import { Switch } from '@/components/ui/switch'
 import { Toggle } from '@/components/ui/toggle'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   getCanonicalScopesForProvider,
@@ -22,7 +23,6 @@ import {
   type OAuthProvider,
   type OAuthService,
 } from '@/lib/oauth/oauth'
-import { cn } from '@/lib/utils'
 import {
   ChannelSelectorInput,
   CheckboxList,

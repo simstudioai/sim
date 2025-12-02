@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp, PanelLeft } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useSession } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth/auth-client'
 
 /**
  * Workspace entity interface

@@ -10,7 +10,7 @@ import {
   ConditionalIcon,
   ConnectIcon,
 } from '@/components/icons'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import {
   CollapsibleInputOutput,
   normalizeChildWorkflowSpan,

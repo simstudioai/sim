@@ -35,8 +35,9 @@ import {
   Skeleton,
   Switch,
 } from '@/components/ui'
+import { generatePassword } from '@/lib/core/security/encryption'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn, generatePassword } from '@/lib/utils'
 import type {
   LogLevel as StoreLogLevel,
   TriggerType as StoreTriggerType,

@@ -34,7 +34,7 @@ import {
   WebflowIcon,
   xIcon,
 } from '@/components/icons'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OAuth')

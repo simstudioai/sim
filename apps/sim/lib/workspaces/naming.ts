@@ -2,7 +2,7 @@
  * Utility functions for generating names for workspaces and folders
  */
 
-import type { Workspace } from '@/lib/organization/types'
+import type { Workspace } from '@/lib/workspaces/organization/types'
 import type { WorkflowFolder } from '@/stores/folders/store'
 
 export interface NameableEntity {

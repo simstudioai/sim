@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { withOptimisticUpdate } from '@/lib/core/utils/optimistic-update'
 import { createLogger } from '@/lib/logs/console/logger'
-import { withOptimisticUpdate } from '@/lib/utils'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { API_ENDPOINTS } from '@/stores/constants'
 import { useVariablesStore } from '@/stores/panel/variables/store'

@@ -7,7 +7,7 @@ import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-json'
 import { CopyButton } from '@/components/ui/copy-button'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import LineChart, {
   type LineChartPoint,
 } from '@/app/workspace/[workspaceId]/logs/components/dashboard/line-chart'

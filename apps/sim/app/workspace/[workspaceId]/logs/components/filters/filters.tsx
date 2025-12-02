@@ -2,8 +2,8 @@
 
 import { TimerOff } from 'lucide-react'
 import { Button } from '@/components/emcn'
-import { isProd } from '@/lib/environment'
-import { getSubscriptionStatus } from '@/lib/subscription/helpers'
+import { getSubscriptionStatus } from '@/lib/billing/client/utils'
+import { isProd } from '@/lib/core/config/environment'
 import {
   FilterSection,
   FolderFilter,

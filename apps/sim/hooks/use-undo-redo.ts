@@ -1,8 +1,8 @@
 import { useCallback } from 'react'
 import type { Edge } from 'reactflow'
-import { useSession } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
-import { enqueueReplaceWorkflowState } from '@/lib/workflows/socket-operations'
+import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
 import { useOperationQueue } from '@/stores/operation-queue/store'
 import {
   createOperationEntry,

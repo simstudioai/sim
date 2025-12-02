@@ -159,7 +159,7 @@ vi.mock('@/services/queue', () => ({
   },
 }))
 
-vi.mock('@/lib/workflows/db-helpers', () => ({
+vi.mock('@/lib/workflows/persistence/utils', () => ({
   loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
     blocks: {},
     edges: [],

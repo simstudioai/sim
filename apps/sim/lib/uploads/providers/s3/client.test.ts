@@ -31,7 +31,7 @@ describe('S3 Client', () => {
       getSignedUrl: mockGetSignedUrl,
     }))
 
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         S3_BUCKET_NAME: 'test-bucket',
         AWS_REGION: 'test-region',
@@ -298,7 +298,7 @@ describe('S3 Client', () => {
 
   describe('s3Client initialization', () => {
     it('should initialize with correct configuration when credentials are available', async () => {
-      vi.doMock('@/lib/env', () => ({
+      vi.doMock('@/lib/core/config/env', () => ({
         env: {
           S3_BUCKET_NAME: 'test-bucket',
           AWS_REGION: 'test-region',
@@ -331,7 +331,7 @@ describe('S3 Client', () => {
     })
 
     it('should initialize without credentials when env vars are not available', async () => {
-      vi.doMock('@/lib/env', () => ({
+      vi.doMock('@/lib/core/config/env', () => ({
         env: {
           S3_BUCKET_NAME: 'test-bucket',
           AWS_REGION: 'test-region',

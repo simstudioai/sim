@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui'
-import { MAX_TAG_SLOTS, type TagSlot } from '@/lib/knowledge/consts'
+import { MAX_TAG_SLOTS, type TagSlot } from '@/lib/knowledge/constants'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { useNextAvailableSlot } from '@/hooks/use-next-available-slot'

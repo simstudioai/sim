@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo } from 'react'
-import { extractFieldsFromSchema } from '@/lib/response-format'
-import { getBlockOutputPaths, getBlockOutputs } from '@/lib/workflows/block-outputs'
-import { TRIGGER_TYPES } from '@/lib/workflows/triggers'
+import { extractFieldsFromSchema } from '@/lib/core/utils/response-format'
+import { getBlockOutputPaths, getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import type { SchemaField } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import { getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'

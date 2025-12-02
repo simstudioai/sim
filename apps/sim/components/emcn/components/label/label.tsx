@@ -1,7 +1,7 @@
 'use client'
 
 import * as LabelPrimitive from '@radix-ui/react-label'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 export interface LabelProps extends React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root> {}
 

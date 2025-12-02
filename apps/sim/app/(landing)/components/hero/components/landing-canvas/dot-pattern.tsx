@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 /**
  *  DotPattern Component Props

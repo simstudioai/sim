@@ -10,7 +10,7 @@ import {
   PopoverItem,
   PopoverScrollArea,
 } from '@/components/emcn'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 interface ModeSelectorProps {
   /** Current mode - 'ask', 'build', or 'plan' */

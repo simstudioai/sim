@@ -3,7 +3,7 @@
 import type React from 'react'
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
 import posthog from 'posthog-js'
-import { client } from '@/lib/auth-client'
+import { client } from '@/lib/auth/auth-client'
 
 export type AppSession = {
   user: {

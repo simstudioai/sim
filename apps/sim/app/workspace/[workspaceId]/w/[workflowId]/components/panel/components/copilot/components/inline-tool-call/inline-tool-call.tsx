@@ -8,7 +8,7 @@ import { GoogleDriveIcon } from '@/components/icons'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
-import { getEnv } from '@/lib/env'
+import { getEnv } from '@/lib/core/config/env'
 import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/store'
 import type { CopilotToolCall } from '@/stores/panel/copilot/types'
 

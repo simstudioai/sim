@@ -140,7 +140,7 @@ export class LoggingSession {
       // Track workflow execution outcome
       if (traceSpans && traceSpans.length > 0) {
         try {
-          const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+          const { trackPlatformEvent } = await import('@/lib/core/telemetry')
 
           // Determine status from trace spans
           const hasErrors = traceSpans.some((span: any) => {
@@ -227,7 +227,7 @@ export class LoggingSession {
 
       // Track workflow execution error outcome
       try {
-        const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
         trackPlatformEvent('platform.workflow.executed', {
           'workflow.id': this.workflowId,
           'execution.duration_ms': Math.max(1, durationMs),

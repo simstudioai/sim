@@ -3,10 +3,10 @@ import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthProvider } from '@/lib/oauth/oauth'
 import { evaluateScopeCoverage, parseProvider } from '@/lib/oauth/oauth'
-import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('OAuthConnectionsAPI')
 

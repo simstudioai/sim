@@ -69,15 +69,15 @@ describe('Chat Edit API Route', () => {
       }),
     }))
 
-    vi.doMock('@/lib/utils', () => ({
+    vi.doMock('@/lib/core/security/encryption', () => ({
       encryptSecret: mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-password' }),
     }))
 
-    vi.doMock('@/lib/urls/utils', () => ({
+    vi.doMock('@/lib/core/utils/urls', () => ({
       getEmailDomain: vi.fn().mockReturnValue('localhost:3000'),
     }))
 
-    vi.doMock('@/lib/environment', () => ({
+    vi.doMock('@/lib/core/config/environment', () => ({
       isDev: true,
     }))
 
@@ -86,7 +86,7 @@ describe('Chat Edit API Route', () => {
     }))
 
     mockDeployWorkflow.mockResolvedValue({ success: true, version: 1 })
-    vi.doMock('@/lib/workflows/db-helpers', () => ({
+    vi.doMock('@/lib/workflows/persistence/utils', () => ({
       deployWorkflow: mockDeployWorkflow,
     }))
 

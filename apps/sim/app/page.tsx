@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { getBaseUrl } from '@/lib/urls/utils'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import Landing from '@/app/(landing)/landing'
 
 const baseUrl = getBaseUrl()

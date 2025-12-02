@@ -3,7 +3,7 @@ import {
   getProTierLimit,
   getTeamTierLimitPerSeat,
 } from '@/lib/billing/subscriptions/utils'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 
 export interface BillingPlan {
   name: string

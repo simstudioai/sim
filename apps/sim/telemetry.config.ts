@@ -23,7 +23,7 @@
  * - API keys or tokens
  * - IP addresses or geolocation data
  */
-import { env } from './lib/env'
+import { env } from './lib/core/config/env'
 
 const config = {
   /**

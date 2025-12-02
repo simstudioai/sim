@@ -1,5 +1,5 @@
 import { generateInternalToken } from '@/lib/auth/internal'
-import { getBaseUrl } from '@/lib/urls/utils'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { HTTP } from '@/executor/consts'
 
 export async function buildAuthHeaders(): Promise<Record<string, string>> {

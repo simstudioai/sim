@@ -199,7 +199,7 @@ export const POST = withMcpAuth('read')(
 
       // Track MCP tool execution
       try {
-        const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
         trackPlatformEvent('platform.mcp.tool_executed', {
           'mcp.server_id': serverId,
           'mcp.tool_name': toolName,

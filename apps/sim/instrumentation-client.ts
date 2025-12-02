@@ -2,7 +2,7 @@
  * Sim Telemetry - Client-side Instrumentation
  */
 
-import { env } from './lib/env'
+import { env } from './lib/core/config/env'
 
 if (typeof window !== 'undefined') {
   const TELEMETRY_STATUS_KEY = 'simstudio-telemetry-status'

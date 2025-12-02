@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { StartBlockPath } from '@/lib/workflows/triggers'
+import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import type { UserFile } from '@/executor/types'
 import {
   buildResolutionFromBlock,
