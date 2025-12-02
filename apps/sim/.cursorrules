@@ -1,6 +1,6 @@
 # Sim App Architecture Guidelines
 
-You are building features in the Sim app following the architecture established by the sidebar-new component. This file defines the patterns, structures, and conventions you must follow.
+You are building features in the Sim app following the architecture. This file defines the patterns, structures, and conventions you must follow.
 
 ---
 

@@ -113,7 +113,7 @@ export const Notifications = memo(function Notifications() {
           <div
             key={notification.id}
             style={{ transform: `translateX(${xOffset}px)` }}
-            className={`relative h-[78px] w-[240px] overflow-hidden rounded-[4px] border bg-[#232323] transition-transform duration-200 ${
+            className={`relative h-[78px] w-[240px] overflow-hidden rounded-[4px] border bg-[var(--surface-2)] transition-transform duration-200 ${
               index > 0 ? '-mt-[78px]' : ''
             }`}
           >

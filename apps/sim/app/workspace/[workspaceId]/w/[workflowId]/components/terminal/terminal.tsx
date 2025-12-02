@@ -752,13 +752,13 @@ export function Terminal() {
       <aside
         ref={terminalRef}
         className={clsx(
-          'terminal-container fixed right-[var(--panel-width)] bottom-0 left-[var(--sidebar-width)] z-10 overflow-hidden dark:bg-[var(--surface-1)]',
+          'terminal-container fixed right-[var(--panel-width)] bottom-0 left-[var(--sidebar-width)] z-10 overflow-hidden bg-[var(--surface-1)]',
           isToggling && 'transition-[height] duration-100 ease-out'
         )}
         onTransitionEnd={handleTransitionEnd}
         aria-label='Terminal'
       >
-        <div className='relative flex h-full border-t dark:border-[var(--border)]'>
+        <div className='relative flex h-full border-[var(--border)] border-t'>
           {/* Left Section - Logs Table */}
           <div
             className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
@@ -1190,7 +1190,7 @@ export function Terminal() {
           {/* Right Section - Block Output (Overlay) */}
           {selectedEntry && (
             <div
-              className='absolute top-0 right-0 bottom-0 flex flex-col border-l dark:border-[var(--border)] dark:bg-[var(--surface-1)]'
+              className='absolute top-0 right-0 bottom-0 flex flex-col border-[var(--border)] border-l bg-[var(--surface-1)]'
               style={{ width: `${outputPanelWidth}px` }}
             >
               {/* Horizontal Resize Handle */}
