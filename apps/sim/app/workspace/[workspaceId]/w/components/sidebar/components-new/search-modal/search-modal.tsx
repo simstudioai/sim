@@ -8,7 +8,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Dialog, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/core/utils/cn'
-import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/trigger-utils'
+import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { searchItems } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/search-modal/search-utils'
 import { getAllBlocks } from '@/blocks'
 

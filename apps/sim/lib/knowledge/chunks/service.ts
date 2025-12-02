@@ -2,7 +2,6 @@ import { createHash, randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { document, embedding } from '@sim/db/schema'
 import { and, asc, eq, ilike, inArray, sql } from 'drizzle-orm'
-import { generateEmbeddings } from '@/lib/embeddings/utils'
 import type {
   BatchOperationResult,
   ChunkData,
@@ -10,6 +9,7 @@ import type {
   ChunkQueryResult,
   CreateChunkData,
 } from '@/lib/knowledge/chunks/types'
+import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import { createLogger } from '@/lib/logs/console/logger'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 

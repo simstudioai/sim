@@ -7,16 +7,16 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
+import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
+import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import {
   calculateNextRunTime,
   generateCronExpression,
   getScheduleTimeValues,
   validateCronExpression,
-} from '@/lib/schedules/utils'
-import { extractAndPersistCustomTools } from '@/lib/workflows/custom-tools-persistence'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
+} from '@/lib/workflows/schedules/utils'
 import { getWorkflowAccessContext } from '@/lib/workflows/utils'
-import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { getTrigger } from '@/triggers'

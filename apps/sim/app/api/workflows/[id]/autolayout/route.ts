@@ -12,7 +12,7 @@ import {
 import {
   loadWorkflowFromNormalizedTables,
   type NormalizedWorkflowData,
-} from '@/lib/workflows/db-helpers'
+} from '@/lib/workflows/persistence/utils'
 import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 
 export const dynamic = 'force-dynamic'

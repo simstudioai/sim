@@ -57,7 +57,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     }))
 
     mockHasWorkspaceAdminAccess = vi.fn()
-    vi.doMock('@/lib/permissions/utils', () => ({
+    vi.doMock('@/lib/workspaces/permissions/utils', () => ({
       hasWorkspaceAdminAccess: mockHasWorkspaceAdminAccess,
     }))
 
@@ -385,7 +385,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
       vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue({ user: mockUser }),
       }))
-      vi.doMock('@/lib/permissions/utils', () => ({
+      vi.doMock('@/lib/workspaces/permissions/utils', () => ({
         hasWorkspaceAdminAccess: vi.fn(),
       }))
       vi.doMock('@/lib/core/config/env', () => {

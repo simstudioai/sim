@@ -3,8 +3,8 @@ import {
   extractFieldsFromSchema,
   parseResponseFormatSafely,
 } from '@/lib/core/utils/response-format'
-import { getBlockOutputs } from '@/lib/workflows/block-outputs'
-import { BlockPathCalculator } from '@/lib/workflows/block-path-calculator'
+import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'

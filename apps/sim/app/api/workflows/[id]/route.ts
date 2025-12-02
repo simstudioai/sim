@@ -9,7 +9,7 @@ import { verifyInternalToken } from '@/lib/auth/internal'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getWorkflowAccessContext, getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowByIdAPI')
@@ -262,7 +262,7 @@ export async function DELETE(
 
     // Clean up external webhooks before deleting workflow
     try {
-      const { cleanupExternalWebhook } = await import('@/lib/webhooks/webhook-helpers')
+      const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
       const webhooksToCleanup = await db
         .select({
           webhook: webhook,

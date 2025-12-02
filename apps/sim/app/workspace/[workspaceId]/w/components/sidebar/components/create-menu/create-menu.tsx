@@ -11,7 +11,7 @@ import {
   extractWorkflowName,
   extractWorkflowsFromFiles,
   extractWorkflowsFromZip,
-} from '@/lib/workflows/import-export'
+} from '@/lib/workflows/operations/import-export'
 import { generateFolderName } from '@/lib/workspaces/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useCreateFolder } from '@/hooks/queries/folders'

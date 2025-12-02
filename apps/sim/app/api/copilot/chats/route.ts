@@ -6,7 +6,7 @@ import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/auth'
+} from '@/lib/copilot/request-helpers'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CopilotChatsListAPI')

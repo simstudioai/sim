@@ -6,7 +6,7 @@ import { getSession } from '@/lib/auth'
 import { validateInteger } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WebhookAPI')
 
@@ -277,7 +277,7 @@ export async function DELETE(
 
     const foundWebhook = webhookData.webhook
 
-    const { cleanupExternalWebhook } = await import('@/lib/webhooks/webhook-helpers')
+    const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
     await cleanupExternalWebhook(foundWebhook, webhookData.workflow, requestId)
 
     await db.delete(webhook).where(eq(webhook.id, id))

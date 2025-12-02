@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { getAllPostMeta } from '@/lib/blog/registry'
-import { getBaseUrl } from '@/lib/urls/utils'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = getBaseUrl()

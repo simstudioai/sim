@@ -78,7 +78,7 @@ describe('Chat API Route', () => {
       checkWorkflowAccessForChatCreation: mockCheckWorkflowAccessForChatCreation,
     }))
 
-    vi.doMock('@/lib/workflows/db-helpers', () => ({
+    vi.doMock('@/lib/workflows/persistence/utils', () => ({
       deployWorkflow: mockDeployWorkflow.mockResolvedValue({
         success: true,
         version: 1,

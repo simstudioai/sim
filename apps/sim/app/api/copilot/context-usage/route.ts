@@ -2,10 +2,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getCopilotModel } from '@/lib/copilot/config'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
 import type { CopilotProviderConfig } from '@/lib/copilot/types'
 import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent/constants'
 
 const logger = createLogger('ContextUsageAPI')
 

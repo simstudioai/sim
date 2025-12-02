@@ -40,7 +40,7 @@ export async function POST(
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    const { getBaseUrl } = await import('@/lib/urls/utils')
+    const { getBaseUrl } = await import('@/lib/core/utils/urls')
     const serveUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(fileRecord.key)}?context=workspace`
     const viewerUrl = `${getBaseUrl()}/workspace/${workspaceId}/files/${fileId}/view`
 

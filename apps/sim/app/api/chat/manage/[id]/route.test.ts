@@ -73,7 +73,7 @@ describe('Chat Edit API Route', () => {
       encryptSecret: mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-password' }),
     }))
 
-    vi.doMock('@/lib/urls/utils', () => ({
+    vi.doMock('@/lib/core/utils/urls', () => ({
       getEmailDomain: vi.fn().mockReturnValue('localhost:3000'),
     }))
 
@@ -86,7 +86,7 @@ describe('Chat Edit API Route', () => {
     }))
 
     mockDeployWorkflow.mockResolvedValue({ success: true, version: 1 })
-    vi.doMock('@/lib/workflows/db-helpers', () => ({
+    vi.doMock('@/lib/workflows/persistence/utils', () => ({
       deployWorkflow: mockDeployWorkflow,
     }))
 

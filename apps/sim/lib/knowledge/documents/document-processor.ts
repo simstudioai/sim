@@ -400,7 +400,7 @@ async function parseWithMistralOCR(
         const isInternalRoute = url.startsWith('/')
 
         if (isInternalRoute) {
-          const { getBaseUrl } = await import('@/lib/urls/utils')
+          const { getBaseUrl } = await import('@/lib/core/utils/urls')
           url = `${getBaseUrl()}${url}`
         }
 

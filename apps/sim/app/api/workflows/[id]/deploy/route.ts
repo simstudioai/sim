@@ -3,7 +3,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { deployWorkflow } from '@/lib/workflows/db-helpers'
+import { deployWorkflow } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .limit(1)
 
     if (active?.state) {
-      const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/db-helpers')
+      const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/persistence/utils')
       const normalizedData = await loadWorkflowFromNormalizedTables(id)
       if (normalizedData) {
         const currentState = {
@@ -171,7 +171,7 @@ export async function DELETE(
 
     // Track workflow undeployment
     try {
-      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+      const { trackPlatformEvent } = await import('@/lib/core/telemetry')
       trackPlatformEvent('platform.workflow.undeployed', {
         'workflow.id': id,
       })

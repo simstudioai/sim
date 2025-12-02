@@ -1,6 +1,6 @@
 import type { Edge } from 'reactflow'
 import { createLogger } from '@/lib/logs/console/logger'
-import { BlockPathCalculator } from '@/lib/workflows/block-path-calculator'
+import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'

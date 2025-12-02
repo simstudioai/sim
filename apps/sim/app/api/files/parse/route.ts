@@ -8,7 +8,6 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
@@ -19,6 +18,7 @@ import {
   getViewerUrl,
   inferContextFromKey,
 } from '@/lib/uploads/utils/file-utils'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import '@/lib/uploads/core/setup.server'
 

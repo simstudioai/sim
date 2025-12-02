@@ -53,7 +53,7 @@ vi.mock('@/lib/logs/execution/logging-session', () => ({
   })),
 }))
 
-vi.mock('@/lib/workflows/streaming', () => ({
+vi.mock('@/lib/workflows/streaming/streaming', () => ({
   createStreamingResponse: vi.fn().mockImplementation(async () => createMockStream()),
 }))
 
@@ -391,7 +391,7 @@ describe('Chat Identifier API Route', () => {
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
-      const { createStreamingResponse } = await import('@/lib/workflows/streaming')
+      const { createStreamingResponse } = await import('@/lib/workflows/streaming/streaming')
 
       const response = await POST(req, { params })
 
@@ -443,7 +443,7 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should handle workflow execution errors gracefully', async () => {
-      const { createStreamingResponse } = await import('@/lib/workflows/streaming')
+      const { createStreamingResponse } = await import('@/lib/workflows/streaming/streaming')
       const originalStreamingResponse = vi.mocked(createStreamingResponse).getMockImplementation()
       vi.mocked(createStreamingResponse).mockImplementationOnce(async () => {
         throw new Error('Execution failed')
@@ -495,7 +495,7 @@ describe('Chat Identifier API Route', () => {
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
-      const { createStreamingResponse } = await import('@/lib/workflows/streaming')
+      const { createStreamingResponse } = await import('@/lib/workflows/streaming/streaming')
 
       await POST(req, { params })
 
@@ -514,7 +514,7 @@ describe('Chat Identifier API Route', () => {
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
-      const { createStreamingResponse } = await import('@/lib/workflows/streaming')
+      const { createStreamingResponse } = await import('@/lib/workflows/streaming/streaming')
 
       await POST(req, { params })
 

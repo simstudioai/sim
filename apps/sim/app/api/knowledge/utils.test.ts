@@ -164,8 +164,8 @@ vi.mock('@sim/db', () => {
   }
 })
 
-import { generateEmbeddings } from '@/lib/embeddings/utils'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
+import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import {
   checkChunkAccess,
   checkDocumentAccess,

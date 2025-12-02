@@ -204,7 +204,7 @@ describe('Custom Tools API Routes', () => {
     }))
 
     // Mock permissions
-    vi.doMock('@/lib/permissions/utils', () => ({
+    vi.doMock('@/lib/workspaces/permissions/utils', () => ({
       getUserEntityPermissions: vi.fn().mockResolvedValue('admin'),
     }))
 
@@ -238,7 +238,7 @@ describe('Custom Tools API Routes', () => {
     }))
 
     // Mock custom tools operations
-    vi.doMock('@/lib/custom-tools/operations', () => ({
+    vi.doMock('@/lib/workflows/custom-tools/operations', () => ({
       upsertCustomTools: vi.fn().mockResolvedValue(sampleTools),
     }))
   })

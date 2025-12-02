@@ -18,7 +18,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import {
   extractRequiredCredentials,
   sanitizeCredentials,
-} from '@/lib/workflows/credential-extractor'
+} from '@/lib/workflows/credentials/credential-extractor'
 
 const logger = createLogger('TemplatesAPI')
 

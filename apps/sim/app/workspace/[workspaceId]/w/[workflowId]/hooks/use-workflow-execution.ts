@@ -8,8 +8,12 @@ import {
   extractTriggerMockPayload,
   selectBestTrigger,
   triggerNeedsMockPayload,
-} from '@/lib/workflows/trigger-utils'
-import { resolveStartCandidates, StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
+} from '@/lib/workflows/triggers/trigger-utils'
+import {
+  resolveStartCandidates,
+  StartBlockPath,
+  TriggerUtils,
+} from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { subscriptionKeys } from '@/hooks/queries/subscription'

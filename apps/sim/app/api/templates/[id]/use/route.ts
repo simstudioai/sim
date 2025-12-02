@@ -5,9 +5,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getBaseUrl } from '@/lib/urls/utils'
-import { regenerateWorkflowStateIds } from '@/lib/workflows/db-helpers'
+import { regenerateWorkflowStateIds } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('TemplateUseAPI')
 
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Track template usage
     try {
-      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+      const { trackPlatformEvent } = await import('@/lib/core/telemetry')
       const templateState = templateData.state as any
       trackPlatformEvent('platform.template.used', {
         'template.id': id,

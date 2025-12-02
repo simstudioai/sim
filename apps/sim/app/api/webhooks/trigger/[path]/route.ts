@@ -9,7 +9,7 @@ import {
   queueWebhookExecution,
   verifyProviderAuth,
 } from '@/lib/webhooks/processor'
-import { blockExistsInDeployment } from '@/lib/workflows/db-helpers'
+import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('WebhookTriggerAPI')
 

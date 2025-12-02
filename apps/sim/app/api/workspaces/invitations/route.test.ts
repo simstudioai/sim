@@ -96,7 +96,7 @@ describe('Workspace Invitations API Route', () => {
       },
     }))
 
-    vi.doMock('@/lib/urls/utils', () => ({
+    vi.doMock('@/lib/core/utils/urls', () => ({
       getEmailDomain: vi.fn().mockReturnValue('sim.ai'),
     }))
 

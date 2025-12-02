@@ -7,7 +7,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
   type NotificationStatus,
-} from '@/lib/copilot/auth'
+} from '@/lib/copilot/request-helpers'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { createLogger } from '@/lib/logs/console/logger'
 

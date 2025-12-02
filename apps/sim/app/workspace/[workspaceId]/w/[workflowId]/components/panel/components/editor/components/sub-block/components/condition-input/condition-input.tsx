@@ -20,7 +20,7 @@ import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,
   splitReferenceSegment,
-} from '@/lib/workflows/references'
+} from '@/lib/workflows/sanitization/references'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,

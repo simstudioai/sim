@@ -4,7 +4,7 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { type SMSOptions, sendSMS } from '@/lib/sms/service'
+import { type SMSOptions, sendSMS } from '@/lib/messaging/sms/service'
 
 export const dynamic = 'force-dynamic'
 

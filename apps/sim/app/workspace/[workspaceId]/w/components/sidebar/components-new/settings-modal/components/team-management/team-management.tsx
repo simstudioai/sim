@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Skeleton } from '@/components/ui'
-import { useSession } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth/auth-client'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateSlug, getUsedSeats, getUserRole, isAdminOrOwner } from '@/lib/organization'
+import {
+  generateSlug,
+  getUsedSeats,
+  getUserRole,
+  isAdminOrOwner,
+} from '@/lib/workspaces/organization'
 import {
   MemberInvitationCard,
   NoOrganizationView,

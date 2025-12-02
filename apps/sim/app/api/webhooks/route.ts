@@ -5,9 +5,9 @@ import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { getBaseUrl } from '@/lib/urls/utils'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhooksAPI')
@@ -323,7 +323,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (provider === 'microsoft-teams') {
-      const { createTeamsSubscription } = await import('@/lib/webhooks/webhook-helpers')
+      const { createTeamsSubscription } = await import('@/lib/webhooks/provider-subscriptions')
       logger.info(`[${requestId}] Creating Teams subscription before saving to database`)
       try {
         await createTeamsSubscription(request, createTempWebhookData(), workflowRecord, requestId)
@@ -341,7 +341,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (provider === 'telegram') {
-      const { createTelegramWebhook } = await import('@/lib/webhooks/webhook-helpers')
+      const { createTelegramWebhook } = await import('@/lib/webhooks/provider-subscriptions')
       logger.info(`[${requestId}] Creating Telegram webhook before saving to database`)
       try {
         await createTelegramWebhook(request, createTempWebhookData(), requestId)
@@ -384,7 +384,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (provider === 'typeform') {
-      const { createTypeformWebhook } = await import('@/lib/webhooks/webhook-helpers')
+      const { createTypeformWebhook } = await import('@/lib/webhooks/provider-subscriptions')
       logger.info(`[${requestId}] Creating Typeform webhook before saving to database`)
       try {
         const usedTag = await createTypeformWebhook(request, createTempWebhookData(), requestId)
@@ -456,7 +456,7 @@ export async function POST(request: NextRequest) {
       if (externalSubscriptionCreated) {
         logger.error(`[${requestId}] DB save failed, cleaning up external subscription`, dbError)
         try {
-          const { cleanupExternalWebhook } = await import('@/lib/webhooks/webhook-helpers')
+          const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
           await cleanupExternalWebhook(createTempWebhookData(), workflowRecord, requestId)
         } catch (cleanupError) {
           logger.error(

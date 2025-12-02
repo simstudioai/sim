@@ -309,7 +309,7 @@ export function WorkspaceSelector({
 
     setIsExporting(true)
     try {
-      const { exportWorkspaceToZip } = await import('@/lib/workflows/import-export')
+      const { exportWorkspaceToZip } = await import('@/lib/workflows/operations/import-export')
       const { useFolderStore } = await import('@/stores/folders/store')
 
       const workflowsUrl = new URL('/api/workflows', window.location.origin)

@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { cleanupExpiredIdempotencyKeys, getIdempotencyKeyStats } from '@/lib/core/idempotency'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { cleanupExpiredIdempotencyKeys, getIdempotencyKeyStats } from '@/lib/idempotency'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('IdempotencyCleanupAPI')
