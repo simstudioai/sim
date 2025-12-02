@@ -5,9 +5,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { encryptSecret } from '@/lib/utils'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { MAX_EMAIL_RECIPIENTS, MAX_NOTIFICATIONS_PER_TYPE, MAX_WORKFLOW_IDS } from './constants'
 
 const logger = createLogger('WorkspaceNotificationsAPI')

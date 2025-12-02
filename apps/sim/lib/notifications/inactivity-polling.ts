@@ -7,7 +7,7 @@ import {
 } from '@sim/db/schema'
 import { and, eq, gte, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { env, isTruthy } from '@/lib/env'
+import { env, isTruthy } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   executeNotificationDelivery,

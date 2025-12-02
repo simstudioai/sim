@@ -37,8 +37,8 @@ import {
   Skeleton,
   Switch,
 } from '@/components/ui'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn } from '@/lib/utils'
 import {
   type NotificationSubscription,
   useCreateNotification,
