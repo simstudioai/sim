@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
-import { account, superagentChats } from '@sim/db/schema'
-import { and, desc, eq } from 'drizzle-orm'
+import { account, superagentChats, workflow } from '@sim/db/schema'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
+import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { env } from '@/lib/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -15,6 +16,142 @@ import { executeProviderRequest } from '@/providers'
 import { tools } from '@/tools/registry'
 
 const logger = createLogger('SuperagentChatAPI')
+
+/**
+ * Built-in superagent tool names
+ */
+const BUILTIN_TOOL_NAMES = [
+  'list_user_workflows',
+  'get_workflow_by_name',
+  'run_workflow',
+  'get_credentials',
+  'set_environment_variables',
+]
+
+/**
+ * Execute a built-in superagent tool
+ */
+async function executeBuiltinTool(
+  toolName: string,
+  toolInput: Record<string, any>,
+  context: { userId: string; workspaceId: string }
+): Promise<{ success: boolean; output: any; error?: string } | null> {
+  const { userId, workspaceId } = context
+
+  // Return null if not a built-in tool (will fall back to executeTool)
+  if (!BUILTIN_TOOL_NAMES.includes(toolName)) {
+    return null
+  }
+
+  logger.info('Executing built-in superagent tool', { toolName, workspaceId })
+
+  switch (toolName) {
+    case 'list_user_workflows': {
+      const workflows = await db
+        .select({
+          id: workflow.id,
+          name: workflow.name,
+          description: workflow.description,
+          createdAt: workflow.createdAt,
+          updatedAt: workflow.updatedAt,
+        })
+        .from(workflow)
+        .where(eq(workflow.workspaceId, workspaceId))
+        .orderBy(sql`${workflow.updatedAt} DESC`)
+
+      return {
+        success: true,
+        output: {
+          workflows: workflows.map((w) => ({
+            id: w.id,
+            name: w.name,
+            description: w.description,
+            createdAt: w.createdAt.toISOString(),
+            updatedAt: w.updatedAt.toISOString(),
+          })),
+          total: workflows.length,
+        },
+      }
+    }
+
+    case 'get_workflow_by_name': {
+      const workflowName = toolInput.workflow_name
+      if (!workflowName) {
+        return { success: false, output: null, error: 'workflow_name is required' }
+      }
+
+      const workflows = await db
+        .select()
+        .from(workflow)
+        .where(and(eq(workflow.workspaceId, workspaceId), eq(workflow.name, workflowName)))
+        .limit(1)
+
+      if (workflows.length === 0) {
+        return { success: false, output: null, error: `Workflow "${workflowName}" not found` }
+      }
+
+      const w = workflows[0]
+      return {
+        success: true,
+        output: {
+          id: w.id,
+          name: w.name,
+          description: w.description,
+          createdAt: w.createdAt.toISOString(),
+          updatedAt: w.updatedAt.toISOString(),
+        },
+      }
+    }
+
+    case 'run_workflow': {
+      const workflowId = toolInput.workflow_id
+      if (!workflowId) {
+        return { success: false, output: null, error: 'workflow_id is required' }
+      }
+
+      const baseUrl = env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      const response = await fetch(`${baseUrl}/api/workflows/${workflowId}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input: toolInput.input || {},
+          triggerType: 'api',
+          useDraftState: false,
+        }),
+      })
+
+      const data = await response.json()
+      return {
+        success: data?.success ?? false,
+        output: {
+          workflowId: data?.workflowId,
+          workflowName: data?.workflowName,
+          output: data?.output ?? {},
+          duration: data?.metadata?.duration,
+        },
+        error: data?.error,
+      }
+    }
+
+    case 'get_credentials': {
+      const result = await getCredentialsServerTool.execute({}, { userId })
+      return { success: true, output: result }
+    }
+
+    case 'set_environment_variables': {
+      const variables = toolInput.variables
+      if (!variables || typeof variables !== 'object') {
+        return { success: false, output: null, error: 'variables is required' }
+      }
+
+      const result = await setEnvironmentVariablesServerTool.execute({ variables }, { userId })
+      return { success: true, output: result }
+    }
+
+    default:
+      return null
+  }
+}
 
 /**
  * Save chat messages to database
@@ -358,6 +495,82 @@ export async function POST(req: NextRequest) {
       },
     ]
 
+    // Workflow and credential management tools (non-deferred, always available)
+    const workflowTools = [
+      {
+        name: 'list_user_workflows',
+        description:
+          'List all workflows available to the user in the current workspace. Returns workflow names and IDs. Use this to discover what workflows exist before running or inspecting them.',
+        input_schema: {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
+      },
+      {
+        name: 'get_workflow_by_name',
+        description:
+          'Get detailed information about a specific workflow by its name. Returns the workflow structure including blocks, edges, and configuration. Use this after list_user_workflows to inspect a specific workflow.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            workflow_name: {
+              type: 'string',
+              description: 'The exact name of the workflow to retrieve',
+            },
+          },
+          required: ['workflow_name'],
+        },
+      },
+      {
+        name: 'run_workflow',
+        description:
+          'Execute a workflow by its ID with optional input parameters. The workflow will run and return its output. Use list_user_workflows first to get workflow IDs.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            workflow_id: {
+              type: 'string',
+              description: 'The ID of the workflow to execute',
+            },
+            input: {
+              type: 'object',
+              description:
+                'Optional input parameters to pass to the workflow. Keys should match the workflow input field names.',
+            },
+          },
+          required: ['workflow_id'],
+        },
+      },
+      {
+        name: 'get_credentials',
+        description:
+          'Get a list of all connected OAuth integrations (Google, GitHub, etc.) and configured API key names. Use this to check what credentials the user has available before attempting to use integration tools.',
+        input_schema: {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
+      },
+      {
+        name: 'set_environment_variables',
+        description:
+          'Set or update environment variables (API keys, secrets) for the user. Variables are encrypted and stored securely. Use this when the user wants to configure an API key.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            variables: {
+              type: 'object',
+              description:
+                'Key-value pairs of environment variables to set. Keys should be uppercase with underscores (e.g., EXA_API_KEY, OPENAI_API_KEY).',
+              additionalProperties: { type: 'string' },
+            },
+          },
+          required: ['variables'],
+        },
+      },
+    ]
+
     // Mark all integration tools with defer_loading: true
     // This means they won't be loaded into context until Claude searches for them
     const { createLLMToolSchema } = await import('@/tools/params')
@@ -536,14 +749,20 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
     logger.info('Calling provider API', {
       provider: 'anthropic',
       model,
-      toolsCount: deferredIntegrationTools.length + 2, // +2 for BM25 and regex search tools
+      toolsCount: deferredIntegrationTools.length + searchTools.length + workflowTools.length,
+      workflowToolsCount: workflowTools.length,
     })
+
+    // Create custom tool executor for built-in superagent tools
+    const customToolExecutor = async (toolName: string, toolInput: Record<string, any>) => {
+      return executeBuiltinTool(toolName, toolInput, { userId, workspaceId })
+    }
 
     const response = await executeProviderRequest('anthropic', {
       model,
       systemPrompt,
       messages,
-      tools: [...searchTools, ...deferredIntegrationTools] as any,
+      tools: [...searchTools, ...workflowTools, ...deferredIntegrationTools] as any,
       temperature: 0.7,
       maxTokens: 4000,
       apiKey,
@@ -557,6 +776,7 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
       workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
+      customToolExecutor,
     })
 
     logger.info('Provider response received', {

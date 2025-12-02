@@ -47,7 +47,7 @@ export const anthropicProvider: ProviderConfig = {
 
     // Initialize Anthropic client with beta headers if requested
     const anthropic = request.betas?.length
-      ? new Anthropic({ 
+      ? new Anthropic({
           apiKey: request.apiKey,
           defaultHeaders: {
             'anthropic-beta': request.betas.join(','),
@@ -124,14 +124,14 @@ export const anthropicProvider: ProviderConfig = {
     let anthropicTools = request.tools?.length
       ? request.tools.map((tool, index) => {
           // Handle native Anthropic tool types (like tool_search_tool_regex)
-          if ((tool as any).type && (tool as any).type.startsWith('tool_search_tool')) {
+          if ((tool as any).type?.startsWith('tool_search_tool')) {
             return tool as any // Pass through native tools as-is
           }
-          
+
           // Get schema - check both input_schema (from superagent) and parameters (from agent block)
           const toolAny = tool as any
           const schema = toolAny.input_schema || tool.parameters || {}
-          
+
           // Validate and sanitize properties to ensure valid JSON Schema
           const properties: Record<string, any> = {}
           if (schema.properties && typeof schema.properties === 'object') {
@@ -139,9 +139,17 @@ export const anthropicProvider: ProviderConfig = {
               if (value && typeof value === 'object') {
                 const prop = value as any
                 // Ensure type is a valid JSON Schema type
-                const validTypes = ['string', 'number', 'integer', 'boolean', 'array', 'object', 'null']
+                const validTypes = [
+                  'string',
+                  'number',
+                  'integer',
+                  'boolean',
+                  'array',
+                  'object',
+                  'null',
+                ]
                 const propType = prop.type || 'string'
-                
+
                 if (validTypes.includes(propType)) {
                   properties[key] = {
                     type: propType,
@@ -153,12 +161,12 @@ export const anthropicProvider: ProviderConfig = {
               }
             }
           }
-          
+
           // Validate required array
-          const required = Array.isArray(schema.required) 
+          const required = Array.isArray(schema.required)
             ? schema.required.filter((r: any) => typeof r === 'string' && properties[r])
             : []
-          
+
           // Transform regular tools
           return {
             name: tool.id || toolAny.name,
@@ -168,7 +176,9 @@ export const anthropicProvider: ProviderConfig = {
               properties,
               required,
             },
-            ...(toolAny.defer_loading !== undefined ? { defer_loading: toolAny.defer_loading } : {}),
+            ...(toolAny.defer_loading !== undefined
+              ? { defer_loading: toolAny.defer_loading }
+              : {}),
           }
         })
       : undefined
@@ -297,7 +307,7 @@ ${fieldDescriptions}
       max_tokens: Number.parseInt(String(request.maxTokens)) || 1024,
       temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
     }
-    
+
     // Log beta features (they're sent as headers via the client, not in payload)
     if (request.betas?.length) {
       logger.info('Using beta features via header', { betas: request.betas })
@@ -330,7 +340,7 @@ ${fieldDescriptions}
         ...payload,
         stream: true,
       }
-      
+
       const streamResponse: any = request.betas?.length
         ? await anthropic.beta.messages.create(streamPayload)
         : await anthropic.messages.create(streamPayload)
@@ -410,22 +420,22 @@ ${fieldDescriptions}
           try {
             while (iterationCount < MAX_ITERATIONS) {
               logger.info(`Iteration ${iterationCount + 1}: Calling Anthropic`)
-              
+
               // Make streaming call
               const streamPayload = {
                 ...payload,
                 messages: currentMessages,
                 stream: true,
               }
-              
+
               const streamResponse: any = request.betas?.length
                 ? await anthropic.beta.messages.create(streamPayload)
                 : await anthropic.messages.create(streamPayload)
-              
+
               let hasToolCalls = false
               const pendingToolCalls: any[] = []
               let accumulatedText = ''
-              
+
               // Process stream events
               for await (const event of streamResponse) {
                 // Log raw SSE event from Anthropic
@@ -436,40 +446,46 @@ ${fieldDescriptions}
                   deltaType: event.delta?.type,
                   raw: JSON.stringify(event).slice(0, 800),
                 })
-                
+
                 // Stream text deltas
                 if (event.type === 'content_block_delta' && event.delta?.text) {
                   const text = event.delta.text
                   accumulatedText += text
-                  
+
                   // Stream text to client
                   const textChunk = { type: 'text', text }
                   controller.enqueue(encoder.encode(`data: ${JSON.stringify(textChunk)}\n\n`))
                 }
-                
+
                 // Detect tool use
-                if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+                if (
+                  event.type === 'content_block_start' &&
+                  event.content_block?.type === 'tool_use'
+                ) {
                   hasToolCalls = true
                   const toolUse = { ...event.content_block, blockIndex: event.index }
                   pendingToolCalls.push(toolUse)
-                  
+
                   logger.info('Tool use detected', {
                     toolName: toolUse.name,
                     blockIndex: event.index,
                     toolUseId: toolUse.id,
                   })
-                  
+
                   // Stream tool call start event
-                  const toolStartChunk = { 
-                    type: 'tool_call', 
+                  const toolStartChunk = {
+                    type: 'tool_call',
                     name: toolUse.name,
                     status: 'calling',
                   }
                   controller.enqueue(encoder.encode(`data: ${JSON.stringify(toolStartChunk)}\n\n`))
                 }
-                
+
                 // Accumulate tool input as it streams
-                if (event.type === 'content_block_delta' && event.delta?.type === 'input_json_delta') {
+                if (
+                  event.type === 'content_block_delta' &&
+                  event.delta?.type === 'input_json_delta'
+                ) {
                   const blockIndex = event.index
                   // Find the tool call with matching blockIndex
                   const toolCall = pendingToolCalls.find((t: any) => t.blockIndex === blockIndex)
@@ -479,10 +495,13 @@ ${fieldDescriptions}
                     }
                     toolCall.input_json += event.delta.partial_json
                   } else {
-                    logger.warn('No matching tool call for input_json_delta', { blockIndex, pendingCount: pendingToolCalls.length })
+                    logger.warn('No matching tool call for input_json_delta', {
+                      blockIndex,
+                      pendingCount: pendingToolCalls.length,
+                    })
                   }
                 }
-                
+
                 // Track usage
                 if (event.type === 'message_delta' && event.usage) {
                   tokens.prompt += event.usage.input_tokens || 0
@@ -490,16 +509,16 @@ ${fieldDescriptions}
                   tokens.total = tokens.prompt + tokens.completion
                 }
               }
-              
+
               // If no tool calls, we're done
               if (!hasToolCalls || pendingToolCalls.length === 0) {
                 break
               }
-              
+
               // Execute all tool calls
               for (const toolUse of pendingToolCalls) {
                 const toolName = toolUse.name
-                
+
                 logger.info('Raw tool use before parsing', {
                   toolName,
                   hasInputJson: !!toolUse.input_json,
@@ -508,40 +527,58 @@ ${fieldDescriptions}
                   hasInput: !!toolUse.input,
                   inputKeys: toolUse.input ? Object.keys(toolUse.input) : [],
                 })
-                
-                const toolInput = toolUse.input_json ? JSON.parse(toolUse.input_json) : toolUse.input || {}
-                
+
+                const toolInput = toolUse.input_json
+                  ? JSON.parse(toolUse.input_json)
+                  : toolUse.input || {}
+
                 logger.info('Processing tool call', {
                   toolName,
                   toolInput: JSON.stringify(toolInput).slice(0, 500),
                   toolInputKeys: Object.keys(toolInput),
                 })
-                
+
                 // Find tool in registry
-                const tool = request.tools?.find((t: any) => t.id === toolName || t.name === toolName)
+                const tool = request.tools?.find(
+                  (t: any) => t.id === toolName || t.name === toolName
+                )
                 if (!tool) {
                   logger.warn(`Tool not found: ${toolName}`)
                   continue
                 }
-                
+
                 logger.info('Found tool in registry', {
                   toolName,
                   hasParams: !!(tool as any).params,
                   paramsKeys: Object.keys((tool as any).params || {}),
                 })
-                
+
                 // Execute tool
-                const { toolParams, executionParams } = prepareToolExecution(tool, toolInput, request)
-                
+                const { toolParams, executionParams } = prepareToolExecution(
+                  tool,
+                  toolInput,
+                  request
+                )
+
                 logger.info('Prepared tool execution', {
                   toolName,
                   toolParamsKeys: Object.keys(toolParams),
                   hasAccessToken: !!toolParams.accessToken,
                 })
-                
+
                 let result: any
                 try {
-                  result = await executeTool(toolName, executionParams, true)
+                  // Try custom tool executor first (for built-in tools not in registry)
+                  if (request.customToolExecutor) {
+                    const customResult = await request.customToolExecutor(toolName, toolInput)
+                    if (customResult !== null) {
+                      result = customResult
+                    }
+                  }
+                  // Fall back to standard executeTool if no custom result
+                  if (!result) {
+                    result = await executeTool(toolName, executionParams, true)
+                  }
                 } catch (execError) {
                   result = {
                     success: false,
@@ -550,14 +587,14 @@ ${fieldDescriptions}
                   }
                   logger.error('Tool execution threw exception', { toolName, error: result.error })
                 }
-                
+
                 toolCalls.push({
                   name: toolName,
                   arguments: toolParams,
                   result: result.output,
                   success: result.success,
                 })
-                
+
                 // Stream tool completion event
                 const toolCompleteChunk = {
                   type: 'tool_call',
@@ -566,7 +603,7 @@ ${fieldDescriptions}
                   result: result.output,
                 }
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(toolCompleteChunk)}\n\n`))
-                
+
                 // Add to message history
                 const toolUseId = generateToolUseId(toolName)
                 currentMessages.push({
@@ -575,37 +612,50 @@ ${fieldDescriptions}
                 })
                 currentMessages.push({
                   role: 'user',
-                  content: [{ type: 'tool_result', tool_use_id: toolUseId, content: JSON.stringify(result.output) }],
+                  content: [
+                    {
+                      type: 'tool_result',
+                      tool_use_id: toolUseId,
+                      content: JSON.stringify(result.output),
+                    },
+                  ],
                 })
               }
-              
+
               iterationCount++
             }
-            
+
             // Send done event
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`))
             controller.close()
-            
           } catch (error) {
             logger.error('Streaming tool execution error', { error })
             controller.error(error)
           }
         },
       })
-      
+
       // Return streaming execution
       return {
         stream: customStream,
         execution: {
           success: true,
-          output: { content: '', model: request.model, tokens: { prompt: 0, completion: 0, total: 0 } },
+          output: {
+            content: '',
+            model: request.model,
+            tokens: { prompt: 0, completion: 0, total: 0 },
+          },
           logs: [],
-          metadata: { startTime: providerStartTimeISO, endTime: new Date().toISOString(), duration: 0 },
+          metadata: {
+            startTime: providerStartTimeISO,
+            endTime: new Date().toISOString(),
+            duration: 0,
+          },
           isStreaming: true,
         },
       } as StreamingExecution
     }
-    
+
     // NON-STREAMING TOOL EXECUTION PATH (original code)
     if (anthropicTools && anthropicTools.length > 0) {
       logger.info('Executing Anthropic request with tools (non-streaming)', {
@@ -739,7 +789,9 @@ ${fieldDescriptions}
 
                 // Get the tool from the tools registry
                 // Check both 'id' and 'name' fields since deferred tools use 'name'
-                const tool = request.tools?.find((t: any) => t.id === toolName || t.name === toolName)
+                const tool = request.tools?.find(
+                  (t: any) => t.id === toolName || t.name === toolName
+                )
                 if (!tool) {
                   logger.warn(`Tool ${toolName} not found in registry`, {
                     availableTools: request.tools?.map((t: any) => t.id || t.name).slice(0, 10),
@@ -749,7 +801,7 @@ ${fieldDescriptions}
 
                 // Execute the tool
                 const toolCallStartTime = Date.now()
-                
+
                 logger.info('Executing tool', { toolName, hasParams: !!tool.params })
 
                 const { toolParams, executionParams } = prepareToolExecution(
@@ -761,7 +813,17 @@ ${fieldDescriptions}
                 // Use general tool system for requests
                 let result: any
                 try {
-                  result = await executeTool(toolName, executionParams, true)
+                  // Try custom tool executor first (for built-in tools not in registry)
+                  if (request.customToolExecutor) {
+                    const customResult = await request.customToolExecutor(toolName, toolArgs)
+                    if (customResult !== null) {
+                      result = customResult
+                    }
+                  }
+                  // Fall back to standard executeTool if no custom result
+                  if (!result) {
+                    result = await executeTool(toolName, executionParams, true)
+                  }
                 } catch (execError) {
                   // Tool threw an exception - convert to error result
                   result = {
@@ -770,12 +832,12 @@ ${fieldDescriptions}
                     output: null,
                   }
                 }
-                
+
                 const toolCallEndTime = Date.now()
                 const toolCallDuration = toolCallEndTime - toolCallStartTime
-                
-                logger.info('Tool execution completed', { 
-                  toolName, 
+
+                logger.info('Tool execution completed', {
+                  toolName,
                   success: result.success,
                   duration: toolCallDuration,
                 })
@@ -1129,7 +1191,17 @@ ${fieldDescriptions}
               // Use general tool system for requests
               let result: any
               try {
-                result = await executeTool(toolName, executionParams, true)
+                // Try custom tool executor first (for built-in tools not in registry)
+                if (request.customToolExecutor) {
+                  const customResult = await request.customToolExecutor(toolName, toolArgs)
+                  if (customResult !== null) {
+                    result = customResult
+                  }
+                }
+                // Fall back to standard executeTool if no custom result
+                if (!result) {
+                  result = await executeTool(toolName, executionParams, true)
+                }
               } catch (execError) {
                 // Tool threw an exception - convert to error result
                 result = {
@@ -1138,7 +1210,7 @@ ${fieldDescriptions}
                   output: null,
                 }
               }
-              
+
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 

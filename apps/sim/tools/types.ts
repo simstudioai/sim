@@ -105,6 +105,12 @@ export interface ToolConfig<P = any, R = any> {
 
   // Response handling
   transformResponse?: (response: Response, params?: P) => Promise<R>
+
+  /**
+   * Direct execution function for tools that don't need HTTP requests.
+   * If provided, this will be called instead of making an HTTP request.
+   */
+  directExecution?: (params: P) => Promise<ToolResponse>
 }
 
 export interface TableRow {
