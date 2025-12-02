@@ -1,0 +1,510 @@
+import { ZendeskIcon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
+
+export const ZendeskBlock: BlockConfig = {
+  type: 'zendesk',
+  name: 'Zendesk',
+  description: 'Manage support tickets, users, and organizations in Zendesk',
+  longDescription:
+    'Integrate Zendesk into the workflow. Can get tickets, get ticket, create ticket, create tickets bulk, update ticket, update tickets bulk, delete ticket, merge tickets, get users, get user, get current user, search users, create user, create users bulk, update user, update users bulk, delete user, get organizations, get organization, autocomplete organizations, create organization, create organizations bulk, update organization, delete organization, search, search count.',
+  docsLink: 'https://docs.sim.ai/tools/zendesk',
+  authMode: AuthMode.ApiKey,
+  category: 'tools',
+  bgColor: '#E0E0E0',
+  icon: ZendeskIcon,
+  subBlocks: [
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      options: [
+        { label: 'Get Tickets', id: 'get_tickets' },
+        { label: 'Get Ticket', id: 'get_ticket' },
+        { label: 'Create Ticket', id: 'create_ticket' },
+        { label: 'Create Tickets Bulk', id: 'create_tickets_bulk' },
+        { label: 'Update Ticket', id: 'update_ticket' },
+        { label: 'Update Tickets Bulk', id: 'update_tickets_bulk' },
+        { label: 'Delete Ticket', id: 'delete_ticket' },
+        { label: 'Merge Tickets', id: 'merge_tickets' },
+        { label: 'Get Users', id: 'get_users' },
+        { label: 'Get User', id: 'get_user' },
+        { label: 'Get Current User', id: 'get_current_user' },
+        { label: 'Search Users', id: 'search_users' },
+        { label: 'Create User', id: 'create_user' },
+        { label: 'Create Users Bulk', id: 'create_users_bulk' },
+        { label: 'Update User', id: 'update_user' },
+        { label: 'Update Users Bulk', id: 'update_users_bulk' },
+        { label: 'Delete User', id: 'delete_user' },
+        { label: 'Get Organizations', id: 'get_organizations' },
+        { label: 'Get Organization', id: 'get_organization' },
+        { label: 'Autocomplete Organizations', id: 'autocomplete_organizations' },
+        { label: 'Create Organization', id: 'create_organization' },
+        { label: 'Create Organizations Bulk', id: 'create_organizations_bulk' },
+        { label: 'Update Organization', id: 'update_organization' },
+        { label: 'Delete Organization', id: 'delete_organization' },
+        { label: 'Search', id: 'search' },
+        { label: 'Search Count', id: 'search_count' },
+      ],
+      value: () => 'get_tickets',
+    },
+    {
+      id: 'email',
+      title: 'Email',
+      type: 'short-input',
+      placeholder: 'Your Zendesk email address',
+      required: true,
+      description: 'The email address associated with your Zendesk account',
+    },
+    {
+      id: 'apiToken',
+      title: 'API Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter your Zendesk API token',
+      required: true,
+    },
+    {
+      id: 'subdomain',
+      title: 'Subdomain',
+      type: 'short-input',
+      placeholder: 'Your Zendesk subdomain (e.g., "mycompany")',
+      required: true,
+      description: 'The subdomain from your Zendesk URL (mycompany.zendesk.com)',
+    },
+    // Ticket fields
+    {
+      id: 'ticketId',
+      title: 'Ticket ID',
+      type: 'short-input',
+      placeholder: 'Ticket ID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['get_ticket', 'update_ticket', 'delete_ticket'],
+      },
+    },
+    {
+      id: 'subject',
+      title: 'Subject',
+      type: 'short-input',
+      placeholder: 'Ticket subject',
+      condition: {
+        field: 'operation',
+        value: ['create_ticket', 'update_ticket'],
+      },
+    },
+    {
+      id: 'description',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Ticket description',
+      required: {
+        field: 'operation',
+        value: ['create_ticket'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['create_ticket', 'update_ticket'],
+      },
+    },
+    {
+      id: 'status',
+      title: 'Status',
+      type: 'short-input',
+      placeholder: 'Status (new, open, pending, hold, solved, closed)',
+      condition: {
+        field: 'operation',
+        value: ['get_tickets', 'create_ticket', 'update_ticket'],
+      },
+    },
+    {
+      id: 'priority',
+      title: 'Priority',
+      type: 'short-input',
+      placeholder: 'Priority (low, normal, high, urgent)',
+      condition: {
+        field: 'operation',
+        value: ['get_tickets', 'create_ticket', 'update_ticket'],
+      },
+    },
+    {
+      id: 'type',
+      title: 'Type',
+      type: 'short-input',
+      placeholder: 'Type (problem, incident, question, task)',
+      condition: {
+        field: 'operation',
+        value: ['get_tickets', 'create_ticket', 'update_ticket'],
+      },
+    },
+    {
+      id: 'tags',
+      title: 'Tags',
+      type: 'short-input',
+      placeholder: 'Comma-separated tags',
+      condition: {
+        field: 'operation',
+        value: ['create_ticket', 'update_ticket'],
+      },
+    },
+    {
+      id: 'assigneeId',
+      title: 'Assignee ID',
+      type: 'short-input',
+      placeholder: 'User ID to assign ticket to',
+      condition: {
+        field: 'operation',
+        value: ['get_tickets', 'create_ticket', 'update_ticket'],
+      },
+    },
+    {
+      id: 'groupId',
+      title: 'Group ID',
+      type: 'short-input',
+      placeholder: 'Group ID',
+      condition: {
+        field: 'operation',
+        value: ['create_ticket', 'update_ticket'],
+      },
+    },
+    {
+      id: 'customFields',
+      title: 'Custom Fields',
+      type: 'long-input',
+      placeholder: 'JSON object with custom fields',
+      condition: {
+        field: 'operation',
+        value: ['create_ticket', 'update_ticket'],
+      },
+    },
+    {
+      id: 'tickets',
+      title: 'Tickets',
+      type: 'long-input',
+      placeholder: 'JSON array of ticket objects',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['create_tickets_bulk', 'update_tickets_bulk'],
+      },
+    },
+    {
+      id: 'targetTicketId',
+      title: 'Target Ticket ID',
+      type: 'short-input',
+      placeholder: 'Ticket ID to merge into',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['merge_tickets'],
+      },
+    },
+    {
+      id: 'sourceTicketIds',
+      title: 'Source Ticket IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated ticket IDs to merge',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['merge_tickets'],
+      },
+    },
+    // User fields
+    {
+      id: 'userId',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'User ID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['get_user', 'update_user', 'delete_user'],
+      },
+    },
+    {
+      id: 'name',
+      title: 'Name',
+      type: 'short-input',
+      placeholder: 'User name',
+      required: {
+        field: 'operation',
+        value: ['create_user'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['create_user', 'update_user'],
+      },
+    },
+    {
+      id: 'userEmail',
+      title: 'Email',
+      type: 'short-input',
+      placeholder: 'User email',
+      condition: {
+        field: 'operation',
+        value: ['create_user', 'update_user'],
+      },
+    },
+    {
+      id: 'users',
+      title: 'Users',
+      type: 'long-input',
+      placeholder: 'JSON array of user objects',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['create_users_bulk', 'update_users_bulk'],
+      },
+    },
+    // Organization fields
+    {
+      id: 'organizationId',
+      title: 'Organization ID',
+      type: 'short-input',
+      placeholder: 'Organization ID',
+      required: {
+        field: 'operation',
+        value: ['get_organization', 'delete_organization'],
+      },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_tickets',
+          'create_ticket',
+          'get_organization',
+          'delete_organization',
+          'update_organization',
+          'create_user',
+          'update_user',
+        ],
+      },
+    },
+    {
+      id: 'organizationName',
+      title: 'Organization Name',
+      type: 'short-input',
+      placeholder: 'Organization name',
+      required: {
+        field: 'operation',
+        value: ['autocomplete_organizations'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['autocomplete_organizations', 'create_organization', 'update_organization'],
+      },
+    },
+    {
+      id: 'organizations',
+      title: 'Organizations',
+      type: 'long-input',
+      placeholder: 'JSON array of organization objects',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['create_organizations_bulk'],
+      },
+    },
+    // Search fields
+    {
+      id: 'query',
+      title: 'Query',
+      type: 'short-input',
+      placeholder: 'Search query',
+      required: {
+        field: 'operation',
+        value: ['search', 'search_count'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['search_users', 'search', 'search_count'],
+      },
+    },
+    {
+      id: 'sortBy',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'Relevance', id: 'relevance' },
+        { label: 'Created At', id: 'created_at' },
+        { label: 'Updated At', id: 'updated_at' },
+        { label: 'Priority', id: 'priority' },
+        { label: 'Status', id: 'status' },
+        { label: 'Ticket Type', id: 'ticket_type' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['search'],
+      },
+    },
+    {
+      id: 'sortOrder',
+      title: 'Sort Order',
+      type: 'dropdown',
+      options: [
+        { label: 'Ascending', id: 'asc' },
+        { label: 'Descending', id: 'desc' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['search'],
+      },
+    },
+    // Pagination fields
+    {
+      id: 'perPage',
+      title: 'Per Page',
+      type: 'short-input',
+      placeholder: 'Results per page (default: 100, max: 100)',
+      condition: {
+        field: 'operation',
+        value: [
+          'get_tickets',
+          'get_users',
+          'get_organizations',
+          'search_users',
+          'autocomplete_organizations',
+          'search',
+        ],
+      },
+    },
+    {
+      id: 'page',
+      title: 'Page',
+      type: 'short-input',
+      placeholder: 'Page number',
+      condition: {
+        field: 'operation',
+        value: [
+          'get_tickets',
+          'get_users',
+          'get_organizations',
+          'search_users',
+          'autocomplete_organizations',
+          'search',
+        ],
+      },
+    },
+  ],
+  tools: {
+    access: [
+      'zendesk_get_tickets',
+      'zendesk_get_ticket',
+      'zendesk_create_ticket',
+      'zendesk_create_tickets_bulk',
+      'zendesk_update_ticket',
+      'zendesk_update_tickets_bulk',
+      'zendesk_delete_ticket',
+      'zendesk_merge_tickets',
+      'zendesk_get_users',
+      'zendesk_get_user',
+      'zendesk_get_current_user',
+      'zendesk_search_users',
+      'zendesk_create_user',
+      'zendesk_create_users_bulk',
+      'zendesk_update_user',
+      'zendesk_update_users_bulk',
+      'zendesk_delete_user',
+      'zendesk_get_organizations',
+      'zendesk_get_organization',
+      'zendesk_autocomplete_organizations',
+      'zendesk_create_organization',
+      'zendesk_create_organizations_bulk',
+      'zendesk_update_organization',
+      'zendesk_delete_organization',
+      'zendesk_search',
+      'zendesk_search_count',
+    ],
+    config: {
+      tool: (params) => {
+        switch (params.operation) {
+          case 'get_tickets':
+            return 'zendesk_get_tickets'
+          case 'get_ticket':
+            return 'zendesk_get_ticket'
+          case 'create_ticket':
+            return 'zendesk_create_ticket'
+          case 'create_tickets_bulk':
+            return 'zendesk_create_tickets_bulk'
+          case 'update_ticket':
+            return 'zendesk_update_ticket'
+          case 'update_tickets_bulk':
+            return 'zendesk_update_tickets_bulk'
+          case 'delete_ticket':
+            return 'zendesk_delete_ticket'
+          case 'merge_tickets':
+            return 'zendesk_merge_tickets'
+          case 'get_users':
+            return 'zendesk_get_users'
+          case 'get_user':
+            return 'zendesk_get_user'
+          case 'get_current_user':
+            return 'zendesk_get_current_user'
+          case 'search_users':
+            return 'zendesk_search_users'
+          case 'create_user':
+            return 'zendesk_create_user'
+          case 'create_users_bulk':
+            return 'zendesk_create_users_bulk'
+          case 'update_user':
+            return 'zendesk_update_user'
+          case 'update_users_bulk':
+            return 'zendesk_update_users_bulk'
+          case 'delete_user':
+            return 'zendesk_delete_user'
+          case 'get_organizations':
+            return 'zendesk_get_organizations'
+          case 'get_organization':
+            return 'zendesk_get_organization'
+          case 'autocomplete_organizations':
+            return 'zendesk_autocomplete_organizations'
+          case 'create_organization':
+            return 'zendesk_create_organization'
+          case 'create_organizations_bulk':
+            return 'zendesk_create_organizations_bulk'
+          case 'update_organization':
+            return 'zendesk_update_organization'
+          case 'delete_organization':
+            return 'zendesk_delete_organization'
+          case 'search':
+            return 'zendesk_search'
+          case 'search_count':
+            return 'zendesk_search_count'
+          default:
+            throw new Error(`Unknown operation: ${params.operation}`)
+        }
+      },
+      params: (params) => {
+        const { apiToken, operation, ...rest } = params
+        const cleanParams: Record<string, any> = { apiToken }
+
+        // Special mapping for autocomplete_organizations
+        if (operation === 'autocomplete_organizations' && params.organizationName) {
+          cleanParams.name = params.organizationName
+        }
+
+        Object.entries(rest).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            // Skip organizationName for autocomplete_organizations as it's mapped to 'name'
+            if (operation === 'autocomplete_organizations' && key === 'organizationName') {
+              return
+            }
+            cleanParams[key] = value
+          }
+        })
+        return cleanParams
+      },
+    },
+  },
+  inputs: {
+    operation: { type: 'string', description: 'Operation to perform' },
+    email: { type: 'string', description: 'Zendesk email address' },
+    apiToken: { type: 'string', description: 'Zendesk API token' },
+    subdomain: { type: 'string', description: 'Zendesk subdomain' },
+  },
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: { type: 'json', description: 'Operation result data' },
+  },
+}

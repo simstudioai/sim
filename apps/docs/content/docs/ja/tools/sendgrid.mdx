@@ -1,0 +1,391 @@
+---
+title: SendGrid
+description: SendGridでメールの送信、連絡先、リスト、テンプレートの管理を行う
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sendgrid"
+  color="#1A82E2"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SendGrid](https://sendgrid.com)は、開発者や企業が信頼する、スケーラブルなトランザクションメールやマーケティングメールを確実に配信するクラウドベースのメール配信プラットフォームです。強力なAPIとツールを備え、SendGridは通知や領収書の送信から複雑なマーケティングキャンペーンの管理まで、あらゆるメールコミュニケーションを管理できます。
+
+SendGridは、重要なメールワークフローの自動化や連絡先リスト、テンプレート、受信者のエンゲージメントの緻密な管理など、メール運用の完全なスイートを提供します。Simとのシームレスな統合により、エージェントやワークフローはターゲットを絞ったメッセージの配信、動的な連絡先やリストの維持、テンプレートを通じたパーソナライズされたメールの送信、そしてリアルタイムでの結果追跡が可能になります。
+
+SendGridの主な機能には以下が含まれます：
+
+- **トランザクションメール：** 自動化された大量のトランザクションメール（通知、領収書、パスワードリセットなど）を送信。
+- **動的テンプレート：** リッチHTMLまたはテキストテンプレートに動的データを使用して、高度にパーソナライズされた大規模なコミュニケーションを実現。
+- **連絡先管理：** マーケティング連絡先の追加と更新、受信者リストの管理、キャンペーン向けのセグメントのターゲティング。
+- **添付ファイルのサポート：** メールに1つまたは複数のファイル添付が可能。
+- **包括的なAPIカバレッジ：** メール、連絡先、リスト、テンプレート、抑制グループなどをプログラムで管理。
+
+SendGridとSimを連携させることで、エージェントは以下のことが可能になります：
+
+- ワークフローの一部として、シンプルなメールと高度な（テンプレート化または複数の受信者向けの）メールの両方を送信。
+- 連絡先とリストを自動的に管理・セグメント化。
+- 一貫性と動的なパーソナライゼーションのためにテンプレートを活用。
+- 自動化されたプロセス内でメールのエンゲージメントを追跡し対応。
+
+この連携により、重要なコミュニケーションフローをすべて自動化し、メッセージが適切な対象者に届くようにし、Simワークフローから直接組織のメール戦略を管理することができます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+SendGridをワークフローに統合します。トランザクションメールの送信、マーケティング連絡先とリストの管理、メールテンプレートの操作が可能です。動的テンプレート、添付ファイル、包括的な連絡先管理をサポートしています。
+
+## ツール
+
+### `sendgrid_send_mail`
+
+SendGrid APIを使用してメールを送信する
+
+#### 入力
+
+| パラメータ | 種類 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `from` | string | はい | 送信者のメールアドレス（SendGridで検証済みである必要があります） |
+| `fromName` | string | いいえ | 送信者名 |
+| `to` | string | はい | 受信者のメールアドレス |
+| `toName` | string | いいえ | 受信者名 |
+| `subject` | string | いいえ | メールの件名（事前定義された件名を持つテンプレートを使用しない限り必須） |
+| `content` | string | いいえ | メール本文のコンテンツ（事前定義されたコンテンツを持つテンプレートを使用しない限り必須） |
+| `contentType` | string | いいえ | コンテンツタイプ（text/plainまたはtext/html） |
+| `cc` | string | いいえ | CCメールアドレス |
+| `bcc` | string | いいえ | BCCメールアドレス |
+| `replyTo` | string | いいえ | 返信先メールアドレス |
+| `replyToName` | string | いいえ | 返信先名 |
+| `attachments` | file[] | いいえ | メールに添付するファイル |
+| `templateId` | string | いいえ | 使用するSendGridテンプレートID |
+| `dynamicTemplateData` | json | いいえ | 動的テンプレートデータのJSONオブジェクト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | メールが正常に送信されたかどうか |
+| `messageId` | string | SendGridメッセージID |
+| `to` | string | 受信者のメールアドレス |
+| `subject` | string | メールの件名 |
+
+### `sendgrid_add_contact`
+
+SendGridに新しい連絡先を追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `email` | string | はい | 連絡先のメールアドレス |
+| `firstName` | string | いいえ | 連絡先の名 |
+| `lastName` | string | いいえ | 連絡先の姓 |
+| `customFields` | json | いいえ | カスタムフィールドのキーと値のペアのJSONオブジェクト（フィールド名ではなく、e1_T、e2_N、e3_DなどのフィールドIDを使用） |
+| `listIds` | string | いいえ | 連絡先を追加するリストIDのカンマ区切りリスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `jobId` | string | 非同期連絡先作成を追跡するためのジョブID |
+| `email` | string | 連絡先のメールアドレス |
+| `firstName` | string | 連絡先の名 |
+| `lastName` | string | 連絡先の姓 |
+| `message` | string | ステータスメッセージ |
+
+### `sendgrid_get_contact`
+
+SendGridから特定の連絡先をIDで取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `contactId` | string | はい | 連絡先ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | 連絡先ID |
+| `email` | string | 連絡先のメールアドレス |
+| `firstName` | string | 連絡先の名 |
+| `lastName` | string | 連絡先の姓 |
+| `createdAt` | string | 作成タイムスタンプ |
+| `updatedAt` | string | 最終更新タイムスタンプ |
+| `listIds` | json | 連絡先が所属するリストIDの配列 |
+| `customFields` | json | カスタムフィールドの値 |
+
+### `sendgrid_search_contacts`
+
+クエリを使用してSendGrid内の連絡先を検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `query` | string | はい | 検索クエリ（例："email LIKE '%example.com%' AND CONTAINS(list_ids, 'list-id')"） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `contacts` | json | 一致する連絡先の配列 |
+| `contactCount` | number | 見つかった連絡先の総数 |
+
+### `sendgrid_delete_contacts`
+
+SendGridから1つ以上の連絡先を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `contactIds` | string | はい | 削除する連絡先IDのカンマ区切りリスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `jobId` | string | 削除リクエストのジョブID |
+
+### `sendgrid_create_list`
+
+SendGridで新しいコンタクトリストを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `name` | string | はい | リスト名 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | リストID |
+| `name` | string | リスト名 |
+| `contactCount` | number | リスト内のコンタクト数 |
+
+### `sendgrid_get_list`
+
+SendGridから特定のリストをIDで取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `listId` | string | はい | リストID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | リストID |
+| `name` | string | リスト名 |
+| `contactCount` | number | リスト内のコンタクト数 |
+
+### `sendgrid_list_all_lists`
+
+SendGridからすべてのコンタクトリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `pageSize` | number | いいえ | ページごとに返すリスト数（デフォルト：100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `lists` | json | リストの配列 |
+
+### `sendgrid_delete_list`
+
+SendGridからコンタクトリストを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `listId` | string | はい | 削除するリストID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功メッセージ |
+
+### `sendgrid_add_contacts_to_list`
+
+SendGridでコンタクトを追加または更新し、リストに割り当てる（PUT /v3/marketing/contactsを使用）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `listId` | string | はい | コンタクトを追加するリストID |
+| `contacts` | json | はい | コンタクトオブジェクトのJSON配列。各コンタクトには少なくとも：email（またはphone_number_id/external_id/anonymous_id）が必要。例：\[\{"email": "user@example.com", "first_name": "John"\}\] |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `jobId` | string | 非同期操作を追跡するためのジョブID |
+| `message` | string | ステータスメッセージ |
+
+### `sendgrid_remove_contacts_from_list`
+
+SendGridの特定のリストからコンタクトを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `listId` | string | はい | リストID |
+| `contactIds` | string | はい | リストから削除するコンタクトIDのカンマ区切りリスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `jobId` | string | リクエストのジョブID |
+
+### `sendgrid_create_template`
+
+SendGridで新しいメールテンプレートを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `name` | string | はい | テンプレート名 |
+| `generation` | string | いいえ | テンプレート生成タイプ（レガシーまたはダイナミック、デフォルト：ダイナミック） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | テンプレートID |
+| `name` | string | テンプレート名 |
+| `generation` | string | テンプレート生成 |
+| `updatedAt` | string | 最終更新タイムスタンプ |
+| `versions` | json | テンプレートバージョンの配列 |
+
+### `sendgrid_get_template`
+
+SendGridから特定のテンプレートをIDで取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `templateId` | string | はい | テンプレートID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | テンプレートID |
+| `name` | string | テンプレート名 |
+| `generation` | string | テンプレート生成 |
+| `updatedAt` | string | 最終更新タイムスタンプ |
+| `versions` | json | テンプレートバージョンの配列 |
+
+### `sendgrid_list_templates`
+
+SendGridからすべてのメールテンプレートを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `generations` | string | いいえ | 生成方法でフィルタリング（legacy、dynamic、または両方） |
+| `pageSize` | number | いいえ | ページごとに返すテンプレートの数（デフォルト：20） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `templates` | json | テンプレートの配列 |
+
+### `sendgrid_delete_template`
+
+SendGridからメールテンプレートを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `templateId` | string | はい | 削除するテンプレートID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `messageId` | string | メールメッセージID（send_mail） |
+| `id` | string | リソースID |
+| `jobId` | string | 非同期操作のジョブID |
+| `email` | string | メールアドレス |
+| `firstName` | string | 名 |
+| `lastName` | string | 姓 |
+| `contacts` | json | 連絡先の配列 |
+| `contactCount` | number | 連絡先の数 |
+| `lists` | json | リストの配列 |
+| `templates` | json | テンプレートの配列 |
+| `message` | string | ステータスまたは成功メッセージ |
+| `name` | string | リソース名 |
+| `generation` | string | テンプレート生成方法 |
+
+### `sendgrid_create_template_version`
+
+SendGridでメールテンプレートの新しいバージョンを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SendGrid APIキー |
+| `templateId` | string | はい | テンプレートID |
+| `name` | string | はい | バージョン名 |
+| `subject` | string | はい | メールの件名 |
+| `htmlContent` | string | いいえ | テンプレートのHTML内容 |
+| `plainContent` | string | いいえ | テンプレートのプレーンテキスト内容 |
+| `active` | boolean | いいえ | このバージョンがアクティブかどうか（デフォルト：true） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | バージョンID |
+| `templateId` | string | テンプレートID |
+| `name` | string | バージョン名 |
+| `subject` | string | メールの件名 |
+| `active` | boolean | このバージョンがアクティブかどうか |
+| `htmlContent` | string | HTML内容 |
+| `plainContent` | string | プレーンテキスト内容 |
+| `updatedAt` | string | 最終更新タイムスタンプ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `sendgrid`

@@ -445,6 +445,10 @@ export function WorkspaceHeader({
         showRename={true}
         showDuplicate={true}
         showExport={true}
+        disableRename={!userPermissions.canEdit}
+        disableDuplicate={!userPermissions.canEdit}
+        disableExport={!userPermissions.canAdmin}
+        disableDelete={!userPermissions.canAdmin}
       />
 
       {/* Invite Modal */}

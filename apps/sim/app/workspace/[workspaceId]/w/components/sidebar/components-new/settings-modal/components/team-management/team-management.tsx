@@ -123,8 +123,8 @@ export function TeamManagement() {
       const workspaceInvitations =
         selectedWorkspaces.length > 0
           ? selectedWorkspaces.map((w) => ({
-              id: w.workspaceId,
-              name: adminWorkspaces.find((uw) => uw.id === w.workspaceId)?.name || '',
+              workspaceId: w.workspaceId,
+              permission: w.permission as 'admin' | 'write' | 'read',
             }))
           : undefined
 
@@ -145,14 +145,7 @@ export function TeamManagement() {
     } catch (error) {
       logger.error('Failed to invite member', error)
     }
-  }, [
-    session?.user?.id,
-    activeOrganization?.id,
-    inviteEmail,
-    selectedWorkspaces,
-    adminWorkspaces,
-    inviteMutation,
-  ])
+  }, [session?.user?.id, activeOrganization?.id, inviteEmail, selectedWorkspaces, inviteMutation])
 
   const handleWorkspaceToggle = useCallback((workspaceId: string, permission: string) => {
     setSelectedWorkspaces((prev) => {
@@ -233,7 +226,6 @@ export function TeamManagement() {
       await updateSeatsMutation.mutateAsync({
         orgId: activeOrganization?.id,
         seats: currentSeats - 1,
-        subscriptionId: subscriptionData.id,
       })
     } catch (error) {
       logger.error('Failed to reduce seats', error)
@@ -258,7 +250,6 @@ export function TeamManagement() {
         await updateSeatsMutation.mutateAsync({
           orgId: activeOrganization?.id,
           seats: seatsToUse,
-          subscriptionId: subscriptionData.id,
         })
         setIsAddSeatDialogOpen(false)
       } catch (error) {

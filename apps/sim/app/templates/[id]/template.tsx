@@ -29,6 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
@@ -64,6 +65,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
   const [isEditing, setIsEditing] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
   const [hasWorkspaceAccess, setHasWorkspaceAccess] = useState<boolean | null>(null)
   const [workspaces, setWorkspaces] = useState<
     Array<{ id: string; name: string; permissions: string }>
@@ -462,6 +464,32 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     }
   }
 
+  const handleToggleVerification = async () => {
+    if (isVerifying || !template?.creator?.id) return
+
+    setIsVerifying(true)
+    try {
+      const endpoint = `/api/creators/${template.creator.id}/verify`
+      const method = template.creator.verified ? 'DELETE' : 'POST'
+
+      const response = await fetch(endpoint, { method })
+
+      if (response.ok) {
+        // Refresh page to show updated verification status
+        window.location.reload()
+      } else {
+        const error = await response.json()
+        logger.error('Error toggling verification:', error)
+        alert(`Failed to ${template.creator.verified ? 'unverify' : 'verify'} creator`)
+      }
+    } catch (error) {
+      logger.error('Error toggling verification:', error)
+      alert('An error occurred while toggling verification')
+    } finally {
+      setIsVerifying(false)
+    }
+  }
+
   /**
    * Shares the template to X (Twitter)
    */
@@ -718,9 +746,12 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
               </div>
             )}
             {/* Creator name */}
-            <span className='font-medium text-[#8B8B8B] text-[14px]'>
-              {template.creator?.name || 'Unknown'}
-            </span>
+            <div className='flex items-center gap-[4px]'>
+              <span className='font-medium text-[#8B8B8B] text-[14px]'>
+                {template.creator?.name || 'Unknown'}
+              </span>
+              {template.creator?.verified && <VerifiedBadge size='md' />}
+            </div>
           </div>
 
           {/* Credentials needed */}
@@ -849,9 +880,25 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
               template.creator.details?.websiteUrl ||
               template.creator.details?.contactEmail) && (
               <div className='mt-8'>
-                <h3 className='mb-4 font-sans font-semibold text-base text-foreground'>
-                  About the Creator
-                </h3>
+                <div className='mb-4 flex items-center justify-between'>
+                  <h3 className='font-sans font-semibold text-base text-foreground'>
+                    About the Creator
+                  </h3>
+                  {isSuperUser && template.creator && (
+                    <Button
+                      variant={template.creator.verified ? 'active' : 'default'}
+                      onClick={handleToggleVerification}
+                      disabled={isVerifying}
+                      className='h-[28px] rounded-[6px] text-[12px]'
+                    >
+                      {isVerifying
+                        ? 'Updating...'
+                        : template.creator.verified
+                          ? 'Unverify Creator'
+                          : 'Verify Creator'}
+                    </Button>
+                  )}
+                </div>
                 <div className='flex items-start gap-4'>
                   {/* Creator profile image */}
                   {template.creator.profileImageUrl ? (
@@ -871,9 +918,12 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                   {/* Creator details */}
                   <div className='flex-1'>
                     <div className='mb-[5px] flex items-center gap-3'>
-                      <h4 className='font-sans font-semibold text-base text-foreground'>
-                        {template.creator.name}
-                      </h4>
+                      <div className='flex items-center gap-[6px]'>
+                        <h4 className='font-sans font-semibold text-base text-foreground'>
+                          {template.creator.name}
+                        </h4>
+                        {template.creator.verified && <VerifiedBadge size='md' />}
+                      </div>
 
                       {/* Social links */}
                       <div className='flex items-center gap-[12px]'>

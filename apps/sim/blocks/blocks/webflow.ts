@@ -34,7 +34,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       id: 'credential',
       title: 'Webflow Account',
       type: 'oauth-input',
-      provider: 'webflow',
       serviceId: 'webflow',
       requiredScopes: ['sites:read', 'sites:write', 'cms:read', 'cms:write'],
       placeholder: 'Select Webflow account',

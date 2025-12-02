@@ -41,9 +41,13 @@ Rechercher du contenu similaire dans une base de connaissances en utilisant la s
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
 | `knowledgeBaseId` | chaîne | Oui | ID de la base de connaissances dans laquelle effectuer la recherche |
-| `query` | chaîne | Non | Texte de la requête de recherche \(facultatif lors de l'utilisation de filtres de tags\) |
+| `query` | chaîne | Non | Texte de la requête de recherche \(facultatif lors de l'utilisation de filtres par tags\) |
 | `topK` | nombre | Non | Nombre de résultats les plus similaires à retourner \(1-100\) |
 | `tagFilters` | tableau | Non | Tableau de filtres de tags avec les propriétés tagName et tagValue |
+| `items` | objet | Non | Pas de description |
+| `properties` | chaîne | Non | Pas de description |
+| `tagName` | chaîne | Non | Pas de description |
+| `tagValue` | chaîne | Non | Pas de description |
 
 #### Sortie
 
@@ -76,18 +80,23 @@ Créer un nouveau document dans une base de connaissances
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `knowledgeBaseId` | chaîne | Oui | ID de la base de connaissances contenant le document |
 | `name` | chaîne | Oui | Nom du document |
 | `content` | chaîne | Oui | Contenu du document |
-| `tag1` | chaîne | Non | Valeur de l'étiquette 1 pour le document |
-| `tag2` | chaîne | Non | Valeur de l'étiquette 2 pour le document |
-| `tag3` | chaîne | Non | Valeur de l'étiquette 3 pour le document |
-| `tag4` | chaîne | Non | Valeur de l'étiquette 4 pour le document |
-| `tag5` | chaîne | Non | Valeur de l'étiquette 5 pour le document |
-| `tag6` | chaîne | Non | Valeur de l'étiquette 6 pour le document |
-| `tag7` | chaîne | Non | Valeur de l'étiquette 7 pour le document |
-| `documentTagsData` | tableau | Non | Données d'étiquettes structurées avec noms, types et valeurs |
+| `tag1` | chaîne | Non | Valeur du tag 1 pour le document |
+| `tag2` | chaîne | Non | Valeur du tag 2 pour le document |
+| `tag3` | chaîne | Non | Valeur du tag 3 pour le document |
+| `tag4` | chaîne | Non | Valeur du tag 4 pour le document |
+| `tag5` | chaîne | Non | Valeur du tag 5 pour le document |
+| `tag6` | chaîne | Non | Valeur du tag 6 pour le document |
+| `tag7` | chaîne | Non | Valeur du tag 7 pour le document |
+| `documentTagsData` | tableau | Non | Données de tags structurées avec noms, types et valeurs |
+| `items` | objet | Non | Pas de description |
+| `properties` | chaîne | Non | Pas de description |
+| `tagName` | chaîne | Non | Pas de description |
+| `tagValue` | chaîne | Non | Pas de description |
+| `tagType` | chaîne | Non | Pas de description |
 
 #### Sortie
 

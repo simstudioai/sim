@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { shallow } from 'zustand/shallow'
+import { useShallow } from 'zustand/react/shallow'
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { SYSTEM_REFERENCE_PREFIXES } from '@/lib/workflows/references'
 import { normalizeBlockName } from '@/stores/workflows/utils'
@@ -8,13 +8,12 @@ import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 export function useAccessibleReferencePrefixes(blockId?: string | null): Set<string> | undefined {
   const { blocks, edges, loops, parallels } = useWorkflowStore(
-    (state) => ({
+    useShallow((state) => ({
       blocks: state.blocks,
       edges: state.edges,
       loops: state.loops || {},
       parallels: state.parallels || {},
-    }),
-    shallow
+    }))
   )
 
   return useMemo(() => {
