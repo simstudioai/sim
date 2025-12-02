@@ -3,6 +3,7 @@ import type { ParameterVisibility, ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
 const logger = createLogger('ToolsParams')
+type ToolParamDefinition = ToolConfig['params'][string]
 
 export interface Option {
   label: string
@@ -326,6 +327,61 @@ export function getToolParametersConfig(
 /**
  * Creates a tool schema for LLM with user-provided parameters excluded
  */
+function buildParameterSchema(
+  toolId: string,
+  paramId: string,
+  param: ToolParamDefinition
+) {
+  let schemaType = param.type
+  if (schemaType === 'json' || schemaType === 'any') {
+    schemaType = 'object'
+  }
+
+  const propertySchema: Record<string, any> = {
+    type: schemaType,
+    description: param.description || '',
+  }
+
+  if (param.type === 'array' && param.items) {
+    propertySchema.items = {
+      ...param.items,
+      ...(param.items.properties && {
+        properties: { ...param.items.properties },
+      }),
+    }
+  } else if (param.items) {
+    logger.warn(
+      `items property ignored for non-array param "${paramId}" in tool "${toolId}"`
+    )
+  }
+
+  return propertySchema
+}
+
+export function createUserToolSchema(toolConfig: ToolConfig): ToolSchema {
+  const schema: ToolSchema = {
+    type: 'object',
+    properties: {},
+    required: [],
+  }
+
+  for (const [paramId, param] of Object.entries(toolConfig.params)) {
+    const visibility = param.visibility ?? 'user-or-llm'
+    if (visibility === 'hidden') {
+      continue
+    }
+
+    const propertySchema = buildParameterSchema(toolConfig.id, paramId, param)
+    schema.properties[paramId] = propertySchema
+
+    if (param.required) {
+      schema.required.push(paramId)
+    }
+  }
+
+  return schema
+}
+
 export async function createLLMToolSchema(
   toolConfig: ToolConfig,
   userProvidedParams: Record<string, unknown>
@@ -359,29 +415,7 @@ export async function createLLMToolSchema(
     }
 
     // Add parameter to LLM schema
-    let schemaType = param.type
-    if (param.type === 'json' || param.type === 'any') {
-      schemaType = 'object'
-    }
-
-    const propertySchema: any = {
-      type: schemaType,
-      description: param.description || '',
-    }
-
-    // Include items property for arrays
-    if (param.type === 'array' && param.items) {
-      propertySchema.items = {
-        ...param.items,
-        ...(param.items.properties && {
-          properties: { ...param.items.properties },
-        }),
-      }
-    } else if (param.items) {
-      logger.warn(
-        `items property ignored for non-array param "${paramId}" in tool "${toolConfig.id}"`
-      )
-    }
+    const propertySchema = buildParameterSchema(toolConfig.id, paramId, param)
 
     // Special handling for workflow_executor's inputMapping parameter
     if (toolConfig.id === 'workflow_executor' && paramId === 'inputMapping') {

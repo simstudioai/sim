@@ -32,32 +32,52 @@ function parseSSEContent(content: string): string {
     return content
   }
 
-  const pattern = /data:\s*({[\s\S]*?})(?:\n|$)/g
-  const matches = Array.from(content.matchAll(pattern))
+  const lines = content.split('\n')
+  const textSegments: string[] = []
+  let parsedAny = false
 
-  if (matches.length === 0) {
+  for (const rawLine of lines) {
+    const match = rawLine.match(/^\s*data:\s*(.+)\s*$/)
+    if (!match) continue
+
+    const dataPart = match[1]
+    if (!dataPart || dataPart === '[DONE]') {
+      continue
+    }
+
+    try {
+      const payload = JSON.parse(dataPart)
+      parsedAny = true
+
+      if (payload.type === 'text' && typeof payload.text === 'string') {
+        textSegments.push(payload.text)
+        continue
+      }
+
+      if (payload.type === 'content' && typeof payload.content === 'string') {
+        textSegments.push(payload.content)
+        continue
+      }
+
+      if (payload.delta?.type === 'text_delta' && typeof payload.delta?.text === 'string') {
+        textSegments.push(payload.delta.text)
+        continue
+      }
+
+      if (typeof payload.text === 'string') {
+        textSegments.push(payload.text)
+      }
+    } catch {
+      // Ignore malformed JSON segments and fall back to raw content if nothing parsed
+    }
+  }
+
+  if (!parsedAny) {
     return content
   }
 
-  const parsedSegments = matches
-    .map((match) => {
-      try {
-        const payload = JSON.parse(match[1])
-        if (payload.type === 'text' && typeof payload.text === 'string') {
-          return payload.text
-        }
-        if (payload.type === 'content' && typeof payload.content === 'string') {
-          return payload.content
-        }
-        return ''
-      } catch {
-        return ''
-      }
-    })
-    .join('')
-    .trim()
-
-  return parsedSegments.length > 0 ? parsedSegments : content
+  const result = textSegments.join('').trim()
+  return result.length > 0 ? result : content
 }
 
 /**

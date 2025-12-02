@@ -573,7 +573,7 @@ export async function POST(req: NextRequest) {
 
     // Mark all integration tools with defer_loading: true
     // This means they won't be loaded into context until Claude searches for them
-    const { createLLMToolSchema } = await import('@/tools/params')
+    const { createUserToolSchema } = await import('@/tools/params')
 
     /**
      * Maps environment variable names to tool API key parameters
@@ -659,14 +659,13 @@ export async function POST(req: NextRequest) {
         const envParams = mapEnvVarsToToolParams(toolId, toolConfig, decryptedEnvVars)
         Object.assign(preConfiguredParams, envParams)
 
-        // Use the same schema generation as the agent block
-        // This ensures LLM sees the correct parameters
-        const llmSchema = await createLLMToolSchema(toolConfig, preConfiguredParams)
+        // Expose the user-facing schema so Superagent can supply user-only parameters
+        const userSchema = createUserToolSchema(toolConfig)
 
         return {
           name: toolId, // Anthropic uses 'name' not 'id'
           description: toolConfig.description || toolConfig.name || toolId,
-          input_schema: llmSchema,
+          input_schema: userSchema,
           defer_loading: true, // Don't load into context upfront!
           params: preConfiguredParams, // Pre-configured params (access tokens + API keys)
         }
