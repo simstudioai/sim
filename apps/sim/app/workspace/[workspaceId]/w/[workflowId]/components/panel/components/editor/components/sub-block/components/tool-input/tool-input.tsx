@@ -2107,7 +2107,10 @@ export function ToolInput({
                                 <ShortInput
                                   blockId={blockId}
                                   subBlockId={`${subBlockId}-tool-${toolIndex}-${param.id}`}
-                                  placeholder={param.description}
+                                  placeholder={
+                                    param.description ||
+                                    `Enter ${formatParameterLabel(param.id).toLowerCase()}`
+                                  }
                                   password={isPasswordParameter(param.id)}
                                   config={{
                                     id: `${subBlockId}-tool-${toolIndex}-${param.id}`,

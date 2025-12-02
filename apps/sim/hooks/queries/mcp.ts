@@ -152,12 +152,14 @@ export function useCreateMcpServer() {
       }
 
       logger.info(`Created MCP server: ${config.name} in workspace: ${workspaceId}`)
-      return { ...serverData, connectionStatus: 'disconnected' as const }
+      return {
+        ...serverData,
+        connectionStatus: 'disconnected' as const,
+        serverId: data.data?.serverId,
+      }
     },
     onSuccess: (_data, variables) => {
-      // Invalidate servers list to refetch
       queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
-      // Invalidate tools as new server may provide new tools
       queryClient.invalidateQueries({ queryKey: mcpKeys.tools(variables.workspaceId) })
     },
   })
