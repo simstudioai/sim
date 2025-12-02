@@ -5,8 +5,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { createLogger } from '@/lib/logs/console/logger'
-import { encryptSecret } from '@/lib/utils'
 
 const logger = createLogger('WorkflowLogWebhookAPI')
 

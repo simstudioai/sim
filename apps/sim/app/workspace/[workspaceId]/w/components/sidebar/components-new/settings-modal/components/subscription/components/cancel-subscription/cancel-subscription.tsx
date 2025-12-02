@@ -12,10 +12,10 @@ import {
   ModalTitle,
 } from '@/components/emcn'
 import { useSession, useSubscription } from '@/lib/auth-client'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getSubscriptionStatus } from '@/lib/subscription/helpers'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { cn } from '@/lib/utils'
 import { organizationKeys, useOrganizations } from '@/hooks/queries/organization'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 

@@ -1,4 +1,4 @@
-import { redactApiKeys } from '@/lib/utils'
+import { redactApiKeys } from '@/lib/core/security/redaction'
 import type { TraceSpan } from '@/stores/logs/filters/types'
 
 export function getSpanKey(span: TraceSpan): string {

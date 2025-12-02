@@ -1,4 +1,4 @@
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 import { getEmailDomain } from '@/lib/urls/utils'
 
 /**

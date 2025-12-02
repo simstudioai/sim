@@ -6,7 +6,7 @@ import {
   verifyUnsubscribeToken,
 } from '@/lib/email/unsubscribe'
 
-vi.mock('@/lib/env', () => ({
+vi.mock('@/lib/core/config/env', () => ({
   env: {
     BETTER_AUTH_SECRET: 'test-secret-key',
   },

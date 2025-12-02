@@ -4,11 +4,11 @@ import { chat } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { ChatFiles } from '@/lib/uploads'
-import { generateRequestId } from '@/lib/utils'
 import {
   addCorsHeaders,
   setChatAuthCookie,
@@ -183,7 +183,7 @@ export async function POST(
       }
 
       const { createStreamingResponse } = await import('@/lib/workflows/streaming')
-      const { SSE_HEADERS } = await import('@/lib/utils')
+      const { SSE_HEADERS } = await import('@/lib/core/utils/sse')
       const { createFilteredResult } = await import('@/app/api/workflows/[id]/execute/route')
 
       const workflowInput: any = { input, conversationId }

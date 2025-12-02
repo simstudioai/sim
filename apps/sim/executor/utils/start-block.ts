@@ -1,4 +1,4 @@
-import { isUserFile } from '@/lib/utils'
+import { isUserFile } from '@/lib/core/utils/display-filters'
 import {
   classifyStartBlockType,
   getLegacyStarterMode,

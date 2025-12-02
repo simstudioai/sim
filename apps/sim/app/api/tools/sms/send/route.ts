@@ -1,10 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { type SMSOptions, sendSMS } from '@/lib/sms/service'
-import { generateRequestId } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 

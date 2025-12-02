@@ -57,13 +57,16 @@ vi.mock('@/lib/workflows/streaming', () => ({
   createStreamingResponse: vi.fn().mockImplementation(async () => createMockStream()),
 }))
 
-vi.mock('@/lib/utils', () => ({
+vi.mock('@/lib/core/utils/sse', () => ({
   SSE_HEADERS: {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
   },
+}))
+
+vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('test-request-id'),
 }))
 

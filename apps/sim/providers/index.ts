@@ -1,4 +1,4 @@
-import { getCostMultiplier } from '@/lib/environment'
+import { getCostMultiplier } from '@/lib/core/config/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import type { ProviderRequest, ProviderResponse } from '@/providers/types'

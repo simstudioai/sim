@@ -1,5 +1,5 @@
 import { ShieldCheckIcon } from '@/components/icons'
-import { isHosted } from '@/lib/environment'
+import { isHosted } from '@/lib/core/config/environment'
 import type { BlockConfig } from '@/blocks/types'
 import { getHostedModels, getProviderIcon } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'

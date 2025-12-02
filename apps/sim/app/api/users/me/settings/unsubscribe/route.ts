@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { EmailType } from '@/lib/email/mailer'
 import {
   getEmailPreferences,
@@ -9,7 +10,6 @@ import {
   verifyUnsubscribeToken,
 } from '@/lib/email/unsubscribe'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('UnsubscribeAPI')
 

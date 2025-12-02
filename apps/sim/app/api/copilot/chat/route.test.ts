@@ -97,8 +97,11 @@ describe('Copilot Chat API Route', () => {
 
     mockGetRotatingApiKey.mockReturnValue('test-api-key')
 
-    vi.doMock('@/lib/utils', () => ({
+    vi.doMock('@/lib/core/config/api-keys', () => ({
       getRotatingApiKey: mockGetRotatingApiKey,
+    }))
+
+    vi.doMock('@/lib/core/utils/request', () => ({
       generateRequestId: vi.fn(() => 'test-request-id'),
     }))
 
@@ -110,7 +113,7 @@ describe('Copilot Chat API Route', () => {
       NODE_ENV: 'test',
     } as const
 
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: mockEnvValues,
       getEnv: (variable: string) => mockEnvValues[variable as keyof typeof mockEnvValues],
       isTruthy: (value: string | boolean | number | undefined) =>

@@ -31,8 +31,11 @@ vi.mock('@/tools/utils', () => ({
 }))
 
 // Utils
-vi.mock('@/lib/utils', () => ({
-  isHosted: vi.fn().mockReturnValue(false),
+vi.mock('@/lib/core/config/environment', () => ({
+  isHosted: false,
+}))
+
+vi.mock('@/lib/core/config/api-keys', () => ({
   getRotatingApiKey: vi.fn(),
 }))
 

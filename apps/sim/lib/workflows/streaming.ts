@@ -1,5 +1,5 @@
+import { encodeSSE } from '@/lib/core/utils/sse'
 import { createLogger } from '@/lib/logs/console/logger'
-import { encodeSSE } from '@/lib/utils'
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowStreaming')
@@ -105,7 +105,7 @@ export async function createStreamingResponse(
           if (!streamConfig.selectedOutputs?.length) return
 
           const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
-            await import('@/lib/response-format')
+            await import('@/lib/core/utils/response-format')
 
           const matchingOutputs = streamConfig.selectedOutputs.filter(
             (outputId) => extractBlockIdFromOutputId(outputId) === blockId
@@ -195,7 +195,7 @@ export async function createStreamingResponse(
 
         if (streamConfig.selectedOutputs?.length && result.output) {
           const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
-            await import('@/lib/response-format')
+            await import('@/lib/core/utils/response-format')
 
           for (const outputId of streamConfig.selectedOutputs) {
             const blockId = extractBlockIdFromOutputId(outputId)

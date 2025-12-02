@@ -233,7 +233,7 @@ describe('Custom Tools API Routes', () => {
     })
 
     // Mock utils
-    vi.doMock('@/lib/utils', () => ({
+    vi.doMock('@/lib/core/utils/request', () => ({
       generateRequestId: vi.fn().mockReturnValue('test-request-id'),
     }))
 

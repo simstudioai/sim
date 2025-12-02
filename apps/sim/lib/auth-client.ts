@@ -9,8 +9,8 @@ import {
 } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 import type { auth } from '@/lib/auth'
-import { env } from '@/lib/env'
-import { isBillingEnabled } from '@/lib/environment'
+import { env } from '@/lib/core/config/env'
+import { isBillingEnabled } from '@/lib/core/config/environment'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { SessionContext, type SessionHookResult } from '@/app/_shell/providers/session-provider'
 

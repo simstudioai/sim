@@ -1,4 +1,4 @@
-import { isTest } from '@/lib/environment'
+import { isTest } from '@/lib/core/config/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { TableRow } from '@/tools/types'

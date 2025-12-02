@@ -1,20 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { redactApiKeys } from '@/lib/core/security/redaction'
+import { cn } from '@/lib/core/utils/cn'
 import {
-  cn,
-  convertScheduleOptionsToCron,
-  decryptSecret,
-  encryptSecret,
   formatDate,
   formatDateTime,
   formatDuration,
   formatTime,
-  getInvalidCharacters,
-  getRotatingApiKey,
   getTimezoneAbbreviation,
-  isValidName,
-  redactApiKeys,
-  validateName,
-} from '@/lib/utils'
+} from '@/lib/core/utils/formatting'
+import { convertScheduleOptionsToCron } from '@/lib/core/utils/scheduling'
+import { getInvalidCharacters, isValidName, validateName } from '@/lib/core/utils/validation'
 
 vi.mock('crypto', () => ({
   createCipheriv: vi.fn().mockReturnValue({
@@ -34,7 +31,7 @@ vi.mock('crypto', () => ({
   }),
 }))
 
-vi.mock('@/lib/env', () => ({
+vi.mock('@/lib/core/config/env', () => ({
   env: {
     ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
     OPENAI_API_KEY_1: 'test-openai-key-1',

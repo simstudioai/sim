@@ -5,9 +5,9 @@ import { Check, ChevronDown, ExternalLink, Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { Input, Label } from '@/components/ui'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
-import { cn } from '@/lib/utils'
 import {
   type ServiceInfo,
   useConnectOAuthService,

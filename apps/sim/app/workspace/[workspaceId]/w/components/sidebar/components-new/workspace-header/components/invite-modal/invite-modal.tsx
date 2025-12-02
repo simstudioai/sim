@@ -6,10 +6,10 @@ import { useParams } from 'next/navigation'
 import { Badge, Button, Input, Modal, ModalContent, Tooltip } from '@/components/emcn'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth-client'
+import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { PermissionType } from '@/lib/permissions/utils'
-import { cn } from '@/lib/utils'
 import {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,

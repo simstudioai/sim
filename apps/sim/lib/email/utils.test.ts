@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock the env module
-vi.mock('@/lib/env', () => ({
+vi.mock('@/lib/core/config/env', () => ({
   env: {
     FROM_EMAIL_ADDRESS: undefined,
     EMAIL_DOMAIN: undefined,
@@ -21,7 +21,7 @@ describe('getFromEmailAddress', () => {
 
   it('should return FROM_EMAIL_ADDRESS when set', async () => {
     // Mock env with FROM_EMAIL_ADDRESS
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         FROM_EMAIL_ADDRESS: 'Sim <noreply@sim.ai>',
         EMAIL_DOMAIN: 'example.com',
@@ -35,7 +35,7 @@ describe('getFromEmailAddress', () => {
   })
 
   it('should return simple email format when FROM_EMAIL_ADDRESS is set without display name', async () => {
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         FROM_EMAIL_ADDRESS: 'noreply@sim.ai',
         EMAIL_DOMAIN: 'example.com',
@@ -49,7 +49,7 @@ describe('getFromEmailAddress', () => {
   })
 
   it('should return Azure ACS format when FROM_EMAIL_ADDRESS is set', async () => {
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         FROM_EMAIL_ADDRESS: 'DoNotReply@customer.azurecomm.net',
         EMAIL_DOMAIN: 'example.com',
@@ -63,7 +63,7 @@ describe('getFromEmailAddress', () => {
   })
 
   it('should construct from EMAIL_DOMAIN when FROM_EMAIL_ADDRESS is not set', async () => {
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         FROM_EMAIL_ADDRESS: undefined,
         EMAIL_DOMAIN: 'example.com',
@@ -77,7 +77,7 @@ describe('getFromEmailAddress', () => {
   })
 
   it('should use getEmailDomain fallback when both FROM_EMAIL_ADDRESS and EMAIL_DOMAIN are not set', async () => {
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         FROM_EMAIL_ADDRESS: undefined,
         EMAIL_DOMAIN: undefined,
@@ -97,7 +97,7 @@ describe('getFromEmailAddress', () => {
   })
 
   it('should prioritize FROM_EMAIL_ADDRESS over EMAIL_DOMAIN when both are set', async () => {
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         FROM_EMAIL_ADDRESS: 'Custom <custom@custom.com>',
         EMAIL_DOMAIN: 'ignored.com',
@@ -111,7 +111,7 @@ describe('getFromEmailAddress', () => {
   })
 
   it('should handle empty string FROM_EMAIL_ADDRESS by falling back to EMAIL_DOMAIN', async () => {
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         FROM_EMAIL_ADDRESS: '',
         EMAIL_DOMAIN: 'fallback.com',
@@ -125,7 +125,7 @@ describe('getFromEmailAddress', () => {
   })
 
   it('should handle whitespace-only FROM_EMAIL_ADDRESS by falling back to EMAIL_DOMAIN', async () => {
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         FROM_EMAIL_ADDRESS: '   ',
         EMAIL_DOMAIN: 'fallback.com',

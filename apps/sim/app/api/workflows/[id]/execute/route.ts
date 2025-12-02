@@ -2,11 +2,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import { generateRequestId, SSE_HEADERS } from '@/lib/utils'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,

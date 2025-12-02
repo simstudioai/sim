@@ -87,7 +87,7 @@ describe('Workspace Invitations API Route', () => {
       WorkspaceInvitationEmail: vi.fn(),
     }))
 
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         RESEND_API_KEY: 'test-resend-key',
         NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',

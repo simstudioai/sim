@@ -1,7 +1,7 @@
 import { Cron } from 'croner'
 import cronstrue from 'cronstrue'
+import { formatDateTime } from '@/lib/core/utils/formatting'
 import { createLogger } from '@/lib/logs/console/logger'
-import { formatDateTime } from '@/lib/utils'
 
 const logger = createLogger('ScheduleUtils')
 

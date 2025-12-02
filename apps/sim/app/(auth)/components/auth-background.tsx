@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import AuthBackgroundSVG from '@/app/(auth)/components/auth-background-svg'
 
 type AuthBackgroundProps = {

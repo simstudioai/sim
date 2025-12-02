@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { deleteWorkspaceFile } from '@/lib/uploads/contexts/workspace'
-import { generateRequestId } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 

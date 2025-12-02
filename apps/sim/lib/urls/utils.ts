@@ -1,5 +1,5 @@
-import { getEnv } from '@/lib/env'
-import { isProd } from '@/lib/environment'
+import { getEnv } from '@/lib/core/config/env'
+import { isProd } from '@/lib/core/config/environment'
 
 /**
  * Returns the base URL of the application from NEXT_PUBLIC_APP_URL

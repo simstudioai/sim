@@ -5,7 +5,8 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
-import { isTest } from '@/lib/environment'
+import { isTest } from '@/lib/core/config/environment'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { McpClient } from '@/lib/mcp/client'
@@ -18,7 +19,6 @@ import type {
   McpTransport,
 } from '@/lib/mcp/types'
 import { MCP_CONSTANTS } from '@/lib/mcp/utils'
-import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('McpService')
 

@@ -1,4 +1,4 @@
-import { env, getEnv } from '../env'
+import { env, getEnv } from '../config/env'
 
 /**
  * Content Security Policy (CSP) configuration builder

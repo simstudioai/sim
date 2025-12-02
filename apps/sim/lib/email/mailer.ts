@@ -1,8 +1,8 @@
 import { EmailClient, type EmailMessage } from '@azure/communication-email'
 import { Resend } from 'resend'
+import { env } from '@/lib/core/config/env'
 import { generateUnsubscribeToken, isUnsubscribed } from '@/lib/email/unsubscribe'
 import { getFromEmailAddress } from '@/lib/email/utils'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 

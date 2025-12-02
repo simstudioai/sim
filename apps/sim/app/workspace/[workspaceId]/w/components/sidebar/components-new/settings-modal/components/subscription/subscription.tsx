@@ -12,11 +12,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useSession } from '@/lib/auth-client'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserRole } from '@/lib/organization/helpers'
 import { useSubscriptionUpgrade } from '@/lib/subscription/upgrade'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/shared/usage-header'
 import {

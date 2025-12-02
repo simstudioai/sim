@@ -1,10 +1,10 @@
+import { isUserFile } from '@/lib/core/utils/display-filters'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ExecutionContext } from '@/lib/uploads/contexts/execution/execution-file-helpers'
 import {
   generateExecutionFileKey,
   generateFileId,
 } from '@/lib/uploads/contexts/execution/execution-file-helpers'
-import { isUserFile } from '@/lib/utils'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionFileStorage')

@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 interface NavigationTab {
   id: string

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent/constants'
 
 export async function GET(request: NextRequest) {

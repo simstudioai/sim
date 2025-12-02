@@ -38,11 +38,11 @@ import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
+import { env, isTruthy } from '@/lib/core/config/env'
+import { isBillingEnabled, isEmailVerificationEnabled } from '@/lib/core/config/environment'
 import { sendEmail } from '@/lib/email/mailer'
 import { getFromEmailAddress } from '@/lib/email/utils'
 import { quickValidateEmail } from '@/lib/email/validation'
-import { env, isTruthy } from '@/lib/env'
-import { isBillingEnabled, isEmailVerificationEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SSO_TRUSTED_PROVIDERS } from '@/lib/sso/consts'
 import { getBaseUrl } from '@/lib/urls/utils'

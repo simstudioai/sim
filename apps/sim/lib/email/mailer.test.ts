@@ -31,7 +31,7 @@ vi.mock('@/lib/email/unsubscribe', () => ({
   generateUnsubscribeToken: vi.fn(),
 }))
 
-vi.mock('@/lib/env', () => ({
+vi.mock('@/lib/core/config/env', () => ({
   env: {
     RESEND_API_KEY: 'test-api-key',
     AZURE_ACS_CONNECTION_STRING: 'test-azure-connection-string',

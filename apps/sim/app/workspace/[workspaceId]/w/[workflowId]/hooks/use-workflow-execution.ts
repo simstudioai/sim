@@ -309,7 +309,7 @@ export function useWorkflowExecution() {
       if (isChatExecution) {
         const stream = new ReadableStream({
           async start(controller) {
-            const { encodeSSE } = await import('@/lib/utils')
+            const { encodeSSE } = await import('@/lib/core/utils/sse')
             const executionId = uuidv4()
             const streamedContent = new Map<string, string>()
             const streamReadingPromises: Promise<void>[] = []
@@ -458,7 +458,7 @@ export function useWorkflowExecution() {
               if (!selectedOutputs?.length) return
 
               const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
-                await import('@/lib/response-format')
+                await import('@/lib/core/utils/response-format')
 
               // Check if this block's output is selected
               const matchingOutputs = selectedOutputs.filter(
@@ -564,7 +564,7 @@ export function useWorkflowExecution() {
                 queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
                 queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
 
-                const { encodeSSE } = await import('@/lib/utils')
+                const { encodeSSE } = await import('@/lib/core/utils/sse')
                 controller.enqueue(encodeSSE({ event: 'final', data: result }))
                 // Note: Logs are already persisted server-side via execution-core.ts
               }
@@ -583,7 +583,7 @@ export function useWorkflowExecution() {
               }
 
               // Send the error as final event so downstream handlers can treat it uniformly
-              const { encodeSSE } = await import('@/lib/utils')
+              const { encodeSSE } = await import('@/lib/core/utils/sse')
               controller.enqueue(encodeSSE({ event: 'final', data: errorResult }))
 
               // Do not error the controller to allow consumers to process the final event

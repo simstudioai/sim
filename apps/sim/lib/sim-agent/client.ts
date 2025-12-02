@@ -1,7 +1,7 @@
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent/constants'
-import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('SimAgentClient')
 

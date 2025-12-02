@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
-import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/security/input-validation'
 import { getJiraCloudId } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'

@@ -2,8 +2,8 @@ import { db } from '@sim/db'
 import { customTools } from '@sim/db/schema'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('CustomToolsOperations')
 
