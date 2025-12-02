@@ -13,7 +13,7 @@ import {
   useState,
 } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Check, ChevronDown, Loader2 } from 'lucide-react'
+import { Check, ChevronDown, Loader2, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
@@ -81,6 +81,10 @@ export interface ComboboxProps
   error?: string | null
   /** Callback when popover open state changes */
   onOpenChange?: (open: boolean) => void
+  /** Enable search input in dropdown (useful for multiselect) */
+  searchable?: boolean
+  /** Placeholder for search input */
+  searchPlaceholder?: string
 }
 
 /**
@@ -110,12 +114,16 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
       isLoading = false,
       error = null,
       onOpenChange,
+      searchable = false,
+      searchPlaceholder = 'Search...',
       ...props
     },
     ref
   ) => {
     const [open, setOpen] = useState(false)
     const [highlightedIndex, setHighlightedIndex] = useState(-1)
+    const [searchQuery, setSearchQuery] = useState('')
+    const searchInputRef = useRef<HTMLInputElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const dropdownRef = useRef<HTMLDivElement>(null)
     const internalInputRef = useRef<HTMLInputElement>(null)
@@ -129,26 +137,38 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
     )
 
     /**
-     * Filter options based on current value
+     * Filter options based on current value or search query
      */
     const filteredOptions = useMemo(() => {
-      if (!filterOptions || !value || !open) return options
+      let result = options
 
-      const currentValue = value.toString().toLowerCase()
+      // Filter by editable input value
+      if (filterOptions && value && open) {
+        const currentValue = value.toString().toLowerCase()
+        const exactMatch = options.find(
+          (opt) => opt.value === value || opt.label.toLowerCase() === currentValue
+        )
+        if (!exactMatch) {
+          result = result.filter((option) => {
+            const label = option.label.toLowerCase()
+            const optionValue = option.value.toLowerCase()
+            return label.includes(currentValue) || optionValue.includes(currentValue)
+          })
+        }
+      }
 
-      // If value exactly matches an option, show all
-      const exactMatch = options.find(
-        (opt) => opt.value === value || opt.label.toLowerCase() === currentValue
-      )
-      if (exactMatch) return options
+      // Filter by search query (for searchable mode)
+      if (searchable && searchQuery) {
+        const query = searchQuery.toLowerCase()
+        result = result.filter((option) => {
+          const label = option.label.toLowerCase()
+          const optionValue = option.value.toLowerCase()
+          return label.includes(query) || optionValue.includes(query)
+        })
+      }
 
-      // Filter options
-      return options.filter((option) => {
-        const label = option.label.toLowerCase()
-        const optionValue = option.value.toLowerCase()
-        return label.includes(currentValue) || optionValue.includes(currentValue)
-      })
-    }, [options, value, open, filterOptions])
+      return result
+    }, [options, value, open, filterOptions, searchable, searchQuery])
 
     /**
      * Handles selection of an option
@@ -334,6 +354,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
         open={open}
         onOpenChange={(next) => {
           setOpen(next)
+          if (!next) setSearchQuery('')
           onOpenChange?.(next)
         }}
       >
@@ -435,6 +456,9 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
             className='w-[var(--radix-popover-trigger-width)] rounded-[4px] p-0'
             onOpenAutoFocus={(e) => {
               e.preventDefault()
+              if (searchable) {
+                setTimeout(() => searchInputRef.current?.focus(), 0)
+              }
             }}
             onInteractOutside={(e) => {
               // If the user clicks the anchor/trigger while the popover is open,
@@ -446,6 +470,24 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
               }
             }}
           >
+            {searchable && (
+              <div className='flex items-center border-b border-[var(--surface-11)] px-[8px] py-[6px]'>
+                <Search className='mr-2 h-[12px] w-[12px] shrink-0 text-[var(--text-muted)]' />
+                <input
+                  ref={searchInputRef}
+                  className='w-full bg-transparent font-medium text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none'
+                  placeholder={searchPlaceholder}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setOpen(false)
+                      setSearchQuery('')
+                    }
+                  }}
+                />
+              </div>
+            )}
             <PopoverScrollArea
               className='!flex-none max-h-48 p-[4px]'
               onWheelCapture={(e) => {
@@ -480,7 +522,9 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                   </div>
                 ) : filteredOptions.length === 0 ? (
                   <div className='py-[14px] text-center font-medium font-sans text-[var(--text-muted)] text-sm'>
-                    {editable && value ? 'No matching options found' : 'No options available'}
+                    {searchQuery || (editable && value)
+                      ? 'No matching options found'
+                      : 'No options available'}
                   </div>
                 ) : (
                   filteredOptions.map((option, index) => {

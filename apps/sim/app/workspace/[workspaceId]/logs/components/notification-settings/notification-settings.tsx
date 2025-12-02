@@ -36,7 +36,9 @@ import {
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { useConnectOAuthService } from '@/hooks/queries/oauth-connections'
 import { useSlackAccounts } from '@/hooks/use-slack-accounts'
+import { SlackChannelSelector } from './slack-channel-selector'
 import { WorkflowSelector } from './workflow-selector'
 
 const logger = createLogger('NotificationSettings')
@@ -133,7 +135,12 @@ export function NotificationSettings({
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
-  const { accounts: slackAccounts, isLoading: isLoadingSlackAccounts } = useSlackAccounts()
+  const {
+    accounts: slackAccounts,
+    isLoading: isLoadingSlackAccounts,
+    refetch: refetchSlackAccounts,
+  } = useSlackAccounts()
+  const connectSlack = useConnectOAuthService()
 
   const filteredSubscriptions = useMemo(() => {
     return subscriptions.filter((s) => s.notificationType === activeTab)
@@ -245,7 +252,7 @@ export function NotificationSettings({
         errors.slackAccountId = 'Select a Slack account'
       }
       if (!formData.slackChannelId) {
-        errors.slackChannelId = 'Enter a Slack channel ID'
+        errors.slackChannelId = 'Select a Slack channel'
       }
     }
 
@@ -752,16 +759,31 @@ export function NotificationSettings({
               ) : slackAccounts.length === 0 ? (
                 <div className='rounded-[8px] border border-dashed p-4 text-center'>
                   <p className='text-muted-foreground text-sm'>No Slack accounts connected</p>
-                  <p className='text-muted-foreground text-xs'>
-                    Connect Slack in Settings → Credentials
-                  </p>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='mt-2'
+                    onClick={async () => {
+                      await connectSlack.mutateAsync({
+                        providerId: 'slack',
+                        callbackURL: window.location.href,
+                      })
+                    }}
+                    disabled={connectSlack.isPending}
+                  >
+                    {connectSlack.isPending ? 'Connecting...' : 'Connect Slack'}
+                  </Button>
                 </div>
               ) : (
                 <select
                   value={formData.slackAccountId}
                   onChange={(e) => {
-                    setFormData({ ...formData, slackAccountId: e.target.value })
-                    setFormErrors({ ...formErrors, slackAccountId: '' })
+                    setFormData({
+                      ...formData,
+                      slackAccountId: e.target.value,
+                      slackChannelId: '',
+                    })
+                    setFormErrors({ ...formErrors, slackAccountId: '', slackChannelId: '' })
                   }}
                   className='h-9 w-full rounded-[8px] border bg-background px-3 text-sm'
                 >
@@ -777,25 +799,21 @@ export function NotificationSettings({
                 <p className='text-red-400 text-xs'>{formErrors.slackAccountId}</p>
               )}
             </div>
-            <div className='space-y-2'>
-              <Label className='font-medium text-sm'>Channel ID</Label>
-              <Input
-                type='text'
-                placeholder='C0123456789'
-                value={formData.slackChannelId}
-                onChange={(e) => {
-                  setFormData({ ...formData, slackChannelId: e.target.value })
-                  setFormErrors({ ...formErrors, slackChannelId: '' })
-                }}
-                className='h-9 rounded-[8px]'
-              />
-              <p className='text-muted-foreground text-xs'>
-                Find this in Slack channel details (starts with C, D, or G)
-              </p>
-              {formErrors.slackChannelId && (
-                <p className='text-red-400 text-xs'>{formErrors.slackChannelId}</p>
-              )}
-            </div>
+            {slackAccounts.length > 0 && (
+              <div className='space-y-2'>
+                <Label className='font-medium text-sm'>Channel</Label>
+                <SlackChannelSelector
+                  accountId={formData.slackAccountId}
+                  value={formData.slackChannelId}
+                  onChange={(channelId) => {
+                    setFormData({ ...formData, slackChannelId: channelId })
+                    setFormErrors({ ...formErrors, slackChannelId: '' })
+                  }}
+                  disabled={!formData.slackAccountId}
+                  error={formErrors.slackChannelId}
+                />
+              </div>
+            )}
           </>
         )}
 
