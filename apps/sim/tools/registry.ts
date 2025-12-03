@@ -202,6 +202,7 @@ import {
   gmailUnarchiveTool,
 } from '@/tools/gmail'
 import { searchTool as googleSearchTool } from '@/tools/google'
+import { googleAdsQueryTool } from '@/tools/google_ads'
 import {
   googleCalendarCreateTool,
   googleCalendarGetTool,
@@ -224,7 +225,6 @@ import {
   googleSheetsUpdateTool,
   googleSheetsWriteTool,
 } from '@/tools/google_sheets'
-import { googleAdsQueryTool } from '@/tools/google_ads'
 import {
   createMattersExportTool,
   createMattersHoldsTool,
