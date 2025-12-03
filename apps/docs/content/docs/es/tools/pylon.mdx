@@ -1,0 +1,797 @@
+---
+title: Pylon
+description: Gestiona problemas de atención al cliente, cuentas, contactos,
+  usuarios, equipos y etiquetas en Pylon
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pylon"
+  color="#E8F4FA"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Pylon](https://usepylon.com/) es una plataforma avanzada de soporte y éxito del cliente diseñada para ayudarte a gestionar todos los aspectos de tus relaciones con los clientes—desde problemas de soporte hasta cuentas, contactos, usuarios, equipos y más. Pylon permite a los equipos de soporte y éxito operar de manera eficiente y programática con una API rica y un conjunto completo de herramientas.
+
+Con Pylon en Sim, puedes:
+
+- **Gestionar problemas de soporte:**
+  - Listar, crear, obtener, actualizar y eliminar problemas de soporte para un seguimiento eficiente de casos.
+  - Buscar y posponer problemas para ayudar a los agentes a mantenerse enfocados y organizados.
+  - Manejar seguidores de problemas y problemas externos para una colaboración fluida con partes interesadas internas y externas.
+
+- **Gestión completa de cuentas:**
+  - Listar, crear, obtener, actualizar y eliminar cuentas de clientes.
+  - Actualizar cuentas en masa de forma programática.
+  - Buscar cuentas para encontrar rápidamente información de clientes relevante para soporte o contacto.
+
+- **Gestión de contactos:**
+  - Listar, crear, obtener, actualizar, eliminar y buscar contactos—gestiona a todas las personas conectadas a tus cuentas.
+
+- **Operaciones de usuarios y equipos:**
+  - Listar, obtener, actualizar y buscar usuarios en tu espacio de trabajo de Pylon.
+  - Listar, crear, obtener y actualizar equipos para estructurar tu organización de soporte y flujos de trabajo.
+
+- **Etiquetado y organización:**
+  - Listar, obtener, crear, actualizar y eliminar etiquetas para categorizar problemas, cuentas o contactos.
+
+- **Gestión de mensajes:**
+  - Redactar contenido sensible de mensajes directamente desde tus flujos de trabajo para privacidad y cumplimiento.
+
+Al integrar las herramientas de Pylon en Sim, tus agentes pueden automatizar todos los aspectos de las operaciones de soporte:
+- Abrir, actualizar o clasificar automáticamente nuevos problemas cuando ocurren eventos de clientes.
+- Mantener datos de cuentas y contactos sincronizados en toda tu infraestructura tecnológica.
+- Dirigir conversaciones, manejar escalaciones y organizar tus datos de soporte usando etiquetas y equipos.
+- Asegurar que los datos sensibles se gestionen adecuadamente redactando mensajes según sea necesario.
+
+Los endpoints de Pylon proporcionan un control granular para la gestión completa del ciclo de vida de los problemas y relaciones con los clientes. Ya sea escalando un servicio de soporte, impulsando el éxito proactivo del cliente o integrándose con otros sistemas, Pylon en Sim permite la mejor automatización de CRM de su clase, de manera segura, flexible y a escala.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Pylon en el flujo de trabajo. Gestiona problemas (listar, crear, obtener, actualizar, eliminar, buscar, posponer, seguidores, problemas externos), cuentas (listar, crear, obtener, actualizar, eliminar, actualización masiva, buscar), contactos (listar, crear, obtener, actualizar, eliminar, buscar), usuarios (listar, obtener, actualizar, buscar), equipos (listar, obtener, crear, actualizar), etiquetas (listar, obtener, crear, actualizar, eliminar) y mensajes (redactar).
+
+## Herramientas
+
+### `pylon_list_issues`
+
+Recuperar una lista de problemas dentro de un rango de tiempo específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `startTime` | string | Sí | Hora de inicio en formato RFC3339 \(p. ej., 2024-01-01T00:00:00Z\) |
+| `endTime` | string | Sí | Hora de fin en formato RFC3339 \(p. ej., 2024-01-31T23:59:59Z\) |
+| `cursor` | string | No | Cursor de paginación para la siguiente página de resultados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Lista de problemas |
+
+### `pylon_create_issue`
+
+Crear un nuevo problema con propiedades específicas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `title` | string | Sí | Título del problema |
+| `bodyHtml` | string | Sí | Cuerpo del problema en formato HTML |
+| `accountId` | string | No | ID de cuenta para asociar con el problema |
+| `assigneeId` | string | No | ID de usuario para asignar el problema |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del problema creado |
+
+### `pylon_get_issue`
+
+Obtener un problema específico por ID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `issueId` | string | Sí | El ID del problema a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del problema |
+
+### `pylon_update_issue`
+
+Actualizar un problema existente
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `issueId` | string | Sí | El ID del problema a actualizar |
+| `state` | string | No | Estado del problema |
+| `assigneeId` | string | No | ID de usuario para asignar el problema |
+| `teamId` | string | No | ID del equipo para asignar el problema |
+| `tags` | string | No | IDs de etiquetas separados por comas |
+| `customFields` | string | No | Campos personalizados como objeto JSON |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del problema actualizado |
+
+### `pylon_delete_issue`
+
+Eliminar un problema por ID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `issueId` | string | Sí | El ID del problema a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultado de la eliminación |
+
+### `pylon_search_issues`
+
+Consultar problemas usando filtros
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `filter` | string | Sí | Criterios de filtro como cadena JSON |
+| `cursor` | string | No | Cursor de paginación para la siguiente página de resultados |
+| `limit` | number | No | Número máximo de resultados a devolver |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de la búsqueda |
+
+### `pylon_snooze_issue`
+
+Posponer la visibilidad del problema hasta un momento específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `issueId` | string | Sí | El ID del problema a posponer |
+| `snoozeUntil` | string | Sí | Marca de tiempo RFC3339 cuando el problema debe reaparecer \(p. ej., 2024-01-01T00:00:00Z\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del problema pospuesto |
+
+### `pylon_list_issue_followers`
+
+Obtener lista de seguidores para un problema específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `issueId` | string | Sí | El ID del problema |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Lista de seguidores |
+
+### `pylon_manage_issue_followers`
+
+Añadir o eliminar seguidores de un problema
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `issueId` | string | Sí | El ID del problema |
+| `userIds` | string | No | IDs de usuarios separados por comas para añadir/eliminar |
+| `contactIds` | string | No | IDs de contactos separados por comas para añadir/eliminar |
+| `operation` | string | No | Operación a realizar: "add" o "remove" \(predeterminado: "add"\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Lista actualizada de seguidores |
+
+### `pylon_link_external_issue`
+
+Vincular un problema a un problema de sistema externo
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `issueId` | string | Sí | El ID del problema de Pylon |
+| `externalIssueId` | string | Sí | El ID del problema externo |
+| `source` | string | Sí | El sistema de origen \(p. ej., "jira", "linear", "github"\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del problema externo vinculado |
+
+### `pylon_list_accounts`
+
+Obtener una lista paginada de cuentas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `limit` | string | No | Número de cuentas a devolver \(1-1000, predeterminado 100\) |
+| `cursor` | string | No | Cursor de paginación para la siguiente página de resultados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Lista de cuentas |
+
+### `pylon_create_account`
+
+Crear una nueva cuenta con propiedades específicas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `name` | string | Sí | Nombre de la cuenta |
+| `domains` | string | No | Lista de dominios separados por comas |
+| `primaryDomain` | string | No | Dominio principal para la cuenta |
+| `customFields` | string | No | Campos personalizados como objeto JSON |
+| `tags` | string | No | IDs de etiquetas separados por comas |
+| `channels` | string | No | IDs de canales separados por comas |
+| `externalIds` | string | No | IDs externos separados por comas |
+| `ownerId` | string | No | ID de usuario propietario |
+| `logoUrl` | string | No | URL del logotipo de la cuenta |
+| `subaccountIds` | string | No | IDs de subcuentas separados por comas |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la cuenta creada |
+
+### `pylon_get_account`
+
+Recuperar una sola cuenta por ID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `accountId` | string | Sí | ID de la cuenta a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la cuenta |
+
+### `pylon_update_account`
+
+Actualizar una cuenta existente con nuevas propiedades
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `accountId` | string | Sí | ID de la cuenta a actualizar |
+| `name` | string | No | Nombre de la cuenta |
+| `domains` | string | No | Lista de dominios separados por comas |
+| `primaryDomain` | string | No | Dominio principal para la cuenta |
+| `customFields` | string | No | Campos personalizados como objeto JSON |
+| `tags` | string | No | IDs de etiquetas separados por comas |
+| `channels` | string | No | IDs de canales separados por comas |
+| `externalIds` | string | No | IDs externos separados por comas |
+| `ownerId` | string | No | ID de usuario propietario |
+| `logoUrl` | string | No | URL del logotipo de la cuenta |
+| `subaccountIds` | string | No | IDs de subcuentas separados por comas |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la cuenta actualizados |
+
+### `pylon_delete_account`
+
+Eliminar una cuenta por ID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `accountId` | string | Sí | ID de la cuenta a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Confirmación de eliminación |
+
+### `pylon_bulk_update_accounts`
+
+Actualizar múltiples cuentas a la vez
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `accountIds` | string | Sí | IDs de cuentas separados por comas para actualizar |
+| `customFields` | string | No | Campos personalizados como objeto JSON |
+| `tags` | string | No | IDs de etiquetas separados por comas |
+| `ownerId` | string | No | ID de usuario propietario |
+| `tagsApplyMode` | string | No | Modo de aplicación de etiquetas: append_only, remove_only, o replace |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de las cuentas actualizadas en masa |
+
+### `pylon_search_accounts`
+
+Buscar cuentas con filtros personalizados
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `filter` | string | Sí | Filtro como cadena JSON con estructura de campo/operador/valor |
+| `limit` | string | No | Número de cuentas a devolver \(1-1000, predeterminado 100\) |
+| `cursor` | string | No | Cursor de paginación para la siguiente página de resultados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de la búsqueda |
+
+### `pylon_list_contacts`
+
+Obtener una lista de contactos
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `cursor` | string | No | Cursor de paginación para la siguiente página de resultados |
+| `limit` | string | No | Número máximo de contactos a devolver |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Lista de contactos |
+
+### `pylon_create_contact`
+
+Crear un nuevo contacto con propiedades específicas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `name` | string | Sí | Nombre del contacto |
+| `email` | string | No | Dirección de correo electrónico del contacto |
+| `accountId` | string | No | ID de cuenta para asociar con el contacto |
+| `accountExternalId` | string | No | ID de cuenta externa para asociar con el contacto |
+| `avatarUrl` | string | No | URL para la imagen de avatar del contacto |
+| `customFields` | string | No | Campos personalizados como objeto JSON |
+| `portalRole` | string | No | Rol del portal para el contacto |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del contacto creado |
+
+### `pylon_get_contact`
+
+Recuperar un contacto específico por ID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `contactId` | string | Sí | ID del contacto a recuperar |
+| `cursor` | string | No | Cursor de paginación para la siguiente página de resultados |
+| `limit` | string | No | Número máximo de elementos a devolver |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del contacto |
+
+### `pylon_update_contact`
+
+Actualizar un contacto existente con propiedades específicas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `contactId` | string | Sí | ID del contacto a actualizar |
+| `name` | string | No | Nombre del contacto |
+| `email` | string | No | Dirección de correo electrónico del contacto |
+| `accountId` | string | No | ID de cuenta para asociar con el contacto |
+| `accountExternalId` | string | No | ID de cuenta externa para asociar con el contacto |
+| `avatarUrl` | string | No | URL para la imagen de avatar del contacto |
+| `customFields` | string | No | Campos personalizados como objeto JSON |
+| `portalRole` | string | No | Rol del portal para el contacto |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de contacto actualizados |
+
+### `pylon_delete_contact`
+
+Eliminar un contacto específico por ID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `contactId` | string | Sí | ID del contacto a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultado de la operación de eliminación |
+
+### `pylon_search_contacts`
+
+Buscar contactos utilizando un filtro
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `filter` | string | Sí | Filtro como objeto JSON |
+| `limit` | string | No | Número máximo de contactos a devolver |
+| `cursor` | string | No | Cursor de paginación para la siguiente página de resultados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de la búsqueda |
+
+### `pylon_list_users`
+
+Obtener una lista de usuarios
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Lista de usuarios |
+
+### `pylon_get_user`
+
+Recuperar un usuario específico por ID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `userId` | string | Sí | ID del usuario a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del usuario |
+
+### `pylon_update_user`
+
+Actualizar un usuario existente con propiedades específicas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `userId` | string | Sí | ID del usuario a actualizar |
+| `roleId` | string | No | ID del rol a asignar al usuario |
+| `status` | string | No | Estado del usuario |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos actualizados del usuario |
+
+### `pylon_search_users`
+
+Buscar usuarios utilizando un filtro con campo de correo electrónico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `filter` | string | Sí | Filtro como objeto JSON con campo de correo electrónico |
+| `cursor` | string | No | Cursor de paginación para la siguiente página de resultados |
+| `limit` | string | No | Número máximo de usuarios a devolver |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de búsqueda |
+
+### `pylon_list_teams`
+
+Obtener una lista de equipos
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Lista de equipos |
+
+### `pylon_get_team`
+
+Obtener un equipo específico por ID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `teamId` | string | Sí | ID del equipo a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del equipo |
+
+### `pylon_create_team`
+
+Crear un nuevo equipo con propiedades específicas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `name` | string | No | Nombre del equipo |
+| `userIds` | string | No | IDs de usuarios separados por comas para añadir como miembros del equipo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del equipo creado |
+
+### `pylon_update_team`
+
+Actualizar un equipo existente con propiedades específicas (userIds reemplaza toda la membresía)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `teamId` | string | Sí | ID del equipo a actualizar |
+| `name` | string | No | Nombre del equipo |
+| `userIds` | string | No | IDs de usuario separados por comas \(reemplaza toda la membresía del equipo\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del equipo actualizado |
+
+### `pylon_list_tags`
+
+Obtener una lista de etiquetas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Lista de etiquetas |
+
+### `pylon_get_tag`
+
+Obtener una etiqueta específica por ID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `tagId` | string | Sí | ID de la etiqueta a obtener |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la etiqueta |
+
+### `pylon_create_tag`
+
+Crear una nueva etiqueta con propiedades específicas (objectType: account/issue/contact)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `objectType` | string | Sí | Tipo de objeto para la etiqueta \(account, issue, o contact\) |
+| `value` | string | Sí | Valor/nombre de la etiqueta |
+| `hexColor` | string | No | Código de color hexadecimal para la etiqueta \(p. ej., #FF5733\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la etiqueta creada |
+
+### `pylon_update_tag`
+
+Actualizar una etiqueta existente con propiedades específicas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `tagId` | string | Sí | ID de la etiqueta a actualizar |
+| `hexColor` | string | No | Código de color hexadecimal para la etiqueta \(p. ej., #FF5733\) |
+| `value` | string | No | Valor/nombre de la etiqueta |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la etiqueta actualizada |
+
+### `pylon_delete_tag`
+
+Eliminar una etiqueta específica por ID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `tagId` | string | Sí | ID de la etiqueta a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultado de la operación de eliminación |
+
+### `pylon_redact_message`
+
+Redactar un mensaje específico dentro de un problema
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `apiToken` | string | Sí | Token de API de Pylon |
+| `issueId` | string | Sí | ID del problema que contiene el mensaje |
+| `messageId` | string | Sí | ID del mensaje a redactar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultado de la operación de redacción |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `pylon`

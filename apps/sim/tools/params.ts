@@ -23,7 +23,6 @@ export interface UIComponentConfig {
   condition?: ComponentCondition
   title?: string
   value?: unknown
-  provider?: string
   serviceId?: string
   requiredScopes?: string[]
   mimeType?: string
@@ -50,7 +49,6 @@ export interface SubBlockConfig {
   password?: boolean
   condition?: ComponentCondition
   value?: unknown
-  provider?: string
   serviceId?: string
   requiredScopes?: string[]
   mimeType?: string
@@ -277,7 +275,6 @@ export function getToolParametersConfig(
               condition: subBlock.condition,
               title: subBlock.title,
               value: subBlock.value,
-              provider: subBlock.provider,
               serviceId: subBlock.serviceId,
               requiredScopes: subBlock.requiredScopes,
               mimeType: subBlock.mimeType,
@@ -443,7 +440,6 @@ async function applyDynamicSchemaForWorkflow(
 async function fetchWorkflowInputFields(
   workflowId: string
 ): Promise<Array<{ name: string; type: string }>> {
-  // Check cache first
   const cached = workflowInputFieldsCache.get(workflowId)
   const now = Date.now()
 
@@ -491,7 +487,6 @@ async function fetchWorkflowInputFields(
         }))
     }
 
-    // Cache the result
     workflowInputFieldsCache.set(workflowId, { fields, timestamp: now })
 
     return fields

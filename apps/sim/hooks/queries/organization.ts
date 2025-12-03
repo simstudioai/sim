@@ -1,5 +1,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('OrganizationQueries')
 
 /**
  * Query key factories for organization-related queries
@@ -79,7 +82,7 @@ async function fetchOrganizationSubscription(orgId: string) {
   })
 
   if (response.error) {
-    console.error('Error fetching organization subscription:', response.error)
+    logger.error('Error fetching organization subscription', { error: response.error })
     return null
   }
 
@@ -254,7 +257,7 @@ export function useUpdateOrganizationUsageLimit() {
  */
 interface InviteMemberParams {
   email: string
-  workspaceInvitations?: Array<{ id: string; name: string }>
+  workspaceInvitations?: Array<{ workspaceId: string; permission: 'admin' | 'write' | 'read' }>
   orgId: string
 }
 
@@ -367,28 +370,25 @@ export function useCancelInvitation() {
 interface UpdateSeatsParams {
   orgId: string
   seats: number
-  subscriptionId: string
 }
 
 export function useUpdateSeats() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ seats, orgId, subscriptionId }: UpdateSeatsParams) => {
-      const response = await client.subscription.upgrade({
-        plan: 'team',
-        referenceId: orgId,
-        subscriptionId,
-        seats,
-        successUrl: window.location.href,
-        cancelUrl: window.location.href,
+    mutationFn: async ({ seats, orgId }: UpdateSeatsParams) => {
+      const response = await fetch(`/api/organizations/${orgId}/seats`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seats }),
       })
 
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to update seats')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update seats')
       }
 
-      return response.data
+      return response.json()
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })

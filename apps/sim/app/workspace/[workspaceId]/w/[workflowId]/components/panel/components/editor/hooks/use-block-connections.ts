@@ -1,4 +1,4 @@
-import { shallow } from 'zustand/shallow'
+import { useShallow } from 'zustand/react/shallow'
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import { getBlockOutputs } from '@/lib/workflows/block-outputs'
@@ -33,11 +33,10 @@ export interface ConnectedBlock {
 
 export function useBlockConnections(blockId: string) {
   const { edges, blocks } = useWorkflowStore(
-    (state) => ({
+    useShallow((state) => ({
       edges: state.edges,
       blocks: state.blocks,
-    }),
-    shallow
+    }))
   )
 
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)

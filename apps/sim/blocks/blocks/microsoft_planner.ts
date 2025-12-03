@@ -61,7 +61,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
-      provider: 'microsoft-planner',
       serviceId: 'microsoft-planner',
       requiredScopes: [
         'openid',
@@ -94,7 +93,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       title: 'Task ID',
       type: 'file-selector',
       placeholder: 'Select a task',
-      provider: 'microsoft-planner',
+      serviceId: 'microsoft-planner',
       condition: { field: 'operation', value: ['read_task'] },
       dependsOn: ['credential', 'planId'],
       mode: 'basic',

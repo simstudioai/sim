@@ -30,6 +30,7 @@ export interface Template {
     details?: CreatorProfileDetails | null
     referenceType: 'user' | 'organization'
     referenceId: string
+    verified?: boolean
   } | null
   views: number
   stars: number
@@ -203,6 +204,7 @@ export default function Templates({
                   stars={template.stars}
                   state={template.state}
                   isStarred={template.isStarred}
+                  isVerified={template.creator?.verified || false}
                 />
               ))
             )}

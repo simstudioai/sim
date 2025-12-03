@@ -42,7 +42,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'credential',
       title: 'Reddit Account',
       type: 'oauth-input',
-      provider: 'reddit',
       serviceId: 'reddit',
       requiredScopes: [
         'identity',

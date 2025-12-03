@@ -34,7 +34,6 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       title: 'Google Account',
       type: 'oauth-input',
       required: true,
-      provider: 'google-sheets',
       serviceId: 'google-sheets',
       requiredScopes: [
         'https://www.googleapis.com/auth/drive.file',
@@ -48,7 +47,6 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       title: 'Select Sheet',
       type: 'file-selector',
       canonicalParamId: 'spreadsheetId',
-      provider: 'google-sheets',
       serviceId: 'google-sheets',
       requiredScopes: [
         'https://www.googleapis.com/auth/drive.file',

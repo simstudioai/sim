@@ -35,7 +35,6 @@ export const GoogleVaultBlock: BlockConfig = {
       title: 'Google Vault Account',
       type: 'oauth-input',
       required: true,
-      provider: 'google-vault',
       serviceId: 'google-vault',
       requiredScopes: [
         'https://www.googleapis.com/auth/ediscovery',

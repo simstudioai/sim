@@ -129,7 +129,7 @@ export class SimStudioClient {
     value: any,
     visited: WeakSet<object> = new WeakSet()
   ): Promise<any> {
-    if (value instanceof File) {
+    if (typeof File !== 'undefined' && value instanceof File) {
       const arrayBuffer = await value.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
       const base64 = buffer.toString('base64')

@@ -67,16 +67,18 @@ export async function getPersonalAndWorkspaceEnv(
   const workspaceEncrypted: Record<string, string> = (workspaceRows[0]?.variables as any) || {}
 
   const decryptAll = async (src: Record<string, string>) => {
-    const out: Record<string, string> = {}
-    for (const [k, v] of Object.entries(src)) {
-      try {
-        const { decrypted } = await decryptSecret(v)
-        out[k] = decrypted
-      } catch {
-        out[k] = ''
-      }
-    }
-    return out
+    const entries = Object.entries(src)
+    const results = await Promise.all(
+      entries.map(async ([k, v]) => {
+        try {
+          const { decrypted } = await decryptSecret(v)
+          return [k, decrypted] as const
+        } catch {
+          return [k, ''] as const
+        }
+      })
+    )
+    return Object.fromEntries(results)
   }
 
   const [personalDecrypted, workspaceDecrypted] = await Promise.all([

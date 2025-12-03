@@ -23,7 +23,7 @@ import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
 const logger = createLogger('TriggerScheduleExecution')
 
-const MAX_CONSECUTIVE_FAILURES = 3
+const MAX_CONSECUTIVE_FAILURES = 10
 
 type WorkflowRecord = typeof workflow.$inferSelect
 type WorkflowScheduleUpdate = Partial<typeof workflowSchedule.$inferInsert>

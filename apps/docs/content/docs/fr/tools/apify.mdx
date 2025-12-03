@@ -1,0 +1,89 @@
+---
+title: Apify
+description: Exécutez des acteurs Apify et récupérez les résultats
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="apify"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Apify](https://apify.com/) est une plateforme puissante pour créer, déployer et exécuter des automatisations web et des acteurs de scraping à grande échelle. Apify vous permet d'extraire des données utiles de n'importe quel site web, d'automatiser des flux de travail et de connecter vos pipelines de données de manière transparente.
+
+Avec Apify, vous pouvez :
+
+- **Exécuter des acteurs prêts à l'emploi ou personnalisés** : Intégrez des acteurs publics ou développez les vôtres, en automatisant un large éventail d'extractions de données web et de tâches de navigation.
+- **Récupérer des ensembles de données** : Accédez et gérez des ensembles de données structurées collectées par les acteurs en temps réel.
+- **Mettre à l'échelle l'automatisation web** : Exploitez l'infrastructure cloud pour exécuter des tâches de manière fiable, de façon asynchrone ou synchrone, avec une gestion robuste des erreurs.
+
+Dans Sim, l'intégration Apify permet à vos agents d'effectuer des opérations Apify essentielles de manière programmatique :
+
+- **Exécuter un acteur (Sync)** : Utilisez `apify_run_actor_sync` pour lancer un acteur Apify et attendre sa complétion, récupérant les résultats dès que l'exécution se termine.
+- **Exécuter un acteur (Async)** : Utilisez `apify_run_actor_async` pour démarrer un acteur en arrière-plan et interroger périodiquement les résultats, adapté aux tâches plus longues ou complexes.
+
+Ces opérations équipent vos agents pour automatiser, scraper et orchestrer la collecte de données ou les tâches d'automatisation de navigateur directement dans les flux de travail — le tout avec une configuration flexible et une gestion des résultats, sans nécessiter d'exécutions manuelles ou d'outils externes. Intégrez Apify comme un moteur dynamique d'automatisation et d'extraction de données qui alimente de manière programmatique les flux de travail à l'échelle du web de vos agents.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Apify dans votre flux de travail. Exécutez n'importe quel acteur Apify avec des entrées personnalisées et récupérez les résultats. Prend en charge l'exécution synchrone et asynchrone avec récupération automatique des ensembles de données.
+
+## Outils
+
+### `apify_run_actor_sync`
+
+Exécuter un acteur APIFY de manière synchrone et obtenir les résultats (maximum 5 minutes)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton API APIFY depuis console.apify.com/account#/integrations |
+| `actorId` | chaîne | Oui | ID de l'acteur ou nom d'utilisateur/nom-acteur \(ex. : "janedoe/my-actor" ou ID de l'acteur\) |
+| `input` | chaîne | Non | Entrée de l'acteur sous forme de chaîne JSON. Voir la documentation de l'acteur pour les champs requis. |
+| `timeout` | nombre | Non | Délai d'attente en secondes \(par défaut : valeur par défaut de l'acteur\) |
+| `build` | chaîne | Non | Version de l'acteur à exécuter \(ex. : "latest", "beta", ou tag/numéro de build\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'exécution de l'acteur a réussi |
+| `runId` | chaîne | ID d'exécution APIFY |
+| `status` | chaîne | Statut d'exécution \(SUCCEEDED, FAILED, etc.\) |
+| `datasetId` | chaîne | ID du jeu de données contenant les résultats |
+| `items` | tableau | Éléments du jeu de données \(si terminé\) |
+
+### `apify_run_actor_async`
+
+Exécuter un acteur APIFY de manière asynchrone avec interrogation périodique pour les tâches de longue durée
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | chaîne | Oui | Jeton API APIFY depuis console.apify.com/account#/integrations |
+| `actorId` | chaîne | Oui | ID de l'acteur ou nom d'utilisateur/nom-acteur \(ex. : "janedoe/my-actor" ou ID de l'acteur\) |
+| `input` | chaîne | Non | Entrée de l'acteur sous forme de chaîne JSON |
+| `waitForFinish` | nombre | Non | Temps d'attente initial en secondes \(0-60\) avant le début de l'interrogation |
+| `itemLimit` | nombre | Non | Nombre maximum d'éléments de jeu de données à récupérer \(1-250000, par défaut 100\) |
+| `timeout` | nombre | Non | Délai d'attente en secondes \(par défaut : valeur par défaut de l'acteur\) |
+| `build` | chaîne | Non | Version de l'acteur à exécuter \(ex. : "latest", "beta", ou tag/numéro de build\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si l'exécution de l'acteur a réussi |
+| `runId` | string | ID d'exécution APIFY |
+| `status` | string | Statut d'exécution \(SUCCEEDED, FAILED, etc.\) |
+| `datasetId` | string | ID du dataset contenant les résultats |
+| `items` | array | Éléments du dataset \(si terminé\) |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `apify`
