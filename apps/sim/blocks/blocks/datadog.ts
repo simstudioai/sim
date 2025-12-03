@@ -437,75 +437,99 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       'datadog_cancel_downtime',
     ],
     config: {
-      tool: (params) => {
-        // Map the input field IDs to the expected tool parameter names
-        const mappedParams = { ...params }
-
-        // Handle monitor operations
-        if (params.monitorQuery) {
-          mappedParams.query = params.monitorQuery
-        }
-        if (params.monitorTags) {
-          mappedParams.tags = params.monitorTags
-        }
-        if (params.monitorPriority) {
-          mappedParams.priority = Number(params.monitorPriority)
-        }
-        if (params.muteMonitorId) {
-          mappedParams.monitorId = params.muteMonitorId
+      tool: (params) => params.operation,
+      params: (params) => {
+        // Base params that are always needed
+        const baseParams: Record<string, any> = {
+          apiKey: params.apiKey,
+          applicationKey: params.applicationKey,
+          site: params.site,
         }
 
-        // Handle log operations
-        if (params.logQuery) {
-          mappedParams.query = params.logQuery
-        }
-        if (params.logFrom) {
-          mappedParams.from = params.logFrom
-        }
-        if (params.logTo) {
-          mappedParams.to = params.logTo
-        }
-        if (params.logLimit) {
-          mappedParams.limit = Number(params.logLimit)
-        }
+        // Only include params relevant to each operation
+        switch (params.operation) {
+          case 'datadog_submit_metrics':
+            return { ...baseParams, series: params.series }
 
-        // Handle downtime operations
-        if (params.downtimeScope) {
-          mappedParams.scope = params.downtimeScope
-        }
-        if (params.downtimeMessage) {
-          mappedParams.message = params.downtimeMessage
-        }
-        if (params.downtimeStart) {
-          mappedParams.start = Number(params.downtimeStart)
-        }
-        if (params.downtimeEnd) {
-          mappedParams.end = Number(params.downtimeEnd)
-        }
-        if (params.downtimeMonitorId) {
-          mappedParams.monitorId = params.downtimeMonitorId
-        }
+          case 'datadog_query_timeseries':
+            return {
+              ...baseParams,
+              query: params.query,
+              from: params.from ? Number(params.from) : undefined,
+              to: params.to ? Number(params.to) : undefined,
+            }
 
-        // Handle list monitors
-        if (params.listMonitorName) {
-          mappedParams.name = params.listMonitorName
-        }
-        if (params.listMonitorTags) {
-          mappedParams.tags = params.listMonitorTags
-        }
+          case 'datadog_create_event':
+            return {
+              ...baseParams,
+              title: params.title,
+              text: params.text,
+              alertType: params.alertType,
+              priority: params.priority,
+              tags: params.tags,
+            }
 
-        // Convert numeric fields
-        if (params.from) {
-          mappedParams.from = Number(params.from)
-        }
-        if (params.to) {
-          mappedParams.to = Number(params.to)
-        }
-        if (params.end) {
-          mappedParams.end = Number(params.end)
-        }
+          case 'datadog_create_monitor':
+            return {
+              ...baseParams,
+              name: params.name,
+              type: params.type,
+              query: params.monitorQuery,
+              message: params.message,
+              tags: params.monitorTags,
+              priority: params.monitorPriority ? Number(params.monitorPriority) : undefined,
+              options: params.options,
+            }
 
-        return params.operation
+          case 'datadog_get_monitor':
+            return { ...baseParams, monitorId: params.monitorId }
+
+          case 'datadog_list_monitors':
+            return {
+              ...baseParams,
+              name: params.listMonitorName || undefined,
+              tags: params.listMonitorTags || undefined,
+            }
+
+          case 'datadog_mute_monitor':
+            return {
+              ...baseParams,
+              monitorId: params.muteMonitorId,
+              scope: params.scope,
+              end: params.end ? Number(params.end) : undefined,
+            }
+
+          case 'datadog_query_logs':
+            return {
+              ...baseParams,
+              query: params.logQuery,
+              from: params.logFrom,
+              to: params.logTo,
+              limit: params.logLimit ? Number(params.logLimit) : undefined,
+            }
+
+          case 'datadog_send_logs':
+            return { ...baseParams, logs: params.logs }
+
+          case 'datadog_create_downtime':
+            return {
+              ...baseParams,
+              scope: params.downtimeScope,
+              message: params.downtimeMessage,
+              start: params.downtimeStart ? Number(params.downtimeStart) : undefined,
+              end: params.downtimeEnd ? Number(params.downtimeEnd) : undefined,
+              monitorId: params.downtimeMonitorId,
+            }
+
+          case 'datadog_list_downtimes':
+            return { ...baseParams, currentOnly: params.currentOnly }
+
+          case 'datadog_cancel_downtime':
+            return { ...baseParams, downtimeId: params.downtimeId }
+
+          default:
+            return baseParams
+        }
       },
     },
   },

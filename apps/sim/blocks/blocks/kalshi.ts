@@ -7,7 +7,7 @@ export const KalshiBlock: BlockConfig = {
   name: 'Kalshi',
   description: 'Access prediction markets data from Kalshi',
   longDescription:
-    'Integrate Kalshi prediction markets into the workflow. Can get markets, get market, get events, get event, get balance, get positions, get orders.',
+    'Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, and exchange status.',
   docsLink: 'https://docs.sim.ai/tools/kalshi',
   authMode: AuthMode.ApiKey,
   category: 'tools',
@@ -26,6 +26,13 @@ export const KalshiBlock: BlockConfig = {
         { label: 'Get Balance', id: 'get_balance' },
         { label: 'Get Positions', id: 'get_positions' },
         { label: 'Get Orders', id: 'get_orders' },
+        { label: 'Get Orderbook', id: 'get_orderbook' },
+        { label: 'Get Trades', id: 'get_trades' },
+        { label: 'Get Candlesticks', id: 'get_candlesticks' },
+        { label: 'Get Fills', id: 'get_fills' },
+        { label: 'Get Series', id: 'get_series' },
+        { label: 'Get Series by Ticker', id: 'get_series_by_ticker' },
+        { label: 'Get Exchange Status', id: 'get_exchange_status' },
       ],
       value: () => 'get_markets',
     },
@@ -35,7 +42,10 @@ export const KalshiBlock: BlockConfig = {
       title: 'API Key ID',
       type: 'short-input',
       placeholder: 'Your Kalshi API Key ID',
-      condition: { field: 'operation', value: ['get_balance', 'get_positions', 'get_orders'] },
+      condition: {
+        field: 'operation',
+        value: ['get_balance', 'get_positions', 'get_orders', 'get_fills'],
+      },
       required: true,
     },
     {
@@ -44,7 +54,10 @@ export const KalshiBlock: BlockConfig = {
       type: 'long-input',
       password: true,
       placeholder: 'Your RSA Private Key (PEM format)',
-      condition: { field: 'operation', value: ['get_balance', 'get_positions', 'get_orders'] },
+      condition: {
+        field: 'operation',
+        value: ['get_balance', 'get_positions', 'get_orders', 'get_fills'],
+      },
       required: true,
     },
     // Get Markets fields
@@ -89,7 +102,7 @@ export const KalshiBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Market ticker (e.g., KXBTC-24DEC31)',
       required: true,
-      condition: { field: 'operation', value: ['get_market'] },
+      condition: { field: 'operation', value: ['get_market', 'get_orderbook'] },
     },
     // Ticker filter for get_orders and get_positions - OPTIONAL
     {
@@ -135,6 +148,111 @@ export const KalshiBlock: BlockConfig = {
       ],
       condition: { field: 'operation', value: ['get_orders'] },
     },
+    // Get Orderbook fields
+    {
+      id: 'depth',
+      title: 'Depth',
+      type: 'short-input',
+      placeholder: 'Number of price levels per side',
+      condition: { field: 'operation', value: ['get_orderbook'] },
+    },
+    // Get Trades fields
+    {
+      id: 'tickerTrades',
+      title: 'Market Ticker',
+      type: 'short-input',
+      placeholder: 'Filter by market ticker (optional)',
+      condition: { field: 'operation', value: ['get_trades'] },
+    },
+    {
+      id: 'minTs',
+      title: 'Min Timestamp',
+      type: 'short-input',
+      placeholder: 'Minimum timestamp (Unix milliseconds)',
+      condition: { field: 'operation', value: ['get_trades', 'get_fills'] },
+    },
+    {
+      id: 'maxTs',
+      title: 'Max Timestamp',
+      type: 'short-input',
+      placeholder: 'Maximum timestamp (Unix milliseconds)',
+      condition: { field: 'operation', value: ['get_trades', 'get_fills'] },
+    },
+    // Get Candlesticks fields
+    {
+      id: 'seriesTickerCandlesticks',
+      title: 'Series Ticker',
+      type: 'short-input',
+      placeholder: 'Series ticker',
+      required: true,
+      condition: { field: 'operation', value: ['get_candlesticks'] },
+    },
+    {
+      id: 'tickerCandlesticks',
+      title: 'Market Ticker',
+      type: 'short-input',
+      placeholder: 'Market ticker (e.g., KXBTC-24DEC31)',
+      required: true,
+      condition: { field: 'operation', value: ['get_candlesticks'] },
+    },
+    {
+      id: 'startTs',
+      title: 'Start Timestamp',
+      type: 'short-input',
+      placeholder: 'Start timestamp (Unix milliseconds)',
+      condition: { field: 'operation', value: ['get_candlesticks'] },
+    },
+    {
+      id: 'endTs',
+      title: 'End Timestamp',
+      type: 'short-input',
+      placeholder: 'End timestamp (Unix milliseconds)',
+      condition: { field: 'operation', value: ['get_candlesticks'] },
+    },
+    {
+      id: 'periodInterval',
+      title: 'Period Interval',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: '1 minute', id: '1' },
+        { label: '1 hour', id: '60' },
+        { label: '1 day', id: '1440' },
+      ],
+      condition: { field: 'operation', value: ['get_candlesticks'] },
+    },
+    // Get Fills fields
+    {
+      id: 'tickerFills',
+      title: 'Market Ticker',
+      type: 'short-input',
+      placeholder: 'Filter by market ticker (optional)',
+      condition: { field: 'operation', value: ['get_fills'] },
+    },
+    {
+      id: 'orderId',
+      title: 'Order ID',
+      type: 'short-input',
+      placeholder: 'Filter by order ID (optional)',
+      condition: { field: 'operation', value: ['get_fills'] },
+    },
+    // Get Series fields
+    {
+      id: 'statusSeries',
+      title: 'Status',
+      type: 'short-input',
+      placeholder: 'Filter by status (optional)',
+      condition: { field: 'operation', value: ['get_series'] },
+    },
+    // Get Series by Ticker fields
+    {
+      id: 'seriesTickerGet',
+      title: 'Series Ticker',
+      type: 'short-input',
+      placeholder: 'Series ticker',
+      required: true,
+      condition: { field: 'operation', value: ['get_series_by_ticker'] },
+    },
     // Pagination fields
     {
       id: 'limit',
@@ -143,7 +261,15 @@ export const KalshiBlock: BlockConfig = {
       placeholder: 'Number of results (1-1000, default: 100)',
       condition: {
         field: 'operation',
-        value: ['get_markets', 'get_events', 'get_positions', 'get_orders'],
+        value: [
+          'get_markets',
+          'get_events',
+          'get_positions',
+          'get_orders',
+          'get_trades',
+          'get_fills',
+          'get_series',
+        ],
       },
     },
     {
@@ -153,7 +279,15 @@ export const KalshiBlock: BlockConfig = {
       placeholder: 'Pagination cursor',
       condition: {
         field: 'operation',
-        value: ['get_markets', 'get_events', 'get_positions', 'get_orders'],
+        value: [
+          'get_markets',
+          'get_events',
+          'get_positions',
+          'get_orders',
+          'get_trades',
+          'get_fills',
+          'get_series',
+        ],
       },
     },
   ],
@@ -166,6 +300,13 @@ export const KalshiBlock: BlockConfig = {
       'kalshi_get_balance',
       'kalshi_get_positions',
       'kalshi_get_orders',
+      'kalshi_get_orderbook',
+      'kalshi_get_trades',
+      'kalshi_get_candlesticks',
+      'kalshi_get_fills',
+      'kalshi_get_series',
+      'kalshi_get_series_by_ticker',
+      'kalshi_get_exchange_status',
     ],
     config: {
       tool: (params) => {
@@ -184,12 +325,37 @@ export const KalshiBlock: BlockConfig = {
             return 'kalshi_get_positions'
           case 'get_orders':
             return 'kalshi_get_orders'
+          case 'get_orderbook':
+            return 'kalshi_get_orderbook'
+          case 'get_trades':
+            return 'kalshi_get_trades'
+          case 'get_candlesticks':
+            return 'kalshi_get_candlesticks'
+          case 'get_fills':
+            return 'kalshi_get_fills'
+          case 'get_series':
+            return 'kalshi_get_series'
+          case 'get_series_by_ticker':
+            return 'kalshi_get_series_by_ticker'
+          case 'get_exchange_status':
+            return 'kalshi_get_exchange_status'
           default:
             return 'kalshi_get_markets'
         }
       },
       params: (params) => {
-        const { operation, orderStatus, tickerFilter, ...rest } = params
+        const {
+          operation,
+          orderStatus,
+          tickerFilter,
+          tickerTrades,
+          tickerFills,
+          tickerCandlesticks,
+          seriesTickerCandlesticks,
+          seriesTickerGet,
+          statusSeries,
+          ...rest
+        } = params
         const cleanParams: Record<string, any> = {}
 
         // Map orderStatus to status for get_orders
@@ -200,6 +366,32 @@ export const KalshiBlock: BlockConfig = {
         // Map tickerFilter to ticker for get_orders and get_positions
         if ((operation === 'get_orders' || operation === 'get_positions') && tickerFilter) {
           cleanParams.ticker = tickerFilter
+        }
+
+        // Map tickerTrades to ticker for get_trades
+        if (operation === 'get_trades' && tickerTrades) {
+          cleanParams.ticker = tickerTrades
+        }
+
+        // Map tickerFills to ticker for get_fills
+        if (operation === 'get_fills' && tickerFills) {
+          cleanParams.ticker = tickerFills
+        }
+
+        // Map fields for get_candlesticks
+        if (operation === 'get_candlesticks') {
+          if (seriesTickerCandlesticks) cleanParams.seriesTicker = seriesTickerCandlesticks
+          if (tickerCandlesticks) cleanParams.ticker = tickerCandlesticks
+        }
+
+        // Map seriesTickerGet to seriesTicker for get_series_by_ticker
+        if (operation === 'get_series_by_ticker' && seriesTickerGet) {
+          cleanParams.seriesTicker = seriesTickerGet
+        }
+
+        // Map statusSeries to status for get_series
+        if (operation === 'get_series' && statusSeries) {
+          cleanParams.status = statusSeries
         }
 
         Object.entries(rest).forEach(([key, value]) => {

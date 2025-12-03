@@ -10,7 +10,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#09C285"
 />
 
-
 {/* MANUAL-CONTENT-START:intro */}
 [Kalshi](https://kalshi.com) is a federally regulated exchange that enables users to trade directly on the outcomes of future events, known as prediction markets. Kalshi offers an open API, giving developers access to real-time market and event data, as well as account and trading information for automated or data-driven workflows.
 
@@ -26,9 +25,10 @@ Key features of the Kalshi integration include:
 By using the documented API tools, you can seamlessly incorporate Kalshi's rich event and financial market data into your AI workflows, dashboards, and trading automations.
 {/* MANUAL-CONTENT-END */}
 
+
 ## Usage Instructions
 
-Integrate Kalshi prediction markets into the workflow. Can get markets, get market, get events, get event, get balance, get positions, get orders.
+Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, and exchange status.
 
 
 
@@ -174,6 +174,142 @@ Retrieve your orders from Kalshi with optional filtering
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Orders data and metadata |
+
+### `kalshi_get_orderbook`
+
+Retrieve the orderbook (bids and asks) for a specific market
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticker` | string | Yes | Market ticker \(e.g., KXBTC-24DEC31\) |
+| `depth` | number | No | Number of price levels to return per side |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Orderbook data and metadata |
+
+### `kalshi_get_trades`
+
+Retrieve recent trades across all markets or for a specific market
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticker` | string | No | Filter by market ticker |
+| `minTs` | number | No | Minimum timestamp \(Unix milliseconds\) |
+| `maxTs` | number | No | Maximum timestamp \(Unix milliseconds\) |
+| `limit` | string | No | Number of results \(1-1000, default: 100\) |
+| `cursor` | string | No | Pagination cursor for next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Trades data and metadata |
+
+### `kalshi_get_candlesticks`
+
+Retrieve OHLC candlestick data for a specific market
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `seriesTicker` | string | Yes | Series ticker |
+| `ticker` | string | Yes | Market ticker \(e.g., KXBTC-24DEC31\) |
+| `startTs` | number | No | Start timestamp \(Unix milliseconds\) |
+| `endTs` | number | No | End timestamp \(Unix milliseconds\) |
+| `periodInterval` | number | No | Period interval: 1 \(1min\), 60 \(1hour\), or 1440 \(1day\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Candlestick data and metadata |
+
+### `kalshi_get_fills`
+
+Retrieve your portfolio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `ticker` | string | No | Filter by market ticker |
+| `orderId` | string | No | Filter by order ID |
+| `minTs` | number | No | Minimum timestamp \(Unix milliseconds\) |
+| `maxTs` | number | No | Maximum timestamp \(Unix milliseconds\) |
+| `limit` | string | No | Number of results \(1-1000, default: 100\) |
+| `cursor` | string | No | Pagination cursor for next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Fills data and metadata |
+
+### `kalshi_get_series`
+
+Retrieve a list of market series templates from Kalshi
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | No | Filter by status |
+| `limit` | string | No | Number of results \(1-1000, default: 100\) |
+| `cursor` | string | No | Pagination cursor for next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Series data and metadata |
+
+### `kalshi_get_series_by_ticker`
+
+Retrieve details of a specific market series by ticker
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `seriesTicker` | string | Yes | Series ticker |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Series data and metadata |
+
+### `kalshi_get_exchange_status`
+
+Retrieve the current status of the Kalshi exchange (trading and exchange activity)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Exchange status data and metadata |
 
 
 

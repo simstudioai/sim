@@ -3,6 +3,7 @@
 // Base URLs for different Polymarket APIs
 export const POLYMARKET_GAMMA_URL = 'https://gamma-api.polymarket.com'
 export const POLYMARKET_CLOB_URL = 'https://clob.polymarket.com'
+export const POLYMARKET_DATA_URL = 'https://data-api.polymarket.com'
 
 // Helper to build Gamma API URL
 export function buildGammaUrl(path: string): string {
@@ -12,6 +13,11 @@ export function buildGammaUrl(path: string): string {
 // Helper to build CLOB API URL
 export function buildClobUrl(path: string): string {
   return `${POLYMARKET_CLOB_URL}${path}`
+}
+
+// Helper to build Data API URL
+export function buildDataUrl(path: string): string {
+  return `${POLYMARKET_DATA_URL}${path}`
 }
 
 // Common pagination parameters
@@ -125,6 +131,50 @@ export interface PolymarketPrice {
 export interface PolymarketPriceHistoryEntry {
   t: number // timestamp
   p: number // price
+}
+
+// Series structure
+export interface PolymarketSeries {
+  id: string
+  title: string
+  slug: string
+  description: string
+  image: string
+  markets: PolymarketMarket[]
+}
+
+// Search result structure
+export interface PolymarketSearchResult {
+  markets: PolymarketMarket[]
+  events: PolymarketEvent[]
+  profiles: any[] // Profile structure not fully documented
+}
+
+// Spread structure
+export interface PolymarketSpread {
+  bid: string
+  ask: string
+}
+
+// Position structure
+export interface PolymarketPosition {
+  market: string
+  asset_id: string
+  size: string
+  value: string
+}
+
+// Trade structure
+export interface PolymarketTrade {
+  id: string
+  market: string
+  asset_id: string
+  side: string
+  size: string
+  price: string
+  timestamp: string
+  maker: string
+  taker: string
 }
 
 // Error handler for Polymarket API responses

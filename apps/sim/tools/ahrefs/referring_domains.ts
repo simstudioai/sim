@@ -56,7 +56,7 @@ export const referringDomainsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = new URL('https://api.ahrefs.com/v3/site-explorer/referring-domains')
+      const url = new URL('https://api.ahrefs.com/v3/site-explorer/refdomains')
       url.searchParams.set('target', params.target)
       // Date is required - default to today if not provided
       const date = params.date || new Date().toISOString().split('T')[0]

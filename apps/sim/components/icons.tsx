@@ -3902,7 +3902,7 @@ export function WordpressIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-export function AhRefsIcon(props: SVGProps<SVGSVGElement>) {
+export function AhrefsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1065 1300'>
       <path

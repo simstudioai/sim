@@ -120,6 +120,67 @@ export interface KalshiOrder {
   taker_fees?: number
 }
 
+// Orderbook type
+export interface KalshiOrderbookLevel {
+  price: number
+  quantity: number
+}
+
+export interface KalshiOrderbook {
+  yes: KalshiOrderbookLevel[]
+  no: KalshiOrderbookLevel[]
+}
+
+// Trade type
+export interface KalshiTrade {
+  ticker: string
+  yes_price: number
+  no_price: number
+  count: number
+  created_time: string
+  taker_side: string
+}
+
+// Candlestick type
+export interface KalshiCandlestick {
+  open_time: string
+  close_time: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
+
+// Fill type
+export interface KalshiFill {
+  created_time: string
+  ticker: string
+  is_taker: boolean
+  side: string
+  yes_price: number
+  no_price: number
+  count: number
+  order_id: string
+  trade_id: string
+}
+
+// Series type
+export interface KalshiSeries {
+  ticker: string
+  title: string
+  frequency: string
+  category: string
+  tags?: string[]
+  status?: string
+}
+
+// Exchange status type
+export interface KalshiExchangeStatus {
+  trading_active: boolean
+  exchange_active: boolean
+}
+
 // Helper function to build Kalshi API URLs
 export function buildKalshiUrl(path: string): string {
   return `${KALSHI_BASE_URL}${path}`

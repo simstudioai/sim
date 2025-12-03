@@ -564,9 +564,7 @@ export function SearchModal({
                                     <div
                                       className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
                                       style={{
-                                        backgroundColor: showColoredIcon
-                                          ? item.bgColor
-                                          : 'transparent',
+                                        background: showColoredIcon ? item.bgColor : 'transparent',
                                       }}
                                     >
                                       <Icon

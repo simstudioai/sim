@@ -1,4 +1,4 @@
-import { AhRefsIcon } from '@/components/icons'
+import { AhrefsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { AhrefsResponse } from '@/tools/ahrefs/types'
@@ -13,7 +13,7 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
   docsLink: 'https://docs.ahrefs.com/docs/api/reference/introduction',
   category: 'tools',
   bgColor: '#E0E0E0',
-  icon: AhRefsIcon,
+  icon: AhrefsIcon,
   subBlocks: [
     {
       id: 'operation',

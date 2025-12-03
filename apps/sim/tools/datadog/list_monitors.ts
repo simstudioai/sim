@@ -84,7 +84,18 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       if (params.pageSize) queryParams.set('page_size', String(params.pageSize))
 
       const queryString = queryParams.toString()
-      return `https://api.${site}/api/v1/monitor${queryString ? `?${queryString}` : ''}`
+      const url = `https://api.${site}/api/v1/monitor${queryString ? `?${queryString}` : ''}`
+      console.log(
+        '[Datadog List Monitors] URL:',
+        url,
+        'Site param:',
+        params.site,
+        'API Key present:',
+        !!params.apiKey,
+        'App Key present:',
+        !!params.applicationKey
+      )
+      return url
     },
     method: 'GET',
     headers: (params) => ({
@@ -106,8 +117,27 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       }
     }
 
-    const data = await response.json()
-    const monitors = (Array.isArray(data) ? data : []).map((m: any) => ({
+    const text = await response.text()
+    let data: any
+    try {
+      data = JSON.parse(text)
+    } catch (e) {
+      return {
+        success: false,
+        output: { monitors: [] },
+        error: `Failed to parse response: ${text.substring(0, 200)}`,
+      }
+    }
+
+    if (!Array.isArray(data)) {
+      return {
+        success: false,
+        output: { monitors: [] },
+        error: `Expected array but got: ${typeof data} - ${JSON.stringify(data).substring(0, 200)}`,
+      }
+    }
+
+    const monitors = data.map((m: any) => ({
       id: m.id,
       name: m.name,
       type: m.type,

@@ -6,7 +6,7 @@ export const PolymarketBlock: BlockConfig = {
   name: 'Polymarket',
   description: 'Access prediction markets data from Polymarket',
   longDescription:
-    'Integrate Polymarket prediction markets into the workflow. Can get markets, get market, get events, get event, get orderbook, get price, get midpoint, and get price history.',
+    'Integrate Polymarket prediction markets into the workflow. Can get markets, market, events, event, tags, series, orderbook, price, midpoint, price history, last trade price, spread, tick size, positions, trades, and search.',
   docsLink: 'https://docs.sim.ai/tools/polymarket',
   category: 'tools',
   bgColor: '#4C82FB',
@@ -21,10 +21,19 @@ export const PolymarketBlock: BlockConfig = {
         { label: 'Get Market', id: 'get_market' },
         { label: 'Get Events', id: 'get_events' },
         { label: 'Get Event', id: 'get_event' },
+        { label: 'Get Tags', id: 'get_tags' },
+        { label: 'Search', id: 'search' },
+        { label: 'Get Series', id: 'get_series' },
+        { label: 'Get Series by ID', id: 'get_series_by_id' },
         { label: 'Get Orderbook', id: 'get_orderbook' },
         { label: 'Get Price', id: 'get_price' },
         { label: 'Get Midpoint', id: 'get_midpoint' },
         { label: 'Get Price History', id: 'get_price_history' },
+        { label: 'Get Last Trade Price', id: 'get_last_trade_price' },
+        { label: 'Get Spread', id: 'get_spread' },
+        { label: 'Get Tick Size', id: 'get_tick_size' },
+        { label: 'Get Positions', id: 'get_positions' },
+        { label: 'Get Trades', id: 'get_trades' },
       ],
       value: () => 'get_markets',
     },
@@ -58,6 +67,48 @@ export const PolymarketBlock: BlockConfig = {
       placeholder: 'Event slug (required if no ID)',
       condition: { field: 'operation', value: ['get_event'] },
     },
+    // Series ID for get_series_by_id
+    {
+      id: 'seriesId',
+      title: 'Series ID',
+      type: 'short-input',
+      placeholder: 'Series ID',
+      required: true,
+      condition: { field: 'operation', value: ['get_series_by_id'] },
+    },
+    // Search query
+    {
+      id: 'query',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'Search term',
+      required: true,
+      condition: { field: 'operation', value: ['search'] },
+    },
+    // User wallet address for Data API operations
+    {
+      id: 'user',
+      title: 'User Wallet Address',
+      type: 'short-input',
+      placeholder: 'Wallet address',
+      required: true,
+      condition: { field: 'operation', value: ['get_positions'] },
+    },
+    {
+      id: 'user',
+      title: 'User Wallet Address',
+      type: 'short-input',
+      placeholder: 'Wallet address (optional filter)',
+      condition: { field: 'operation', value: ['get_trades'] },
+    },
+    // Market filter for positions and trades
+    {
+      id: 'market',
+      title: 'Market ID',
+      type: 'short-input',
+      placeholder: 'Market ID (optional filter)',
+      condition: { field: 'operation', value: ['get_positions', 'get_trades'] },
+    },
     // Token ID for CLOB operations
     {
       id: 'tokenId',
@@ -67,7 +118,15 @@ export const PolymarketBlock: BlockConfig = {
       required: true,
       condition: {
         field: 'operation',
-        value: ['get_orderbook', 'get_price', 'get_midpoint', 'get_price_history'],
+        value: [
+          'get_orderbook',
+          'get_price',
+          'get_midpoint',
+          'get_price_history',
+          'get_last_trade_price',
+          'get_spread',
+          'get_tick_size',
+        ],
       },
     },
     // Side for price query
@@ -161,14 +220,20 @@ export const PolymarketBlock: BlockConfig = {
       title: 'Limit',
       type: 'short-input',
       placeholder: 'Number of results (recommended: 25-50)',
-      condition: { field: 'operation', value: ['get_markets', 'get_events'] },
+      condition: {
+        field: 'operation',
+        value: ['get_markets', 'get_events', 'get_tags', 'search', 'get_series', 'get_trades'],
+      },
     },
     {
       id: 'offset',
       title: 'Offset',
       type: 'short-input',
       placeholder: 'Pagination offset',
-      condition: { field: 'operation', value: ['get_markets', 'get_events'] },
+      condition: {
+        field: 'operation',
+        value: ['get_markets', 'get_events', 'get_tags', 'search', 'get_series', 'get_trades'],
+      },
     },
   ],
   tools: {
@@ -177,10 +242,19 @@ export const PolymarketBlock: BlockConfig = {
       'polymarket_get_market',
       'polymarket_get_events',
       'polymarket_get_event',
+      'polymarket_get_tags',
+      'polymarket_search',
+      'polymarket_get_series',
+      'polymarket_get_series_by_id',
       'polymarket_get_orderbook',
       'polymarket_get_price',
       'polymarket_get_midpoint',
       'polymarket_get_price_history',
+      'polymarket_get_last_trade_price',
+      'polymarket_get_spread',
+      'polymarket_get_tick_size',
+      'polymarket_get_positions',
+      'polymarket_get_trades',
     ],
     config: {
       tool: (params) => {
@@ -193,6 +267,14 @@ export const PolymarketBlock: BlockConfig = {
             return 'polymarket_get_events'
           case 'get_event':
             return 'polymarket_get_event'
+          case 'get_tags':
+            return 'polymarket_get_tags'
+          case 'search':
+            return 'polymarket_search'
+          case 'get_series':
+            return 'polymarket_get_series'
+          case 'get_series_by_id':
+            return 'polymarket_get_series_by_id'
           case 'get_orderbook':
             return 'polymarket_get_orderbook'
           case 'get_price':
@@ -201,6 +283,16 @@ export const PolymarketBlock: BlockConfig = {
             return 'polymarket_get_midpoint'
           case 'get_price_history':
             return 'polymarket_get_price_history'
+          case 'get_last_trade_price':
+            return 'polymarket_get_last_trade_price'
+          case 'get_spread':
+            return 'polymarket_get_spread'
+          case 'get_tick_size':
+            return 'polymarket_get_tick_size'
+          case 'get_positions':
+            return 'polymarket_get_positions'
+          case 'get_trades':
+            return 'polymarket_get_trades'
           default:
             return 'polymarket_get_markets'
         }
@@ -245,6 +337,10 @@ export const PolymarketBlock: BlockConfig = {
     marketSlug: { type: 'string', description: 'Market slug' },
     eventId: { type: 'string', description: 'Event ID' },
     eventSlug: { type: 'string', description: 'Event slug' },
+    seriesId: { type: 'string', description: 'Series ID' },
+    query: { type: 'string', description: 'Search query' },
+    user: { type: 'string', description: 'User wallet address' },
+    market: { type: 'string', description: 'Market ID filter' },
     tokenId: { type: 'string', description: 'CLOB Token ID' },
     side: { type: 'string', description: 'Order side (buy/sell)' },
     interval: { type: 'string', description: 'Price history interval' },
