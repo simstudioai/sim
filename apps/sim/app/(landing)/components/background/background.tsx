@@ -1,5 +1,5 @@
 import dynamic from 'next/dynamic'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 // Lazy load the SVG to reduce initial bundle size
 const BackgroundSVG = dynamic(() => import('./background-svg'), {

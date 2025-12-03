@@ -25,6 +25,7 @@ import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
 import { GitHubBlock } from '@/blocks/blocks/github'
 import { GmailBlock } from '@/blocks/blocks/gmail'
 import { GoogleSearchBlock } from '@/blocks/blocks/google'
+import { GoogleAdsBlock } from '@/blocks/blocks/google_ads'
 import { GoogleCalendarBlock } from '@/blocks/blocks/google_calendar'
 import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
@@ -86,6 +87,7 @@ import { SentryBlock } from '@/blocks/blocks/sentry'
 import { SerperBlock } from '@/blocks/blocks/serper'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { SlackBlock } from '@/blocks/blocks/slack'
+import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { StagehandBlock } from '@/blocks/blocks/stagehand'
 import { StagehandAgentBlock } from '@/blocks/blocks/stagehand_agent'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
@@ -98,6 +100,7 @@ import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock } from '@/blocks/blocks/trello'
+import { TtsBlock } from '@/blocks/blocks/tts'
 import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
@@ -145,7 +148,7 @@ export const registry: Record<string, BlockConfig> = {
   generic_webhook: GenericWebhookBlock,
   github: GitHubBlock,
   gmail: GmailBlock,
-  guardrails: GuardrailsBlock,
+  google_ads: GoogleAdsBlock,
   google_calendar: GoogleCalendarBlock,
   google_docs: GoogleDocsBlock,
   google_drive: GoogleDriveBlock,
@@ -153,6 +156,7 @@ export const registry: Record<string, BlockConfig> = {
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
   google_vault: GoogleVaultBlock,
+  guardrails: GuardrailsBlock,
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
   human_in_the_loop: HumanInTheLoopBlock,
@@ -208,11 +212,13 @@ export const registry: Record<string, BlockConfig> = {
   serper: SerperBlock,
   sharepoint: SharepointBlock,
   slack: SlackBlock,
+  smtp: SmtpBlock,
   stagehand: StagehandBlock,
   stagehand_agent: StagehandAgentBlock,
   starter: StarterBlock,
   start_trigger: StartTriggerBlock,
   stt: SttBlock,
+  tts: TtsBlock,
   stripe: StripeBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,

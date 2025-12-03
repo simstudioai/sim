@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
-import { env, getEnv, isTruthy } from './lib/env'
-import { isDev, isHosted } from './lib/environment'
-import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/security/csp'
+import { env, getEnv, isTruthy } from './lib/core/config/env'
+import { isDev, isHosted } from './lib/core/config/environment'
+import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/core/security/csp'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -32,6 +32,10 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'sambanova.ai',
       },
       // Brand logo domain if configured
       ...(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL')

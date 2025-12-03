@@ -109,7 +109,7 @@ export const POST = withMcpAuth('write')(
 
       // Track MCP server registration
       try {
-        const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
         trackPlatformEvent('platform.mcp.server_added', {
           'mcp.server_id': serverId,
           'mcp.server_name': body.name,

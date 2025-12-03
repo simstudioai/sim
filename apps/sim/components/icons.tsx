@@ -1,4 +1,5 @@
 import type { SVGProps } from 'react'
+import Image, { type ImageProps } from 'next/image'
 
 export function SearchIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -20,38 +21,45 @@ export function SearchIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-export function AgentIcon(props: SVGProps<SVGSVGElement>) {
+export function Spinner() {
   return (
-    <svg
-      {...props}
-      width='21'
-      height='24'
-      viewBox='0 0 21 24'
-      fill='none'
-      xmlns='http://www.w3.org/2000/svg'
-    >
-      <path
-        d='M15.6667 9.25H4.66667C2.64162 9.25 1 10.8916 1 12.9167V18.4167C1 20.4417 2.64162 22.0833 4.66667 22.0833H15.6667C17.6917 22.0833 19.3333 20.4417 19.3333 18.4167V12.9167C19.3333 10.8916 17.6917 9.25 15.6667 9.25Z'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
+    <div className='absolute top-0 right-0 bottom-0 flex items-center justify-center'>
+      <svg
+        className='-ml-1 mr-3 h-5 w-5 animate-spin text-gray-700'
+        xmlns='http://www.w3.org/2000/svg'
+        fill='none'
+        viewBox='0 0 24 24'
+      >
+        <circle
+          className='opacity-25'
+          cx='12'
+          cy='12'
+          r='10'
+          stroke='currentColor'
+          strokeWidth='4'
+        />
+        <path
+          className='opacity-75'
+          fill='currentColor'
+          d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+        />
+      </svg>
+    </div>
+  )
+}
+
+export function AgentIcon(props: Omit<ImageProps, 'src' | 'alt' | 'fill'>) {
+  return (
+    <div className='relative flex h-full w-full items-center justify-center rounded-md bg-[linear-gradient(to_bottom,#8F50AC,#0086AB)]'>
+      <Image
+        src='https://arenav2image.s3.us-west-1.amazonaws.com/vimi-sparkle.png'
+        alt='vimi-sparkle'
+        width={23} // scale image relative to container
+        height={23}
+        className='object-contain'
+        {...props}
       />
-      <path
-        d='M10.1663 5.58464C11.1789 5.58464 11.9997 4.76382 11.9997 3.7513C11.9997 2.73878 11.1789 1.91797 10.1663 1.91797C9.15382 1.91797 8.33301 2.73878 8.33301 3.7513C8.33301 4.76382 9.15382 5.58464 10.1663 5.58464Z'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      />
-      <path
-        d='M10.167 5.58594V9.2526M7.41699 16.5859V14.7526M12.917 14.7526V16.5859'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      />
-    </svg>
+    </div>
   )
 }
 
@@ -3535,6 +3543,23 @@ export function VllmIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export const SambaNovaIcon: React.FC<{ className?: string }> = ({ className }) => {
+  return (
+    <div className={`relative ${className || 'h-4 w-4'}`}>
+      <Image
+        src={
+          'https://sambanova.ai/hs-fs/hubfs/sambanova_favicon.png?width=200&name=sambanova_favicon.png'
+        }
+        alt='SambaNova'
+        fill
+        className='rounded-sm object-contain'
+        sizes='(max-width: 768px) 16px, 20px'
+        priority={false}
+      />
+    </div>
+  )
+}
+
 export function PosthogIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -3765,12 +3790,16 @@ export function MailgunIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      fill='currentColor'
+      version='1.1'
+      viewBox='0 0 1000 1000'
       xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
       xmlSpace='preserve'
-      viewBox='0 0 512 512'
     >
-      <path d='M256.5 159.5c-53.5 0-97 43.5-97 97s43.5 97 97 97 97-43.5 97-97-43.5-97-97-97m-151.1 97c0-83.4 67.7-151.1 151.1-151.1s151.1 67.7 151.1 151.1c0 5.8-.5 11-1 16.3-1 14.7 9.4 25.7 24.1 25.7 24.7 0 27.3-32 27.3-42.5 0-111.7-90.2-202-202-202S54 144.3 54 256s90.2 202 202 202c59.3 0 112.3-25.7 149.5-66.1l41.4 34.6C400.3 479 332.1 512 256 512 114.4 512 0 397.1 0 256 0 114.4 114.9 0 256 0c141.6 0 256 114.9 256 256 0 56.7-27.3 102.8-81.3 102.8-24.1 0-38.3-11-46.7-23.1-26.8 43-74 71.3-128.5 71.3-82.4.6-150.1-67.1-150.1-150.5m151.1-44.6c24.7 0 44.6 19.9 44.6 44.1 0 24.7-19.9 44.6-44.6 44.6s-44.6-19.9-44.6-44.6c.6-24.1 20-44.1 44.6-44.1' />
+      <path
+        fill='#C12126'
+        d='M493,305.7c-88.9,0-161,72.1-161,161c0,88.9,72.1,161,161,161c88.9,0,161-72.1,161-161 C654,377.8,582,305.7,493,305.7z M242,466.7c0-138.7,112.4-251,251-251c138.7,0,251.1,112.4,251.1,251c0,9.2-0.5,18.2-1.4,27.1 c-1.9,24.5,16.1,43.2,40.4,43.2c41.3,0,45.7-53.2,45.7-70.3c0-185.4-150.3-335.6-335.6-335.6S157.4,281.4,157.4,466.7 c0,185.4,150.3,335.6,335.6,335.6c98.4,0,187-42.4,248.4-109.9l69,57.9c-77.9,87.1-191.3,142-317.4,142 c-235.1,0-425.7-190.6-425.7-425.7S257.9,41,493,41c235.1,0,425.7,190.6,425.7,425.7c0,94.5-45,171.2-135.4,171.2 c-39.8,0-64-18.2-77.2-38.6C661.9,670.5,583,717.8,493,717.8C354.4,717.8,242,605.4,242,466.7z M493,393.1c40.7,0,73.7,33,73.7,73.7 c0,40.7-33,73.7-73.7,73.7c-40.7,0-73.7-33-73.7-73.7S452.3,393.1,493,393.1z'
+      />
     </svg>
   )
 }

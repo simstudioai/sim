@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useSession } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth/auth-client'
 import { useGeneralSettings } from '@/hooks/queries/general-settings'
 
 /**

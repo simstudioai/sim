@@ -30,7 +30,7 @@ describe('Workflow By ID API Route', () => {
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 
-    vi.doMock('@/lib/workflows/db-helpers', () => ({
+    vi.doMock('@/lib/workflows/persistence/utils', () => ({
       loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue(null),
     }))
 
@@ -128,7 +128,7 @@ describe('Workflow By ID API Route', () => {
         isWorkspaceOwner: false,
       })
 
-      vi.doMock('@/lib/workflows/db-helpers', () => ({
+      vi.doMock('@/lib/workflows/persistence/utils', () => ({
         loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue(mockNormalizedData),
       }))
 
@@ -183,7 +183,7 @@ describe('Workflow By ID API Route', () => {
         isWorkspaceOwner: false,
       })
 
-      vi.doMock('@/lib/workflows/db-helpers', () => ({
+      vi.doMock('@/lib/workflows/persistence/utils', () => ({
         loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue(mockNormalizedData),
       }))
 
@@ -196,7 +196,7 @@ describe('Workflow By ID API Route', () => {
         isWorkspaceOwner: false,
       })
 
-      vi.doMock('@/lib/permissions/utils', () => ({
+      vi.doMock('@/lib/workspaces/permissions/utils', () => ({
         getUserEntityPermissions: vi.fn().mockResolvedValue('read'),
         hasAdminPermission: vi.fn().mockResolvedValue(false),
       }))
@@ -277,7 +277,7 @@ describe('Workflow By ID API Route', () => {
         isWorkspaceOwner: false,
       })
 
-      vi.doMock('@/lib/workflows/db-helpers', () => ({
+      vi.doMock('@/lib/workflows/persistence/utils', () => ({
         loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue(mockNormalizedData),
       }))
 

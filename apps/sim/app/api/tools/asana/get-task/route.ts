@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
-import { validateAlphanumericId } from '@/lib/security/input-validation'
 
 export const dynamic = 'force-dynamic'
 

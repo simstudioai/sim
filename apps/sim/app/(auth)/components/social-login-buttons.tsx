@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import { GithubIcon, GoogleIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
-import { client } from '@/lib/auth-client'
+import { client } from '@/lib/auth/auth-client'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 
 interface SocialLoginButtonsProps {

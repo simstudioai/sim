@@ -12,8 +12,8 @@ import { Label } from '@/components/ui/label'
 //   SelectValue,
 // } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { useSession } from '@/lib/auth-client'
-import { getEnv, isTruthy } from '@/lib/env'
+import { useSession } from '@/lib/auth/auth-client'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 
 const TOOLTIPS = {

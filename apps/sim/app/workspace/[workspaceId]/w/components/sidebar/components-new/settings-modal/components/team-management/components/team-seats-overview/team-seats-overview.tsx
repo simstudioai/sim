@@ -1,7 +1,7 @@
 import { Badge, Button } from '@/components/emcn'
 import { Skeleton } from '@/components/ui/skeleton'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 const PILL_COUNT = 8
 

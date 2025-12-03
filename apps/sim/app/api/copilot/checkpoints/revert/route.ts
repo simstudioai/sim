@@ -9,10 +9,10 @@ import {
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/auth'
+} from '@/lib/copilot/request-helpers'
+import { validateUUID } from '@/lib/core/security/input-validation'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { validateUUID } from '@/lib/security/input-validation'
-import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('CheckpointRevertAPI')
 

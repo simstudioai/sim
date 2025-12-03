@@ -63,6 +63,7 @@ export default async function TemplatesPage({ params }: TemplatesPageProps) {
           name: string
           profileImageUrl?: string | null
           details?: unknown
+          verified: boolean
         } | null
         views: number
         stars: number
@@ -158,6 +159,7 @@ export default async function TemplatesPage({ params }: TemplatesPageProps) {
               } | null,
               referenceType: row.creator.referenceType,
               referenceId: row.creator.referenceId,
+              verified: row.creator.verified,
             }
           : null,
         views: row.views,

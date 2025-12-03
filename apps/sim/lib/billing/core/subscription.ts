@@ -9,9 +9,9 @@ import {
   getPerUserMinimumLimit,
 } from '@/lib/billing/subscriptions/utils'
 import type { UserSubscriptionState } from '@/lib/billing/types'
-import { isProd } from '@/lib/environment'
+import { isProd } from '@/lib/core/config/environment'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('SubscriptionCore')
 
@@ -301,7 +301,7 @@ export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
         const { getEmailSubject, renderPlanWelcomeEmail } = await import(
           '@/components/emails/render-email'
         )
-        const { sendEmail } = await import('@/lib/email/mailer')
+        const { sendEmail } = await import('@/lib/messaging/email/mailer')
 
         const baseUrl = getBaseUrl()
         const html = await renderPlanWelcomeEmail({

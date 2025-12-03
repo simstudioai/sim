@@ -3,8 +3,8 @@ import { memory, workflowBlocks } from '@sim/db/schema'
 import { and, eq, inArray, isNull, like } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateRequestId } from '@/lib/utils'
 import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 
 const logger = createLogger('MemoryAPI')

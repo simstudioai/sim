@@ -1,6 +1,6 @@
 import type * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 const buttonVariants = cva(
   'inline-flex items-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] dark:hover:text-[var(--text-primary)] dark:text-[var(--text-secondary)] justify-center font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 outline-none focus:outline-none focus-visible:outline-none rounded-[4px] px-[8px] py-[6px] text-[12px]',
@@ -15,9 +15,9 @@ const buttonVariants = cva(
         outline:
           'border border-[#727272] bg-[var(--border-strong)] hover:bg-[var(--surface-11)] dark:border-[#727272] dark:bg-[var(--border-strong)] dark:hover:bg-[var(--surface-11)]',
         primary:
-          'bg-[var(--brand-400)] dark:bg-[var(--brand-400)] dark:text-[var(--text-primary)] text-[var(--text-primary)] hover:brightness-110 hover:text-[var(--text-primary)] hover:dark:text-[var(--text-primary)]',
+          'bg-[var(--brand-primary-hex,var(--brand-400))] dark:bg-[var(--brand-primary-hex,var(--brand-400))] dark:text-[var(--text-primary)] text-[var(--text-primary)] hover:bg-[var(--brand-primary-hover-hex,var(--brand-400))] hover:dark:bg-[var(--brand-primary-hover-hex,var(--brand-400))] hover:text-[var(--text-primary)] hover:dark:text-[var(--text-primary)]',
         secondary:
-          'bg-[var(--brand-secondary)] dark:bg-[var(--brand-secondary)] dark:text-[var(--text-primary)] text-[var(--text-primary)] hover:bg-[var(--brand-secondary)] hover:dark:bg-[var(--brand-secondary)] hover:text-[var(--text-primary)] hover:dark:text-[var(--text-primary)]',
+          'bg-[var(--brand-secondary-hex,var(--brand-secondary))] dark:bg-[var(--brand-secondary-hex,var(--brand-secondary))] dark:text-[var(--text-primary)] text-[var(--text-primary)] hover:bg-[var(--brand-secondary-hex,var(--brand-secondary))] hover:dark:bg-[var(--brand-secondary-hex,var(--brand-secondary))] hover:text-[var(--text-primary)] hover:dark:text-[var(--text-primary)]',
         tertiary:
           'bg-[var(--brand-tertiary)] dark:bg-[var(--brand-tertiary)] dark:text-[var(--text-primary)] text-[var(--text-primary)] hover:bg-[var(--brand-tertiary)] hover:dark:bg-[var(--brand-tertiary)] hover:text-[var(--text-primary)] hover:dark:text-[var(--text-primary)]',
         ghost: '',

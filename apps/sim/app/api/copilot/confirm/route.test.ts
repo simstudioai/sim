@@ -28,27 +28,23 @@ describe('Copilot Confirm API Route', () => {
     }
 
     mockGetRedisClient.mockReturnValue(mockRedisClient)
-    mockRedisExists.mockResolvedValue(1) // Tool call exists by default
+    mockRedisExists.mockResolvedValue(1)
     mockRedisSet.mockResolvedValue('OK')
 
-    vi.doMock('@/lib/redis', () => ({
+    vi.doMock('@/lib/core/config/redis', () => ({
       getRedisClient: mockGetRedisClient,
     }))
 
-    // Mock setTimeout to control polling behavior
     vi.spyOn(global, 'setTimeout').mockImplementation((callback, _delay) => {
-      // Immediately call callback to avoid delays
       if (typeof callback === 'function') {
         setImmediate(callback)
       }
       return setTimeout(() => {}, 0) as any
     })
 
-    // Mock Date.now to control timeout behavior
     let mockTime = 1640995200000
     vi.spyOn(Date, 'now').mockImplementation(() => {
-      // Increment time rapidly to trigger timeout for non-existent keys
-      mockTime += 10000 // Add 10 seconds each call
+      mockTime += 10000
       return mockTime
     })
   })
@@ -82,7 +78,6 @@ describe('Copilot Confirm API Route', () => {
 
       const req = createMockRequest('POST', {
         status: 'success',
-        // Missing toolCallId
       })
 
       const { POST } = await import('@/app/api/copilot/confirm/route')
@@ -149,7 +144,6 @@ describe('Copilot Confirm API Route', () => {
         status: 'success',
       })
 
-      // Verify Redis operations were called
       expect(mockRedisExists).toHaveBeenCalled()
       expect(mockRedisSet).toHaveBeenCalled()
     })
@@ -252,7 +246,6 @@ describe('Copilot Confirm API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock Redis client as unavailable
       mockGetRedisClient.mockReturnValue(null)
 
       const req = createMockRequest('POST', {
@@ -272,7 +265,6 @@ describe('Copilot Confirm API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock tool call as not existing in Redis
       mockRedisExists.mockResolvedValue(0)
 
       const req = createMockRequest('POST', {
@@ -292,7 +284,6 @@ describe('Copilot Confirm API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock Redis operations to throw an error
       mockRedisExists.mockRejectedValue(new Error('Redis connection failed'))
 
       const req = createMockRequest('POST', {
@@ -312,7 +303,6 @@ describe('Copilot Confirm API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Tool call exists but set operation fails
       mockRedisExists.mockResolvedValue(1)
       mockRedisSet.mockRejectedValue(new Error('Redis set failed'))
 
@@ -333,7 +323,6 @@ describe('Copilot Confirm API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Create a request with invalid JSON
       const req = new NextRequest('http://localhost:3000/api/copilot/confirm', {
         method: 'POST',
         body: '{invalid-json',
