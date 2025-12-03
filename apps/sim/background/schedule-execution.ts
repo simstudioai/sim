@@ -9,6 +9,7 @@ import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import {
@@ -22,6 +23,7 @@ import {
   getSubBlockValue,
 } from '@/lib/workflows/schedules/utils'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionResult } from '@/executor/types'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
 const logger = createLogger('TriggerScheduleExecution')
@@ -293,6 +295,9 @@ async function runWorkflowExecution({
     )
 
     try {
+      const executionResult = (earlyError as any)?.executionResult as ExecutionResult | undefined
+      const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
+
       await loggingSession.safeCompleteWithError({
         error: {
           message: `Schedule execution failed: ${
@@ -300,7 +305,7 @@ async function runWorkflowExecution({
           }`,
           stackTrace: earlyError instanceof Error ? earlyError.stack : undefined,
         },
-        traceSpans: [],
+        traceSpans,
       })
     } catch (loggingError) {
       logger.error(`[${requestId}] Failed to complete log entry for schedule failure`, loggingError)
