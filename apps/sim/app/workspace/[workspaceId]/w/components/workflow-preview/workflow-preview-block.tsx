@@ -8,16 +8,19 @@ interface WorkflowPreviewBlockData {
   type: string
   name: string
   isTrigger?: boolean
+  horizontalHandles?: boolean
+  enabled?: boolean
 }
 
 /**
  * Lightweight block component for workflow previews.
- * Renders block header, dummy subblocks skeleton, and horizontal handles.
- * No hooks, store subscriptions, or interactive features.
+ * Renders block header, dummy subblocks skeleton, and handles.
+ * Respects horizontalHandles and enabled state from workflow.
+ * No heavy hooks, store subscriptions, or interactive features.
  * Used in template cards and other preview contexts for performance.
  */
 function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>) {
-  const { type, name, isTrigger = false } = data
+  const { type, name, isTrigger = false, horizontalHandles = false, enabled = true } = data
 
   const blockConfig = getBlock(type)
   if (!blockConfig) {
@@ -44,8 +47,9 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   const hasSubBlocks = visibleSubBlocks.length > 0
   const showErrorRow = !isStarterOrTrigger
 
-  // Handle styles - always horizontal
-  const handleClass = '!border-none !bg-[var(--surface-12)] !h-5 !w-[7px] !rounded-[2px]'
+  // Handle styles based on orientation
+  const horizontalHandleClass = '!border-none !bg-[var(--surface-12)] !h-5 !w-[7px] !rounded-[2px]'
+  const verticalHandleClass = '!border-none !bg-[var(--surface-12)] !h-[7px] !w-5 !rounded-[2px]'
 
   return (
     <div className='relative w-[250px] select-none rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)]'>
@@ -53,10 +57,14 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       {!isStarterOrTrigger && (
         <Handle
           type='target'
-          position={Position.Left}
+          position={horizontalHandles ? Position.Left : Position.Top}
           id='target'
-          className={handleClass}
-          style={{ left: '-7px', top: '24px' }}
+          className={horizontalHandles ? horizontalHandleClass : verticalHandleClass}
+          style={
+            horizontalHandles
+              ? { left: '-7px', top: '24px' }
+              : { top: '-7px', left: '50%', transform: 'translateX(-50%)' }
+          }
         />
       )}
 
@@ -66,11 +74,14 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       >
         <div
           className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
-          style={{ background: blockConfig.bgColor }}
+          style={{ background: enabled ? blockConfig.bgColor : 'gray' }}
         >
           <IconComponent className='h-[16px] w-[16px] text-white' />
         </div>
-        <span className='truncate font-medium text-[16px]' title={name}>
+        <span
+          className={`truncate font-medium text-[16px] ${!enabled ? 'text-[#808080]' : ''}`}
+          title={name}
+        >
           {name}
         </span>
       </div>
@@ -106,10 +117,14 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       {/* Source handle */}
       <Handle
         type='source'
-        position={Position.Right}
+        position={horizontalHandles ? Position.Right : Position.Bottom}
         id='source'
-        className={handleClass}
-        style={{ right: '-7px', top: '24px' }}
+        className={horizontalHandles ? horizontalHandleClass : verticalHandleClass}
+        style={
+          horizontalHandles
+            ? { right: '-7px', top: '24px' }
+            : { bottom: '-7px', left: '50%', transform: 'translateX(-50%)' }
+        }
       />
     </div>
   )

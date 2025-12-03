@@ -177,6 +177,8 @@ export function WorkflowPreview({
             type: block.type,
             name: block.name,
             isTrigger: block.triggerMode === true,
+            horizontalHandles: block.horizontalHandles ?? false,
+            enabled: block.enabled ?? true,
           },
         })
         return
