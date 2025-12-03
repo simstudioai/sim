@@ -7,7 +7,7 @@ import type { DialogProps } from '@radix-ui/react-dialog'
 import { Command as CommandPrimitive } from 'cmdk'
 import { Search } from 'lucide-react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 // This file is not typed correctly from shadcn, so we're disabling the type checker
 // @ts-nocheck

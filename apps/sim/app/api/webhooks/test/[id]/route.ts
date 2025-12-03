@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateRequestId } from '@/lib/utils'
 import {
   checkWebhookPreprocessing,
   findWebhookAndWorkflow,

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
+import { validateNumericId } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
-import { validateNumericId } from '@/lib/security/input-validation'
 
 interface DiscordChannel {
   id: string

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { Modal, ModalContent, ModalDescription, ModalTitle } from '@/components/emcn'
-import { getEnv, isTruthy } from '@/lib/env'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   Account,

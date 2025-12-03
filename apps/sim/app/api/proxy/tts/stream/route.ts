@@ -1,8 +1,8 @@
 import type { NextRequest } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
-import { validateAlphanumericId } from '@/lib/security/input-validation'
 
 const logger = createLogger('ProxyTTSStreamAPI')
 

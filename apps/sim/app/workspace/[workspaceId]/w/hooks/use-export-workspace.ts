@@ -1,6 +1,9 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
-import { exportWorkspaceToZip, type WorkflowExportData } from '@/lib/workflows/import-export'
+import {
+  exportWorkspaceToZip,
+  type WorkflowExportData,
+} from '@/lib/workflows/operations/import-export'
 
 const logger = createLogger('useExportWorkspace')
 

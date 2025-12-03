@@ -15,7 +15,7 @@ vi.mock('drizzle-orm', () => ({
   sql: (strings: TemplateStringsArray, ...expr: any[]) => ({ strings, expr }),
 }))
 
-vi.mock('@/lib/env', () => ({
+vi.mock('@/lib/core/config/env', () => ({
   env: { OPENAI_API_KEY: 'test-key' },
   getEnv: (key: string) => process.env[key],
   isTruthy: (value: string | boolean | number | undefined) =>
@@ -164,8 +164,8 @@ vi.mock('@sim/db', () => {
   }
 })
 
-import { generateEmbeddings } from '@/lib/embeddings/utils'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
+import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import {
   checkChunkAccess,
   checkDocumentAccess,
@@ -272,7 +272,7 @@ describe('Knowledge Utils', () => {
     })
 
     it('should use Azure OpenAI when Azure config is provided', async () => {
-      const { env } = await import('@/lib/env')
+      const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
         AZURE_OPENAI_API_KEY: 'test-azure-key',
@@ -305,7 +305,7 @@ describe('Knowledge Utils', () => {
     })
 
     it('should fallback to OpenAI when no Azure config provided', async () => {
-      const { env } = await import('@/lib/env')
+      const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
         OPENAI_API_KEY: 'test-openai-key',
@@ -334,7 +334,7 @@ describe('Knowledge Utils', () => {
     })
 
     it('should throw error when no API configuration provided', async () => {
-      const { env } = await import('@/lib/env')
+      const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
 
       await expect(generateEmbeddings(['test text'])).rejects.toThrow(

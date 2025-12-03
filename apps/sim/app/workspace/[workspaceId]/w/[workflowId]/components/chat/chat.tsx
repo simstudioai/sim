@@ -13,16 +13,16 @@ import {
   PopoverTrigger,
   Trash,
 } from '@/components/emcn'
-import { useSession } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console/logger'
+import { useSession } from '@/lib/auth/auth-client'
+import { cn } from '@/lib/core/utils/cn'
 import {
   extractBlockIdFromOutputId,
   extractPathFromOutputId,
   parseOutputContentSafely,
-} from '@/lib/response-format'
-import { cn } from '@/lib/utils'
+} from '@/lib/core/utils/response-format'
+import { createLogger } from '@/lib/logs/console/logger'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
-import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
+import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
 import {
   ChatMessage,

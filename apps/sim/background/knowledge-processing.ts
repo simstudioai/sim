@@ -1,5 +1,5 @@
 import { task } from '@trigger.dev/sdk'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { createLogger } from '@/lib/logs/console/logger'
 

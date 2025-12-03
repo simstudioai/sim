@@ -1,0 +1,168 @@
+---
+title: Amazon RDS
+description: Connexion à Amazon RDS via l'API Data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="rds"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon RDS Aurora Serverless](https://aws.amazon.com/rds/aurora/serverless/) est une base de données relationnelle entièrement gérée qui démarre, s'arrête et adapte automatiquement sa capacité en fonction des besoins de votre application. Elle vous permet d'exécuter des bases de données SQL dans le cloud sans avoir à gérer des serveurs de base de données.
+
+Avec RDS Aurora Serverless, vous pouvez :
+
+- **Interroger des données** : exécuter des requêtes SQL flexibles sur vos tables
+- **Insérer de nouveaux enregistrements** : ajouter automatiquement des données à votre base de données
+- **Mettre à jour des enregistrements existants** : modifier des données dans vos tables à l'aide de filtres personnalisés
+- **Supprimer des enregistrements** : éliminer les données indésirables en utilisant des critères précis
+- **Exécuter du SQL brut** : lancer toute commande SQL valide prise en charge par Aurora
+
+Dans Sim, l'intégration RDS permet à vos agents de travailler avec les bases de données Amazon Aurora Serverless de manière sécurisée et programmatique. Les opérations prises en charge comprennent :
+
+- **Requête** : exécuter des requêtes SELECT et autres requêtes SQL pour récupérer des lignes de votre base de données
+- **Insertion** : insérer de nouveaux enregistrements dans les tables avec des données structurées
+- **Mise à jour** : modifier les données dans les lignes qui correspondent à vos conditions spécifiées
+- **Suppression** : supprimer des enregistrements d'une table par filtres ou critères personnalisés
+- **Exécution** : exécuter du SQL brut pour des scénarios avancés
+
+Cette intégration permet à vos agents d'automatiser un large éventail d'opérations de base de données sans intervention manuelle. En connectant Sim avec Amazon RDS, vous pouvez créer des agents qui gèrent, mettent à jour et récupèrent des données relationnelles dans vos flux de travail, le tout sans avoir à gérer l'infrastructure ou les connexions de base de données.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Amazon RDS Aurora Serverless dans le flux de travail en utilisant l'API Data. Possibilité d'interroger, d'insérer, de mettre à jour, de supprimer et d'exécuter du SQL brut sans gérer les connexions à la base de données.
+
+## Outils
+
+### `rds_query`
+
+Exécuter une requête SELECT sur Amazon RDS en utilisant l'API Data
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | chaîne | Oui | Région AWS \(ex., us-east-1\) |
+| `accessKeyId` | chaîne | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | chaîne | Oui | Clé d'accès secrète AWS |
+| `resourceArn` | chaîne | Oui | ARN du cluster Aurora DB |
+| `secretArn` | chaîne | Oui | ARN du secret Secrets Manager contenant les identifiants de la base de données |
+| `database` | chaîne | Non | Nom de la base de données \(facultatif\) |
+| `query` | chaîne | Oui | Requête SQL SELECT à exécuter |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message d'état de l'opération |
+| `rows` | tableau | Tableau des lignes retournées par la requête |
+| `rowCount` | nombre | Nombre de lignes retournées |
+
+### `rds_insert`
+
+Insérer des données dans une table Amazon RDS en utilisant l'API Data
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | chaîne | Oui | Région AWS \(ex., us-east-1\) |
+| `accessKeyId` | chaîne | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | chaîne | Oui | Clé d'accès secrète AWS |
+| `resourceArn` | chaîne | Oui | ARN du cluster Aurora DB |
+| `secretArn` | chaîne | Oui | ARN du secret Secrets Manager contenant les identifiants de la base de données |
+| `database` | chaîne | Non | Nom de la base de données \(facultatif\) |
+| `table` | chaîne | Oui | Nom de la table dans laquelle insérer |
+| `data` | objet | Oui | Données à insérer sous forme de paires clé-valeur |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `rows` | array | Tableau des lignes insérées |
+| `rowCount` | number | Nombre de lignes insérées |
+
+### `rds_update`
+
+Mettre à jour des données dans une table Amazon RDS en utilisant l'API Data
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Oui | Région AWS (par ex., us-east-1) |
+| `accessKeyId` | string | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | string | Oui | Clé d'accès secrète AWS |
+| `resourceArn` | string | Oui | ARN du cluster de base de données Aurora |
+| `secretArn` | string | Oui | ARN du secret Secrets Manager contenant les identifiants de la base de données |
+| `database` | string | Non | Nom de la base de données (facultatif) |
+| `table` | string | Oui | Nom de la table à mettre à jour |
+| `data` | object | Oui | Données à mettre à jour sous forme de paires clé-valeur |
+| `conditions` | object | Oui | Conditions pour la mise à jour (par ex., `{"id": 1}`) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `rows` | array | Tableau des lignes mises à jour |
+| `rowCount` | number | Nombre de lignes mises à jour |
+
+### `rds_delete`
+
+Supprimer des données d'une table Amazon RDS en utilisant l'API Data
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | chaîne | Oui | Région AWS (par ex., us-east-1) |
+| `accessKeyId` | chaîne | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | chaîne | Oui | Clé d'accès secrète AWS |
+| `resourceArn` | chaîne | Oui | ARN du cluster de base de données Aurora |
+| `secretArn` | chaîne | Oui | ARN du secret Secrets Manager contenant les identifiants de la base de données |
+| `database` | chaîne | Non | Nom de la base de données (facultatif) |
+| `table` | chaîne | Oui | Nom de la table à supprimer |
+| `conditions` | objet | Oui | Conditions pour la suppression (par ex., `{"id": 1}`) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message d'état de l'opération |
+| `rows` | tableau | Tableau des lignes supprimées |
+| `rowCount` | nombre | Nombre de lignes supprimées |
+
+### `rds_execute`
+
+Exécuter du SQL brut sur Amazon RDS en utilisant l'API Data
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | chaîne | Oui | Région AWS (par ex., us-east-1) |
+| `accessKeyId` | chaîne | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | chaîne | Oui | Clé d'accès secrète AWS |
+| `resourceArn` | chaîne | Oui | ARN du cluster de base de données Aurora |
+| `secretArn` | chaîne | Oui | ARN du secret Secrets Manager contenant les identifiants de la base de données |
+| `database` | chaîne | Non | Nom de la base de données (facultatif) |
+| `query` | chaîne | Oui | Requête SQL brute à exécuter |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `rows` | array | Tableau des lignes retournées ou affectées |
+| `rowCount` | number | Nombre de lignes affectées |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `rds`

@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent/constants'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
+import { env } from '@/lib/core/config/env'
 
 const GenerateApiKeySchema = z.object({}).optional()
 

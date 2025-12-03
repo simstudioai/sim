@@ -5,8 +5,8 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
+import { decryptSecret } from '@/lib/core/security/encryption'
 import { createLogger } from '@/lib/logs/console/logger'
-import { decryptSecret } from '@/lib/utils'
 
 const logger = createLogger('WorkflowLogWebhookTestAPI')
 

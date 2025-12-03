@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
-import { parseCronToHumanReadable } from '@/lib/schedules/utils'
+import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import type { ScheduleInfo } from '../types'
 
 const logger = createLogger('useScheduleInfo')

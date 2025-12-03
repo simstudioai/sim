@@ -3,9 +3,9 @@ import { account, webhook } from '@sim/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { htmlToText } from 'html-to-text'
 import { nanoid } from 'nanoid'
-import { pollingIdempotency } from '@/lib/idempotency'
+import { pollingIdempotency } from '@/lib/core/idempotency'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getBaseUrl } from '@/lib/urls/utils'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('OutlookPollingService')

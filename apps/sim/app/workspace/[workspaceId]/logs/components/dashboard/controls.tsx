@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { ArrowUp, Loader2, RefreshCw, Search } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import Timeline from '@/app/workspace/[workspaceId]/logs/components/filters/components/timeline'
 

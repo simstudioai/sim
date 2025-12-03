@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { VariableManager } from '@/lib/variables/variable-manager'
+import { VariableManager } from '@/lib/workflows/variables/variable-manager'
 import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
 import {
   navigatePath,

@@ -4,8 +4,8 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import {
   type BlockState,
   calculateNextRunTime,
@@ -13,8 +13,8 @@ import {
   getScheduleTimeValues,
   getSubBlockValue,
   validateCronExpression,
-} from '@/lib/schedules/utils'
-import { generateRequestId } from '@/lib/utils'
+} from '@/lib/workflows/schedules/utils'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('ScheduledAPI')
 
@@ -373,7 +373,7 @@ export async function POST(req: NextRequest) {
     })
 
     try {
-      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+      const { trackPlatformEvent } = await import('@/lib/core/telemetry')
       trackPlatformEvent('platform.schedule.created', {
         'workflow.id': workflowId,
         'schedule.type': scheduleType || 'daily',

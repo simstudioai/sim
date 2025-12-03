@@ -54,7 +54,7 @@ export interface SearchParams {
 }
 
 // Use shared embedding utility
-export { generateSearchEmbedding } from '@/lib/embeddings/utils'
+export { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
 function getTagFilters(filters: Record<string, string>, embedding: any) {
   return Object.entries(filters).map(([key, value]) => {

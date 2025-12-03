@@ -26,8 +26,8 @@ console.error = () => {}
 import { writeFileSync } from 'fs'
 import { eq } from 'drizzle-orm'
 import { db, workflow } from '../../../packages/db/index.js'
-import { loadWorkflowFromNormalizedTables } from '../lib/workflows/db-helpers.js'
-import { sanitizeForExport } from '../lib/workflows/json-sanitizer.js'
+import { loadWorkflowFromNormalizedTables } from '../lib/workflows/persistence/utils.js'
+import { sanitizeForExport } from '../lib/workflows/sanitization/json-sanitizer.js'
 
 // ---------- CLI argument parsing ----------
 const args = process.argv.slice(2)

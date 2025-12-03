@@ -1,8 +1,8 @@
 import { useRef } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useActiveOrganization } from '@/lib/auth-client'
-import { getSubscriptionStatus } from '@/lib/subscription/helpers'
-import { getBaseUrl } from '@/lib/urls/utils'
+import { useActiveOrganization } from '@/lib/auth/auth-client'
+import { getSubscriptionStatus } from '@/lib/billing/client/utils'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/shared/usage-header'
 import {
   UsageLimit,

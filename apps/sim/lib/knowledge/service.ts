@@ -8,7 +8,7 @@ import type {
   KnowledgeBaseWithCounts,
 } from '@/lib/knowledge/types'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('KnowledgeBaseService')
 

@@ -1,4 +1,4 @@
-import { getBlockOutputs } from '@/lib/workflows/block-outputs'
+import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'

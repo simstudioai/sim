@@ -12,8 +12,8 @@ import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
-} from '@/lib/workflows/db-helpers'
-import { TriggerUtils } from '@/lib/workflows/triggers'
+} from '@/lib/workflows/persistence/utils'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
 import type { ExecutionCallbacks, ExecutionSnapshot } from '@/executor/execution/snapshot'

@@ -1,0 +1,188 @@
+---
+title: Amazon DynamoDB
+description: Connexion à Amazon DynamoDB
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dynamodb"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon DynamoDB](https://aws.amazon.com/dynamodb/) est un service de base de données NoSQL entièrement géré proposé par AWS qui offre des performances rapides et prévisibles avec une évolutivité transparente. DynamoDB vous permet de stocker et de récupérer n'importe quelle quantité de données et gère n'importe quel niveau de trafic de requêtes, sans que vous ayez à gérer le matériel ou l'infrastructure.
+
+Avec DynamoDB, vous pouvez :
+
+- **Obtenir des éléments** : rechercher des éléments dans vos tables à l'aide de clés primaires
+- **Mettre des éléments** : ajouter ou remplacer des éléments dans vos tables
+- **Interroger des éléments** : récupérer plusieurs éléments à l'aide de requêtes sur les index
+- **Scanner des tables** : lire tout ou partie des données d'une table
+- **Mettre à jour des éléments** : modifier des attributs spécifiques d'éléments existants
+- **Supprimer des éléments** : supprimer des enregistrements de vos tables
+
+Dans Sim, l'intégration DynamoDB permet à vos agents d'accéder en toute sécurité aux tables DynamoDB et de les manipuler à l'aide des identifiants AWS. Les opérations prises en charge comprennent :
+
+- **Get** : récupérer un élément par sa clé
+- **Put** : insérer ou écraser des éléments
+- **Query** : exécuter des requêtes à l'aide de conditions de clé et de filtres
+- **Scan** : lire plusieurs éléments en scannant la table ou l'index
+- **Update** : modifier des attributs spécifiques d'un ou plusieurs éléments
+- **Delete** : supprimer un élément d'une table
+
+Cette intégration permet aux agents Sim d'automatiser les tâches de gestion de données au sein de vos tables DynamoDB de manière programmatique, afin que vous puissiez créer des flux de travail qui gèrent, modifient et récupèrent des données NoSQL évolutives sans effort manuel ni gestion de serveur.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Amazon DynamoDB dans les flux de travail. Prend en charge les opérations Get, Put, Query, Scan, Update et Delete sur les tables DynamoDB.
+
+## Outils
+
+### `dynamodb_get`
+
+Récupérer un élément d'une table DynamoDB par clé primaire
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | chaîne | Oui | Région AWS (par ex., us-east-1) |
+| `accessKeyId` | chaîne | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | chaîne | Oui | Clé d'accès secrète AWS |
+| `tableName` | chaîne | Oui | Nom de la table DynamoDB |
+| `key` | objet | Oui | Clé primaire de l'élément à récupérer |
+| `consistentRead` | booléen | Non | Utiliser une lecture fortement cohérente |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message d'état de l'opération |
+| `item` | objet | Élément récupéré |
+
+### `dynamodb_put`
+
+Mettre un élément dans une table DynamoDB
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | chaîne | Oui | Région AWS (par ex., us-east-1) |
+| `accessKeyId` | chaîne | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | chaîne | Oui | Clé d'accès secrète AWS |
+| `tableName` | chaîne | Oui | Nom de la table DynamoDB |
+| `item` | objet | Oui | Élément à mettre dans la table |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message d'état de l'opération |
+| `item` | objet | Élément créé |
+
+### `dynamodb_query`
+
+Interroger les éléments d'une table DynamoDB à l'aide de conditions de clé
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | chaîne | Oui | Région AWS (par ex., us-east-1) |
+| `accessKeyId` | chaîne | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | chaîne | Oui | Clé d'accès secrète AWS |
+| `tableName` | chaîne | Oui | Nom de la table DynamoDB |
+| `keyConditionExpression` | chaîne | Oui | Expression de condition de clé (par ex., "pk = :pk") |
+| `filterExpression` | chaîne | Non | Expression de filtre pour les résultats |
+| `expressionAttributeNames` | objet | Non | Mappages de noms d'attributs pour les mots réservés |
+| `expressionAttributeValues` | objet | Non | Valeurs d'attributs d'expression |
+| `indexName` | chaîne | Non | Nom de l'index secondaire à interroger |
+| `limit` | nombre | Non | Nombre maximum d'éléments à retourner |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message d'état de l'opération |
+| `items` | tableau | Tableau des éléments retournés |
+| `count` | nombre | Nombre d'éléments retournés |
+
+### `dynamodb_scan`
+
+Scanner tous les éléments d'une table DynamoDB
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | chaîne | Oui | Région AWS (par ex., us-east-1) |
+| `accessKeyId` | chaîne | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | chaîne | Oui | Clé d'accès secrète AWS |
+| `tableName` | chaîne | Oui | Nom de la table DynamoDB |
+| `filterExpression` | chaîne | Non | Expression de filtre pour les résultats |
+| `projectionExpression` | chaîne | Non | Attributs à récupérer |
+| `expressionAttributeNames` | objet | Non | Mappages de noms d'attributs pour les mots réservés |
+| `expressionAttributeValues` | objet | Non | Valeurs d'attributs d'expression |
+| `limit` | nombre | Non | Nombre maximum d'éléments à retourner |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `items` | array | Tableau des éléments retournés |
+| `count` | number | Nombre d'éléments retournés |
+
+### `dynamodb_update`
+
+Mettre à jour un élément dans une table DynamoDB
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Oui | Région AWS (par ex., us-east-1) |
+| `accessKeyId` | string | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | string | Oui | Clé d'accès secrète AWS |
+| `tableName` | string | Oui | Nom de la table DynamoDB |
+| `key` | object | Oui | Clé primaire de l'élément à mettre à jour |
+| `updateExpression` | string | Oui | Expression de mise à jour (par ex., "SET #name = :name") |
+| `expressionAttributeNames` | object | Non | Mappages de noms d'attributs pour les mots réservés |
+| `expressionAttributeValues` | object | Non | Valeurs d'attributs d'expression |
+| `conditionExpression` | string | Non | Condition qui doit être remplie pour que la mise à jour réussisse |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `item` | object | Élément mis à jour |
+
+### `dynamodb_delete`
+
+Supprimer un élément d'une table DynamoDB
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Oui | Région AWS (par ex., us-east-1) |
+| `accessKeyId` | string | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | string | Oui | Clé d'accès secrète AWS |
+| `tableName` | string | Oui | Nom de la table DynamoDB |
+| `key` | object | Oui | Clé primaire de l'élément à supprimer |
+| `conditionExpression` | string | Non | Condition qui doit être remplie pour que la suppression réussisse |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `dynamodb`

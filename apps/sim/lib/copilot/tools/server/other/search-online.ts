@@ -1,5 +1,5 @@
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { executeTool } from '@/tools'
 

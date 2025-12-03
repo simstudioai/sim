@@ -3,7 +3,7 @@
 import { type CSSProperties, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import { Tooltip } from '@/components/emcn'
-import { useSession } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth/auth-client'
 import { getUserColor } from '@/app/workspace/[workspaceId]/w/utils/get-user-color'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 

@@ -1,0 +1,168 @@
+---
+title: Amazon RDS
+description: 通过 Data API 连接到 Amazon RDS
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="rds"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon RDS Aurora Serverless](https://aws.amazon.com/rds/aurora/serverless/) 是一种完全托管的关系型数据库，它会根据您的应用需求自动启动、关闭并调整容量。它允许您在云中运行 SQL 数据库，而无需管理数据库服务器。
+
+使用 RDS Aurora Serverless，您可以：
+
+- **查询数据**：在表中运行灵活的 SQL 查询
+- **插入新记录**：自动向数据库添加数据
+- **更新现有记录**：使用自定义筛选条件修改表中的数据
+- **删除记录**：通过精确的条件删除不需要的数据
+- **执行原始 SQL**：运行 Aurora 支持的任何有效 SQL 命令
+
+在 Sim 中，RDS 集成使您的代理能够以安全且编程的方式与 Amazon Aurora Serverless 数据库交互。支持的操作包括：
+
+- **查询**：运行 SELECT 和其他 SQL 查询以从数据库中获取行
+- **插入**：将新记录插入到具有结构化数据的表中
+- **更新**：更改符合指定条件的行中的数据
+- **删除**：通过自定义筛选条件从表中删除记录
+- **执行**：运行原始 SQL 以应对高级场景
+
+此集成允许您的代理在无需人工干预的情况下自动化各种数据库操作。通过将 Sim 与 Amazon RDS 连接，您可以构建能够在工作流中管理、更新和检索关系数据的代理——无需处理数据库基础设施或连接。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+通过 Data API 将 Amazon RDS Aurora Serverless 集成到工作流中。可以查询、插入、更新、删除以及执行原始 SQL，而无需管理数据库连接。
+
+## 工具
+
+### `rds_query`
+
+使用数据 API 在 Amazon RDS 上执行 SELECT 查询
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `resourceArn` | string | 是 | Aurora 数据库集群的 ARN |
+| `secretArn` | string | 是 | 包含数据库凭据的 Secrets Manager 密钥的 ARN |
+| `database` | string | 否 | 数据库名称 \(可选\) |
+| `query` | string | 是 | 要执行的 SQL SELECT 查询 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 查询返回的行数组 |
+| `rowCount` | number | 返回的行数 |
+
+### `rds_insert`
+
+使用数据 API 将数据插入 Amazon RDS 表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `resourceArn` | string | 是 | Aurora 数据库集群的 ARN |
+| `secretArn` | string | 是 | 包含数据库凭据的 Secrets Manager 密钥的 ARN |
+| `database` | string | 否 | 数据库名称 \(可选\) |
+| `table` | string | 是 | 要插入的表名 |
+| `data` | object | 是 | 要插入的数据，作为键值对 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 插入行的数组 |
+| `rowCount` | number | 插入的行数 |
+
+### `rds_update`
+
+使用 Data API 更新 Amazon RDS 表中的数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `resourceArn` | string | 是 | Aurora 数据库集群的 ARN |
+| `secretArn` | string | 是 | 包含数据库凭据的 Secrets Manager 密钥的 ARN |
+| `database` | string | 否 | 数据库名称 \(可选\) |
+| `table` | string | 是 | 要更新的表名 |
+| `data` | object | 是 | 要更新的数据，作为键值对 |
+| `conditions` | object | 是 | 更新条件 \(例如，\{"id": 1\}\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 更新行的数组 |
+| `rowCount` | number | 更新的行数 |
+
+### `rds_delete`
+
+使用 Data API 从 Amazon RDS 表中删除数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `resourceArn` | string | 是 | Aurora 数据库集群的 ARN |
+| `secretArn` | string | 是 | 包含数据库凭据的 Secrets Manager 密钥的 ARN |
+| `database` | string | 否 | 数据库名称 \(可选\) |
+| `table` | string | 是 | 要删除的表名 |
+| `conditions` | object | 是 | 删除条件 \(例如，\{"id": 1\}\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 已删除行的数组 |
+| `rowCount` | number | 已删除行的数量 |
+
+### `rds_execute`
+
+使用 Data API 在 Amazon RDS 上执行原始 SQL
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `resourceArn` | string | 是 | Aurora 数据库集群的 ARN |
+| `secretArn` | string | 是 | 包含数据库凭据的 Secrets Manager 密钥的 ARN |
+| `database` | string | 否 | 数据库名称 \(可选\) |
+| `query` | string | 是 | 要执行的原始 SQL 查询 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 返回或受影响的行数组 |
+| `rowCount` | number | 受影响的行数 |
+
+## 注意
+
+- 类别: `tools`
+- 类型: `rds`

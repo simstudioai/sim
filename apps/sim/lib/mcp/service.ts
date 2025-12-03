@@ -5,7 +5,8 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
-import { isTest } from '@/lib/environment'
+import { isTest } from '@/lib/core/config/environment'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { McpClient } from '@/lib/mcp/client'
@@ -18,7 +19,6 @@ import type {
   McpTransport,
 } from '@/lib/mcp/types'
 import { MCP_CONSTANTS } from '@/lib/mcp/utils'
-import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('McpService')
 
@@ -49,8 +49,33 @@ class McpService {
   private cacheMisses = 0
   private entriesEvicted = 0
 
+  private sessionCache = new Map<string, string>()
+
   constructor() {
     this.startPeriodicCleanup()
+  }
+
+  /**
+   * Get cached session ID for a server
+   */
+  private getCachedSessionId(serverId: string): string | undefined {
+    return this.sessionCache.get(serverId)
+  }
+
+  /**
+   * Cache session ID for a server
+   */
+  private cacheSessionId(serverId: string, sessionId: string): void {
+    this.sessionCache.set(serverId, sessionId)
+    logger.debug(`Cached session ID for server ${serverId}`)
+  }
+
+  /**
+   * Clear cached session ID for a server
+   */
+  private clearCachedSessionId(serverId: string): void {
+    this.sessionCache.delete(serverId)
+    logger.debug(`Cleared cached session ID for server ${serverId}`)
   }
 
   /**
@@ -306,7 +331,7 @@ class McpService {
   }
 
   /**
-   * Create and connect to an MCP client with security policy
+   * Create and connect to an MCP client
    */
   private async createClient(config: McpServerConfig): Promise<McpClient> {
     const securityPolicy = {
@@ -316,9 +341,49 @@ class McpService {
       allowedOrigins: config.url ? [new URL(config.url).origin] : undefined,
     }
 
-    const client = new McpClient(config, securityPolicy)
-    await client.connect()
-    return client
+    const cachedSessionId = this.getCachedSessionId(config.id)
+
+    const client = new McpClient(config, securityPolicy, cachedSessionId)
+
+    try {
+      await client.connect()
+
+      const newSessionId = client.getSessionId()
+      if (newSessionId) {
+        this.cacheSessionId(config.id, newSessionId)
+      }
+
+      return client
+    } catch (error) {
+      if (cachedSessionId && this.isSessionError(error)) {
+        logger.debug(`Session restoration failed for server ${config.id}, retrying fresh`)
+        this.clearCachedSessionId(config.id)
+
+        const freshClient = new McpClient(config, securityPolicy)
+        await freshClient.connect()
+
+        const freshSessionId = freshClient.getSessionId()
+        if (freshSessionId) {
+          this.cacheSessionId(config.id, freshSessionId)
+        }
+
+        return freshClient
+      }
+
+      throw error
+    }
+  }
+
+  private isSessionError(error: unknown): boolean {
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase()
+      return (
+        message.includes('no valid session') ||
+        message.includes('invalid session') ||
+        message.includes('session expired')
+      )
+    }
+    return false
   }
 
   /**
@@ -332,33 +397,25 @@ class McpService {
   ): Promise<McpToolResult> {
     const requestId = generateRequestId()
 
+    logger.info(
+      `[${requestId}] Executing MCP tool ${toolCall.name} on server ${serverId} for user ${userId}`
+    )
+
+    const config = await this.getServerConfig(serverId, workspaceId)
+    if (!config) {
+      throw new Error(`Server ${serverId} not found or not accessible`)
+    }
+
+    const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
+
+    const client = await this.createClient(resolvedConfig)
+
     try {
-      logger.info(
-        `[${requestId}] Executing MCP tool ${toolCall.name} on server ${serverId} for user ${userId}`
-      )
-
-      const config = await this.getServerConfig(serverId, workspaceId)
-      if (!config) {
-        throw new Error(`Server ${serverId} not found or not accessible`)
-      }
-
-      const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
-
-      const client = await this.createClient(resolvedConfig)
-
-      try {
-        const result = await client.callTool(toolCall)
-        logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
-        return result
-      } finally {
-        await client.disconnect()
-      }
-    } catch (error) {
-      logger.error(
-        `[${requestId}] Failed to execute tool ${toolCall.name} on server ${serverId}:`,
-        error
-      )
-      throw error
+      const result = await client.callTool(toolCall)
+      logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
+      return result
+    } finally {
+      await client.disconnect()
     }
   }
 
@@ -442,28 +499,23 @@ class McpService {
   ): Promise<McpTool[]> {
     const requestId = generateRequestId()
 
+    logger.info(`[${requestId}] Discovering tools from server ${serverId} for user ${userId}`)
+
+    const config = await this.getServerConfig(serverId, workspaceId)
+    if (!config) {
+      throw new Error(`Server ${serverId} not found or not accessible`)
+    }
+
+    const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
+
+    const client = await this.createClient(resolvedConfig)
+
     try {
-      logger.info(`[${requestId}] Discovering tools from server ${serverId} for user ${userId}`)
-
-      const config = await this.getServerConfig(serverId, workspaceId)
-      if (!config) {
-        throw new Error(`Server ${serverId} not found or not accessible`)
-      }
-
-      const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
-
-      const client = await this.createClient(resolvedConfig)
-
-      try {
-        const tools = await client.listTools()
-        logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
-        return tools
-      } finally {
-        await client.disconnect()
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to discover tools from server ${serverId}:`, error)
-      throw error
+      const tools = await client.listTools()
+      logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
+      return tools
+    } finally {
+      await client.disconnect()
     }
   }
 

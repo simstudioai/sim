@@ -13,14 +13,14 @@ import {
   languages,
 } from '@/components/emcn/components/code/code'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/core/utils/cn'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn } from '@/lib/utils'
 import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,
   splitReferenceSegment,
-} from '@/lib/workflows/references'
+} from '@/lib/workflows/sanitization/references'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,

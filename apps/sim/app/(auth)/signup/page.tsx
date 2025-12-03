@@ -1,4 +1,4 @@
-import { env, isTruthy } from '@/lib/env'
+import { env, isTruthy } from '@/lib/core/config/env'
 import { getOAuthProviderStatus } from '@/app/(auth)/components/oauth-provider-checker'
 import SignupForm from '@/app/(auth)/signup/signup-form'
 

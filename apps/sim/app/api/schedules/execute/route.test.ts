@@ -42,7 +42,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       executeScheduleJob: mockExecuteScheduleJob,
     }))
 
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         TRIGGER_DEV_ENABLED: false,
       },
@@ -119,7 +119,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       },
     }))
 
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         TRIGGER_DEV_ENABLED: true,
       },
@@ -191,7 +191,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       executeScheduleJob: vi.fn().mockResolvedValue(undefined),
     }))
 
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         TRIGGER_DEV_ENABLED: false,
       },
@@ -250,7 +250,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       executeScheduleJob: vi.fn().mockResolvedValue(undefined),
     }))
 
-    vi.doMock('@/lib/env', () => ({
+    vi.doMock('@/lib/core/config/env', () => ({
       env: {
         TRIGGER_DEV_ENABLED: false,
       },

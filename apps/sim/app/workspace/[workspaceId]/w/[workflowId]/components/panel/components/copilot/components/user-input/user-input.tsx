@@ -13,9 +13,9 @@ import { useParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Badge, Button } from '@/components/emcn'
 import { Textarea } from '@/components/ui'
-import { useSession } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth/auth-client'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn } from '@/lib/utils'
 import {
   AttachedFilesDisplay,
   ContextPills,

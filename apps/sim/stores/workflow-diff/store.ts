@@ -8,8 +8,8 @@ import {
   type WorkflowDiff,
   WorkflowDiffEngine,
 } from '@/lib/workflows/diff'
-import { enqueueReplaceWorkflowState } from '@/lib/workflows/socket-operations'
-import { validateWorkflowState } from '@/lib/workflows/validation'
+import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
+import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { Serializer } from '@/serializer'
 import { useWorkflowRegistry } from '../workflows/registry/store'
 import { useSubBlockStore } from '../workflows/subblock/store'

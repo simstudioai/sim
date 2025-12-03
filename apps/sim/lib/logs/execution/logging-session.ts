@@ -140,7 +140,7 @@ export class LoggingSession {
       // Track workflow execution outcome
       if (traceSpans && traceSpans.length > 0) {
         try {
-          const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+          const { trackPlatformEvent } = await import('@/lib/core/telemetry')
 
           // Determine status from trace spans
           const hasErrors = traceSpans.some((span: any) => {
@@ -186,21 +186,23 @@ export class LoggingSession {
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
       const startTime = new Date(endTime.getTime() - Math.max(1, durationMs))
 
-      const costSummary = {
-        totalCost: BASE_EXECUTION_CHARGE,
-        totalInputCost: 0,
-        totalOutputCost: 0,
-        totalTokens: 0,
-        totalPromptTokens: 0,
-        totalCompletionTokens: 0,
-        baseExecutionCharge: BASE_EXECUTION_CHARGE,
-        modelCost: 0,
-        models: {},
-      }
+      const hasProvidedSpans = Array.isArray(traceSpans) && traceSpans.length > 0
+
+      const costSummary = hasProvidedSpans
+        ? calculateCostSummary(traceSpans)
+        : {
+            totalCost: BASE_EXECUTION_CHARGE,
+            totalInputCost: 0,
+            totalOutputCost: 0,
+            totalTokens: 0,
+            totalPromptTokens: 0,
+            totalCompletionTokens: 0,
+            baseExecutionCharge: BASE_EXECUTION_CHARGE,
+            modelCost: 0,
+            models: {},
+          }
 
       const message = error?.message || 'Execution failed before starting blocks'
-
-      const hasProvidedSpans = Array.isArray(traceSpans) && traceSpans.length > 0
 
       const errorSpan: TraceSpan = {
         id: 'workflow-error-root',
@@ -227,7 +229,7 @@ export class LoggingSession {
 
       // Track workflow execution error outcome
       try {
-        const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
         trackPlatformEvent('platform.workflow.executed', {
           'workflow.id': this.workflowId,
           'execution.duration_ms': Math.max(1, durationMs),
