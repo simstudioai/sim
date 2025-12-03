@@ -186,6 +186,10 @@ Create a shareable link for a file or folder in Dropbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | The path of the file or folder to share |
+| `requestedVisibility` | string | No | Visibility: public, team_only, or password |
+| `linkPassword` | string | No | Password for the shared link \(only if visibility is password\) |
+| `expires` | string | No | Expiration date in ISO 8601 format \(e.g., 2025-12-31T23:59:59Z\) |
 
 #### Output
 
