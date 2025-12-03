@@ -23,6 +23,7 @@ const GoogleDriveUploadSchema = z.object({
   file: z.any().optional().nullable(),
   mimeType: z.string().optional().nullable(),
   folderId: z.string().optional().nullable(),
+  folderSelector: z.string().optional().nullable(),
 })
 
 /**
@@ -96,45 +97,104 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Process file - convert to UserFile format if needed
+    // Process file - handle both UserFile (with key) and raw file data (with content)
     const fileData = validatedData.file
-
-    let userFile
-    try {
-      userFile = processSingleFileToUserFile(fileData, requestId, logger)
-    } catch (error) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : 'Failed to process file',
-        },
-        { status: 400 }
-      )
-    }
-
-    logger.info(`[${requestId}] Downloading file from storage`, {
-      fileName: userFile.name,
-      key: userFile.key,
-      size: userFile.size,
-    })
-
     let fileBuffer: Buffer
+    let requestedMimeType: string
+    let finalFileName: string
 
-    try {
-      fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to download file:`, error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        },
-        { status: 500 }
-      )
+    // Check if file has base64 content (from presentation tool or similar)
+    if (fileData && typeof fileData === 'object' && 'content' in fileData && fileData.content) {
+      // Handle raw file data with base64 content
+      logger.info(`[${requestId}] Processing file with base64 content`, {
+        fileName: fileData.name || validatedData.fileName,
+      })
+
+      try {
+        let base64Data = fileData.content
+
+        // Convert base64url to base64 if needed
+        if (base64Data && (base64Data.includes('-') || base64Data.includes('_'))) {
+          base64Data = base64Data.replace(/-/g, '+').replace(/_/g, '/')
+          logger.info(`[${requestId}] Converted base64url to base64`)
+        }
+
+        fileBuffer = Buffer.from(base64Data, 'base64')
+
+        if (fileBuffer.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'File content is empty after decoding',
+            },
+            { status: 400 }
+          )
+        }
+
+        // Determine MIME type - prioritize provided mimeType, then file metadata
+        requestedMimeType =
+          validatedData.mimeType ||
+          fileData.fileType ||
+          fileData.mimetype ||
+          'application/octet-stream'
+
+        // Prefer user-entered fileName when provided; fall back to file's own name, then a default
+        finalFileName = validatedData.fileName || fileData.name || 'presentation.pptx'
+
+        logger.info(`[${requestId}] Decoded file content`, {
+          size: fileBuffer.length,
+          fileName: finalFileName,
+          mimeType: requestedMimeType,
+        })
+      } catch (error) {
+        logger.error(`[${requestId}] Failed to decode file content:`, error)
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Failed to decode file content: ${error instanceof Error ? error.message : 'Invalid base64 data'}`,
+          },
+          { status: 400 }
+        )
+      }
+    } else {
+      // Handle UserFile format (with storage key)
+      let userFile
+      try {
+        userFile = processSingleFileToUserFile(fileData, requestId, logger)
+      } catch (error) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to process file',
+          },
+          { status: 400 }
+        )
+      }
+
+      logger.info(`[${requestId}] Downloading file from storage`, {
+        fileName: userFile.name,
+        key: userFile.key,
+        size: userFile.size,
+      })
+
+      try {
+        fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+      } catch (error) {
+        logger.error(`[${requestId}] Failed to download file:`, error)
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+          { status: 500 }
+        )
+      }
+
+      requestedMimeType = validatedData.mimeType || userFile.type || 'application/octet-stream'
+      finalFileName = validatedData.fileName
     }
 
-    let uploadMimeType = validatedData.mimeType || userFile.type || 'application/octet-stream'
-    const requestedMimeType = validatedData.mimeType || userFile.type || 'application/octet-stream'
+    let uploadMimeType = requestedMimeType
 
     if (GOOGLE_WORKSPACE_MIME_TYPES.includes(requestedMimeType)) {
       uploadMimeType = SOURCE_MIME_TYPES[requestedMimeType] || 'text/plain'
@@ -163,12 +223,14 @@ export async function POST(request: NextRequest) {
       mimeType: string
       parents?: string[]
     } = {
-      name: validatedData.fileName,
+      name: finalFileName,
       mimeType: requestedMimeType,
     }
 
-    if (validatedData.folderId && validatedData.folderId.trim() !== '') {
-      metadata.parents = [validatedData.folderId.trim()]
+    // Use folderSelector if provided, otherwise use folderId
+    const parentFolderId = (validatedData.folderSelector || validatedData.folderId || '').trim()
+    if (parentFolderId) {
+      metadata.parents = [parentFolderId]
     }
 
     const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substring(7)}`
@@ -176,10 +238,11 @@ export async function POST(request: NextRequest) {
     const multipartBody = buildMultipartBody(metadata, fileBuffer, uploadMimeType, boundary)
 
     logger.info(`[${requestId}] Uploading to Google Drive via multipart upload`, {
-      fileName: validatedData.fileName,
+      fileName: finalFileName,
       size: fileBuffer.length,
       uploadMimeType,
       requestedMimeType,
+      hasParent: !!parentFolderId,
     })
 
     const uploadResponse = await fetch(
@@ -228,7 +291,7 @@ export async function POST(request: NextRequest) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            name: validatedData.fileName,
+            name: finalFileName,
           }),
         }
       )

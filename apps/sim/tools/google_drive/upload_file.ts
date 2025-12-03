@@ -55,7 +55,7 @@ export const uploadFileTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUpload
   },
 
   request: {
-    url: () => '/api/tools/google_drive/uploadFile',
+    url: () => '/api/tools/google_drive/upload',
     method: 'POST',
     headers: () => ({
       Accept: 'application/json',

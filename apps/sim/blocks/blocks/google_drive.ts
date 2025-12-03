@@ -70,7 +70,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       canonicalParamId: 'file',
       placeholder: 'Reference file from previous block (e.g., {{block_name.file}})',
       condition: { field: 'operation', value: 'upload' },
-      mode: 'advanced',
+      //mode: 'advanced',
       required: false,
     },
     {

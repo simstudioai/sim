@@ -11,7 +11,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   // Force light mode for certain public pages
   const forcedTheme =
     pathname.startsWith('/workspace') || pathname.startsWith('/templates')
-      ? 'light'
+      ? 'dark'
       : pathname === '/' ||
           pathname.startsWith('/login') ||
           pathname.startsWith('/signup') ||

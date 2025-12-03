@@ -94,6 +94,7 @@ import type {
         presentationFile = {
           content: base64Url, // base64Url string passed through as-is
           fileType: mimeType,
+          mimetype: mimeType, // Add mimetype at top level for Google Drive uploadFile compatibility
           size: estimatedSize,
           name: filename,
           binary: true,
