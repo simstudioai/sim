@@ -1067,7 +1067,9 @@ export function Terminal() {
                         )}
                       >
                         {BlockIcon && (
-                          <BlockIcon className='h-[13px] w-[13px] flex-shrink-0 text-[#D2D2D2]' />
+                          <div className='flex h-[13px] w-[13px] flex-shrink-0 items-center justify-center overflow-hidden'>
+                            <BlockIcon className='h-[13px] w-[13px] text-[#D2D2D2]' />
+                          </div>
                         )}
                         <span className={clsx('truncate', ROW_TEXT_CLASS)}>{entry.blockName}</span>
                       </div>

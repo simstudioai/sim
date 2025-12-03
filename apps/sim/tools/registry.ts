@@ -202,6 +202,7 @@ import {
   gmailUnarchiveTool,
 } from '@/tools/gmail'
 import { searchTool as googleSearchTool } from '@/tools/google'
+import { googleAdsQueryTool } from '@/tools/google_ads'
 import {
   googleCalendarCreateTool,
   googleCalendarGetTool,
@@ -1364,6 +1365,7 @@ export const tools: Record<string, ToolConfig> = {
   google_sheets_write: googleSheetsWriteTool,
   google_sheets_update: googleSheetsUpdateTool,
   google_sheets_append: googleSheetsAppendTool,
+  google_ads_query: googleAdsQueryTool,
   perplexity_chat: perplexityChatTool,
   perplexity_search: perplexitySearchTool,
   posthog_capture_event: posthogCaptureEventTool,
