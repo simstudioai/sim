@@ -1,4 +1,5 @@
 import type { SVGProps } from 'react'
+import Image, { type ImageProps } from 'next/image'
 
 export function SearchIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -20,38 +21,45 @@ export function SearchIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-export function AgentIcon(props: SVGProps<SVGSVGElement>) {
+export function Spinner() {
   return (
-    <svg
-      {...props}
-      width='21'
-      height='24'
-      viewBox='0 0 21 24'
-      fill='none'
-      xmlns='http://www.w3.org/2000/svg'
-    >
-      <path
-        d='M15.6667 9.25H4.66667C2.64162 9.25 1 10.8916 1 12.9167V18.4167C1 20.4417 2.64162 22.0833 4.66667 22.0833H15.6667C17.6917 22.0833 19.3333 20.4417 19.3333 18.4167V12.9167C19.3333 10.8916 17.6917 9.25 15.6667 9.25Z'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
+    <div className='absolute top-0 right-0 bottom-0 flex items-center justify-center'>
+      <svg
+        className='-ml-1 mr-3 h-5 w-5 animate-spin text-gray-700'
+        xmlns='http://www.w3.org/2000/svg'
+        fill='none'
+        viewBox='0 0 24 24'
+      >
+        <circle
+          className='opacity-25'
+          cx='12'
+          cy='12'
+          r='10'
+          stroke='currentColor'
+          strokeWidth='4'
+        />
+        <path
+          className='opacity-75'
+          fill='currentColor'
+          d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+        />
+      </svg>
+    </div>
+  )
+}
+
+export function AgentIcon(props: Omit<ImageProps, 'src' | 'alt' | 'fill'>) {
+  return (
+    <div className='relative flex h-full w-full items-center justify-center rounded-md bg-[linear-gradient(to_bottom,#8F50AC,#0086AB)]'>
+      <Image
+        src='https://arenav2image.s3.us-west-1.amazonaws.com/vimi-sparkle.png'
+        alt='vimi-sparkle'
+        width={23} // scale image relative to container
+        height={23}
+        className='object-contain'
+        {...props}
       />
-      <path
-        d='M10.1663 5.58464C11.1789 5.58464 11.9997 4.76382 11.9997 3.7513C11.9997 2.73878 11.1789 1.91797 10.1663 1.91797C9.15382 1.91797 8.33301 2.73878 8.33301 3.7513C8.33301 4.76382 9.15382 5.58464 10.1663 5.58464Z'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      />
-      <path
-        d='M10.167 5.58594V9.2526M7.41699 16.5859V14.7526M12.917 14.7526V16.5859'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      />
-    </svg>
+    </div>
   )
 }
 

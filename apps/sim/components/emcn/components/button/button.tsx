@@ -15,9 +15,9 @@ const buttonVariants = cva(
         outline:
           'border border-[#727272] bg-[var(--border-strong)] hover:bg-[var(--surface-11)] dark:border-[#727272] dark:bg-[var(--border-strong)] dark:hover:bg-[var(--surface-11)]',
         primary:
-          'bg-[var(--brand-400)] dark:bg-[var(--brand-400)] dark:text-[var(--text-primary)] text-[var(--text-primary)] hover:brightness-110 hover:text-[var(--text-primary)] hover:dark:text-[var(--text-primary)]',
+          'bg-[var(--brand-primary-hex,var(--brand-400))] dark:bg-[var(--brand-primary-hex,var(--brand-400))] dark:text-[var(--text-primary)] text-[var(--text-primary)] hover:bg-[var(--brand-primary-hover-hex,var(--brand-400))] hover:dark:bg-[var(--brand-primary-hover-hex,var(--brand-400))] hover:text-[var(--text-primary)] hover:dark:text-[var(--text-primary)]',
         secondary:
-          'bg-[var(--brand-secondary)] dark:bg-[var(--brand-secondary)] dark:text-[var(--text-primary)] text-[var(--text-primary)] hover:bg-[var(--brand-secondary)] hover:dark:bg-[var(--brand-secondary)] hover:text-[var(--text-primary)] hover:dark:text-[var(--text-primary)]',
+          'bg-[var(--brand-secondary-hex,var(--brand-secondary))] dark:bg-[var(--brand-secondary-hex,var(--brand-secondary))] dark:text-[var(--text-primary)] text-[var(--text-primary)] hover:bg-[var(--brand-secondary-hex,var(--brand-secondary))] hover:dark:bg-[var(--brand-secondary-hex,var(--brand-secondary))] hover:text-[var(--text-primary)] hover:dark:text-[var(--text-primary)]',
         tertiary:
           'bg-[var(--brand-tertiary)] dark:bg-[var(--brand-tertiary)] dark:text-[var(--text-primary)] text-[var(--text-primary)] hover:bg-[var(--brand-tertiary)] hover:dark:bg-[var(--brand-tertiary)] hover:text-[var(--text-primary)] hover:dark:text-[var(--text-primary)]',
         ghost: '',
