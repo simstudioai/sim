@@ -1424,6 +1424,66 @@ export const auth = betterAuth({
         },
 
         {
+          providerId: 'dropbox',
+          clientId: env.DROPBOX_CLIENT_ID as string,
+          clientSecret: env.DROPBOX_CLIENT_SECRET as string,
+          authorizationUrl: 'https://www.dropbox.com/oauth2/authorize',
+          tokenUrl: 'https://api.dropboxapi.com/oauth2/token',
+          scopes: [
+            'account_info.read',
+            'files.metadata.read',
+            'files.metadata.write',
+            'files.content.read',
+            'files.content.write',
+            'sharing.read',
+            'sharing.write',
+          ],
+          responseType: 'code',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/dropbox`,
+          pkce: true,
+          accessType: 'offline',
+          prompt: 'consent',
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch(
+                'https://api.dropboxapi.com/2/users/get_current_account',
+                {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                  },
+                }
+              )
+
+              if (!response.ok) {
+                const errorText = await response.text()
+                logger.error('Dropbox API error:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                  body: errorText,
+                })
+                throw new Error(`Dropbox API error: ${response.status} ${response.statusText}`)
+              }
+
+              const data = await response.json()
+
+              return {
+                id: data.account_id,
+                email: data.email,
+                name: data.name?.display_name || data.email,
+                emailVerified: data.email_verified || false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                image: data.profile_photo_url || undefined,
+              }
+            } catch (error) {
+              logger.error('Error in getUserInfo:', error)
+              throw error
+            }
+          },
+        },
+
+        {
           providerId: 'asana',
           clientId: env.ASANA_CLIENT_ID as string,
           clientSecret: env.ASANA_CLIENT_SECRET as string,

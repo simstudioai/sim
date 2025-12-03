@@ -1,0 +1,112 @@
+import type {
+  AhrefsBrokenBacklinksParams,
+  AhrefsBrokenBacklinksResponse,
+} from '@/tools/ahrefs/types'
+import type { ToolConfig } from '@/tools/types'
+
+export const brokenBacklinksTool: ToolConfig<
+  AhrefsBrokenBacklinksParams,
+  AhrefsBrokenBacklinksResponse
+> = {
+  id: 'ahrefs_broken_backlinks',
+  name: 'Ahrefs Broken Backlinks',
+  description:
+    'Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities.',
+  version: '1.0.0',
+
+  params: {
+    target: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The target domain or URL to analyze',
+    },
+    mode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match)',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Maximum number of results to return (default: 100)',
+    },
+    offset: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of results to skip for pagination',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Ahrefs API Key',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      const url = new URL('https://api.ahrefs.com/v3/site-explorer/broken-backlinks')
+      url.searchParams.set('target', params.target)
+      if (params.mode) url.searchParams.set('mode', params.mode)
+      if (params.limit) url.searchParams.set('limit', String(params.limit))
+      if (params.offset) url.searchParams.set('offset', String(params.offset))
+      return url.toString()
+    },
+    method: 'GET',
+    headers: (params) => ({
+      Accept: 'application/json',
+      Authorization: `Bearer ${params.apiKey}`,
+    }),
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || 'Failed to get broken backlinks')
+    }
+
+    const brokenBacklinks = (data.backlinks || []).map((link: any) => ({
+      urlFrom: link.url_from || '',
+      urlTo: link.url_to || '',
+      httpCode: link.http_code ?? 404,
+      anchor: link.anchor || '',
+      domainRatingSource: link.domain_rating_source ?? 0,
+    }))
+
+    return {
+      success: true,
+      output: {
+        brokenBacklinks,
+      },
+    }
+  },
+
+  outputs: {
+    brokenBacklinks: {
+      type: 'array',
+      description: 'List of broken backlinks',
+      items: {
+        type: 'object',
+        properties: {
+          urlFrom: {
+            type: 'string',
+            description: 'The URL of the page containing the broken link',
+          },
+          urlTo: { type: 'string', description: 'The broken URL being linked to' },
+          httpCode: { type: 'number', description: 'HTTP status code (e.g., 404, 410)' },
+          anchor: { type: 'string', description: 'The anchor text of the link' },
+          domainRatingSource: {
+            type: 'number',
+            description: 'Domain Rating of the linking domain',
+          },
+        },
+      },
+    },
+  },
+}

@@ -1,0 +1,629 @@
+---
+title: WordPress
+description: Manage WordPress content
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="wordpress"
+  color="#21759B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[WordPress](https://wordpress.org/) is the world’s leading open-source content management system, making it easy to publish and manage websites, blogs, and all types of online content. With WordPress, you can create and update posts or pages, organize your content with categories and tags, manage media files, moderate comments, and handle user accounts—allowing you to run everything from personal blogs to complex business sites.
+
+Sim’s integration with WordPress lets your agents automate essential website tasks. You can programmatically create new blog posts with specific titles, content, categories, tags, and featured images. Updating existing posts—such as changing their content, title, or publishing status—is straightforward. You can also publish or save content as drafts, manage static pages, work with media uploads, oversee comments, and assign content to relevant organizational taxonomies.
+
+By connecting WordPress to your automations, Sim empowers your agents to streamline content publishing, editorial workflows, and everyday site management—helping you keep your website fresh, organized, and secure without manual effort.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports self-hosted WordPress sites using Application Passwords authentication.
+
+
+
+## Tools
+
+### `wordpress_create_post`
+
+Create a new blog post in WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `title` | string | Yes | Post title |
+| `content` | string | No | Post content \(HTML or plain text\) |
+| `status` | string | No | Post status: publish, draft, pending, private, or future |
+| `excerpt` | string | No | Post excerpt |
+| `categories` | string | No | Comma-separated category IDs |
+| `tags` | string | No | Comma-separated tag IDs |
+| `featuredMedia` | number | No | Featured image media ID |
+| `slug` | string | No | URL slug for the post |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `post` | object | The created post |
+
+### `wordpress_update_post`
+
+Update an existing blog post in WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `postId` | number | Yes | The ID of the post to update |
+| `title` | string | No | Post title |
+| `content` | string | No | Post content \(HTML or plain text\) |
+| `status` | string | No | Post status: publish, draft, pending, private, or future |
+| `excerpt` | string | No | Post excerpt |
+| `categories` | string | No | Comma-separated category IDs |
+| `tags` | string | No | Comma-separated tag IDs |
+| `featuredMedia` | number | No | Featured image media ID |
+| `slug` | string | No | URL slug for the post |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `post` | object | The updated post |
+
+### `wordpress_delete_post`
+
+Delete a blog post from WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `postId` | number | Yes | The ID of the post to delete |
+| `force` | boolean | No | Bypass trash and force delete permanently |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the post was deleted |
+| `post` | object | The deleted post |
+
+### `wordpress_get_post`
+
+Get a single blog post from WordPress by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `postId` | number | Yes | The ID of the post to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `post` | object | The retrieved post |
+
+### `wordpress_list_posts`
+
+List blog posts from WordPress with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `perPage` | number | No | Number of posts per page \(default: 10, max: 100\) |
+| `page` | number | No | Page number for pagination |
+| `status` | string | No | Post status filter: publish, draft, pending, private |
+| `author` | number | No | Filter by author ID |
+| `categories` | string | No | Comma-separated category IDs to filter by |
+| `tags` | string | No | Comma-separated tag IDs to filter by |
+| `search` | string | No | Search term to filter posts |
+| `orderBy` | string | No | Order by field: date, id, title, slug, modified |
+| `order` | string | No | Order direction: asc or desc |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `posts` | array | List of posts |
+
+### `wordpress_create_page`
+
+Create a new page in WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `title` | string | Yes | Page title |
+| `content` | string | No | Page content \(HTML or plain text\) |
+| `status` | string | No | Page status: publish, draft, pending, private |
+| `excerpt` | string | No | Page excerpt |
+| `parent` | number | No | Parent page ID for hierarchical pages |
+| `menuOrder` | number | No | Order in page menu |
+| `featuredMedia` | number | No | Featured image media ID |
+| `slug` | string | No | URL slug for the page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | The created page |
+
+### `wordpress_update_page`
+
+Update an existing page in WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `pageId` | number | Yes | The ID of the page to update |
+| `title` | string | No | Page title |
+| `content` | string | No | Page content \(HTML or plain text\) |
+| `status` | string | No | Page status: publish, draft, pending, private |
+| `excerpt` | string | No | Page excerpt |
+| `parent` | number | No | Parent page ID for hierarchical pages |
+| `menuOrder` | number | No | Order in page menu |
+| `featuredMedia` | number | No | Featured image media ID |
+| `slug` | string | No | URL slug for the page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | The updated page |
+
+### `wordpress_delete_page`
+
+Delete a page from WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `pageId` | number | Yes | The ID of the page to delete |
+| `force` | boolean | No | Bypass trash and force delete permanently |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the page was deleted |
+| `page` | object | The deleted page |
+
+### `wordpress_get_page`
+
+Get a single page from WordPress by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `pageId` | number | Yes | The ID of the page to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | The retrieved page |
+
+### `wordpress_list_pages`
+
+List pages from WordPress with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `perPage` | number | No | Number of pages per request \(default: 10, max: 100\) |
+| `page` | number | No | Page number for pagination |
+| `status` | string | No | Page status filter: publish, draft, pending, private |
+| `parent` | number | No | Filter by parent page ID |
+| `search` | string | No | Search term to filter pages |
+| `orderBy` | string | No | Order by field: date, id, title, slug, modified, menu_order |
+| `order` | string | No | Order direction: asc or desc |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pages` | array | List of pages |
+
+### `wordpress_upload_media`
+
+Upload a media file (image, video, document) to WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `file` | string | Yes | Base64 encoded file data or URL to fetch file from |
+| `filename` | string | Yes | Filename with extension \(e.g., image.jpg\) |
+| `title` | string | No | Media title |
+| `caption` | string | No | Media caption |
+| `altText` | string | No | Alternative text for accessibility |
+| `description` | string | No | Media description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `media` | object | The uploaded media item |
+
+### `wordpress_get_media`
+
+Get a single media item from WordPress by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `mediaId` | number | Yes | The ID of the media item to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `media` | object | The retrieved media item |
+
+### `wordpress_list_media`
+
+List media items from the WordPress media library
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `perPage` | number | No | Number of media items per request \(default: 10, max: 100\) |
+| `page` | number | No | Page number for pagination |
+| `search` | string | No | Search term to filter media |
+| `mediaType` | string | No | Filter by media type: image, video, audio, application |
+| `mimeType` | string | No | Filter by specific MIME type \(e.g., image/jpeg\) |
+| `orderBy` | string | No | Order by field: date, id, title, slug |
+| `order` | string | No | Order direction: asc or desc |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `media` | array | List of media items |
+
+### `wordpress_delete_media`
+
+Delete a media item from WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `mediaId` | number | Yes | The ID of the media item to delete |
+| `force` | boolean | No | Force delete \(media has no trash, so deletion is permanent\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the media was deleted |
+| `media` | object | The deleted media item |
+
+### `wordpress_create_comment`
+
+Create a new comment on a WordPress post
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `postId` | number | Yes | The ID of the post to comment on |
+| `content` | string | Yes | Comment content |
+| `parent` | number | No | Parent comment ID for replies |
+| `authorName` | string | No | Comment author display name |
+| `authorEmail` | string | No | Comment author email |
+| `authorUrl` | string | No | Comment author URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | object | The created comment |
+
+### `wordpress_list_comments`
+
+List comments from WordPress with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `perPage` | number | No | Number of comments per request \(default: 10, max: 100\) |
+| `page` | number | No | Page number for pagination |
+| `postId` | number | No | Filter by post ID |
+| `status` | string | No | Filter by comment status: approved, hold, spam, trash |
+| `search` | string | No | Search term to filter comments |
+| `orderBy` | string | No | Order by field: date, id, parent |
+| `order` | string | No | Order direction: asc or desc |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | List of comments |
+
+### `wordpress_update_comment`
+
+Update a comment in WordPress (content or status)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `commentId` | number | Yes | The ID of the comment to update |
+| `content` | string | No | Updated comment content |
+| `status` | string | No | Comment status: approved, hold, spam, trash |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | object | The updated comment |
+
+### `wordpress_delete_comment`
+
+Delete a comment from WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `commentId` | number | Yes | The ID of the comment to delete |
+| `force` | boolean | No | Bypass trash and force delete permanently |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the comment was deleted |
+| `comment` | object | The deleted comment |
+
+### `wordpress_create_category`
+
+Create a new category in WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `name` | string | Yes | Category name |
+| `description` | string | No | Category description |
+| `parent` | number | No | Parent category ID for hierarchical categories |
+| `slug` | string | No | URL slug for the category |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `category` | object | The created category |
+
+### `wordpress_list_categories`
+
+List categories from WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `perPage` | number | No | Number of categories per request \(default: 10, max: 100\) |
+| `page` | number | No | Page number for pagination |
+| `search` | string | No | Search term to filter categories |
+| `parent` | number | No | Filter by parent category ID |
+| `hideEmpty` | boolean | No | Hide categories with no posts |
+| `orderBy` | string | No | Order by field: id, name, slug, count |
+| `order` | string | No | Order direction: asc or desc |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `categories` | array | List of categories |
+
+### `wordpress_create_tag`
+
+Create a new tag in WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `name` | string | Yes | Tag name |
+| `description` | string | No | Tag description |
+| `slug` | string | No | URL slug for the tag |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tag` | object | The created tag |
+
+### `wordpress_list_tags`
+
+List tags from WordPress
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `perPage` | number | No | Number of tags per request \(default: 10, max: 100\) |
+| `page` | number | No | Page number for pagination |
+| `search` | string | No | Search term to filter tags |
+| `hideEmpty` | boolean | No | Hide tags with no posts |
+| `orderBy` | string | No | Order by field: id, name, slug, count |
+| `order` | string | No | Order direction: asc or desc |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | List of tags |
+
+### `wordpress_get_current_user`
+
+Get information about the currently authenticated WordPress user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | The current user |
+
+### `wordpress_list_users`
+
+List users from WordPress (requires admin privileges)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `perPage` | number | No | Number of users per request \(default: 10, max: 100\) |
+| `page` | number | No | Page number for pagination |
+| `search` | string | No | Search term to filter users |
+| `roles` | string | No | Comma-separated role names to filter by |
+| `orderBy` | string | No | Order by field: id, name, slug, email, registered_date |
+| `order` | string | No | Order direction: asc or desc |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | List of users |
+
+### `wordpress_get_user`
+
+Get a specific user from WordPress by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `userId` | number | Yes | The ID of the user to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | The retrieved user |
+
+### `wordpress_search_content`
+
+Search across all content types in WordPress (posts, pages, media)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
+| `username` | string | Yes | WordPress username |
+| `applicationPassword` | string | Yes | WordPress Application Password |
+| `query` | string | Yes | Search query |
+| `perPage` | number | No | Number of results per request \(default: 10, max: 100\) |
+| `page` | number | No | Page number for pagination |
+| `type` | string | No | Filter by content type: post, page, attachment |
+| `subtype` | string | No | Filter by post type slug \(e.g., post, page\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Search results |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `wordpress`

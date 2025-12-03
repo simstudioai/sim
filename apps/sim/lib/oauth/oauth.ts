@@ -2,9 +2,12 @@ import type { ReactNode } from 'react'
 import {
   AirtableIcon,
   AsanaIcon,
+  BoxCompanyIcon,
   ConfluenceIcon,
   // DiscordIcon,
+  DropboxIcon,
   GithubIcon,
+  GitLabIcon,
   GmailIcon,
   GoogleCalendarIcon,
   GoogleDocsIcon,
@@ -27,12 +30,14 @@ import {
   PipedriveIcon,
   RedditIcon,
   SalesforceIcon,
+  ShopifyIcon,
   SlackIcon,
   // SupabaseIcon,
   TrelloIcon,
   WealthboxIcon,
   WebflowIcon,
   xIcon,
+  ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -42,6 +47,7 @@ const logger = createLogger('OAuth')
 export type OAuthProvider =
   | 'google'
   | 'github'
+  | 'gitlab'
   | 'x'
   // | 'supabase'
   | 'confluence'
@@ -49,6 +55,7 @@ export type OAuthProvider =
   | 'notion'
   | 'jira'
   // | 'discord'
+  | 'dropbox'
   | 'microsoft'
   | 'linear'
   | 'slack'
@@ -61,6 +68,9 @@ export type OAuthProvider =
   | 'hubspot'
   | 'salesforce'
   | 'linkedin'
+  | 'shopify'
+  | 'box'
+  | 'zoom'
   | string
 
 export type OAuthService =
@@ -73,6 +83,7 @@ export type OAuthService =
   | 'google-vault'
   | 'google-forms'
   | 'github'
+  | 'gitlab'
   | 'x'
   // | 'supabase'
   | 'confluence'
@@ -80,6 +91,7 @@ export type OAuthService =
   | 'notion'
   | 'jira'
   // | 'discord'
+  | 'dropbox'
   | 'microsoft-excel'
   | 'microsoft-teams'
   | 'microsoft-planner'
@@ -97,6 +109,9 @@ export type OAuthService =
   | 'hubspot'
   | 'salesforce'
   | 'linkedin'
+  | 'shopify'
+  | 'box'
+  | 'zoom'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -340,6 +355,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'github',
   },
+  gitlab: {
+    id: 'gitlab',
+    name: 'GitLab',
+    icon: (props) => GitLabIcon(props),
+    services: {
+      gitlab: {
+        id: 'gitlab',
+        name: 'GitLab',
+        description: 'Manage GitLab projects, issues, merge requests, and pipelines.',
+        providerId: 'gitlab',
+        icon: (props) => GitLabIcon(props),
+        baseProviderIcon: (props) => GitLabIcon(props),
+        scopes: ['api', 'read_user', 'read_repository', 'write_repository'],
+      },
+    },
+    defaultService: 'gitlab',
+  },
   x: {
     id: 'x',
     name: 'X',
@@ -537,6 +569,59 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'linear',
+  },
+  dropbox: {
+    id: 'dropbox',
+    name: 'Dropbox',
+    icon: (props) => DropboxIcon(props),
+    services: {
+      dropbox: {
+        id: 'dropbox',
+        name: 'Dropbox',
+        description: 'Upload, download, share, and manage files in Dropbox.',
+        providerId: 'dropbox',
+        icon: (props) => DropboxIcon(props),
+        baseProviderIcon: (props) => DropboxIcon(props),
+        scopes: [
+          'account_info.read',
+          'files.metadata.read',
+          'files.metadata.write',
+          'files.content.read',
+          'files.content.write',
+          'sharing.read',
+          'sharing.write',
+        ],
+      },
+    },
+    defaultService: 'dropbox',
+  },
+  shopify: {
+    id: 'shopify',
+    name: 'Shopify',
+    icon: (props) => ShopifyIcon(props),
+    services: {
+      shopify: {
+        id: 'shopify',
+        name: 'Shopify',
+        description: 'Manage products, orders, and customers in your Shopify store.',
+        providerId: 'shopify',
+        icon: (props) => ShopifyIcon(props),
+        baseProviderIcon: (props) => ShopifyIcon(props),
+        scopes: [
+          'read_products',
+          'write_products',
+          'read_orders',
+          'write_orders',
+          'read_customers',
+          'write_customers',
+          'read_inventory',
+          'write_inventory',
+          'read_fulfillments',
+          'write_fulfillments',
+        ],
+      },
+    },
+    defaultService: 'shopify',
   },
   slack: {
     id: 'slack',
@@ -768,6 +853,46 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'salesforce',
+  },
+  box: {
+    id: 'box',
+    name: 'Box',
+    icon: (props) => BoxCompanyIcon(props),
+    services: {
+      box: {
+        id: 'box',
+        name: 'Box',
+        description: 'Manage files and folders in Box cloud storage.',
+        providerId: 'box',
+        icon: (props) => BoxCompanyIcon(props),
+        baseProviderIcon: (props) => BoxCompanyIcon(props),
+        scopes: ['root_readwrite'],
+      },
+    },
+    defaultService: 'box',
+  },
+  zoom: {
+    id: 'zoom',
+    name: 'Zoom',
+    icon: (props) => ZoomIcon(props),
+    services: {
+      zoom: {
+        id: 'zoom',
+        name: 'Zoom',
+        description: 'Create and manage Zoom meetings, users, and recordings.',
+        providerId: 'zoom',
+        icon: (props) => ZoomIcon(props),
+        baseProviderIcon: (props) => ZoomIcon(props),
+        scopes: [
+          'meeting:write:meeting:admin',
+          'meeting:read:meeting:admin',
+          'meeting:read:list_meetings:admin',
+          'meeting:update:meeting:admin',
+          'meeting:delete:meeting:admin',
+        ],
+      },
+    },
+    defaultService: 'zoom',
   },
 }
 
@@ -1008,6 +1133,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         additionalHeaders: { Accept: 'application/json' },
       }
     }
+    case 'gitlab': {
+      const { clientId, clientSecret } = getCredentials(
+        env.GITLAB_CLIENT_ID,
+        env.GITLAB_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://gitlab.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+      }
+    }
     case 'x': {
       const { clientId, clientSecret } = getCredentials(env.X_CLIENT_ID, env.X_CLIENT_SECRET)
       return {
@@ -1149,6 +1287,18 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         useBasicAuth: true,
       }
     }
+    case 'dropbox': {
+      const { clientId, clientSecret } = getCredentials(
+        env.DROPBOX_CLIENT_ID,
+        env.DROPBOX_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.dropboxapi.com/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
     case 'slack': {
       const { clientId, clientSecret } = getCredentials(
         env.SLACK_CLIENT_ID,
@@ -1263,6 +1413,31 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'shopify': {
+      // Shopify access tokens don't expire and don't support refresh tokens
+      // This configuration is provided for completeness but won't be used for token refresh
+      const { clientId, clientSecret } = getCredentials(
+        env.SHOPIFY_CLIENT_ID,
+        env.SHOPIFY_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://accounts.shopify.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'box': {
+      const { clientId, clientSecret } = getCredentials(env.BOX_CLIENT_ID, env.BOX_CLIENT_SECRET)
+      return {
+        tokenEndpoint: 'https://api.box.com/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     default:

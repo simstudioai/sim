@@ -1,0 +1,105 @@
+import { randomUUID } from 'crypto'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { createLogger } from '@/lib/logs/console/logger'
+import { createSSHConnection, executeSSHCommand } from '@/app/api/tools/ssh/utils'
+
+const logger = createLogger('SSHCheckCommandExistsAPI')
+
+const CheckCommandExistsSchema = z.object({
+  host: z.string().min(1, 'Host is required'),
+  port: z.coerce.number().int().positive().default(22),
+  username: z.string().min(1, 'Username is required'),
+  password: z.string().optional(),
+  privateKey: z.string().optional(),
+  passphrase: z.string().optional(),
+  commandName: z.string().min(1, 'Command name is required'),
+})
+
+export async function POST(request: NextRequest) {
+  const requestId = randomUUID().slice(0, 8)
+
+  try {
+    const body = await request.json()
+    const params = CheckCommandExistsSchema.parse(body)
+
+    // Validate authentication
+    if (!params.password && !params.privateKey) {
+      return NextResponse.json(
+        { error: 'Either password or privateKey must be provided' },
+        { status: 400 }
+      )
+    }
+
+    logger.info(
+      `[${requestId}] Checking if command '${params.commandName}' exists on ${params.host}:${params.port}`
+    )
+
+    const client = await createSSHConnection({
+      host: params.host,
+      port: params.port,
+      username: params.username,
+      password: params.password,
+      privateKey: params.privateKey,
+      passphrase: params.passphrase,
+    })
+
+    try {
+      // Use which/command to check if the command exists
+      const result = await executeSSHCommand(
+        client,
+        `command -v '${params.commandName}' 2>/dev/null || which '${params.commandName}' 2>/dev/null`
+      )
+
+      const exists = result.exitCode === 0 && result.stdout.trim().length > 0
+      const path = exists ? result.stdout.trim() : undefined
+
+      // Try to get version if command exists
+      let version: string | undefined
+      if (exists) {
+        try {
+          const versionResult = await executeSSHCommand(
+            client,
+            `'${params.commandName}' --version 2>&1 | head -1 || '${params.commandName}' -v 2>&1 | head -1`
+          )
+          if (versionResult.exitCode === 0 && versionResult.stdout.trim()) {
+            version = versionResult.stdout.trim()
+          }
+        } catch {
+          // Version check failed, that's okay
+        }
+      }
+
+      logger.info(
+        `[${requestId}] Command '${params.commandName}' ${exists ? 'exists' : 'does not exist'}`
+      )
+
+      return NextResponse.json({
+        exists,
+        path,
+        version,
+        message: exists
+          ? `Command '${params.commandName}' found at ${path}`
+          : `Command '${params.commandName}' not found`,
+      })
+    } finally {
+      client.end()
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    logger.error(`[${requestId}] SSH check command exists failed:`, error)
+
+    return NextResponse.json(
+      { error: `SSH check command exists failed: ${errorMessage}` },
+      { status: 500 }
+    )
+  }
+}

@@ -1,0 +1,613 @@
+---
+title: Grafana
+description: Interact with Grafana dashboards, alerts, and annotations
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="grafana"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Grafana](https://grafana.com/) is a leading open-source platform for monitoring, observability, and visualization. It allows users to query, visualize, alert on, and analyze data from a variety of sources, making it an essential tool for infrastructure and application monitoring.
+
+With Grafana, you can:
+
+- **Visualize data**: Build and customize dashboards to display metrics, logs, and traces in real time
+- **Monitor health and status**: Check the health of your Grafana instance and connected data sources
+- **Manage alerts and annotations**: Set up alert rules, manage notifications, and annotate dashboards with important events
+- **Organize content**: Organize dashboards and data sources into folders for better access management
+
+In Sim, the Grafana integration empowers your agents to interact directly with your Grafana instance via API, enabling actions such as:
+
+- Checking the Grafana server, database, and data source health status
+- Retrieving, listing, and managing dashboards, alert rules, annotations, data sources, and folders
+- Automating the monitoring of your infrastructure by integrating Grafana data and alerts into your workflow automations
+
+These capabilities enable Sim agents to monitor systems, proactively respond to alerts, and help ensure the reliability and visibility of your services — all as part of your automated workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.
+
+
+
+## Tools
+
+### `grafana_health_check`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_data_source_health`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_get_dashboard`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_list_dashboards`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_create_dashboard`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_update_dashboard`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_delete_dashboard`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_list_alert_rules`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_get_alert_rule`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_create_alert_rule`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_update_alert_rule`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_delete_alert_rule`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_list_contact_points`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_create_annotation`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_list_annotations`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_update_annotation`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_delete_annotation`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_list_data_sources`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_get_data_source`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_list_folders`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+### `grafana_create_folder`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Grafana version |
+| `database` | string | Database health status |
+| `status` | string | Health status |
+| `dashboard` | json | Dashboard JSON |
+| `meta` | json | Dashboard metadata |
+| `dashboards` | json | List of dashboards |
+| `uid` | string | Created/updated UID |
+| `url` | string | Dashboard URL |
+| `rules` | json | Alert rules list |
+| `contactPoints` | json | Contact points list |
+| `annotations` | json | Annotations list |
+| `id` | number | Annotation ID |
+| `dataSources` | json | Data sources list |
+| `folders` | json | Folders list |
+| `message` | string | Status message |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `grafana`
