@@ -43,7 +43,6 @@ Submit custom metrics to Datadog. Use for tracking application performance, busi
 | --------- | ---- | -------- | ----------- |
 | `series` | string | Yes | JSON array of metric series to submit. Each series should include metric name, type \(gauge/rate/count\), points \(timestamp/value pairs\), and optional tags. |
 | `apiKey` | string | Yes | Datadog API key |
-| `applicationKey` | string | Yes | Datadog Application key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
 
 #### Output
@@ -93,7 +92,6 @@ Post an event to the Datadog event stream. Use for deployment notifications, ale
 | `sourceTypeName` | string | No | Source type name for the event |
 | `dateHappened` | number | No | Unix timestamp when the event occurred \(defaults to now\) |
 | `apiKey` | string | Yes | Datadog API key |
-| `applicationKey` | string | Yes | Datadog Application key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
 
 #### Output
@@ -228,7 +226,6 @@ Send log entries to Datadog for centralized logging and analysis.
 | --------- | ---- | -------- | ----------- |
 | `logs` | string | Yes | JSON array of log entries. Each entry should have message and optionally ddsource, ddtags, hostname, service. |
 | `apiKey` | string | Yes | Datadog API key |
-| `applicationKey` | string | Yes | Datadog Application key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
 
 #### Output

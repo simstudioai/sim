@@ -25,6 +25,12 @@ export const backlinksStatsTool: ToolConfig<
       description:
         'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match)',
     },
+    date: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Date for historical data in YYYY-MM-DD format (defaults to today)',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -37,6 +43,9 @@ export const backlinksStatsTool: ToolConfig<
     url: (params) => {
       const url = new URL('https://api.ahrefs.com/v3/site-explorer/backlinks-stats')
       url.searchParams.set('target', params.target)
+      // Date is required - default to today if not provided
+      const date = params.date || new Date().toISOString().split('T')[0]
+      url.searchParams.set('date', date)
       if (params.mode) url.searchParams.set('mode', params.mode)
       return url.toString()
     },
@@ -51,16 +60,16 @@ export const backlinksStatsTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to get backlinks stats')
+      throw new Error(data.error?.message || data.error || 'Failed to get backlinks stats')
     }
 
     return {
       success: true,
       output: {
         stats: {
-          total: data.live ?? 0,
-          dofollow: data.live_dofollow ?? 0,
-          nofollow: data.live_nofollow ?? 0,
+          total: data.live ?? data.total ?? 0,
+          dofollow: data.live_dofollow ?? data.dofollow ?? 0,
+          nofollow: data.live_nofollow ?? data.nofollow ?? 0,
           text: data.text ?? 0,
           image: data.image ?? 0,
           redirect: data.redirect ?? 0,

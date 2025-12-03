@@ -21,12 +21,6 @@ export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
       visibility: 'user-only',
       description: 'Datadog API key',
     },
-    applicationKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Datadog Application key',
-    },
     site: {
       type: 'string',
       required: false,

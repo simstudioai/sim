@@ -2,7 +2,12 @@ import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createSSHConnection, executeSSHCommand, sanitizePath } from '@/app/api/tools/ssh/utils'
+import {
+  createSSHConnection,
+  escapeShellArg,
+  executeSSHCommand,
+  sanitizePath,
+} from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHMoveRenameAPI')
 
@@ -10,9 +15,9 @@ const MoveRenameSchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive().default(22),
   username: z.string().min(1, 'Username is required'),
-  password: z.string().optional(),
-  privateKey: z.string().optional(),
-  passphrase: z.string().optional(),
+  password: z.string().nullish(),
+  privateKey: z.string().nullish(),
+  passphrase: z.string().nullish(),
   sourcePath: z.string().min(1, 'Source path is required'),
   destinationPath: z.string().min(1, 'Destination path is required'),
   overwrite: z.boolean().default(false),
@@ -49,11 +54,13 @@ export async function POST(request: NextRequest) {
     try {
       const sourcePath = sanitizePath(params.sourcePath)
       const destPath = sanitizePath(params.destinationPath)
+      const escapedSource = escapeShellArg(sourcePath)
+      const escapedDest = escapeShellArg(destPath)
 
       // Check if source exists
       const sourceCheck = await executeSSHCommand(
         client,
-        `test -e '${sourcePath}' && echo "exists"`
+        `test -e '${escapedSource}' && echo "exists"`
       )
       if (sourceCheck.stdout.trim() !== 'exists') {
         return NextResponse.json(
@@ -64,7 +71,10 @@ export async function POST(request: NextRequest) {
 
       // Check if destination exists (when overwrite is false)
       if (!params.overwrite) {
-        const destCheck = await executeSSHCommand(client, `test -e '${destPath}' && echo "exists"`)
+        const destCheck = await executeSSHCommand(
+          client,
+          `test -e '${escapedDest}' && echo "exists"`
+        )
         if (destCheck.stdout.trim() === 'exists') {
           return NextResponse.json(
             { error: `Destination already exists and overwrite is disabled: ${destPath}` },
@@ -75,8 +85,8 @@ export async function POST(request: NextRequest) {
 
       // Move/rename
       const command = params.overwrite
-        ? `mv -f '${sourcePath}' '${destPath}'`
-        : `mv '${sourcePath}' '${destPath}'`
+        ? `mv -f '${escapedSource}' '${escapedDest}'`
+        : `mv '${escapedSource}' '${escapedDest}'`
       const result = await executeSSHCommand(client, command)
 
       if (result.exitCode !== 0) {

@@ -22,6 +22,12 @@ export const backlinksTool: ToolConfig<AhrefsBacklinksParams, AhrefsBacklinksRes
       description:
         'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match)',
     },
+    date: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Date for historical data in YYYY-MM-DD format (defaults to today)',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -46,6 +52,9 @@ export const backlinksTool: ToolConfig<AhrefsBacklinksParams, AhrefsBacklinksRes
     url: (params) => {
       const url = new URL('https://api.ahrefs.com/v3/site-explorer/backlinks')
       url.searchParams.set('target', params.target)
+      // Date is required - default to today if not provided
+      const date = params.date || new Date().toISOString().split('T')[0]
+      url.searchParams.set('date', date)
       if (params.mode) url.searchParams.set('mode', params.mode)
       if (params.limit) url.searchParams.set('limit', String(params.limit))
       if (params.offset) url.searchParams.set('offset', String(params.offset))
@@ -62,15 +71,15 @@ export const backlinksTool: ToolConfig<AhrefsBacklinksParams, AhrefsBacklinksRes
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to get backlinks')
+      throw new Error(data.error?.message || data.error || 'Failed to get backlinks')
     }
 
     const backlinks = (data.backlinks || []).map((link: any) => ({
       urlFrom: link.url_from || '',
       urlTo: link.url_to || '',
       anchor: link.anchor || '',
-      domainRatingSource: link.domain_rating_source ?? 0,
-      isDofollow: link.is_dofollow ?? false,
+      domainRatingSource: link.domain_rating_source ?? link.domain_rating ?? 0,
+      isDofollow: link.is_dofollow ?? link.dofollow ?? false,
       firstSeen: link.first_seen || '',
       lastVisited: link.last_visited || '',
     }))

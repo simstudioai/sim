@@ -4,6 +4,7 @@ import type { ToolResponse } from '@/tools/types'
 // Common parameters for all Ahrefs tools
 export interface AhrefsBaseParams {
   apiKey: string
+  date?: string // Date in YYYY-MM-DD format, defaults to today
 }
 
 // Target mode for analysis

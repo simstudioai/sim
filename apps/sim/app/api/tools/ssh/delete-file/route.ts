@@ -2,7 +2,12 @@ import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createSSHConnection, executeSSHCommand, sanitizePath } from '@/app/api/tools/ssh/utils'
+import {
+  createSSHConnection,
+  escapeShellArg,
+  executeSSHCommand,
+  sanitizePath,
+} from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHDeleteFileAPI')
 
@@ -10,9 +15,9 @@ const DeleteFileSchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive().default(22),
   username: z.string().min(1, 'Username is required'),
-  password: z.string().optional(),
-  privateKey: z.string().optional(),
-  passphrase: z.string().optional(),
+  password: z.string().nullish(),
+  privateKey: z.string().nullish(),
+  passphrase: z.string().nullish(),
   path: z.string().min(1, 'Path is required'),
   recursive: z.boolean().default(false),
   force: z.boolean().default(false),
@@ -46,9 +51,13 @@ export async function POST(request: NextRequest) {
 
     try {
       const filePath = sanitizePath(params.path)
+      const escapedPath = escapeShellArg(filePath)
 
       // Check if path exists
-      const checkResult = await executeSSHCommand(client, `test -e '${filePath}' && echo "exists"`)
+      const checkResult = await executeSSHCommand(
+        client,
+        `test -e '${escapedPath}' && echo "exists"`
+      )
       if (checkResult.stdout.trim() !== 'exists') {
         return NextResponse.json({ error: `Path does not exist: ${filePath}` }, { status: 404 })
       }
@@ -56,9 +65,9 @@ export async function POST(request: NextRequest) {
       // Build delete command
       let command: string
       if (params.recursive) {
-        command = params.force ? `rm -rf '${filePath}'` : `rm -r '${filePath}'`
+        command = params.force ? `rm -rf '${escapedPath}'` : `rm -r '${escapedPath}'`
       } else {
-        command = params.force ? `rm -f '${filePath}'` : `rm '${filePath}'`
+        command = params.force ? `rm -f '${escapedPath}'` : `rm '${escapedPath}'`
       }
 
       const result = await executeSSHCommand(client, command)

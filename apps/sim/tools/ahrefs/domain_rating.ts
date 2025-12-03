@@ -15,6 +15,12 @@ export const domainRatingTool: ToolConfig<AhrefsDomainRatingParams, AhrefsDomain
       visibility: 'user-or-llm',
       description: 'The target domain to analyze (e.g., example.com)',
     },
+    date: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Date for historical data in YYYY-MM-DD format (defaults to today)',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -24,8 +30,14 @@ export const domainRatingTool: ToolConfig<AhrefsDomainRatingParams, AhrefsDomain
   },
 
   request: {
-    url: (params) =>
-      `https://api.ahrefs.com/v3/site-explorer/domain-rating?target=${encodeURIComponent(params.target)}`,
+    url: (params) => {
+      const url = new URL('https://api.ahrefs.com/v3/site-explorer/domain-rating')
+      url.searchParams.set('target', params.target)
+      // Date is required - default to today if not provided
+      const date = params.date || new Date().toISOString().split('T')[0]
+      url.searchParams.set('date', date)
+      return url.toString()
+    },
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
@@ -37,7 +49,7 @@ export const domainRatingTool: ToolConfig<AhrefsDomainRatingParams, AhrefsDomain
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to get domain rating')
+      throw new Error(data.error?.message || data.error || 'Failed to get domain rating')
     }
 
     return {

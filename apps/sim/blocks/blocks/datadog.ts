@@ -383,12 +383,27 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       password: true,
       required: true,
     },
+    // Application Key - REQUIRED only for read/manage operations (not needed for submit_metrics, create_event, send_logs)
     {
       id: 'applicationKey',
       title: 'Application Key',
       type: 'short-input',
       placeholder: 'Enter your Datadog application key',
       password: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'datadog_query_timeseries',
+          'datadog_create_monitor',
+          'datadog_get_monitor',
+          'datadog_list_monitors',
+          'datadog_mute_monitor',
+          'datadog_query_logs',
+          'datadog_create_downtime',
+          'datadog_list_downtimes',
+          'datadog_cancel_downtime',
+        ],
+      },
       required: true,
     },
     {

@@ -40,6 +40,13 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_domain_rating' },
       required: true,
     },
+    {
+      id: 'date',
+      title: 'Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (defaults to today)',
+      condition: { field: 'operation', value: 'ahrefs_domain_rating' },
+    },
     // Backlinks operation inputs
     {
       id: 'target',
@@ -76,6 +83,13 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       placeholder: '0',
       condition: { field: 'operation', value: 'ahrefs_backlinks' },
     },
+    {
+      id: 'date',
+      title: 'Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (defaults to today)',
+      condition: { field: 'operation', value: 'ahrefs_backlinks' },
+    },
     // Backlinks Stats operation inputs
     {
       id: 'target',
@@ -96,6 +110,13 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
         { label: 'Exact (exact URL)', id: 'exact' },
       ],
       value: () => 'domain',
+      condition: { field: 'operation', value: 'ahrefs_backlinks_stats' },
+    },
+    {
+      id: 'date',
+      title: 'Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (defaults to today)',
       condition: { field: 'operation', value: 'ahrefs_backlinks_stats' },
     },
     // Referring Domains operation inputs
@@ -132,6 +153,13 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       title: 'Offset',
       type: 'short-input',
       placeholder: '0',
+      condition: { field: 'operation', value: 'ahrefs_referring_domains' },
+    },
+    {
+      id: 'date',
+      title: 'Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (defaults to today)',
       condition: { field: 'operation', value: 'ahrefs_referring_domains' },
     },
     // Organic Keywords operation inputs
@@ -194,6 +222,13 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       placeholder: '0',
       condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
     },
+    {
+      id: 'date',
+      title: 'Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (defaults to today)',
+      condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
+    },
     // Top Pages operation inputs
     {
       id: 'target',
@@ -251,6 +286,13 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       title: 'Offset',
       type: 'short-input',
       placeholder: '0',
+      condition: { field: 'operation', value: 'ahrefs_top_pages' },
+    },
+    {
+      id: 'date',
+      title: 'Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (defaults to today)',
       condition: { field: 'operation', value: 'ahrefs_top_pages' },
     },
     // Keyword Overview operation inputs
@@ -322,6 +364,13 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       placeholder: '0',
       condition: { field: 'operation', value: 'ahrefs_broken_backlinks' },
     },
+    {
+      id: 'date',
+      title: 'Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (defaults to today)',
+      condition: { field: 'operation', value: 'ahrefs_broken_backlinks' },
+    },
     // API Key (common to all operations)
     {
       id: 'apiKey',
@@ -383,6 +432,7 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
     keyword: { type: 'string', description: 'Keyword to analyze' },
     mode: { type: 'string', description: 'Analysis mode (domain, prefix, subdomains, exact)' },
     country: { type: 'string', description: 'Country code for geo-specific data' },
+    date: { type: 'string', description: 'Date for historical data in YYYY-MM-DD format' },
     limit: { type: 'number', description: 'Maximum number of results to return' },
     offset: { type: 'number', description: 'Number of results to skip for pagination' },
   },

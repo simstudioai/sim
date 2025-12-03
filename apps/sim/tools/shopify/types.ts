@@ -178,6 +178,7 @@ export interface ShopifyInventoryItem {
 export interface ShopifyBaseParams {
   accessToken: string
   shopDomain: string
+  idToken?: string // Shop domain from OAuth, used as fallback
 }
 
 // Product Tool Params

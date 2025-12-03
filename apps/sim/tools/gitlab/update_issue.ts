@@ -8,12 +8,12 @@ export const gitlabUpdateIssueTool: ToolConfig<GitLabUpdateIssueParams, GitLabUp
     description: 'Update an existing issue in a GitLab project',
     version: '1.0.0',
 
-    oauth: {
-      required: true,
-      provider: 'gitlab',
-    },
-
     params: {
+      accessToken: {
+        type: 'string',
+        required: true,
+        description: 'GitLab Personal Access Token',
+      },
       projectId: {
         type: 'string',
         required: true,
@@ -72,15 +72,10 @@ export const gitlabUpdateIssueTool: ToolConfig<GitLabUpdateIssueParams, GitLabUp
         return `https://gitlab.com/api/v4/projects/${encodedId}/issues/${params.issueIid}`
       },
       method: 'PUT',
-      headers: (params) => {
-        if (!params.accessToken) {
-          throw new Error('Missing access token for GitLab API request')
-        }
-        return {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${params.accessToken}`,
-        }
-      },
+      headers: (params) => ({
+        'Content-Type': 'application/json',
+        'PRIVATE-TOKEN': params.accessToken,
+      }),
       body: (params) => {
         const body: Record<string, any> = {}
 

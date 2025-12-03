@@ -7,7 +7,7 @@ import { ApifyBlock } from '@/blocks/blocks/apify'
 import { ApolloBlock } from '@/blocks/blocks/apollo'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
-import { BoxBlock } from '@/blocks/blocks/box'
+// import { BoxBlock } from '@/blocks/blocks/box' // TODO: Box OAuth integration
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalendlyBlock } from '@/blocks/blocks/calendly'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
@@ -48,6 +48,7 @@ import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
 import { IntercomBlock } from '@/blocks/blocks/intercom'
 import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
+import { KalshiBlock } from '@/blocks/blocks/kalshi'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LinearBlock } from '@/blocks/blocks/linear'
 import { LinkedInBlock } from '@/blocks/blocks/linkedin'
@@ -74,6 +75,7 @@ import { ParallelBlock } from '@/blocks/blocks/parallel'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock } from '@/blocks/blocks/pipedrive'
+import { PolymarketBlock } from '@/blocks/blocks/polymarket'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { PostHogBlock } from '@/blocks/blocks/posthog'
 import { PylonBlock } from '@/blocks/blocks/pylon'
@@ -141,7 +143,7 @@ export const registry: Record<string, BlockConfig> = {
   apollo: ApolloBlock,
   arxiv: ArxivBlock,
   asana: AsanaBlock,
-  box: BoxBlock,
+  // box: BoxBlock, // TODO: Box OAuth integration
   browser_use: BrowserUseBlock,
   calendly: CalendlyBlock,
   chat_trigger: ChatTriggerBlock,
@@ -181,6 +183,7 @@ export const registry: Record<string, BlockConfig> = {
   intercom: IntercomBlock,
   jina: JinaBlock,
   jira: JiraBlock,
+  kalshi: KalshiBlock,
   knowledge: KnowledgeBlock,
   linear: LinearBlock,
   linkedin: LinkedInBlock,
@@ -207,6 +210,7 @@ export const registry: Record<string, BlockConfig> = {
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
+  polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
   posthog: PostHogBlock,
   pylon: PylonBlock,

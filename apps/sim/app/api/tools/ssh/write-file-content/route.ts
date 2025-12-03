@@ -11,13 +11,13 @@ const WriteFileContentSchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive().default(22),
   username: z.string().min(1, 'Username is required'),
-  password: z.string().optional(),
-  privateKey: z.string().optional(),
-  passphrase: z.string().optional(),
+  password: z.string().nullish(),
+  privateKey: z.string().nullish(),
+  passphrase: z.string().nullish(),
   path: z.string().min(1, 'Path is required'),
   content: z.string(),
   mode: z.enum(['overwrite', 'append', 'create']).default('overwrite'),
-  permissions: z.string().optional(),
+  permissions: z.string().nullish(),
 })
 
 function getSFTP(client: Client): Promise<SFTPWrapper> {

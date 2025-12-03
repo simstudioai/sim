@@ -11,13 +11,13 @@ const UploadFileSchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive().default(22),
   username: z.string().min(1, 'Username is required'),
-  password: z.string().optional(),
-  privateKey: z.string().optional(),
-  passphrase: z.string().optional(),
+  password: z.string().nullish(),
+  privateKey: z.string().nullish(),
+  passphrase: z.string().nullish(),
   fileContent: z.string().min(1, 'File content is required'),
   fileName: z.string().min(1, 'File name is required'),
   remotePath: z.string().min(1, 'Remote path is required'),
-  permissions: z.string().optional(),
+  permissions: z.string().nullish(),
   overwrite: z.boolean().default(true),
 })
 

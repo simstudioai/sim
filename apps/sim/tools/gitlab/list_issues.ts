@@ -7,12 +7,12 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
   description: 'List issues in a GitLab project',
   version: '1.0.0',
 
-  oauth: {
-    required: true,
-    provider: 'gitlab',
-  },
-
   params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      description: 'GitLab Personal Access Token',
+    },
     projectId: {
       type: 'string',
       required: true,
@@ -84,14 +84,9 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
       return `https://gitlab.com/api/v4/projects/${encodedId}/issues${query ? `?${query}` : ''}`
     },
     method: 'GET',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for GitLab API request')
-      }
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
+    headers: (params) => ({
+      'PRIVATE-TOKEN': params.accessToken,
+    }),
   },
 
   transformResponse: async (response) => {

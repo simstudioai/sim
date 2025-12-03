@@ -28,6 +28,12 @@ export const referringDomainsTool: ToolConfig<
       description:
         'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match)',
     },
+    date: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Date for historical data in YYYY-MM-DD format (defaults to today)',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -52,6 +58,9 @@ export const referringDomainsTool: ToolConfig<
     url: (params) => {
       const url = new URL('https://api.ahrefs.com/v3/site-explorer/referring-domains')
       url.searchParams.set('target', params.target)
+      // Date is required - default to today if not provided
+      const date = params.date || new Date().toISOString().split('T')[0]
+      url.searchParams.set('date', date)
       if (params.mode) url.searchParams.set('mode', params.mode)
       if (params.limit) url.searchParams.set('limit', String(params.limit))
       if (params.offset) url.searchParams.set('offset', String(params.offset))
@@ -68,17 +77,19 @@ export const referringDomainsTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to get referring domains')
+      throw new Error(data.error?.message || data.error || 'Failed to get referring domains')
     }
 
-    const referringDomains = (data.refdomains || []).map((domain: any) => ({
-      domain: domain.domain || '',
-      domainRating: domain.domain_rating ?? 0,
-      backlinks: domain.backlinks ?? 0,
-      dofollowBacklinks: domain.dofollow_backlinks ?? 0,
-      firstSeen: domain.first_seen || '',
-      lastVisited: domain.last_visited || '',
-    }))
+    const referringDomains = (data.refdomains || data.referring_domains || []).map(
+      (domain: any) => ({
+        domain: domain.domain || domain.refdomain || '',
+        domainRating: domain.domain_rating ?? 0,
+        backlinks: domain.backlinks ?? 0,
+        dofollowBacklinks: domain.dofollow_backlinks ?? domain.dofollow ?? 0,
+        firstSeen: domain.first_seen || '',
+        lastVisited: domain.last_visited || '',
+      })
+    )
 
     return {
       success: true,

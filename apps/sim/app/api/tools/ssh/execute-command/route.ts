@@ -10,11 +10,11 @@ const ExecuteCommandSchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive().default(22),
   username: z.string().min(1, 'Username is required'),
-  password: z.string().optional(),
-  privateKey: z.string().optional(),
-  passphrase: z.string().optional(),
+  password: z.string().nullish(),
+  privateKey: z.string().nullish(),
+  passphrase: z.string().nullish(),
   command: z.string().min(1, 'Command is required'),
-  workingDirectory: z.string().optional(),
+  workingDirectory: z.string().nullish(),
 })
 
 export async function POST(request: NextRequest) {

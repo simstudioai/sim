@@ -53,7 +53,7 @@ export const keywordOverviewTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to get keyword overview')
+      throw new Error(data.error?.message || data.error || 'Failed to get keyword overview')
     }
 
     return {
@@ -62,7 +62,7 @@ export const keywordOverviewTool: ToolConfig<
         overview: {
           keyword: data.keyword || '',
           searchVolume: data.volume ?? 0,
-          keywordDifficulty: data.keyword_difficulty ?? 0,
+          keywordDifficulty: data.keyword_difficulty ?? data.difficulty ?? 0,
           cpc: data.cpc ?? 0,
           clicks: data.clicks ?? 0,
           clicksPercentage: data.clicks_percentage ?? 0,

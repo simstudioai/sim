@@ -2,7 +2,12 @@ import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createSSHConnection, executeSSHCommand, sanitizePath } from '@/app/api/tools/ssh/utils'
+import {
+  createSSHConnection,
+  escapeShellArg,
+  executeSSHCommand,
+  sanitizePath,
+} from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHCreateDirectoryAPI')
 
@@ -10,9 +15,9 @@ const CreateDirectorySchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive().default(22),
   username: z.string().min(1, 'Username is required'),
-  password: z.string().optional(),
-  privateKey: z.string().optional(),
-  passphrase: z.string().optional(),
+  password: z.string().nullish(),
+  privateKey: z.string().nullish(),
+  passphrase: z.string().nullish(),
   path: z.string().min(1, 'Path is required'),
   recursive: z.boolean().default(true),
   permissions: z.string().default('0755'),
@@ -46,9 +51,13 @@ export async function POST(request: NextRequest) {
 
     try {
       const dirPath = sanitizePath(params.path)
+      const escapedPath = escapeShellArg(dirPath)
 
       // Check if directory already exists
-      const checkResult = await executeSSHCommand(client, `test -d '${dirPath}' && echo "exists"`)
+      const checkResult = await executeSSHCommand(
+        client,
+        `test -d '${escapedPath}' && echo "exists"`
+      )
       const alreadyExists = checkResult.stdout.trim() === 'exists'
 
       if (alreadyExists) {
@@ -63,7 +72,7 @@ export async function POST(request: NextRequest) {
 
       // Create directory
       const mkdirFlag = params.recursive ? '-p' : ''
-      const command = `mkdir ${mkdirFlag} -m ${params.permissions} '${dirPath}'`
+      const command = `mkdir ${mkdirFlag} -m ${params.permissions} '${escapedPath}'`
       const result = await executeSSHCommand(client, command)
 
       if (result.exitCode !== 0) {

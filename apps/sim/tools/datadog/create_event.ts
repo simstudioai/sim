@@ -70,12 +70,6 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
       visibility: 'user-only',
       description: 'Datadog API key',
     },
-    applicationKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Datadog Application key',
-    },
     site: {
       type: 'string',
       required: false,

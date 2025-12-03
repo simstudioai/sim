@@ -120,12 +120,35 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
 
     request: {
       url: (params) => {
+        const hasFilters =
+          params.status ||
+          params.priority ||
+          params.type ||
+          params.assigneeId ||
+          params.organizationId
+
+        if (hasFilters) {
+          // Use Search API for filtering - the /tickets endpoint doesn't support filter params
+          // Build search query using Zendesk search syntax
+          const searchTerms: string[] = ['type:ticket']
+          if (params.status) searchTerms.push(`status:${params.status}`)
+          if (params.priority) searchTerms.push(`priority:${params.priority}`)
+          if (params.type) searchTerms.push(`ticket_type:${params.type}`)
+          if (params.assigneeId) searchTerms.push(`assignee_id:${params.assigneeId}`)
+          if (params.organizationId) searchTerms.push(`organization_id:${params.organizationId}`)
+
+          const queryParams = new URLSearchParams()
+          queryParams.append('query', searchTerms.join(' '))
+          if (params.sortBy) queryParams.append('sort_by', params.sortBy)
+          if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
+          if (params.page) queryParams.append('page', params.page)
+          if (params.perPage) queryParams.append('per_page', params.perPage)
+
+          return `${buildZendeskUrl(params.subdomain, '/search')}?${queryParams.toString()}`
+        }
+
+        // No filters - use the simple /tickets endpoint
         const queryParams = new URLSearchParams()
-        if (params.status) queryParams.append('status', params.status)
-        if (params.priority) queryParams.append('priority', params.priority)
-        if (params.type) queryParams.append('type', params.type)
-        if (params.assigneeId) queryParams.append('assignee_id', params.assigneeId)
-        if (params.organizationId) queryParams.append('organization_id', params.organizationId)
         if (params.sortBy) queryParams.append('sort_by', params.sortBy)
         if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
         if (params.page) queryParams.append('page', params.page)
@@ -154,7 +177,8 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
       }
 
       const data = await response.json()
-      const tickets = data.tickets || []
+      // Handle both /tickets response (data.tickets) and /search response (data.results)
+      const tickets = data.tickets || data.results || []
 
       return {
         success: true,

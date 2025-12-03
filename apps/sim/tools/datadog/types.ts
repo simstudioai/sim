@@ -10,11 +10,15 @@ export type DatadogSite =
   | 'ap1.datadoghq.com'
   | 'ddog-gov.com'
 
-// Common parameters for all Datadog tools
-export interface DatadogBaseParams {
+// Base parameters for write-only operations (only need API key)
+export interface DatadogWriteOnlyParams {
   apiKey: string
-  applicationKey: string
   site?: DatadogSite
+}
+
+// Base parameters for read/manage operations (need both API key and Application key)
+export interface DatadogBaseParams extends DatadogWriteOnlyParams {
+  applicationKey: string
 }
 
 // ========================
@@ -37,7 +41,7 @@ export interface MetricSeries {
   resources?: { name: string; type: string }[]
 }
 
-export interface SubmitMetricsParams extends DatadogBaseParams {
+export interface SubmitMetricsParams extends DatadogWriteOnlyParams {
   series: string // JSON string of MetricSeries[]
 }
 
@@ -125,7 +129,7 @@ export type EventAlertType =
   | 'snapshot'
 export type EventPriority = 'normal' | 'low'
 
-export interface CreateEventParams extends DatadogBaseParams {
+export interface CreateEventParams extends DatadogWriteOnlyParams {
   title: string
   text: string
   alertType?: EventAlertType
@@ -364,7 +368,7 @@ export interface LogEntry {
   service?: string
 }
 
-export interface SendLogsParams extends DatadogBaseParams {
+export interface SendLogsParams extends DatadogWriteOnlyParams {
   logs: string // JSON string of LogEntry[]
 }
 

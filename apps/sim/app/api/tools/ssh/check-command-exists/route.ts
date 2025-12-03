@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createSSHConnection, executeSSHCommand } from '@/app/api/tools/ssh/utils'
+import { createSSHConnection, escapeShellArg, executeSSHCommand } from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHCheckCommandExistsAPI')
 
@@ -10,9 +10,9 @@ const CheckCommandExistsSchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive().default(22),
   username: z.string().min(1, 'Username is required'),
-  password: z.string().optional(),
-  privateKey: z.string().optional(),
-  passphrase: z.string().optional(),
+  password: z.string().nullish(),
+  privateKey: z.string().nullish(),
+  passphrase: z.string().nullish(),
   commandName: z.string().min(1, 'Command name is required'),
 })
 
@@ -45,10 +45,12 @@ export async function POST(request: NextRequest) {
     })
 
     try {
+      const escapedCommand = escapeShellArg(params.commandName)
+
       // Use which/command to check if the command exists
       const result = await executeSSHCommand(
         client,
-        `command -v '${params.commandName}' 2>/dev/null || which '${params.commandName}' 2>/dev/null`
+        `command -v '${escapedCommand}' 2>/dev/null || which '${escapedCommand}' 2>/dev/null`
       )
 
       const exists = result.exitCode === 0 && result.stdout.trim().length > 0
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
         try {
           const versionResult = await executeSSHCommand(
             client,
-            `'${params.commandName}' --version 2>&1 | head -1 || '${params.commandName}' -v 2>&1 | head -1`
+            `'${escapedCommand}' --version 2>&1 | head -1 || '${escapedCommand}' -v 2>&1 | head -1`
           )
           if (versionResult.exitCode === 0 && versionResult.stdout.trim()) {
             version = versionResult.stdout.trim()

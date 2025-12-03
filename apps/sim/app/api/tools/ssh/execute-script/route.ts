@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createSSHConnection, executeSSHCommand } from '@/app/api/tools/ssh/utils'
+import { createSSHConnection, escapeShellArg, executeSSHCommand } from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHExecuteScriptAPI')
 
@@ -10,12 +10,12 @@ const ExecuteScriptSchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive().default(22),
   username: z.string().min(1, 'Username is required'),
-  password: z.string().optional(),
-  privateKey: z.string().optional(),
-  passphrase: z.string().optional(),
+  password: z.string().nullish(),
+  privateKey: z.string().nullish(),
+  passphrase: z.string().nullish(),
   script: z.string().min(1, 'Script content is required'),
   interpreter: z.string().default('/bin/bash'),
-  workingDirectory: z.string().optional(),
+  workingDirectory: z.string().nullish(),
 })
 
 export async function POST(request: NextRequest) {
@@ -47,25 +47,26 @@ export async function POST(request: NextRequest) {
     try {
       // Create a temporary script file, execute it, and clean up
       const scriptPath = `/tmp/sim_script_${requestId}.sh`
-
-      // Escape the script content for use in a heredoc
-      const escapedScript = params.script.replace(/'/g, "'\\''")
+      const escapedScriptPath = escapeShellArg(scriptPath)
+      const escapedInterpreter = escapeShellArg(params.interpreter)
 
       // Build the command to create, execute, and clean up the script
-      let command = `cat > '${scriptPath}' << 'SIMEOF'
+      // Note: heredoc with quoted delimiter ('SIMEOF') prevents variable expansion
+      let command = `cat > '${escapedScriptPath}' << 'SIMEOF'
 ${params.script}
 SIMEOF
-chmod +x '${scriptPath}'`
+chmod +x '${escapedScriptPath}'`
 
       if (params.workingDirectory) {
+        const escapedWorkDir = escapeShellArg(params.workingDirectory)
         command += `
-cd "${params.workingDirectory}"`
+cd '${escapedWorkDir}'`
       }
 
       command += `
-'${params.interpreter}' '${scriptPath}'
+'${escapedInterpreter}' '${escapedScriptPath}'
 exit_code=$?
-rm -f '${scriptPath}'
+rm -f '${escapedScriptPath}'
 exit $exit_code`
 
       const result = await executeSSHCommand(client, command)

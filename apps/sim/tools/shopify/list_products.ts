@@ -38,7 +38,8 @@ export const shopifyListProductsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://${params.shopDomain}/admin/api/2024-10/graphql.json`,
+    url: (params) =>
+      `https://${params.shopDomain || params.idToken}/admin/api/2024-10/graphql.json`,
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {

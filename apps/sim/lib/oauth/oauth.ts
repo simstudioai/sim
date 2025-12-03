@@ -2,12 +2,10 @@ import type { ReactNode } from 'react'
 import {
   AirtableIcon,
   AsanaIcon,
-  BoxCompanyIcon,
   ConfluenceIcon,
   // DiscordIcon,
   DropboxIcon,
   GithubIcon,
-  GitLabIcon,
   GmailIcon,
   GoogleCalendarIcon,
   GoogleDocsIcon,
@@ -47,7 +45,6 @@ const logger = createLogger('OAuth')
 export type OAuthProvider =
   | 'google'
   | 'github'
-  | 'gitlab'
   | 'x'
   // | 'supabase'
   | 'confluence'
@@ -69,7 +66,6 @@ export type OAuthProvider =
   | 'salesforce'
   | 'linkedin'
   | 'shopify'
-  | 'box'
   | 'zoom'
   | string
 
@@ -83,7 +79,6 @@ export type OAuthService =
   | 'google-vault'
   | 'google-forms'
   | 'github'
-  | 'gitlab'
   | 'x'
   // | 'supabase'
   | 'confluence'
@@ -110,7 +105,6 @@ export type OAuthService =
   | 'salesforce'
   | 'linkedin'
   | 'shopify'
-  | 'box'
   | 'zoom'
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -354,23 +348,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'github',
-  },
-  gitlab: {
-    id: 'gitlab',
-    name: 'GitLab',
-    icon: (props) => GitLabIcon(props),
-    services: {
-      gitlab: {
-        id: 'gitlab',
-        name: 'GitLab',
-        description: 'Manage GitLab projects, issues, merge requests, and pipelines.',
-        providerId: 'gitlab',
-        icon: (props) => GitLabIcon(props),
-        baseProviderIcon: (props) => GitLabIcon(props),
-        scopes: ['api', 'read_user', 'read_repository', 'write_repository'],
-      },
-    },
-    defaultService: 'gitlab',
   },
   x: {
     id: 'x',
@@ -854,23 +831,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'salesforce',
   },
-  box: {
-    id: 'box',
-    name: 'Box',
-    icon: (props) => BoxCompanyIcon(props),
-    services: {
-      box: {
-        id: 'box',
-        name: 'Box',
-        description: 'Manage files and folders in Box cloud storage.',
-        providerId: 'box',
-        icon: (props) => BoxCompanyIcon(props),
-        baseProviderIcon: (props) => BoxCompanyIcon(props),
-        scopes: ['root_readwrite'],
-      },
-    },
-    defaultService: 'box',
-  },
   zoom: {
     id: 'zoom',
     name: 'Zoom',
@@ -1131,19 +1091,6 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         additionalHeaders: { Accept: 'application/json' },
-      }
-    }
-    case 'gitlab': {
-      const { clientId, clientSecret } = getCredentials(
-        env.GITLAB_CLIENT_ID,
-        env.GITLAB_CLIENT_SECRET
-      )
-      return {
-        tokenEndpoint: 'https://gitlab.com/oauth/token',
-        clientId,
-        clientSecret,
-        useBasicAuth: false,
-        supportsRefreshTokenRotation: true,
       }
     }
     case 'x': {
@@ -1428,16 +1375,6 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: false,
-      }
-    }
-    case 'box': {
-      const { clientId, clientSecret } = getCredentials(env.BOX_CLIENT_ID, env.BOX_CLIENT_SECRET)
-      return {
-        tokenEndpoint: 'https://api.box.com/oauth2/token',
-        clientId,
-        clientSecret,
-        useBasicAuth: false,
-        supportsRefreshTokenRotation: true,
       }
     }
     default:

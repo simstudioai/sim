@@ -7,7 +7,7 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
   type: 'gitlab',
   name: 'GitLab',
   description: 'Interact with GitLab projects, issues, merge requests, and pipelines',
-  authMode: AuthMode.OAuth,
+  authMode: AuthMode.ApiKey,
   triggerAllowed: false,
   longDescription:
     'Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments. Supports all core GitLab DevOps operations.',
@@ -48,12 +48,11 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
       value: () => 'gitlab_list_projects',
     },
     {
-      id: 'credential',
-      title: 'GitLab Account',
-      type: 'oauth-input',
-      serviceId: 'gitlab',
-      requiredScopes: ['api', 'read_user', 'read_repository', 'write_repository'],
-      placeholder: 'Select GitLab account',
+      id: 'accessToken',
+      title: 'Personal Access Token',
+      type: 'short-input',
+      placeholder: 'Enter your GitLab Personal Access Token',
+      password: true,
       required: true,
     },
     // Project ID (required for most operations)
@@ -87,12 +86,12 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
         ],
       },
     },
-    // Issue IID (for issue operations)
+    // Issue Number (IID) - the # shown in GitLab UI
     {
       id: 'issueIid',
-      title: 'Issue IID',
+      title: 'Issue Number',
       type: 'short-input',
-      placeholder: 'Enter issue internal ID (IID)',
+      placeholder: 'Enter issue number (e.g., 1 for issue #1)',
       required: true,
       condition: {
         field: 'operation',
@@ -104,12 +103,12 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
         ],
       },
     },
-    // Merge Request IID
+    // Merge Request Number (IID) - the ! number shown in GitLab UI
     {
       id: 'mergeRequestIid',
-      title: 'Merge Request IID',
+      title: 'MR Number',
       type: 'short-input',
-      placeholder: 'Enter merge request internal ID (IID)',
+      placeholder: 'Enter MR number (e.g., 1 for !1)',
       required: true,
       condition: {
         field: 'operation',
@@ -415,7 +414,7 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
       },
       params: (params) => {
         const baseParams: Record<string, any> = {
-          credential: params.credential,
+          accessToken: params.accessToken,
         }
 
         switch (params.operation) {
@@ -450,7 +449,7 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
 
           case 'gitlab_get_issue':
             if (!params.projectId?.trim() || !params.issueIid) {
-              throw new Error('Project ID and Issue IID are required.')
+              throw new Error('Project ID and Issue Number are required.')
             }
             return {
               ...baseParams,

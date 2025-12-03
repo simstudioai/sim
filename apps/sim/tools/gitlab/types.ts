@@ -193,7 +193,7 @@ export interface GitLabMilestone {
 // ===== Common Parameters =====
 
 interface GitLabBaseParams {
-  accessToken?: string
+  accessToken: string
 }
 
 // ===== Project Parameters =====

@@ -28,6 +28,12 @@ export const topPagesTool: ToolConfig<AhrefsTopPagesParams, AhrefsTopPagesRespon
       description:
         'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains)',
     },
+    date: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Date for historical data in YYYY-MM-DD format (defaults to today)',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -53,6 +59,9 @@ export const topPagesTool: ToolConfig<AhrefsTopPagesParams, AhrefsTopPagesRespon
       const url = new URL('https://api.ahrefs.com/v3/site-explorer/top-pages')
       url.searchParams.set('target', params.target)
       url.searchParams.set('country', params.country || 'us')
+      // Date is required - default to today if not provided
+      const date = params.date || new Date().toISOString().split('T')[0]
+      url.searchParams.set('date', date)
       if (params.mode) url.searchParams.set('mode', params.mode)
       if (params.limit) url.searchParams.set('limit', String(params.limit))
       if (params.offset) url.searchParams.set('offset', String(params.offset))
@@ -69,15 +78,15 @@ export const topPagesTool: ToolConfig<AhrefsTopPagesParams, AhrefsTopPagesRespon
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to get top pages')
+      throw new Error(data.error?.message || data.error || 'Failed to get top pages')
     }
 
-    const pages = (data.pages || []).map((page: any) => ({
+    const pages = (data.pages || data.top_pages || []).map((page: any) => ({
       url: page.url || '',
       traffic: page.traffic ?? 0,
-      keywords: page.keywords ?? 0,
+      keywords: page.keywords ?? page.keyword_count ?? 0,
       topKeyword: page.top_keyword || '',
-      value: page.value ?? 0,
+      value: page.value ?? page.traffic_value ?? 0,
     }))
 
     return {

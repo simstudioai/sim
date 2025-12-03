@@ -18,7 +18,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
   docsLink: 'https://docs.sim.ai/tools/shopify',
   category: 'tools',
   icon: ShopifyIcon,
-  bgColor: '#96BF48',
+  bgColor: '#FFFFFF',
   subBlocks: [
     {
       id: 'operation',
@@ -70,8 +70,8 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       id: 'shopDomain',
       title: 'Shop Domain',
       type: 'short-input',
-      placeholder: 'mystore.myshopify.com',
-      required: true,
+      placeholder: 'Auto-detected from OAuth or enter manually',
+      // Not required - will use shop domain from OAuth credential if not provided
     },
     // Product ID (for get/update/delete operations)
     {

@@ -232,6 +232,20 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'webhooks:read': 'Read your Pipedrive webhooks',
   'webhooks:full': 'Full access to manage your Pipedrive webhooks',
   w_member_social: 'Access your LinkedIn profile',
+  // Box scopes
+  root_readwrite: 'Read and write all files and folders in your Box account',
+  root_readonly: 'Read all files and folders in your Box account',
+  // Shopify scopes
+  read_products: 'View your Shopify products',
+  write_products: 'Create and manage your Shopify products',
+  read_orders: 'View your Shopify orders',
+  write_orders: 'Manage your Shopify orders',
+  read_customers: 'View your Shopify customers',
+  write_customers: 'Create and manage your Shopify customers',
+  read_inventory: 'View your Shopify inventory',
+  write_inventory: 'Manage your Shopify inventory levels',
+  read_fulfillments: 'View your Shopify fulfillments',
+  write_fulfillments: 'Create and manage your Shopify fulfillments',
 }
 
 function getScopeDescription(scope: string): string {
@@ -286,6 +300,11 @@ export function OAuthRequiredModal({
 
       if (providerId === 'trello') {
         window.location.href = '/api/auth/trello/authorize'
+        return
+      }
+
+      if (providerId === 'shopify') {
+        window.location.href = '/api/auth/shopify/authorize'
         return
       }
 

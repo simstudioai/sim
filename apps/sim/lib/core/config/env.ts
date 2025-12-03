@@ -181,8 +181,6 @@ export const env = createEnv({
     GITHUB_CLIENT_SECRET:                  z.string().optional(),                  // GitHub OAuth client secret
     GITHUB_REPO_CLIENT_ID:                 z.string().optional(),                  // GitHub OAuth client ID for repo access
     GITHUB_REPO_CLIENT_SECRET:             z.string().optional(),                  // GitHub OAuth client secret for repo access
-    GITLAB_CLIENT_ID:                      z.string().optional(),                  // GitLab OAuth client ID for GitLab integration
-    GITLAB_CLIENT_SECRET:                  z.string().optional(),                  // GitLab OAuth client secret
     X_CLIENT_ID:                           z.string().optional(),                  // X (Twitter) OAuth client ID
     X_CLIENT_SECRET:                       z.string().optional(),                  // X (Twitter) OAuth client secret
     CONFLUENCE_CLIENT_ID:                  z.string().optional(),                  // Atlassian Confluence OAuth client ID

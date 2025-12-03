@@ -12,7 +12,7 @@ export const SSHBlock: BlockConfig<SSHResponse> = {
     'Execute commands, transfer files, and manage remote servers via SSH. Supports password and private key authentication for secure server access.',
   docsLink: 'https://docs.sim.ai/tools/ssh',
   category: 'tools',
-  bgColor: '#2C3E50',
+  bgColor: '#000000',
   icon: SshIcon,
   subBlocks: [
     // Operation selector

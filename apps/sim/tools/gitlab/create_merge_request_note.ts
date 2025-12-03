@@ -13,12 +13,12 @@ export const gitlabCreateMergeRequestNoteTool: ToolConfig<
   description: 'Add a comment to a GitLab merge request',
   version: '1.0.0',
 
-  oauth: {
-    required: true,
-    provider: 'gitlab',
-  },
-
   params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      description: 'GitLab Personal Access Token',
+    },
     projectId: {
       type: 'string',
       required: true,
@@ -42,15 +42,10 @@ export const gitlabCreateMergeRequestNoteTool: ToolConfig<
       return `https://gitlab.com/api/v4/projects/${encodedId}/merge_requests/${params.mergeRequestIid}/notes`
     },
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for GitLab API request')
-      }
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      'PRIVATE-TOKEN': params.accessToken,
+    }),
     body: (params) => ({
       body: params.body,
     }),

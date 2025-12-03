@@ -10,9 +10,9 @@ export interface SSHConnectionConfig {
   host: string
   port: number
   username: string
-  password?: string
-  privateKey?: string
-  passphrase?: string
+  password?: string | null
+  privateKey?: string | null
+  passphrase?: string | null
   timeout?: number
   keepaliveInterval?: number
   readyTimeout?: number
@@ -25,31 +25,141 @@ export interface SSHCommandResult {
 }
 
 /**
+ * Format SSH error with helpful troubleshooting context
+ */
+function formatSSHError(err: Error, config: { host: string; port: number }): Error {
+  const errorMessage = err.message.toLowerCase()
+  const host = config.host
+  const port = config.port
+
+  // Connection refused - server not running or wrong port
+  if (errorMessage.includes('econnrefused') || errorMessage.includes('connection refused')) {
+    return new Error(
+      `Connection refused to ${host}:${port}. ` +
+        `Please verify: (1) SSH server is running on the target machine, ` +
+        `(2) Port ${port} is correct (default SSH port is 22), ` +
+        `(3) Firewall allows connections to port ${port}.`
+    )
+  }
+
+  // Connection reset - server closed connection unexpectedly
+  if (errorMessage.includes('econnreset') || errorMessage.includes('connection reset')) {
+    return new Error(
+      `Connection reset by ${host}:${port}. ` +
+        `This usually means: (1) Wrong port number (SSH default is 22), ` +
+        `(2) Server rejected the connection, ` +
+        `(3) Network/firewall interrupted the connection. ` +
+        `Verify your SSH server configuration and port number.`
+    )
+  }
+
+  // Timeout - server unreachable or slow
+  if (errorMessage.includes('etimedout') || errorMessage.includes('timeout')) {
+    return new Error(
+      `Connection timed out to ${host}:${port}. ` +
+        `Please verify: (1) Host "${host}" is reachable, ` +
+        `(2) No firewall is blocking the connection, ` +
+        `(3) The SSH server is responding.`
+    )
+  }
+
+  // DNS/hostname resolution
+  if (errorMessage.includes('enotfound') || errorMessage.includes('getaddrinfo')) {
+    return new Error(
+      `Could not resolve hostname "${host}". ` +
+        `Please verify the hostname or IP address is correct.`
+    )
+  }
+
+  // Authentication failure
+  if (errorMessage.includes('authentication') || errorMessage.includes('auth')) {
+    return new Error(
+      `Authentication failed for user on ${host}:${port}. ` +
+        `Please verify: (1) Username is correct, ` +
+        `(2) Password or private key is valid, ` +
+        `(3) User has SSH access on the server.`
+    )
+  }
+
+  // Private key format issues
+  if (
+    errorMessage.includes('key') &&
+    (errorMessage.includes('parse') || errorMessage.includes('invalid'))
+  ) {
+    return new Error(
+      `Invalid private key format. ` +
+        `Please ensure you're using a valid OpenSSH private key. ` +
+        `The key should start with "-----BEGIN" and end with "-----END".`
+    )
+  }
+
+  // Host key verification (first connection)
+  if (errorMessage.includes('host key') || errorMessage.includes('hostkey')) {
+    return new Error(
+      `Host key verification issue for ${host}. ` +
+        `This may be the first connection to this server or the server's key has changed.`
+    )
+  }
+
+  // Return original error with context if no specific match
+  return new Error(`SSH connection to ${host}:${port} failed: ${err.message}`)
+}
+
+/**
  * Create an SSH connection using the provided configuration
+ *
+ * Uses ssh2 library defaults which align with OpenSSH standards:
+ * - readyTimeout: 20000ms (20 seconds)
+ * - keepaliveInterval: 0 (disabled, same as OpenSSH ServerAliveInterval)
+ * - keepaliveCountMax: 3 (same as OpenSSH ServerAliveCountMax)
  */
 export function createSSHConnection(config: SSHConnectionConfig): Promise<Client> {
   return new Promise((resolve, reject) => {
     const client = new Client()
+    const port = config.port || 22
+    const host = config.host
+
+    // Validate host
+    if (!host || host.trim() === '') {
+      reject(new Error('Host is required. Please provide a valid hostname or IP address.'))
+      return
+    }
+
+    // Validate authentication
+    const hasPassword = config.password && config.password.trim() !== ''
+    const hasPrivateKey = config.privateKey && config.privateKey.trim() !== ''
+
+    if (!hasPassword && !hasPrivateKey) {
+      reject(new Error('Authentication required. Please provide either a password or private key.'))
+      return
+    }
 
     const connectConfig: ConnectConfig = {
-      host: config.host,
-      port: config.port || 22,
+      host: host.trim(),
+      port,
       username: config.username,
-      readyTimeout: config.readyTimeout || 20000,
-      keepaliveInterval: config.keepaliveInterval || 10000,
+      // Use library defaults for timeouts (aligns with OpenSSH standards)
+      // readyTimeout: 20000 (default)
+      // keepaliveInterval: 0 (default, disabled)
+      // keepaliveCountMax: 3 (default)
+    }
+
+    // Allow user overrides if provided
+    if (config.readyTimeout !== undefined) {
+      connectConfig.readyTimeout = config.readyTimeout
+    }
+    if (config.keepaliveInterval !== undefined) {
+      connectConfig.keepaliveInterval = config.keepaliveInterval
     }
 
     // Authentication: prioritize private key over password
-    if (config.privateKey) {
-      connectConfig.privateKey = config.privateKey
-      if (config.passphrase) {
+    if (hasPrivateKey) {
+      connectConfig.privateKey = config.privateKey!
+      if (config.passphrase && config.passphrase.trim() !== '') {
         connectConfig.passphrase = config.passphrase
       }
-    } else if (config.password) {
-      connectConfig.password = config.password
-    } else {
-      reject(new Error('Either password or privateKey must be provided'))
-      return
+    } else if (hasPassword) {
+      connectConfig.password = config.password!
     }
 
     client.on('ready', () => {
@@ -57,10 +167,14 @@ export function createSSHConnection(config: SSHConnectionConfig): Promise<Client
     })
 
     client.on('error', (err) => {
-      reject(err)
+      reject(formatSSHError(err, { host, port }))
     })
 
-    client.connect(connectConfig)
+    try {
+      client.connect(connectConfig)
+    } catch (err) {
+      reject(formatSSHError(err instanceof Error ? err : new Error(String(err)), { host, port }))
+    }
   })
 }
 
@@ -106,7 +220,7 @@ export function sanitizeCommand(command: string): string {
 }
 
 /**
- * Sanitize file path to prevent directory traversal
+ * Sanitize file path - removes null bytes and trims whitespace
  */
 export function sanitizePath(path: string): string {
   // Remove any null bytes
@@ -116,6 +230,20 @@ export function sanitizePath(path: string): string {
   sanitized = sanitized.trim()
 
   return sanitized
+}
+
+/**
+ * Escape a string for safe use in single-quoted shell arguments
+ * This is standard practice for shell command construction.
+ * e.g., "/tmp/test'file" becomes "/tmp/test'\''file"
+ *
+ * The pattern 'foo'\''bar' works because:
+ * - First ' ends the current single-quoted string
+ * - \' inserts a literal single quote (escaped outside quotes)
+ * - Next ' starts a new single-quoted string
+ */
+export function escapeShellArg(arg: string): string {
+  return arg.replace(/'/g, "'\\''")
 }
 
 /**

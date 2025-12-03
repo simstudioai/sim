@@ -34,6 +34,12 @@ export const organicKeywordsTool: ToolConfig<
       description:
         'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match)',
     },
+    date: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Date for historical data in YYYY-MM-DD format (defaults to today)',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -59,6 +65,9 @@ export const organicKeywordsTool: ToolConfig<
       const url = new URL('https://api.ahrefs.com/v3/site-explorer/organic-keywords')
       url.searchParams.set('target', params.target)
       url.searchParams.set('country', params.country || 'us')
+      // Date is required - default to today if not provided
+      const date = params.date || new Date().toISOString().split('T')[0]
+      url.searchParams.set('date', date)
       if (params.mode) url.searchParams.set('mode', params.mode)
       if (params.limit) url.searchParams.set('limit', String(params.limit))
       if (params.offset) url.searchParams.set('offset', String(params.offset))
@@ -75,16 +84,16 @@ export const organicKeywordsTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to get organic keywords')
+      throw new Error(data.error?.message || data.error || 'Failed to get organic keywords')
     }
 
-    const keywords = (data.keywords || []).map((kw: any) => ({
+    const keywords = (data.keywords || data.organic_keywords || []).map((kw: any) => ({
       keyword: kw.keyword || '',
       volume: kw.volume ?? 0,
       position: kw.position ?? 0,
       url: kw.url || '',
       traffic: kw.traffic ?? 0,
-      keywordDifficulty: kw.keyword_difficulty ?? 0,
+      keywordDifficulty: kw.keyword_difficulty ?? kw.difficulty ?? 0,
     }))
 
     return {
