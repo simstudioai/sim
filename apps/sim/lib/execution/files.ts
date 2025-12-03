@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
-import { TRIGGER_TYPES } from '@/lib/workflows/triggers'
+import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { UserFile } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'

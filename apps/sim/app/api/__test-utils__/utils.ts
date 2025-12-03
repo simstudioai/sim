@@ -305,24 +305,20 @@ export function createMockRequest(
 }
 
 export function mockExecutionDependencies() {
-  vi.mock('@/lib/utils', async () => {
-    const actual = await vi.importActual('@/lib/utils')
-    return {
-      ...(actual as any),
-      decryptSecret: vi.fn().mockImplementation((encrypted: string) => {
-        const entries = Object.entries(mockEnvironmentVars)
-        const found = entries.find(([_, val]) => val === encrypted)
-        const key = found ? found[0] : null
+  vi.mock('@/lib/core/security/encryption', () => ({
+    decryptSecret: vi.fn().mockImplementation((encrypted: string) => {
+      const entries = Object.entries(mockEnvironmentVars)
+      const found = entries.find(([_, val]) => val === encrypted)
+      const key = found ? found[0] : null
 
-        return Promise.resolve({
-          decrypted:
-            key && key in mockDecryptedEnvVars
-              ? mockDecryptedEnvVars[key as keyof typeof mockDecryptedEnvVars]
-              : 'decrypted-value',
-        })
-      }),
-    }
-  })
+      return Promise.resolve({
+        decrypted:
+          key && key in mockDecryptedEnvVars
+            ? mockDecryptedEnvVars[key as keyof typeof mockDecryptedEnvVars]
+            : 'decrypted-value',
+      })
+    }),
+  }))
 
   vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
     buildTraceSpans: vi.fn().mockReturnValue({
@@ -455,7 +451,7 @@ export function mockWorkflowAccessValidation(shouldSucceed = true) {
 }
 
 export async function getMockedDependencies() {
-  const utilsModule = await import('@/lib/utils')
+  const encryptionModule = await import('@/lib/core/security/encryption')
   const traceSpansModule = await import('@/lib/logs/execution/trace-spans/trace-spans')
   const workflowUtilsModule = await import('@/lib/workflows/utils')
   const executorModule = await import('@/executor')
@@ -463,7 +459,7 @@ export async function getMockedDependencies() {
   const dbModule = await import('@sim/db')
 
   return {
-    decryptSecret: utilsModule.decryptSecret,
+    decryptSecret: encryptionModule.decryptSecret,
     buildTraceSpans: traceSpansModule.buildTraceSpans,
     updateWorkflowRunCounts: workflowUtilsModule.updateWorkflowRunCounts,
     Executor: executorModule.Executor,
@@ -801,7 +797,7 @@ export function mockFileSystem(
 export function mockEncryption(options: { encryptedValue?: string; decryptedValue?: string } = {}) {
   const { encryptedValue = 'encrypted-value', decryptedValue = 'decrypted-value' } = options
 
-  vi.doMock('@/lib/utils', () => ({
+  vi.doMock('@/lib/core/security/encryption', () => ({
     encryptSecret: vi.fn().mockResolvedValue({ encrypted: encryptedValue }),
     decryptSecret: vi.fn().mockResolvedValue({ decrypted: decryptedValue }),
   }))

@@ -17,12 +17,12 @@ import {
   Waypoints,
   Wrench,
 } from 'lucide-react'
-import { useSession } from '@/lib/auth-client'
-import { getEnv, isTruthy } from '@/lib/env'
-import { isHosted } from '@/lib/environment'
-import { getUserRole } from '@/lib/organization/helpers'
-import { getSubscriptionStatus } from '@/lib/subscription/helpers'
-import { cn } from '@/lib/utils'
+import { useSession } from '@/lib/auth/auth-client'
+import { getSubscriptionStatus } from '@/lib/billing/client/utils'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/environment'
+import { cn } from '@/lib/core/utils/cn'
+import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { generalSettingsKeys } from '@/hooks/queries/general-settings'
 import { organizationKeys, useOrganizations } from '@/hooks/queries/organization'
 import { ssoKeys, useSSOProviders } from '@/hooks/queries/sso'
@@ -273,7 +273,7 @@ export function SettingsNavigation({
     queryClient.prefetchQuery({
       queryKey: organizationKeys.lists(),
       queryFn: async () => {
-        const { client } = await import('@/lib/auth-client')
+        const { client } = await import('@/lib/auth/auth-client')
         const [orgsResponse, activeOrgResponse, billingResponse] = await Promise.all([
           client.organization.list(),
           client.organization.getFullOrganization(),

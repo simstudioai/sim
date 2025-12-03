@@ -5,7 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { isBillingEnabled } from '@/lib/environment'
+import { isBillingEnabled } from '@/lib/core/config/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationSeatsAPI')

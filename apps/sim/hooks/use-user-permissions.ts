@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useSession } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { PermissionType, WorkspacePermissions } from '@/hooks/use-workspace-permissions'
 

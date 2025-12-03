@@ -11,7 +11,7 @@ import {
 } from '@/components/emails'
 import FreeTierUpgradeEmail from '@/components/emails/billing/free-tier-upgrade-email'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { getBaseUrl } from '@/lib/urls/utils'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 export async function renderOTPEmail(
   otp: string,

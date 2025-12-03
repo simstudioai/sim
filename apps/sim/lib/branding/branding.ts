@@ -1,4 +1,4 @@
-import { getEnv } from '@/lib/env'
+import { getEnv } from '@/lib/core/config/env'
 
 export interface ThemeColors {
   primaryColor?: string

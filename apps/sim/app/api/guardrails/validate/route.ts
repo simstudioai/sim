@@ -1,10 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
 import { validatePII } from '@/lib/guardrails/validate_pii'
 import { validateRegex } from '@/lib/guardrails/validate_regex'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('GuardrailsValidateAPI')
 

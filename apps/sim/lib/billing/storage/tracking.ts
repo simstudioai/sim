@@ -7,7 +7,7 @@
 import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
-import { isBillingEnabled } from '@/lib/environment'
+import { isBillingEnabled } from '@/lib/core/config/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('StorageTracking')

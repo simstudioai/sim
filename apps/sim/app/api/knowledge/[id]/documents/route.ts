@@ -189,7 +189,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         // Track bulk document upload
         try {
-          const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+          const { trackPlatformEvent } = await import('@/lib/core/telemetry')
           trackPlatformEvent('platform.knowledge_base.documents_uploaded', {
             'knowledge_base.id': knowledgeBaseId,
             'documents.count': createdDocuments.length,
@@ -253,7 +253,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         // Track single document upload
         try {
-          const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+          const { trackPlatformEvent } = await import('@/lib/core/telemetry')
           trackPlatformEvent('platform.knowledge_base.documents_uploaded', {
             'knowledge_base.id': knowledgeBaseId,
             'documents.count': 1,

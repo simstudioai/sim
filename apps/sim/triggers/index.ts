@@ -1,4 +1,4 @@
-import { generateMockPayloadFromOutputsDefinition } from '@/lib/workflows/trigger-utils'
+import { generateMockPayloadFromOutputsDefinition } from '@/lib/workflows/triggers/trigger-utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 import type { TriggerConfig } from '@/triggers/types'

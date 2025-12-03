@@ -4,14 +4,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { createLogger } from '@/lib/logs/console/logger'
+import { isUsageAtLimit, USAGE_PILL_COLORS } from '@/lib/billing/client/usage-visualization'
 import {
   canUpgrade,
   getBillingStatus,
   getSubscriptionStatus,
   getUsage,
-} from '@/lib/subscription/helpers'
-import { isUsageAtLimit, USAGE_PILL_COLORS } from '@/lib/subscription/usage-visualization'
+} from '@/lib/billing/client/utils'
+import { createLogger } from '@/lib/logs/console/logger'
 import { RotatingDigit } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/usage-indicator/rotating-digit'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'

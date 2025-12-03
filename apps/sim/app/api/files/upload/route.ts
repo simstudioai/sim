@@ -2,10 +2,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import '@/lib/uploads/core/setup.server'
 import { getSession } from '@/lib/auth'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import type { StorageContext } from '@/lib/uploads/config'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import { validateFileType } from '@/lib/uploads/utils/validation'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
   createErrorResponse,
   createOptionsResponse,

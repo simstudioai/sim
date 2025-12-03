@@ -4,7 +4,7 @@ import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,
   splitReferenceSegment,
-} from '@/lib/workflows/references'
+} from '@/lib/workflows/sanitization/references'
 import { checkTagTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'

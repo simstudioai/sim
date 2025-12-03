@@ -1,10 +1,10 @@
-import { isUserFile } from '@/lib/utils'
+import { isUserFile } from '@/lib/core/utils/display-filters'
 import {
   classifyStartBlockType,
   getLegacyStarterMode,
   resolveStartCandidates,
   StartBlockPath,
-} from '@/lib/workflows/triggers'
+} from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { NormalizedBlockOutput, UserFile } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'

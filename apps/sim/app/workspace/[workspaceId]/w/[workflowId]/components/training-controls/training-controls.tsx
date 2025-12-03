@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getEnv, isTruthy } from '@/lib/env'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { TrainingFloatingButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-controls/training-floating-button'
 import { TrainingModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-controls/training-modal'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'

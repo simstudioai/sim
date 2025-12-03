@@ -42,7 +42,13 @@ export class McpClient {
     '2024-11-05', // Initial stable release
   ]
 
-  constructor(config: McpServerConfig, securityPolicy?: McpSecurityPolicy) {
+  /**
+   * Creates a new MCP client
+   * @param config - Server configuration
+   * @param securityPolicy - Optional security policy
+   * @param sessionId - Optional session ID for session restoration (from previous connection)
+   */
+  constructor(config: McpServerConfig, securityPolicy?: McpSecurityPolicy, sessionId?: string) {
     this.config = config
     this.connectionStatus = { connected: false }
     this.securityPolicy = securityPolicy ?? {
@@ -59,6 +65,7 @@ export class McpClient {
       requestInit: {
         headers: this.config.headers,
       },
+      sessionId,
     })
 
     this.client = new Client(
@@ -253,6 +260,10 @@ export class McpClient {
   getNegotiatedVersion(): string | undefined {
     const serverVersion = this.client.getServerVersion()
     return typeof serverVersion === 'string' ? serverVersion : undefined
+  }
+
+  getSessionId(): string | undefined {
+    return this.transport.sessionId
   }
 
   /**

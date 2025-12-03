@@ -24,7 +24,7 @@ export function BlockInfoCard({
       <div className='flex items-center justify-center p-6'>
         <div
           className='flex h-20 w-20 items-center justify-center rounded-lg'
-          style={{ backgroundColor: color }}
+          style={{ background: color }}
         >
           {ResolvedIcon ? (
             <ResolvedIcon className='h-10 w-10 text-white' />

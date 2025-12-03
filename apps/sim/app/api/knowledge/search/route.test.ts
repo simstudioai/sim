@@ -26,7 +26,7 @@ vi.mock('drizzle-orm', () => ({
 
 mockKnowledgeSchemas()
 
-vi.mock('@/lib/env', () => ({
+vi.mock('@/lib/core/config/env', () => ({
   env: {
     OPENAI_API_KEY: 'test-api-key',
   },
@@ -34,7 +34,7 @@ vi.mock('@/lib/env', () => ({
     typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
 }))
 
-vi.mock('@/lib/utils', () => ({
+vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn(() => 'test-request-id'),
 }))
 

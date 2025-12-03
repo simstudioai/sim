@@ -13,7 +13,7 @@ import {
 } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 
 interface TeamSeatsProps {
   open: boolean
