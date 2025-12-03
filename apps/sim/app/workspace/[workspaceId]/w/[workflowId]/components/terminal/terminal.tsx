@@ -870,7 +870,7 @@ export function Terminal() {
                         >
                           <div
                             className='h-[6px] w-[6px] rounded-[2px]'
-                            style={{ backgroundColor: '#B7B7B7' }}
+                            style={{ backgroundColor: 'var(--terminal-status-info-color)' }}
                           />
                           <span className='flex-1'>Info</span>
                           {filters.statuses.has('info') && <Check className='h-3 w-3' />}
@@ -1084,8 +1084,8 @@ export function Terminal() {
                     <div
                       key={entry.id}
                       className={clsx(
-                        'flex h-[36px] cursor-pointer items-center px-[24px] hover:bg-[var(--border)]',
-                        isSelected && 'bg-[var(--border)]'
+                        'flex h-[36px] cursor-pointer items-center px-[24px] hover:bg-[var(--surface-9)] dark:hover:bg-[var(--border)]',
+                        isSelected && 'bg-[var(--surface-9)] dark:bg-[var(--border)]'
                       )}
                       onClick={() => handleRowClick(entry)}
                     >
@@ -1110,8 +1110,8 @@ export function Terminal() {
                             className={clsx(
                               'flex h-[24px] w-[56px] items-center justify-start rounded-[6px] border pl-[9px]',
                               statusInfo.isError
-                                ? 'gap-[5px] border-[#883827] bg-[#491515]'
-                                : 'gap-[8px] border-[#686868] bg-[#383838]'
+                                ? 'gap-[5px] border-[var(--terminal-status-error-border)] bg-[var(--terminal-status-error-bg)]'
+                                : 'gap-[8px] border-[var(--terminal-status-info-border)] bg-[var(--terminal-status-info-bg)]'
                             )}
                           >
                             <div
@@ -1119,13 +1119,15 @@ export function Terminal() {
                               style={{
                                 backgroundColor: statusInfo.isError
                                   ? 'var(--text-error)'
-                                  : '#B7B7B7',
+                                  : 'var(--terminal-status-info-color)',
                               }}
                             />
                             <span
                               className='font-medium text-[11.5px]'
                               style={{
-                                color: statusInfo.isError ? 'var(--text-error)' : '#B7B7B7',
+                                color: statusInfo.isError
+                                  ? 'var(--text-error)'
+                                  : 'var(--terminal-status-info-color)',
                               }}
                             >
                               {statusInfo.label}

@@ -139,16 +139,11 @@ function ShimmerOverlayText({
 
   // Special tools: use gradient for entire text
   if (isSpecial) {
-    const baseTextStyle = {
-      backgroundImage: 'linear-gradient(90deg, #B99FFD 0%, #D1BFFF 100%)',
-      WebkitBackgroundClip: 'text',
-      backgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-    }
-
     return (
       <span className={`relative inline-block ${className || ''}`}>
-        <span style={baseTextStyle}>{text}</span>
+        <span className='bg-gradient-to-r from-[#7c3aed] to-[#9061f9] bg-clip-text text-transparent dark:from-[#B99FFD] dark:to-[#D1BFFF]'>
+          {text}
+        </span>
         {active ? (
           <span
             aria-hidden='true'
@@ -182,13 +177,13 @@ function ShimmerOverlayText({
     )
   }
 
-  // Normal tools: two-tone rendering with lighter action verb
+  // Normal tools: two-tone rendering - action verb darker in light mode, lighter in dark mode
   return (
     <span className={`relative inline-block ${className || ''}`}>
       {actionVerb ? (
         <>
-          <span style={{ color: '#B8B8B8' }}>{actionVerb}</span>
-          <span style={{ color: 'var(--text-muted)' }}>{remainder}</span>
+          <span className='text-[#1f2124] dark:text-[#B8B8B8]'>{actionVerb}</span>
+          <span className='text-[#6b7075] dark:text-[var(--text-muted)]'>{remainder}</span>
         </>
       ) : (
         <span>{text}</span>
@@ -688,18 +683,18 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       return (
         <div className='w-full overflow-hidden rounded border border-muted bg-card'>
           <div className='grid grid-cols-3 gap-0 border-muted/60 border-b bg-muted/40 py-1.5'>
-            <div className='self-start px-2 font-medium font-season text-[#858585] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
+            <div className='self-start px-2 font-medium font-season text-[#3a3d41] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
               Name
             </div>
-            <div className='self-start px-2 font-medium font-season text-[#858585] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
+            <div className='self-start px-2 font-medium font-season text-[#3a3d41] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
               Type
             </div>
-            <div className='self-start px-2 font-medium font-season text-[#858585] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
+            <div className='self-start px-2 font-medium font-season text-[#3a3d41] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
               Value
             </div>
           </div>
           {ops.length === 0 ? (
-            <div className='px-2 py-2 font-[470] font-season text-[#707070] text-xs dark:text-[#E8E8E8]'>
+            <div className='px-2 py-2 font-[470] font-season text-[#1f2124] text-xs dark:text-[#E8E8E8]'>
               No operations provided
             </div>
           ) : (
@@ -719,7 +714,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                     />
                   </div>
                   <div className='self-start px-2'>
-                    <span className='rounded border px-1 py-0.5 font-[470] font-season text-[#707070] text-[10px] dark:text-[#E8E8E8]'>
+                    <span className='rounded border px-1 py-0.5 font-[470] font-season text-[#1f2124] text-[10px] dark:text-[#E8E8E8]'>
                       {String(op.type || '')}
                     </span>
                   </div>
@@ -736,7 +731,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                         className='w-full bg-transparent font-[470] font-mono text-amber-700 text-xs outline-none focus:text-amber-800 dark:text-amber-300 dark:focus:text-amber-200'
                       />
                     ) : (
-                      <span className='font-[470] font-season text-[#707070] text-xs dark:text-[#E8E8E8]'>
+                      <span className='font-[470] font-season text-[#1f2124] text-xs dark:text-[#E8E8E8]'>
                         —
                       </span>
                     )}
@@ -865,7 +860,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           text={displayName}
           active={isLoadingState}
           isSpecial={isSpecial}
-          className='font-[470] font-season text-[#939393] text-sm'
+          className='font-[470] font-season text-[#3a3d41] text-sm dark:text-[#939393]'
         />
         <div className='mt-[8px]'>{renderPendingDetails()}</div>
         {showButtons && (
@@ -891,7 +886,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           text={displayName}
           active={isLoadingState}
           isSpecial={isSpecial}
-          className='font-[470] font-season text-[#939393] text-sm'
+          className='font-[470] font-season text-[#3a3d41] text-sm dark:text-[#939393]'
         />
       </div>
       {isExpandableTool && expanded && <div>{renderPendingDetails()}</div>}

@@ -236,8 +236,8 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
         data-item-id={workflow.id}
         className={clsx(
           'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px]',
-          active ? 'bg-[var(--border)]' : 'hover:bg-[var(--border)]',
-          isSelected && selectedWorkflows.size > 1 && !active ? 'bg-[var(--border)]' : '',
+          active ? 'bg-[var(--surface-9)]' : 'hover:bg-[var(--surface-9)]',
+          isSelected && selectedWorkflows.size > 1 && !active ? 'bg-[var(--surface-9)]' : '',
           isDragging ? 'opacity-50' : ''
         )}
         draggable={!isEditing}

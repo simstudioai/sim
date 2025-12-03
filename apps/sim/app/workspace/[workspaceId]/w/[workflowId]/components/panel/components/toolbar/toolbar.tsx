@@ -554,9 +554,9 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     }}
                     onClick={() => handleItemClick(trigger.type, isTriggerCapable)}
                     className={clsx(
-                      'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5px] text-[14px]',
-                      'cursor-pointer hover:bg-[var(--border)] active:cursor-grabbing',
-                      'focus-visible:bg-[var(--border)] focus-visible:outline-none'
+                      'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px]',
+                      'cursor-pointer hover:bg-[var(--surface-9)] active:cursor-grabbing',
+                      'focus-visible:bg-[var(--surface-9)] focus-visible:outline-none'
                     )}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
@@ -567,7 +567,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     }}
                   >
                     <div
-                      className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                      className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
                       style={{ background: trigger.bgColor }}
                     >
                       {Icon && (
@@ -575,7 +575,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                           className={clsx(
                             'toolbar-item-icon text-white transition-transform duration-200',
                             'group-hover:scale-110',
-                            '!h-[10px] !w-[10px]'
+                            '!h-[9px] !w-[9px]'
                           )}
                         />
                       )}
@@ -583,7 +583,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     <span
                       className={clsx(
                         'truncate font-medium',
-                        'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]',
+                        'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
                         'group-focus-visible:text-[var(--text-primary)]'
                       )}
                     >
@@ -644,8 +644,8 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     onClick={() => handleItemClick(block.type, false)}
                     className={clsx(
                       'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px]',
-                      'cursor-pointer hover:bg-[var(--border)] active:cursor-grabbing',
-                      'focus-visible:bg-[var(--border)] focus-visible:outline-none'
+                      'cursor-pointer hover:bg-[var(--surface-9)] active:cursor-grabbing',
+                      'focus-visible:bg-[var(--surface-9)] focus-visible:outline-none'
                     )}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
@@ -656,7 +656,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     }}
                   >
                     <div
-                      className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                      className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
                       style={{ background: block.bgColor }}
                     >
                       {Icon && (
@@ -664,7 +664,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                           className={clsx(
                             'toolbar-item-icon text-white transition-transform duration-200',
                             'group-hover:scale-110',
-                            '!h-[10px] !w-[10px]'
+                            '!h-[9px] !w-[9px]'
                           )}
                         />
                       )}
@@ -672,7 +672,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     <span
                       className={clsx(
                         'truncate font-medium',
-                        'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]',
+                        'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
                         'group-focus-visible:text-[var(--text-primary)]'
                       )}
                     >
