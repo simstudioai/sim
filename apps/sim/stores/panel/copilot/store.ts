@@ -35,6 +35,7 @@ import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
+import { KnowledgeBaseClientTool } from '@/lib/copilot/tools/client/knowledge/knowledge-base'
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
 import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
@@ -85,6 +86,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   list_gdrive_files: (id) => new ListGDriveFilesClientTool(id),
   read_gdrive_file: (id) => new ReadGDriveFileClientTool(id),
   get_credentials: (id) => new GetCredentialsClientTool(id),
+  knowledge_base: (id) => new KnowledgeBaseClientTool(id),
   make_api_request: (id) => new MakeApiRequestClientTool(id),
   plan: (id) => new PlanClientTool(id),
   checkoff_todo: (id) => new CheckoffTodoClientTool(id),
@@ -122,6 +124,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   list_gdrive_files: (ListGDriveFilesClientTool as any)?.metadata,
   read_gdrive_file: (ReadGDriveFileClientTool as any)?.metadata,
   get_credentials: (GetCredentialsClientTool as any)?.metadata,
+  knowledge_base: (KnowledgeBaseClientTool as any)?.metadata,
   make_api_request: (MakeApiRequestClientTool as any)?.metadata,
   plan: (PlanClientTool as any)?.metadata,
   checkoff_todo: (CheckoffTodoClientTool as any)?.metadata,

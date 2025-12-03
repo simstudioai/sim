@@ -32,6 +32,7 @@ export const ToolIds = z.enum([
   'deploy_workflow',
   'check_deployment_status',
   'navigate_ui',
+  'knowledge_base',
 ])
 export type ToolId = z.infer<typeof ToolIds>
 
@@ -195,6 +196,27 @@ export const ToolArgSchemas = {
   reason: z.object({
     reasoning: z.string(),
   }),
+
+  knowledge_base: z.object({
+    operation: z.enum(['create', 'list', 'get', 'query']),
+    args: z
+      .object({
+        name: z.string().optional(),
+        description: z.string().optional(),
+        workspaceId: z.string().optional(),
+        knowledgeBaseId: z.string().optional(),
+        query: z.string().optional(),
+        topK: z.number().min(1).max(50).optional(),
+        chunkingConfig: z
+          .object({
+            maxSize: z.number().optional(),
+            minSize: z.number().optional(),
+            overlap: z.number().optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+  }),
 } as const
 export type ToolArgSchemaMap = typeof ToolArgSchemas
 
@@ -267,6 +289,7 @@ export const ToolSSESchemas = {
     ToolArgSchemas.check_deployment_status
   ),
   navigate_ui: toolCallSSEFor('navigate_ui', ToolArgSchemas.navigate_ui),
+  knowledge_base: toolCallSSEFor('knowledge_base', ToolArgSchemas.knowledge_base),
 } as const
 export type ToolSSESchemaMap = typeof ToolSSESchemas
 
@@ -463,6 +486,11 @@ export const ToolResultSchemas = {
     destination: z.enum(['workflow', 'logs', 'templates', 'vector_db', 'settings']),
     workflowName: z.string().optional(),
     navigated: z.boolean(),
+  }),
+  knowledge_base: z.object({
+    success: z.boolean(),
+    message: z.string(),
+    data: z.any().optional(),
   }),
 } as const
 export type ToolResultSchemaMap = typeof ToolResultSchemas

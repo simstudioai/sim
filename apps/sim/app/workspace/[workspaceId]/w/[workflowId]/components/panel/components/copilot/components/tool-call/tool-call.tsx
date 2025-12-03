@@ -944,6 +944,13 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             </pre>
           </div>
         )}
+        {showButtons && (
+          <RunSkipButtons
+            toolCall={toolCall}
+            onStateChange={handleStateChange}
+            editedParams={editedParams}
+          />
+        )}
       </div>
     )
   }
