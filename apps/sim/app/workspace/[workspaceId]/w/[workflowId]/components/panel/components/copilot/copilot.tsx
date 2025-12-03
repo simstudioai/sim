@@ -107,6 +107,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     setPlanTodos,
     clearPlanArtifact,
     savePlanArtifact,
+    setSelectedModel,
   } = useCopilotStore()
 
   // Initialize copilot
@@ -119,6 +120,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     fetchContextUsage,
     currentChat,
     isSendingMessage,
+    sendMessage,
+    setSelectedModel,
   })
 
   // Handle scroll management

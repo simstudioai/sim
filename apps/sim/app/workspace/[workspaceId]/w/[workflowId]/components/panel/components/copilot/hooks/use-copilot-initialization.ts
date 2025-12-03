@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getPendingCopilotMessage } from '@/app/workspace/[workspaceId]/superagent/superagent'
 
 const logger = createLogger('useCopilotInitialization')
 
@@ -14,6 +15,8 @@ interface UseCopilotInitializationProps {
   fetchContextUsage: () => Promise<void>
   currentChat: any
   isSendingMessage: boolean
+  sendMessage: (message: string, options?: { stream?: boolean }) => Promise<void>
+  setSelectedModel: (model: any) => Promise<void>
 }
 
 /**
@@ -32,11 +35,14 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     fetchContextUsage,
     currentChat,
     isSendingMessage,
+    sendMessage,
+    setSelectedModel,
   } = props
 
   const [isInitialized, setIsInitialized] = useState(false)
   const lastWorkflowIdRef = useRef<string | null>(null)
   const hasMountedRef = useRef(false)
+  const pendingMessageProcessedRef = useRef(false)
 
   /**
    * Initialize on mount - only load chats if needed, don't force refresh
@@ -111,6 +117,42 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
       })
     }
   }, [isInitialized, currentChat?.id, activeWorkflowId, fetchContextUsage])
+
+  /**
+   * Process pending copilot messages from superagent "Save as Workflow" feature
+   * This runs once after initialization to send any pending message
+   */
+  useEffect(() => {
+    if (
+      isInitialized &&
+      activeWorkflowId &&
+      !isSendingMessage &&
+      !pendingMessageProcessedRef.current
+    ) {
+      const pendingData = getPendingCopilotMessage()
+      if (pendingData && pendingData.workflowId === activeWorkflowId) {
+        pendingMessageProcessedRef.current = true
+        logger.info('[Copilot] Processing pending message from superagent', {
+          workflowId: activeWorkflowId,
+          model: pendingData.model,
+        })
+
+        // Set the model and send the message
+        const processPendingMessage = async () => {
+          try {
+            await setSelectedModel(pendingData.model as any)
+            // Small delay to ensure model is set
+            await new Promise((resolve) => setTimeout(resolve, 100))
+            await sendMessage(pendingData.message, { stream: true })
+          } catch (error) {
+            logger.error('[Copilot] Failed to process pending message', error)
+          }
+        }
+
+        processPendingMessage()
+      }
+    }
+  }, [isInitialized, activeWorkflowId, isSendingMessage, sendMessage, setSelectedModel])
 
   return {
     isInitialized,

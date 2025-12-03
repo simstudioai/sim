@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Copy, History, Plus } from 'lucide-react'
-import { useParams } from 'next/navigation'
+import { Check, Copy, History, Plus, Workflow } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
   Popover,
@@ -11,8 +11,10 @@ import {
   PopoverScrollArea,
   PopoverSection,
   PopoverTrigger,
+  Tooltip,
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
+import { createLogger } from '@/lib/logs/console/logger'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import { StreamingIndicator } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
 import {
@@ -20,8 +22,50 @@ import {
   type UserInputRef,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
 import { Welcome } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/welcome/welcome'
+import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
-import type { CopilotToolCall } from '@/stores/panel/copilot/types'
+import type { CopilotMessage, CopilotToolCall } from '@/stores/panel/copilot/types'
+
+const logger = createLogger('Superagent')
+
+/**
+ * Key for storing pending copilot message in localStorage
+ */
+const PENDING_COPILOT_MESSAGE_KEY = 'sim:pending-copilot-message'
+
+/**
+ * Stores a pending message to be sent to the copilot after navigation
+ */
+export function setPendingCopilotMessage(data: {
+  message: string
+  model: string
+  workflowId: string
+}) {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(PENDING_COPILOT_MESSAGE_KEY, JSON.stringify(data))
+  }
+}
+
+/**
+ * Retrieves and clears the pending copilot message
+ */
+export function getPendingCopilotMessage(): {
+  message: string
+  model: string
+  workflowId: string
+} | null {
+  if (typeof window === 'undefined') return null
+  const data = localStorage.getItem(PENDING_COPILOT_MESSAGE_KEY)
+  if (data) {
+    localStorage.removeItem(PENDING_COPILOT_MESSAGE_KEY)
+    try {
+      return JSON.parse(data)
+    } catch {
+      return null
+    }
+  }
+  return null
+}
 
 const MAX_CONTENT_WIDTH = 800
 
@@ -70,6 +114,7 @@ function groupChatsByDate(
  */
 export default function Superagent() {
   const params = useParams()
+  const router = useRouter()
   const workspaceId = params.workspaceId as string
 
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -78,6 +123,9 @@ export default function Superagent() {
   const [inputValue, setInputValue] = useState('')
   const [isHistoryDropdownOpen, setIsHistoryDropdownOpen] = useState(false)
   const [containerWidth, setContainerWidth] = useState(MAX_CONTENT_WIDTH)
+  const [isSavingAsWorkflow, setIsSavingAsWorkflow] = useState(false)
+
+  const createWorkflowMutation = useCreateWorkflow()
 
   const {
     context,
@@ -171,6 +219,126 @@ export default function Superagent() {
   const handleAbort = useCallback(() => {
     abortMessage()
   }, [abortMessage])
+
+  /**
+   * Formats the conversation for the copilot context
+   */
+  const formatConversationForCopilot = useCallback(
+    (userMessage: CopilotMessage, assistantMessage: CopilotMessage): string => {
+      const parts: string[] = []
+
+      // Add user message
+      parts.push(`## User Request\n${userMessage.content}`)
+
+      // Add assistant response with tool calls
+      parts.push('\n## Agent Response')
+
+      if (assistantMessage.contentBlocks && assistantMessage.contentBlocks.length > 0) {
+        for (const block of assistantMessage.contentBlocks) {
+          if (block.type === 'text' && block.content) {
+            parts.push(block.content)
+          }
+          if (block.type === 'tool_call') {
+            const toolCall = block.toolCall
+            parts.push(`\n### Tool Call: ${toolCall.name}`)
+            if (toolCall.params) {
+              parts.push(`**Parameters:**\n\`\`\`json\n${JSON.stringify(toolCall.params, null, 2)}\n\`\`\``)
+            }
+            parts.push(`**State:** ${toolCall.state}`)
+          }
+        }
+      } else if (assistantMessage.content) {
+        parts.push(assistantMessage.content)
+      }
+
+      return parts.join('\n\n')
+    },
+    []
+  )
+
+  /**
+   * Handles saving the conversation as a new workflow
+   */
+  const handleSaveAsWorkflow = useCallback(
+    async (messageIndex: number) => {
+      if (isSavingAsWorkflow) return
+
+      // Find the user message before this assistant message
+      const filteredMessages = messages.filter((m) => m.role === 'user' || m.role === 'assistant')
+      const assistantMessage = filteredMessages[messageIndex]
+      if (!assistantMessage || assistantMessage.role !== 'assistant') {
+        logger.warn('Cannot save as workflow: invalid message')
+        return
+      }
+
+      // Find the preceding user message
+      let userMessage: CopilotMessage | undefined
+      for (let i = messageIndex - 1; i >= 0; i--) {
+        if (filteredMessages[i].role === 'user') {
+          userMessage = filteredMessages[i]
+          break
+        }
+      }
+
+      if (!userMessage) {
+        logger.warn('Cannot save as workflow: no user message found')
+        return
+      }
+
+      setIsSavingAsWorkflow(true)
+
+      try {
+        // Create the new workflow
+        const result = await createWorkflowMutation.mutateAsync({
+          workspaceId,
+          name: `Workflow from Superagent`,
+          description: `Generated from Superagent conversation`,
+        })
+
+        if (!result.id) {
+          logger.error('Failed to create workflow: no ID returned')
+          return
+        }
+
+        // Format the conversation context
+        const conversationContext = formatConversationForCopilot(userMessage, assistantMessage)
+
+        // Create the instruction message
+        const instructionMessage = `Here is a conversation between a user and an AI agent that used tools to accomplish a task:
+
+${conversationContext}
+
+---
+
+Build a workflow based on the exact tools/pattern this LLM used. You will likely need agent blocks to mimic the LLM itself orchestrating tools, but make it more deterministic in tool call ordering. Don't just add a single agent with all the tools - add steps with agents in between, create parallel branches (not parallel blocks) when necessary.`
+
+        // Store the pending message for the copilot
+        setPendingCopilotMessage({
+          message: instructionMessage,
+          model: selectedModel,
+          workflowId: result.id,
+        })
+
+        logger.info('Created workflow and stored pending message', { workflowId: result.id })
+
+        // Navigate to the new workflow
+        router.push(`/workspace/${workspaceId}/w/${result.id}`)
+      } catch (error) {
+        logger.error('Failed to save as workflow:', error)
+      } finally {
+        setIsSavingAsWorkflow(false)
+      }
+    },
+    [
+      isSavingAsWorkflow,
+      messages,
+      createWorkflowMutation,
+      workspaceId,
+      formatConversationForCopilot,
+      selectedModel,
+      router,
+    ]
+  )
 
   return (
     <div
@@ -288,6 +456,8 @@ export default function Superagent() {
                       message={message as any}
                       isStreaming={isSendingMessage && index === filteredMessages.length - 1}
                       panelWidth={containerWidth}
+                      onSaveAsWorkflow={() => handleSaveAsWorkflow(index)}
+                      isSavingAsWorkflow={isSavingAsWorkflow}
                     />
                   ))}
 
@@ -364,12 +534,20 @@ interface SuperagentMessageProps {
   }
   isStreaming: boolean
   panelWidth: number
+  onSaveAsWorkflow?: () => void
+  isSavingAsWorkflow?: boolean
 }
 
 /**
  * Message component - renders using contentBlocks like CopilotMessage
  */
-function SuperagentMessage({ message, isStreaming, panelWidth }: SuperagentMessageProps) {
+function SuperagentMessage({
+  message,
+  isStreaming,
+  panelWidth,
+  onSaveAsWorkflow,
+  isSavingAsWorkflow,
+}: SuperagentMessageProps) {
   const isUser = message.role === 'user'
   const [showCopySuccess, setShowCopySuccess] = useState(false)
 
@@ -444,13 +622,37 @@ function SuperagentMessage({ message, isStreaming, panelWidth }: SuperagentMessa
 
         {!isStreaming && message.content && (
           <div className='flex items-center gap-2 pt-2'>
-            <Button onClick={handleCopy} variant='ghost' title='Copy'>
-              {showCopySuccess ? (
-                <Check className='h-3.5 w-3.5' strokeWidth={2} />
-              ) : (
-                <Copy className='h-3.5 w-3.5' strokeWidth={2} />
-              )}
-            </Button>
+            <Tooltip.Provider>
+              <Tooltip.Root delayDuration={300}>
+                <Tooltip.Trigger asChild>
+                  <Button onClick={handleCopy} variant='ghost'>
+                    {showCopySuccess ? (
+                      <Check className='h-3.5 w-3.5' strokeWidth={2} />
+                    ) : (
+                      <Copy className='h-3.5 w-3.5' strokeWidth={2} />
+                    )}
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top' align='center' sideOffset={5}>
+                  {showCopySuccess ? 'Copied!' : 'Copy to clipboard'}
+                </Tooltip.Content>
+              </Tooltip.Root>
+
+              <Tooltip.Root delayDuration={300}>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    onClick={onSaveAsWorkflow}
+                    variant='ghost'
+                    disabled={isSavingAsWorkflow}
+                  >
+                    <Workflow className='h-3.5 w-3.5' strokeWidth={2} />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top' align='center' sideOffset={5}>
+                  {isSavingAsWorkflow ? 'Creating workflow...' : 'Save as workflow'}
+                </Tooltip.Content>
+              </Tooltip.Root>
+            </Tooltip.Provider>
           </div>
         )}
       </div>
