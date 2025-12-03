@@ -10,11 +10,29 @@ const STORE_VERSION = '2.1.0'
 // Debug flag to trace SSE parsing
 const DEBUG_SSE = true
 
+interface ToolCallSegment {
+  type: 'tool_call'
+  id: string // Unique ID for this tool call
+  name: string
+  status: 'calling' | 'success' | 'error'
+  result?: any
+}
+
+interface TextSegment {
+  type: 'text'
+  content: string
+}
+
+type ContentSegment = ToolCallSegment | TextSegment
+
 interface SuperagentMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: number
+  /** Ordered segments of text and tool calls for inline rendering */
+  segments?: ContentSegment[]
+  /** @deprecated Use segments instead - kept for backwards compatibility */
   toolCalls?: Array<{
     name: string
     status: 'calling' | 'success' | 'error'
@@ -64,7 +82,8 @@ const createStreamingMessage = (): SuperagentMessage => ({
   role: 'assistant',
   content: '',
   timestamp: Date.now(),
-  toolCalls: [],
+  segments: [],
+  toolCalls: [], // Keep for backwards compatibility
 })
 
 export const useSuperagentStore = create<SuperagentStore>()(
@@ -131,7 +150,8 @@ export const useSuperagentStore = create<SuperagentStore>()(
         const reader = response.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ''
-        let accumulatedContent = ''
+        let totalContent = '' // Total accumulated content for the message
+        let currentSegmentContent = '' // Content for current text segment only
 
         logger.info('Starting to read stream')
 
@@ -150,42 +170,106 @@ export const useSuperagentStore = create<SuperagentStore>()(
 
             // Handle different types of streaming data
             if (data.type === 'text' && data.text) {
-              accumulatedContent += data.text
+              totalContent += data.text
+              currentSegmentContent += data.text
 
               set((state) => {
                 const newMessages = [...state.messages]
                 const lastMessage = newMessages[newMessages.length - 1]
                 if (lastMessage && lastMessage.role === 'assistant') {
-                  lastMessage.content = accumulatedContent
+                  lastMessage.content = totalContent
+
+                  // Update segments - merge consecutive text into last text segment
+                  if (!lastMessage.segments) {
+                    lastMessage.segments = []
+                  }
+                  const lastSegment = lastMessage.segments[lastMessage.segments.length - 1]
+                  if (lastSegment && lastSegment.type === 'text') {
+                    lastSegment.content = currentSegmentContent
+                  } else {
+                    lastMessage.segments.push({ type: 'text', content: currentSegmentContent })
+                  }
                 }
                 return { messages: newMessages }
               })
             } else if (data.type === 'content' && data.content) {
               // Handle complete content
-              accumulatedContent = data.content
+              totalContent = data.content
+              currentSegmentContent = data.content
 
               set((state) => {
                 const newMessages = [...state.messages]
                 const lastMessage = newMessages[newMessages.length - 1]
                 if (lastMessage && lastMessage.role === 'assistant') {
-                  lastMessage.content = accumulatedContent
+                  lastMessage.content = totalContent
+
+                  // Reset segments with full content
+                  if (!lastMessage.segments) {
+                    lastMessage.segments = []
+                  }
+                  const lastSegment = lastMessage.segments[lastMessage.segments.length - 1]
+                  if (lastSegment && lastSegment.type === 'text') {
+                    lastSegment.content = currentSegmentContent
+                  } else {
+                    lastMessage.segments.push({ type: 'text', content: currentSegmentContent })
+                  }
                 }
                 return { messages: newMessages }
               })
             } else if (data.type === 'tool_call') {
-              // Track tool calls
+              // Track tool calls - add as segment for inline rendering
               set((state) => {
                 const newMessages = [...state.messages]
                 const lastMessage = newMessages[newMessages.length - 1]
                 if (lastMessage && lastMessage.role === 'assistant') {
+                  // Add to segments for inline rendering
+                  if (!lastMessage.segments) {
+                    lastMessage.segments = []
+                  }
+
+                  const toolName = data.name || data.tool_name || 'unknown'
+                  const toolStatus = data.status || 'calling'
+                  // Use tool_use_id from SSE if available, otherwise generate one
+                  const toolId = data.id || data.tool_use_id || `${toolName}-${Date.now()}`
+
+                  // Find existing tool call by ID (for status updates)
+                  const existingToolIndex = lastMessage.segments.findIndex(
+                    (s) => s.type === 'tool_call' && (s as ToolCallSegment).id === toolId
+                  )
+
+                  if (existingToolIndex >= 0) {
+                    // Update existing tool call status in-place
+                    const existingTool = lastMessage.segments[existingToolIndex] as ToolCallSegment
+                    existingTool.status = toolStatus
+                    existingTool.result = data.result
+                  } else if (toolStatus === 'calling') {
+                    // Add new tool call segment
+                    // Reset current segment content so next text starts fresh after tool
+                    currentSegmentContent = ''
+                    lastMessage.segments.push({
+                      type: 'tool_call',
+                      id: toolId,
+                      name: toolName,
+                      status: toolStatus,
+                      result: data.result,
+                    })
+                  }
+
+                  // Also maintain toolCalls array for backwards compatibility
                   if (!lastMessage.toolCalls) {
                     lastMessage.toolCalls = []
                   }
-                  lastMessage.toolCalls.push({
-                    name: data.name || data.tool_name || 'unknown',
-                    status: data.status || 'calling',
-                    result: data.result,
-                  })
+                  const existingCall = lastMessage.toolCalls.find((tc) => tc.name === toolName)
+                  if (existingCall) {
+                    existingCall.status = toolStatus
+                    existingCall.result = data.result
+                  } else {
+                    lastMessage.toolCalls.push({
+                      name: toolName,
+                      status: toolStatus,
+                      result: data.result,
+                    })
+                  }
                 }
                 return { messages: newMessages }
               })
@@ -226,7 +310,7 @@ export const useSuperagentStore = create<SuperagentStore>()(
             if (buffer.trim()) {
               processBuffer(`${buffer}\n`) // Add newline to ensure last line is processed
             }
-            logger.info('Stream reading done', { accumulatedLength: accumulatedContent.length })
+            logger.info('Stream reading done', { accumulatedLength: totalContent.length })
             break
           }
 

@@ -419,11 +419,6 @@ function SuperagentWelcome({ onQuestionClick }: SuperagentWelcomeProps) {
           </Button>
         ))}
       </div>
-
-      <p className='pt-[12px] text-center text-[13px] text-[var(--text-secondary)]'>
-        Superagent has access to <span className='font-medium'>600+ integration tools</span>{' '}
-        including GitHub, Google Drive, Slack, and more.
-      </p>
     </div>
   )
 }
@@ -494,11 +489,21 @@ function ToolCallDisplay({ name, status }: ToolCallDisplayProps) {
   )
 }
 
+interface ContentSegment {
+  type: 'text' | 'tool_call'
+  id?: string // Unique ID for tool calls
+  content?: string
+  name?: string
+  status?: 'calling' | 'success' | 'error'
+  result?: any
+}
+
 interface SuperagentMessageProps {
   message: {
     id: string
     role: 'user' | 'assistant'
     content: string
+    segments?: ContentSegment[]
     toolCalls?: Array<{
       name: string
       status: 'calling' | 'success' | 'error'
@@ -516,8 +521,13 @@ function SuperagentMessage({ message, isStreaming, panelWidth }: SuperagentMessa
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const renderedContent = parseSSEContent(message.content)
 
-  // Check if we have tool calls in progress (no content yet)
-  const hasActiveToolCalls = message.toolCalls?.some((tc) => tc.status === 'calling')
+  // Check if we have tool calls in progress
+  const hasActiveToolCalls = message.segments?.some(
+    (s) => s.type === 'tool_call' && s.status === 'calling'
+  )
+
+  // Check if we have segments to render inline
+  const hasSegments = message.segments && message.segments.length > 0
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(renderedContent || message.content)
@@ -540,22 +550,45 @@ function SuperagentMessage({ message, isStreaming, panelWidth }: SuperagentMessa
   return (
     <div className='w-full max-w-full overflow-hidden' style={{ maxWidth: panelWidth }}>
       <div className='max-w-full space-y-1.5 px-[2px]'>
-        {/* Tool calls - shown inline before content */}
-        {message.toolCalls && message.toolCalls.length > 0 && (
-          <div className='space-y-[6px]'>
-            {message.toolCalls.map((tool, idx) => (
-              <div key={idx}>
-                <ToolCallDisplay name={tool.name} status={tool.status} />
-              </div>
-            ))}
-          </div>
+        {/* Render segments inline (tool calls interleaved with text) */}
+        {hasSegments ? (
+          <>
+            {message.segments!.map((segment, idx) => {
+              if (segment.type === 'tool_call' && segment.name) {
+                // Use tool call ID for stable key, fall back to index
+                const key = segment.id || `tool-${idx}`
+                return (
+                  <div key={key}>
+                    <ToolCallDisplay
+                      name={segment.name}
+                      status={segment.status || 'calling'}
+                    />
+                  </div>
+                )
+              }
+              if (segment.type === 'text' && segment.content) {
+                const parsedContent = parseSSEContent(segment.content)
+                return parsedContent ? (
+                  <div key={`text-${idx}`}>
+                    <CopilotMarkdownRenderer content={parsedContent} />
+                  </div>
+                ) : null
+              }
+              return null
+            })}
+          </>
+        ) : (
+          <>
+            {/* Fallback: Show streaming indicator when no content and no segments yet */}
+            {!renderedContent && isStreaming && !hasActiveToolCalls && <StreamingIndicator />}
+
+            {/* Fallback: Message content without segments */}
+            {renderedContent && <CopilotMarkdownRenderer content={renderedContent} />}
+          </>
         )}
 
-        {/* Show streaming indicator when no content and no tool calls yet */}
-        {!renderedContent && isStreaming && !hasActiveToolCalls && <StreamingIndicator />}
-
-        {/* Message content */}
-        {renderedContent && <CopilotMarkdownRenderer content={renderedContent} />}
+        {/* Show streaming indicator at end if actively streaming */}
+        {isStreaming && hasSegments && !hasActiveToolCalls && <StreamingIndicator />}
 
         {/* Action buttons for completed assistant messages */}
         {!isStreaming && renderedContent && (

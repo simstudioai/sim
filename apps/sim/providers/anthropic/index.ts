@@ -475,6 +475,7 @@ ${fieldDescriptions}
                   // Stream tool call start event
                   const toolStartChunk = {
                     type: 'tool_call',
+                    id: toolUse.id,
                     name: toolUse.name,
                     status: 'calling',
                   }
@@ -621,7 +622,7 @@ ${fieldDescriptions}
               }))
 
               // Stream tool completion events and track results
-              for (const { toolName, result, toolParams } of toolResults) {
+              for (const { toolName, toolUseId, result, toolParams } of toolResults) {
                 toolCalls.push({
                   name: toolName,
                   arguments: toolParams,
@@ -631,6 +632,7 @@ ${fieldDescriptions}
 
                 const toolCompleteChunk = {
                   type: 'tool_call',
+                  id: toolUseId,
                   name: toolName,
                   status: result.success ? 'success' : 'error',
                   result: result.output,
