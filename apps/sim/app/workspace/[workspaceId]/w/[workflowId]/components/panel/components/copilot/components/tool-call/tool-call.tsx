@@ -295,7 +295,43 @@ function getDisplayName(toolCall: CopilotToolCall): string {
     const byState = def?.metadata?.displayNames?.[toolCall.state]
     if (byState?.text) return byState.text
   } catch {}
-  return toolCall.name
+
+  // For integration tools, format the tool name nicely
+  // e.g., "google_calendar_list_events" -> "Running Google Calendar List Events"
+  const stateVerb = getStateVerb(toolCall.state)
+  const formattedName = formatToolName(toolCall.name)
+  return `${stateVerb} ${formattedName}`
+}
+
+/**
+ * Get verb prefix based on tool state
+ */
+function getStateVerb(state: string): string {
+  switch (state) {
+    case 'pending':
+    case 'executing':
+      return 'Running'
+    case 'success':
+      return 'Ran'
+    case 'error':
+      return 'Failed'
+    case 'rejected':
+    case 'aborted':
+      return 'Skipped'
+    default:
+      return 'Running'
+  }
+}
+
+/**
+ * Format tool name for display
+ * e.g., "google_calendar_list_events" -> "Google Calendar List Events"
+ */
+function formatToolName(name: string): string {
+  return name
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 }
 
 function RunSkipButtons({
@@ -479,12 +515,19 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     }
   }, [params])
 
-  // Skip rendering tools that are not in the registry or are explicitly omitted
-  try {
-    if (toolCall.name === 'checkoff_todo' || toolCall.name === 'mark_todo_in_progress') return null
-    // Allow if tool id exists in CLASS_TOOL_METADATA (client tools)
-    if (!CLASS_TOOL_METADATA[toolCall.name]) return null
-  } catch {
+  // Skip rendering some internal tools
+  if (toolCall.name === 'checkoff_todo' || toolCall.name === 'mark_todo_in_progress') return null
+
+  // Get current mode from store to determine if we should render integration tools
+  const mode = useCopilotStore.getState().mode
+
+  // Allow rendering if:
+  // 1. Tool is in CLASS_TOOL_METADATA (client tools), OR
+  // 2. We're in build mode (integration tools are executed server-side)
+  const isClientTool = !!CLASS_TOOL_METADATA[toolCall.name]
+  const isIntegrationToolInBuildMode = mode === 'build' && !isClientTool
+
+  if (!isClientTool && !isIntegrationToolInBuildMode) {
     return null
   }
   const isExpandableTool =
