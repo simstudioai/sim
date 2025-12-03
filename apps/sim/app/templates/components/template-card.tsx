@@ -42,8 +42,8 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
       </div>
 
       <div className='mt-[14px] flex items-center justify-between'>
-        <div className='flex items-center gap-[8px]'>
-          <div className='h-[14px] w-[14px] animate-pulse rounded-full bg-gray-700' />
+        <div className='flex items-center gap-[6px]'>
+          <div className='h-[20px] w-[20px] animate-pulse rounded-full bg-gray-700' />
           <div className='h-3 w-20 animate-pulse rounded bg-gray-700' />
         </div>
         <div className='flex items-center gap-[6px]'>
@@ -269,17 +269,17 @@ function TemplateCardInner({
       </div>
 
       <div className='mt-[10px] flex items-center justify-between'>
-        <div className='flex items-center gap-[8px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
           {authorImageUrl ? (
-            <div className='h-[26px] w-[26px] flex-shrink-0 overflow-hidden rounded-full'>
+            <div className='h-[20px] w-[20px] flex-shrink-0 overflow-hidden rounded-full'>
               <img src={authorImageUrl} alt={author} className='h-full w-full object-cover' />
             </div>
           ) : (
-            <div className='flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-full bg-[#4A4A4A]'>
-              <User className='h-[18px] w-[18px] text-[#888888]' />
+            <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[#4A4A4A]'>
+              <User className='h-[12px] w-[12px] text-[#888888]' />
             </div>
           )}
-          <div className='flex items-center gap-[4px]'>
+          <div className='flex min-w-0 items-center gap-[4px]'>
             <span className='truncate font-medium text-[#888888] text-[12px]'>{author}</span>
             {isVerified && <VerifiedBadge size='sm' />}
           </div>
