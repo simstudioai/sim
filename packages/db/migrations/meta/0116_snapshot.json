@@ -1,5 +1,5 @@
 {
-  "id": "37f3a2ac-5f43-4538-be2c-22d2b56c25d4",
+  "id": "bc28b328-2ea0-4ede-a788-40e1a41ecd98",
   "prevId": "462d46ca-8c69-4c3e-b11d-373938063d38",
   "version": "7",
   "dialect": "postgresql",
@@ -3898,6 +3898,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'"
+        },
+        "copilot_auto_allowed_tools": {
+          "name": "copilot_auto_allowed_tools",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'"
         },
         "updated_at": {
           "name": "updated_at",

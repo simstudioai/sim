@@ -1023,141 +1023,30 @@ const sseHandlers: Record<string, SSEHandler> = {
       }
     } catch {}
 
-    // Integration tools: Execute server-side via /api/copilot/execute-tool
+    // Integration tools: Check if auto-allowed, otherwise wait for user confirmation
     // This handles tools like google_calendar_*, exa_*, etc. that aren't in the client registry
-    // Only execute if mode is 'build' (agent)
-    const { mode, workflowId } = get()
+    // Only relevant if mode is 'build' (agent)
+    const { mode, workflowId, autoAllowedTools } = get()
     if (mode === 'build' && workflowId) {
       // Check if tool was NOT found in client registry (def is undefined from above)
       const def = name ? getTool(name) : undefined
       const inst = getClientTool(id) as any
-      if (!def && !inst) {
-        logger.info('[build mode] Tool not in client registry, executing server-side', {
-          id,
-          name,
-        })
+      if (!def && !inst && name) {
+        // Check if this tool is auto-allowed
+        if (autoAllowedTools.includes(name)) {
+          logger.info('[build mode] Integration tool auto-allowed, executing', { id, name })
 
-        setTimeout(() => {
-          const executingMap = { ...get().toolCallsById }
-          executingMap[id] = {
-            ...executingMap[id],
-            state: ClientToolCallState.executing,
-            display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
-          }
-          set({ toolCallsById: executingMap })
-          logger.info('[toolCallsById] pending → executing (server)', { id, name })
-
-          // Update inline content block to executing
-          for (let i = 0; i < context.contentBlocks.length; i++) {
-            const b = context.contentBlocks[i] as any
-            if (b.type === 'tool_call' && b.toolCall?.id === id) {
-              context.contentBlocks[i] = {
-                ...b,
-                toolCall: { ...b.toolCall, state: ClientToolCallState.executing },
-              }
-              break
-            }
-          }
-          updateStreamingMessage(set, context)
-
-          // Execute tool via server endpoint
-          fetch('/api/copilot/execute-tool', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              toolCallId: id,
-              toolName: name,
-              arguments: args || {},
-              workflowId,
-            }),
+          // Auto-execute the tool
+          setTimeout(() => {
+            get().executeIntegrationTool(id)
+          }, 0)
+        } else {
+          // Integration tools stay in pending state until user confirms
+          logger.info('[build mode] Integration tool awaiting user confirmation', {
+            id,
+            name,
           })
-            .then(async (res) => {
-              const result = await res.json()
-              const success = result.success && result.result?.success
-              const completeMap = { ...get().toolCallsById }
-
-              // Do not override terminal review/rejected
-              if (
-                isRejectedState(completeMap[id]?.state) ||
-                isReviewState(completeMap[id]?.state) ||
-                isBackgroundState(completeMap[id]?.state)
-              ) {
-                return
-              }
-
-              completeMap[id] = {
-                ...completeMap[id],
-                state: success ? ClientToolCallState.success : ClientToolCallState.error,
-                display: resolveToolDisplay(
-                  name,
-                  success ? ClientToolCallState.success : ClientToolCallState.error,
-                  id,
-                  args
-                ),
-              }
-              set({ toolCallsById: completeMap })
-              logger.info(
-                `[toolCallsById] executing → ${success ? 'success' : 'error'} (server)`,
-                { id, name, result }
-              )
-
-              // Update inline content block
-              for (let i = 0; i < context.contentBlocks.length; i++) {
-                const b = context.contentBlocks[i] as any
-                if (b.type === 'tool_call' && b.toolCall?.id === id) {
-                  context.contentBlocks[i] = {
-                    ...b,
-                    toolCall: {
-                      ...b.toolCall,
-                      state: success ? ClientToolCallState.success : ClientToolCallState.error,
-                    },
-                  }
-                  break
-                }
-              }
-              updateStreamingMessage(set, context)
-
-              // Notify backend tool mark-complete endpoint
-              try {
-                await fetch('/api/copilot/tools/mark-complete', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    id,
-                    name: name || 'unknown_tool',
-                    status: success ? 200 : 500,
-                    message: success
-                      ? result.result?.output?.content
-                      : result.result?.error || result.error || 'Tool execution failed',
-                    data: success
-                      ? result.result?.output
-                      : {
-                          error: result.result?.error || result.error,
-                          output: result.result?.output,
-                        },
-                  }),
-                })
-              } catch {}
-            })
-            .catch((e) => {
-              const errorMap = { ...get().toolCallsById }
-              // Do not override terminal review/rejected
-              if (
-                isRejectedState(errorMap[id]?.state) ||
-                isReviewState(errorMap[id]?.state) ||
-                isBackgroundState(errorMap[id]?.state)
-              ) {
-                return
-              }
-              errorMap[id] = {
-                ...errorMap[id],
-                state: ClientToolCallState.error,
-                display: resolveToolDisplay(name, ClientToolCallState.error, id, args),
-              }
-              set({ toolCallsById: errorMap })
-              logger.error('Server tool execution failed', { id, name, error: e })
-            })
-        }, 0)
+        }
       }
     }
   },
@@ -1674,6 +1563,7 @@ const initialState = {
   toolCallsById: {} as Record<string, CopilotToolCall>,
   suppressAutoSelect: false,
   contextUsage: null,
+  autoAllowedTools: [] as string[],
 }
 
 export const useCopilotStore = create<CopilotStore>()(
@@ -2954,6 +2844,187 @@ export const useCopilotStore = create<CopilotStore>()(
       } catch (err) {
         logger.error('[Context Usage] Error fetching:', err)
       }
+    },
+
+    executeIntegrationTool: async (toolCallId: string) => {
+      const { toolCallsById, workflowId } = get()
+      const toolCall = toolCallsById[toolCallId]
+      if (!toolCall || !workflowId) return
+
+      const { id, name, params } = toolCall
+
+      // Set to executing state
+      const executingMap = { ...get().toolCallsById }
+      executingMap[id] = {
+        ...executingMap[id],
+        state: ClientToolCallState.executing,
+        display: resolveToolDisplay(name, ClientToolCallState.executing, id, params),
+      }
+      set({ toolCallsById: executingMap })
+      logger.info('[toolCallsById] pending → executing (integration tool)', { id, name })
+
+      try {
+        const res = await fetch('/api/copilot/execute-tool', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toolCallId: id,
+            toolName: name,
+            arguments: params || {},
+            workflowId,
+          }),
+        })
+
+        const result = await res.json()
+        const success = result.success && result.result?.success
+        const completeMap = { ...get().toolCallsById }
+
+        // Do not override terminal review/rejected
+        if (
+          isRejectedState(completeMap[id]?.state) ||
+          isReviewState(completeMap[id]?.state) ||
+          isBackgroundState(completeMap[id]?.state)
+        ) {
+          return
+        }
+
+        completeMap[id] = {
+          ...completeMap[id],
+          state: success ? ClientToolCallState.success : ClientToolCallState.error,
+          display: resolveToolDisplay(
+            name,
+            success ? ClientToolCallState.success : ClientToolCallState.error,
+            id,
+            params
+          ),
+        }
+        set({ toolCallsById: completeMap })
+        logger.info(`[toolCallsById] executing → ${success ? 'success' : 'error'} (integration)`, {
+          id,
+          name,
+          result,
+        })
+
+        // Notify backend tool mark-complete endpoint
+        try {
+          await fetch('/api/copilot/tools/mark-complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id,
+              name: name || 'unknown_tool',
+              status: success ? 200 : 500,
+              message: success
+                ? result.result?.output?.content
+                : result.result?.error || result.error || 'Tool execution failed',
+              data: success
+                ? result.result?.output
+                : {
+                    error: result.result?.error || result.error,
+                    output: result.result?.output,
+                  },
+            }),
+          })
+        } catch {}
+      } catch (e) {
+        const errorMap = { ...get().toolCallsById }
+        // Do not override terminal review/rejected
+        if (
+          isRejectedState(errorMap[id]?.state) ||
+          isReviewState(errorMap[id]?.state) ||
+          isBackgroundState(errorMap[id]?.state)
+        ) {
+          return
+        }
+        errorMap[id] = {
+          ...errorMap[id],
+          state: ClientToolCallState.error,
+          display: resolveToolDisplay(name, ClientToolCallState.error, id, params),
+        }
+        set({ toolCallsById: errorMap })
+        logger.error('Integration tool execution failed', { id, name, error: e })
+      }
+    },
+
+    skipIntegrationTool: (toolCallId: string) => {
+      const { toolCallsById } = get()
+      const toolCall = toolCallsById[toolCallId]
+      if (!toolCall) return
+
+      const { id, name, params } = toolCall
+
+      // Set to rejected state
+      const rejectedMap = { ...get().toolCallsById }
+      rejectedMap[id] = {
+        ...rejectedMap[id],
+        state: ClientToolCallState.rejected,
+        display: resolveToolDisplay(name, ClientToolCallState.rejected, id, params),
+      }
+      set({ toolCallsById: rejectedMap })
+      logger.info('[toolCallsById] pending → rejected (integration tool skipped)', { id, name })
+
+      // Notify backend tool mark-complete endpoint with skip status
+      fetch('/api/copilot/tools/mark-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          name: name || 'unknown_tool',
+          status: 200,
+          message: 'Tool execution skipped by user',
+          data: { skipped: true },
+        }),
+      }).catch(() => {})
+    },
+
+    loadAutoAllowedTools: async () => {
+      try {
+        const res = await fetch('/api/copilot/auto-allowed-tools')
+        if (res.ok) {
+          const data = await res.json()
+          set({ autoAllowedTools: data.autoAllowedTools || [] })
+          logger.info('[AutoAllowedTools] Loaded', { tools: data.autoAllowedTools })
+        }
+      } catch (err) {
+        logger.error('[AutoAllowedTools] Failed to load', { error: err })
+      }
+    },
+
+    addAutoAllowedTool: async (toolId: string) => {
+      try {
+        const res = await fetch('/api/copilot/auto-allowed-tools', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ toolId }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          set({ autoAllowedTools: data.autoAllowedTools || [] })
+          logger.info('[AutoAllowedTools] Added tool', { toolId })
+        }
+      } catch (err) {
+        logger.error('[AutoAllowedTools] Failed to add tool', { toolId, error: err })
+      }
+    },
+
+    removeAutoAllowedTool: async (toolId: string) => {
+      try {
+        const res = await fetch(`/api/copilot/auto-allowed-tools?toolId=${encodeURIComponent(toolId)}`, {
+          method: 'DELETE',
+        })
+        if (res.ok) {
+          const data = await res.json()
+          set({ autoAllowedTools: data.autoAllowedTools || [] })
+          logger.info('[AutoAllowedTools] Removed tool', { toolId })
+        }
+      } catch (err) {
+        logger.error('[AutoAllowedTools] Failed to remove tool', { toolId, error: err })
+      }
+    },
+
+    isToolAutoAllowed: (toolId: string) => {
+      const { autoAllowedTools } = get()
+      return autoAllowedTools.includes(toolId)
     },
   }))
 )

@@ -12,6 +12,7 @@ interface UseCopilotInitializationProps {
   setCopilotWorkflowId: (workflowId: string | null) => Promise<void>
   loadChats: (forceRefresh?: boolean) => Promise<void>
   fetchContextUsage: () => Promise<void>
+  loadAutoAllowedTools: () => Promise<void>
   currentChat: any
   isSendingMessage: boolean
 }
@@ -30,6 +31,7 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     setCopilotWorkflowId,
     loadChats,
     fetchContextUsage,
+    loadAutoAllowedTools,
     currentChat,
     isSendingMessage,
   } = props
@@ -111,6 +113,19 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
       })
     }
   }, [isInitialized, currentChat?.id, activeWorkflowId, fetchContextUsage])
+
+  /**
+   * Load auto-allowed tools once on mount
+   */
+  const hasLoadedAutoAllowedToolsRef = useRef(false)
+  useEffect(() => {
+    if (hasMountedRef.current && !hasLoadedAutoAllowedToolsRef.current) {
+      hasLoadedAutoAllowedToolsRef.current = true
+      loadAutoAllowedTools().catch((err) => {
+        logger.warn('[Copilot] Failed to load auto-allowed tools', err)
+      })
+    }
+  }, [loadAutoAllowedTools])
 
   return {
     isInitialized,
