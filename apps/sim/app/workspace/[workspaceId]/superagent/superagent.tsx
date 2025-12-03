@@ -19,69 +19,13 @@ import {
   UserInput,
   type UserInputRef,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
+import { Welcome } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/welcome/welcome'
 import { useSuperagentStore } from '@/stores/superagent/store'
 
-/** Maximum content width for readability */
 const MAX_CONTENT_WIDTH = 800
 
 /**
- * Convert raw SSE-formatted content into plain text
- */
-function parseSSEContent(content: string): string {
-  if (!content || !content.includes('data:')) {
-    return content
-  }
-
-  const lines = content.split('\n')
-  const textSegments: string[] = []
-  let parsedAny = false
-
-  for (const rawLine of lines) {
-    const match = rawLine.match(/^\s*data:\s*(.+)\s*$/)
-    if (!match) continue
-
-    const dataPart = match[1]
-    if (!dataPart || dataPart === '[DONE]') {
-      continue
-    }
-
-    try {
-      const payload = JSON.parse(dataPart)
-      parsedAny = true
-
-      if (payload.type === 'text' && typeof payload.text === 'string') {
-        textSegments.push(payload.text)
-        continue
-      }
-
-      if (payload.type === 'content' && typeof payload.content === 'string') {
-        textSegments.push(payload.content)
-        continue
-      }
-
-      if (payload.delta?.type === 'text_delta' && typeof payload.delta?.text === 'string') {
-        textSegments.push(payload.delta.text)
-        continue
-      }
-
-      if (typeof payload.text === 'string') {
-        textSegments.push(payload.text)
-      }
-    } catch {
-      // Ignore malformed JSON segments and fall back to raw content if nothing parsed
-    }
-  }
-
-  if (!parsedAny) {
-    return content
-  }
-
-  const result = textSegments.join('').trim()
-  return result.length > 0 ? result : content
-}
-
-/**
- * Groups chats by date category (Today, Yesterday, Previous 7 Days, etc.)
+ * Groups chats by date category
  */
 function groupChatsByDate(
   chats: Array<{ id: string; title: string | null; createdAt: Date; messages: unknown[] }>
@@ -120,14 +64,6 @@ function groupChatsByDate(
 }
 
 /**
- * Formats a tool name into a human-readable display name
- */
-function formatToolName(name: string): string {
-  // Convert snake_case or kebab-case to Title Case
-  return name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-/**
  * Superagent - AI agent with full tool access
  */
 export default function Superagent() {
@@ -163,11 +99,10 @@ export default function Superagent() {
   const groupedChats = groupChatsByDate(chats)
   const currentChat = chats.find((c) => c.id === currentChatId)
 
-  // Track container width for responsive layout
   useEffect(() => {
     const updateWidth = () => {
       if (containerRef.current) {
-        const width = containerRef.current.offsetWidth - 48 // Account for padding
+        const width = containerRef.current.offsetWidth - 48
         setContainerWidth(Math.min(width, MAX_CONTENT_WIDTH))
       }
     }
@@ -223,35 +158,44 @@ export default function Superagent() {
       ref={containerRef}
       className='fixed inset-0 left-[256px] flex min-w-0 flex-col bg-[var(--surface-3)]'
     >
-      <div className='flex h-full flex-col overflow-hidden p-[12px]'>
+      <div className='flex h-full flex-col overflow-hidden p-3'>
         {/* Header */}
         <div className='mx-auto w-full max-w-[832px]'>
-          <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px]'>
-            <h2 className='font-medium text-[14px] text-[var(--white)]'>
+          <div className='flex flex-shrink-0 items-center justify-between rounded bg-[#2A2A2A] px-3 py-2'>
+            <h2 className='font-medium text-sm text-[var(--white)]'>
               {currentChat?.title || 'Superagent'}
             </h2>
-            <div className='flex items-center gap-[8px]'>
+            <div className='flex items-center gap-2'>
               {messages.length > 0 && (
                 <Button variant='ghost' onClick={handleClearMessages} disabled={isSendingMessage}>
                   <Trash />
                 </Button>
               )}
               <Button variant='ghost' onClick={handleStartNewChat}>
-                <Plus className='h-[14px] w-[14px]' />
+                <Plus className='h-3.5 w-3.5' />
               </Button>
               <Popover open={isHistoryDropdownOpen} onOpenChange={setIsHistoryDropdownOpen}>
                 <PopoverTrigger asChild>
                   <Button variant='ghost'>
-                    <History className='h-[14px] w-[14px]' />
+                    <History className='h-3.5 w-3.5' />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
                   {isLoadingChats ? (
                     <PopoverScrollArea>
-                      <ChatHistorySkeleton />
+                      <PopoverSection>
+                        <div className='h-3 w-12 animate-pulse rounded bg-muted/40' />
+                      </PopoverSection>
+                      <div className='flex flex-col gap-0.5'>
+                        {[1, 2, 3].map((i) => (
+                          <div key={i} className='flex h-6 items-center px-1.5'>
+                            <div className='h-3 w-full animate-pulse rounded bg-muted/40' />
+                          </div>
+                        ))}
+                      </div>
                     </PopoverScrollArea>
                   ) : groupedChats.length === 0 ? (
-                    <div className='px-[6px] py-[16px] text-center text-[12px] text-[var(--white)]'>
+                    <div className='px-1.5 py-4 text-center text-xs text-[var(--white)]'>
                       No chats yet
                     </div>
                   ) : (
@@ -291,7 +235,7 @@ export default function Superagent() {
 
         {/* Messages area or Welcome */}
         {messages.length === 0 && !isSendingMessage ? (
-          <div className='mx-auto flex w-full max-w-[832px] flex-1 flex-col overflow-hidden pt-[8px]'>
+          <div className='mx-auto flex w-full max-w-[832px] flex-1 flex-col overflow-hidden pt-2'>
             <div className='flex-shrink-0'>
               <UserInput
                 ref={userInputRef}
@@ -309,14 +253,14 @@ export default function Superagent() {
                 disableMentions
               />
             </div>
-            <div className='flex-shrink-0 pt-[8px]'>
-              <SuperagentWelcome onQuestionClick={handleSubmit} />
+            <div className='flex-shrink-0 pt-2'>
+              <Welcome onQuestionClick={handleSubmit} />
             </div>
           </div>
         ) : (
           <div className='relative flex flex-1 flex-col overflow-hidden'>
             <div ref={scrollAreaRef} className='h-full overflow-y-auto overflow-x-hidden'>
-              <div className='mx-auto w-full max-w-[832px] space-y-4 px-[16px] py-[8px] pb-10'>
+              <div className='mx-auto w-full max-w-[832px] space-y-4 px-4 py-2 pb-10'>
                 {messages.map((message, index) => (
                   <SuperagentMessage
                     key={message.id}
@@ -327,7 +271,7 @@ export default function Superagent() {
                 ))}
 
                 {error && (
-                  <div className='rounded-[4px] border border-[var(--text-error)] bg-[var(--text-error)]/10 p-[10px] text-[var(--text-error)] text-sm'>
+                  <div className='rounded border border-[var(--text-error)] bg-[var(--text-error)]/10 p-2.5 text-[var(--text-error)] text-sm'>
                     Error: {error}
                   </div>
                 )}
@@ -335,7 +279,7 @@ export default function Superagent() {
             </div>
 
             {/* Input area */}
-            <div className='mx-auto w-full max-w-[832px] flex-shrink-0 px-[16px] pb-[8px]'>
+            <div className='mx-auto w-full max-w-[832px] flex-shrink-0 px-4 pb-2'>
               <UserInput
                 ref={userInputRef}
                 onSubmit={handleSubmit}
@@ -360,142 +304,27 @@ export default function Superagent() {
 }
 
 /**
- * Skeleton loading component for chat history
+ * Get display text for tool call state
  */
-function ChatHistorySkeleton() {
-  return (
-    <>
-      <PopoverSection>
-        <div className='h-3 w-12 animate-pulse rounded bg-muted/40' />
-      </PopoverSection>
-      <div className='flex flex-col gap-0.5'>
-        {[1, 2, 3].map((i) => (
-          <div key={i} className='flex h-[25px] items-center px-[6px]'>
-            <div className='h-3 w-full animate-pulse rounded bg-muted/40' />
-          </div>
-        ))}
-      </div>
-    </>
-  )
-}
-
-interface SuperagentWelcomeProps {
-  onQuestionClick: (question: string) => void
-}
-
-/**
- * Welcome screen with suggested actions
- */
-function SuperagentWelcome({ onQuestionClick }: SuperagentWelcomeProps) {
-  const capabilities = [
-    {
-      title: 'Explore integrations',
-      question: 'What integrations and tools do you have access to?',
-    },
-    {
-      title: 'Automate tasks',
-      question: 'Help me automate a task using available tools',
-    },
-    {
-      title: 'Get data',
-      question: 'Can you help me fetch and analyze some data?',
-    },
-  ]
-
-  return (
-    <div className='flex w-full flex-col items-center'>
-      <div className='flex w-full flex-col items-center gap-[8px]'>
-        {capabilities.map(({ title, question }, idx) => (
-          <Button
-            key={idx}
-            variant='active'
-            onClick={() => onQuestionClick(question)}
-            className='w-full justify-start'
-          >
-            <div className='flex flex-col items-start'>
-              <p className='font-medium'>{title}</p>
-              <p className='text-[var(--text-secondary)]'>{question}</p>
-            </div>
-          </Button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-interface ToolCallDisplayProps {
-  name: string
-  status: 'calling' | 'success' | 'error'
-}
-
-/**
- * Displays a tool call with shimmer effect when in progress
- */
-function ToolCallDisplay({ name, status }: ToolCallDisplayProps) {
-  const displayName = formatToolName(name)
-  const isActive = status === 'calling'
-
-  // Get status prefix
-  const getStatusText = () => {
-    switch (status) {
-      case 'calling':
-        return 'Running'
-      case 'success':
-        return 'Ran'
-      case 'error':
-        return 'Failed'
-      default:
-        return 'Running'
-    }
+function getToolStateDisplay(state: string): { verb: string; isActive: boolean } {
+  switch (state) {
+    case 'pending':
+    case 'executing':
+      return { verb: 'Running', isActive: true }
+    case 'success':
+      return { verb: 'Ran', isActive: false }
+    case 'error':
+      return { verb: 'Failed', isActive: false }
+    default:
+      return { verb: 'Running', isActive: true }
   }
-
-  const statusText = getStatusText()
-  const fullText = `${statusText} ${displayName}`
-
-  return (
-    <span className='relative inline-block font-[470] font-sans text-[13px]'>
-      <span style={{ color: '#B8B8B8' }}>{statusText}</span>
-      <span style={{ color: '#787878' }}> {displayName}</span>
-      {isActive && (
-        <span
-          aria-hidden='true'
-          className='pointer-events-none absolute inset-0 select-none overflow-hidden'
-        >
-          <span
-            className='block text-transparent'
-            style={{
-              backgroundImage:
-                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0) 100%)',
-              backgroundSize: '200% 100%',
-              backgroundRepeat: 'no-repeat',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              animation: 'toolcall-shimmer 1.4s ease-in-out infinite',
-              mixBlendMode: 'screen',
-            }}
-          >
-            {fullText}
-          </span>
-        </span>
-      )}
-      <style>{`
-        @keyframes toolcall-shimmer {
-          0% { background-position: 150% 0; }
-          50% { background-position: 0% 0; }
-          100% { background-position: -150% 0; }
-        }
-      `}</style>
-    </span>
-  )
 }
 
-interface ContentSegment {
-  type: 'text' | 'tool_call'
-  id?: string // Unique ID for tool calls
-  content?: string
-  name?: string
-  status?: 'calling' | 'success' | 'error'
-  result?: any
+/**
+ * Format tool name for display
+ */
+function formatToolName(name: string): string {
+  return name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 interface SuperagentMessageProps {
@@ -503,43 +332,37 @@ interface SuperagentMessageProps {
     id: string
     role: 'user' | 'assistant'
     content: string
-    segments?: ContentSegment[]
-    toolCalls?: Array<{
-      name: string
-      status: 'calling' | 'success' | 'error'
-    }>
+    contentBlocks?: Array<
+      | { type: 'text'; content: string; timestamp: number }
+      | { type: 'tool_call'; toolCall: { id: string; name: string; state: string }; timestamp: number }
+    >
   }
   isStreaming: boolean
   panelWidth: number
 }
 
 /**
- * Message component for displaying user and assistant messages
+ * Message component - renders using contentBlocks like CopilotMessage
  */
 function SuperagentMessage({ message, isStreaming, panelWidth }: SuperagentMessageProps) {
   const isUser = message.role === 'user'
   const [showCopySuccess, setShowCopySuccess] = useState(false)
-  const renderedContent = parseSSEContent(message.content)
-
-  // Check if we have tool calls in progress
-  const hasActiveToolCalls = message.segments?.some(
-    (s) => s.type === 'tool_call' && s.status === 'calling'
-  )
-
-  // Check if we have segments to render inline
-  const hasSegments = message.segments && message.segments.length > 0
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(renderedContent || message.content)
+    navigator.clipboard.writeText(message.content)
     setShowCopySuccess(true)
     setTimeout(() => setShowCopySuccess(false), 2000)
-  }, [renderedContent, message.content])
+  }, [message.content])
 
+  // User message - same style as CopilotMessage
   if (isUser) {
     return (
-      <div className='w-full max-w-full overflow-hidden' style={{ maxWidth: panelWidth }}>
+      <div
+        className='w-full max-w-full overflow-hidden'
+        style={{ maxWidth: `${panelWidth}px` }}
+      >
         <div className='rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[6px] dark:bg-[var(--surface-9)]'>
-          <div className='whitespace-pre-wrap break-words px-[2px] py-1 font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.25rem]'>
+          <div className='whitespace-pre-wrap break-words px-[2px] py-1 font-medium font-sans text-[#0D0D0D] text-sm leading-[1.25rem] dark:text-gray-100'>
             {message.content}
           </div>
         </div>
@@ -547,62 +370,61 @@ function SuperagentMessage({ message, isStreaming, panelWidth }: SuperagentMessa
     )
   }
 
+  // Assistant message - render contentBlocks
+  const hasContentBlocks = message.contentBlocks && message.contentBlocks.length > 0
+  const hasActiveToolCalls = message.contentBlocks?.some(
+    (b) => b.type === 'tool_call' && (b.toolCall.state === 'pending' || b.toolCall.state === 'executing')
+  )
+
   return (
-    <div className='w-full max-w-full overflow-hidden' style={{ maxWidth: panelWidth }}>
+    <div
+      className='w-full max-w-full overflow-hidden'
+      style={{ maxWidth: `${panelWidth}px` }}
+    >
       <div className='max-w-full space-y-1.5 px-[2px]'>
-        {/* Render segments inline (tool calls interleaved with text) */}
-        {hasSegments ? (
-          <>
-            {message.segments!.map((segment, idx) => {
-              if (segment.type === 'tool_call' && segment.name) {
-                // Use tool call ID for stable key, fall back to index
-                const key = segment.id || `tool-${idx}`
-                return (
-                  <div key={key}>
-                    <ToolCallDisplay
-                      name={segment.name}
-                      status={segment.status || 'calling'}
-                    />
-                  </div>
-                )
-              }
-              if (segment.type === 'text' && segment.content) {
-                const parsedContent = parseSSEContent(segment.content)
-                return parsedContent ? (
-                  <div key={`text-${idx}`}>
-                    <CopilotMarkdownRenderer content={parsedContent} />
-                  </div>
-                ) : null
-              }
-              return null
-            })}
-          </>
+        {hasContentBlocks ? (
+          message.contentBlocks!.map((block, idx) => {
+            if (block.type === 'text') {
+              return block.content ? (
+                <div key={`text-${idx}`}>
+                  <CopilotMarkdownRenderer content={block.content} />
+                </div>
+              ) : null
+            }
+
+            if (block.type === 'tool_call') {
+              const { verb, isActive } = getToolStateDisplay(block.toolCall.state)
+              const displayName = formatToolName(block.toolCall.name)
+
+              return (
+                <div
+                  key={block.toolCall.id}
+                  className='font-[470] font-sans text-[13px] text-[var(--text-secondary)]'
+                >
+                  <span className='text-[var(--text-tertiary)]'>{verb}</span>{' '}
+                  <span>{displayName}</span>
+                </div>
+              )
+            }
+
+            return null
+          })
         ) : (
           <>
-            {/* Fallback: Show streaming indicator when no content and no segments yet */}
-            {!renderedContent && isStreaming && !hasActiveToolCalls && <StreamingIndicator />}
-
-            {/* Fallback: Message content without segments */}
-            {renderedContent && <CopilotMarkdownRenderer content={renderedContent} />}
+            {!message.content && isStreaming && !hasActiveToolCalls && <StreamingIndicator />}
+            {message.content && <CopilotMarkdownRenderer content={message.content} />}
           </>
         )}
 
-        {/* Show streaming indicator at end if actively streaming */}
-        {isStreaming && hasSegments && !hasActiveToolCalls && <StreamingIndicator />}
+        {isStreaming && hasContentBlocks && !hasActiveToolCalls && <StreamingIndicator />}
 
-        {/* Action buttons for completed assistant messages */}
-        {!isStreaming && renderedContent && (
-          <div className='flex items-center gap-[8px] pt-[8px]'>
-            <Button
-              onClick={handleCopy}
-              variant='ghost'
-              title='Copy'
-              className='!h-[14px] !w-[14px] !p-0'
-            >
+        {!isStreaming && message.content && (
+          <div className='flex items-center gap-2 pt-2'>
+            <Button onClick={handleCopy} variant='ghost' title='Copy'>
               {showCopySuccess ? (
-                <Check className='h-[14px] w-[14px]' strokeWidth={2} />
+                <Check className='h-3.5 w-3.5' strokeWidth={2} />
               ) : (
-                <Copy className='h-[14px] w-[14px]' strokeWidth={2} />
+                <Copy className='h-3.5 w-3.5' strokeWidth={2} />
               )}
             </Button>
           </div>
