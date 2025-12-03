@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import { cloneDeep } from 'lodash'
 import ReactFlow, {
   ConnectionLineType,
   type Edge,
@@ -18,6 +17,8 @@ import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/componen
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
+import { WorkflowPreviewBlock } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview-block'
+import { WorkflowPreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview-subflow'
 import { getBlock } from '@/blocks'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -34,13 +35,27 @@ interface WorkflowPreviewProps {
   defaultZoom?: number
   fitPadding?: number
   onNodeClick?: (blockId: string, mousePosition: { x: number; y: number }) => void
+  /** Use lightweight blocks for better performance in template cards */
+  lightweight?: boolean
 }
 
-// Define node types - the components now handle preview mode internally
-const nodeTypes: NodeTypes = {
+/**
+ * Full node types with interactive WorkflowBlock for detailed previews
+ */
+const fullNodeTypes: NodeTypes = {
   workflowBlock: WorkflowBlock,
   noteBlock: NoteBlock,
   subflowNode: SubflowNodeComponent,
+}
+
+/**
+ * Lightweight node types for template cards and other high-volume previews.
+ * Uses minimal components without hooks or store subscriptions.
+ */
+const lightweightNodeTypes: NodeTypes = {
+  workflowBlock: WorkflowPreviewBlock,
+  noteBlock: WorkflowPreviewBlock,
+  subflowNode: WorkflowPreviewSubflow,
 }
 
 // Define edge types
@@ -59,7 +74,10 @@ export function WorkflowPreview({
   defaultZoom = 0.8,
   fitPadding = 0.25,
   onNodeClick,
+  lightweight = false,
 }: WorkflowPreviewProps) {
+  // Use lightweight node types for better performance in template cards
+  const nodeTypes = lightweight ? lightweightNodeTypes : fullNodeTypes
   // Check if the workflow state is valid
   const isValidWorkflowState = workflowState?.blocks && workflowState.edges
 
@@ -130,6 +148,41 @@ export function WorkflowPreview({
 
       const absolutePosition = calculateAbsolutePosition(block, workflowState.blocks)
 
+      // Lightweight mode: create minimal node data for performance
+      if (lightweight) {
+        // Handle loops and parallels as subflow nodes
+        if (block.type === 'loop' || block.type === 'parallel') {
+          nodeArray.push({
+            id: blockId,
+            type: 'subflowNode',
+            position: absolutePosition,
+            draggable: false,
+            data: {
+              name: block.name,
+              width: block.data?.width || 500,
+              height: block.data?.height || 300,
+              kind: block.type as 'loop' | 'parallel',
+            },
+          })
+          return
+        }
+
+        // Regular blocks
+        nodeArray.push({
+          id: blockId,
+          type: 'workflowBlock',
+          position: absolutePosition,
+          draggable: false,
+          data: {
+            type: block.type,
+            name: block.name,
+            isTrigger: block.triggerMode === true,
+          },
+        })
+        return
+      }
+
+      // Full mode: create detailed node data for interactive previews
       if (block.type === 'loop') {
         nodeArray.push({
           id: block.id,
@@ -178,8 +231,6 @@ export function WorkflowPreview({
         return
       }
 
-      const subBlocksClone = block.subBlocks ? cloneDeep(block.subBlocks) : {}
-
       const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
 
       nodeArray.push({
@@ -194,7 +245,7 @@ export function WorkflowPreview({
           blockState: block,
           canEdit: false,
           isPreview: true,
-          subBlockValues: subBlocksClone,
+          subBlockValues: block.subBlocks ?? {},
         },
       })
 
@@ -242,6 +293,7 @@ export function WorkflowPreview({
     showSubBlocks,
     workflowState.blocks,
     isValidWorkflowState,
+    lightweight,
   ])
 
   const edges: Edge[] = useMemo(() => {
