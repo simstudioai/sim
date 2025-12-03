@@ -83,7 +83,7 @@ describe('Folders API Route', () => {
       },
     }))
 
-    vi.doMock('@/lib/permissions/utils', () => ({
+    vi.doMock('@/lib/workspaces/permissions/utils', () => ({
       getUserEntityPermissions: mockGetUserEntityPermissions,
     }))
   })

@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { StorageService } = await import('@/lib/uploads')
-    const { getBaseUrl } = await import('@/lib/urls/utils')
+    const { getBaseUrl } = await import('@/lib/core/utils/urls')
     const timestamp = Date.now()
     const fileName = `video-${provider}-${timestamp}.mp4`
 

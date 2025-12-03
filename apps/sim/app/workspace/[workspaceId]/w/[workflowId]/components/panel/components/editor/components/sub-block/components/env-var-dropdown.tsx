@@ -8,7 +8,7 @@ import {
   PopoverScrollArea,
   PopoverSection,
 } from '@/components/emcn'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import {
   usePersonalEnvironment,
   useWorkspaceEnvironment,

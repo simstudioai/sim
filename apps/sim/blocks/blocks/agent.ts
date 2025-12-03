@@ -1,5 +1,5 @@
 import { AgentIcon } from '@/components/icons'
-import { isHosted } from '@/lib/environment'
+import { isHosted } from '@/lib/core/config/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
@@ -94,6 +94,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
+      defaultValue: 'claude-sonnet-4-5',
       options: () => {
         const providersState = useProvidersStore.getState()
         const baseModels = providersState.providers.base.models
@@ -244,7 +245,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'slider',
       min: 0,
       max: 1,
-      defaultValue: 0.5,
+      defaultValue: 0.3,
       condition: () => ({
         field: 'model',
         value: (() => {
@@ -261,7 +262,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'slider',
       min: 0,
       max: 2,
-      defaultValue: 1,
+      defaultValue: 0.3,
       condition: () => ({
         field: 'model',
         value: (() => {
@@ -382,7 +383,7 @@ Example 3 (Array Input):
     ],
     config: {
       tool: (params: Record<string, any>) => {
-        const model = params.model || 'gpt-4o'
+        const model = params.model || 'claude-sonnet-4-5'
         if (!model) {
           throw new Error('No model selected')
         }

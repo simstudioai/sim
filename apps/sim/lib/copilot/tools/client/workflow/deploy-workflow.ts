@@ -5,7 +5,7 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getInputFormatExample } from '@/lib/workflows/deployment-utils'
+import { getInputFormatExample } from '@/lib/workflows/operations/deployment-utils'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 

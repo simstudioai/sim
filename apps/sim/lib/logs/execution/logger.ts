@@ -12,7 +12,9 @@ import { v4 as uuidv4 } from 'uuid'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { checkUsageStatus, maybeSendUsageThresholdEmail } from '@/lib/billing/core/usage'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
-import { isBillingEnabled } from '@/lib/environment'
+import { isBillingEnabled } from '@/lib/core/config/environment'
+import { redactApiKeys } from '@/lib/core/security/redaction'
+import { filterForDisplay } from '@/lib/core/utils/display-filters'
 import { createLogger } from '@/lib/logs/console/logger'
 import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
@@ -26,7 +28,6 @@ import type {
   WorkflowExecutionSnapshot,
   WorkflowState,
 } from '@/lib/logs/types'
-import { filterForDisplay, redactApiKeys } from '@/lib/utils'
 
 export interface ToolCall {
   name: string

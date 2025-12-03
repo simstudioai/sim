@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
-import { env, getEnv, isTruthy } from './lib/env'
-import { isDev, isHosted } from './lib/environment'
-import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/security/csp'
+import { env, getEnv, isTruthy } from './lib/core/config/env'
+import { isDev, isHosted } from './lib/core/config/environment'
+import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/core/security/csp'
 
 const nextConfig: NextConfig = {
   devIndicators: false,

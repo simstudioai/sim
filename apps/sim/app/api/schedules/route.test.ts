@@ -25,7 +25,7 @@ describe('Schedule Configuration API Route', () => {
       }),
     }))
 
-    vi.doMock('@/lib/permissions/utils', () => ({
+    vi.doMock('@/lib/workspaces/permissions/utils', () => ({
       getUserEntityPermissions: vi.fn().mockResolvedValue('admin'), // User has admin permissions
     }))
 
@@ -112,7 +112,7 @@ describe('Schedule Configuration API Route', () => {
       },
     }))
 
-    vi.doMock('@/lib/schedules/utils', () => ({
+    vi.doMock('@/lib/workflows/schedules/utils', () => ({
       getScheduleTimeValues: vi.fn().mockReturnValue({
         scheduleTime: '09:30',
         minutesInterval: 15,

@@ -5,7 +5,7 @@ import type { NextResponse } from 'next/server'
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -36,8 +36,11 @@ vi.mock('@/stores/workflows/server-utils', () => ({
 
 const mockDecryptSecret = vi.fn()
 
-vi.mock('@/lib/utils', () => ({
+vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
+}))
+
+vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn(),
 }))
 
@@ -60,7 +63,7 @@ describe('Chat API Utils', () => {
       },
     })
 
-    vi.doMock('@/lib/environment', () => ({
+    vi.doMock('@/lib/core/config/environment', () => ({
       isDev: true,
       isHosted: false,
     }))
@@ -229,7 +232,7 @@ describe('Chat API Utils', () => {
 
     it('should validate password for POST requests', async () => {
       const { validateChatAuth } = await import('@/app/api/chat/utils')
-      const { decryptSecret } = await import('@/lib/utils')
+      const { decryptSecret } = await import('@/lib/core/security/encryption')
 
       const deployment = {
         id: 'chat-id',

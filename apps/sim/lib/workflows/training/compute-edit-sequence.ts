@@ -1,4 +1,4 @@
-import type { CopilotWorkflowState } from '@/lib/workflows/json-sanitizer'
+import type { CopilotWorkflowState } from '@/lib/workflows/sanitization/json-sanitizer'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/consts'
 
 export interface EditOperation {

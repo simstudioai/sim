@@ -1,4 +1,4 @@
-import { isLikelyReferenceSegment } from '@/lib/workflows/references'
+import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
 import { REFERENCE } from '@/executor/consts'
 
 /**

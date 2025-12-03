@@ -6,8 +6,8 @@ import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { AgentIcon } from '@/components/icons'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn } from '@/lib/utils'
 import { useSearchModalStore } from '@/stores/search-modal/store'
 
 const logger = createLogger('WorkflowCommandList')

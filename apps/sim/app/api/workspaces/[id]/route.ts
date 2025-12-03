@@ -9,7 +9,7 @@ const logger = createLogger('WorkspaceByIdAPI')
 
 import { db } from '@sim/db'
 import { knowledgeBase, permissions, templates, workspace } from '@sim/db/schema'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const patchWorkspaceSchema = z.object({
   name: z.string().trim().min(1).optional(),

@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
-import { generateRequestId } from '@/lib/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 export const dynamic = 'force-dynamic'
@@ -40,7 +40,7 @@ export async function POST(
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    const { getBaseUrl } = await import('@/lib/urls/utils')
+    const { getBaseUrl } = await import('@/lib/core/utils/urls')
     const serveUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(fileRecord.key)}?context=workspace`
     const viewerUrl = `${getBaseUrl()}/workspace/${workspaceId}/files/${fileId}/view`
 

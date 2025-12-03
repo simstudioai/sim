@@ -113,7 +113,7 @@ describe('Individual Folder API Route', () => {
 
     mockGetUserEntityPermissions.mockResolvedValue('admin')
 
-    vi.doMock('@/lib/permissions/utils', () => ({
+    vi.doMock('@/lib/workspaces/permissions/utils', () => ({
       getUserEntityPermissions: mockGetUserEntityPermissions,
     }))
   })

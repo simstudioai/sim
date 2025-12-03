@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 export interface PlanFeature {
   icon: LucideIcon
