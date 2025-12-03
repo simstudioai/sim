@@ -2,11 +2,7 @@
 
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import {
-  type CopilotChat,
-  sendStreamingMessage,
-  sendSuperagentStreamingMessage,
-} from '@/lib/copilot/api'
+import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
 import type {
   BaseClientToolMetadata,
   ClientToolDisplay,
@@ -1023,17 +1019,23 @@ const sseHandlers: Record<string, SSEHandler> = {
               set({ toolCallsById: errorMap })
             })
         }, 0)
+        return
       }
     } catch {}
 
-    // Superagent context: Execute integration tools server-side
+    // Integration tools: Execute server-side via /api/copilot/execute-tool
     // This handles tools like google_calendar_*, exa_*, etc. that aren't in the client registry
-    const { context: storeContext, workspaceId } = get()
-    if (storeContext === 'superagent' && workspaceId) {
+    // Only execute if mode is 'build' (agent)
+    const { mode, workflowId } = get()
+    if (mode === 'build' && workflowId) {
       // Check if tool was NOT found in client registry (def is undefined from above)
       const def = name ? getTool(name) : undefined
-      if (!def) {
-        logger.info('[superagent] Tool not in client registry, executing server-side', { id, name })
+      const inst = getClientTool(id) as any
+      if (!def && !inst) {
+        logger.info('[build mode] Tool not in client registry, executing server-side', {
+          id,
+          name,
+        })
 
         setTimeout(() => {
           const executingMap = { ...get().toolCallsById }
@@ -1043,7 +1045,7 @@ const sseHandlers: Record<string, SSEHandler> = {
             display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
           }
           set({ toolCallsById: executingMap })
-          logger.info('[toolCallsById] pending → executing (superagent server)', { id, name })
+          logger.info('[toolCallsById] pending → executing (server)', { id, name })
 
           // Update inline content block to executing
           for (let i = 0; i < context.contentBlocks.length; i++) {
@@ -1059,14 +1061,14 @@ const sseHandlers: Record<string, SSEHandler> = {
           updateStreamingMessage(set, context)
 
           // Execute tool via server endpoint
-          fetch('/api/superagent/execute-tool', {
+          fetch('/api/copilot/execute-tool', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               toolCallId: id,
               toolName: name,
               arguments: args || {},
-              workspaceId,
+              workflowId,
             }),
           })
             .then(async (res) => {
@@ -1095,7 +1097,7 @@ const sseHandlers: Record<string, SSEHandler> = {
               }
               set({ toolCallsById: completeMap })
               logger.info(
-                `[toolCallsById] executing → ${success ? 'success' : 'error'} (superagent server)`,
+                `[toolCallsById] executing → ${success ? 'success' : 'error'} (server)`,
                 { id, name, result }
               )
 
@@ -1115,7 +1117,7 @@ const sseHandlers: Record<string, SSEHandler> = {
               }
               updateStreamingMessage(set, context)
 
-              // Notify backend tool mark-complete endpoint (reuse copilot endpoint)
+              // Notify backend tool mark-complete endpoint
               try {
                 await fetch('/api/copilot/tools/mark-complete', {
                   method: 'POST',
@@ -1129,7 +1131,10 @@ const sseHandlers: Record<string, SSEHandler> = {
                       : result.result?.error || result.error || 'Tool execution failed',
                     data: success
                       ? result.result?.output
-                      : { error: result.result?.error || result.error, output: result.result?.output },
+                      : {
+                          error: result.result?.error || result.error,
+                          output: result.result?.output,
+                        },
                   }),
                 })
               } catch {}
@@ -1150,7 +1155,7 @@ const sseHandlers: Record<string, SSEHandler> = {
                 display: resolveToolDisplay(name, ClientToolCallState.error, id, args),
               }
               set({ toolCallsById: errorMap })
-              logger.error('Superagent server tool execution failed', { id, name, error: e })
+              logger.error('Server tool execution failed', { id, name, error: e })
             })
         }, 0)
       }
@@ -1637,8 +1642,6 @@ async function* parseSSEStream(
 
 // Initial state (subset required for UI/streaming)
 const initialState = {
-  context: 'workflow' as const,
-  workspaceId: null as string | null,
   mode: 'build' as const,
   selectedModel: 'claude-4.5-sonnet' as CopilotStore['selectedModel'],
   agentPrefetch: false,
@@ -1679,38 +1682,6 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Basic mode controls
     setMode: (mode) => set({ mode }),
-
-    // Context controls for switching between workflow and superagent modes
-    setContext: (context) => {
-      const currentContext = get().context
-      if (currentContext === context) return
-      
-      // Reset state when switching contexts
-      set({
-        ...initialState,
-        context,
-        selectedModel: get().selectedModel,
-        // Preserve workspaceId if switching to superagent
-        workspaceId: context === 'superagent' ? get().workspaceId : null,
-        // Preserve workflowId if switching to workflow
-        workflowId: context === 'workflow' ? get().workflowId : null,
-      })
-    },
-
-    setWorkspaceId: (workspaceId) => {
-      const currentWorkspaceId = get().workspaceId
-      if (currentWorkspaceId === workspaceId) return
-      
-      // Reset chat state when workspace changes
-      set({
-        workspaceId,
-        currentChat: null,
-        messages: [],
-        chats: [],
-        chatsLastLoadedAt: null,
-        toolCallsById: {},
-      })
-    },
 
     // Clear messages (don't clear streamingPlanContent - let it persist)
     clearMessages: () => set({ messages: [], contextUsage: null }),
@@ -1858,7 +1829,7 @@ export const useCopilotStore = create<CopilotStore>()(
     },
 
     createNewChat: async () => {
-      const { isSendingMessage, context } = get()
+      const { isSendingMessage } = get()
       if (isSendingMessage) get().abortMessage()
 
       // Abort in-progress tools and clear diff on new chat
@@ -1867,30 +1838,27 @@ export const useCopilotStore = create<CopilotStore>()(
         useWorkflowDiffStore.getState().clearDiff()
       } catch {}
 
-      // Background-save the current chat before clearing (optimistic) - only for workflow context
-      if (context === 'workflow') {
-        try {
-          const { currentChat, streamingPlanContent, mode, selectedModel } = get()
-          if (currentChat) {
-            const currentMessages = get().messages
-            const dbMessages = validateMessagesForLLM(currentMessages)
-            fetch('/api/copilot/chat/update-messages', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chatId: currentChat.id,
-                messages: dbMessages,
-                planArtifact: streamingPlanContent || null,
-                config: {
-                  mode,
-                  model: selectedModel,
-                },
-              }),
-            }).catch(() => {})
-          }
-        } catch {}
-      }
-      // For superagent context, messages are saved by the API route
+      // Background-save the current chat before clearing (optimistic)
+      try {
+        const { currentChat, streamingPlanContent, mode, selectedModel } = get()
+        if (currentChat) {
+          const currentMessages = get().messages
+          const dbMessages = validateMessagesForLLM(currentMessages)
+          fetch('/api/copilot/chat/update-messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chatId: currentChat.id,
+              messages: dbMessages,
+              planArtifact: streamingPlanContent || null,
+              config: {
+                mode,
+                model: selectedModel,
+              },
+            }),
+          }).catch(() => {})
+        }
+      } catch {}
 
       logger.info('[Context Usage] New chat created, clearing context usage')
       set({
@@ -1936,29 +1904,17 @@ export const useCopilotStore = create<CopilotStore>()(
     areChatsFresh: (_workflowId: string) => false,
 
     loadChats: async (_forceRefresh = false) => {
-      const { workflowId, workspaceId, context } = get()
+      const { workflowId } = get()
 
-      // Validate based on context
-      if (context === 'superagent') {
-        if (!workspaceId) {
-          set({ chats: [], isLoadingChats: false })
-          return
-        }
-      } else {
-        if (!workflowId) {
-          set({ chats: [], isLoadingChats: false })
-          return
-        }
+      if (!workflowId) {
+        set({ chats: [], isLoadingChats: false })
+        return
       }
 
       // For now always fetch fresh
       set({ isLoadingChats: true })
       try {
-        // Use appropriate endpoint based on context
-        const url =
-          context === 'superagent'
-            ? `/api/superagent/chat?workspaceId=${workspaceId}`
-            : `/api/copilot/chat?workflowId=${workflowId}`
+        const url = `/api/copilot/chat?workflowId=${workflowId}`
         const response = await fetch(url)
         if (!response.ok) {
           throw new Error(`Failed to fetch chats: ${response.status}`)
@@ -1970,7 +1926,7 @@ export const useCopilotStore = create<CopilotStore>()(
             chats: data.chats,
             isLoadingChats: false,
             chatsLastLoadedAt: now,
-            chatsLoadedForWorkflow: context === 'superagent' ? workspaceId : workflowId,
+            chatsLoadedForWorkflow: workflowId,
           })
 
           if (data.chats.length > 0) {
@@ -2075,7 +2031,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Send a message (streaming only)
     sendMessage: async (message: string, options = {}) => {
-      const { workflowId, workspaceId, context, currentChat, mode, revertState } = get()
+      const { workflowId, currentChat, mode, revertState } = get()
       const {
         stream = true,
         fileAttachments,
@@ -2088,15 +2044,7 @@ export const useCopilotStore = create<CopilotStore>()(
         messageId?: string
       }
 
-      // Validate based on context
-      if (context === 'superagent') {
-        if (!workspaceId) {
-          logger.error('No workspace ID set for superagent context')
-          return
-        }
-      } else {
-        if (!workflowId) return
-      }
+      if (!workflowId) return
 
       const abortController = new AbortController()
       set({ isSendingMessage: true, error: null, abortController })
@@ -2166,38 +2114,23 @@ export const useCopilotStore = create<CopilotStore>()(
           })
         }
 
-        // Call appropriate API based on context
-        let result
-        if (context === 'superagent') {
-          // Superagent mode - simpler API without workflow context
-          result = await sendSuperagentStreamingMessage({
-            message: messageToSend,
-            userMessageId: userMessage.id,
-            chatId: currentChat?.id,
-            workspaceId: workspaceId!,
-            model: get().selectedModel,
-            stream,
-            abortSignal: abortController.signal,
-          })
-        } else {
-          // Workflow mode - full copilot API
-          const apiMode: 'ask' | 'agent' | 'plan' =
-            mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
-          result = await sendStreamingMessage({
-            message: messageToSend,
-            userMessageId: userMessage.id,
-            chatId: currentChat?.id,
-            workflowId: workflowId || undefined,
-            mode: apiMode,
-            model: get().selectedModel,
-            prefetch: get().agentPrefetch,
-            createNewChat: !currentChat,
-            stream,
-            fileAttachments,
-            contexts,
-            abortSignal: abortController.signal,
-          })
-        }
+        // Call copilot API
+        const apiMode: 'ask' | 'agent' | 'plan' =
+          mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
+        const result = await sendStreamingMessage({
+          message: messageToSend,
+          userMessageId: userMessage.id,
+          chatId: currentChat?.id,
+          workflowId: workflowId || undefined,
+          mode: apiMode,
+          model: get().selectedModel,
+          prefetch: get().agentPrefetch,
+          createNewChat: !currentChat,
+          stream,
+          fileAttachments,
+          contexts,
+          abortSignal: abortController.signal,
+        })
 
         if (result.success && result.stream) {
           await get().handleStreamingResponse(

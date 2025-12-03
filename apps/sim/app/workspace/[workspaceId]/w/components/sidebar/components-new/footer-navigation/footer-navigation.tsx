@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import clsx from 'clsx'
-import { Bot, Database, HelpCircle, Layout, LibraryBig, Settings } from 'lucide-react'
+import { Database, HelpCircle, Layout, LibraryBig, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import {
@@ -39,12 +39,6 @@ export function FooterNavigation() {
       label: 'Logs',
       icon: LibraryBig,
       href: `/workspace/${workspaceId}/logs`,
-    },
-    {
-      id: 'superagent',
-      label: 'Superagent',
-      icon: Bot,
-      href: `/workspace/${workspaceId}/superagent`,
     },
     {
       id: 'templates',

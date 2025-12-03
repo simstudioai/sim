@@ -17,13 +17,13 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
 
-const logger = createLogger('SuperagentExecuteToolAPI')
+const logger = createLogger('CopilotExecuteToolAPI')
 
 const ExecuteToolSchema = z.object({
   toolCallId: z.string(),
   toolName: z.string(),
   arguments: z.record(z.any()).optional().default({}),
-  workspaceId: z.string(),
+  workflowId: z.string().optional(),
 })
 
 /**
@@ -49,11 +49,7 @@ function mapEnvVarsToToolParams(
   const toolPrefix = toolId.split('_')[0]?.toUpperCase()
 
   // Common API key environment variable patterns to check
-  const envKeyPatterns = [
-    `${toolPrefix}_API_KEY`,
-    `${toolPrefix}AI_API_KEY`,
-    `${toolPrefix}_KEY`,
-  ]
+  const envKeyPatterns = [`${toolPrefix}_API_KEY`, `${toolPrefix}AI_API_KEY`, `${toolPrefix}_KEY`]
 
   // Special mappings for tools with non-standard naming
   const specialMappings: Record<string, string[]> = {
@@ -93,8 +89,9 @@ function mapEnvVarsToToolParams(
 }
 
 /**
- * POST /api/superagent/execute-tool
+ * POST /api/copilot/execute-tool
  * Execute an integration tool with resolved credentials
+ * Called by the sim-agent service when it needs to execute a tool
  */
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
@@ -113,12 +110,12 @@ export async function POST(req: NextRequest) {
       logger.debug(`[${tracker.requestId}] Incoming execute-tool request`, { preview })
     } catch {}
 
-    const { toolCallId, toolName, arguments: toolArgs, workspaceId } = ExecuteToolSchema.parse(body)
+    const { toolCallId, toolName, arguments: toolArgs, workflowId } = ExecuteToolSchema.parse(body)
 
     logger.info(`[${tracker.requestId}] Executing tool`, {
       toolCallId,
       toolName,
-      workspaceId,
+      workflowId,
       hasArgs: Object.keys(toolArgs).length > 0,
     })
 
@@ -128,12 +125,12 @@ export async function POST(req: NextRequest) {
       // Find similar tool names to help debug
       const { tools: allTools } = await import('@/tools/registry')
       const allToolNames = Object.keys(allTools)
-      const prefix = toolName.split('_').slice(0, 2).join('_') // e.g., "linear_list"
-      const similarTools = allToolNames.filter((name) => 
-        name.startsWith(prefix.split('_')[0] + '_') // Same provider prefix
-      ).slice(0, 10)
-      
-      logger.warn(`[${tracker.requestId}] Tool not found in registry`, { 
+      const prefix = toolName.split('_').slice(0, 2).join('_')
+      const similarTools = allToolNames
+        .filter((name) => name.startsWith(prefix.split('_')[0] + '_'))
+        .slice(0, 10)
+
+      logger.warn(`[${tracker.requestId}] Tool not found in registry`, {
         toolName,
         prefix,
         similarTools,
@@ -216,32 +213,34 @@ export async function POST(req: NextRequest) {
     const llmProvidedApiKey = executionParams.apiKey as string | undefined
 
     if (needsApiKey || llmProvidedApiKey) {
-      logger.info(`[${tracker.requestId}] Resolving API key for tool`, { 
-        toolName, 
+      logger.info(`[${tracker.requestId}] Resolving API key for tool`, {
+        toolName,
         needsApiKey,
         hasLlmProvidedKey: !!llmProvidedApiKey,
-        llmProvidedKeyPreview: llmProvidedApiKey ? `${llmProvidedApiKey.substring(0, 20)}...` : null,
+        llmProvidedKeyPreview: llmProvidedApiKey
+          ? `${llmProvidedApiKey.substring(0, 20)}...`
+          : null,
       })
 
       try {
-        const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
-        
+        const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workflowId)
+
         // Case 1: LLM provided an API key name (e.g., "EXA_API_KEY") - resolve it
         if (llmProvidedApiKey) {
           // Check if it looks like an env var name (uppercase with underscores, ends with _KEY or _API_KEY)
           const looksLikeEnvVar = /^[A-Z][A-Z0-9_]*(_KEY|_API_KEY)$/.test(llmProvidedApiKey)
-          
+
           if (looksLikeEnvVar && decryptedEnvVars[llmProvidedApiKey]) {
             // Resolve the env var name to its actual value
             executionParams.apiKey = decryptedEnvVars[llmProvidedApiKey]
-            logger.info(`[${tracker.requestId}] Resolved API key from LLM-provided name`, { 
-              toolName, 
+            logger.info(`[${tracker.requestId}] Resolved API key from LLM-provided name`, {
+              toolName,
               envVarName: llmProvidedApiKey,
             })
           } else if (looksLikeEnvVar) {
             // LLM provided an env var name but it's not configured
-            logger.warn(`[${tracker.requestId}] LLM provided API key name not found in env vars`, { 
-              toolName, 
+            logger.warn(`[${tracker.requestId}] LLM provided API key name not found in env vars`, {
+              toolName,
               envVarName: llmProvidedApiKey,
               availableKeys: Object.keys(decryptedEnvVars),
             })
@@ -256,7 +255,7 @@ export async function POST(req: NextRequest) {
           }
           // else: LLM provided what looks like an actual API key value, keep it as-is
         }
-        
+
         // Case 2: No API key yet but tool requires one - resolve from tool prefix convention
         if (!executionParams.apiKey && needsApiKey) {
           const apiKeyParams = mapEnvVarsToToolParams(toolName, toolConfig, decryptedEnvVars)
@@ -294,7 +293,7 @@ export async function POST(req: NextRequest) {
 
     // Add execution context
     executionParams._context = {
-      workspaceId,
+      workflowId,
       userId,
     }
 

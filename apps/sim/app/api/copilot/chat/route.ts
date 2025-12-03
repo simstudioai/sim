@@ -14,11 +14,13 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import type { CopilotProviderConfig } from '@/lib/copilot/types'
 import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { CopilotFiles } from '@/lib/uploads'
 import { createFileContent } from '@/lib/uploads/utils/file-utils'
+import { tools } from '@/tools/registry'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -313,6 +315,94 @@ export async function POST(req: NextRequest) {
     const effectiveConversationId =
       (currentChat?.conversationId as string | undefined) || conversationId
 
+    // For agent/build mode, fetch credentials and build tool definitions
+    let integrationTools: any[] = []
+    let credentials: {
+      oauth: Record<string, { accessToken: string; accountId: string; name: string; expiresAt?: string }>
+      apiKeys: string[]
+      metadata?: {
+        connectedOAuth: Array<{ provider: string; name: string; scopes?: string[] }>
+        configuredApiKeys: string[]
+      }
+    } | null = null
+
+    if (mode === 'agent') {
+      // Fetch user credentials (OAuth + API keys)
+      try {
+        const rawCredentials = await getCredentialsServerTool.execute(
+          { userId: authenticatedUserId },
+          { userId: authenticatedUserId }
+        )
+
+        // Transform OAuth credentials to map format: { [provider]: { accessToken, accountId, ... } }
+        const oauthMap: Record<
+          string,
+          { accessToken: string; accountId: string; name: string; expiresAt?: string }
+        > = {}
+        const connectedOAuth: Array<{ provider: string; name: string; scopes?: string[] }> = []
+        for (const cred of rawCredentials?.oauth?.credentials || []) {
+          if (cred.accessToken) {
+            oauthMap[cred.provider] = {
+              accessToken: cred.accessToken,
+              accountId: cred.id,
+              name: cred.name,
+            }
+            connectedOAuth.push({
+              provider: cred.provider,
+              name: cred.name,
+            })
+          }
+        }
+
+        credentials = {
+          oauth: oauthMap,
+          apiKeys: rawCredentials?.environment?.variableNames || [],
+          metadata: {
+            connectedOAuth,
+            configuredApiKeys: rawCredentials?.environment?.variableNames || [],
+          },
+        }
+
+        logger.info(`[${tracker.requestId}] Fetched credentials for build mode`, {
+          oauthProviders: Object.keys(oauthMap),
+          apiKeyCount: credentials.apiKeys.length,
+        })
+      } catch (error) {
+        logger.warn(`[${tracker.requestId}] Failed to fetch credentials`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+
+      // Build tool definitions (schemas only)
+      try {
+        const { createUserToolSchema } = await import('@/tools/params')
+
+        integrationTools = Object.entries(tools).map(([toolId, toolConfig]) => {
+          const userSchema = createUserToolSchema(toolConfig)
+          return {
+            name: toolId,
+            description: toolConfig.description || toolConfig.name || toolId,
+            input_schema: userSchema,
+            defer_loading: true, // Anthropic Advanced Tool Use
+            ...(toolConfig.oauth?.required && {
+              oauth: {
+                required: true,
+                provider: toolConfig.oauth.provider,
+              },
+            }),
+          }
+        })
+
+        logger.info(`[${tracker.requestId}] Built tool definitions for build mode`, {
+          integrationToolCount: integrationTools.length,
+        })
+      } catch (error) {
+        logger.warn(`[${tracker.requestId}] Failed to build tool definitions`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+
     const requestPayload = {
       message: message, // Just send the current user message text
       workflowId,
@@ -330,6 +420,11 @@ export async function POST(req: NextRequest) {
       ...(agentContexts.length > 0 && { context: agentContexts }),
       ...(actualChatId ? { chatId: actualChatId } : {}),
       ...(processedFileContents.length > 0 && { fileAttachments: processedFileContents }),
+      // For build/agent mode, include tools and credentials
+      ...(integrationTools.length > 0 && { tools: integrationTools }),
+      ...(credentials && { credentials }),
+      // Anthropic beta features for advanced tool use
+      ...(mode === 'agent' && { betas: ['advanced-tool-use-2025-11-20'] }),
     }
 
     try {

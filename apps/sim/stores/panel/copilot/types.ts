@@ -59,18 +59,7 @@ export type CopilotChat = ApiCopilotChat
 
 export type CopilotMode = 'ask' | 'build' | 'plan'
 
-/**
- * Context determines which API endpoint and features to use.
- * - 'workflow': Standard copilot mode tied to a specific workflow
- * - 'superagent': Standalone mode with full tool registry access
- */
-export type CopilotContext = 'workflow' | 'superagent'
-
 export interface CopilotState {
-  /** Context determines which API and features to use */
-  context: CopilotContext
-  /** Workspace ID for superagent context (not tied to a workflow) */
-  workspaceId: string | null
   mode: CopilotMode
   selectedModel:
     | 'gpt-5-fast'
@@ -158,10 +147,6 @@ export interface CopilotActions {
   setEnabledModels: (models: string[] | null) => void
   fetchContextUsage: () => Promise<void>
 
-  /** Set the context mode (workflow or superagent) */
-  setContext: (context: CopilotContext) => void
-  /** Set the workspace ID for superagent context */
-  setWorkspaceId: (workspaceId: string | null) => void
   setWorkflowId: (workflowId: string | null) => Promise<void>
   validateCurrentChat: () => boolean
   loadChats: (forceRefresh?: boolean) => Promise<void>
