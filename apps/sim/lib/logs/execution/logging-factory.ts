@@ -118,11 +118,9 @@ export function calculateCostSummary(traceSpans: any[]): {
     totalCost += span.cost.total || 0
     totalInputCost += span.cost.input || 0
     totalOutputCost += span.cost.output || 0
-    const promptTokens = span.tokens?.prompt ?? span.tokens?.input ?? 0
-    const completionTokens = span.tokens?.completion ?? span.tokens?.output ?? 0
     totalTokens += span.tokens?.total || 0
-    totalPromptTokens += promptTokens
-    totalCompletionTokens += completionTokens
+    totalPromptTokens += span.tokens?.input ?? span.tokens?.prompt ?? 0
+    totalCompletionTokens += span.tokens?.output ?? span.tokens?.completion ?? 0
 
     if (span.model) {
       const model = span.model
@@ -137,8 +135,8 @@ export function calculateCostSummary(traceSpans: any[]): {
       models[model].input += span.cost.input || 0
       models[model].output += span.cost.output || 0
       models[model].total += span.cost.total || 0
-      models[model].tokens.prompt += promptTokens
-      models[model].tokens.completion += completionTokens
+      models[model].tokens.prompt += span.tokens?.input ?? span.tokens?.prompt ?? 0
+      models[model].tokens.completion += span.tokens?.output ?? span.tokens?.completion ?? 0
       models[model].tokens.total += span.tokens?.total || 0
     }
   }
