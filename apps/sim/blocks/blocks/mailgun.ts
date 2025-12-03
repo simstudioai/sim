@@ -10,7 +10,7 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
     'Integrate Mailgun into your workflow. Send transactional emails, manage mailing lists and members, view domain information, and track email events. Supports text and HTML emails, tags for tracking, and comprehensive list management.',
   docsLink: 'https://docs.sim.ai/tools/mailgun',
   category: 'tools',
-  bgColor: '#F06248',
+  bgColor: '#E0E0E0',
   icon: MailgunIcon,
 
   subBlocks: [
