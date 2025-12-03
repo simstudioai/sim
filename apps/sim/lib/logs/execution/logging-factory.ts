@@ -80,7 +80,6 @@ export function calculateCostSummary(traceSpans: any[]): {
     }
   }
 
-  // Recursively collect all spans with cost information from the trace span tree
   const collectCostSpans = (spans: any[]): any[] => {
     const costSpans: any[] = []
 
