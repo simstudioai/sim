@@ -19,6 +19,7 @@ import {
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
+  SambaNovaIcon,
   VllmIcon,
   xAIIcon,
 } from '@/components/icons'
@@ -342,200 +343,200 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     icon: AzureIcon,
     models: [
-      {
-        id: 'azure/gpt-4o',
-        pricing: {
-          input: 2.5,
-          cachedInput: 1.25,
-          output: 10.0,
-          updatedAt: '2025-06-15',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 2 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'azure/gpt-5.1',
-        pricing: {
-          input: 1.25,
-          cachedInput: 0.125,
-          output: 10.0,
-          updatedAt: '2025-11-14',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high'],
-          },
-          verbosity: {
-            values: ['low', 'medium', 'high'],
-          },
-        },
-        contextWindow: 400000,
-      },
-      {
-        id: 'azure/gpt-5.1-mini',
-        pricing: {
-          input: 0.25,
-          cachedInput: 0.025,
-          output: 2.0,
-          updatedAt: '2025-11-14',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high'],
-          },
-          verbosity: {
-            values: ['low', 'medium', 'high'],
-          },
-        },
-        contextWindow: 400000,
-      },
-      {
-        id: 'azure/gpt-5.1-nano',
-        pricing: {
-          input: 0.05,
-          cachedInput: 0.005,
-          output: 0.4,
-          updatedAt: '2025-11-14',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high'],
-          },
-          verbosity: {
-            values: ['low', 'medium', 'high'],
-          },
-        },
-        contextWindow: 400000,
-      },
-      {
-        id: 'azure/gpt-5.1-codex',
-        pricing: {
-          input: 1.25,
-          cachedInput: 0.125,
-          output: 10.0,
-          updatedAt: '2025-11-14',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['none', 'medium', 'high'],
-          },
-          verbosity: {
-            values: ['low', 'medium', 'high'],
-          },
-        },
-        contextWindow: 400000,
-      },
-      {
-        id: 'azure/gpt-5',
-        pricing: {
-          input: 1.25,
-          cachedInput: 0.125,
-          output: 10.0,
-          updatedAt: '2025-08-07',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['minimal', 'low', 'medium', 'high'],
-          },
-          verbosity: {
-            values: ['low', 'medium', 'high'],
-          },
-        },
-        contextWindow: 400000,
-      },
-      {
-        id: 'azure/gpt-5-mini',
-        pricing: {
-          input: 0.25,
-          cachedInput: 0.025,
-          output: 2.0,
-          updatedAt: '2025-08-07',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['minimal', 'low', 'medium', 'high'],
-          },
-          verbosity: {
-            values: ['low', 'medium', 'high'],
-          },
-        },
-        contextWindow: 400000,
-      },
-      {
-        id: 'azure/gpt-5-nano',
-        pricing: {
-          input: 0.05,
-          cachedInput: 0.005,
-          output: 0.4,
-          updatedAt: '2025-08-07',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['minimal', 'low', 'medium', 'high'],
-          },
-          verbosity: {
-            values: ['low', 'medium', 'high'],
-          },
-        },
-        contextWindow: 400000,
-      },
-      {
-        id: 'azure/gpt-5-chat-latest',
-        pricing: {
-          input: 1.25,
-          cachedInput: 0.125,
-          output: 10.0,
-          updatedAt: '2025-08-07',
-        },
-        capabilities: {},
-        contextWindow: 400000,
-      },
-      {
-        id: 'azure/o3',
-        pricing: {
-          input: 10,
-          cachedInput: 2.5,
-          output: 40,
-          updatedAt: '2025-06-15',
-        },
-        capabilities: {},
-        contextWindow: 128000,
-      },
-      {
-        id: 'azure/o4-mini',
-        pricing: {
-          input: 1.1,
-          cachedInput: 0.275,
-          output: 4.4,
-          updatedAt: '2025-06-15',
-        },
-        capabilities: {},
-        contextWindow: 128000,
-      },
-      {
-        id: 'azure/gpt-4.1',
-        pricing: {
-          input: 2.0,
-          cachedInput: 0.5,
-          output: 8.0,
-          updatedAt: '2025-06-15',
-        },
-        capabilities: {},
-        contextWindow: 1000000,
-      },
-      {
-        id: 'azure/model-router',
-        pricing: {
-          input: 2.0,
-          cachedInput: 0.5,
-          output: 8.0,
-          updatedAt: '2025-06-15',
-        },
-        capabilities: {},
-        contextWindow: 1000000,
-      },
+      // {
+      //   id: 'azure/gpt-4o',
+      //   pricing: {
+      //     input: 2.5,
+      //     cachedInput: 1.25,
+      //     output: 10.0,
+      //     updatedAt: '2025-06-15',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 2 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'azure/gpt-5.1',
+      //   pricing: {
+      //     input: 1.25,
+      //     cachedInput: 0.125,
+      //     output: 10.0,
+      //     updatedAt: '2025-11-14',
+      //   },
+      //   capabilities: {
+      //     reasoningEffort: {
+      //       values: ['none', 'low', 'medium', 'high'],
+      //     },
+      //     verbosity: {
+      //       values: ['low', 'medium', 'high'],
+      //     },
+      //   },
+      //   contextWindow: 400000,
+      // },
+      // {
+      //   id: 'azure/gpt-5.1-mini',
+      //   pricing: {
+      //     input: 0.25,
+      //     cachedInput: 0.025,
+      //     output: 2.0,
+      //     updatedAt: '2025-11-14',
+      //   },
+      //   capabilities: {
+      //     reasoningEffort: {
+      //       values: ['none', 'low', 'medium', 'high'],
+      //     },
+      //     verbosity: {
+      //       values: ['low', 'medium', 'high'],
+      //     },
+      //   },
+      //   contextWindow: 400000,
+      // },
+      // {
+      //   id: 'azure/gpt-5.1-nano',
+      //   pricing: {
+      //     input: 0.05,
+      //     cachedInput: 0.005,
+      //     output: 0.4,
+      //     updatedAt: '2025-11-14',
+      //   },
+      //   capabilities: {
+      //     reasoningEffort: {
+      //       values: ['none', 'low', 'medium', 'high'],
+      //     },
+      //     verbosity: {
+      //       values: ['low', 'medium', 'high'],
+      //     },
+      //   },
+      //   contextWindow: 400000,
+      // },
+      // {
+      //   id: 'azure/gpt-5.1-codex',
+      //   pricing: {
+      //     input: 1.25,
+      //     cachedInput: 0.125,
+      //     output: 10.0,
+      //     updatedAt: '2025-11-14',
+      //   },
+      //   capabilities: {
+      //     reasoningEffort: {
+      //       values: ['none', 'medium', 'high'],
+      //     },
+      //     verbosity: {
+      //       values: ['low', 'medium', 'high'],
+      //     },
+      //   },
+      //   contextWindow: 400000,
+      // },
+      // {
+      //   id: 'azure/gpt-5',
+      //   pricing: {
+      //     input: 1.25,
+      //     cachedInput: 0.125,
+      //     output: 10.0,
+      //     updatedAt: '2025-08-07',
+      //   },
+      //   capabilities: {
+      //     reasoningEffort: {
+      //       values: ['minimal', 'low', 'medium', 'high'],
+      //     },
+      //     verbosity: {
+      //       values: ['low', 'medium', 'high'],
+      //     },
+      //   },
+      //   contextWindow: 400000,
+      // },
+      // {
+      //   id: 'azure/gpt-5-mini',
+      //   pricing: {
+      //     input: 0.25,
+      //     cachedInput: 0.025,
+      //     output: 2.0,
+      //     updatedAt: '2025-08-07',
+      //   },
+      //   capabilities: {
+      //     reasoningEffort: {
+      //       values: ['minimal', 'low', 'medium', 'high'],
+      //     },
+      //     verbosity: {
+      //       values: ['low', 'medium', 'high'],
+      //     },
+      //   },
+      //   contextWindow: 400000,
+      // },
+      // {
+      //   id: 'azure/gpt-5-nano',
+      //   pricing: {
+      //     input: 0.05,
+      //     cachedInput: 0.005,
+      //     output: 0.4,
+      //     updatedAt: '2025-08-07',
+      //   },
+      //   capabilities: {
+      //     reasoningEffort: {
+      //       values: ['minimal', 'low', 'medium', 'high'],
+      //     },
+      //     verbosity: {
+      //       values: ['low', 'medium', 'high'],
+      //     },
+      //   },
+      //   contextWindow: 400000,
+      // },
+      // {
+      //   id: 'azure/gpt-5-chat-latest',
+      //   pricing: {
+      //     input: 1.25,
+      //     cachedInput: 0.125,
+      //     output: 10.0,
+      //     updatedAt: '2025-08-07',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 400000,
+      // },
+      // {
+      //   id: 'azure/o3',
+      //   pricing: {
+      //     input: 10,
+      //     cachedInput: 2.5,
+      //     output: 40,
+      //     updatedAt: '2025-06-15',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'azure/o4-mini',
+      //   pricing: {
+      //     input: 1.1,
+      //     cachedInput: 0.275,
+      //     output: 4.4,
+      //     updatedAt: '2025-06-15',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'azure/gpt-4.1',
+      //   pricing: {
+      //     input: 2.0,
+      //     cachedInput: 0.5,
+      //     output: 8.0,
+      //     updatedAt: '2025-06-15',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 1000000,
+      // },
+      // {
+      //   id: 'azure/model-router',
+      //   pricing: {
+      //     input: 2.0,
+      //     cachedInput: 0.5,
+      //     output: 8.0,
+      //     updatedAt: '2025-06-15',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 1000000,
+      // },
     ],
   },
   anthropic: {
@@ -549,32 +550,32 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     models: [
-      {
-        id: 'claude-haiku-4-5',
-        pricing: {
-          input: 1.0,
-          cachedInput: 0.5,
-          output: 5.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-sonnet-4-5',
-        pricing: {
-          input: 3.0,
-          cachedInput: 1.5,
-          output: 15.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 200000,
-      },
+      // {
+      //   id: 'claude-haiku-4-5',
+      //   pricing: {
+      //     input: 1.0,
+      //     cachedInput: 0.5,
+      //     output: 5.0,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 200000,
+      // },
+      // {
+      //   id: 'claude-sonnet-4-5',
+      //   pricing: {
+      //     input: 3.0,
+      //     cachedInput: 1.5,
+      //     output: 15.0,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 200000,
+      // },
       {
         id: 'claude-sonnet-4-0',
         pricing: {
@@ -588,32 +589,32 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
       },
-      {
-        id: 'claude-opus-4-5',
-        pricing: {
-          input: 5.0,
-          cachedInput: 0.5,
-          output: 25.0,
-          updatedAt: '2025-11-24',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-opus-4-1',
-        pricing: {
-          input: 15.0,
-          cachedInput: 7.5,
-          output: 75.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 200000,
-      },
+      // {
+      //   id: 'claude-opus-4-5',
+      //   pricing: {
+      //     input: 5.0,
+      //     cachedInput: 0.5,
+      //     output: 25.0,
+      //     updatedAt: '2025-11-24',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 200000,
+      // },
+      // {
+      //   id: 'claude-opus-4-1',
+      //   pricing: {
+      //     input: 15.0,
+      //     cachedInput: 7.5,
+      //     output: 75.0,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 200000,
+      // },
       {
         id: 'claude-opus-4-0',
         pricing: {
@@ -720,41 +721,41 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     models: [
-      {
-        id: 'deepseek-chat',
-        pricing: {
-          input: 0.75,
-          cachedInput: 0.4,
-          output: 1.0,
-          updatedAt: '2025-03-21',
-        },
-        capabilities: {},
-        contextWindow: 128000,
-      },
-      {
-        id: 'deepseek-v3',
-        pricing: {
-          input: 0.75,
-          cachedInput: 0.4,
-          output: 1.0,
-          updatedAt: '2025-03-21',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 2 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'deepseek-r1',
-        pricing: {
-          input: 1.0,
-          cachedInput: 0.5,
-          output: 1.5,
-          updatedAt: '2025-03-21',
-        },
-        capabilities: {},
-        contextWindow: 128000,
-      },
+      // {
+      //   id: 'deepseek-chat',
+      //   pricing: {
+      //     input: 0.75,
+      //     cachedInput: 0.4,
+      //     output: 1.0,
+      //     updatedAt: '2025-03-21',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'deepseek-v3',
+      //   pricing: {
+      //     input: 0.75,
+      //     cachedInput: 0.4,
+      //     output: 1.0,
+      //     updatedAt: '2025-03-21',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 2 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'deepseek-r1',
+      //   pricing: {
+      //     input: 1.0,
+      //     cachedInput: 0.5,
+      //     output: 1.5,
+      //     updatedAt: '2025-03-21',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 128000,
+      // },
     ],
   },
   xai: {
@@ -807,19 +808,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 2000000,
       },
-      {
-        id: 'grok-code-fast-1',
-        pricing: {
-          input: 0.2,
-          cachedInput: 0.25,
-          output: 1.5,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 256000,
-      },
+      // {
+      //   id: 'grok-code-fast-1',
+      //   pricing: {
+      //     input: 0.2,
+      //     cachedInput: 0.25,
+      //     output: 1.5,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 256000,
+      // },
       {
         id: 'grok-3-latest',
         pricing: {
@@ -912,116 +913,116 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     models: [
-      {
-        id: 'groq/openai/gpt-oss-120b',
-        pricing: {
-          input: 0.15,
-          output: 0.75,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 131072,
-      },
-      {
-        id: 'groq/openai/gpt-oss-20b',
-        pricing: {
-          input: 0.01,
-          output: 0.25,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 131072,
-      },
-      {
-        id: 'groq/llama-3.1-8b-instant',
-        pricing: {
-          input: 0.05,
-          output: 0.08,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 131072,
-      },
-      {
-        id: 'groq/llama-3.3-70b-versatile',
-        pricing: {
-          input: 0.59,
-          output: 0.79,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 131072,
-      },
-      {
-        id: 'groq/llama-4-scout-17b-instruct',
-        pricing: {
-          input: 0.11,
-          output: 0.34,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 131072,
-      },
-      {
-        id: 'groq/llama-4-maverick-17b-instruct',
-        pricing: {
-          input: 0.5,
-          output: 0.77,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 131072,
-      },
-      {
-        id: 'groq/meta-llama/llama-4-maverick-17b-128e-instruct',
-        pricing: {
-          input: 0.5,
-          output: 0.77,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 131072,
-      },
-      {
-        id: 'groq/gemma2-9b-it',
-        pricing: {
-          input: 0.04,
-          output: 0.04,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 8192,
-      },
-      {
-        id: 'groq/deepseek-r1-distill-llama-70b',
-        pricing: {
-          input: 0.59,
-          output: 0.79,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 128000,
-      },
-      {
-        id: 'groq/moonshotai/kimi-k2-instruct',
-        pricing: {
-          input: 1.0,
-          output: 3.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 131072,
-      },
-      {
-        id: 'groq/meta-llama/llama-guard-4-12b',
-        pricing: {
-          input: 0.2,
-          output: 0.2,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 131072,
-      },
+      // {
+      //   id: 'groq/openai/gpt-oss-120b',
+      //   pricing: {
+      //     input: 0.15,
+      //     output: 0.75,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 131072,
+      // },
+      // {
+      //   id: 'groq/openai/gpt-oss-20b',
+      //   pricing: {
+      //     input: 0.01,
+      //     output: 0.25,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 131072,
+      // },
+      // {
+      //   id: 'groq/llama-3.1-8b-instant',
+      //   pricing: {
+      //     input: 0.05,
+      //     output: 0.08,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 131072,
+      // },
+      // {
+      //   id: 'groq/llama-3.3-70b-versatile',
+      //   pricing: {
+      //     input: 0.59,
+      //     output: 0.79,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 131072,
+      // },
+      // {
+      //   id: 'groq/llama-4-scout-17b-instruct',
+      //   pricing: {
+      //     input: 0.11,
+      //     output: 0.34,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 131072,
+      // },
+      // {
+      //   id: 'groq/llama-4-maverick-17b-instruct',
+      //   pricing: {
+      //     input: 0.5,
+      //     output: 0.77,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 131072,
+      // },
+      // {
+      //   id: 'groq/meta-llama/llama-4-maverick-17b-128e-instruct',
+      //   pricing: {
+      //     input: 0.5,
+      //     output: 0.77,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 131072,
+      // },
+      // {
+      //   id: 'groq/gemma2-9b-it',
+      //   pricing: {
+      //     input: 0.04,
+      //     output: 0.04,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 8192,
+      // },
+      // {
+      //   id: 'groq/deepseek-r1-distill-llama-70b',
+      //   pricing: {
+      //     input: 0.59,
+      //     output: 0.79,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'groq/moonshotai/kimi-k2-instruct',
+      //   pricing: {
+      //     input: 1.0,
+      //     output: 3.0,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 131072,
+      // },
+      // {
+      //   id: 'groq/meta-llama/llama-guard-4-12b',
+      //   pricing: {
+      //     input: 0.2,
+      //     output: 0.2,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {},
+      //   contextWindow: 131072,
+      // },
     ],
   },
   mistral: {
@@ -1035,174 +1036,174 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     models: [
-      {
-        id: 'mistral-large-latest',
-        pricing: {
-          input: 2.0,
-          output: 6.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'mistral-large-2411',
-        pricing: {
-          input: 2.0,
-          output: 6.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'magistral-medium-latest',
-        pricing: {
-          input: 2.0,
-          output: 5.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'magistral-medium-2509',
-        pricing: {
-          input: 2.0,
-          output: 5.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'mistral-medium-latest',
-        pricing: {
-          input: 0.4,
-          output: 2.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'mistral-medium-2508',
-        pricing: {
-          input: 0.4,
-          output: 2.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'mistral-small-latest',
-        pricing: {
-          input: 0.2,
-          output: 0.6,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'mistral-small-2506',
-        pricing: {
-          input: 0.2,
-          output: 0.6,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'open-mistral-nemo',
-        pricing: {
-          input: 0.15,
-          output: 0.15,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'codestral-latest',
-        pricing: {
-          input: 0.3,
-          output: 0.9,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 256000,
-      },
-      {
-        id: 'codestral-2508',
-        pricing: {
-          input: 0.3,
-          output: 0.9,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 256000,
-      },
-      {
-        id: 'ministral-8b-latest',
-        pricing: {
-          input: 0.1,
-          output: 0.1,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'ministral-8b-2410',
-        pricing: {
-          input: 0.1,
-          output: 0.1,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
-      {
-        id: 'ministral-3b-latest',
-        pricing: {
-          input: 0.04,
-          output: 0.04,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
+      // {
+      //   id: 'mistral-large-latest',
+      //   pricing: {
+      //     input: 2.0,
+      //     output: 6.0,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'mistral-large-2411',
+      //   pricing: {
+      //     input: 2.0,
+      //     output: 6.0,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'magistral-medium-latest',
+      //   pricing: {
+      //     input: 2.0,
+      //     output: 5.0,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'magistral-medium-2509',
+      //   pricing: {
+      //     input: 2.0,
+      //     output: 5.0,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'mistral-medium-latest',
+      //   pricing: {
+      //     input: 0.4,
+      //     output: 2.0,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'mistral-medium-2508',
+      //   pricing: {
+      //     input: 0.4,
+      //     output: 2.0,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'mistral-small-latest',
+      //   pricing: {
+      //     input: 0.2,
+      //     output: 0.6,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'mistral-small-2506',
+      //   pricing: {
+      //     input: 0.2,
+      //     output: 0.6,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'open-mistral-nemo',
+      //   pricing: {
+      //     input: 0.15,
+      //     output: 0.15,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'codestral-latest',
+      //   pricing: {
+      //     input: 0.3,
+      //     output: 0.9,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 256000,
+      // },
+      // {
+      //   id: 'codestral-2508',
+      //   pricing: {
+      //     input: 0.3,
+      //     output: 0.9,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 256000,
+      // },
+      // {
+      //   id: 'ministral-8b-latest',
+      //   pricing: {
+      //     input: 0.1,
+      //     output: 0.1,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'ministral-8b-2410',
+      //   pricing: {
+      //     input: 0.1,
+      //     output: 0.1,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 128000,
+      // },
+      // {
+      //   id: 'ministral-3b-latest',
+      //   pricing: {
+      //     input: 0.04,
+      //     output: 0.04,
+      //     updatedAt: '2025-10-11',
+      //   },
+      //   capabilities: {
+      //     temperature: { min: 0, max: 1 },
+      //   },
+      //   contextWindow: 128000,
+      // },
     ],
   },
   ollama: {
@@ -1217,6 +1218,54 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     contextInformationAvailable: false,
     models: [], // Populated dynamically
+  },
+  sambanova: {
+    id: 'sambanova',
+    name: 'SambaNova',
+    description: "SambaNova's AI models",
+    defaultModel: 'DeepSeek-V3.1',
+    modelPatterns: [
+      /^DeepSeek/,
+      /^E5-/,
+      /^gpt-oss/,
+      /^Llama-/,
+      /^Meta-Llama/,
+      /^Qwen3/,
+      /^Whisper/,
+    ],
+    icon: SambaNovaIcon,
+    capabilities: {
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'DeepSeek-V3.1',
+        pricing: {
+          input: 0.3,
+          output: 0.45,
+          updatedAt: '2025-01-15',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+      },
+      {
+        id: 'DeepSeek-R1-Distill-Llama-70B',
+        pricing: { input: 0.07, output: 0.14, updatedAt: '2025-01-15' },
+        capabilities: { temperature: { min: 0, max: 2 } },
+      },
+      {
+        id: 'Meta-Llama-3.3-70B-Instruct',
+        pricing: {
+          input: 0.65,
+          output: 0.65,
+          updatedAt: '2025-01-15',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+      },
+    ],
   },
 }
 
@@ -1336,10 +1385,13 @@ export function getProvidersWithToolUsageControl(): string[] {
  * Get all models that are hosted (don't require user API keys)
  */
 export function getHostedModels(): string[] {
+  // Currently, OpenAI and Anthropic models are hosted
   return [
     ...getProviderModels('openai'),
     ...getProviderModels('anthropic'),
+    ...getProviderModels('sambanova'),
     ...getProviderModels('google'),
+    ...getProviderModels('xai'),
   ]
 }
 

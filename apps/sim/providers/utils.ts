@@ -29,6 +29,7 @@ import {
 import { ollamaProvider } from '@/providers/ollama'
 import { openaiProvider } from '@/providers/openai'
 import { openRouterProvider } from '@/providers/openrouter'
+import { sambanovaProvider } from '@/providers/sambanova'
 import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
 import { vllmProvider } from '@/providers/vllm'
 import { xAIProvider } from '@/providers/xai'
@@ -112,6 +113,11 @@ export const providers: Record<
     models: getProviderModelsFromDefinitions('ollama'),
     modelPatterns: PROVIDER_DEFINITIONS.ollama.modelPatterns,
   },
+  sambanova: {
+    ...sambanovaProvider,
+    models: getProviderModelsFromDefinitions('sambanova'),
+    modelPatterns: PROVIDER_DEFINITIONS.sambanova.modelPatterns,
+  },
 }
 
 Object.entries(providers).forEach(([id, provider]) => {
@@ -145,7 +151,12 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
   const allProviders = Object.entries(providers)
     .filter(
       ([providerId]) =>
-        providerId !== 'ollama' && providerId !== 'vllm' && providerId !== 'openrouter'
+        providerId !== 'ollama' &&
+        providerId !== 'vllm' &&
+        providerId !== 'openrouter' &&
+        providerId !== 'mistral' &&
+        providerId !== 'cerebras' &&
+        providerId !== 'azure-openai'
     )
     .reduce(
       (map, [providerId, config]) => {

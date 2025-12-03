@@ -22,6 +22,10 @@ const getCurrentVLLMModels = () => {
   return useProvidersStore.getState().providers.vllm.models
 }
 
+const getSambaNovaModels = () => {
+  return providers.sambanova?.models || []
+}
+
 import { useProvidersStore } from '@/stores/providers/store'
 import type { ToolResponse } from '@/tools/types'
 
@@ -93,12 +97,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       options: () => {
         const providersState = useProvidersStore.getState()
         const baseModels = providersState.providers.base.models
-        const ollamaModels = providersState.providers.ollama.models
-        const vllmModels = providersState.providers.vllm.models
-        const openrouterModels = providersState.providers.openrouter.models
-        const allModels = Array.from(
-          new Set([...baseModels, ...ollamaModels, ...vllmModels, ...openrouterModels])
-        )
+        const allModels = Array.from(new Set([...baseModels]))
 
         return allModels.map((model) => {
           const icon = getProviderIcon(model)
@@ -179,7 +178,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       password: true,
       connectionDroppable: false,
       required: true,
-      // Hide API key for hosted models, Ollama models, and vLLM models
+      // Hide API key for hosted models, Ollama models, vLLM models, and SambaNova models
       condition: isHosted
         ? {
             field: 'model',
