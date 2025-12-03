@@ -446,8 +446,6 @@ export async function POST(req: NextRequest) {
       ...(integrationTools.length > 0 && { tools: integrationTools }),
       ...(baseTools.length > 0 && { baseTools }),
       ...(credentials && { credentials }),
-      // Anthropic beta features for advanced tool use
-      ...(mode === 'agent' && { betas: ['advanced-tool-use-2025-11-20'] }),
     }
 
     try {
