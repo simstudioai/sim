@@ -1,27 +1,24 @@
-import {
-  createAlertRuleTool,
-  deleteAlertRuleTool,
-  getAlertRuleTool,
-  listAlertRulesTool,
-  listContactPointsTool,
-  updateAlertRuleTool,
-} from '@/tools/grafana/alerts'
-import {
-  createAnnotationTool,
-  deleteAnnotationTool,
-  listAnnotationsTool,
-  updateAnnotationTool,
-} from '@/tools/grafana/annotations'
-import {
-  createDashboardTool,
-  deleteDashboardTool,
-  getDashboardTool,
-  listDashboardsTool,
-  updateDashboardTool,
-} from '@/tools/grafana/dashboards'
-import { getDataSourceTool, listDataSourcesTool } from '@/tools/grafana/data_sources'
-import { createFolderTool, listFoldersTool } from '@/tools/grafana/folders'
-import { dataSourceHealthTool, healthCheckTool } from '@/tools/grafana/health'
+import { createAlertRuleTool } from '@/tools/grafana/create_alert_rule'
+import { createAnnotationTool } from '@/tools/grafana/create_annotation'
+import { createDashboardTool } from '@/tools/grafana/create_dashboard'
+import { createFolderTool } from '@/tools/grafana/create_folder'
+import { dataSourceHealthTool } from '@/tools/grafana/data_source_health'
+import { deleteAlertRuleTool } from '@/tools/grafana/delete_alert_rule'
+import { deleteAnnotationTool } from '@/tools/grafana/delete_annotation'
+import { deleteDashboardTool } from '@/tools/grafana/delete_dashboard'
+import { getAlertRuleTool } from '@/tools/grafana/get_alert_rule'
+import { getDashboardTool } from '@/tools/grafana/get_dashboard'
+import { getDataSourceTool } from '@/tools/grafana/get_data_source'
+import { healthCheckTool } from '@/tools/grafana/health_check'
+import { listAlertRulesTool } from '@/tools/grafana/list_alert_rules'
+import { listAnnotationsTool } from '@/tools/grafana/list_annotations'
+import { listContactPointsTool } from '@/tools/grafana/list_contact_points'
+import { listDashboardsTool } from '@/tools/grafana/list_dashboards'
+import { listDataSourcesTool } from '@/tools/grafana/list_data_sources'
+import { listFoldersTool } from '@/tools/grafana/list_folders'
+import { updateAlertRuleTool } from '@/tools/grafana/update_alert_rule'
+import { updateAnnotationTool } from '@/tools/grafana/update_annotation'
+import { updateDashboardTool } from '@/tools/grafana/update_dashboard'
 
 // Health tools
 export const grafanaHealthCheckTool = healthCheckTool
