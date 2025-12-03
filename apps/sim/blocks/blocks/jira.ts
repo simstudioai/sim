@@ -183,7 +183,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'short-input',
       required: true,
       placeholder: 'Enter new summary for the issue',
-      dependsOn: ['issueKey'],
+      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['update', 'write'] },
     },
     {
@@ -191,7 +191,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'New Description',
       type: 'long-input',
       placeholder: 'Enter new description for the issue',
-      dependsOn: ['issueKey'],
+      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['update', 'write'] },
     },
     // Delete Issue fields
