@@ -515,12 +515,14 @@ ${fieldDescriptions}
                 break
               }
 
-              // Execute all tool calls
-              for (const toolUse of pendingToolCalls) {
+              // Prepare all tool executions
+              const toolExecutionPromises = pendingToolCalls.map(async (toolUse) => {
                 const toolName = toolUse.name
+                const toolUseId = toolUse.id || generateToolUseId(toolName)
 
                 logger.info('Raw tool use before parsing', {
                   toolName,
+                  toolUseId,
                   hasInputJson: !!toolUse.input_json,
                   inputJsonLength: toolUse.input_json?.length || 0,
                   inputJsonPreview: toolUse.input_json?.slice(0, 300),
@@ -534,6 +536,7 @@ ${fieldDescriptions}
 
                 logger.info('Processing tool call', {
                   toolName,
+                  toolUseId,
                   toolInput: JSON.stringify(toolInput).slice(0, 500),
                   toolInputKeys: Object.keys(toolInput),
                 })
@@ -544,7 +547,13 @@ ${fieldDescriptions}
                 )
                 if (!tool) {
                   logger.warn(`Tool not found: ${toolName}`)
-                  continue
+                  return {
+                    toolName,
+                    toolUseId,
+                    toolInput,
+                    result: { success: false, error: `Tool not found: ${toolName}`, output: null },
+                    toolParams: {},
+                  }
                 }
 
                 logger.info('Found tool in registry', {
@@ -588,6 +597,31 @@ ${fieldDescriptions}
                   logger.error('Tool execution threw exception', { toolName, error: result.error })
                 }
 
+                return { toolName, toolUseId, toolInput, result, toolParams }
+              })
+
+              // Execute all tools in parallel
+              logger.info('Executing tools in parallel', { count: toolExecutionPromises.length })
+              const toolResults = await Promise.all(toolExecutionPromises)
+              logger.info('All parallel tool executions completed', { count: toolResults.length })
+
+              // Build assistant message with all tool_use blocks
+              const assistantToolUseBlocks = toolResults.map(({ toolName, toolUseId, toolInput }) => ({
+                type: 'tool_use' as const,
+                id: toolUseId,
+                name: toolName,
+                input: toolInput,
+              }))
+
+              // Build user message with all tool_result blocks
+              const userToolResultBlocks = toolResults.map(({ toolUseId, result }) => ({
+                type: 'tool_result' as const,
+                tool_use_id: toolUseId,
+                content: JSON.stringify(result.output),
+              }))
+
+              // Stream tool completion events and track results
+              for (const { toolName, result, toolParams } of toolResults) {
                 toolCalls.push({
                   name: toolName,
                   arguments: toolParams,
@@ -595,7 +629,6 @@ ${fieldDescriptions}
                   success: result.success,
                 })
 
-                // Stream tool completion event
                 const toolCompleteChunk = {
                   type: 'tool_call',
                   name: toolName,
@@ -603,24 +636,18 @@ ${fieldDescriptions}
                   result: result.output,
                 }
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(toolCompleteChunk)}\n\n`))
-
-                // Add to message history
-                const toolUseId = generateToolUseId(toolName)
-                currentMessages.push({
-                  role: 'assistant',
-                  content: [{ type: 'tool_use', id: toolUseId, name: toolName, input: toolInput }],
-                })
-                currentMessages.push({
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'tool_result',
-                      tool_use_id: toolUseId,
-                      content: JSON.stringify(result.output),
-                    },
-                  ],
-                })
               }
+
+              // Add to message history - single assistant message with all tool uses,
+              // followed by single user message with all tool results
+              currentMessages.push({
+                role: 'assistant',
+                content: assistantToolUseBlocks,
+              })
+              currentMessages.push({
+                role: 'user',
+                content: userToolResultBlocks,
+              })
 
               iterationCount++
             }
@@ -781,130 +808,156 @@ ${fieldDescriptions}
             // Track time for tool calls in this batch
             const toolsStartTime = Date.now()
 
-            // Process each tool call
-            for (const toolUse of toolUses) {
-              try {
-                const toolName = toolUse.name
-                const toolArgs = toolUse.input as Record<string, any>
+            // Prepare all tool executions for parallel processing
+            logger.info('Preparing parallel tool executions', { count: toolUses.length })
 
-                // Get the tool from the tools registry
-                // Check both 'id' and 'name' fields since deferred tools use 'name'
-                const tool = request.tools?.find(
-                  (t: any) => t.id === toolName || t.name === toolName
-                )
-                if (!tool) {
-                  logger.warn(`Tool ${toolName} not found in registry`, {
-                    availableTools: request.tools?.map((t: any) => t.id || t.name).slice(0, 10),
-                  })
-                  continue
-                }
+            const toolExecutionPromises = toolUses.map(async (toolUse) => {
+              const toolName = toolUse.name
+              const toolArgs = toolUse.input as Record<string, any>
+              const toolUseId = toolUse.id || generateToolUseId(toolName)
+              const toolCallStartTime = Date.now()
 
-                // Execute the tool
-                const toolCallStartTime = Date.now()
-
-                logger.info('Executing tool', { toolName, hasParams: !!tool.params })
-
-                const { toolParams, executionParams } = prepareToolExecution(
-                  tool,
-                  toolArgs,
-                  request
-                )
-
-                // Use general tool system for requests
-                let result: any
-                try {
-                  // Try custom tool executor first (for built-in tools not in registry)
-                  if (request.customToolExecutor) {
-                    const customResult = await request.customToolExecutor(toolName, toolArgs)
-                    if (customResult !== null) {
-                      result = customResult
-                    }
-                  }
-                  // Fall back to standard executeTool if no custom result
-                  if (!result) {
-                    result = await executeTool(toolName, executionParams, true)
-                  }
-                } catch (execError) {
-                  // Tool threw an exception - convert to error result
-                  result = {
-                    success: false,
-                    error: execError instanceof Error ? execError.message : String(execError),
-                    output: null,
-                  }
-                }
-
-                const toolCallEndTime = Date.now()
-                const toolCallDuration = toolCallEndTime - toolCallStartTime
-
-                logger.info('Tool execution completed', {
+              // Get the tool from the tools registry
+              // Check both 'id' and 'name' fields since deferred tools use 'name'
+              const tool = request.tools?.find(
+                (t: any) => t.id === toolName || t.name === toolName
+              )
+              if (!tool) {
+                logger.warn(`Tool ${toolName} not found in registry`, {
+                  availableTools: request.tools?.map((t: any) => t.id || t.name).slice(0, 10),
+                })
+                return {
                   toolName,
-                  success: result.success,
-                  duration: toolCallDuration,
-                })
-
-                // Add to time segments for both success and failure
-                timeSegments.push({
-                  type: 'tool',
-                  name: toolName,
+                  toolUseId,
+                  toolArgs,
+                  toolParams: {},
+                  result: { success: false, error: `Tool not found: ${toolName}`, output: null },
                   startTime: toolCallStartTime,
-                  endTime: toolCallEndTime,
-                  duration: toolCallDuration,
-                })
+                  endTime: Date.now(),
+                  duration: Date.now() - toolCallStartTime,
+                }
+              }
 
-                // Prepare result content for the LLM
-                let resultContent: any
-                if (result.success) {
-                  toolResults.push(result.output)
-                  resultContent = result.output
-                } else {
-                  // Include error information so LLM can respond appropriately
-                  resultContent = {
-                    error: true,
-                    message: result.error || 'Tool execution failed',
-                    tool: toolName,
+              logger.info('Executing tool', { toolName, hasParams: !!tool.params })
+
+              const { toolParams, executionParams } = prepareToolExecution(
+                tool,
+                toolArgs,
+                request
+              )
+
+              // Use general tool system for requests
+              let result: any
+              try {
+                // Try custom tool executor first (for built-in tools not in registry)
+                if (request.customToolExecutor) {
+                  const customResult = await request.customToolExecutor(toolName, toolArgs)
+                  if (customResult !== null) {
+                    result = customResult
                   }
                 }
-
-                toolCalls.push({
-                  name: toolName,
-                  arguments: toolParams,
-                  startTime: new Date(toolCallStartTime).toISOString(),
-                  endTime: new Date(toolCallEndTime).toISOString(),
-                  duration: toolCallDuration,
-                  result: resultContent,
-                  success: result.success,
-                })
-
-                // Add the tool call and result to messages (both success and failure)
-                const toolUseId = generateToolUseId(toolName)
-
-                currentMessages.push({
-                  role: 'assistant',
-                  content: [
-                    {
-                      type: 'tool_use',
-                      id: toolUseId,
-                      name: toolName,
-                      input: toolArgs,
-                    } as any,
-                  ],
-                })
-
-                currentMessages.push({
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'tool_result',
-                      tool_use_id: toolUseId,
-                      content: JSON.stringify(resultContent),
-                      is_error: !result.success, // Mark as error for Anthropic
-                    } as any,
-                  ],
-                })
-              } catch (error) {
-                logger.error('Error processing tool call:', { error })
+                // Fall back to standard executeTool if no custom result
+                if (!result) {
+                  result = await executeTool(toolName, executionParams, true)
+                }
+              } catch (execError) {
+                // Tool threw an exception - convert to error result
+                result = {
+                  success: false,
+                  error: execError instanceof Error ? execError.message : String(execError),
+                  output: null,
+                }
               }
+
+              const toolCallEndTime = Date.now()
+              const toolCallDuration = toolCallEndTime - toolCallStartTime
+
+              logger.info('Tool execution completed', {
+                toolName,
+                success: result.success,
+                duration: toolCallDuration,
+              })
+
+              return {
+                toolName,
+                toolUseId,
+                toolArgs,
+                toolParams,
+                result,
+                startTime: toolCallStartTime,
+                endTime: toolCallEndTime,
+                duration: toolCallDuration,
+              }
+            })
+
+            // Execute all tools in parallel
+            const parallelResults = await Promise.all(toolExecutionPromises)
+            logger.info('All parallel tool executions completed', { count: parallelResults.length })
+
+            // Build assistant message with all tool_use blocks
+            const assistantToolUseBlocks = parallelResults.map(({ toolName, toolUseId, toolArgs }) => ({
+              type: 'tool_use' as const,
+              id: toolUseId,
+              name: toolName,
+              input: toolArgs,
+            }))
+
+            // Build user message with all tool_result blocks
+            const userToolResultBlocks = parallelResults.map(({ toolUseId, result }) => {
+              const resultContent = result.success
+                ? result.output
+                : { error: true, message: result.error || 'Tool execution failed' }
+              return {
+                type: 'tool_result' as const,
+                tool_use_id: toolUseId,
+                content: JSON.stringify(resultContent),
+                is_error: !result.success,
+              }
+            })
+
+            // Process results for tracking
+            for (const execResult of parallelResults) {
+              const { toolName, toolParams, result, startTime, endTime, duration } = execResult
+
+              // Add to time segments for both success and failure
+              timeSegments.push({
+                type: 'tool',
+                name: toolName,
+                startTime,
+                endTime,
+                duration,
+              })
+
+              // Prepare result content for tracking
+              const resultContent = result.success
+                ? result.output
+                : { error: true, message: result.error || 'Tool execution failed', tool: toolName }
+
+              if (result.success) {
+                toolResults.push(result.output)
+              }
+
+              toolCalls.push({
+                name: toolName,
+                arguments: toolParams,
+                startTime: new Date(startTime).toISOString(),
+                endTime: new Date(endTime).toISOString(),
+                duration,
+                result: resultContent,
+                success: result.success,
+              })
             }
+
+            // Add to message history - single assistant message with all tool uses,
+            // followed by single user message with all tool results
+            currentMessages.push({
+              role: 'assistant',
+              content: assistantToolUseBlocks as any,
+            })
+            currentMessages.push({
+              role: 'user',
+              content: userToolResultBlocks as any,
+            })
 
             // Calculate tool call time for this iteration
             const thisToolsTime = Date.now() - toolsStartTime
