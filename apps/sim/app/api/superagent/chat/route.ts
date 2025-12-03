@@ -1,224 +1,46 @@
 import { db } from '@sim/db'
-import { account, superagentChats, workflow } from '@sim/db/schema'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { superagentChats } from '@sim/db/schema'
+import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
-import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
-import { env } from '@/lib/core/config/env'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { createLogger } from '@/lib/logs/console/logger'
 import { generateChatTitle } from '@/lib/copilot/chat-title'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { executeProviderRequest } from '@/providers'
+import { SIM_AGENT_API_URL_DEFAULT, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
+import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
+import { env } from '@/lib/core/config/env'
+import { createLogger } from '@/lib/logs/console/logger'
 import { tools } from '@/tools/registry'
 
 const logger = createLogger('SuperagentChatAPI')
 
-/**
- * Built-in superagent tool names
- */
-const BUILTIN_TOOL_NAMES = [
-  'list_user_workflows',
-  'get_workflow_by_name',
-  'run_workflow',
-  'get_credentials',
-  'set_environment_variables',
-]
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
-/**
- * Execute a built-in superagent tool
- */
-async function executeBuiltinTool(
-  toolName: string,
-  toolInput: Record<string, any>,
-  context: { userId: string; workspaceId: string }
-): Promise<{ success: boolean; output: any; error?: string } | null> {
-  const { userId, workspaceId } = context
+const ProviderConfigSchema = z
+  .object({
+    provider: z.enum(['anthropic', 'openai', 'azure-openai']),
+    model: z.string().optional(),
+    apiKey: z.string().optional(),
+    apiVersion: z.string().optional(),
+    endpoint: z.string().optional(),
+  })
+  .optional()
 
-  // Return null if not a built-in tool (will fall back to executeTool)
-  if (!BUILTIN_TOOL_NAMES.includes(toolName)) {
-    return null
-  }
+const ContextSchema = z.object({
+  type: z.string(),
+  tag: z.string().optional(),
+  content: z.string(),
+})
 
-  logger.info('Executing built-in superagent tool', { toolName, workspaceId })
-
-  switch (toolName) {
-    case 'list_user_workflows': {
-      const workflows = await db
-        .select({
-          id: workflow.id,
-          name: workflow.name,
-          description: workflow.description,
-          createdAt: workflow.createdAt,
-          updatedAt: workflow.updatedAt,
-        })
-        .from(workflow)
-        .where(eq(workflow.workspaceId, workspaceId))
-        .orderBy(sql`${workflow.updatedAt} DESC`)
-
-      return {
-        success: true,
-        output: {
-          workflows: workflows.map((w) => ({
-            id: w.id,
-            name: w.name,
-            description: w.description,
-            createdAt: w.createdAt.toISOString(),
-            updatedAt: w.updatedAt.toISOString(),
-          })),
-          total: workflows.length,
-        },
-      }
-    }
-
-    case 'get_workflow_by_name': {
-      const workflowName = toolInput.workflow_name
-      if (!workflowName) {
-        return { success: false, output: null, error: 'workflow_name is required' }
-      }
-
-      const workflows = await db
-        .select()
-        .from(workflow)
-        .where(and(eq(workflow.workspaceId, workspaceId), eq(workflow.name, workflowName)))
-        .limit(1)
-
-      if (workflows.length === 0) {
-        return { success: false, output: null, error: `Workflow "${workflowName}" not found` }
-      }
-
-      const w = workflows[0]
-      return {
-        success: true,
-        output: {
-          id: w.id,
-          name: w.name,
-          description: w.description,
-          createdAt: w.createdAt.toISOString(),
-          updatedAt: w.updatedAt.toISOString(),
-        },
-      }
-    }
-
-    case 'run_workflow': {
-      const workflowId = toolInput.workflow_id
-      if (!workflowId) {
-        return { success: false, output: null, error: 'workflow_id is required' }
-      }
-
-      const baseUrl = env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-      const response = await fetch(`${baseUrl}/api/workflows/${workflowId}/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          input: toolInput.input || {},
-          triggerType: 'api',
-          useDraftState: false,
-        }),
-      })
-
-      const data = await response.json()
-      return {
-        success: data?.success ?? false,
-        output: {
-          workflowId: data?.workflowId,
-          workflowName: data?.workflowName,
-          output: data?.output ?? {},
-          duration: data?.metadata?.duration,
-        },
-        error: data?.error,
-      }
-    }
-
-    case 'get_credentials': {
-      const result = await getCredentialsServerTool.execute({}, { userId })
-      return { success: true, output: result }
-    }
-
-    case 'set_environment_variables': {
-      const variables = toolInput.variables
-      if (!variables || typeof variables !== 'object') {
-        return { success: false, output: null, error: 'variables is required' }
-      }
-
-      const result = await setEnvironmentVariablesServerTool.execute({ variables }, { userId })
-      return { success: true, output: result }
-    }
-
-    default:
-      return null
-  }
-}
-
-/**
- * Save chat messages to database
- */
-async function saveChatMessages(
-  chatId: string,
-  userMessage: string,
-  assistantResponse: string,
-  toolCalls: any[]
-) {
-  try {
-    // Fetch current chat
-    const chats = await db
-      .select()
-      .from(superagentChats)
-      .where(eq(superagentChats.id, chatId))
-      .limit(1)
-
-    if (chats.length === 0) {
-      logger.error('Chat not found for saving messages', { chatId })
-      return
-    }
-
-    const chat = chats[0]
-    const currentMessages = (chat.messages as any[]) || []
-
-    // Add new messages
-    const updatedMessages = [
-      ...currentMessages,
-      {
-        role: 'user',
-        content: userMessage,
-        timestamp: Date.now(),
-      },
-      {
-        role: 'assistant',
-        content: assistantResponse,
-        timestamp: Date.now(),
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      },
-    ]
-
-    // Generate title if this is the first message
-    const title = currentMessages.length === 0 ? await generateChatTitle(userMessage) : chat.title
-
-    // Update chat in database
-    await db
-      .update(superagentChats)
-      .set({
-        messages: updatedMessages,
-        title,
-        updatedAt: new Date(),
-      })
-      .where(eq(superagentChats.id, chatId))
-
-    logger.info('Chat messages saved', {
-      chatId,
-      messageCount: updatedMessages.length,
-      title,
+const FileAttachmentSchema = z.object({
+  type: z.string(),
+  source: z
+    .object({
+      type: z.string(),
+      media_type: z.string(),
+      data: z.string(),
     })
-  } catch (error) {
-    logger.error('Failed to save chat messages', {
-      chatId,
-      error: error instanceof Error ? error.message : String(error),
-    })
-  }
-}
+    .optional(),
+})
 
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
@@ -246,10 +68,16 @@ const ChatMessageSchema = z.object({
       'claude-4.1-opus',
       'claude-sonnet-4-5',
       'claude-sonnet-4-0',
-      'claude-sonnet-4-5-20250929', // Official Anthropic model name for Sonnet 4.5
+      'claude-sonnet-4-5-20250929',
     ])
     .optional()
     .default('claude-sonnet-4-5-20250929'),
+  // Optional provider config override
+  provider: ProviderConfigSchema,
+  // Optional contexts
+  contexts: z.array(ContextSchema).optional(),
+  // Optional file attachments for multimodal
+  fileAttachments: z.array(FileAttachmentSchema).optional(),
 })
 
 /**
@@ -291,7 +119,7 @@ export async function GET(req: NextRequest) {
         })
       }
 
-      return new NextResponse(JSON.stringify({ chat: chats[0] }), {
+      return new NextResponse(JSON.stringify({ success: true, chat: chats[0] }), {
         headers: { 'Content-Type': 'application/json' },
       })
     }
@@ -303,7 +131,7 @@ export async function GET(req: NextRequest) {
       .where(and(eq(superagentChats.userId, userId), eq(superagentChats.workspaceId, workspaceId)))
       .orderBy(desc(superagentChats.updatedAt))
 
-    return new NextResponse(JSON.stringify({ chats }), {
+    return new NextResponse(JSON.stringify({ success: true, chats }), {
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (error) {
@@ -317,7 +145,7 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/superagent/chat
- * Superagent endpoint that sends messages to Claude with all 600+ integration tools available
+ * Superagent endpoint - forwards to Sim Agent service with tool definitions
  */
 export async function POST(req: NextRequest) {
   try {
@@ -338,8 +166,9 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const { message, workspaceId, chatId, model } = parsed.data
+    const { message, workspaceId, chatId, model, provider, contexts, fileAttachments } = parsed.data
     const userId = session.user.id
+    const messageId = crypto.randomUUID()
 
     logger.info('Processing superagent message', {
       userId,
@@ -347,11 +176,14 @@ export async function POST(req: NextRequest) {
       chatId,
       model,
       messageLength: message.length,
+      hasProvider: !!provider,
+      hasContexts: !!contexts?.length,
+      hasFileAttachments: !!fileAttachments?.length,
     })
 
     // Load or create chat
     let chat
-    let previousMessages: any[] = []
+    let conversationId: string | undefined
 
     if (chatId) {
       // Load existing chat
@@ -363,10 +195,10 @@ export async function POST(req: NextRequest) {
 
       if (existingChats.length > 0) {
         chat = existingChats[0]
-        previousMessages = (chat.messages as any[]) || []
+        conversationId = (chat as any).conversationId
         logger.info('Loaded existing chat', {
           chatId,
-          messageCount: previousMessages.length,
+          hasConversationId: !!conversationId,
         })
       }
     }
@@ -378,493 +210,209 @@ export async function POST(req: NextRequest) {
         .values({
           userId,
           workspaceId,
-          title: message.slice(0, 100), // Temporary title, will be updated later
+          title: message.slice(0, 100),
           messages: [],
           model,
         })
         .returning()
 
       chat = newChat[0]
-      logger.info('Created new chat', {
-        chatId: chat.id,
-      })
+      logger.info('Created new chat', { chatId: chat.id })
     }
 
-    // Get credentials and pre-fetch access tokens + environment variables
-    let credentialsText = ''
-    const accessTokenMap: Record<string, string> = {} // provider -> accessToken
-    let decryptedEnvVars: Record<string, string> = {} // env var name -> decrypted value
-    let envVarNames: string[] = []
-
+    // Fetch user credentials (OAuth + API keys)
+    let credentials: {
+      oauth: Record<string, { accessToken: string; accountId: string; name: string; expiresAt?: string }>
+      apiKeys: string[]
+    } | null = null
     try {
-      logger.info('Fetching credentials', { userId })
-      const credentialsResult = await getCredentialsServerTool.execute({ userId }, { userId })
-
-      logger.info('Credentials fetched', {
-        oauthCount: credentialsResult.oauth?.credentials?.length || 0,
-        envVarCount: credentialsResult.environment?.count || 0,
-      })
-
-      const oauthCreds = credentialsResult.oauth?.credentials || []
-
-      // Pre-fetch access tokens for all OAuth credentials
-      const requestId = generateRequestId()
-      for (const cred of oauthCreds) {
-        try {
-          const accounts = await db.select().from(account).where(eq(account.id, cred.id)).limit(1)
-
-          if (accounts.length > 0) {
-            const acc = accounts[0]
-            const { accessToken } = await refreshTokenIfNeeded(requestId, acc as any, cred.id)
-
-            if (accessToken) {
-              accessTokenMap[cred.provider] = accessToken
-              logger.info('Pre-fetched access token', {
-                provider: cred.provider,
-                hasToken: !!accessToken,
-              })
-            }
+      const rawCredentials = await getCredentialsServerTool.execute({ userId }, { userId })
+      
+      // Transform OAuth credentials to map format: { [provider]: { accessToken, accountId, ... } }
+      const oauthMap: Record<string, { accessToken: string; accountId: string; name: string; expiresAt?: string }> = {}
+      for (const cred of rawCredentials?.oauth?.credentials || []) {
+        if (cred.accessToken) {
+          oauthMap[cred.provider] = {
+            accessToken: cred.accessToken,
+            accountId: cred.id,
+            name: cred.name,
           }
-        } catch (error) {
-          logger.warn('Failed to pre-fetch token for credential', {
-            provider: cred.provider,
-            credentialId: cred.id,
-            error: error instanceof Error ? error.message : String(error),
-          })
         }
       }
-
-      // Fetch decrypted environment variables for API keys
-      try {
-        decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
-        envVarNames = Object.keys(decryptedEnvVars)
-        logger.info('Fetched decrypted environment variables', {
-          count: Object.keys(decryptedEnvVars).length,
-          keys: Object.keys(decryptedEnvVars),
-        })
-      } catch (error) {
-        logger.warn('Failed to fetch decrypted environment variables', {
-          error: error instanceof Error ? error.message : String(error),
-        })
+      
+      credentials = {
+        oauth: oauthMap,
+        apiKeys: rawCredentials?.environment?.variableNames || [],
       }
-
-      logger.info('Pre-fetched credentials', {
-        providersWithTokens: Object.keys(accessTokenMap),
-        tokenCount: Object.keys(accessTokenMap).length,
-        envVarCount: Object.keys(decryptedEnvVars).length,
+      
+      logger.info('Fetched credentials', {
+        oauthProviders: Object.keys(oauthMap),
+        apiKeyCount: credentials.apiKeys.length,
       })
-
-      credentialsText = `\n\n**Available Credentials:**\n`
-      if (oauthCreds.length > 0) {
-        credentialsText += `\nOAuth Integrations (connected):\n${oauthCreds
-          .map((c: any) => `- ${c.name} (${c.provider})`)
-          .join('\n')}`
-      }
-      if (envVarNames.length > 0) {
-        credentialsText += `\n\nAPI Keys Configured:\n${envVarNames.map((v: string) => `- ${v}`).join('\n')}`
-      }
-      if (oauthCreds.length === 0 && envVarNames.length === 0) {
-        credentialsText = '\n\n**No credentials or API keys configured yet.**'
-      }
     } catch (error) {
       logger.warn('Failed to fetch credentials', {
-        error,
-        message: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? error.message : String(error),
       })
-      credentialsText = '\n\n**Could not fetch credentials.**'
     }
 
-    // Build enhanced message
-    const enhancedMessage = `${message}${credentialsText}`
-
-    // Implement Anthropic's Advanced Tool Use with defer_loading
-    logger.info('Setting up Anthropic tool search pattern', {
-      totalToolsInRegistry: Object.keys(tools).length,
-    })
-
-    // Add Anthropic's native tool search tools (both BM25 and regex)
-    // BM25 for better semantic search, regex for pattern matching
-    const searchTools = [
-      {
-        type: 'tool_search_tool_bm25_20251119',
-        name: 'tool_search_tool_bm25',
-      },
-      {
-        type: 'tool_search_tool_regex_20251119',
-        name: 'tool_search_tool_regex',
-      },
-    ]
-
-    // Workflow and credential management tools (non-deferred, always available)
-    const workflowTools = [
-      {
-        name: 'list_user_workflows',
-        description:
-          'List all workflows available to the user in the current workspace. Returns workflow names and IDs. Use this to discover what workflows exist before running or inspecting them.',
-        input_schema: {
-          type: 'object',
-          properties: {},
-          required: [],
-        },
-      },
-      {
-        name: 'get_workflow_by_name',
-        description:
-          'Get detailed information about a specific workflow by its name. Returns the workflow structure including blocks, edges, and configuration. Use this after list_user_workflows to inspect a specific workflow.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            workflow_name: {
-              type: 'string',
-              description: 'The exact name of the workflow to retrieve',
-            },
-          },
-          required: ['workflow_name'],
-        },
-      },
-      {
-        name: 'run_workflow',
-        description:
-          'Execute a workflow by its ID with optional input parameters. The workflow will run and return its output. Use list_user_workflows first to get workflow IDs.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            workflow_id: {
-              type: 'string',
-              description: 'The ID of the workflow to execute',
-            },
-            input: {
-              type: 'object',
-              description:
-                'Optional input parameters to pass to the workflow. Keys should match the workflow input field names.',
-            },
-          },
-          required: ['workflow_id'],
-        },
-      },
-      {
-        name: 'get_credentials',
-        description:
-          'Get a list of all connected OAuth integrations (Google, GitHub, etc.) and configured API key names. Use this to check what credentials the user has available before attempting to use integration tools.',
-        input_schema: {
-          type: 'object',
-          properties: {},
-          required: [],
-        },
-      },
-      {
-        name: 'set_environment_variables',
-        description:
-          'Set or update environment variables (API keys, secrets) for the user. Variables are encrypted and stored securely. Use this when the user wants to configure an API key.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            variables: {
-              type: 'object',
-              description:
-                'Key-value pairs of environment variables to set. Keys should be uppercase with underscores (e.g., EXA_API_KEY, OPENAI_API_KEY).',
-              additionalProperties: { type: 'string' },
-            },
-          },
-          required: ['variables'],
-        },
-      },
-    ]
-
-    // Mark all integration tools with defer_loading: true
-    // This means they won't be loaded into context until Claude searches for them
+    // Build tool definitions (schemas only)
     const { createUserToolSchema } = await import('@/tools/params')
 
-    /**
-     * Maps environment variable names to tool API key parameters
-     * Convention: {PROVIDER}_API_KEY -> apiKey for tools starting with {provider}_
-     */
-    const mapEnvVarsToToolParams = (
-      toolId: string,
-      toolConfig: any,
-      envVars: Record<string, string>
-    ): Record<string, string> => {
-      const params: Record<string, string> = {}
-
-      // Check if tool has an apiKey parameter that needs to be filled
-      const hasApiKeyParam =
-        toolConfig.params?.apiKey &&
-        toolConfig.params.apiKey.visibility === 'user-only' &&
-        toolConfig.params.apiKey.required
-
-      if (!hasApiKeyParam) return params
-
-      // Extract provider prefix from tool ID (e.g., 'exa' from 'exa_search')
-      const toolPrefix = toolId.split('_')[0]?.toUpperCase()
-
-      // Common API key environment variable patterns to check
-      const envKeyPatterns = [
-        `${toolPrefix}_API_KEY`, // EXA_API_KEY
-        `${toolPrefix}AI_API_KEY`, // EXAAI_API_KEY
-        `${toolPrefix}_KEY`, // EXA_KEY
-      ]
-
-      // Special mappings for tools with non-standard naming
-      const specialMappings: Record<string, string[]> = {
-        firecrawl: ['FIRECRAWL_API_KEY', 'FIRECRAWL_KEY'],
-        tavily: ['TAVILY_API_KEY', 'TAVILY_KEY'],
-        exa: ['EXA_API_KEY', 'EXAAI_API_KEY', 'EXA_KEY'],
-        linkup: ['LINKUP_API_KEY', 'LINKUP_KEY'],
-        google: ['GOOGLE_API_KEY', 'GOOGLE_SEARCH_API_KEY'],
-        serper: ['SERPER_API_KEY', 'SERPER_KEY'],
-        serpapi: ['SERPAPI_API_KEY', 'SERPAPI_KEY'],
-        bing: ['BING_API_KEY', 'BING_SEARCH_API_KEY'],
-        brave: ['BRAVE_API_KEY', 'BRAVE_SEARCH_API_KEY'],
-        perplexity: ['PERPLEXITY_API_KEY', 'PPLX_API_KEY'],
-        jina: ['JINA_API_KEY', 'JINA_KEY'],
+    const integrationTools = Object.entries(tools).map(([toolId, toolConfig]) => {
+      const userSchema = createUserToolSchema(toolConfig)
+      return {
+        name: toolId,
+        description: toolConfig.description || toolConfig.name || toolId,
+        input_schema: userSchema,
+        defer_loading: true, // Anthropic Advanced Tool Use
       }
-
-      // Combine standard patterns with special mappings
-      const keysToCheck = [...envKeyPatterns]
-      if (specialMappings[toolPrefix.toLowerCase()]) {
-        keysToCheck.push(...specialMappings[toolPrefix.toLowerCase()])
-      }
-
-      // Find the first matching environment variable
-      for (const envKey of keysToCheck) {
-        if (envVars[envKey]) {
-          params.apiKey = envVars[envKey]
-          logger.info('Mapped environment variable to tool apiKey', {
-            toolId,
-            envKey,
-            hasValue: true,
-          })
-          break
-        }
-      }
-
-      return params
-    }
-
-    const deferredIntegrationTools = await Promise.all(
-      Object.entries(tools).map(async ([toolId, toolConfig]) => {
-        const preConfiguredParams: Record<string, any> = {}
-
-        // Add OAuth access token if available
-        if (toolConfig.oauth?.required && toolConfig.oauth.provider) {
-          const provider = toolConfig.oauth.provider
-          const accessToken = accessTokenMap[provider]
-
-          if (accessToken) {
-            preConfiguredParams.accessToken = accessToken
-          }
-        }
-
-        // Map environment variables to tool parameters (for API keys)
-        const envParams = mapEnvVarsToToolParams(toolId, toolConfig, decryptedEnvVars)
-        Object.assign(preConfiguredParams, envParams)
-
-        // Expose the user-facing schema so Superagent can supply user-only parameters
-        const userSchema = createUserToolSchema(toolConfig)
-
-        return {
-          name: toolId, // Anthropic uses 'name' not 'id'
-          description: toolConfig.description || toolConfig.name || toolId,
-          input_schema: userSchema,
-          defer_loading: true, // Don't load into context upfront!
-          params: preConfiguredParams, // Pre-configured params (access tokens + API keys)
-        }
-      })
-    )
-
-    // Log a sample tool to verify schema is correct
-    const sampleTool = deferredIntegrationTools.find((t) => t.name === 'google_calendar_create')
-    if (sampleTool) {
-      logger.info('Sample tool schema (google_calendar_create)', {
-        name: sampleTool.name,
-        properties: Object.keys(sampleTool.input_schema.properties || {}),
-        required: sampleTool.input_schema.required,
-      })
-    }
-
-    logger.info('Tools configured with Anthropic defer_loading', {
-      searchToolTypes: ['tool_search_tool_bm25_20251119', 'tool_search_tool_regex_20251119'],
-      deferredTools: deferredIntegrationTools.length,
-      toolsWithCredentials: deferredIntegrationTools.filter((t) => t.params.accessToken).length,
-      toolsWithSchemas: deferredIntegrationTools.filter(
-        (t) => Object.keys(t.input_schema.properties || {}).length > 0
-      ).length,
     })
 
-    // Build messages with previous history
-    const messages = [
-      ...previousMessages,
-      {
-        role: 'user' as const,
-        content: enhancedMessage,
-      },
-    ]
-
-    logger.info('Built message history', {
-      totalMessages: messages.length,
-      previousCount: previousMessages.length,
+    logger.info('Built tool definitions', {
+      integrationToolCount: integrationTools.length,
     })
 
-    // Get current date for system prompt context
-    const currentDate = new Date().toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-
-    const systemPrompt = `Current date: ${currentDate}
-
-You are a powerful AI assistant with seamless access to 600+ integrations including GitHub, Slack, Google Drive, Gmail, Calendar, Notion, Airtable, Discord, Jira, Linear, Salesforce, Stripe, HubSpot, and many more.
-
-CRITICAL BEHAVIOR RULES:
-1. NEVER mention that you are "searching for tools", "finding tools", "discovering tools", or "loading tools"
-2. NEVER say things like "Let me search for the appropriate tool" or "I found the right tool"
-3. Act as if you inherently know how to do everything - just DO IT
-4. When you need a tool, silently search for it and use it without narrating the process
-5. Respond naturally as if the capabilities are built into you
-
-CREDENTIAL RULES:
-- You may ONLY call OAuth-based tools for providers the user has already connected (see "Available Credentials" appended to the user's request). If a required credential is missing, ask the user to connect it before attempting the tool call.
-- You may ONLY call API-key-based tools when the relevant API key name is listed under "API Keys Configured". If it is missing, ask the user to add it first.
-
-TOOL DISCOVERY STRATEGY (do not expose to user):
-- Use tool_search_tool_regex with the service name (e.g. "sheets", "calendar", "slack", "github") to get all tools for that service
-- Use tool_search_tool_bm25 for semantic queries when you need to find tools by what they do (e.g. "send email", "create issue")
-- Prefer regex for known services - it's fast and returns all relevant tools so you can pick the right one (be careful with stuff like google, for a sheets request, you might need drive, etc. so make sure to search thoroughly)
-- Call the discovered tools directly
-- Present results naturally without mentioning the tool discovery process
-
-PARALLEL TOOL EXECUTION:
-- When multiple independent tools need to be called, invoke them all in the same response - they will execute in parallel
-- Example: if you need to read from multiple spreadsheets, call all google_sheets_read tools together
-- Only call tools sequentially when one tool's output is needed as input for another
-
-GOOD RESPONSE: "I'll create that calendar event for you now." [then use tools silently]
-BAD RESPONSE: "Let me search for calendar tools... I found google_calendar_quick_add..."
-
-Be confident, capable, and seamless. You're not searching for tools - you simply HAVE the capabilities.`
-
-    // Call provider directly
-    // Use server-side API key from environment variables
-    const apiKey = env.ANTHROPIC_API_KEY_1
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY_1 not configured')
-    }
-
-    logger.info('Calling provider API', {
-      provider: 'anthropic',
+    // Build request payload for Sim Agent
+    const requestPayload = {
+      message,
+      messageId,
+      userId,
+      workspaceId,
+      chatId: chat.id,
       model,
-      toolsCount: deferredIntegrationTools.length + searchTools.length + workflowTools.length,
-      workflowToolsCount: workflowTools.length,
-    })
-
-    // Create custom tool executor for built-in superagent tools
-    const customToolExecutor = async (toolName: string, toolInput: Record<string, any>) => {
-      return executeBuiltinTool(toolName, toolInput, { userId, workspaceId })
-    }
-
-    const response = await executeProviderRequest('anthropic', {
-      model,
-      systemPrompt,
-      messages,
-      tools: [...searchTools, ...workflowTools, ...deferredIntegrationTools] as any,
-      temperature: 0.7,
-      maxTokens: 4000,
-      apiKey,
       stream: true,
       streamToolCalls: true,
-      betas: ['advanced-tool-use-2025-11-20'], // Enable Anthropic's advanced tool use beta
-      workflowId: undefined,
-      workspaceId,
-      userId,
-      environmentVariables: {},
-      workflowVariables: {},
-      blockData: {},
-      blockNameMapping: {},
-      customToolExecutor,
+      version: SIM_AGENT_VERSION,
+      ...(conversationId ? { conversationId } : {}),
+      ...(session?.user?.name && { userName: session.user.name }),
+      // Integration tool definitions (built-in tools handled by Sim Agent)
+      tools: integrationTools,
+      // User credentials (OAuth connections + API key names)
+      ...(credentials ? { credentials } : {}),
+      // Anthropic beta features
+      betas: ['advanced-tool-use-2025-11-20'],
+      // Optional provider config override
+      ...(provider ? { provider } : {}),
+      // Optional contexts
+      ...(contexts?.length ? { contexts } : {}),
+      // Optional file attachments
+      ...(fileAttachments?.length ? { fileAttachments } : {}),
+    }
+
+    logger.info('Calling Sim Agent', {
+      endpoint: `${SIM_AGENT_API_URL}/api/superagent/chat`,
+      integrationToolCount: requestPayload.tools.length,
+      hasCredentials: !!credentials,
+      hasConversationId: !!conversationId,
+      hasProvider: !!provider,
+      hasContexts: !!contexts?.length,
+      hasFileAttachments: !!fileAttachments?.length,
     })
 
-    logger.info('Provider response received', {
-      hasStream: !!(response && typeof response === 'object' && 'stream' in response),
-      responseType: typeof response,
-      hasSuccess: !!(response && typeof response === 'object' && 'success' in response),
-      hasContent: !!(response && typeof response === 'object' && 'content' in response),
-      responseKeys: response && typeof response === 'object' ? Object.keys(response) : [],
+    // Call Sim Agent service
+    const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/superagent/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+      },
+      body: JSON.stringify(requestPayload),
     })
 
-    // Track the assistant's response and tool calls for persistence
-    let assistantResponse = ''
-    const toolCalls: any[] = []
+    if (!simAgentResponse.ok) {
+      if (simAgentResponse.status === 401 || simAgentResponse.status === 402) {
+        return new NextResponse(null, { status: simAgentResponse.status })
+      }
 
-    // Handle streaming - check if response has a stream property
-    if (response && typeof response === 'object' && 'stream' in response) {
-      logger.info('Returning streaming response to client')
+      const errorText = await simAgentResponse.text().catch(() => '')
+      logger.error('Sim Agent API error', {
+        status: simAgentResponse.status,
+        error: errorText,
+      })
 
-      const streamResult = response as any
-      const encoder = new TextEncoder()
+      return NextResponse.json(
+        { error: `Sim Agent API error: ${simAgentResponse.statusText}` },
+        { status: simAgentResponse.status }
+      )
+    }
 
-      const stream = new ReadableStream({
+    // Stream the response back to client
+    if (simAgentResponse.body) {
+      const userMessage = {
+        id: messageId,
+        role: 'user',
+        content: message,
+        timestamp: new Date().toISOString(),
+      }
+
+      // Create pass-through stream that captures response for persistence
+      const transformedStream = new ReadableStream({
         async start(controller) {
+          const encoder = new TextEncoder()
+          let assistantContent = ''
+          const toolCalls: any[] = []
+          let buffer = ''
+          let responseConversationId: string | undefined
+
+          // Send chat ID first so client can track
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'chat_id', chatId: chat.id })}\n\n`))
+
+          const reader = simAgentResponse.body!.getReader()
+          const decoder = new TextDecoder()
+
           try {
-            logger.info('Starting stream iteration')
-
-            // Send chat ID so client can track the conversation
-            const chatIdChunk = { type: 'chat_id', chatId: chat.id }
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chatIdChunk)}\n\n`))
-
-            // Get tool calls from execution metadata
-            const executionMetadata = (streamResult as any).execution
-            const executedToolCalls = executionMetadata?.output?.toolCalls?.list || []
-
-            // Send tool call events first
-            for (const toolCall of executedToolCalls) {
-              toolCalls.push({
-                name: toolCall.name,
-                status: toolCall.success ? 'success' : 'error',
-                result: toolCall.result,
-              })
-
-              // Send tool call start event
-              const toolCallChunk = {
-                type: 'tool_call',
-                name: toolCall.name,
-                status: 'calling',
-              }
-              const toolData = `data: ${JSON.stringify(toolCallChunk)}\n\n`
-              controller.enqueue(encoder.encode(toolData))
-
-              // Send tool call complete event
-              const toolCompleteChunk = {
-                type: 'tool_call',
-                name: toolCall.name,
-                status: toolCall.success ? 'success' : 'error',
-                result: toolCall.success ? toolCall.result : { error: toolCall.result },
-              }
-              const toolCompleteData = `data: ${JSON.stringify(toolCompleteChunk)}\n\n`
-              controller.enqueue(encoder.encode(toolCompleteData))
-            }
-
-            // The Anthropic provider returns a ReadableStream already in SSE format
-            // Just pass it through directly
-            const reader = streamResult.stream.getReader()
-
             while (true) {
               const { done, value } = await reader.read()
               if (done) break
 
-              // Pass through the already-formatted SSE chunks
+              // Forward raw chunks to client
               controller.enqueue(value)
 
-              // Also accumulate text for persistence (extract from SSE format)
-              const text = new TextDecoder().decode(value)
-              // Extract actual text content from SSE chunks for saving
-              const textMatches = text.matchAll(/data: ({.*?})\n\n/g)
-              for (const match of textMatches) {
+              // Also parse for persistence
+              buffer += decoder.decode(value, { stream: true })
+              const lines = buffer.split('\n')
+              buffer = lines.pop() || ''
+
+              for (const line of lines) {
+                if (!line.startsWith('data: ')) continue
+                const jsonStr = line.slice(6).trim()
+                if (!jsonStr || jsonStr === '[DONE]') continue
+
                 try {
-                  const parsed = JSON.parse(match[1])
-                  if (parsed.type === 'text' && parsed.text) {
-                    assistantResponse += parsed.text
+                  const data = JSON.parse(jsonStr)
+
+                  // Capture content
+                  if (data.type === 'content' || data.type === 'text') {
+                    const chunk = data.content || data.text || data.delta || ''
+                    assistantContent += chunk
+                  }
+
+                  // Capture tool calls
+                  if (data.type === 'tool_call') {
+                    const toolData = data.data || data
+                    if (toolData.id && toolData.name) {
+                      const existing = toolCalls.find((tc) => tc.id === toolData.id)
+                      if (existing) {
+                        if (toolData.arguments) {
+                          existing.arguments = toolData.arguments
+                        }
+                        if (toolData.status) {
+                          existing.status = toolData.status
+                        }
+                      } else {
+                        toolCalls.push({
+                          id: toolData.id,
+                          name: toolData.name,
+                          arguments: toolData.arguments,
+                          status: toolData.status || 'pending',
+                        })
+                      }
+                    }
+                  }
+
+                  // Capture conversation ID
+                  if (data.conversationId) {
+                    responseConversationId = data.conversationId
                   }
                 } catch {
                   // Ignore parse errors
@@ -872,31 +420,54 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
               }
             }
 
-            logger.info('Stream completed', {
-              totalLength: assistantResponse.length,
-              toolCallsExecuted: toolCalls.length,
-            })
+            // Save chat after stream completes
+            try {
+              const currentMessages = ((chat as any).messages as any[]) || []
+              const assistantMessage = {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: assistantContent,
+                timestamp: new Date().toISOString(),
+                ...(toolCalls.length > 0 && { toolCalls }),
+              }
 
-            // Send done event
-            const doneChunk = { type: 'done' }
-            const doneData = `data: ${JSON.stringify(doneChunk)}\n\n`
-            controller.enqueue(encoder.encode(doneData))
+              const updatedMessages = [...currentMessages, userMessage, assistantMessage]
+              const title =
+                currentMessages.length === 0 ? await generateChatTitle(message) : chat.title
 
-            // Save chat to database
-            await saveChatMessages(chat.id, message, assistantResponse, toolCalls)
+              await db
+                .update(superagentChats)
+                .set({
+                  messages: updatedMessages,
+                  title,
+                  updatedAt: new Date(),
+                  ...(responseConversationId && { conversationId: responseConversationId }),
+                })
+                .where(eq(superagentChats.id, chat.id))
+
+              logger.info('Chat saved', {
+                chatId: chat.id,
+                messageCount: updatedMessages.length,
+                hasConversationId: !!responseConversationId,
+              })
+            } catch (saveError) {
+              logger.error('Failed to save chat', {
+                chatId: chat.id,
+                error: saveError instanceof Error ? saveError.message : String(saveError),
+              })
+            }
 
             controller.close()
-          } catch (error) {
-            logger.error('Streaming error', {
-              error,
-              message: error instanceof Error ? error.message : String(error),
+          } catch (streamError) {
+            logger.error('Stream error', {
+              error: streamError instanceof Error ? streamError.message : String(streamError),
             })
-            controller.error(error)
+            controller.error(streamError)
           }
         },
       })
 
-      return new NextResponse(stream, {
+      return new Response(transformedStream, {
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
@@ -905,64 +476,16 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
       })
     }
 
-    // Non-streaming response - convert to SSE format for client compatibility
-    logger.info('Converting non-streaming response to SSE format')
-    const encoder = new TextEncoder()
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          // Send chat ID so client can track the conversation
-          const chatIdChunk = { type: 'chat_id', chatId: chat.id }
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(chatIdChunk)}\n\n`))
-
-          const responseContent = (response as any).content || JSON.stringify(response)
-          const responseToolCalls = (response as any).toolCalls || []
-
-          // Send the content as a single SSE chunk
-          const chunk = {
-            type: 'content',
-            content: responseContent,
-          }
-          const data = `data: ${JSON.stringify(chunk)}\n\n`
-          controller.enqueue(encoder.encode(data))
-
-          // Save chat to database
-          await saveChatMessages(chat.id, message, responseContent, responseToolCalls)
-
-          // Send done event
-          const doneChunk = { type: 'done' }
-          const doneData = `data: ${JSON.stringify(doneChunk)}\n\n`
-          controller.enqueue(encoder.encode(doneData))
-
-          controller.close()
-        } catch (error) {
-          logger.error('Error converting to SSE', { error })
-          controller.error(error)
-        }
-      },
-    })
-
-    return new NextResponse(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    })
+    // Non-streaming response (fallback)
+    const responseData = await simAgentResponse.json()
+    return NextResponse.json(responseData)
   } catch (error) {
-    logger.error('Chatbot chat error', {
-      error,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+    logger.error('Superagent chat error', {
+      error: error instanceof Error ? error.message : String(error),
     })
-    return new NextResponse(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Internal server error',
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    )
+    return new NextResponse(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 }

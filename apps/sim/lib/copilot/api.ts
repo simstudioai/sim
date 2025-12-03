@@ -201,3 +201,111 @@ export async function sendStreamingMessage(
     }
   }
 }
+
+/**
+ * Provider config for superagent
+ */
+export interface SuperagentProviderConfig {
+  provider: 'anthropic' | 'openai' | 'azure-openai'
+  model?: string
+  apiKey?: string
+  apiVersion?: string
+  endpoint?: string
+}
+
+/**
+ * Context for superagent
+ */
+export interface SuperagentContext {
+  type: string
+  tag?: string
+  content: string
+}
+
+/**
+ * File attachment for superagent
+ */
+export interface SuperagentFileAttachment {
+  type: string
+  source?: {
+    type: string
+    media_type: string
+    data: string
+  }
+}
+
+/**
+ * Request interface for superagent messages
+ */
+export interface SendSuperagentMessageRequest {
+  message: string
+  userMessageId?: string
+  chatId?: string
+  workspaceId: string
+  model?: SendMessageRequest['model']
+  stream?: boolean
+  abortSignal?: AbortSignal
+  provider?: SuperagentProviderConfig
+  contexts?: SuperagentContext[]
+  fileAttachments?: SuperagentFileAttachment[]
+}
+
+/**
+ * Send a streaming message to the superagent chat API
+ * Similar to sendStreamingMessage but for superagent context (no workflowId, no modes)
+ */
+export async function sendSuperagentStreamingMessage(
+  request: SendSuperagentMessageRequest
+): Promise<StreamingResponse> {
+  try {
+    const { abortSignal, ...requestBody } = request
+    logger.info('Preparing to send superagent streaming message', {
+      workspaceId: requestBody.workspaceId,
+      chatId: requestBody.chatId,
+    })
+
+    const response = await fetch('/api/superagent/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...requestBody, stream: true }),
+      signal: abortSignal,
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      const errorMessage = await handleApiError(response, 'Failed to send superagent message')
+      return {
+        success: false,
+        error: errorMessage,
+        status: response.status,
+      }
+    }
+
+    if (!response.body) {
+      return {
+        success: false,
+        error: 'No response body received',
+        status: 500,
+      }
+    }
+
+    return {
+      success: true,
+      stream: response.body,
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      logger.info('Superagent streaming message was aborted by user')
+      return {
+        success: false,
+        error: 'Request was aborted',
+      }
+    }
+
+    logger.error('Failed to send superagent streaming message:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}

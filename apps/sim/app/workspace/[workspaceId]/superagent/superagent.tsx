@@ -20,7 +20,8 @@ import {
   type UserInputRef,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
 import { Welcome } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/welcome/welcome'
-import { useSuperagentStore } from '@/stores/superagent/store'
+import { useCopilotStore } from '@/stores/panel/copilot/store'
+import type { CopilotToolCall } from '@/stores/panel/copilot/types'
 
 const MAX_CONTENT_WIDTH = 800
 
@@ -65,6 +66,7 @@ function groupChatsByDate(
 
 /**
  * Superagent - AI agent with full tool access
+ * Uses the same copilot store with 'superagent' context
  */
 export default function Superagent() {
   const params = useParams()
@@ -78,14 +80,16 @@ export default function Superagent() {
   const [containerWidth, setContainerWidth] = useState(MAX_CONTENT_WIDTH)
 
   const {
+    context,
+    workspaceId: storeWorkspaceId,
     messages,
     isSendingMessage,
     error,
-    workspaceId: storeWorkspaceId,
     chats,
-    currentChatId,
+    currentChat,
     isLoadingChats,
     selectedModel,
+    setContext,
     setWorkspaceId,
     setSelectedModel,
     sendMessage,
@@ -94,11 +98,32 @@ export default function Superagent() {
     loadChats,
     selectChat,
     createNewChat,
-  } = useSuperagentStore()
+  } = useCopilotStore()
 
-  const groupedChats = groupChatsByDate(chats)
-  const currentChat = chats.find((c) => c.id === currentChatId)
+  const groupedChats = groupChatsByDate(chats as any)
 
+  // Initialize superagent context
+  useEffect(() => {
+    if (context !== 'superagent') {
+      setContext('superagent')
+    }
+  }, [context, setContext])
+
+  // Set workspace ID and load chats
+  useEffect(() => {
+    if (workspaceId && workspaceId !== storeWorkspaceId) {
+      setWorkspaceId(workspaceId)
+    }
+  }, [workspaceId, storeWorkspaceId, setWorkspaceId])
+
+  // Load chats when workspace is set
+  useEffect(() => {
+    if (context === 'superagent' && storeWorkspaceId) {
+      loadChats()
+    }
+  }, [context, storeWorkspaceId, loadChats])
+
+  // Update container width on resize
   useEffect(() => {
     const updateWidth = () => {
       if (containerRef.current) {
@@ -112,13 +137,7 @@ export default function Superagent() {
     return () => window.removeEventListener('resize', updateWidth)
   }, [])
 
-  useEffect(() => {
-    if (workspaceId && workspaceId !== storeWorkspaceId) {
-      setWorkspaceId(workspaceId)
-      loadChats()
-    }
-  }, [workspaceId, storeWorkspaceId, setWorkspaceId, loadChats])
-
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
@@ -209,10 +228,10 @@ export default function Superagent() {
                             {chatsInGroup.map((chat) => (
                               <PopoverItem
                                 key={chat.id}
-                                active={currentChatId === chat.id}
+                                active={currentChat?.id === chat.id}
                                 onClick={() => {
-                                  if (currentChatId !== chat.id) {
-                                    selectChat(chat.id)
+                                  if (currentChat?.id !== chat.id) {
+                                    selectChat(chat as any)
                                   }
                                   setIsHistoryDropdownOpen(false)
                                 }}
@@ -248,7 +267,7 @@ export default function Superagent() {
                 panelWidth={containerWidth}
                 workflowIdOverride={null}
                 selectedModelOverride={selectedModel}
-                onModelChangeOverride={setSelectedModel}
+                onModelChangeOverride={(model) => setSelectedModel(model as any)}
                 hideModeSelector
                 disableMentions
               />
@@ -261,14 +280,16 @@ export default function Superagent() {
           <div className='relative flex flex-1 flex-col overflow-hidden'>
             <div ref={scrollAreaRef} className='h-full overflow-y-auto overflow-x-hidden'>
               <div className='mx-auto w-full max-w-[832px] space-y-4 px-4 py-2 pb-10'>
-                {messages.map((message, index) => (
-                  <SuperagentMessage
-                    key={message.id}
-                    message={message}
-                    isStreaming={isSendingMessage && index === messages.length - 1}
-                    panelWidth={containerWidth}
-                  />
-                ))}
+                {messages
+                  .filter((m) => m.role === 'user' || m.role === 'assistant')
+                  .map((message, index, filteredMessages) => (
+                    <SuperagentMessage
+                      key={message.id}
+                      message={message as any}
+                      isStreaming={isSendingMessage && index === filteredMessages.length - 1}
+                      panelWidth={containerWidth}
+                    />
+                  ))}
 
                 {error && (
                   <div className='rounded border border-[var(--text-error)] bg-[var(--text-error)]/10 p-2.5 text-[var(--text-error)] text-sm'>
@@ -291,7 +312,7 @@ export default function Superagent() {
                 panelWidth={containerWidth}
                 workflowIdOverride={null}
                 selectedModelOverride={selectedModel}
-                onModelChangeOverride={setSelectedModel}
+                onModelChangeOverride={(model) => setSelectedModel(model as any)}
                 hideModeSelector
                 disableMentions
               />
@@ -310,11 +331,15 @@ function getToolStateDisplay(state: string): { verb: string; isActive: boolean }
   switch (state) {
     case 'pending':
     case 'executing':
+    case 'generating':
       return { verb: 'Running', isActive: true }
     case 'success':
       return { verb: 'Ran', isActive: false }
     case 'error':
       return { verb: 'Failed', isActive: false }
+    case 'rejected':
+    case 'aborted':
+      return { verb: 'Cancelled', isActive: false }
     default:
       return { verb: 'Running', isActive: true }
   }
@@ -334,7 +359,7 @@ interface SuperagentMessageProps {
     content: string
     contentBlocks?: Array<
       | { type: 'text'; content: string; timestamp: number }
-      | { type: 'tool_call'; toolCall: { id: string; name: string; state: string }; timestamp: number }
+      | { type: 'tool_call'; toolCall: CopilotToolCall; timestamp: number }
     >
   }
   isStreaming: boolean
@@ -357,10 +382,7 @@ function SuperagentMessage({ message, isStreaming, panelWidth }: SuperagentMessa
   // User message - same style as CopilotMessage
   if (isUser) {
     return (
-      <div
-        className='w-full max-w-full overflow-hidden'
-        style={{ maxWidth: `${panelWidth}px` }}
-      >
+      <div className='w-full max-w-full overflow-hidden' style={{ maxWidth: `${panelWidth}px` }}>
         <div className='rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[6px] dark:bg-[var(--surface-9)]'>
           <div className='whitespace-pre-wrap break-words px-[2px] py-1 font-medium font-sans text-[#0D0D0D] text-sm leading-[1.25rem] dark:text-gray-100'>
             {message.content}
@@ -373,14 +395,15 @@ function SuperagentMessage({ message, isStreaming, panelWidth }: SuperagentMessa
   // Assistant message - render contentBlocks
   const hasContentBlocks = message.contentBlocks && message.contentBlocks.length > 0
   const hasActiveToolCalls = message.contentBlocks?.some(
-    (b) => b.type === 'tool_call' && (b.toolCall.state === 'pending' || b.toolCall.state === 'executing')
+    (b) =>
+      b.type === 'tool_call' &&
+      (b.toolCall.state === 'pending' ||
+        b.toolCall.state === 'executing' ||
+        b.toolCall.state === 'generating')
   )
 
   return (
-    <div
-      className='w-full max-w-full overflow-hidden'
-      style={{ maxWidth: `${panelWidth}px` }}
-    >
+    <div className='w-full max-w-full overflow-hidden' style={{ maxWidth: `${panelWidth}px` }}>
       <div className='max-w-full space-y-1.5 px-[2px]'>
         {hasContentBlocks ? (
           message.contentBlocks!.map((block, idx) => {
@@ -393,8 +416,9 @@ function SuperagentMessage({ message, isStreaming, panelWidth }: SuperagentMessa
             }
 
             if (block.type === 'tool_call') {
-              const { verb, isActive } = getToolStateDisplay(block.toolCall.state)
-              const displayName = formatToolName(block.toolCall.name)
+              const { verb, isActive } = getToolStateDisplay(block.toolCall.state as string)
+              const displayName =
+                block.toolCall.display?.text || formatToolName(block.toolCall.name)
 
               return (
                 <div
