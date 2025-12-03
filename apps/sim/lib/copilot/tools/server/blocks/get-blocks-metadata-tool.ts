@@ -9,6 +9,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { registry as blockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { tools as toolsRegistry } from '@/tools/registry'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/consts'
@@ -665,40 +666,131 @@ function resolveAuthType(
   return undefined
 }
 
+/**
+ * Gets all available models from PROVIDER_DEFINITIONS as static options.
+ * This provides fallback data when store state is not available server-side.
+ * Excludes dynamic providers (ollama, vllm, openrouter) which require runtime fetching.
+ */
+function getStaticModelOptions(): { id: string; label?: string }[] {
+  const models: { id: string; label?: string }[] = []
+
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    // Skip providers with dynamic/fetched models
+    if (provider.id === 'ollama' || provider.id === 'vllm' || provider.id === 'openrouter') {
+      continue
+    }
+    if (provider?.models) {
+      for (const model of provider.models) {
+        models.push({ id: model.id, label: model.id })
+      }
+    }
+  }
+
+  return models
+}
+
+/**
+ * Attempts to call a dynamic options function with fallback data injected.
+ * When the function accesses store state that's unavailable server-side,
+ * this provides static fallback data from known sources.
+ *
+ * @param optionsFn - The options function to call
+ * @returns Options array or undefined if options cannot be resolved
+ */
+function callOptionsWithFallback(
+  optionsFn: () => any[]
+): { id: string; label?: string; hasIcon?: boolean }[] | undefined {
+  // Get static model data to use as fallback
+  const staticModels = getStaticModelOptions()
+
+  // Create a mock providers state with static data
+  const mockProvidersState = {
+    providers: {
+      base: { models: staticModels.map((m) => m.id) },
+      ollama: { models: [] },
+      vllm: { models: [] },
+      openrouter: { models: [] },
+    },
+  }
+
+  // Store original getState if it exists
+  let originalGetState: (() => any) | undefined
+  let store: any
+
+  try {
+    // Try to get the providers store module
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    store = require('@/stores/providers/store')
+    if (store?.useProvidersStore?.getState) {
+      originalGetState = store.useProvidersStore.getState
+      // Temporarily replace getState with our mock
+      store.useProvidersStore.getState = () => mockProvidersState
+    }
+  } catch {
+    // Store module not available, continue with mock
+  }
+
+  try {
+    const result = optionsFn()
+    return result
+  } finally {
+    // Restore original getState
+    if (store?.useProvidersStore && originalGetState) {
+      store.useProvidersStore.getState = originalGetState
+    }
+  }
+}
+
 function resolveSubblockOptions(
   sb: any
 ): { id: string; label?: string; hasIcon?: boolean }[] | undefined {
-  try {
-    const rawOptions = typeof sb.options === 'function' ? sb.options() : sb.options
-    if (!Array.isArray(rawOptions)) return undefined
-
-    const normalized = rawOptions
-      .map((opt: any) => {
-        if (!opt) return undefined
-
-        const id = typeof opt === 'object' ? opt.id : opt
-        if (id === undefined || id === null) return undefined
-
-        const result: { id: string; label?: string; hasIcon?: boolean } = {
-          id: String(id),
-        }
-
-        if (typeof opt === 'object' && typeof opt.label === 'string') {
-          result.label = opt.label
-        }
-
-        if (typeof opt === 'object' && opt.icon) {
-          result.hasIcon = true
-        }
-
-        return result
-      })
-      .filter((o): o is { id: string; label?: string; hasIcon?: boolean } => o !== undefined)
-
-    return normalized.length > 0 ? normalized : undefined
-  } catch {
+  // Skip if subblock uses fetchOptions (async network calls)
+  if (sb.fetchOptions) {
     return undefined
   }
+
+  let rawOptions: any[] | undefined
+
+  try {
+    if (typeof sb.options === 'function') {
+      // Try calling with fallback data injection for store-dependent options
+      rawOptions = callOptionsWithFallback(sb.options)
+    } else {
+      rawOptions = sb.options
+    }
+  } catch {
+    // Options function failed even with fallback, skip
+    return undefined
+  }
+
+  if (!Array.isArray(rawOptions) || rawOptions.length === 0) {
+    return undefined
+  }
+
+  const normalized = rawOptions
+    .map((opt: any) => {
+      if (!opt) return undefined
+
+      const id = typeof opt === 'object' ? opt.id : opt
+      if (id === undefined || id === null) return undefined
+
+      const result: { id: string; label?: string; hasIcon?: boolean } = {
+        id: String(id),
+      }
+
+      if (typeof opt === 'object' && typeof opt.label === 'string') {
+        result.label = opt.label
+      }
+
+      if (typeof opt === 'object' && opt.icon) {
+        result.hasIcon = true
+      }
+
+      return result
+    })
+    .filter((o): o is { id: string; label?: string; hasIcon?: boolean } => o !== undefined)
+
+  return normalized.length > 0 ? normalized : undefined
 }
 
 function removeNullish(obj: any): any {
