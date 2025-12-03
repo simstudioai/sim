@@ -317,6 +317,7 @@ export async function POST(req: NextRequest) {
 
     // For agent/build mode, fetch credentials and build tool definitions
     let integrationTools: any[] = []
+    let baseTools: any[] = []
     let credentials: {
       oauth: Record<string, { accessToken: string; accountId: string; name: string; expiresAt?: string }>
       apiKeys: string[]
@@ -327,6 +328,27 @@ export async function POST(req: NextRequest) {
     } | null = null
 
     if (mode === 'agent') {
+      // Build base tools (executed locally, not deferred)
+      // Include function_execute for code execution capability
+      baseTools = [
+        {
+          name: 'function_execute',
+          description:
+            'Execute JavaScript code to perform calculations, data transformations, API calls, or any programmatic task. Code runs in a secure sandbox with fetch() available. Write plain statements (not wrapped in functions). Example: const res = await fetch(url); const data = await res.json(); return data;',
+          input_schema: {
+            type: 'object',
+            properties: {
+              code: {
+                type: 'string',
+                description:
+                  'Raw JavaScript statements to execute. Code is auto-wrapped in async context. Use fetch() for HTTP requests. Write like: const res = await fetch(url); return await res.json();',
+              },
+            },
+            required: ['code'],
+          },
+          executeLocally: true,
+        },
+      ]
       // Fetch user credentials (OAuth + API keys)
       try {
         const rawCredentials = await getCredentialsServerTool.execute(
@@ -422,6 +444,7 @@ export async function POST(req: NextRequest) {
       ...(processedFileContents.length > 0 && { fileAttachments: processedFileContents }),
       // For build/agent mode, include tools and credentials
       ...(integrationTools.length > 0 && { tools: integrationTools }),
+      ...(baseTools.length > 0 && { baseTools }),
       ...(credentials && { credentials }),
       // Anthropic beta features for advanced tool use
       ...(mode === 'agent' && { betas: ['advanced-tool-use-2025-11-20'] }),
@@ -434,6 +457,12 @@ export async function POST(req: NextRequest) {
         hasConversationId: !!effectiveConversationId,
         hasFileAttachments: processedFileContents.length > 0,
         messageLength: message.length,
+        mode,
+        hasTools: integrationTools.length > 0,
+        toolCount: integrationTools.length,
+        hasBaseTools: baseTools.length > 0,
+        baseToolCount: baseTools.length,
+        hasCredentials: !!credentials,
       })
     } catch {}
 

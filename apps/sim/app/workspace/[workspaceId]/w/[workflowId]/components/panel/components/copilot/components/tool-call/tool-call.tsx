@@ -917,6 +917,37 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     )
   }
 
+  // Special rendering for function_execute - show code block
+  if (toolCall.name === 'function_execute') {
+    const code = params.code || ''
+    return (
+      <div className='w-full'>
+        <ShimmerOverlayText
+          text={displayName}
+          active={isLoadingState}
+          isSpecial={false}
+          className='font-[470] font-season text-[#939393] text-sm dark:text-[#939393]'
+        />
+        {code && (
+          <div className='mt-[8px] overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1A1A1A]'>
+            <div className='flex items-center justify-between border-[var(--border-strong)] border-b bg-[#242424] px-[10px] py-[4px]'>
+              <span className='font-mono text-[11px] text-[#888]'>javascript</span>
+              {toolCall.state === 'success' && (
+                <span className='text-[11px] text-green-500'>✓ Executed</span>
+              )}
+              {toolCall.state === 'error' && (
+                <span className='text-[11px] text-red-500'>✗ Failed</span>
+              )}
+            </div>
+            <pre className='max-h-[200px] overflow-auto p-[10px]'>
+              <code className='font-mono text-[12px] text-[#E0E0E0] leading-[1.5]'>{code}</code>
+            </pre>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className='w-full'>
       <div

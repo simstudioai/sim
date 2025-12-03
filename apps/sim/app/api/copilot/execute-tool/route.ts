@@ -297,6 +297,29 @@ export async function POST(req: NextRequest) {
       userId,
     }
 
+    // Special handling for function_execute - inject environment variables
+    if (toolName === 'function_execute') {
+      try {
+        const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workflowId)
+        executionParams.envVars = decryptedEnvVars
+        executionParams.workflowVariables = {} // No workflow variables in copilot context
+        executionParams.blockData = {} // No block data in copilot context
+        executionParams.blockNameMapping = {} // No block mapping in copilot context
+        executionParams.language = executionParams.language || 'javascript'
+        executionParams.timeout = executionParams.timeout || 30000
+
+        logger.info(`[${tracker.requestId}] Injected env vars for function_execute`, {
+          envVarCount: Object.keys(decryptedEnvVars).length,
+        })
+      } catch (error) {
+        logger.warn(`[${tracker.requestId}] Failed to get env vars for function_execute`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
+        // Continue without env vars - code can still execute
+        executionParams.envVars = {}
+      }
+    }
+
     // Execute the tool
     logger.info(`[${tracker.requestId}] Executing tool with resolved credentials`, {
       toolName,
