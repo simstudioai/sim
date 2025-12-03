@@ -838,23 +838,30 @@ Be confident, capable, and seamless. You're not searching for tools - you simply
               controller.enqueue(encoder.encode(toolCompleteData))
             }
 
-            // The Anthropic provider returns a ReadableStream with raw text chunks
-            // We need to read it and convert to SSE format
+            // The Anthropic provider returns a ReadableStream already in SSE format
+            // Just pass it through directly
             const reader = streamResult.stream.getReader()
-            const decoder = new TextDecoder()
 
             while (true) {
               const { done, value } = await reader.read()
               if (done) break
 
-              const text = decoder.decode(value, { stream: true })
-              if (text) {
-                assistantResponse += text
+              // Pass through the already-formatted SSE chunks
+              controller.enqueue(value)
 
-                // Send as SSE chunk
-                const chunk = { type: 'text', text }
-                const data = `data: ${JSON.stringify(chunk)}\n\n`
-                controller.enqueue(encoder.encode(data))
+              // Also accumulate text for persistence (extract from SSE format)
+              const text = new TextDecoder().decode(value)
+              // Extract actual text content from SSE chunks for saving
+              const textMatches = text.matchAll(/data: ({.*?})\n\n/g)
+              for (const match of textMatches) {
+                try {
+                  const parsed = JSON.parse(match[1])
+                  if (parsed.type === 'text' && parsed.text) {
+                    assistantResponse += parsed.text
+                  }
+                } catch {
+                  // Ignore parse errors
+                }
               }
             }
 
