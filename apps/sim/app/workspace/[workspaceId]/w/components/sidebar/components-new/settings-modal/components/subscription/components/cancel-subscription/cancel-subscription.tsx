@@ -17,7 +17,7 @@ import { getSubscriptionStatus } from '@/lib/subscription/helpers'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import { organizationKeys, useOrganizations } from '@/hooks/queries/organization'
-import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('CancelSubscription')
 
