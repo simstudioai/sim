@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Settings2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn/components'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { cn } from '@/lib/core/utils/cn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 
 interface GroupedCheckboxListProps {
@@ -81,25 +82,38 @@ export function GroupedCheckboxList({
 
   const SelectedCountDisplay = () => {
     if (noneSelected) {
-      return <span className='text-muted-foreground text-sm'>None selected</span>
+      return (
+        <span className='truncate font-medium text-[var(--text-muted)] text-sm'>None selected</span>
+      )
     }
     if (allSelected) {
-      return <span className='text-sm'>All selected</span>
+      return (
+        <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
+          All selected
+        </span>
+      )
     }
-    return <span className='text-sm'>{selectedValues.length} selected</span>
+    return (
+      <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
+        {selectedValues.length} selected
+      </span>
+    )
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button
-          variant='outline'
-          className='h-10 w-full justify-between border-input bg-background px-3 font-normal text-sm hover:bg-accent hover:text-accent-foreground'
+          variant='ghost'
           disabled={disabled}
+          className={cn(
+            'flex w-full cursor-pointer items-center justify-between rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[8px] py-[6px] font-medium font-sans text-[var(--text-primary)] text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-9)]',
+            'hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]'
+          )}
         >
-          <span className='flex items-center gap-2 text-muted-foreground'>
-            <Settings2 className='h-4 w-4' />
-            <span>Configure PII Types</span>
+          <span className='flex flex-1 items-center gap-2 truncate text-[var(--text-muted)]'>
+            <Settings2 className='h-4 w-4 flex-shrink-0 opacity-50' />
+            <span className='truncate'>Configure PII Types</span>
           </span>
           <SelectedCountDisplay />
         </Button>
@@ -137,13 +151,7 @@ export function GroupedCheckboxList({
               Select all entities
             </label>
           </div>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={handleClear}
-            disabled={disabled || noneSelected}
-            className='w-[85px]'
-          >
+          <Button variant='ghost' onClick={handleClear} disabled={disabled || noneSelected}>
             <span className='flex items-center gap-1'>
               Clear{!noneSelected && <span>({selectedValues.length})</span>}
             </span>

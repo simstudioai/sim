@@ -1998,7 +1998,11 @@ export function ToolInput({
                             value={tool.params.credential || ''}
                             onChange={(value) => handleParamChange(toolIndex, 'credential', value)}
                             provider={oauthConfig.provider as OAuthProvider}
-                            requiredScopes={getCanonicalScopesForProvider(oauthConfig.provider)}
+                            requiredScopes={
+                              toolBlock?.subBlocks?.find((sb) => sb.id === 'credential')
+                                ?.requiredScopes ||
+                              getCanonicalScopesForProvider(oauthConfig.provider)
+                            }
                             label={`Select ${oauthConfig.provider} account`}
                             serviceId={oauthConfig.provider}
                             disabled={disabled}
