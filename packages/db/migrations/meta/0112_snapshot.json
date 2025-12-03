@@ -106,30 +106,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-<<<<<<< HEAD
-        },
-        "idx_account_on_account_id_provider_id": {
-          "name": "idx_account_on_account_id_provider_id",
-          "columns": [
-            {
-              "expression": "account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "provider_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-=======
->>>>>>> 443c663c9 (Superagent poc)
         }
       },
       "foreignKeys": {
@@ -137,17 +113,12 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-<<<<<<< HEAD
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-=======
           "columnsFrom": [
             "user_id"
           ],
           "columnsTo": [
             "id"
           ],
->>>>>>> 443c663c9 (Superagent poc)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
