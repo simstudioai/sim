@@ -445,7 +445,13 @@ function applyOperationsToWorkflowState(
           // Update inputs (convert to subBlocks format)
           if (params?.inputs) {
             if (!block.subBlocks) block.subBlocks = {}
-            Object.entries(params.inputs).forEach(([key, value]) => {
+            Object.entries(params.inputs).forEach(([inputKey, value]) => {
+              // Normalize common field name variations (LLM may use plural/singular inconsistently)
+              let key = inputKey
+              if (key === 'credentials' && !block.subBlocks['credentials'] && block.subBlocks['credential']) {
+                key = 'credential'
+              }
+
               if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
                 return
               }

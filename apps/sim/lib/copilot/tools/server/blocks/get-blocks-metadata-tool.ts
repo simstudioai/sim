@@ -381,14 +381,6 @@ function extractInputs(metadata: CopilotBlockMetadata): {
       continue
     }
 
-    if (
-      schema.type === 'oauth-credential' ||
-      schema.type === 'credential-input' ||
-      schema.type === 'oauth-input'
-    ) {
-      continue
-    }
-
     if (schema.id === 'triggerConfig' || schema.type === 'trigger-config') {
       continue
     }
@@ -466,15 +458,6 @@ function extractOperationInputs(
 
   for (const [key, inputDef] of Object.entries(inputs)) {
     if (blockLevelInputs.has(key)) {
-      continue
-    }
-
-    const lowerKey = key.toLowerCase()
-    if (
-      lowerKey.includes('token') ||
-      lowerKey.includes('credential') ||
-      lowerKey.includes('apikey')
-    ) {
       continue
     }
 
@@ -556,6 +539,7 @@ function mapSchemaTypeToSimpleType(schemaType: string, schema: CopilotSubblockMe
     'multi-select': 'array',
     'credential-input': 'credential',
     'oauth-credential': 'credential',
+    'oauth-input': 'credential',
   }
 
   const mappedType = typeMap[schemaType] || schemaType
