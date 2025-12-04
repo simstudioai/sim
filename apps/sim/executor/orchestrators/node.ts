@@ -78,6 +78,17 @@ export class NodeExecutionOrchestrator {
 
     switch (sentinelType) {
       case 'start': {
+        if (loopId) {
+          const shouldExecute = this.loopOrchestrator.evaluateInitialCondition(ctx, loopId)
+          if (!shouldExecute) {
+            logger.info('While loop initial condition false, skipping loop body', { loopId })
+            return {
+              sentinelStart: true,
+              shouldExit: true,
+              selectedRoute: EDGE.LOOP_EXIT,
+            }
+          }
+        }
         return { sentinelStart: true }
       }
 
