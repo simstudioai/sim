@@ -25,10 +25,24 @@ import type { InputFieldType, McpServerFormData, McpServerTestResult } from './c
 import {
   FormattedInput,
   FormField,
+  formatTransportLabel,
   HeaderRow,
   McpServerSkeleton,
   ServerListItem,
 } from './components'
+
+interface McpTool {
+  name: string
+  description?: string
+  serverId: string
+}
+
+interface McpServer {
+  id: string
+  name?: string
+  transport?: string
+  url?: string
+}
 
 const logger = createLogger('McpSettings')
 
@@ -85,6 +99,9 @@ export function MCP() {
   // Delete confirmation dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [serverToDelete, setServerToDelete] = useState<{ id: string; name: string } | null>(null)
+
+  // Server details view state
+  const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
 
   // Environment variable dropdown state
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -359,6 +376,31 @@ export function MCP() {
     setShowAddForm(false)
   }, [])
 
+  /**
+   * Opens the detail view for a specific server.
+   */
+  const handleViewDetails = useCallback((serverId: string) => {
+    setSelectedServerId(serverId)
+  }, [])
+
+  /**
+   * Closes the detail view and returns to the server list.
+   */
+  const handleBackToList = useCallback(() => {
+    setSelectedServerId(null)
+  }, [])
+
+  /**
+   * Gets the selected server and its tools for the detail view.
+   */
+  const selectedServer = useMemo(() => {
+    if (!selectedServerId) return null
+    const server = servers.find((s) => s.id === selectedServerId) as McpServer | undefined
+    if (!server) return null
+    const serverTools = (toolsByServer[selectedServerId] || []) as McpTool[]
+    return { server, tools: serverTools }
+  }, [selectedServerId, servers, toolsByServer])
+
   const error = toolsError || serversError
   const hasServers = servers && servers.length > 0
   const showEmptyState = !hasServers && !showAddForm
@@ -368,6 +410,80 @@ export function MCP() {
   const isFormValid = formData.name.trim() && formData.url?.trim()
   const isSubmitDisabled = serversLoading || isAddingServer || !isFormValid
   const testButtonLabel = getTestButtonLabel(testResult, isTestingConnection)
+
+  // Show detail view if a server is selected
+  if (selectedServer) {
+    const { server, tools } = selectedServer
+    const transportLabel = formatTransportLabel(server.transport || 'http')
+
+    return (
+      <div className='flex h-full flex-col gap-[16px]'>
+        <div className='min-h-0 flex-1 overflow-y-auto'>
+          <div className='flex flex-col gap-[16px]'>
+            <div className='flex flex-col gap-[8px]'>
+              <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                Server Name
+              </span>
+              <p className='text-[14px] text-[var(--text-secondary)]'>
+                {server.name || 'Unnamed Server'}
+              </p>
+            </div>
+
+            <div className='flex flex-col gap-[8px]'>
+              <span className='font-medium text-[13px] text-[var(--text-primary)]'>Transport</span>
+              <p className='text-[14px] text-[var(--text-secondary)]'>{transportLabel}</p>
+            </div>
+
+            {server.url && (
+              <div className='flex flex-col gap-[8px]'>
+                <span className='font-medium text-[13px] text-[var(--text-primary)]'>URL</span>
+                <p className='break-all font-mono text-[13px] text-[var(--text-secondary)]'>
+                  {server.url}
+                </p>
+              </div>
+            )}
+
+            <div className='flex flex-col gap-[8px]'>
+              <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                Tools ({tools.length})
+              </span>
+              {tools.length === 0 ? (
+                <p className='text-[13px] text-[var(--text-muted)]'>No tools available</p>
+              ) : (
+                <div className='flex flex-col gap-[8px]'>
+                  {tools.map((tool) => (
+                    <div
+                      key={tool.name}
+                      className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
+                    >
+                      <p className='font-medium text-[13px] text-[var(--text-primary)]'>
+                        {tool.name}
+                      </p>
+                      {tool.description && (
+                        <p className='mt-[4px] text-[13px] text-[var(--text-tertiary)]'>
+                          {tool.description}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className='mt-auto flex items-center justify-end'>
+          <Button
+            onClick={handleBackToList}
+            variant='primary'
+            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+          >
+            Back
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -524,6 +640,7 @@ export function MCP() {
                     tools={tools}
                     isDeleting={deletingServers.has(server.id)}
                     onRemove={() => handleRemoveServer(server.id, server.name || 'this server')}
+                    onViewDetails={() => handleViewDetails(server.id)}
                   />
                 )
               })}

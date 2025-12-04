@@ -17,6 +17,7 @@ export class EdgeManager {
     skipBackwardsEdge = false
   ): string[] {
     const readyNodes: string[] = []
+    const activatedTargets: string[] = []
 
     for (const [edgeId, edge] of node.outgoingEdges) {
       if (skipBackwardsEdge && this.isBackwardsEdge(edge.sourceHandle)) {
@@ -44,9 +45,14 @@ export class EdgeManager {
       }
 
       targetNode.incomingEdges.delete(node.id)
+      activatedTargets.push(edge.target)
+    }
 
-      if (this.isNodeReady(targetNode)) {
-        readyNodes.push(targetNode.id)
+    // Check readiness after all edges processed to ensure cascade deactivations are complete
+    for (const targetId of activatedTargets) {
+      const targetNode = this.dag.nodes.get(targetId)
+      if (targetNode && this.isNodeReady(targetNode)) {
+        readyNodes.push(targetId)
       }
     }
 

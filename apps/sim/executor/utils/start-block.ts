@@ -176,8 +176,7 @@ interface DerivedInputResult {
 
 function deriveInputFromFormat(
   inputFormat: InputFormatField[],
-  workflowInput: unknown,
-  isDeployedExecution: boolean
+  workflowInput: unknown
 ): DerivedInputResult {
   const structuredInput: Record<string, unknown> = {}
 
@@ -205,7 +204,8 @@ function deriveInputFromFormat(
       }
     }
 
-    if ((fieldValue === undefined || fieldValue === null) && !isDeployedExecution) {
+    // Use the default value from inputFormat if the field value wasn't provided at runtime
+    if (fieldValue === undefined || fieldValue === null) {
       fieldValue = field.value
     }
 
@@ -255,13 +255,28 @@ function ensureString(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
-function buildUnifiedStartOutput(workflowInput: unknown): NormalizedBlockOutput {
+function buildUnifiedStartOutput(
+  workflowInput: unknown,
+  structuredInput: Record<string, unknown>,
+  hasStructured: boolean
+): NormalizedBlockOutput {
   const output: NormalizedBlockOutput = {}
+
+  if (hasStructured) {
+    for (const [key, value] of Object.entries(structuredInput)) {
+      output[key] = value
+    }
+  }
 
   if (isPlainObject(workflowInput)) {
     for (const [key, value] of Object.entries(workflowInput)) {
       if (key === 'onUploadError') continue
-      output[key] = value
+      // Runtime values override defaults (except undefined/null which mean "not provided")
+      if (value !== undefined && value !== null) {
+        output[key] = value
+      } else if (!Object.hasOwn(output, key)) {
+        output[key] = value
+      }
     }
   }
 
@@ -401,17 +416,19 @@ function extractSubBlocks(block: SerializedBlock): Record<string, unknown> | und
 export interface StartBlockOutputOptions {
   resolution: ExecutorStartResolution
   workflowInput: unknown
-  isDeployedExecution: boolean
 }
 
 export function buildStartBlockOutput(options: StartBlockOutputOptions): NormalizedBlockOutput {
-  const { resolution, workflowInput, isDeployedExecution } = options
+  const { resolution, workflowInput } = options
   const inputFormat = extractInputFormat(resolution.block)
-  const { finalInput } = deriveInputFromFormat(inputFormat, workflowInput, isDeployedExecution)
+  const { finalInput, structuredInput, hasStructured } = deriveInputFromFormat(
+    inputFormat,
+    workflowInput
+  )
 
   switch (resolution.path) {
     case StartBlockPath.UNIFIED:
-      return buildUnifiedStartOutput(workflowInput)
+      return buildUnifiedStartOutput(workflowInput, structuredInput, hasStructured)
 
     case StartBlockPath.SPLIT_API:
     case StartBlockPath.SPLIT_INPUT:

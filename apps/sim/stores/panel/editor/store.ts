@@ -50,10 +50,6 @@ export const usePanelEditorStore = create<PanelEditorState>()(
       },
       clearCurrentBlock: () => {
         set({ currentBlockId: null })
-
-        // When selection is cleared (e.g. clicking on the canvas), switch to the toolbar tab
-        const panelState = usePanelStore.getState()
-        panelState.setActiveTab('toolbar')
       },
       setConnectionsHeight: (height) => {
         const clampedHeight = Math.max(

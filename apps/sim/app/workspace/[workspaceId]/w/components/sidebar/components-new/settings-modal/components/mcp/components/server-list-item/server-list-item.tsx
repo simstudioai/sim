@@ -3,7 +3,7 @@ import { Button } from '@/components/emcn'
 /**
  * Formats transport type for display (e.g., "streamable-http" -> "Streamable-HTTP").
  */
-function formatTransportLabel(transport: string): string {
+export function formatTransportLabel(transport: string): string {
   return transport
     .split('-')
     .map((word) =>
@@ -29,9 +29,19 @@ interface ServerListItemProps {
   tools: any[]
   isDeleting: boolean
   onRemove: () => void
+  onViewDetails: () => void
 }
 
-export function ServerListItem({ server, tools, isDeleting, onRemove }: ServerListItemProps) {
+/**
+ * Renders a single MCP server list item with details and delete actions.
+ */
+export function ServerListItem({
+  server,
+  tools,
+  isDeleting,
+  onRemove,
+  onViewDetails,
+}: ServerListItemProps) {
   const transportLabel = formatTransportLabel(server.transport || 'http')
   const toolsLabel = formatToolsLabel(tools)
 
@@ -46,9 +56,18 @@ export function ServerListItem({ server, tools, isDeleting, onRemove }: ServerLi
         </div>
         <p className='truncate text-[13px] text-[var(--text-muted)]'>{toolsLabel}</p>
       </div>
-      <Button variant='ghost' className='flex-shrink-0' onClick={onRemove} disabled={isDeleting}>
-        {isDeleting ? 'Deleting...' : 'Delete'}
-      </Button>
+      <div className='flex flex-shrink-0 items-center gap-[4px]'>
+        <Button
+          variant='primary'
+          onClick={onViewDetails}
+          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+        >
+          Details
+        </Button>
+        <Button variant='ghost' onClick={onRemove} disabled={isDeleting}>
+          {isDeleting ? 'Deleting...' : 'Delete'}
+        </Button>
+      </div>
     </div>
   )
 }
