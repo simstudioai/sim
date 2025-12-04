@@ -241,13 +241,13 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
         {isLoading ? (
           <div className='flex flex-col gap-[16px]'>
             <div className='flex flex-col gap-[8px]'>
-              <Skeleton className='h-[14px] w-[70px]' />
+              <Skeleton className='h-5 w-[70px]' />
               <div className='text-[13px] text-[var(--text-muted)]'>
-                <Skeleton className='h-[13px] w-[140px]' />
+                <Skeleton className='h-5 w-[140px]' />
               </div>
             </div>
             <div className='flex flex-col gap-[8px]'>
-              <Skeleton className='h-[14px] w-[55px]' />
+              <Skeleton className='h-5 w-[55px]' />
               <ApiKeySkeleton />
               <ApiKeySkeleton />
             </div>
@@ -624,10 +624,10 @@ function ApiKeySkeleton() {
     <div className='flex items-center justify-between gap-[12px]'>
       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
         <div className='flex items-center gap-[6px]'>
-          <Skeleton className='h-[14px] w-[80px]' />
-          <Skeleton className='h-[13px] w-[140px]' />
+          <Skeleton className='h-5 w-[80px]' />
+          <Skeleton className='h-5 w-[140px]' />
         </div>
-        <Skeleton className='h-[13px] w-[100px]' />
+        <Skeleton className='h-5 w-[100px]' />
       </div>
       <Skeleton className='h-[26px] w-[48px] rounded-[6px]' />
     </div>

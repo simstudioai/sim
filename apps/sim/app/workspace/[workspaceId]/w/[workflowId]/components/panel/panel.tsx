@@ -167,18 +167,6 @@ export function Panel() {
   }, [setHasHydrated])
 
   /**
-   * Focus Copilot user input when the Copilot tab becomes active or when
-   * the panel loads with Copilot already selected, after hydration.
-   */
-  useEffect(() => {
-    if (!_hasHydrated || activeTab !== 'copilot') {
-      return
-    }
-
-    copilotRef.current?.focusInput()
-  }, [_hasHydrated, activeTab])
-
-  /**
    * Handles tab click events
    */
   const handleTabClick = (tab: PanelTab) => {

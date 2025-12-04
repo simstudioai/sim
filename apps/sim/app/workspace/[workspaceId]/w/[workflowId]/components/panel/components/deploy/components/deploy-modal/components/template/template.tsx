@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, Plus } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Button, Combobox, Input, Label, Textarea } from '@/components/emcn'
 import {
   Modal,
@@ -118,7 +118,7 @@ export function TemplateDeploy({
 
     setLoadingCreators(true)
     try {
-      const response = await fetch('/api/creator-profiles')
+      const response = await fetch('/api/creators')
       if (response.ok) {
         const data = await response.json()
         const profiles = (data.profiles || []).map((profile: any) => ({
@@ -321,24 +321,23 @@ export function TemplateDeploy({
           {creatorOptions.length === 0 && !loadingCreators ? (
             <Button
               type='button'
-              variant='outline'
+              variant='primary'
               onClick={() => {
                 try {
                   const event = new CustomEvent('open-settings', {
-                    detail: { tab: 'creator-profile' },
+                    detail: { tab: 'template-profile' },
                   })
                   window.dispatchEvent(event)
-                  logger.info('Opened Settings modal at creator-profile section')
+                  logger.info('Opened Settings modal at template-profile section')
                 } catch (error) {
-                  logger.error('Failed to open Settings modal for creator profile', {
+                  logger.error('Failed to open Settings modal for template profile', {
                     error,
                   })
                 }
               }}
               className='gap-[8px]'
             >
-              <Plus className='h-[14px] w-[14px] text-[var(--text-muted)]' />
-              <span className='text-[var(--text-muted)]'>Create a Creator Profile</span>
+              <span>Create Template Profile</span>
             </Button>
           ) : (
             <Combobox

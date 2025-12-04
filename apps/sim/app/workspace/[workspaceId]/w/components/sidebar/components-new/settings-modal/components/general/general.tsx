@@ -328,21 +328,28 @@ export function General({ onOpenChange }: GeneralProps) {
           <div className='flex items-center gap-[8px]'>
             {isEditingName ? (
               <>
-                <input
-                  ref={inputRef}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onBlur={handleInputBlur}
-                  className='w-auto border-0 bg-transparent p-0 font-medium text-[14px] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
-                  size={Math.max(name.length, 1)}
-                  maxLength={100}
-                  disabled={updateProfile.isPending}
-                  autoComplete='off'
-                  autoCorrect='off'
-                  autoCapitalize='off'
-                  spellCheck='false'
-                />
+                <div className='relative inline-flex'>
+                  <span
+                    className='invisible whitespace-pre font-medium text-[14px]'
+                    aria-hidden='true'
+                  >
+                    {name || '\u00A0'}
+                  </span>
+                  <input
+                    ref={inputRef}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onBlur={handleInputBlur}
+                    className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 font-medium text-[14px] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                    maxLength={100}
+                    disabled={updateProfile.isPending}
+                    autoComplete='off'
+                    autoCorrect='off'
+                    autoCapitalize='off'
+                    spellCheck='false'
+                  />
+                </div>
                 <Button
                   variant='ghost'
                   className='h-[12px] w-[12px] flex-shrink-0 p-0'
@@ -367,7 +374,7 @@ export function General({ onOpenChange }: GeneralProps) {
               </>
             )}
           </div>
-          <p className='text-[13px] text-[var(--text-muted)]'>{profile?.email || ''}</p>
+          <p className='text-[13px] text-[var(--text-tertiary)]'>{profile?.email || ''}</p>
         </div>
       </div>
       {uploadError && <p className='text-[13px] text-[var(--text-error)]'>{uploadError}</p>}
@@ -507,42 +514,34 @@ function GeneralSkeleton() {
         <Skeleton className='h-9 w-9 rounded-full' />
         <div className='flex flex-1 flex-col justify-center gap-[1px]'>
           <div className='flex items-center gap-[8px]'>
-            <Skeleton className='h-[14px] w-24' />
-            <Skeleton className='h-[11px] w-[11px]' />
+            <Skeleton className='h-5 w-24' />
+            <Skeleton className='h-[10.5px] w-[10.5px]' />
           </div>
-          <Skeleton className='h-[13px] w-40' />
+          <Skeleton className='h-5 w-40' />
         </div>
       </div>
 
-      {/* Theme row - temporarily hidden while light mode is disabled */}
-      {/* <div className='flex items-center justify-between border-b pb-[12px]'>
-        <Skeleton className='h-4 w-12' />
-        <Skeleton className='h-8 w-[100px] rounded-[8px]' />
-      </div> */}
-
       {/* Auto-connect row */}
-      <div className='flex items-center justify-between'>
+      <div className='flex items-center justify-between pt-[12px]'>
         <Skeleton className='h-4 w-36' />
-        <Skeleton className='h-[17px] w-[30px] rounded-[20px]' />
+        <Skeleton className='h-[17px] w-[30px] rounded-full' />
       </div>
 
       {/* Error notifications row */}
       <div className='flex items-center justify-between'>
-        <Skeleton className='h-4 w-36' />
-        <Skeleton className='h-[17px] w-[30px] rounded-[20px]' />
+        <Skeleton className='h-4 w-40' />
+        <Skeleton className='h-[17px] w-[30px] rounded-full' />
       </div>
 
       {/* Telemetry row */}
       <div className='flex items-center justify-between border-t pt-[12px]'>
-        <Skeleton className='h-4 w-40' />
-        <Skeleton className='h-[17px] w-[30px] rounded-[20px]' />
+        <Skeleton className='h-4 w-44' />
+        <Skeleton className='h-[17px] w-[30px] rounded-full' />
       </div>
 
       {/* Telemetry description */}
-      <div className='space-y-1'>
-        <Skeleton className='h-3 w-full' />
-        <Skeleton className='h-3 w-4/5' />
-      </div>
+      <Skeleton className='h-[12px] w-full' />
+      <Skeleton className='-mt-2 h-[12px] w-4/5' />
 
       {/* Action buttons */}
       <div className='mt-auto flex items-center gap-[8px]'>

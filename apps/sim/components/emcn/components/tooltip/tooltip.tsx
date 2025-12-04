@@ -45,7 +45,7 @@ const Content = React.forwardRef<
       collisionPadding={8}
       avoidCollisions={true}
       className={cn(
-        'z-50 rounded-[3px] bg-black px-[7.5px] py-[6px] font-base text-white text-xs shadow-md dark:bg-white dark:text-black',
+        'z-[10000300] rounded-[3px] bg-black px-[7.5px] py-[6px] font-base text-white text-xs shadow-md dark:bg-white dark:text-black',
         className
       )}
       {...props}

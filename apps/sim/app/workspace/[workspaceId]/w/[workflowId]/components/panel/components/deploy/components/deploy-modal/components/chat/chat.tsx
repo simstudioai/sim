@@ -780,7 +780,7 @@ function AuthSelector({
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
             {authType === 'email' ? 'Allowed emails' : 'Allowed SSO emails'}
           </Label>
-          <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[4px] focus-within:outline-none dark:bg-[var(--surface-9)]'>
+          <div className='scrollbar-hide flex max-h-32 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[8px] py-[6px] focus-within:outline-none dark:bg-[var(--surface-9)]'>
             {invalidEmails.map((email, index) => (
               <EmailTag
                 key={`invalid-${index}`}
@@ -798,7 +798,7 @@ function AuthSelector({
                 disabled={disabled}
               />
             ))}
-            <Input
+            <input
               type='text'
               value={emailInputValue}
               onChange={(e) => setEmailInputValue(e.target.value)}
@@ -810,10 +810,7 @@ function AuthSelector({
                   ? 'Add another email'
                   : 'Enter emails or domains (@example.com)'
               }
-              className={cn(
-                'h-6 min-w-[180px] flex-1 border-none bg-transparent p-0 text-[13px] focus-visible:ring-0 focus-visible:ring-offset-0',
-                emails.length > 0 || invalidEmails.length > 0 ? 'pl-[4px]' : 'pl-[4px]'
-              )}
+              className='min-w-[180px] flex-1 border-none bg-transparent p-0 font-medium font-sans text-foreground text-sm outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
               disabled={disabled}
             />
           </div>

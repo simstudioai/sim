@@ -219,6 +219,7 @@ export function Chat() {
   const [chatMessage, setChatMessage] = useState('')
   const [promptHistory, setPromptHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
 
   // Refs
   const inputRef = useRef<HTMLInputElement>(null)
@@ -836,7 +837,7 @@ export function Chat() {
 
         <div className='flex flex-shrink-0 items-center gap-[8px]'>
           {/* More menu with actions */}
-          <Popover variant='default'>
+          <Popover variant='default' open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant='ghost'
@@ -858,6 +859,7 @@ export function Chat() {
                   onClick={(e) => {
                     e.stopPropagation()
                     if (activeWorkflowId) exportChatCSV(activeWorkflowId)
+                    setMoreMenuOpen(false)
                   }}
                   disabled={workflowMessages.length === 0}
                 >
@@ -868,6 +870,7 @@ export function Chat() {
                   onClick={(e) => {
                     e.stopPropagation()
                     if (activeWorkflowId) clearChat(activeWorkflowId)
+                    setMoreMenuOpen(false)
                   }}
                   disabled={workflowMessages.length === 0}
                 >
