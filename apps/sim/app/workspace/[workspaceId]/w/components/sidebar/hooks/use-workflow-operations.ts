@@ -1,9 +1,13 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCreateWorkflow, useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import {
+  generateCreativeWorkflowName,
+  getNextWorkflowColor,
+} from '@/stores/workflows/registry/utils'
 
 const logger = createLogger('useWorkflowOperations')
 
@@ -29,7 +33,6 @@ export function useWorkflowOperations({
   const { workflows } = useWorkflowRegistry()
   const workflowsQuery = useWorkflows(workspaceId)
   const createWorkflowMutation = useCreateWorkflow()
-  const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false)
 
   /**
    * Filter and sort workflows for the current workspace
@@ -42,25 +45,30 @@ export function useWorkflowOperations({
     })
 
   /**
-   * Create workflow handler - creates workflow and navigates to it
-   * Now uses React Query mutation for better performance and caching
+   * Create workflow handler - creates workflow and navigates to it.
+   * Uses React Query mutation's isPending state for immediate loading feedback.
+   * Generates name and color upfront to enable optimistic UI updates.
    */
   const handleCreateWorkflow = useCallback(async (): Promise<string | null> => {
-    if (isCreatingWorkflow) {
+    if (createWorkflowMutation.isPending) {
       logger.info('Workflow creation already in progress, ignoring request')
       return null
     }
 
     try {
-      setIsCreatingWorkflow(true)
-
       // Clear workflow diff store when creating a new workflow
       const { clearDiff } = useWorkflowDiffStore.getState()
       clearDiff()
 
-      // Use React Query mutation for creation
+      // Generate name and color upfront for optimistic updates
+      const name = generateCreativeWorkflowName()
+      const color = getNextWorkflowColor()
+
+      // Use React Query mutation for creation - isPending updates immediately
       const result = await createWorkflowMutation.mutateAsync({
-        workspaceId: workspaceId,
+        workspaceId,
+        name,
+        color,
       })
 
       // Navigate to the newly created workflow
@@ -72,17 +80,15 @@ export function useWorkflowOperations({
     } catch (error) {
       logger.error('Error creating workflow:', error)
       return null
-    } finally {
-      setIsCreatingWorkflow(false)
     }
-  }, [isCreatingWorkflow, createWorkflowMutation, workspaceId, router])
+  }, [createWorkflowMutation, workspaceId, router])
 
   return {
     // State
     workflows,
     regularWorkflows,
     workflowsLoading: workflowsQuery.isLoading,
-    isCreatingWorkflow,
+    isCreatingWorkflow: createWorkflowMutation.isPending,
 
     // Operations
     handleCreateWorkflow,

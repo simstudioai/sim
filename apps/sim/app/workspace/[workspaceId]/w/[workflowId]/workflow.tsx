@@ -11,6 +11,7 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { Loader2 } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console/logger'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -2187,7 +2188,11 @@ const WorkflowContent = React.memo(() => {
     return (
       <div className='flex h-screen w-full flex-col overflow-hidden'>
         <div className='relative h-full w-full flex-1 transition-all duration-200'>
-          <div className='workflow-container h-full' />
+          <div className='workflow-container flex h-full items-center justify-center'>
+            <div className='flex flex-col items-center gap-3'>
+              <Loader2 className='h-[24px] w-[24px] animate-spin text-muted-foreground' />
+            </div>
+          </div>
         </div>
         <Panel />
         <Terminal />

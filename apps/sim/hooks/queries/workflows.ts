@@ -87,6 +87,11 @@ interface CreateWorkflowVariables {
   folderId?: string | null
 }
 
+interface CreateWorkflowContext {
+  tempId: string
+  previousWorkflows: Record<string, WorkflowMetadata>
+}
+
 export function useCreateWorkflow() {
   const queryClient = useQueryClient()
 
@@ -144,8 +149,39 @@ export function useCreateWorkflow() {
         folderId: createdWorkflow.folderId,
       }
     },
-    onSuccess: (data, variables) => {
-      logger.info(`Workflow ${data.id} created successfully`)
+    onMutate: async (variables): Promise<CreateWorkflowContext> => {
+      // Cancel any outgoing refetches to prevent race conditions
+      await queryClient.cancelQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
+
+      // Snapshot previous state for rollback
+      const previousWorkflows = { ...useWorkflowRegistry.getState().workflows }
+
+      const tempId = `temp-${Date.now()}`
+
+      // Optimistically add workflow entry immediately
+      useWorkflowRegistry.setState((state) => ({
+        workflows: {
+          ...state.workflows,
+          [tempId]: {
+            id: tempId,
+            name: variables.name || 'New Workflow',
+            lastModified: new Date(),
+            createdAt: new Date(),
+            description: variables.description || 'New workflow',
+            color: variables.color || '#808080',
+            workspaceId: variables.workspaceId,
+            folderId: variables.folderId || null,
+          },
+        },
+      }))
+
+      logger.info(`Added optimistic workflow entry: ${tempId}`)
+      return { tempId, previousWorkflows }
+    },
+    onSuccess: (data, _variables, context) => {
+      logger.info(
+        `Workflow ${data.id} created successfully, replacing temp entry ${context.tempId}`
+      )
 
       const { subBlockValues } = buildDefaultWorkflowArtifacts()
       useSubBlockStore.setState((state) => ({
@@ -155,27 +191,39 @@ export function useCreateWorkflow() {
         },
       }))
 
-      useWorkflowRegistry.setState((state) => ({
-        workflows: {
-          ...state.workflows,
-          [data.id]: {
-            id: data.id,
-            name: data.name,
-            lastModified: new Date(),
-            createdAt: new Date(),
-            description: data.description,
-            color: data.color,
-            workspaceId: data.workspaceId,
-            folderId: data.folderId,
+      // Replace optimistic entry with real workflow data
+      useWorkflowRegistry.setState((state) => {
+        const { [context.tempId]: _, ...remainingWorkflows } = state.workflows
+        return {
+          workflows: {
+            ...remainingWorkflows,
+            [data.id]: {
+              id: data.id,
+              name: data.name,
+              lastModified: new Date(),
+              createdAt: new Date(),
+              description: data.description,
+              color: data.color,
+              workspaceId: data.workspaceId,
+              folderId: data.folderId,
+            },
           },
-        },
-        error: null,
-      }))
-
-      queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
+          error: null,
+        }
+      })
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _variables, context) => {
       logger.error('Failed to create workflow:', error)
+
+      // Rollback to previous state snapshot
+      if (context?.previousWorkflows) {
+        useWorkflowRegistry.setState({ workflows: context.previousWorkflows })
+        logger.info(`Rolled back to previous workflows state`)
+      }
+    },
+    onSettled: (_data, _error, variables) => {
+      // Always invalidate to sync with server state
+      queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
     },
   })
 }

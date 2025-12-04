@@ -12,7 +12,6 @@ import {
   getUsage,
 } from '@/lib/billing/client/utils'
 import { createLogger } from '@/lib/logs/console/logger'
-import { RotatingDigit } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/usage-indicator/rotating-digit'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
@@ -272,15 +271,9 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
               </>
             ) : (
               <>
-                <div className='flex items-center font-medium text-[12px] text-[var(--text-tertiary)]'>
-                  <span className='mr-[1px]'>$</span>
-                  <RotatingDigit
-                    value={usage.current}
-                    height={14}
-                    width={7}
-                    textClassName='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'
-                  />
-                </div>
+                <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
+                  ${usage.current}
+                </span>
                 <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>/</span>
                 <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
                   ${usage.limit}

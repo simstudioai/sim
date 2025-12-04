@@ -17,6 +17,10 @@ import { useDeleteFolder, useDuplicateFolder } from '@/app/workspace/[workspaceI
 import { useUpdateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import type { FolderTreeNode } from '@/stores/folders/store'
+import {
+  generateCreativeWorkflowName,
+  getNextWorkflowColor,
+} from '@/stores/workflows/registry/utils'
 
 interface FolderItemProps {
   folder: FolderTreeNode
@@ -60,12 +64,23 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   })
 
   /**
-   * Handle create workflow in folder using React Query mutation
+   * Handle create workflow in folder using React Query mutation.
+   * Generates name and color upfront for optimistic UI updates.
    */
   const handleCreateWorkflowInFolder = useCallback(async () => {
+    if (createWorkflowMutation.isPending) {
+      return
+    }
+
+    // Generate name and color upfront for optimistic updates
+    const name = generateCreativeWorkflowName()
+    const color = getNextWorkflowColor()
+
     const result = await createWorkflowMutation.mutateAsync({
       workspaceId,
       folderId: folder.id,
+      name,
+      color,
     })
 
     if (result.id) {

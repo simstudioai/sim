@@ -65,6 +65,11 @@ interface CreateFolderVariables {
   color?: string
 }
 
+interface CreateFolderContext {
+  tempId: string
+  previousFolders: Record<string, WorkflowFolder>
+}
+
 interface UpdateFolderVariables {
   workspaceId: string
   id: string
@@ -103,7 +108,62 @@ export function useCreateFolder() {
       const { folder } = await response.json()
       return mapFolder(folder)
     },
-    onSuccess: (_data, variables) => {
+    onMutate: async (variables): Promise<CreateFolderContext> => {
+      // Cancel any outgoing refetches to prevent race conditions
+      await queryClient.cancelQueries({ queryKey: folderKeys.list(variables.workspaceId) })
+
+      // Snapshot previous state for rollback
+      const previousFolders = { ...useFolderStore.getState().folders }
+
+      const tempId = `temp-folder-${Date.now()}`
+
+      // Optimistically add folder entry immediately
+      useFolderStore.setState((state) => ({
+        folders: {
+          ...state.folders,
+          [tempId]: {
+            id: tempId,
+            name: variables.name,
+            userId: '',
+            workspaceId: variables.workspaceId,
+            parentId: variables.parentId || null,
+            color: variables.color || '#808080',
+            isExpanded: false,
+            sortOrder: 0,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+      }))
+
+      logger.info(`Added optimistic folder entry: ${tempId}`)
+      return { tempId, previousFolders }
+    },
+    onSuccess: (data, _variables, context) => {
+      logger.info(`Folder ${data.id} created successfully, replacing temp entry ${context.tempId}`)
+
+      // Replace optimistic entry with real folder data
+      useFolderStore.setState((state) => {
+        const { [context.tempId]: _, ...remainingFolders } = state.folders
+        return {
+          folders: {
+            ...remainingFolders,
+            [data.id]: data,
+          },
+        }
+      })
+    },
+    onError: (error: Error, _variables, context) => {
+      logger.error('Failed to create folder:', error)
+
+      // Rollback to previous state snapshot
+      if (context?.previousFolders) {
+        useFolderStore.setState({ folders: context.previousFolders })
+        logger.info(`Rolled back to previous folders state`)
+      }
+    },
+    onSettled: (_data, _error, variables) => {
+      // Always invalidate to sync with server state
       queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
     },
   })
