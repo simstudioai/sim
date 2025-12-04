@@ -108,13 +108,16 @@ Créer un nouveau ticket dans Zendesk avec prise en charge des champs personnali
 | `email` | string | Oui | Votre adresse e-mail Zendesk |
 | `apiToken` | string | Oui | Jeton API Zendesk |
 | `subdomain` | string | Oui | Votre sous-domaine Zendesk |
-| `subject` | string | Non | Objet du ticket \(facultatif - sera généré automatiquement si non fourni\) |
+| `subject` | string | Non | Sujet du ticket \(facultatif - sera généré automatiquement si non fourni\) |
 | `description` | string | Oui | Description du ticket \(premier commentaire\) |
-| `priority` | string | Non | Priorité \(faible, normale, élevée, urgente\) |
-| `status` | string | Non | Statut \(nouveau, ouvert, en attente, en suspens, résolu, fermé\) |
-| `type` | string | Non | Type \(problème, incident, question, tâche\) |
+| `priority` | string | Non | Priorité \(low, normal, high, urgent\) |
+| `status` | string | Non | Statut \(new, open, pending, hold, solved, closed\) |
+| `type` | string | Non | Type \(problem, incident, question, task\) |
 | `tags` | string | Non | Tags séparés par des virgules |
 | `assigneeId` | string | Non | ID de l'utilisateur assigné |
+| `groupId` | string | Non | ID du groupe |
+| `requesterId` | string | Non | ID de l'utilisateur demandeur |
+| `customFields` | string | Non | Champs personnalisés sous forme d'objet JSON \(ex., \{"field_id": "value"\}\) |
 
 #### Sortie
 

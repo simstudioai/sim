@@ -1,0 +1,566 @@
+---
+title: WordPress
+description: WordPressコンテンツを管理する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="wordpress"
+  color="#21759B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[WordPress](https://wordpress.org/)は、世界をリードするオープンソースのコンテンツ管理システムで、ウェブサイト、ブログ、あらゆる種類のオンラインコンテンツの公開と管理を容易にします。WordPressを使用すると、投稿やページの作成と更新、カテゴリーやタグによるコンテンツの整理、メディアファイルの管理、コメントの調整、ユーザーアカウントの処理が可能になり、個人ブログから複雑なビジネスサイトまであらゆるものを運営できます。
+
+SimとWordPressの統合により、エージェントは重要なウェブサイトのタスクを自動化できます。特定のタイトル、コンテンツ、カテゴリー、タグ、アイキャッチ画像を含む新しいブログ投稿をプログラムで作成できます。既存の投稿の更新（コンテンツ、タイトル、公開ステータスの変更など）も簡単です。また、コンテンツの公開や下書き保存、静的ページの管理、メディアのアップロード、コメントの監視、関連する分類法へのコンテンツの割り当ても可能です。
+
+WordPressを自動化に接続することで、Simはエージェントがコンテンツの公開、編集ワークフロー、日常的なサイト管理を効率化できるようにし、手動での作業なしにウェブサイトを新鮮で整理され、安全に保つのに役立ちます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用手順
+
+WordPressと統合して、投稿、ページ、メディア、コメント、カテゴリー、タグ、ユーザーの作成、更新、管理を行います。OAuth経由のWordPress.comサイトとアプリケーションパスワード認証を使用した自己ホスト型WordPressサイトをサポートしています。
+
+## ツール
+
+### `wordpress_create_post`
+
+WordPress.comに新しいブログ投稿を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `title` | string | はい | 投稿タイトル |
+| `content` | string | いいえ | 投稿コンテンツ（HTMLまたはプレーンテキスト） |
+| `status` | string | いいえ | 投稿ステータス：publish、draft、pending、private、またはfuture |
+| `excerpt` | string | いいえ | 投稿の抜粋 |
+| `categories` | string | いいえ | カンマ区切りのカテゴリーID |
+| `tags` | string | いいえ | カンマ区切りのタグID |
+| `featuredMedia` | number | いいえ | アイキャッチ画像のメディアID |
+| `slug` | string | いいえ | 投稿のURLスラッグ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `post` | object | 作成された投稿 |
+
+### `wordpress_update_post`
+
+WordPress.comの既存のブログ投稿を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `postId` | number | はい | 更新する投稿のID |
+| `title` | string | いいえ | 投稿タイトル |
+| `content` | string | いいえ | 投稿内容（HTMLまたはプレーンテキスト） |
+| `status` | string | いいえ | 投稿ステータス：publish、draft、pending、private、またはfuture |
+| `excerpt` | string | いいえ | 投稿の抜粋 |
+| `categories` | string | いいえ | カンマ区切りのカテゴリーID |
+| `tags` | string | いいえ | カンマ区切りのタグID |
+| `featuredMedia` | number | いいえ | アイキャッチ画像のメディアID |
+| `slug` | string | いいえ | 投稿のURLスラッグ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `post` | object | 更新された投稿 |
+
+### `wordpress_delete_post`
+
+WordPress.comからブログ投稿を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `postId` | number | はい | 削除する投稿のID |
+| `force` | boolean | いいえ | ゴミ箱をバイパスして強制的に完全に削除する |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 投稿が削除されたかどうか |
+| `post` | object | 削除された投稿 |
+
+### `wordpress_get_post`
+
+IDによってWordPress.comから単一のブログ投稿を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `postId` | number | はい | 取得する投稿のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `post` | object | 取得された投稿 |
+
+### `wordpress_list_posts`
+
+オプションのフィルターを使用してWordPress.comからブログ投稿を一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `perPage` | number | いいえ | ページあたりの投稿数（デフォルト：10、最大：100） |
+| `page` | number | いいえ | ページネーションのページ番号 |
+| `status` | string | いいえ | 投稿ステータスフィルター：publish、draft、pending、private |
+| `author` | number | いいえ | 著者IDでフィルタリング |
+| `categories` | string | いいえ | フィルタリングするカテゴリIDのカンマ区切りリスト |
+| `tags` | string | いいえ | フィルタリングするタグIDのカンマ区切りリスト |
+| `search` | string | いいえ | 投稿をフィルタリングする検索語 |
+| `orderBy` | string | いいえ | 並べ替えフィールド：date、id、title、slug、modified |
+| `order` | string | いいえ | 並べ替え方向：ascまたはdesc |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `posts` | array | 投稿のリスト |
+
+### `wordpress_create_page`
+
+WordPress.comで新しいページを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `title` | string | はい | ページタイトル |
+| `content` | string | いいえ | ページコンテンツ（HTMLまたはプレーンテキスト） |
+| `status` | string | いいえ | ページステータス：publish、draft、pending、private |
+| `excerpt` | string | いいえ | ページの抜粋 |
+| `parent` | number | いいえ | 階層ページの親ページID |
+| `menuOrder` | number | いいえ | ページメニューでの順序 |
+| `featuredMedia` | number | いいえ | アイキャッチ画像のメディアID |
+| `slug` | string | いいえ | ページのURLスラッグ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `page` | object | 作成されたページ |
+
+### `wordpress_update_page`
+
+WordPress.comの既存ページを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `pageId` | number | はい | 更新するページのID |
+| `title` | string | いいえ | ページタイトル |
+| `content` | string | いいえ | ページコンテンツ（HTMLまたはプレーンテキスト） |
+| `status` | string | いいえ | ページステータス：publish、draft、pending、private |
+| `excerpt` | string | いいえ | ページの抜粋 |
+| `parent` | number | いいえ | 階層ページの親ページID |
+| `menuOrder` | number | いいえ | ページメニューでの順序 |
+| `featuredMedia` | number | いいえ | アイキャッチ画像のメディアID |
+| `slug` | string | いいえ | ページのURLスラッグ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `page` | object | 更新されたページ |
+
+### `wordpress_delete_page`
+
+WordPress.comからページを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `pageId` | number | はい | 削除するページのID |
+| `force` | boolean | いいえ | ゴミ箱をバイパスして強制的に完全に削除する |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | ページが削除されたかどうか |
+| `page` | object | 削除されたページ |
+
+### `wordpress_get_page`
+
+IDによってWordPress.comから単一のページを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `pageId` | number | はい | 取得するページのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `page` | object | 取得したページ |
+
+### `wordpress_list_pages`
+
+オプションのフィルターを使用してWordPress.comからページを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `perPage` | number | いいえ | リクエストごとのページ数（デフォルト：10、最大：100） |
+| `page` | number | いいえ | ページネーションのためのページ番号 |
+| `status` | string | いいえ | ページステータスフィルター：publish、draft、pending、private |
+| `parent` | number | いいえ | 親ページIDでフィルタリング |
+| `search` | string | いいえ | ページをフィルタリングする検索語 |
+| `orderBy` | string | いいえ | フィールドで並べ替え：date、id、title、slug、modified、menu_order |
+| `order` | string | いいえ | 並べ替え方向：ascまたはdesc |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `pages` | array | ページのリスト |
+
+### `wordpress_upload_media`
+
+メディアファイル（画像、動画、ドキュメント）をWordPress.comにアップロードする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン \(例：12345678またはmysite.wordpress.com\) |
+| `file` | string | はい | Base64エンコードされたファイルデータまたはファイルを取得するURL |
+| `filename` | string | はい | 拡張子付きのファイル名 \(例：image.jpg\) |
+| `title` | string | いいえ | メディアのタイトル |
+| `caption` | string | いいえ | メディアのキャプション |
+| `altText` | string | いいえ | アクセシビリティのための代替テキスト |
+| `description` | string | いいえ | メディアの説明 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `media` | object | アップロードされたメディアアイテム |
+
+### `wordpress_get_media`
+
+IDによってWordPress.comから単一のメディアアイテムを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン \(例：12345678またはmysite.wordpress.com\) |
+| `mediaId` | number | はい | 取得するメディアアイテムのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `media` | object | 取得されたメディアアイテム |
+
+### `wordpress_list_media`
+
+WordPress.comメディアライブラリからメディアアイテムを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `perPage` | number | いいえ | リクエストごとのメディアアイテム数（デフォルト：10、最大：100） |
+| `page` | number | いいえ | ページネーション用のページ番号 |
+| `search` | string | いいえ | メディアをフィルタリングする検索語 |
+| `mediaType` | string | いいえ | メディアタイプでフィルタリング：image、video、audio、application |
+| `mimeType` | string | いいえ | 特定のMIMEタイプでフィルタリング（例：image/jpeg） |
+| `orderBy` | string | いいえ | フィールドで並べ替え：date、id、title、slug |
+| `order` | string | いいえ | 並べ替え方向：ascまたはdesc |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `media` | array | メディアアイテムのリスト |
+
+### `wordpress_delete_media`
+
+WordPress.comからメディアアイテムを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `mediaId` | number | はい | 削除するメディアアイテムのID |
+| `force` | boolean | いいえ | 強制削除（メディアにはゴミ箱がないため、削除は永続的です） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | メディアが削除されたかどうか |
+| `media` | object | 削除されたメディアアイテム |
+
+### `wordpress_create_comment`
+
+WordPress.comの投稿に新しいコメントを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `postId` | number | はい | コメントする投稿のID |
+| `content` | string | はい | コメント内容 |
+| `parent` | number | いいえ | 返信の場合の親コメントID |
+| `authorName` | string | いいえ | コメント投稿者の表示名 |
+| `authorEmail` | string | いいえ | コメント投稿者のメールアドレス |
+| `authorUrl` | string | いいえ | コメント投稿者のURL |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `comment` | object | 作成されたコメント |
+
+### `wordpress_list_comments`
+
+オプションのフィルターを使用してWordPress.comからコメントを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `perPage` | number | いいえ | リクエストごとのコメント数（デフォルト：10、最大：100） |
+| `page` | number | いいえ | ページネーションのページ番号 |
+| `postId` | number | いいえ | 投稿IDでフィルタリング |
+| `status` | string | いいえ | コメントステータスでフィルタリング：approved、hold、spam、trash |
+| `search` | string | いいえ | コメントをフィルタリングする検索語 |
+| `orderBy` | string | いいえ | フィールドで並べ替え：date、id、parent |
+| `order` | string | いいえ | 並べ替え方向：ascまたはdesc |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `comments` | array | コメントのリスト |
+
+### `wordpress_update_comment`
+
+WordPress.comのコメントを更新します（内容またはステータス）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン \(例: 12345678 または mysite.wordpress.com\) |
+| `commentId` | number | はい | 更新するコメントのID |
+| `content` | string | いいえ | 更新されたコメント内容 |
+| `status` | string | いいえ | コメントステータス: approved（承認済み）、hold（保留中）、spam（スパム）、trash（ゴミ箱） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `comment` | object | 更新されたコメント |
+
+### `wordpress_delete_comment`
+
+WordPress.comからコメントを削除します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン \(例: 12345678 または mysite.wordpress.com\) |
+| `commentId` | number | はい | 削除するコメントのID |
+| `force` | boolean | いいえ | ゴミ箱をバイパスして強制的に完全に削除する |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | コメントが削除されたかどうか |
+| `comment` | object | 削除されたコメント |
+
+### `wordpress_create_category`
+
+WordPress.comに新しいカテゴリを作成します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `name` | string | はい | カテゴリ名 |
+| `description` | string | いいえ | カテゴリの説明 |
+| `parent` | number | いいえ | 階層カテゴリの親カテゴリID |
+| `slug` | string | いいえ | カテゴリのURLスラッグ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `category` | object | 作成されたカテゴリ |
+
+### `wordpress_list_categories`
+
+WordPress.comからカテゴリを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `perPage` | number | いいえ | リクエストごとのカテゴリ数（デフォルト：10、最大：100） |
+| `page` | number | いいえ | ページネーションのページ番号 |
+| `search` | string | いいえ | カテゴリをフィルタリングする検索語 |
+| `order` | string | いいえ | 並び順の方向：ascまたはdesc |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `categories` | array | カテゴリのリスト |
+
+### `wordpress_create_tag`
+
+WordPress.comに新しいタグを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン（例：12345678またはmysite.wordpress.com） |
+| `name` | string | はい | タグ名 |
+| `description` | string | いいえ | タグの説明 |
+| `slug` | string | いいえ | タグのURLスラッグ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `tag` | object | 作成されたタグ |
+
+### `wordpress_list_tags`
+
+WordPress.comからタグを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン \(例: 12345678またはmysite.wordpress.com\) |
+| `perPage` | number | いいえ | リクエストごとのタグ数 \(デフォルト: 10、最大: 100\) |
+| `page` | number | いいえ | ページネーション用のページ番号 |
+| `search` | string | いいえ | タグをフィルタリングする検索語 |
+| `order` | string | いいえ | 並び順の方向: ascまたはdesc |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `tags` | array | タグのリスト |
+
+### `wordpress_get_current_user`
+
+現在認証されているWordPress.comユーザーに関する情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン \(例: 12345678またはmysite.wordpress.com\) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `user` | object | 現在のユーザー |
+
+### `wordpress_list_users`
+
+WordPress.comからユーザーを一覧表示する（管理者権限が必要）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン \(例: 12345678またはmysite.wordpress.com\) |
+| `perPage` | number | いいえ | リクエストごとのユーザー数 \(デフォルト: 10、最大: 100\) |
+| `page` | number | いいえ | ページネーション用のページ番号 |
+| `search` | string | いいえ | ユーザーをフィルタリングする検索語 |
+| `roles` | string | いいえ | フィルタリングするロール名（カンマ区切り） |
+| `order` | string | いいえ | 並び順の方向: ascまたはdesc |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `users` | array | ユーザーのリスト |
+
+### `wordpress_get_user`
+
+IDによってWordPress.comから特定のユーザーを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン \(例：12345678またはmysite.wordpress.com\) |
+| `userId` | number | はい | 取得するユーザーのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `user` | object | 取得したユーザー |
+
+### `wordpress_search_content`
+
+WordPress.comのすべてのコンテンツタイプ（投稿、ページ、メディア）を検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン \(例：12345678またはmysite.wordpress.com\) |
+| `query` | string | はい | 検索クエリ |
+| `perPage` | number | いいえ | リクエストごとの結果数 \(デフォルト：10、最大：100\) |
+| `page` | number | いいえ | ページネーションのためのページ番号 |
+| `type` | string | いいえ | コンテンツタイプによるフィルタリング：post、page、attachment |
+| `subtype` | string | いいえ | 投稿タイプスラッグによるフィルタリング \(例：post、page\) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `results` | array | 検索結果 |
+
+## メモ
+
+- カテゴリー: `tools`
+- タイプ: `wordpress`

@@ -1,0 +1,394 @@
+---
+title: SSH
+description: Verbindung zu Remote-Servern über SSH herstellen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ssh"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SSH (Secure Shell)](https://en.wikipedia.org/wiki/Secure_Shell) ist ein weit verbreitetes Protokoll für die sichere Verbindung zu Remote-Servern, das es ermöglicht, Befehle auszuführen, Dateien zu übertragen und Systeme über verschlüsselte Kanäle zu verwalten.
+
+Mit SSH-Unterstützung in Sim können Ihre Agenten:
+
+- **Remote-Befehle ausführen**: Shell-Befehle auf jedem SSH-zugänglichen Server ausführen
+- **Skripte hochladen und ausführen**: Einfaches Übertragen und Ausführen von mehrzeiligen Skripten für erweiterte Automatisierung
+- **Dateien sicher übertragen**: Hoch- und Herunterladen von Dateien als Teil Ihrer Workflows (demnächst oder per Befehl)
+- **Serververwaltung automatisieren**: Programmatische Durchführung von Updates, Wartung, Überwachung, Bereitstellungen und Konfigurationsaufgaben
+- **Flexible Authentifizierung nutzen**: Verbindung mit Passwort- oder Private-Key-Authentifizierung, einschließlich Unterstützung für verschlüsselte Schlüssel
+
+Die folgenden Sim SSH-Tools ermöglichen es Ihren Agenten, mit Servern als Teil größerer Automatisierungen zu interagieren:
+
+- `ssh_execute_command`: Führt einen einzelnen Shell-Befehl remote aus und erfasst Ausgabe, Status und Fehler.
+- `ssh_execute_script`: Lädt ein vollständiges mehrzeiliges Skript hoch und führt es auf dem Remote-System aus.
+- (Weitere Tools wie Dateiübertragung kommen in Kürze.)
+
+Durch die Integration von SSH in Ihre Agenten-Workflows können Sie sicheren Zugriff, Remote-Operationen und Server-Orchestrierung automatisieren – und so DevOps, IT-Automatisierung und benutzerdefinierte Remote-Verwaltung rationalisieren, alles innerhalb von Sim.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Führen Sie Befehle aus, übertragen Sie Dateien und verwalten Sie Remote-Server über SSH. Unterstützt Passwort- und Private-Key-Authentifizierung für sicheren Serverzugriff.
+
+## Tools
+
+### `ssh_execute_command`
+
+Einen Shell-Befehl auf einem Remote-SSH-Server ausführen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein Private Key verwendet wird\) |
+| `privateKey` | string | Nein | Private Key für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten Private Key |
+| `command` | string | Ja | Shell-Befehl, der auf dem Remote-Server ausgeführt werden soll |
+| `workingDirectory` | string | Nein | Arbeitsverzeichnis für die Befehlsausführung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `stdout` | string | Standardausgabe des Befehls |
+| `stderr` | string | Standardfehlerausgabe |
+| `exitCode` | number | Exit-Code des Befehls |
+| `success` | boolean | Ob der Befehl erfolgreich war (Exit-Code 0) |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `ssh_execute_script`
+
+Ein mehrzeiliges Skript auf einem entfernten SSH-Server hochladen und ausführen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port (Standard: 22) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung (falls kein privater Schlüssel verwendet wird) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung (OpenSSH-Format) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `script` | string | Ja | Skriptinhalt zur Ausführung (bash, python, etc.) |
+| `interpreter` | string | Nein | Skript-Interpreter (Standard: /bin/bash) |
+| `workingDirectory` | string | Nein | Arbeitsverzeichnis für die Skriptausführung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `stdout` | string | Standardausgabe des Skripts |
+| `stderr` | string | Standardfehlerausgabe |
+| `exitCode` | number | Exit-Code des Skripts |
+| `success` | boolean | Ob das Skript erfolgreich war (Exit-Code 0) |
+| `scriptPath` | string | Temporärer Pfad, wohin das Skript hochgeladen wurde |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `ssh_check_command_exists`
+
+Überprüfen, ob ein Befehl/Programm auf dem entfernten SSH-Server existiert
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `commandName` | string | Ja | Zu überprüfender Befehlsname \(z.B. docker, git, python3\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `commandExists` | boolean | Ob der Befehl existiert |
+| `commandPath` | string | Vollständiger Pfad zum Befehl \(falls gefunden\) |
+| `version` | string | Versionsinformation des Befehls \(falls zutreffend\) |
+| `message` | string | Statusmeldung der Operation |
+
+### `ssh_upload_file`
+
+Eine Datei auf einen entfernten SSH-Server hochladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `fileContent` | string | Ja | Hochzuladender Dateiinhalt \(base64-kodiert für Binärdateien\) |
+| `fileName` | string | Ja | Name der hochzuladenden Datei |
+| `remotePath` | string | Ja | Zielpfad auf dem entfernten Server |
+| `permissions` | string | Nein | Dateiberechtigungen \(z.B. 0644\) |
+| `overwrite` | boolean | Nein | Ob bestehende Dateien überschrieben werden sollen \(Standard: true\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `uploaded` | boolean | Ob die Datei erfolgreich hochgeladen wurde |
+| `remotePath` | string | Endgültiger Pfad auf dem Remote-Server |
+| `size` | number | Dateigröße in Bytes |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `ssh_download_file`
+
+Eine Datei von einem Remote-SSH-Server herunterladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `remotePath` | string | Ja | Pfad der Datei auf dem Remote-Server |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `downloaded` | boolean | Ob die Datei erfolgreich heruntergeladen wurde |
+| `fileContent` | string | Dateiinhalt \(base64-kodiert für Binärdateien\) |
+| `fileName` | string | Name der heruntergeladenen Datei |
+| `remotePath` | string | Quellpfad auf dem Remote-Server |
+| `size` | number | Dateigröße in Bytes |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `ssh_list_directory`
+
+Dateien und Verzeichnisse in einem Remote-Verzeichnis auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `path` | string | Ja | Remote-Verzeichnispfad zum Auflisten |
+| `detailed` | boolean | Nein | Dateidetails einschließen \(Größe, Berechtigungen, Änderungsdatum\) |
+| `recursive` | boolean | Nein | Unterverzeichnisse rekursiv auflisten \(Standard: false\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `entries` | array | Array von Datei- und Verzeichniseinträgen |
+
+### `ssh_check_file_exists`
+
+Überprüfen, ob eine Datei oder ein Verzeichnis auf dem Remote-SSH-Server existiert
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `path` | string | Ja | Remote-Datei- oder Verzeichnispfad zur Überprüfung |
+| `type` | string | Nein | Erwarteter Typ: Datei, Verzeichnis oder beliebig \(Standard: beliebig\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `exists` | boolean | Ob der Pfad existiert |
+| `type` | string | Typ des Pfads (Datei, Verzeichnis, Symlink, nicht_gefunden) |
+| `size` | number | Dateigröße, wenn es eine Datei ist |
+| `permissions` | string | Dateiberechtigungen (z.B. 0755) |
+| `modified` | string | Zeitstempel der letzten Änderung |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `ssh_create_directory`
+
+Erstellt ein Verzeichnis auf dem entfernten SSH-Server
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port (Standard: 22) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung (wenn kein privater Schlüssel verwendet wird) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung (OpenSSH-Format) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `path` | string | Ja | Verzeichnispfad zum Erstellen |
+| `recursive` | boolean | Nein | Übergeordnete Verzeichnisse erstellen, wenn sie nicht existieren (Standard: true) |
+| `permissions` | string | Nein | Verzeichnisberechtigungen (Standard: 0755) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `created` | boolean | Ob das Verzeichnis erfolgreich erstellt wurde |
+| `remotePath` | string | Erstellter Verzeichnispfad |
+| `alreadyExists` | boolean | Ob das Verzeichnis bereits existierte |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `ssh_delete_file`
+
+Löschen einer Datei oder eines Verzeichnisses vom entfernten SSH-Server
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `path` | string | Ja | Zu löschender Pfad |
+| `recursive` | boolean | Nein | Verzeichnisse rekursiv löschen \(Standard: false\) |
+| `force` | boolean | Nein | Löschen ohne Bestätigung erzwingen \(Standard: false\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Ob der Pfad erfolgreich gelöscht wurde |
+| `remotePath` | string | Gelöschter Pfad |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `ssh_move_rename`
+
+Verschieben oder umbenennen einer Datei oder eines Verzeichnisses auf dem entfernten SSH-Server
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `sourcePath` | string | Ja | Aktueller Pfad der Datei oder des Verzeichnisses |
+| `destinationPath` | string | Ja | Neuer Pfad für die Datei oder das Verzeichnis |
+| `overwrite` | boolean | Nein | Ziel überschreiben, falls es existiert \(Standard: false\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `moved` | boolean | Ob der Vorgang erfolgreich war |
+| `sourcePath` | string | Ursprünglicher Pfad |
+| `destinationPath` | string | Neuer Pfad |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `ssh_get_system_info`
+
+Systeminformationen vom entfernten SSH-Server abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `hostname` | string | Server-Hostname |
+| `os` | string | Betriebssystem \(z.B. Linux, Darwin\) |
+| `architecture` | string | CPU-Architektur \(z.B. x64, arm64\) |
+| `uptime` | number | Systemlaufzeit in Sekunden |
+| `memory` | json | Speicherinformationen \(gesamt, frei, verwendet\) |
+| `diskSpace` | json | Festplattenplatzinformationen \(gesamt, frei, verwendet\) |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `ssh_read_file_content`
+
+Inhalt einer entfernten Datei lesen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `path` | string | Ja | Pfad zur entfernten Datei, die gelesen werden soll |
+| `encoding` | string | Nein | Dateikodierung \(Standard: utf-8\) |
+| `maxSize` | number | Nein | Maximale zu lesende Dateigröße in MB \(Standard: 10\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Dateiinhalt als Zeichenfolge |
+| `size` | number | Dateigröße in Bytes |
+| `lines` | number | Anzahl der Zeilen in der Datei |
+| `remotePath` | string | Pfad zur entfernten Datei |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `ssh_write_file_content`
+
+Inhalt in eine entfernte Datei schreiben oder anhängen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SSH-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SSH-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SSH-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `path` | string | Ja | Pfad zur entfernten Datei, in die geschrieben werden soll |
+| `content` | string | Ja | Inhalt, der in die Datei geschrieben werden soll |
+| `mode` | string | Nein | Schreibmodus: überschreiben, anhängen oder erstellen \(Standard: überschreiben\) |
+| `permissions` | string | Nein | Dateiberechtigungen \(z.B. 0644\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `written` | boolean | Ob die Datei erfolgreich geschrieben wurde |
+| `remotePath` | string | Dateipfad |
+| `size` | number | Endgültige Dateigröße in Bytes |
+| `message` | string | Statusmeldung der Operation |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `ssh`

@@ -1,0 +1,250 @@
+---
+title: Zoom
+description: Créer et gérer des réunions et enregistrements Zoom
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zoom"
+  color="#2D8CFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Zoom](https://zoom.us/) est une plateforme de communication cloud de premier plan pour les réunions vidéo, les webinaires et la collaboration en ligne. Elle permet aux utilisateurs et aux organisations de planifier, d'héberger et de gérer facilement des réunions, en fournissant des outils pour le partage d'écran, le chat, les enregistrements, et plus encore.
+
+Avec Zoom, vous pouvez :
+
+- **Planifier et gérer des réunions** : Créer des réunions instantanées ou programmées, y compris des événements récurrents
+- **Configurer les options de réunion** : Définir des mots de passe pour les réunions, activer les salles d'attente et contrôler la vidéo/l'audio des participants
+- **Envoyer des invitations et partager des détails** : Récupérer les invitations et les informations de réunion pour un partage facile
+- **Obtenir et mettre à jour les données de réunion** : Accéder aux détails des réunions, modifier les réunions existantes et gérer les paramètres par programmation
+
+Dans Sim, l'intégration Zoom permet à vos agents d'automatiser la planification et la gestion des réunions. Utilisez les actions d'outils pour :
+
+- Créer par programmation de nouvelles réunions avec des paramètres personnalisés
+- Lister toutes les réunions pour un utilisateur spécifique (ou vous-même)
+- Récupérer les détails ou les invitations pour n'importe quelle réunion
+- Mettre à jour ou supprimer des réunions existantes directement depuis vos automatisations
+
+Ces capacités vous permettent de rationaliser la collaboration à distance, d'automatiser les sessions vidéo récurrentes et de gérer l'environnement Zoom de votre organisation, le tout dans le cadre de vos flux de travail.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Zoom dans les flux de travail. Créez, listez, mettez à jour et supprimez des réunions Zoom. Obtenez les détails des réunions, les invitations, les enregistrements et les participants. Gérez les enregistrements cloud par programmation.
+
+## Outils
+
+### `zoom_create_meeting`
+
+Créer une nouvelle réunion Zoom
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Oui | L'ID utilisateur ou l'adresse e-mail. Utilisez "me" pour l'utilisateur authentifié. |
+| `topic` | string | Oui | Sujet de la réunion |
+| `type` | number | Non | Type de réunion : 1=instantanée, 2=programmée, 3=récurrente sans heure fixe, 8=récurrente à heure fixe |
+| `startTime` | string | Non | Heure de début de la réunion au format ISO 8601 \(ex., 2025-06-03T10:00:00Z\) |
+| `duration` | number | Non | Durée de la réunion en minutes |
+| `timezone` | string | Non | Fuseau horaire pour la réunion \(ex., America/Los_Angeles\) |
+| `password` | string | Non | Mot de passe de la réunion |
+| `agenda` | string | Non | Ordre du jour de la réunion |
+| `hostVideo` | boolean | Non | Démarrer avec la vidéo de l'hôte activée |
+| `participantVideo` | boolean | Non | Démarrer avec la vidéo des participants activée |
+| `joinBeforeHost` | boolean | Non | Autoriser les participants à rejoindre avant l'hôte |
+| `muteUponEntry` | boolean | Non | Mettre les participants en sourdine à l'entrée |
+| `waitingRoom` | boolean | Non | Activer la salle d'attente |
+| `autoRecording` | string | Non | Paramètre d'enregistrement automatique : local, cloud ou none |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `meeting` | object | La réunion créée avec toutes ses propriétés |
+
+### `zoom_list_meetings`
+
+Lister toutes les réunions pour un utilisateur Zoom
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `userId` | string | Oui | L'ID utilisateur ou l'adresse e-mail. Utilisez "me" pour l'utilisateur authentifié. |
+| `type` | string | Non | Filtre de type de réunion : scheduled, live, upcoming, upcoming_meetings, ou previous_meetings |
+| `pageSize` | number | Non | Nombre d'enregistrements par page \(max 300\) |
+| `nextPageToken` | string | Non | Jeton pour la pagination afin d'obtenir la page suivante des résultats |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `meetings` | array | Liste des réunions |
+| `pageInfo` | object | Informations de pagination |
+
+### `zoom_get_meeting`
+
+Obtenir les détails d'une réunion Zoom spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `meetingId` | string | Oui | L'ID de la réunion |
+| `occurrenceId` | string | Non | ID d'occurrence pour les réunions récurrentes |
+| `showPreviousOccurrences` | boolean | Non | Afficher les occurrences précédentes pour les réunions récurrentes |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `meeting` | object | Les détails de la réunion |
+
+### `zoom_update_meeting`
+
+Mettre à jour une réunion Zoom existante
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Oui | L'ID de la réunion à mettre à jour |
+| `topic` | string | Non | Sujet de la réunion |
+| `type` | number | Non | Type de réunion : 1=instantanée, 2=programmée, 3=récurrente sans horaire fixe, 8=récurrente avec horaire fixe |
+| `startTime` | string | Non | Heure de début de la réunion au format ISO 8601 \(ex., 2025-06-03T10:00:00Z\) |
+| `duration` | number | Non | Durée de la réunion en minutes |
+| `timezone` | string | Non | Fuseau horaire pour la réunion \(ex., America/Los_Angeles\) |
+| `password` | string | Non | Mot de passe de la réunion |
+| `agenda` | string | Non | Ordre du jour de la réunion |
+| `hostVideo` | boolean | Non | Démarrer avec la vidéo de l'hôte activée |
+| `participantVideo` | boolean | Non | Démarrer avec la vidéo des participants activée |
+| `joinBeforeHost` | boolean | Non | Autoriser les participants à rejoindre avant l'hôte |
+| `muteUponEntry` | boolean | Non | Mettre les participants en sourdine à l'entrée |
+| `waitingRoom` | boolean | Non | Activer la salle d'attente |
+| `autoRecording` | string | Non | Paramètre d'enregistrement automatique : local, cloud ou none |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si la réunion a été mise à jour avec succès |
+
+### `zoom_delete_meeting`
+
+Supprimer ou annuler une réunion Zoom
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Oui | L'ID de la réunion à supprimer |
+| `occurrenceId` | string | Non | ID d'occurrence pour supprimer une occurrence spécifique d'une réunion récurrente |
+| `scheduleForReminder` | boolean | Non | Envoyer un e-mail de rappel d'annulation aux inscrits |
+| `cancelMeetingReminder` | boolean | Non | Envoyer un e-mail d'annulation aux inscrits et aux hôtes alternatifs |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si la réunion a été supprimée avec succès |
+
+### `zoom_get_meeting_invitation`
+
+Obtenir le texte d'invitation pour une réunion Zoom
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Oui | L'identifiant de la réunion |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `invitation` | string | Le texte d'invitation à la réunion |
+
+### `zoom_list_recordings`
+
+Lister tous les enregistrements cloud pour un utilisateur Zoom
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Oui | L'identifiant ou l'adresse e-mail de l'utilisateur. Utilisez "me" pour l'utilisateur authentifié. |
+| `from` | string | Non | Date de début au format aaaa-mm-jj \(dans les 6 derniers mois\) |
+| `to` | string | Non | Date de fin au format aaaa-mm-jj |
+| `pageSize` | number | Non | Nombre d'enregistrements par page \(max 300\) |
+| `nextPageToken` | string | Non | Jeton pour la pagination afin d'obtenir la page suivante des résultats |
+| `trash` | boolean | Non | Définir sur true pour lister les enregistrements de la corbeille |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `recordings` | array | Liste des enregistrements |
+| `pageInfo` | object | Informations de pagination |
+
+### `zoom_get_meeting_recordings`
+
+Obtenir tous les enregistrements pour une réunion Zoom spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Oui | L'ID de la réunion ou l'UUID de la réunion |
+| `includeFolderItems` | boolean | Non | Inclure les éléments dans un dossier |
+| `ttl` | number | Non | Durée de vie des URL de téléchargement en secondes \(max 604800\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `recording` | object | L'enregistrement de la réunion avec tous les fichiers |
+
+### `zoom_delete_recording`
+
+Supprimer les enregistrements cloud d'une réunion Zoom
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Oui | L'ID de la réunion ou l'UUID de la réunion |
+| `recordingId` | string | Non | ID de fichier d'enregistrement spécifique à supprimer. Si non fourni, supprime tous les enregistrements. |
+| `action` | string | Non | Action de suppression : "trash" \(déplacer vers la corbeille\) ou "delete" \(supprimer définitivement\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si l'enregistrement a été supprimé avec succès |
+
+### `zoom_list_past_participants`
+
+Lister les participants d'une réunion Zoom passée
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Oui | L'ID ou l'UUID de la réunion passée |
+| `pageSize` | number | Non | Nombre d'enregistrements par page \(max 300\) |
+| `nextPageToken` | string | Non | Jeton pour la pagination pour obtenir la page suivante de résultats |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `participants` | array | Liste des participants à la réunion |
+| `pageInfo` | object | Informations de pagination |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `zoom`

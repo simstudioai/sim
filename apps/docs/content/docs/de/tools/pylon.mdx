@@ -83,10 +83,17 @@ Ein neues Anliegen mit bestimmten Eigenschaften erstellen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `apiToken` | string | Ja | Pylon API-Token |
-| `title` | string | Ja | Titel des Anliegens |
-| `bodyHtml` | string | Ja | Inhalt des Anliegens im HTML-Format |
-| `accountId` | string | Nein | Konto-ID, die mit dem Anliegen verknüpft werden soll |
-| `assigneeId` | string | Nein | Benutzer-ID, der das Anliegen zugewiesen werden soll |
+| `title` | string | Ja | Titel des Problems |
+| `bodyHtml` | string | Ja | Inhalt des Problems im HTML-Format |
+| `accountId` | string | Nein | Konto-ID, die mit dem Problem verknüpft werden soll |
+| `assigneeId` | string | Nein | Benutzer-ID, der das Problem zugewiesen werden soll |
+| `teamId` | string | Nein | Team-ID, dem das Problem zugewiesen werden soll |
+| `requesterId` | string | Nein | Anforderer-Benutzer-ID \(Alternative zu requester_email\) |
+| `requesterEmail` | string | Nein | E-Mail-Adresse des Anforderers \(Alternative zu requester_id\) |
+| `priority` | string | Nein | Priorität des Problems |
+| `tags` | string | Nein | Durch Komma getrennte Tag-IDs |
+| `customFields` | string | Nein | Benutzerdefinierte Felder als JSON-Objekt |
+| `attachmentUrls` | string | Nein | Durch Komma getrennte Anhang-URLs |
 
 #### Output
 
@@ -119,15 +126,18 @@ Aktualisiert ein bestehendes Issue
 
 #### Input
 
-| Parameter | Type | Erforderlich | Beschreibung |
+| Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `apiToken` | string | Ja | Pylon API-Token |
-| `issueId` | string | Ja | Die ID des zu aktualisierenden Issues |
-| `state` | string | Nein | Issue-Status |
-| `assigneeId` | string | Nein | Benutzer-ID, der das Issue zugewiesen werden soll |
-| `teamId` | string | Nein | Team-ID, dem das Issue zugewiesen werden soll |
-| `tags` | string | Nein | Kommagetrennte Tag-IDs |
+| `issueId` | string | Ja | Die ID des zu aktualisierenden Problems |
+| `state` | string | Nein | Status des Problems |
+| `assigneeId` | string | Nein | Benutzer-ID, der das Problem zugewiesen werden soll |
+| `teamId` | string | Nein | Team-ID, dem das Problem zugewiesen werden soll |
+| `tags` | string | Nein | Durch Komma getrennte Tag-IDs |
 | `customFields` | string | Nein | Benutzerdefinierte Felder als JSON-Objekt |
+| `customerPortalVisible` | boolean | Nein | Ob das Problem im Kundenportal sichtbar ist |
+| `requesterId` | string | Nein | Anforderer-Benutzer-ID |
+| `accountId` | string | Nein | Konto-ID, die mit dem Problem verknüpft werden soll |
 
 #### Output
 

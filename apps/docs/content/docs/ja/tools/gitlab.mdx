@@ -1,0 +1,429 @@
+---
+title: GitLab
+description: GitLabのプロジェクト、課題、マージリクエスト、パイプラインとやり取りする
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="gitlab"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[GitLab](https://gitlab.com/)は、チームがソフトウェア開発ライフサイクルを管理、共同作業、自動化できる包括的なDevOpsプラットフォームです。GitLabを使用すると、ソースコード管理、CI/CD、レビュー、コラボレーションを単一のアプリケーションで簡単に処理できます。
+
+SimでGitLabを使用すると、以下のことができます：
+
+- **プロジェクトとリポジトリの管理**：GitLabプロジェクトの一覧表示と取得、詳細へのアクセス、リポジトリの整理
+- **課題の操作**：作業を追跡し効果的に共同作業するための課題の一覧表示、作成、コメント
+- **マージリクエストの処理**：コード変更とピアレビューのためのマージリクエストのレビュー、作成、管理
+- **CI/CDパイプラインの自動化**：自動化フローの一部としてGitLabパイプラインのトリガー、監視、操作
+- **コメントによる共同作業**：チーム内の効率的なコミュニケーションのために課題やマージリクエストにコメントを追加
+
+SimのGitLab統合を使用すると、エージェントはプログラムでGitLabプロジェクトとやり取りできます。プロジェクト管理、課題追跡、コードレビュー、パイプライン操作をワークフローでシームレスに自動化し、ソフトウェア開発プロセスを最適化し、チーム全体のコラボレーションを強化します。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+GitLabをワークフローに統合します。プロジェクト、課題、マージリクエスト、パイプライン、コメントを管理できます。GitLabのすべての主要なDevOps操作をサポートしています。
+
+## ツール
+
+### `gitlab_list_projects`
+
+認証されたユーザーがアクセスできるGitLabプロジェクトを一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owned` | boolean | いいえ | 現在のユーザーが所有するプロジェクトに限定 |
+| `membership` | boolean | いいえ | 現在のユーザーがメンバーであるプロジェクトに限定 |
+| `search` | string | いいえ | 名前でプロジェクトを検索 |
+| `visibility` | string | いいえ | 可視性でフィルタリング（public、internal、private） |
+| `orderBy` | string | いいえ | フィールドで並べ替え（id、name、path、created_at、updated_at、last_activity_at） |
+| `sort` | string | いいえ | 並べ替え方向（asc、desc） |
+| `perPage` | number | いいえ | ページあたりの結果数（デフォルト20、最大100） |
+| `page` | number | いいえ | ページネーションのページ番号 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `projects` | array | GitLabプロジェクトのリスト |
+| `total` | number | プロジェクトの総数 |
+
+### `gitlab_get_project`
+
+特定のGitLabプロジェクトの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス（例："namespace/project"） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `project` | object | GitLabプロジェクトの詳細 |
+
+### `gitlab_list_issues`
+
+GitLabプロジェクト内の課題を一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `state` | string | いいえ | 状態によるフィルタリング（opened、closed、all） |
+| `labels` | string | いいえ | カンマ区切りのラベル名リスト |
+| `assigneeId` | number | いいえ | 担当者ユーザーIDによるフィルタリング |
+| `milestoneTitle` | string | いいえ | マイルストーンタイトルによるフィルタリング |
+| `search` | string | いいえ | タイトルと説明で課題を検索 |
+| `orderBy` | string | いいえ | フィールドによる並べ替え（created_at、updated_at） |
+| `sort` | string | いいえ | 並べ替え方向（asc、desc） |
+| `perPage` | number | いいえ | ページあたりの結果数（デフォルト20、最大100） |
+| `page` | number | いいえ | ページネーションのページ番号 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `issues` | array | GitLab課題のリスト |
+| `total` | number | 課題の総数 |
+
+### `gitlab_get_issue`
+
+特定のGitLab課題の詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `issueIid` | number | はい | プロジェクト内の課題番号（GitLab UIに表示される#） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `issue` | object | GitLab課題の詳細 |
+
+### `gitlab_create_issue`
+
+GitLabプロジェクトに新しい課題を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `title` | string | はい | 課題のタイトル |
+| `description` | string | いいえ | 課題の説明（Markdown対応） |
+| `labels` | string | いいえ | カンマ区切りのラベル名リスト |
+| `assigneeIds` | array | いいえ | 割り当てるユーザーIDの配列 |
+| `milestoneId` | number | いいえ | 割り当てるマイルストーンID |
+| `dueDate` | string | いいえ | YYYY-MM-DD形式の期限日 |
+| `confidential` | boolean | いいえ | 課題が機密扱いかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `issue` | object | 作成されたGitLab課題 |
+
+### `gitlab_update_issue`
+
+GitLabプロジェクト内の既存の課題を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `issueIid` | number | はい | 課題内部ID（IID） |
+| `title` | string | いいえ | 新しい課題のタイトル |
+| `description` | string | いいえ | 新しい課題の説明（Markdown対応） |
+| `stateEvent` | string | いいえ | 状態イベント（closeまたはreopen） |
+| `labels` | string | いいえ | カンマ区切りのラベル名リスト |
+| `assigneeIds` | array | いいえ | 割り当てるユーザーIDの配列 |
+| `milestoneId` | number | いいえ | 割り当てるマイルストーンID |
+| `dueDate` | string | いいえ | YYYY-MM-DD形式の期限日 |
+| `confidential` | boolean | いいえ | 課題が機密扱いかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `issue` | object | 更新されたGitLab課題 |
+
+### `gitlab_delete_issue`
+
+GitLabプロジェクトから課題を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `issueIid` | number | はい | 課題内部ID（IID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 課題が正常に削除されたかどうか |
+
+### `gitlab_create_issue_note`
+
+GitLab課題にコメントを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `issueIid` | number | はい | 課題の内部ID（IID） |
+| `body` | string | はい | コメント本文（Markdown対応） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `note` | object | 作成されたコメント |
+
+### `gitlab_list_merge_requests`
+
+GitLabプロジェクトのマージリクエスト一覧を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `state` | string | いいえ | 状態によるフィルタリング（opened、closed、merged、all） |
+| `labels` | string | いいえ | カンマ区切りのラベル名リスト |
+| `sourceBranch` | string | いいえ | ソースブランチによるフィルタリング |
+| `targetBranch` | string | いいえ | ターゲットブランチによるフィルタリング |
+| `orderBy` | string | いいえ | 並べ替えフィールド（created_at、updated_at） |
+| `sort` | string | いいえ | 並べ替え方向（asc、desc） |
+| `perPage` | number | いいえ | ページあたりの結果数（デフォルト20、最大100） |
+| `page` | number | いいえ | ページネーションのページ番号 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `mergeRequests` | array | GitLabマージリクエストのリスト |
+| `total` | number | マージリクエストの総数 |
+
+### `gitlab_get_merge_request`
+
+特定のGitLabマージリクエストの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `mergeRequestIid` | number | はい | マージリクエスト内部ID（IID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `mergeRequest` | object | GitLabマージリクエストの詳細 |
+
+### `gitlab_create_merge_request`
+
+GitLabプロジェクトに新しいマージリクエストを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `sourceBranch` | string | はい | ソースブランチ名 |
+| `targetBranch` | string | はい | ターゲットブランチ名 |
+| `title` | string | はい | マージリクエストのタイトル |
+| `description` | string | いいえ | マージリクエストの説明（Markdown対応） |
+| `labels` | string | いいえ | カンマ区切りのラベル名リスト |
+| `assigneeIds` | array | いいえ | 割り当てるユーザーIDの配列 |
+| `milestoneId` | number | いいえ | 割り当てるマイルストーンID |
+| `removeSourceBranch` | boolean | いいえ | マージ後にソースブランチを削除する |
+| `squash` | boolean | いいえ | マージ時にコミットをスカッシュする |
+| `draft` | boolean | いいえ | 下書き（作業中）としてマークする |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `mergeRequest` | object | 作成されたGitLabマージリクエスト |
+
+### `gitlab_update_merge_request`
+
+GitLabプロジェクトの既存のマージリクエストを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `mergeRequestIid` | number | はい | マージリクエスト内部ID（IID） |
+| `title` | string | いいえ | 新しいマージリクエストのタイトル |
+| `description` | string | いいえ | 新しいマージリクエストの説明 |
+| `stateEvent` | string | いいえ | 状態イベント（closeまたはreopen） |
+| `labels` | string | いいえ | カンマ区切りのラベル名リスト |
+| `assigneeIds` | array | いいえ | 割り当てるユーザーIDの配列 |
+| `milestoneId` | number | いいえ | 割り当てるマイルストーンID |
+| `targetBranch` | string | いいえ | 新しいターゲットブランチ |
+| `removeSourceBranch` | boolean | いいえ | マージ後にソースブランチを削除する |
+| `squash` | boolean | いいえ | マージ時にコミットをスカッシュする |
+| `draft` | boolean | いいえ | 下書き（作業中）としてマークする |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `mergeRequest` | object | 更新されたGitLabマージリクエスト |
+
+### `gitlab_merge_merge_request`
+
+GitLabプロジェクトでマージリクエストをマージする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `mergeRequestIid` | number | はい | マージリクエスト内部ID（IID） |
+| `mergeCommitMessage` | string | いいえ | カスタムマージコミットメッセージ |
+| `squashCommitMessage` | string | いいえ | カスタムスカッシュコミットメッセージ |
+| `squash` | boolean | いいえ | マージ前にコミットをスカッシュする |
+| `shouldRemoveSourceBranch` | boolean | いいえ | マージ後にソースブランチを削除する |
+| `mergeWhenPipelineSucceeds` | boolean | いいえ | パイプラインが成功したらマージする |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `mergeRequest` | object | マージされたGitLabマージリクエスト |
+
+### `gitlab_create_merge_request_note`
+
+GitLabマージリクエストにコメントを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `mergeRequestIid` | number | はい | マージリクエスト内部ID（IID） |
+| `body` | string | はい | コメント本文（Markdown対応） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `note` | object | 作成されたコメント |
+
+### `gitlab_list_pipelines`
+
+GitLabプロジェクト内のパイプラインを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `ref` | string | いいえ | ref（ブランチまたはタグ）でフィルタリング |
+| `status` | string | いいえ | ステータスでフィルタリング（created, waiting_for_resource, preparing, pending, running, success, failed, canceled, skipped, manual, scheduled） |
+| `orderBy` | string | いいえ | フィールドで並べ替え（id, status, ref, updated_at, user_id） |
+| `sort` | string | いいえ | 並べ替え方向（asc, desc） |
+| `perPage` | number | いいえ | ページあたりの結果数（デフォルト20、最大100） |
+| `page` | number | いいえ | ページネーションのページ番号 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `pipelines` | array | GitLabパイプラインのリスト |
+| `total` | number | パイプラインの総数 |
+
+### `gitlab_get_pipeline`
+
+特定のGitLabパイプラインの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `pipelineId` | number | はい | パイプラインID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `pipeline` | object | GitLabパイプラインの詳細 |
+
+### `gitlab_create_pipeline`
+
+GitLabプロジェクトで新しいパイプラインをトリガーする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `ref` | string | はい | パイプラインを実行するブランチまたはタグ |
+| `variables` | array | いいえ | パイプラインの変数の配列（各変数はkey、value、およびオプションのvariable_typeを持つ） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `pipeline` | object | 作成されたGitLabパイプライン |
+
+### `gitlab_retry_pipeline`
+
+失敗したGitLabパイプラインを再試行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `pipelineId` | number | はい | パイプラインID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `pipeline` | object | 再試行されたGitLabパイプライン |
+
+### `gitlab_cancel_pipeline`
+
+実行中のGitLabパイプラインをキャンセルする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | プロジェクトIDまたはURLエンコードされたパス |
+| `pipelineId` | number | はい | パイプラインID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `pipeline` | object | キャンセルされたGitLabパイプライン |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `gitlab`
