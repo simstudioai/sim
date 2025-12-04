@@ -38,46 +38,6 @@ Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data s
 
 ## Tools
 
-### `grafana_health_check`
-
-Check the health status of a Grafana instance
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `commit` | string | Git commit hash of the Grafana build |
-| `database` | string | Database connection status \(ok or failing\) |
-| `version` | string | Grafana version number |
-
-### `grafana_data_source_health`
-
-Test the health of a specific data source connection. Note: This endpoint is deprecated since Grafana v9.0.0 and may not work on newer versions.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
-| `dataSourceId` | string | Yes | The ID or UID of the data source to check |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `status` | string | Health status \(OK or ERROR\) |
-| `message` | string | Status message or error description |
-
 ### `grafana_get_dashboard`
 
 Get a dashboard by its UID
@@ -154,7 +114,7 @@ Create a new dashboard
 
 ### `grafana_update_dashboard`
 
-Update an existing dashboard
+Update an existing dashboard. Fetches the current dashboard and merges your changes.
 
 #### Input
 
@@ -284,7 +244,7 @@ Create a new alert rule
 
 ### `grafana_update_alert_rule`
 
-Update an existing alert rule
+Update an existing alert rule. Fetches the current rule and merges your changes.
 
 #### Input
 

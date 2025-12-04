@@ -21,9 +21,6 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Health
-        { label: 'Health Check', id: 'grafana_health_check' },
-        { label: 'Data Source Health', id: 'grafana_data_source_health' },
         // Dashboards
         { label: 'List Dashboards', id: 'grafana_list_dashboards' },
         { label: 'Get Dashboard', id: 'grafana_get_dashboard' },
@@ -49,7 +46,7 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
         { label: 'List Folders', id: 'grafana_list_folders' },
         { label: 'Create Folder', id: 'grafana_create_folder' },
       ],
-      value: () => 'grafana_health_check',
+      value: () => 'grafana_list_dashboards',
     },
 
     // Base Configuration (common to all operations)
@@ -75,7 +72,7 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       placeholder: 'Optional - for multi-org instances',
     },
 
-    // Data Source Health operation
+    // Data Source operations
     {
       id: 'dataSourceId',
       title: 'Data Source ID',
@@ -84,7 +81,7 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       required: true,
       condition: {
         field: 'operation',
-        value: ['grafana_data_source_health', 'grafana_get_data_source'],
+        value: 'grafana_get_data_source',
       },
     },
 
@@ -382,8 +379,6 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
   ],
   tools: {
     access: [
-      'grafana_health_check',
-      'grafana_data_source_health',
       'grafana_get_dashboard',
       'grafana_list_dashboards',
       'grafana_create_dashboard',

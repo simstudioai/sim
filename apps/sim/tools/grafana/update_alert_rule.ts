@@ -1,16 +1,11 @@
-import type {
-  GrafanaUpdateAlertRuleParams,
-  GrafanaUpdateAlertRuleResponse,
-} from '@/tools/grafana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { GrafanaUpdateAlertRuleParams } from '@/tools/grafana/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
-export const updateAlertRuleTool: ToolConfig<
-  GrafanaUpdateAlertRuleParams,
-  GrafanaUpdateAlertRuleResponse
-> = {
+// Using ToolResponse for intermediate state since this tool fetches existing data first
+export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolResponse> = {
   id: 'grafana_update_alert_rule',
   name: 'Grafana Update Alert Rule',
-  description: 'Update an existing alert rule',
+  description: 'Update an existing alert rule. Fetches the current rule and merges your changes.',
   version: '1.0.0',
 
   params: {
@@ -101,9 +96,10 @@ export const updateAlertRuleTool: ToolConfig<
   },
 
   request: {
+    // First, GET the existing alert rule
     url: (params) =>
       `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`,
-    method: 'PUT',
+    method: 'GET',
     headers: (params) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -114,47 +110,103 @@ export const updateAlertRuleTool: ToolConfig<
       }
       return headers
     },
-    body: (params) => {
-      const body: Record<string, any> = {}
-
-      if (params.title) body.title = params.title
-      if (params.folderUid) body.folderUID = params.folderUid
-      if (params.ruleGroup) body.ruleGroup = params.ruleGroup
-      if (params.condition) body.condition = params.condition
-      if (params.forDuration) body.for = params.forDuration
-      if (params.noDataState) body.noDataState = params.noDataState
-      if (params.execErrState) body.execErrState = params.execErrState
-
-      if (params.data) {
-        try {
-          body.data = JSON.parse(params.data)
-        } catch {
-          // Skip if invalid JSON
-        }
-      }
-
-      if (params.annotations) {
-        try {
-          body.annotations = JSON.parse(params.annotations)
-        } catch {
-          // Skip if invalid JSON
-        }
-      }
-
-      if (params.labels) {
-        try {
-          body.labels = JSON.parse(params.labels)
-        } catch {
-          // Skip if invalid JSON
-        }
-      }
-
-      return body
-    },
   },
 
   transformResponse: async (response: Response) => {
+    // Store the existing rule data for postProcess to use
     const data = await response.json()
+    return {
+      success: true,
+      output: {
+        _existingRule: data,
+      },
+    }
+  },
+
+  postProcess: async (result, params) => {
+    // Merge user changes with existing rule and PUT the complete object
+    const existingRule = result.output._existingRule
+
+    if (!existingRule || !existingRule.uid) {
+      return {
+        success: false,
+        output: {},
+        error: 'Failed to fetch existing alert rule',
+      }
+    }
+
+    // Build the updated rule by merging existing data with new params
+    const updatedRule: Record<string, any> = {
+      ...existingRule,
+    }
+
+    // Apply user's changes
+    if (params.title) updatedRule.title = params.title
+    if (params.folderUid) updatedRule.folderUID = params.folderUid
+    if (params.ruleGroup) updatedRule.ruleGroup = params.ruleGroup
+    if (params.condition) updatedRule.condition = params.condition
+    if (params.forDuration) updatedRule.for = params.forDuration
+    if (params.noDataState) updatedRule.noDataState = params.noDataState
+    if (params.execErrState) updatedRule.execErrState = params.execErrState
+
+    if (params.data) {
+      try {
+        updatedRule.data = JSON.parse(params.data)
+      } catch {
+        // Keep existing data if parse fails
+      }
+    }
+
+    if (params.annotations) {
+      try {
+        updatedRule.annotations = {
+          ...(existingRule.annotations || {}),
+          ...JSON.parse(params.annotations),
+        }
+      } catch {
+        // Keep existing annotations if parse fails
+      }
+    }
+
+    if (params.labels) {
+      try {
+        updatedRule.labels = {
+          ...(existingRule.labels || {}),
+          ...JSON.parse(params.labels),
+        }
+      } catch {
+        // Keep existing labels if parse fails
+      }
+    }
+
+    // Make the PUT request with the complete merged object
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.apiKey}`,
+    }
+    if (params.organizationId) {
+      headers['X-Grafana-Org-Id'] = params.organizationId
+    }
+
+    const updateResponse = await fetch(
+      `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`,
+      {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updatedRule),
+      }
+    )
+
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text()
+      return {
+        success: false,
+        output: {},
+        error: `Failed to update alert rule: ${errorText}`,
+      }
+    }
+
+    const data = await updateResponse.json()
 
     return {
       success: true,
