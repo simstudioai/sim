@@ -26,6 +26,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Send Message', id: 'send' },
         { label: 'Create Canvas', id: 'canvas' },
         { label: 'Read Messages', id: 'read' },
+        { label: 'Read Thread', id: 'read_thread' },
         { label: 'Download File', id: 'download' },
         { label: 'Update Message', id: 'update' },
         { label: 'Delete Message', id: 'delete' },
@@ -175,7 +176,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       placeholder: '15',
       condition: {
         field: 'operation',
-        value: 'read',
+        value: ['read', 'read_thread'],
       },
     },
     {
@@ -185,7 +186,39 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       placeholder: 'ISO 8601 timestamp',
       condition: {
         field: 'operation',
-        value: 'read',
+        value: ['read', 'read_thread'],
+      },
+    },
+    {
+      id: 'latest',
+      title: 'Latest Timestamp',
+      type: 'short-input',
+      placeholder: 'ISO 8601 timestamp',
+      condition: {
+        field: 'operation',
+        value: ['read', 'read_thread'],
+      },
+    },
+    {
+      id: 'threadReaderTs',
+      title: 'Thread Timestamp',
+      type: 'short-input',
+      canonicalParamId: 'thread_ts',
+      placeholder: 'Root message timestamp (e.g., 1405894322.002768)',
+      condition: {
+        field: 'operation',
+        value: 'read_thread',
+      },
+      required: true,
+    },
+    {
+      id: 'threadCursor',
+      title: 'Pagination Cursor',
+      type: 'short-input',
+      placeholder: 'Slack cursor for fetching more replies',
+      condition: {
+        field: 'operation',
+        value: 'read_thread',
       },
     },
     // Download File specific fields
@@ -280,6 +313,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       'slack_message',
       'slack_canvas',
       'slack_message_reader',
+      'slack_thread_reader',
       'slack_download',
       'slack_update_message',
       'slack_delete_message',
@@ -294,6 +328,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
             return 'slack_canvas'
           case 'read':
             return 'slack_message_reader'
+          case 'read_thread':
+            return 'slack_thread_reader'
           case 'download':
             return 'slack_download'
           case 'update':
@@ -319,14 +355,17 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           content,
           limit,
           oldest,
+          latest,
           attachmentFiles,
           files,
           threadTs,
+          threadReaderTs,
           updateTimestamp,
           updateText,
           deleteTimestamp,
           reactionTimestamp,
           emojiName,
+          threadCursor,
           ...rest
         } = params
 
@@ -383,14 +422,28 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
             break
 
           case 'read':
+          case 'read_thread':
             if (limit) {
               const parsedLimit = Number.parseInt(limit, 10)
               baseParams.limit = !Number.isNaN(parsedLimit) ? parsedLimit : 10
             } else {
-              baseParams.limit = 10
+              baseParams.limit = operation === 'read_thread' ? 20 : 10
             }
             if (oldest) {
               baseParams.oldest = oldest
+            }
+            if (latest) {
+              baseParams.latest = latest
+            }
+            if (operation === 'read_thread') {
+              const threadTimestamp = threadReaderTs || threadTs
+              if (!threadTimestamp) {
+                throw new Error('Thread timestamp is required to read a thread')
+              }
+              baseParams.thread_ts = threadTimestamp
+              if (threadCursor) {
+                baseParams.cursor = threadCursor
+              }
             }
             break
 
@@ -449,6 +502,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     content: { type: 'string', description: 'Canvas content' },
     limit: { type: 'string', description: 'Message limit' },
     oldest: { type: 'string', description: 'Oldest timestamp' },
+    latest: { type: 'string', description: 'Latest timestamp for message/thread reads' },
+    threadCursor: { type: 'string', description: 'Slack cursor for paginating thread replies' },
     fileId: { type: 'string', description: 'File ID to download' },
     downloadFileName: { type: 'string', description: 'File name override for download' },
     // Update/Delete/React operation inputs
@@ -461,6 +516,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     name: { type: 'string', description: 'Emoji name' },
     threadTs: { type: 'string', description: 'Thread timestamp' },
     thread_ts: { type: 'string', description: 'Thread timestamp for reply' },
+    threadReaderTs: { type: 'string', description: 'Thread timestamp for reading thread' },
   },
   outputs: {
     // slack_message outputs (send operation)

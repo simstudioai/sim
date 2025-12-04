@@ -989,6 +989,7 @@ import {
   slackDownloadTool,
   slackMessageReaderTool,
   slackMessageTool,
+  slackThreadReaderTool,
   slackUpdateMessageTool,
 } from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'
@@ -1397,6 +1398,7 @@ export const tools: Record<string, ToolConfig> = {
   polymarket_get_trades: polymarketGetTradesTool,
   slack_message: slackMessageTool,
   slack_message_reader: slackMessageReaderTool,
+  slack_thread_reader: slackThreadReaderTool,
   slack_canvas: slackCanvasTool,
   slack_download: slackDownloadTool,
   slack_update_message: slackUpdateMessageTool,
