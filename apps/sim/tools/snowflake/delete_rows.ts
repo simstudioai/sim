@@ -41,17 +41,12 @@ export const snowflakeDeleteRowsTool: ToolConfig<
   description: 'Delete rows from a Snowflake table',
   version: '1.0.0',
 
-  oauth: {
-    required: true,
-    provider: 'snowflake',
-  },
-
   params: {
     accessToken: {
       type: 'string',
       required: true,
       visibility: 'hidden',
-      description: 'OAuth access token for Snowflake',
+      description: 'Snowflake Personal Access Token (PAT)',
     },
     accountUrl: {
       type: 'string',
@@ -113,7 +108,7 @@ export const snowflakeDeleteRowsTool: ToolConfig<
     headers: (params: SnowflakeDeleteRowsParams) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.accessToken}`,
-      'X-Snowflake-Authorization-Token-Type': 'OAUTH',
+      'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN',
     }),
     body: (params: SnowflakeDeleteRowsParams) => {
       // Build DELETE SQL

@@ -7,7 +7,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeResponse> = {
   type: 'snowflake',
   name: 'Snowflake',
   description: 'Execute queries on Snowflake data warehouse',
-  authMode: AuthMode.OAuth,
+  authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Snowflake into your workflow. Execute SQL queries, insert, update, and delete rows, list databases, schemas, and tables, and describe table structures in your Snowflake data warehouse.',
   docsLink: 'https://docs.sim.ai/tools/snowflake',
@@ -36,6 +36,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeResponse> = {
       value: () => 'execute_query',
     },
     {
+<<<<<<< HEAD
       id: 'credential',
       title: 'Snowflake Account',
       type: 'oauth-input',
@@ -45,10 +46,22 @@ export const SnowflakeBlock: BlockConfig<SnowflakeResponse> = {
       required: true,
     },
     {
+=======
+>>>>>>> 8de761181 (reformatted to PAT from oauth)
       id: 'accountUrl',
       title: 'Account URL',
       type: 'short-input',
       placeholder: 'your-account.snowflakecomputing.com',
+      description: 'Your Snowflake account URL (e.g., xy12345.us-east-1.snowflakecomputing.com)',
+      required: true,
+    },
+    {
+      id: 'accessToken',
+      title: 'Personal Access Token',
+      type: 'short-input',
+      placeholder: 'Enter your Snowflake PAT',
+      description: 'Generate a PAT in Snowflake Snowsight',
+      password: true,
       required: true,
     },
     {
@@ -376,11 +389,11 @@ Return ONLY the SQL query - no explanations, no markdown code blocks, no extra t
         }
       },
       params: (params) => {
-        const { credential, operation, ...rest } = params
+        const { operation, ...rest } = params
 
-        // Build base params
+        // Build base params - use PAT directly as accessToken
         const baseParams: Record<string, any> = {
-          credential,
+          accessToken: params.accessToken,
           accountUrl: params.accountUrl,
         }
 
@@ -559,10 +572,13 @@ Return ONLY the SQL query - no explanations, no markdown code blocks, no extra t
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Snowflake OAuth credential' },
     accountUrl: {
       type: 'string',
       description: 'Snowflake account URL (e.g., xy12345.us-east-1.snowflakecomputing.com)',
+    },
+    accessToken: {
+      type: 'string',
+      description: 'Snowflake Personal Access Token (PAT)',
     },
     warehouse: { type: 'string', description: 'Warehouse name' },
     role: { type: 'string', description: 'Role name' },

@@ -66,7 +66,7 @@ export async function executeSnowflakeStatement(
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
-      'X-Snowflake-Authorization-Token-Type': 'OAUTH',
+      'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN',
     },
     body: JSON.stringify(requestBody),
   })

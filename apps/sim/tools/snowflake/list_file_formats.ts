@@ -17,17 +17,12 @@ export const snowflakeListFileFormatsTool: ToolConfig<
   description: 'List all file formats in a Snowflake schema',
   version: '1.0.0',
 
-  oauth: {
-    required: true,
-    provider: 'snowflake',
-  },
-
   params: {
     accessToken: {
       type: 'string',
       required: true,
       visibility: 'hidden',
-      description: 'OAuth access token for Snowflake',
+      description: 'Snowflake Personal Access Token (PAT)',
     },
     accountUrl: {
       type: 'string',
@@ -70,7 +65,7 @@ export const snowflakeListFileFormatsTool: ToolConfig<
     headers: (params: SnowflakeListFileFormatsParams) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.accessToken}`,
-      'X-Snowflake-Authorization-Token-Type': 'OAUTH',
+      'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN',
     }),
     body: (params: SnowflakeListFileFormatsParams) => {
       const requestBody: Record<string, any> = {

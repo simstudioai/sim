@@ -226,9 +226,6 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'webhooks:read': 'Read your Pipedrive webhooks',
   'webhooks:full': 'Full access to manage your Pipedrive webhooks',
   w_member_social: 'Access your LinkedIn profile',
-  // Box scopes
-  root_readwrite: 'Read and write all files and folders in your Box account',
-  root_readonly: 'Read all files and folders in your Box account',
   // Shopify scopes (write_* implicitly includes read access)
   write_products: 'Read and manage your Shopify products',
   write_orders: 'Read and manage your Shopify orders',
@@ -273,13 +270,6 @@ export function OAuthRequiredModal({
   serviceId,
   newScopes = [],
 }: OAuthRequiredModalProps) {
-  const [snowflakeAccountUrl, setSnowflakeAccountUrl] = useState('')
-  const [snowflakeClientId, setSnowflakeClientId] = useState('')
-  const [snowflakeClientSecret, setSnowflakeClientSecret] = useState('')
-  const [accountUrlError, setAccountUrlError] = useState('')
-  const [clientIdError, setClientIdError] = useState('')
-  const [clientSecretError, setClientSecretError] = useState('')
-
   const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
   const { baseProvider } = parseProvider(provider)
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
@@ -309,67 +299,6 @@ export function OAuthRequiredModal({
   const handleConnectDirectly = async () => {
     try {
       const providerId = getProviderIdFromServiceId(effectiveServiceId)
-
-      // Special handling for Snowflake - requires account URL, client ID, and client secret
-      if (providerId === 'snowflake') {
-        let hasError = false
-
-        if (!snowflakeAccountUrl.trim()) {
-          setAccountUrlError('Account URL is required')
-          hasError = true
-        }
-
-        if (!snowflakeClientId.trim()) {
-          setClientIdError('Client ID is required')
-          hasError = true
-        }
-
-        if (!snowflakeClientSecret.trim()) {
-          setClientSecretError('Client Secret is required')
-          hasError = true
-        }
-
-        if (hasError) {
-          return
-        }
-
-        onClose()
-
-        logger.info('Initiating Snowflake OAuth with user credentials:', {
-          accountUrl: snowflakeAccountUrl,
-          hasClientId: !!snowflakeClientId,
-          hasClientSecret: !!snowflakeClientSecret,
-        })
-
-        // Call the authorize endpoint with user credentials
-        try {
-          const response = await fetch('/api/auth/snowflake/authorize', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              accountUrl: snowflakeAccountUrl,
-              clientId: snowflakeClientId,
-              clientSecret: snowflakeClientSecret,
-            }),
-          })
-
-          if (!response.ok) {
-            throw new Error('Failed to initiate Snowflake OAuth')
-          }
-
-          const data = await response.json()
-
-          // Redirect to Snowflake authorization page
-          window.location.href = data.authUrl
-        } catch (error) {
-          logger.error('Error initiating Snowflake OAuth:', error)
-          // TODO: Show error to user
-        }
-
-        return
-      }
 
       onClose()
 
@@ -401,7 +330,7 @@ export function OAuthRequiredModal({
 
   return (
     <Modal open={isOpen} onOpenChange={(open) => !open && onClose()}>
-<ModalContent className='w-[460px]'>
+      <ModalContent className='w-[460px]'>
         <ModalHeader>Connect {providerName}</ModalHeader>
         <ModalBody>
           <div className='flex flex-col gap-[16px]'>
