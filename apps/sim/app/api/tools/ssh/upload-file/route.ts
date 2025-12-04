@@ -40,7 +40,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const params = UploadFileSchema.parse(body)
 
-    // Validate authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },
@@ -65,7 +64,6 @@ export async function POST(request: NextRequest) {
       const sftp = await getSFTP(client)
       const remotePath = sanitizePath(params.remotePath)
 
-      // Check if file exists and overwrite is false
       if (!params.overwrite) {
         const exists = await new Promise<boolean>((resolve) => {
           sftp.stat(remotePath, (err) => {
@@ -81,23 +79,17 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Decode content (handle base64 for binary files)
       let content: Buffer
       try {
-        // Try to decode as base64 first
         content = Buffer.from(params.fileContent, 'base64')
-        // If the decoded content is not valid UTF-8 or looks like base64, use it as-is
         const reEncoded = content.toString('base64')
         if (reEncoded !== params.fileContent) {
-          // Not valid base64, treat as plain text
           content = Buffer.from(params.fileContent, 'utf-8')
         }
       } catch {
-        // Plain text content
         content = Buffer.from(params.fileContent, 'utf-8')
       }
 
-      // Write file
       await new Promise<void>((resolve, reject) => {
         const writeStream = sftp.createWriteStream(remotePath, {
           mode: params.permissions ? Number.parseInt(params.permissions, 8) : 0o644,

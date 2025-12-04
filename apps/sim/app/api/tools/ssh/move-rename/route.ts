@@ -30,7 +30,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const params = MoveRenameSchema.parse(body)
 
-    // Validate authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },
@@ -57,7 +56,6 @@ export async function POST(request: NextRequest) {
       const escapedSource = escapeShellArg(sourcePath)
       const escapedDest = escapeShellArg(destPath)
 
-      // Check if source exists
       const sourceCheck = await executeSSHCommand(
         client,
         `test -e '${escapedSource}' && echo "exists"`
@@ -69,7 +67,6 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Check if destination exists (when overwrite is false)
       if (!params.overwrite) {
         const destCheck = await executeSSHCommand(
           client,
@@ -83,7 +80,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Move/rename
       const command = params.overwrite
         ? `mv -f '${escapedSource}' '${escapedDest}'`
         : `mv '${escapedSource}' '${escapedDest}'`

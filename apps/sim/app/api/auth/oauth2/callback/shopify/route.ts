@@ -9,7 +9,6 @@ const logger = createLogger('ShopifyCallback')
 
 export const dynamic = 'force-dynamic'
 
-// Shopify shop domain must match this pattern
 const SHOP_DOMAIN_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/
 
 /**
@@ -22,7 +21,6 @@ function validateHmac(searchParams: URLSearchParams, clientSecret: string): bool
     return false
   }
 
-  // Create a copy of params without hmac for validation
   const params: Record<string, string> = {}
   searchParams.forEach((value, key) => {
     if (key !== 'hmac') {
@@ -30,16 +28,13 @@ function validateHmac(searchParams: URLSearchParams, clientSecret: string): bool
     }
   })
 
-  // Sort parameters alphabetically and create query string
   const message = Object.keys(params)
     .sort()
     .map((key) => `${key}=${params[key]}`)
     .join('&')
 
-  // Generate HMAC using SHA256
   const generatedHmac = crypto.createHmac('sha256', clientSecret).update(message).digest('hex')
 
-  // Use timing-safe comparison to prevent timing attacks
   try {
     return crypto.timingSafeEqual(Buffer.from(hmac, 'hex'), Buffer.from(generatedHmac, 'hex'))
   } catch {
@@ -61,7 +56,6 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get('state')
     const shop = searchParams.get('shop')
 
-    // Get stored values from cookies
     const storedState = request.cookies.get('shopify_oauth_state')?.value
     const storedShop = request.cookies.get('shopify_shop_domain')?.value
 
@@ -73,13 +67,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_config_error`)
     }
 
-    // Validate HMAC signature from Shopify
     if (!validateHmac(searchParams, clientSecret)) {
       logger.error('HMAC validation failed in Shopify OAuth callback')
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_hmac_invalid`)
     }
 
-    // Validate state to prevent CSRF
     if (!state || state !== storedState) {
       logger.error('State mismatch in Shopify OAuth callback')
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_state_mismatch`)
@@ -90,20 +82,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_no_code`)
     }
 
-    // Use shop from query params or cookie
     const shopDomain = shop || storedShop
     if (!shopDomain) {
       logger.error('No shop domain available')
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_no_shop`)
     }
 
-    // Validate shop domain format to prevent injection attacks
     if (!SHOP_DOMAIN_REGEX.test(shopDomain)) {
       logger.error('Invalid shop domain format:', { shopDomain })
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_invalid_shop`)
     }
 
-    // Exchange code for access token
     const tokenResponse = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
       method: 'POST',
       headers: {
@@ -139,18 +128,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_no_token`)
     }
 
-    // Store the token - redirect to store endpoint with token data
     const storeUrl = new URL(`${baseUrl}/api/auth/oauth2/shopify/store`)
 
-    // Create response with redirect to store page that will handle token storage
     const response = NextResponse.redirect(storeUrl)
 
-    // Pass token data via secure cookies (will be consumed by store endpoint)
     response.cookies.set('shopify_pending_token', accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60, // 1 minute - just enough to complete the flow
+      maxAge: 60,
       path: '/',
     })
 
@@ -170,7 +156,6 @@ export async function GET(request: NextRequest) {
       path: '/',
     })
 
-    // Clear the OAuth state cookies
     response.cookies.delete('shopify_oauth_state')
     response.cookies.delete('shopify_shop_domain')
 

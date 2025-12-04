@@ -38,7 +38,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const params = ReadFileContentSchema.parse(body)
 
-    // Validate authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },
@@ -64,7 +63,6 @@ export async function POST(request: NextRequest) {
       const filePath = sanitizePath(params.path)
       const maxBytes = params.maxSize * 1024 * 1024 // Convert MB to bytes
 
-      // Check file stats
       const stats = await new Promise<{ size: number }>((resolve, reject) => {
         sftp.stat(filePath, (err, stats) => {
           if (err) {
@@ -82,7 +80,6 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Read file content
       const content = await new Promise<string>((resolve, reject) => {
         const chunks: Buffer[] = []
         const readStream = sftp.createReadStream(filePath)

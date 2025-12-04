@@ -23,7 +23,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const params = CheckCommandExistsSchema.parse(body)
 
-    // Validate authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },
@@ -47,7 +46,6 @@ export async function POST(request: NextRequest) {
     try {
       const escapedCommand = escapeShellArg(params.commandName)
 
-      // Use which/command to check if the command exists
       const result = await executeSSHCommand(
         client,
         `command -v '${escapedCommand}' 2>/dev/null || which '${escapedCommand}' 2>/dev/null`
@@ -56,7 +54,6 @@ export async function POST(request: NextRequest) {
       const exists = result.exitCode === 0 && result.stdout.trim().length > 0
       const path = exists ? result.stdout.trim() : undefined
 
-      // Try to get version if command exists
       let version: string | undefined
       if (exists) {
         try {

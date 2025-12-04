@@ -119,13 +119,11 @@ export function createSSHConnection(config: SSHConnectionConfig): Promise<Client
     const port = config.port || 22
     const host = config.host
 
-    // Validate host
     if (!host || host.trim() === '') {
       reject(new Error('Host is required. Please provide a valid hostname or IP address.'))
       return
     }
 
-    // Validate authentication
     const hasPassword = config.password && config.password.trim() !== ''
     const hasPrivateKey = config.privateKey && config.privateKey.trim() !== ''
 
@@ -138,13 +136,8 @@ export function createSSHConnection(config: SSHConnectionConfig): Promise<Client
       host: host.trim(),
       port,
       username: config.username,
-      // Use library defaults for timeouts (aligns with OpenSSH standards)
-      // readyTimeout: 20000 (default)
-      // keepaliveInterval: 0 (default, disabled)
-      // keepaliveCountMax: 3 (default)
     }
 
-    // Allow user overrides if provided
     if (config.readyTimeout !== undefined) {
       connectConfig.readyTimeout = config.readyTimeout
     }
@@ -152,7 +145,6 @@ export function createSSHConnection(config: SSHConnectionConfig): Promise<Client
       connectConfig.keepaliveInterval = config.keepaliveInterval
     }
 
-    // Authentication: prioritize private key over password
     if (hasPrivateKey) {
       connectConfig.privateKey = config.privateKey!
       if (config.passphrase && config.passphrase.trim() !== '') {
@@ -215,7 +207,6 @@ export function executeSSHCommand(client: Client, command: string): Promise<SSHC
  * Sanitize command input to prevent command injection
  */
 export function sanitizeCommand(command: string): string {
-  // Basic sanitization - trim whitespace
   return command.trim()
 }
 
@@ -223,10 +214,8 @@ export function sanitizeCommand(command: string): string {
  * Sanitize file path - removes null bytes and trims whitespace
  */
 export function sanitizePath(path: string): string {
-  // Remove any null bytes
   let sanitized = path.replace(/\0/g, '')
 
-  // Normalize the path
   sanitized = sanitized.trim()
 
   return sanitized

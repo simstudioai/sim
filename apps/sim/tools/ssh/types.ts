@@ -140,16 +140,13 @@ export interface SSHSystemInfo {
   }
 }
 
-// Response types
 export interface SSHResponse extends ToolResponse {
   output: {
-    // Command execution outputs
     stdout?: string
     stderr?: string
     exitCode?: number
     success?: boolean
 
-    // File operation outputs
     uploaded?: boolean
     downloaded?: boolean
     fileContent?: string
@@ -158,18 +155,15 @@ export interface SSHResponse extends ToolResponse {
     localPath?: string
     size?: number
 
-    // Directory listing outputs
     entries?: SSHFileInfo[]
     totalFiles?: number
     totalDirectories?: number
 
-    // File existence check outputs
     exists?: boolean
     type?: 'file' | 'directory' | 'symlink' | 'not_found'
     permissions?: string
     modified?: string
 
-    // System info outputs
     hostname?: string
     os?: string
     architecture?: string
@@ -185,26 +179,21 @@ export interface SSHResponse extends ToolResponse {
       used: number
     }
 
-    // File content outputs
     content?: string
     lines?: number
 
-    // Operation status
     created?: boolean
     deleted?: boolean
     written?: boolean
     moved?: boolean
     alreadyExists?: boolean
 
-    // Command check outputs
     commandExists?: boolean
     commandPath?: string
     version?: string
 
-    // Script execution outputs
     scriptPath?: string
 
-    // Metadata
     message?: string
     metadata?: Record<string, unknown>
   }
