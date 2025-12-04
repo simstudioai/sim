@@ -28,8 +28,8 @@
   "overrides": {
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.4.1",
-    "@next/env": "15.4.1",
+    "next": "15.4.8",
+    "@next/env": "15.4.8",
     "drizzle-orm": "^0.44.5",
     "postgres": "^3.4.5"
   },
@@ -55,14 +55,14 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
-    "@next/env": "15.4.1",
+    "@next/env": "15.4.8",
     "@octokit/rest": "^21.0.0",
     "@tailwindcss/typography": "0.5.19",
     "@types/nodemailer": "7.0.4",
     "drizzle-kit": "^0.31.4",
     "husky": "9.1.7",
     "lint-staged": "16.0.0",
-    "turbo": "2.6.1"
+    "turbo": "2.6.2"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,scss}": [
