@@ -14,7 +14,10 @@ export function McpServerSkeleton() {
         </div>
         <Skeleton className='h-[13px] w-[120px]' />
       </div>
-      <Skeleton className='h-[30px] w-[54px] flex-shrink-0 rounded-[4px]' />
+      <div className='flex flex-shrink-0 items-center gap-[4px]'>
+        <Skeleton className='h-[30px] w-[60px] rounded-[4px]' />
+        <Skeleton className='h-[30px] w-[54px] rounded-[4px]' />
+      </div>
     </div>
   )
 }

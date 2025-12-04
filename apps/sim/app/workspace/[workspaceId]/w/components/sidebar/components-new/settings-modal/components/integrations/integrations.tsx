@@ -313,7 +313,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
             <div className='flex flex-col gap-[16px]'>
               {Object.entries(filteredGroupedServices).map(([providerKey, providerServices]) => (
                 <div key={providerKey} className='flex flex-col gap-[8px]'>
-                  <Label className='text-[12px] text-[var(--text-muted)]'>
+                  <Label className='text-[12px] text-[var(--text-tertiary)]'>
                     {OAUTH_PROVIDERS[providerKey]?.name || 'Other Services'}
                   </Label>
                   {providerServices.map((service) => (

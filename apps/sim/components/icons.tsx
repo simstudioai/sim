@@ -696,8 +696,8 @@ export function GrafanaIcon(props: SVGProps<SVGSVGElement>) {
           y2='5.356'
           gradientUnits='userSpaceOnUse'
         >
-          <stop stop-color='#FFF200' />
-          <stop offset='1' stop-color='#F15A29' />
+          <stop stopColor='#FFF200' />
+          <stop offset='1' stopColor='#F15A29' />
         </linearGradient>
       </defs>
     </svg>

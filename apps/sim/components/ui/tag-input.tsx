@@ -75,7 +75,7 @@ export function TagInput({
           placeholder={value.length === 0 ? placeholder : ''}
           disabled={disabled}
           className={cn(
-            'h-6 min-w-[180px] flex-1 border-none bg-transparent p-0 text-[13px] focus-visible:ring-0 focus-visible:ring-offset-0',
+            'h-6 min-w-[180px] flex-1 border-none bg-transparent p-0 font-medium font-sans text-sm placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0',
             value.length > 0 ? 'pl-[4px]' : 'pl-[4px]'
           )}
         />

@@ -48,6 +48,7 @@ import { ssoKeys, useSSOProviders } from '@/hooks/queries/sso'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
+const isSSOEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
 
 interface SettingsModalProps {
   open: boolean
@@ -167,6 +168,18 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         return false
       }
 
+      // SSO has special logic that must be checked before requiresTeam
+      if (item.id === 'sso') {
+        if (isHosted) {
+          return hasOrganization && hasEnterprisePlan && canManageSSO
+        }
+        // For self-hosted, only show SSO tab if explicitly enabled via environment variable
+        if (!isSSOEnabled) return false
+        // Show tab if user is the SSO provider owner, or if no providers exist yet (to allow initial setup)
+        const hasProviders = (ssoProvidersData?.providers?.length ?? 0) > 0
+        return !hasProviders || isSSOProviderOwner === true
+      }
+
       if (item.requiresTeam) {
         const isMember = userRole === 'member' || isAdmin
         const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
@@ -185,13 +198,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         return false
       }
 
-      if (item.id === 'sso') {
-        if (isHosted) {
-          return hasOrganization && hasEnterprisePlan && canManageSSO
-        }
-        return isSSOProviderOwner === true
-      }
-
       if (item.requiresOwner && !isOwner) {
         return false
       }
@@ -203,6 +209,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     hasEnterprisePlan,
     canManageSSO,
     isSSOProviderOwner,
+    isSSOEnabled,
+    ssoProvidersData?.providers?.length,
     isOwner,
     isAdmin,
     userRole,
