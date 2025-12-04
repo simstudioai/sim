@@ -1,30 +1,28 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressDeletePageParams, WordPressDeletePageResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressDeletePageParams,
+  type WordPressDeletePageResponse,
+} from './types'
 
 export const deletePageTool: ToolConfig<WordPressDeletePageParams, WordPressDeletePageResponse> = {
   id: 'wordpress_delete_page',
   name: 'WordPress Delete Page',
-  description: 'Delete a page from WordPress',
+  description: 'Delete a page from WordPress.com',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     pageId: {
       type: 'number',
@@ -42,20 +40,14 @@ export const deletePageTool: ToolConfig<WordPressDeletePageParams, WordPressDele
 
   request: {
     url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
       const forceParam = params.force ? '?force=true' : ''
-      return `${baseUrl}/wp-json/wp/v2/pages/${params.pageId}${forceParam}`
+      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/pages/${params.pageId}${forceParam}`
     },
     method: 'DELETE',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
   },
 
   transformResponse: async (response: Response) => {

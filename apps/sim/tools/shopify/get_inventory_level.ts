@@ -65,7 +65,10 @@ export const shopifyGetInventoryLevelTool: ToolConfig<
                 edges {
                   node {
                     id
-                    available
+                    quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) {
+                      name
+                      quantity
+                    }
                     location {
                       id
                       name
@@ -104,7 +107,29 @@ export const shopifyGetInventoryLevelTool: ToolConfig<
     }
 
     const inventoryLevels = inventoryItem.inventoryLevels.edges.map(
-      (edge: { node: unknown }) => edge.node
+      (edge: {
+        node: {
+          id: string
+          quantities: Array<{ name: string; quantity: number }>
+          location: { id: string; name: string }
+        }
+      }) => {
+        const node = edge.node
+        // Extract quantities into a more usable format
+        const quantitiesMap: Record<string, number> = {}
+        node.quantities.forEach((q) => {
+          quantitiesMap[q.name] = q.quantity
+        })
+        return {
+          id: node.id,
+          available: quantitiesMap.available ?? 0,
+          onHand: quantitiesMap.on_hand ?? 0,
+          committed: quantitiesMap.committed ?? 0,
+          incoming: quantitiesMap.incoming ?? 0,
+          reserved: quantitiesMap.reserved ?? 0,
+          location: node.location,
+        }
+      }
     )
 
     return {

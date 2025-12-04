@@ -30,7 +30,6 @@ export const KalshiBlock: BlockConfig = {
         { label: 'Get Trades', id: 'get_trades' },
         { label: 'Get Candlesticks', id: 'get_candlesticks' },
         { label: 'Get Fills', id: 'get_fills' },
-        { label: 'Get Series', id: 'get_series' },
         { label: 'Get Series by Ticker', id: 'get_series_by_ticker' },
         { label: 'Get Exchange Status', id: 'get_exchange_status' },
       ],
@@ -236,14 +235,6 @@ export const KalshiBlock: BlockConfig = {
       placeholder: 'Filter by order ID (optional)',
       condition: { field: 'operation', value: ['get_fills'] },
     },
-    // Get Series fields
-    {
-      id: 'statusSeries',
-      title: 'Status',
-      type: 'short-input',
-      placeholder: 'Filter by status (optional)',
-      condition: { field: 'operation', value: ['get_series'] },
-    },
     // Get Series by Ticker fields
     {
       id: 'seriesTickerGet',
@@ -268,7 +259,6 @@ export const KalshiBlock: BlockConfig = {
           'get_orders',
           'get_trades',
           'get_fills',
-          'get_series',
         ],
       },
     },
@@ -286,7 +276,6 @@ export const KalshiBlock: BlockConfig = {
           'get_orders',
           'get_trades',
           'get_fills',
-          'get_series',
         ],
       },
     },
@@ -304,7 +293,6 @@ export const KalshiBlock: BlockConfig = {
       'kalshi_get_trades',
       'kalshi_get_candlesticks',
       'kalshi_get_fills',
-      'kalshi_get_series',
       'kalshi_get_series_by_ticker',
       'kalshi_get_exchange_status',
     ],
@@ -333,8 +321,6 @@ export const KalshiBlock: BlockConfig = {
             return 'kalshi_get_candlesticks'
           case 'get_fills':
             return 'kalshi_get_fills'
-          case 'get_series':
-            return 'kalshi_get_series'
           case 'get_series_by_ticker':
             return 'kalshi_get_series_by_ticker'
           case 'get_exchange_status':
@@ -353,7 +339,6 @@ export const KalshiBlock: BlockConfig = {
           tickerCandlesticks,
           seriesTickerCandlesticks,
           seriesTickerGet,
-          statusSeries,
           ...rest
         } = params
         const cleanParams: Record<string, any> = {}
@@ -387,11 +372,6 @@ export const KalshiBlock: BlockConfig = {
         // Map seriesTickerGet to seriesTicker for get_series_by_ticker
         if (operation === 'get_series_by_ticker' && seriesTickerGet) {
           cleanParams.seriesTicker = seriesTickerGet
-        }
-
-        // Map statusSeries to status for get_series
-        if (operation === 'get_series' && statusSeries) {
-          cleanParams.status = statusSeries
         }
 
         Object.entries(rest).forEach(([key, value]) => {

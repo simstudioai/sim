@@ -1757,6 +1757,54 @@ export const auth = betterAuth({
             }
           },
         },
+
+        // WordPress.com provider
+        {
+          providerId: 'wordpress',
+          clientId: env.WORDPRESS_CLIENT_ID as string,
+          clientSecret: env.WORDPRESS_CLIENT_SECRET as string,
+          authorizationUrl: 'https://public-api.wordpress.com/oauth2/authorize',
+          tokenUrl: 'https://public-api.wordpress.com/oauth2/token',
+          userInfoUrl: 'https://public-api.wordpress.com/rest/v1.1/me',
+          scopes: ['global'],
+          responseType: 'code',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/wordpress`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching WordPress.com user profile')
+
+              const response = await fetch('https://public-api.wordpress.com/rest/v1.1/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Failed to fetch WordPress.com user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const profile = await response.json()
+
+              return {
+                id: profile.ID?.toString() || profile.id?.toString(),
+                name: profile.display_name || profile.username || 'WordPress User',
+                email: profile.email || `${profile.username}@wordpress.com`,
+                emailVerified: profile.email_verified || false,
+                image: profile.avatar_URL || undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in WordPress.com getUserInfo:', { error })
+              return null
+            }
+          },
+        },
       ],
     }),
     // Include SSO plugin when enabled

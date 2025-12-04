@@ -25,6 +25,12 @@ export const shopifyListOrdersTool: ToolConfig<ShopifyListOrdersParams, ShopifyO
       visibility: 'user-or-llm',
       description: 'Number of orders to return (default: 50, max: 250)',
     },
+    status: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by order status (open, closed, cancelled, any)',
+    },
     query: {
       type: 'string',
       required: false,
@@ -49,6 +55,16 @@ export const shopifyListOrdersTool: ToolConfig<ShopifyListOrdersParams, ShopifyO
     },
     body: (params) => {
       const first = Math.min(params.first || 50, 250)
+
+      // Build query string with status filter if provided
+      const queryParts: string[] = []
+      if (params.status && params.status !== 'any') {
+        queryParts.push(`status:${params.status}`)
+      }
+      if (params.query) {
+        queryParts.push(params.query)
+      }
+      const queryString = queryParts.length > 0 ? queryParts.join(' ') : null
 
       return {
         query: `
@@ -120,7 +136,7 @@ export const shopifyListOrdersTool: ToolConfig<ShopifyListOrdersParams, ShopifyO
         `,
         variables: {
           first,
-          query: params.query || null,
+          query: queryString,
         },
       }
     },

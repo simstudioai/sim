@@ -34,6 +34,7 @@ import {
   TrelloIcon,
   WealthboxIcon,
   WebflowIcon,
+  WordpressIcon,
   xIcon,
   ZoomIcon,
 } from '@/components/icons'
@@ -67,6 +68,7 @@ export type OAuthProvider =
   | 'linkedin'
   | 'shopify'
   | 'zoom'
+  | 'wordpress'
   | string
 
 export type OAuthService =
@@ -106,6 +108,7 @@ export type OAuthService =
   | 'linkedin'
   | 'shopify'
   | 'zoom'
+  | 'wordpress'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -584,7 +587,14 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'shopify',
         icon: (props) => ShopifyIcon(props),
         baseProviderIcon: (props) => ShopifyIcon(props),
-        scopes: ['write_products', 'write_orders', 'write_customers', 'write_inventory'],
+        scopes: [
+          'write_products',
+          'write_orders',
+          'write_customers',
+          'write_inventory',
+          'read_locations',
+          'write_merchant_managed_fulfillment_orders',
+        ],
       },
     },
     defaultService: 'shopify',
@@ -848,6 +858,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'zoom',
+  },
+  wordpress: {
+    id: 'wordpress',
+    name: 'WordPress',
+    icon: (props) => WordpressIcon(props),
+    services: {
+      wordpress: {
+        id: 'wordpress',
+        name: 'WordPress.com',
+        description: 'Manage posts, pages, media, comments, and more on WordPress.com sites.',
+        providerId: 'wordpress',
+        icon: (props) => WordpressIcon(props),
+        baseProviderIcon: (props) => WordpressIcon(props),
+        scopes: ['global'],
+      },
+    },
+    defaultService: 'wordpress',
   },
 }
 
@@ -1379,6 +1406,21 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'wordpress': {
+      // WordPress.com does NOT support refresh tokens
+      // Users will need to re-authorize when tokens expire (~2 weeks)
+      const { clientId, clientSecret } = getCredentials(
+        env.WORDPRESS_CLIENT_ID,
+        env.WORDPRESS_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://public-api.wordpress.com/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
         supportsRefreshTokenRotation: false,
       }
     }

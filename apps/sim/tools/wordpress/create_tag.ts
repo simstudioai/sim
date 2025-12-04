@@ -1,30 +1,28 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressCreateTagParams, WordPressCreateTagResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressCreateTagParams,
+  type WordPressCreateTagResponse,
+} from './types'
 
 export const createTagTool: ToolConfig<WordPressCreateTagParams, WordPressCreateTagResponse> = {
   id: 'wordpress_create_tag',
   name: 'WordPress Create Tag',
-  description: 'Create a new tag in WordPress',
+  description: 'Create a new tag in WordPress.com',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     name: {
       type: 'string',
@@ -47,20 +45,12 @@ export const createTagTool: ToolConfig<WordPressCreateTagParams, WordPressCreate
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
-      return `${baseUrl}/wp-json/wp/v2/tags`
-    },
+    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/tags`,
     method: 'POST',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
     body: (params) => {
       const body: Record<string, any> = {
         name: params.name,

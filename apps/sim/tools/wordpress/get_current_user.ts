@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressGetCurrentUserParams, WordPressGetCurrentUserResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressGetCurrentUserParams,
+  type WordPressGetCurrentUserResponse,
+} from './types'
 
 export const getCurrentUserTool: ToolConfig<
   WordPressGetCurrentUserParams,
@@ -7,45 +11,31 @@ export const getCurrentUserTool: ToolConfig<
 > = {
   id: 'wordpress_get_current_user',
   name: 'WordPress Get Current User',
-  description: 'Get information about the currently authenticated WordPress user',
+  description: 'Get information about the currently authenticated WordPress.com user',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
-      return `${baseUrl}/wp-json/wp/v2/users/me`
-    },
+    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/users/me`,
     method: 'GET',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
   },
 
   transformResponse: async (response: Response) => {

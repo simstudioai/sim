@@ -29,7 +29,7 @@ export const shopifyCancelOrderTool: ToolConfig<ShopifyCancelOrderParams, Shopif
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Cancellation reason (CUSTOMER, FRAUD, INVENTORY, DECLINED, OTHER)',
+      description: 'Cancellation reason (CUSTOMER, DECLINED, FRAUD, INVENTORY, STAFF, OTHER)',
     },
     notifyCustomer: {
       type: 'boolean',
@@ -80,7 +80,7 @@ export const shopifyCancelOrderTool: ToolConfig<ShopifyCancelOrderParams, Shopif
 
       return {
         query: `
-          mutation orderCancel($orderId: ID!, $reason: OrderCancelReason!, $notifyCustomer: Boolean, $refund: Boolean, $restock: Boolean, $staffNote: String) {
+          mutation orderCancel($orderId: ID!, $reason: OrderCancelReason!, $notifyCustomer: Boolean, $refund: Boolean!, $restock: Boolean!, $staffNote: String) {
             orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, refund: $refund, restock: $restock, staffNote: $staffNote) {
               job {
                 id
@@ -100,7 +100,7 @@ export const shopifyCancelOrderTool: ToolConfig<ShopifyCancelOrderParams, Shopif
           notifyCustomer: params.notifyCustomer ?? false,
           refund: params.refund ?? false,
           restock: params.restock ?? false,
-          staffNote: params.staffNote,
+          staffNote: params.staffNote || null,
         },
       }
     },

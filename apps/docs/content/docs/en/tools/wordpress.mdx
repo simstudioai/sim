@@ -21,7 +21,7 @@ By connecting WordPress to your automations, Sim empowers your agents to streaml
 
 ## Usage Instructions
 
-Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports self-hosted WordPress sites using Application Passwords authentication.
+Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.
 
 
 
@@ -29,15 +29,13 @@ Integrate with WordPress to create, update, and manage posts, pages, media, comm
 
 ### `wordpress_create_post`
 
-Create a new blog post in WordPress
+Create a new blog post in WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `title` | string | Yes | Post title |
 | `content` | string | No | Post content \(HTML or plain text\) |
 | `status` | string | No | Post status: publish, draft, pending, private, or future |
@@ -55,15 +53,13 @@ Create a new blog post in WordPress
 
 ### `wordpress_update_post`
 
-Update an existing blog post in WordPress
+Update an existing blog post in WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `postId` | number | Yes | The ID of the post to update |
 | `title` | string | No | Post title |
 | `content` | string | No | Post content \(HTML or plain text\) |
@@ -82,15 +78,13 @@ Update an existing blog post in WordPress
 
 ### `wordpress_delete_post`
 
-Delete a blog post from WordPress
+Delete a blog post from WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `postId` | number | Yes | The ID of the post to delete |
 | `force` | boolean | No | Bypass trash and force delete permanently |
 
@@ -103,15 +97,13 @@ Delete a blog post from WordPress
 
 ### `wordpress_get_post`
 
-Get a single blog post from WordPress by ID
+Get a single blog post from WordPress.com by ID
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `postId` | number | Yes | The ID of the post to retrieve |
 
 #### Output
@@ -122,15 +114,13 @@ Get a single blog post from WordPress by ID
 
 ### `wordpress_list_posts`
 
-List blog posts from WordPress with optional filters
+List blog posts from WordPress.com with optional filters
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `perPage` | number | No | Number of posts per page \(default: 10, max: 100\) |
 | `page` | number | No | Page number for pagination |
 | `status` | string | No | Post status filter: publish, draft, pending, private |
@@ -149,15 +139,13 @@ List blog posts from WordPress with optional filters
 
 ### `wordpress_create_page`
 
-Create a new page in WordPress
+Create a new page in WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `title` | string | Yes | Page title |
 | `content` | string | No | Page content \(HTML or plain text\) |
 | `status` | string | No | Page status: publish, draft, pending, private |
@@ -175,15 +163,13 @@ Create a new page in WordPress
 
 ### `wordpress_update_page`
 
-Update an existing page in WordPress
+Update an existing page in WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `pageId` | number | Yes | The ID of the page to update |
 | `title` | string | No | Page title |
 | `content` | string | No | Page content \(HTML or plain text\) |
@@ -202,15 +188,13 @@ Update an existing page in WordPress
 
 ### `wordpress_delete_page`
 
-Delete a page from WordPress
+Delete a page from WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `pageId` | number | Yes | The ID of the page to delete |
 | `force` | boolean | No | Bypass trash and force delete permanently |
 
@@ -223,15 +207,13 @@ Delete a page from WordPress
 
 ### `wordpress_get_page`
 
-Get a single page from WordPress by ID
+Get a single page from WordPress.com by ID
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `pageId` | number | Yes | The ID of the page to retrieve |
 
 #### Output
@@ -242,15 +224,13 @@ Get a single page from WordPress by ID
 
 ### `wordpress_list_pages`
 
-List pages from WordPress with optional filters
+List pages from WordPress.com with optional filters
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `perPage` | number | No | Number of pages per request \(default: 10, max: 100\) |
 | `page` | number | No | Page number for pagination |
 | `status` | string | No | Page status filter: publish, draft, pending, private |
@@ -267,15 +247,13 @@ List pages from WordPress with optional filters
 
 ### `wordpress_upload_media`
 
-Upload a media file (image, video, document) to WordPress
+Upload a media file (image, video, document) to WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `file` | string | Yes | Base64 encoded file data or URL to fetch file from |
 | `filename` | string | Yes | Filename with extension \(e.g., image.jpg\) |
 | `title` | string | No | Media title |
@@ -291,15 +269,13 @@ Upload a media file (image, video, document) to WordPress
 
 ### `wordpress_get_media`
 
-Get a single media item from WordPress by ID
+Get a single media item from WordPress.com by ID
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `mediaId` | number | Yes | The ID of the media item to retrieve |
 
 #### Output
@@ -310,15 +286,13 @@ Get a single media item from WordPress by ID
 
 ### `wordpress_list_media`
 
-List media items from the WordPress media library
+List media items from the WordPress.com media library
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `perPage` | number | No | Number of media items per request \(default: 10, max: 100\) |
 | `page` | number | No | Page number for pagination |
 | `search` | string | No | Search term to filter media |
@@ -335,15 +309,13 @@ List media items from the WordPress media library
 
 ### `wordpress_delete_media`
 
-Delete a media item from WordPress
+Delete a media item from WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `mediaId` | number | Yes | The ID of the media item to delete |
 | `force` | boolean | No | Force delete \(media has no trash, so deletion is permanent\) |
 
@@ -356,15 +328,13 @@ Delete a media item from WordPress
 
 ### `wordpress_create_comment`
 
-Create a new comment on a WordPress post
+Create a new comment on a WordPress.com post
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `postId` | number | Yes | The ID of the post to comment on |
 | `content` | string | Yes | Comment content |
 | `parent` | number | No | Parent comment ID for replies |
@@ -380,15 +350,13 @@ Create a new comment on a WordPress post
 
 ### `wordpress_list_comments`
 
-List comments from WordPress with optional filters
+List comments from WordPress.com with optional filters
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `perPage` | number | No | Number of comments per request \(default: 10, max: 100\) |
 | `page` | number | No | Page number for pagination |
 | `postId` | number | No | Filter by post ID |
@@ -405,15 +373,13 @@ List comments from WordPress with optional filters
 
 ### `wordpress_update_comment`
 
-Update a comment in WordPress (content or status)
+Update a comment in WordPress.com (content or status)
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `commentId` | number | Yes | The ID of the comment to update |
 | `content` | string | No | Updated comment content |
 | `status` | string | No | Comment status: approved, hold, spam, trash |
@@ -426,15 +392,13 @@ Update a comment in WordPress (content or status)
 
 ### `wordpress_delete_comment`
 
-Delete a comment from WordPress
+Delete a comment from WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `commentId` | number | Yes | The ID of the comment to delete |
 | `force` | boolean | No | Bypass trash and force delete permanently |
 
@@ -447,15 +411,13 @@ Delete a comment from WordPress
 
 ### `wordpress_create_category`
 
-Create a new category in WordPress
+Create a new category in WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `name` | string | Yes | Category name |
 | `description` | string | No | Category description |
 | `parent` | number | No | Parent category ID for hierarchical categories |
@@ -469,21 +431,16 @@ Create a new category in WordPress
 
 ### `wordpress_list_categories`
 
-List categories from WordPress
+List categories from WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `perPage` | number | No | Number of categories per request \(default: 10, max: 100\) |
 | `page` | number | No | Page number for pagination |
 | `search` | string | No | Search term to filter categories |
-| `parent` | number | No | Filter by parent category ID |
-| `hideEmpty` | boolean | No | Hide categories with no posts |
-| `orderBy` | string | No | Order by field: id, name, slug, count |
 | `order` | string | No | Order direction: asc or desc |
 
 #### Output
@@ -494,15 +451,13 @@ List categories from WordPress
 
 ### `wordpress_create_tag`
 
-Create a new tag in WordPress
+Create a new tag in WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `name` | string | Yes | Tag name |
 | `description` | string | No | Tag description |
 | `slug` | string | No | URL slug for the tag |
@@ -515,20 +470,16 @@ Create a new tag in WordPress
 
 ### `wordpress_list_tags`
 
-List tags from WordPress
+List tags from WordPress.com
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `perPage` | number | No | Number of tags per request \(default: 10, max: 100\) |
 | `page` | number | No | Page number for pagination |
 | `search` | string | No | Search term to filter tags |
-| `hideEmpty` | boolean | No | Hide tags with no posts |
-| `orderBy` | string | No | Order by field: id, name, slug, count |
 | `order` | string | No | Order direction: asc or desc |
 
 #### Output
@@ -539,15 +490,13 @@ List tags from WordPress
 
 ### `wordpress_get_current_user`
 
-Get information about the currently authenticated WordPress user
+Get information about the currently authenticated WordPress.com user
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 
 #### Output
 
@@ -557,20 +506,17 @@ Get information about the currently authenticated WordPress user
 
 ### `wordpress_list_users`
 
-List users from WordPress (requires admin privileges)
+List users from WordPress.com (requires admin privileges)
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `perPage` | number | No | Number of users per request \(default: 10, max: 100\) |
 | `page` | number | No | Page number for pagination |
 | `search` | string | No | Search term to filter users |
 | `roles` | string | No | Comma-separated role names to filter by |
-| `orderBy` | string | No | Order by field: id, name, slug, email, registered_date |
 | `order` | string | No | Order direction: asc or desc |
 
 #### Output
@@ -581,15 +527,13 @@ List users from WordPress (requires admin privileges)
 
 ### `wordpress_get_user`
 
-Get a specific user from WordPress by ID
+Get a specific user from WordPress.com by ID
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `userId` | number | Yes | The ID of the user to retrieve |
 
 #### Output
@@ -600,15 +544,13 @@ Get a specific user from WordPress by ID
 
 ### `wordpress_search_content`
 
-Search across all content types in WordPress (posts, pages, media)
+Search across all content types in WordPress.com (posts, pages, media)
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteUrl` | string | Yes | WordPress site URL \(e.g., https://example.com\) |
-| `username` | string | Yes | WordPress username |
-| `applicationPassword` | string | Yes | WordPress Application Password |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `query` | string | Yes | Search query |
 | `perPage` | number | No | Number of results per request \(default: 10, max: 100\) |
 | `page` | number | No | Page number for pagination |

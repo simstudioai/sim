@@ -1,30 +1,28 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressUpdatePageParams, WordPressUpdatePageResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressUpdatePageParams,
+  type WordPressUpdatePageResponse,
+} from './types'
 
 export const updatePageTool: ToolConfig<WordPressUpdatePageParams, WordPressUpdatePageResponse> = {
   id: 'wordpress_update_page',
   name: 'WordPress Update Page',
-  description: 'Update an existing page in WordPress',
+  description: 'Update an existing page in WordPress.com',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     pageId: {
       type: 'number',
@@ -83,20 +81,12 @@ export const updatePageTool: ToolConfig<WordPressUpdatePageParams, WordPressUpda
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
-      return `${baseUrl}/wp-json/wp/v2/pages/${params.pageId}`
-    },
+    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/pages/${params.pageId}`,
     method: 'POST',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
     body: (params) => {
       const body: Record<string, any> = {}
 

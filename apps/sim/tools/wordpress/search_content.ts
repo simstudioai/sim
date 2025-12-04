@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressSearchContentParams, WordPressSearchContentResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressSearchContentParams,
+  type WordPressSearchContentResponse,
+} from './types'
 
 export const searchContentTool: ToolConfig<
   WordPressSearchContentParams,
@@ -7,27 +11,21 @@ export const searchContentTool: ToolConfig<
 > = {
   id: 'wordpress_search_content',
   name: 'WordPress Search Content',
-  description: 'Search across all content types in WordPress (posts, pages, media)',
+  description: 'Search across all content types in WordPress.com (posts, pages, media)',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     query: {
       type: 'string',
@@ -63,7 +61,6 @@ export const searchContentTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
       const queryParams = new URLSearchParams()
 
       queryParams.append('search', params.query)
@@ -72,18 +69,13 @@ export const searchContentTool: ToolConfig<
       if (params.type) queryParams.append('type', params.type)
       if (params.subtype) queryParams.append('subtype', params.subtype)
 
-      return `${baseUrl}/wp-json/wp/v2/search?${queryParams.toString()}`
+      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/search?${queryParams.toString()}`
     },
     method: 'GET',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
   },
 
   transformResponse: async (response: Response) => {

@@ -121,7 +121,6 @@ export const shopifyCreateProductTool: ToolConfig<
                       price
                       compareAtPrice
                       sku
-                      barcode
                       inventoryQuantity
                     }
                   }

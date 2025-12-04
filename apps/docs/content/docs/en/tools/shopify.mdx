@@ -157,6 +157,7 @@ List orders from your Shopify store with optional filtering
 | --------- | ---- | -------- | ----------- |
 | `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `first` | number | No | Number of orders to return \(default: 50, max: 250\) |
+| `status` | string | No | Filter by order status \(open, closed, cancelled, any\) |
 | `query` | string | No | Search query to filter orders \(e.g., "financial_status:paid" or "fulfillment_status:unfulfilled" or "email:customer@example.com"\) |
 
 #### Output
@@ -196,7 +197,7 @@ Cancel an order in your Shopify store
 | --------- | ---- | -------- | ----------- |
 | `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `orderId` | string | Yes | Order ID to cancel \(gid://shopify/Order/123456789\) |
-| `reason` | string | Yes | Cancellation reason \(CUSTOMER, FRAUD, INVENTORY, DECLINED, OTHER\) |
+| `reason` | string | Yes | Cancellation reason \(CUSTOMER, DECLINED, FRAUD, INVENTORY, STAFF, OTHER\) |
 | `notifyCustomer` | boolean | No | Whether to notify the customer about the cancellation |
 | `refund` | boolean | No | Whether to refund the order |
 | `restock` | boolean | No | Whether to restock the inventory |
@@ -258,7 +259,7 @@ List customers from your Shopify store with optional filtering
 | --------- | ---- | -------- | ----------- |
 | `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `first` | number | No | Number of customers to return \(default: 50, max: 250\) |
-| `query` | string | No | Search query to filter customers \(e.g., "email:*@example.com" or "tag:vip" or "orders_count:&gt;5"\) |
+| `query` | string | No | Search query to filter customers \(e.g., "first_name:John" or "last_name:Smith" or "email:*@gmail.com" or "tag:vip"\) |
 
 #### Output
 
@@ -307,6 +308,25 @@ Delete a customer from your Shopify store
 | --------- | ---- | ----------- |
 | `deletedId` | string | The ID of the deleted customer |
 
+### `shopify_list_inventory_items`
+
+List inventory items from your Shopify store. Use this to find inventory item IDs by SKU.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `first` | number | No | Number of inventory items to return \(default: 50, max: 250\) |
+| `query` | string | No | Search query to filter inventory items \(e.g., "sku:ABC123"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inventoryItems` | array | List of inventory items with their IDs, SKUs, and stock levels |
+| `pageInfo` | object | Pagination information |
+
 ### `shopify_get_inventory_level`
 
 Get inventory level for a product variant at a specific location
@@ -343,6 +363,83 @@ Adjust inventory quantity for a product variant at a specific location
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `inventoryLevel` | object | The inventory adjustment result |
+
+### `shopify_list_locations`
+
+List inventory locations from your Shopify store. Use this to find location IDs needed for inventory operations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `first` | number | No | Number of locations to return \(default: 50, max: 250\) |
+| `includeInactive` | boolean | No | Whether to include deactivated locations \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `locations` | array | List of locations with their IDs, names, and addresses |
+| `pageInfo` | object | Pagination information |
+
+### `shopify_create_fulfillment`
+
+Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (get this from the order details).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `fulfillmentOrderId` | string | Yes | The fulfillment order ID \(e.g., gid://shopify/FulfillmentOrder/123456789\) |
+| `trackingNumber` | string | No | Tracking number for the shipment |
+| `trackingCompany` | string | No | Shipping carrier name \(e.g., UPS, FedEx, USPS, DHL\) |
+| `trackingUrl` | string | No | URL to track the shipment |
+| `notifyCustomer` | boolean | No | Whether to send a shipping confirmation email to the customer \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fulfillment` | object | The created fulfillment with tracking info and fulfilled items |
+
+### `shopify_list_collections`
+
+List product collections from your Shopify store. Filter by title, type (custom/smart), or handle.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `first` | number | No | Number of collections to return \(default: 50, max: 250\) |
+| `query` | string | No | Search query to filter collections \(e.g., "title:Summer" or "collection_type:smart"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collections` | array | List of collections with their IDs, titles, and product counts |
+| `pageInfo` | object | Pagination information |
+
+### `shopify_get_collection`
+
+Get a specific collection by ID, including its products. Use this to retrieve products within a collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `collectionId` | string | Yes | The collection ID \(e.g., gid://shopify/Collection/123456789\) |
+| `productsFirst` | number | No | Number of products to return from this collection \(default: 50, max: 250\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | object | The collection details including its products |
 
 
 

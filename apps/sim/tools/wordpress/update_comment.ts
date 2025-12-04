@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressUpdateCommentParams, WordPressUpdateCommentResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressUpdateCommentParams,
+  type WordPressUpdateCommentResponse,
+} from './types'
 
 export const updateCommentTool: ToolConfig<
   WordPressUpdateCommentParams,
@@ -7,27 +11,21 @@ export const updateCommentTool: ToolConfig<
 > = {
   id: 'wordpress_update_comment',
   name: 'WordPress Update Comment',
-  description: 'Update a comment in WordPress (content or status)',
+  description: 'Update a comment in WordPress.com (content or status)',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     commentId: {
       type: 'number',
@@ -50,20 +48,12 @@ export const updateCommentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
-      return `${baseUrl}/wp-json/wp/v2/comments/${params.commentId}`
-    },
+    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/comments/${params.commentId}`,
     method: 'POST',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
     body: (params) => {
       const body: Record<string, any> = {}
 

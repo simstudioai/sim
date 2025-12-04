@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressListCommentsParams, WordPressListCommentsResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressListCommentsParams,
+  type WordPressListCommentsResponse,
+} from './types'
 
 export const listCommentsTool: ToolConfig<
   WordPressListCommentsParams,
@@ -7,27 +11,21 @@ export const listCommentsTool: ToolConfig<
 > = {
   id: 'wordpress_list_comments',
   name: 'WordPress List Comments',
-  description: 'List comments from WordPress with optional filters',
+  description: 'List comments from WordPress.com with optional filters',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     perPage: {
       type: 'number',
@@ -75,7 +73,6 @@ export const listCommentsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
       const queryParams = new URLSearchParams()
 
       if (params.perPage) queryParams.append('per_page', String(params.perPage))
@@ -87,18 +84,13 @@ export const listCommentsTool: ToolConfig<
       if (params.order) queryParams.append('order', params.order)
 
       const queryString = queryParams.toString()
-      return `${baseUrl}/wp-json/wp/v2/comments${queryString ? `?${queryString}` : ''}`
+      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/comments${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
   },
 
   transformResponse: async (response: Response) => {

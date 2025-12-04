@@ -1,12 +1,15 @@
 // Common types for WordPress REST API tools
 import type { ToolResponse } from '@/tools/types'
 
-// Common parameters for all WordPress tools (Application Password auth)
+// Common parameters for all WordPress tools (WordPress.com OAuth)
+// Note: accessToken is injected by the OAuth system at runtime, not defined in tool params
 export interface WordPressBaseParams {
-  siteUrl: string // WordPress site URL (e.g., https://example.com)
-  username: string // WordPress username
-  applicationPassword: string // Application Password
+  siteId: string // WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)
+  accessToken: string // OAuth access token (injected by OAuth system)
 }
+
+// WordPress.com API base URL
+export const WORDPRESS_COM_API_BASE = 'https://public-api.wordpress.com/wp/v2/sites'
 
 // Post status types
 export type PostStatus = 'publish' | 'draft' | 'pending' | 'private' | 'future'
@@ -457,9 +460,6 @@ export interface WordPressListCategoriesParams extends WordPressBaseParams {
   perPage?: number
   page?: number
   search?: string
-  parent?: number
-  hideEmpty?: boolean
-  orderBy?: 'id' | 'name' | 'slug' | 'count'
   order?: 'asc' | 'desc'
 }
 
@@ -499,8 +499,6 @@ export interface WordPressListTagsParams extends WordPressBaseParams {
   perPage?: number
   page?: number
   search?: string
-  hideEmpty?: boolean
-  orderBy?: 'id' | 'name' | 'slug' | 'count'
   order?: 'asc' | 'desc'
 }
 
@@ -546,7 +544,6 @@ export interface WordPressListUsersParams extends WordPressBaseParams {
   page?: number
   search?: string
   roles?: string
-  orderBy?: 'id' | 'name' | 'slug' | 'email' | 'registered_date'
   order?: 'asc' | 'desc'
 }
 

@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressDeleteCommentParams, WordPressDeleteCommentResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressDeleteCommentParams,
+  type WordPressDeleteCommentResponse,
+} from './types'
 
 export const deleteCommentTool: ToolConfig<
   WordPressDeleteCommentParams,
@@ -7,27 +11,21 @@ export const deleteCommentTool: ToolConfig<
 > = {
   id: 'wordpress_delete_comment',
   name: 'WordPress Delete Comment',
-  description: 'Delete a comment from WordPress',
+  description: 'Delete a comment from WordPress.com',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     commentId: {
       type: 'number',
@@ -45,20 +43,14 @@ export const deleteCommentTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
       const forceParam = params.force ? '?force=true' : ''
-      return `${baseUrl}/wp-json/wp/v2/comments/${params.commentId}${forceParam}`
+      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/comments/${params.commentId}${forceParam}`
     },
     method: 'DELETE',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
   },
 
   transformResponse: async (response: Response) => {

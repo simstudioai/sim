@@ -59,8 +59,7 @@ export const shopifyGetCustomerTool: ToolConfig<ShopifyGetCustomerParams, Shopif
               updatedAt
               note
               tags
-              ordersCount
-              totalSpentV2 {
+              amountSpent {
                 amount
                 currencyCode
               }

@@ -160,7 +160,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
     // Optional Document ID - for index document
     {
       id: 'documentId',
-      title: 'Document ID (optional)',
+      title: 'Document ID',
       type: 'short-input',
       placeholder: 'Leave empty for auto-generated ID',
       condition: { field: 'operation', value: 'elasticsearch_index_document' },
@@ -170,7 +170,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
     {
       id: 'document',
       title: 'Document',
-      type: 'long-input',
+      type: 'code',
       placeholder: '{ "field": "value", "another_field": 123 }',
       required: true,
       condition: { field: 'operation', value: 'elasticsearch_index_document' },
@@ -180,7 +180,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
     {
       id: 'document',
       title: 'Partial Document',
-      type: 'long-input',
+      type: 'code',
       placeholder: '{ "field_to_update": "new_value" }',
       required: true,
       condition: { field: 'operation', value: 'elasticsearch_update_document' },
@@ -190,7 +190,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
     {
       id: 'query',
       title: 'Search Query',
-      type: 'long-input',
+      type: 'code',
       placeholder: '{ "match": { "field": "search term" } }',
       condition: { field: 'operation', value: 'elasticsearch_search' },
     },
@@ -198,8 +198,8 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
     // Count query
     {
       id: 'query',
-      title: 'Query (optional)',
-      type: 'long-input',
+      title: 'Query',
+      type: 'code',
       placeholder: '{ "match": { "field": "value" } }',
       condition: { field: 'operation', value: 'elasticsearch_count' },
     },
@@ -226,7 +226,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
     {
       id: 'sort',
       title: 'Sort',
-      type: 'long-input',
+      type: 'code',
       placeholder: '[{ "field": { "order": "asc" } }]',
       condition: { field: 'operation', value: 'elasticsearch_search' },
     },
@@ -259,7 +259,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
     {
       id: 'operations',
       title: 'Bulk Operations',
-      type: 'long-input',
+      type: 'code',
       placeholder:
         '{ "index": { "_index": "my-index", "_id": "1" } }\n{ "field": "value" }\n{ "delete": { "_index": "my-index", "_id": "2" } }',
       required: true,
@@ -270,7 +270,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
     {
       id: 'settings',
       title: 'Index Settings',
-      type: 'long-input',
+      type: 'code',
       placeholder: '{ "number_of_shards": 1, "number_of_replicas": 1 }',
       condition: { field: 'operation', value: 'elasticsearch_create_index' },
     },
@@ -279,7 +279,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
     {
       id: 'mappings',
       title: 'Index Mappings',
-      type: 'long-input',
+      type: 'code',
       placeholder: '{ "properties": { "field": { "type": "text" } } }',
       condition: { field: 'operation', value: 'elasticsearch_create_index' },
     },
@@ -324,9 +324,9 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
     // Cluster health timeout
     {
       id: 'timeout',
-      title: 'Timeout',
+      title: 'Timeout (seconds)',
       type: 'short-input',
-      placeholder: '30s',
+      placeholder: '30',
       condition: { field: 'operation', value: 'elasticsearch_cluster_health' },
     },
 
@@ -366,6 +366,10 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
         }
         if (params.retryOnConflict) {
           params.retryOnConflict = Number(params.retryOnConflict)
+        }
+        // Append 's' to timeout for Elasticsearch time format
+        if (params.timeout && !params.timeout.endsWith('s')) {
+          params.timeout = `${params.timeout}s`
         }
 
         // Return the operation as the tool ID

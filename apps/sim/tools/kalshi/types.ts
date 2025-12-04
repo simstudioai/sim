@@ -165,6 +165,12 @@ export interface KalshiFill {
   trade_id: string
 }
 
+// Settlement source type
+export interface KalshiSettlementSource {
+  name: string
+  url: string
+}
+
 // Series type
 export interface KalshiSeries {
   ticker: string
@@ -172,7 +178,13 @@ export interface KalshiSeries {
   frequency: string
   category: string
   tags?: string[]
-  status?: string
+  settlement_sources?: KalshiSettlementSource[]
+  contract_url?: string
+  contract_terms_url?: string
+  fee_type?: string // 'quadratic' | 'quadratic_with_maker_fees' | 'flat'
+  fee_multiplier?: number
+  additional_prohibitions?: string[]
+  product_metadata?: Record<string, unknown>
 }
 
 // Exchange status type
@@ -186,7 +198,51 @@ export function buildKalshiUrl(path: string): string {
   return `${KALSHI_BASE_URL}${path}`
 }
 
-// RSA signature generation for authenticated requests
+// Helper to normalize PEM key format
+// Handles: literal \n strings, missing line breaks, various PEM formats
+function normalizePemKey(privateKey: string): string {
+  let key = privateKey.trim()
+
+  // Convert literal \n strings to actual newlines
+  key = key.replace(/\\n/g, '\n')
+
+  // Extract the key type and base64 content
+  const beginMatch = key.match(/-----BEGIN ([A-Z\s]+)-----/)
+  const endMatch = key.match(/-----END ([A-Z\s]+)-----/)
+
+  if (beginMatch && endMatch) {
+    // Extract the key type (e.g., "RSA PRIVATE KEY" or "PRIVATE KEY")
+    const keyType = beginMatch[1]
+
+    // Extract base64 content between headers
+    const startIdx = key.indexOf('-----', key.indexOf('-----') + 5) + 5
+    const endIdx = key.lastIndexOf('-----END')
+    let base64Content = key.substring(startIdx, endIdx)
+
+    // Remove all whitespace from base64 content
+    base64Content = base64Content.replace(/\s/g, '')
+
+    // Reconstruct PEM with proper 64-character line breaks
+    const lines: string[] = []
+    for (let i = 0; i < base64Content.length; i += 64) {
+      lines.push(base64Content.substring(i, i + 64))
+    }
+
+    return `-----BEGIN ${keyType}-----\n${lines.join('\n')}\n-----END ${keyType}-----`
+  }
+
+  // No PEM headers found - assume raw base64, wrap in PKCS#8 format
+  const cleanKey = key.replace(/\s/g, '')
+  const lines: string[] = []
+  for (let i = 0; i < cleanKey.length; i += 64) {
+    lines.push(cleanKey.substring(i, i + 64))
+  }
+
+  return `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----`
+}
+
+// RSA-PSS signature generation for authenticated requests
+// Kalshi requires RSA-PSS with SHA256, not plain PKCS#1 v1.5
 export function generateKalshiSignature(
   privateKey: string,
   timestamp: string,
@@ -198,9 +254,17 @@ export function generateKalshiSignature(
   const pathWithoutQuery = path.split('?')[0]
   const message = timestamp + method.toUpperCase() + pathWithoutQuery
 
-  const sign = crypto.createSign('RSA-SHA256')
-  sign.update(message)
-  return sign.sign(privateKey, 'base64')
+  // Normalize PEM key format (handles literal \n, missing line breaks, etc.)
+  const pemKey = normalizePemKey(privateKey)
+
+  // Use RSA-PSS padding with SHA256 (required by Kalshi API)
+  const signature = crypto.sign('sha256', Buffer.from(message, 'utf-8'), {
+    key: pemKey,
+    padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+    saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST,
+  })
+
+  return signature.toString('base64')
 }
 
 // Build auth headers for authenticated requests

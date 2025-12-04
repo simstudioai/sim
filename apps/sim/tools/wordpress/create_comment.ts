@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressCreateCommentParams, WordPressCreateCommentResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressCreateCommentParams,
+  type WordPressCreateCommentResponse,
+} from './types'
 
 export const createCommentTool: ToolConfig<
   WordPressCreateCommentParams,
@@ -7,27 +11,21 @@ export const createCommentTool: ToolConfig<
 > = {
   id: 'wordpress_create_comment',
   name: 'WordPress Create Comment',
-  description: 'Create a new comment on a WordPress post',
+  description: 'Create a new comment on a WordPress.com post',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     postId: {
       type: 'number',
@@ -68,20 +66,12 @@ export const createCommentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
-      return `${baseUrl}/wp-json/wp/v2/comments`
-    },
+    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/comments`,
     method: 'POST',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
     body: (params) => {
       const body: Record<string, any> = {
         post: params.postId,

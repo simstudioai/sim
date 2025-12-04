@@ -1,30 +1,28 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressGetMediaParams, WordPressGetMediaResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressGetMediaParams,
+  type WordPressGetMediaResponse,
+} from './types'
 
 export const getMediaTool: ToolConfig<WordPressGetMediaParams, WordPressGetMediaResponse> = {
   id: 'wordpress_get_media',
   name: 'WordPress Get Media',
-  description: 'Get a single media item from WordPress by ID',
+  description: 'Get a single media item from WordPress.com by ID',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     mediaId: {
       type: 'number',
@@ -35,20 +33,12 @@ export const getMediaTool: ToolConfig<WordPressGetMediaParams, WordPressGetMedia
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
-      return `${baseUrl}/wp-json/wp/v2/media/${params.mediaId}`
-    },
+    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/media/${params.mediaId}`,
     method: 'GET',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
   },
 
   transformResponse: async (response: Response) => {

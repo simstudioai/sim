@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressListCategoriesParams, WordPressListCategoriesResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressListCategoriesParams,
+  type WordPressListCategoriesResponse,
+} from './types'
 
 export const listCategoriesTool: ToolConfig<
   WordPressListCategoriesParams,
@@ -7,27 +11,21 @@ export const listCategoriesTool: ToolConfig<
 > = {
   id: 'wordpress_list_categories',
   name: 'WordPress List Categories',
-  description: 'List categories from WordPress',
+  description: 'List categories from WordPress.com',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     perPage: {
       type: 'number',
@@ -47,24 +45,6 @@ export const listCategoriesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Search term to filter categories',
     },
-    parent: {
-      type: 'number',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter by parent category ID',
-    },
-    hideEmpty: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-only',
-      description: 'Hide categories with no posts',
-    },
-    orderBy: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Order by field: id, name, slug, count',
-    },
     order: {
       type: 'string',
       required: false,
@@ -75,30 +55,21 @@ export const listCategoriesTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
       const queryParams = new URLSearchParams()
 
       if (params.perPage) queryParams.append('per_page', String(params.perPage))
       if (params.page) queryParams.append('page', String(params.page))
       if (params.search) queryParams.append('search', params.search)
-      if (params.parent !== undefined) queryParams.append('parent', String(params.parent))
-      if (params.hideEmpty !== undefined) queryParams.append('hide_empty', String(params.hideEmpty))
-      if (params.orderBy) queryParams.append('orderby', params.orderBy)
       if (params.order) queryParams.append('order', params.order)
 
       const queryString = queryParams.toString()
-      return `${baseUrl}/wp-json/wp/v2/categories${queryString ? `?${queryString}` : ''}`
+      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/categories${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
   },
 
   transformResponse: async (response: Response) => {

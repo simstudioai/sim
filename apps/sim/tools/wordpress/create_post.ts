@@ -1,30 +1,28 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressCreatePostParams, WordPressCreatePostResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressCreatePostParams,
+  type WordPressCreatePostResponse,
+} from './types'
 
 export const createPostTool: ToolConfig<WordPressCreatePostParams, WordPressCreatePostResponse> = {
   id: 'wordpress_create_post',
   name: 'WordPress Create Post',
-  description: 'Create a new blog post in WordPress',
+  description: 'Create a new blog post in WordPress.com',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     title: {
       type: 'string',
@@ -77,20 +75,12 @@ export const createPostTool: ToolConfig<WordPressCreatePostParams, WordPressCrea
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
-      return `${baseUrl}/wp-json/wp/v2/posts`
-    },
+    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/posts`,
     method: 'POST',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
     body: (params) => {
       const body: Record<string, any> = {
         title: params.title,

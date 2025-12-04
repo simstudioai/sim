@@ -1,31 +1,29 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressUploadMediaParams, WordPressUploadMediaResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressUploadMediaParams,
+  type WordPressUploadMediaResponse,
+} from './types'
 
 export const uploadMediaTool: ToolConfig<WordPressUploadMediaParams, WordPressUploadMediaResponse> =
   {
     id: 'wordpress_upload_media',
     name: 'WordPress Upload Media',
-    description: 'Upload a media file (image, video, document) to WordPress',
+    description: 'Upload a media file (image, video, document) to WordPress.com',
     version: '1.0.0',
 
+    oauth: {
+      required: true,
+      provider: 'wordpress',
+      requiredScopes: ['global'],
+    },
+
     params: {
-      siteUrl: {
+      siteId: {
         type: 'string',
         required: true,
         visibility: 'user-only',
-        description: 'WordPress site URL (e.g., https://example.com)',
-      },
-      username: {
-        type: 'string',
-        required: true,
-        visibility: 'user-only',
-        description: 'WordPress username',
-      },
-      applicationPassword: {
-        type: 'string',
-        required: true,
-        visibility: 'user-only',
-        description: 'WordPress Application Password',
+        description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
       },
       file: {
         type: 'string',
@@ -66,16 +64,9 @@ export const uploadMediaTool: ToolConfig<WordPressUploadMediaParams, WordPressUp
     },
 
     request: {
-      url: (params) => {
-        const baseUrl = params.siteUrl.replace(/\/$/, '')
-        return `${baseUrl}/wp-json/wp/v2/media`
-      },
+      url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/media`,
       method: 'POST',
       headers: (params) => {
-        const credentials = Buffer.from(
-          `${params.username}:${params.applicationPassword}`
-        ).toString('base64')
-
         // Determine content type from filename
         const ext = params.filename.split('.').pop()?.toLowerCase() || ''
         const mimeTypes: Record<string, string> = {
@@ -97,7 +88,7 @@ export const uploadMediaTool: ToolConfig<WordPressUploadMediaParams, WordPressUp
         return {
           'Content-Type': contentType,
           'Content-Disposition': `attachment; filename="${params.filename}"`,
-          Authorization: `Basic ${credentials}`,
+          Authorization: `Bearer ${params.accessToken}`,
         }
       },
       body: (params) => {

@@ -53,10 +53,14 @@ export const polymarketGetTickSizeTool: ToolConfig<
       handlePolymarketError(data, response.status, 'get_tick_size')
     }
 
+    // API returns { minimum_tick_size: "0.01" }
+    const tickSize =
+      typeof data === 'string' ? data : data.minimum_tick_size || data.tick_size || ''
+
     return {
       success: true,
       output: {
-        tickSize: typeof data === 'string' ? data : data.tick_size || data.tickSize || '',
+        tickSize: String(tickSize),
         metadata: {
           operation: 'get_tick_size' as const,
           tokenId: params?.tokenId || '',

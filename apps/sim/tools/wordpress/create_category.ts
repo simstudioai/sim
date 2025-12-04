@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressCreateCategoryParams, WordPressCreateCategoryResponse } from './types'
+import {
+  WORDPRESS_COM_API_BASE,
+  type WordPressCreateCategoryParams,
+  type WordPressCreateCategoryResponse,
+} from './types'
 
 export const createCategoryTool: ToolConfig<
   WordPressCreateCategoryParams,
@@ -7,27 +11,21 @@ export const createCategoryTool: ToolConfig<
 > = {
   id: 'wordpress_create_category',
   name: 'WordPress Create Category',
-  description: 'Create a new category in WordPress',
+  description: 'Create a new category in WordPress.com',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wordpress',
+    requiredScopes: ['global'],
+  },
+
   params: {
-    siteUrl: {
+    siteId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WordPress site URL (e.g., https://example.com)',
-    },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress username',
-    },
-    applicationPassword: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'WordPress Application Password',
+      description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     name: {
       type: 'string',
@@ -56,20 +54,12 @@ export const createCategoryTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = params.siteUrl.replace(/\/$/, '')
-      return `${baseUrl}/wp-json/wp/v2/categories`
-    },
+    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/categories`,
     method: 'POST',
-    headers: (params) => {
-      const credentials = Buffer.from(`${params.username}:${params.applicationPassword}`).toString(
-        'base64'
-      )
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      }
-    },
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
     body: (params) => {
       const body: Record<string, any> = {
         name: params.name,

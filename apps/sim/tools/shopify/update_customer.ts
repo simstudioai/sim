@@ -121,8 +121,7 @@ export const shopifyUpdateCustomerTool: ToolConfig<
                 updatedAt
                 note
                 tags
-                ordersCount
-                totalSpentV2 {
+                amountSpent {
                   amount
                   currencyCode
                 }

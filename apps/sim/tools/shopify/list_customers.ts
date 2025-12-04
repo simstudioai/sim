@@ -33,7 +33,7 @@ export const shopifyListCustomersTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Search query to filter customers (e.g., "email:*@example.com" or "tag:vip" or "orders_count:>5")',
+        'Search query to filter customers (e.g., "first_name:John" or "last_name:Smith" or "email:*@gmail.com" or "tag:vip")',
     },
   },
 
@@ -68,8 +68,7 @@ export const shopifyListCustomersTool: ToolConfig<
                   updatedAt
                   note
                   tags
-                  ordersCount
-                  totalSpentV2 {
+                  amountSpent {
                     amount
                     currencyCode
                   }

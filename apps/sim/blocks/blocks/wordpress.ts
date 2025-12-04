@@ -7,9 +7,9 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
   type: 'wordpress',
   name: 'WordPress',
   description: 'Manage WordPress content',
-  authMode: AuthMode.ApiKey,
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports self-hosted WordPress sites using Application Passwords authentication.',
+    'Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.',
   docsLink: 'https://docs.sim.ai/tools/wordpress',
   category: 'tools',
   bgColor: '#21759B',
@@ -59,27 +59,24 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       value: () => 'wordpress_create_post',
     },
 
-    // Authentication Fields
+    // Credential selector for OAuth
     {
-      id: 'siteUrl',
-      title: 'Site URL',
-      type: 'short-input',
-      placeholder: 'https://your-site.com',
+      id: 'credential',
+      title: 'WordPress Account',
+      type: 'oauth-input',
+      serviceId: 'wordpress',
+      requiredScopes: ['global'],
+      placeholder: 'Select WordPress account',
       required: true,
     },
+
+    // Site ID for WordPress.com (required for OAuth)
     {
-      id: 'username',
-      title: 'Username',
+      id: 'siteId',
+      title: 'Site ID or Domain',
       type: 'short-input',
-      placeholder: 'WordPress username',
-      required: true,
-    },
-    {
-      id: 'applicationPassword',
-      title: 'Application Password',
-      type: 'short-input',
-      placeholder: 'xxxx xxxx xxxx xxxx xxxx xxxx',
-      password: true,
+      placeholder: 'e.g., 12345678 or yoursite.wordpress.com',
+      description: 'Your WordPress.com site ID or domain. Find it in Settings → General.',
       required: true,
     },
 
@@ -621,17 +618,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
         ],
       },
     },
-
-    // Hide empty for taxonomies
-    {
-      id: 'hideEmpty',
-      title: 'Hide Empty',
-      type: 'switch',
-      condition: {
-        field: 'operation',
-        value: ['wordpress_list_categories', 'wordpress_list_tags'],
-      },
-    },
   ],
   tools: {
     access: [
@@ -665,10 +651,10 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     config: {
       tool: (params) => params.operation || 'wordpress_create_post',
       params: (params) => {
-        const baseParams = {
-          siteUrl: params.siteUrl,
-          username: params.username,
-          applicationPassword: params.applicationPassword,
+        // OAuth authentication for WordPress.com
+        const baseParams: Record<string, any> = {
+          credential: params.credential,
+          siteId: params.siteId,
         }
 
         switch (params.operation) {
@@ -840,8 +826,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
               search: params.search,
-              hideEmpty: params.hideEmpty,
-              orderBy: params.orderBy,
               order: params.order,
             }
           case 'wordpress_create_tag':
@@ -857,8 +841,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
               search: params.search,
-              hideEmpty: params.hideEmpty,
-              orderBy: params.orderBy,
               order: params.order,
             }
           case 'wordpress_get_current_user':
@@ -870,7 +852,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               page: params.page ? Number(params.page) : undefined,
               search: params.search,
               roles: params.roles,
-              orderBy: params.orderBy,
               order: params.order,
             }
           case 'wordpress_get_user':
@@ -894,9 +875,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    siteUrl: { type: 'string', description: 'WordPress site URL' },
-    username: { type: 'string', description: 'WordPress username' },
-    applicationPassword: { type: 'string', description: 'WordPress Application Password' },
+    siteId: { type: 'string', description: 'WordPress.com site ID or domain' },
     // Post inputs
     postId: { type: 'number', description: 'Post ID' },
     title: { type: 'string', description: 'Post or page title' },

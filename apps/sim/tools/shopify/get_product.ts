@@ -67,11 +67,7 @@ export const shopifyGetProductTool: ToolConfig<ShopifyGetProductParams, ShopifyP
                     price
                     compareAtPrice
                     sku
-                    barcode
                     inventoryQuantity
-                    weight
-                    weightUnit
-                    availableForSale
                   }
                 }
               }

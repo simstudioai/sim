@@ -43,8 +43,16 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         { label: 'Update Customer', id: 'shopify_update_customer' },
         { label: 'Delete Customer', id: 'shopify_delete_customer' },
         // Inventory Operations
+        { label: 'List Inventory Items', id: 'shopify_list_inventory_items' },
         { label: 'Get Inventory Level', id: 'shopify_get_inventory_level' },
         { label: 'Adjust Inventory', id: 'shopify_adjust_inventory' },
+        // Location Operations
+        { label: 'List Locations', id: 'shopify_list_locations' },
+        // Fulfillment Operations
+        { label: 'Create Fulfillment', id: 'shopify_create_fulfillment' },
+        // Collection Operations
+        { label: 'List Collections', id: 'shopify_list_collections' },
+        { label: 'Get Collection', id: 'shopify_get_collection' },
       ],
       value: () => 'shopify_list_products',
     },
@@ -53,7 +61,14 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       title: 'Shopify Account',
       type: 'oauth-input',
       serviceId: 'shopify',
-      requiredScopes: ['write_products', 'write_orders', 'write_customers', 'write_inventory'],
+      requiredScopes: [
+        'write_products',
+        'write_orders',
+        'write_customers',
+        'write_inventory',
+        'read_locations',
+        'write_merchant_managed_fulfillment_orders',
+      ],
       placeholder: 'Select Shopify account',
       required: true,
     },
@@ -153,13 +168,35 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
     },
     // Query for listing products
     {
-      id: 'query',
+      id: 'productQuery',
       title: 'Search Query',
       type: 'short-input',
       placeholder: 'Filter products (optional)',
       condition: {
         field: 'operation',
-        value: ['shopify_list_products', 'shopify_list_customers'],
+        value: ['shopify_list_products'],
+      },
+    },
+    // Query for listing customers
+    {
+      id: 'customerQuery',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'e.g., first_name:John OR email:*@gmail.com',
+      condition: {
+        field: 'operation',
+        value: ['shopify_list_customers'],
+      },
+    },
+    // Query for listing inventory items
+    {
+      id: 'inventoryQuery',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'e.g., sku:ABC123',
+      condition: {
+        field: 'operation',
+        value: ['shopify_list_inventory_items'],
       },
     },
     // Order ID
@@ -362,7 +399,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       placeholder: 'gid://shopify/Location/123456789',
       required: {
         field: 'operation',
-        value: ['shopify_adjust_inventory'],
+        value: 'shopify_adjust_inventory',
       },
       condition: {
         field: 'operation',
@@ -379,6 +416,84 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       condition: {
         field: 'operation',
         value: ['shopify_adjust_inventory'],
+      },
+    },
+    // Fulfillment Order ID
+    {
+      id: 'fulfillmentOrderId',
+      title: 'Fulfillment Order ID',
+      type: 'short-input',
+      placeholder: 'gid://shopify/FulfillmentOrder/123456789',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['shopify_create_fulfillment'],
+      },
+    },
+    // Tracking Number
+    {
+      id: 'trackingNumber',
+      title: 'Tracking Number',
+      type: 'short-input',
+      placeholder: 'Enter tracking number',
+      condition: {
+        field: 'operation',
+        value: ['shopify_create_fulfillment'],
+      },
+    },
+    // Tracking Company
+    {
+      id: 'trackingCompany',
+      title: 'Shipping Carrier',
+      type: 'short-input',
+      placeholder: 'e.g., UPS, FedEx, USPS, DHL',
+      condition: {
+        field: 'operation',
+        value: ['shopify_create_fulfillment'],
+      },
+    },
+    // Tracking URL
+    {
+      id: 'trackingUrl',
+      title: 'Tracking URL',
+      type: 'short-input',
+      placeholder: 'https://...',
+      condition: {
+        field: 'operation',
+        value: ['shopify_create_fulfillment'],
+      },
+    },
+    // Notify Customer (for fulfillment)
+    {
+      id: 'notifyCustomer',
+      title: 'Notify Customer',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['shopify_create_fulfillment'],
+      },
+    },
+    // Collection ID
+    {
+      id: 'collectionId',
+      title: 'Collection ID',
+      type: 'short-input',
+      placeholder: 'gid://shopify/Collection/123456789',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['shopify_get_collection'],
+      },
+    },
+    // Collection Query
+    {
+      id: 'collectionQuery',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'e.g., title:Summer OR collection_type:smart',
+      condition: {
+        field: 'operation',
+        value: ['shopify_list_collections'],
       },
     },
   ],
@@ -398,8 +513,13 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       'shopify_list_customers',
       'shopify_update_customer',
       'shopify_delete_customer',
+      'shopify_list_inventory_items',
       'shopify_get_inventory_level',
       'shopify_adjust_inventory',
+      'shopify_list_locations',
+      'shopify_create_fulfillment',
+      'shopify_list_collections',
+      'shopify_get_collection',
     ],
     config: {
       tool: (params) => {
@@ -442,7 +562,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
           case 'shopify_list_products':
             return {
               ...baseParams,
-              query: params.query?.trim(),
+              query: params.productQuery?.trim(),
             }
 
           case 'shopify_update_product':
@@ -546,7 +666,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
           case 'shopify_list_customers':
             return {
               ...baseParams,
-              query: params.query?.trim(),
+              query: params.customerQuery?.trim(),
             }
 
           case 'shopify_update_customer':
@@ -577,6 +697,12 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
             }
 
           // Inventory Operations
+          case 'shopify_list_inventory_items':
+            return {
+              ...baseParams,
+              query: params.inventoryQuery?.trim(),
+            }
+
           case 'shopify_get_inventory_level':
             if (!params.inventoryItemId?.trim()) {
               throw new Error('Inventory Item ID is required.')
@@ -602,6 +728,42 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
               inventoryItemId: params.inventoryItemId.trim(),
               locationId: params.locationId.trim(),
               delta: Number(params.delta),
+            }
+
+          // Location Operations
+          case 'shopify_list_locations':
+            return {
+              ...baseParams,
+            }
+
+          // Fulfillment Operations
+          case 'shopify_create_fulfillment':
+            if (!params.fulfillmentOrderId?.trim()) {
+              throw new Error('Fulfillment Order ID is required.')
+            }
+            return {
+              ...baseParams,
+              fulfillmentOrderId: params.fulfillmentOrderId.trim(),
+              trackingNumber: params.trackingNumber?.trim(),
+              trackingCompany: params.trackingCompany?.trim(),
+              trackingUrl: params.trackingUrl?.trim(),
+              notifyCustomer: params.notifyCustomer,
+            }
+
+          // Collection Operations
+          case 'shopify_list_collections':
+            return {
+              ...baseParams,
+              query: params.collectionQuery?.trim(),
+            }
+
+          case 'shopify_get_collection':
+            if (!params.collectionId?.trim()) {
+              throw new Error('Collection ID is required.')
+            }
+            return {
+              ...baseParams,
+              collectionId: params.collectionId.trim(),
             }
 
           default:
@@ -641,9 +803,19 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
     customerTags: { type: 'string', description: 'Customer tags' },
     acceptsMarketing: { type: 'boolean', description: 'Accepts marketing' },
     // Inventory inputs
+    inventoryQuery: { type: 'string', description: 'Inventory search query' },
     inventoryItemId: { type: 'string', description: 'Inventory item ID' },
     locationId: { type: 'string', description: 'Location ID' },
     delta: { type: 'number', description: 'Quantity change' },
+    // Fulfillment inputs
+    fulfillmentOrderId: { type: 'string', description: 'Fulfillment order ID' },
+    trackingNumber: { type: 'string', description: 'Shipment tracking number' },
+    trackingCompany: { type: 'string', description: 'Shipping carrier name' },
+    trackingUrl: { type: 'string', description: 'Tracking URL' },
+    notifyCustomer: { type: 'boolean', description: 'Send shipping notification email' },
+    // Collection inputs
+    collectionId: { type: 'string', description: 'Collection ID' },
+    collectionQuery: { type: 'string', description: 'Collection search query' },
   },
   outputs: {
     // Product outputs
@@ -656,7 +828,15 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
     customer: { type: 'json', description: 'Customer data' },
     customers: { type: 'json', description: 'Customers list' },
     // Inventory outputs
+    inventoryItems: { type: 'json', description: 'Inventory items list' },
     inventoryLevel: { type: 'json', description: 'Inventory level data' },
+    // Location outputs
+    locations: { type: 'json', description: 'Locations list' },
+    // Fulfillment outputs
+    fulfillment: { type: 'json', description: 'Fulfillment data' },
+    // Collection outputs
+    collection: { type: 'json', description: 'Collection data with products' },
+    collections: { type: 'json', description: 'Collections list' },
     // Delete outputs
     deletedId: { type: 'string', description: 'ID of deleted resource' },
     // Success indicator

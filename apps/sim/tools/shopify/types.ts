@@ -44,11 +44,7 @@ export interface ShopifyVariant {
   price: string
   compareAtPrice: string | null
   sku: string | null
-  barcode: string | null
   inventoryQuantity: number
-  weight: number | null
-  weightUnit: string
-  availableForSale: boolean
 }
 
 export interface ShopifyImage {
@@ -131,8 +127,7 @@ export interface ShopifyCustomer {
   updatedAt: string
   note: string | null
   tags: string[]
-  ordersCount: string
-  totalSpentV2: {
+  amountSpent: {
     amount: string
     currencyCode: string
   }
@@ -157,6 +152,10 @@ export interface ShopifyFulfillment {
 export interface ShopifyInventoryLevel {
   id: string
   available: number
+  onHand: number
+  committed: number
+  incoming: number
+  reserved: number
   location: {
     id: string
     name: string
@@ -221,6 +220,7 @@ export interface ShopifyGetOrderParams extends ShopifyBaseParams {
 
 export interface ShopifyListOrdersParams extends ShopifyBaseParams {
   first?: number
+  status?: string
   query?: string
 }
 

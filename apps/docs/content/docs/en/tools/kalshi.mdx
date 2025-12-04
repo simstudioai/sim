@@ -11,18 +11,18 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Kalshi](https://kalshi.com) is a federally regulated exchange that enables users to trade directly on the outcomes of future events, known as prediction markets. Kalshi offers an open API, giving developers access to real-time market and event data, as well as account and trading information for automated or data-driven workflows.
+[Kalshi](https://kalshi.com) is a federally regulated exchange where users can trade directly on the outcomes of future events—prediction markets. Kalshi’s robust API and Sim integration enable agents and workflows to programmatically access all aspects of the platform, supporting everything from research and analytics to automated trading and monitoring.
 
-With Kalshi's API and Sim integration, you can enable agents to retrieve up-to-date prediction market information, explore open events, check account balances, manage orders, and track positions—all programmatically. This provides powerful capabilities for research, portfolio management, and creating intelligent workflows based on real-world event probabilities and outcomes.
+With Kalshi’s integration in Sim, you can:
 
-Key features of the Kalshi integration include:
+- **Market & Event Data:** Search, filter, and retrieve real-time and historical data for markets and events; fetch granular details on market status, series, event groupings, and more.
+- **Account & Balance Management:** Access account balances, available funds, and monitor real-time open positions.
+- **Order & Trade Management:** Place new orders, cancel existing ones, view open orders, retrieve a live orderbook, and access complete trade histories.
+- **Execution Analysis:** Fetch recent trades, historical fills, and candlestick data for backtesting or market structure research.
+- **Monitoring:** Check exchange-wide or series-level status, receive real-time updates about market changes or trading halts, and automate responses.
+- **Automation Ready:** Build end-to-end automated agents and dashboards that consume, analyze, and trade on real-world event probabilities.
 
-- **Market Listing & Filtering:** Retrieve lists of markets or individual market details, including filtering by status, series, or event.
-- **Event Data:** Explore and filter real-world event listings and retrieve detailed event information.
-- **Account and Trading:** Access user account balances, open positions, and manage order flow.
-- **Automation Ready:** Build intelligent agents that leverage real-time prediction market data for automated actions and insights.
-
-By using the documented API tools, you can seamlessly incorporate Kalshi's rich event and financial market data into your AI workflows, dashboards, and trading automations.
+By using these unified tools and endpoints, you can seamlessly incorporate Kalshi’s prediction markets, live trading capabilities, and deep event data into your AI-powered applications, dashboards, and workflows—enabling sophisticated, automated decision-making tied to real-world outcomes.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -258,25 +258,6 @@ Retrieve your portfolio
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Fills data and metadata |
-
-### `kalshi_get_series`
-
-Retrieve a list of market series templates from Kalshi
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `status` | string | No | Filter by status |
-| `limit` | string | No | Number of results \(1-1000, default: 100\) |
-| `cursor` | string | No | Pagination cursor for next page |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Series data and metadata |
 
 ### `kalshi_get_series_by_ticker`
 

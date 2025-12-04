@@ -8,13 +8,13 @@ const logger = createLogger('ShopifyAuthorize')
 
 export const dynamic = 'force-dynamic'
 
-// Shopify OAuth scopes needed for the integration
-// Note: In Shopify, write scopes imply read access
 const SHOPIFY_SCOPES = [
   'write_products',
   'write_orders',
   'write_customers',
   'write_inventory',
+  'read_locations',
+  'write_merchant_managed_fulfillment_orders',
 ].join(',')
 
 export async function GET(request: NextRequest) {
@@ -31,11 +31,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Shopify client ID not configured' }, { status: 500 })
     }
 
-    // Get shop domain from query parameter
     const shopDomain = request.nextUrl.searchParams.get('shop')
+    const returnUrl = request.nextUrl.searchParams.get('returnUrl')
 
     if (!shopDomain) {
-      // Return a page that asks for the shop domain
+      const returnUrlParam = returnUrl ? encodeURIComponent(returnUrl) : ''
       return new NextResponse(
         `<!DOCTYPE html>
 <html>
@@ -123,6 +123,7 @@ export async function GET(request: NextRequest) {
     </div>
 
     <script>
+      const returnUrl = '${returnUrlParam}';
       function handleSubmit(e) {
         e.preventDefault();
         let shop = document.getElementById('shop').value.trim().toLowerCase();
@@ -133,7 +134,11 @@ export async function GET(request: NextRequest) {
           shop = shop.replace('.myshopify.com', '') + '.myshopify.com';
         }
 
-        window.location.href = window.location.pathname + '?shop=' + encodeURIComponent(shop);
+        let url = window.location.pathname + '?shop=' + encodeURIComponent(shop);
+        if (returnUrl) {
+          url += '&returnUrl=' + returnUrl;
+        }
+        window.location.href = url;
       }
     </script>
   </body>
@@ -147,7 +152,6 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Validate and clean shop domain
     let cleanShop = shopDomain.toLowerCase().trim()
     cleanShop = cleanShop.replace('https://', '').replace('http://', '')
     if (!cleanShop.endsWith('.myshopify.com')) {
@@ -157,37 +161,51 @@ export async function GET(request: NextRequest) {
     const baseUrl = getBaseUrl()
     const redirectUri = `${baseUrl}/api/auth/oauth2/callback/shopify`
 
-    // Generate a random state for CSRF protection
     const state = crypto.randomUUID()
 
-    // Store state in a cookie for verification
-    const response = NextResponse.redirect(
+    const oauthUrl =
       `https://${cleanShop}/admin/oauth/authorize?` +
-        new URLSearchParams({
-          client_id: clientId,
-          scope: SHOPIFY_SCOPES,
-          redirect_uri: redirectUri,
-          state: state,
-        }).toString()
-    )
+      new URLSearchParams({
+        client_id: clientId,
+        scope: SHOPIFY_SCOPES,
+        redirect_uri: redirectUri,
+        state: state,
+      }).toString()
 
-    // Set state cookie for CSRF verification
+    logger.info('Initiating Shopify OAuth:', {
+      shop: cleanShop,
+      requestedScopes: SHOPIFY_SCOPES,
+      redirectUri,
+      returnUrl: returnUrl || 'not specified',
+    })
+
+    const response = NextResponse.redirect(oauthUrl)
+
     response.cookies.set('shopify_oauth_state', state, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 10, // 10 minutes
+      maxAge: 60 * 10,
       path: '/',
     })
 
-    // Store the shop domain for the callback
     response.cookies.set('shopify_shop_domain', cleanShop, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 10, // 10 minutes
+      maxAge: 60 * 10,
       path: '/',
     })
+
+    if (returnUrl) {
+      response.cookies.set('shopify_return_url', returnUrl, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 10,
+        path: '/',
+      })
+    }
 
     return response
   } catch (error) {
