@@ -271,7 +271,8 @@ function buildUnifiedStartOutput(
   if (isPlainObject(workflowInput)) {
     for (const [key, value] of Object.entries(workflowInput)) {
       if (key === 'onUploadError') continue
-      if (value !== undefined && value !== null && value !== '') {
+      // Runtime values override defaults (except undefined/null which mean "not provided")
+      if (value !== undefined && value !== null) {
         output[key] = value
       } else if (!Object.hasOwn(output, key)) {
         output[key] = value

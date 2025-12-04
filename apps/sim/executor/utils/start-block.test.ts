@@ -33,14 +33,14 @@ function createBlock(
 }
 
 describe('start-block utilities', () => {
-  it('buildResolutionFromBlock returns null when metadata id missing', () => {
+  it.concurrent('buildResolutionFromBlock returns null when metadata id missing', () => {
     const block = createBlock('api_trigger')
     ;(block.metadata as Record<string, unknown>).id = undefined
 
     expect(buildResolutionFromBlock(block)).toBeNull()
   })
 
-  it('resolveExecutorStartBlock prefers unified start block', () => {
+  it.concurrent('resolveExecutorStartBlock prefers unified start block', () => {
     const blocks = [
       createBlock('api_trigger', 'api'),
       createBlock('starter', 'starter'),
@@ -56,7 +56,7 @@ describe('start-block utilities', () => {
     expect(resolution?.path).toBe(StartBlockPath.UNIFIED)
   })
 
-  it('buildStartBlockOutput normalizes unified start payload', () => {
+  it.concurrent('buildStartBlockOutput normalizes unified start payload', () => {
     const block = createBlock('start_trigger', 'start')
     const resolution = {
       blockId: 'start',
@@ -74,7 +74,7 @@ describe('start-block utilities', () => {
     expect(output.conversationId).toBeUndefined()
   })
 
-  it('buildStartBlockOutput uses trigger schema for API triggers', () => {
+  it.concurrent('buildStartBlockOutput uses trigger schema for API triggers', () => {
     const apiBlock = createBlock('api_trigger', 'api', {
       subBlocks: {
         inputFormat: {
@@ -117,5 +117,103 @@ describe('start-block utilities', () => {
     expect(output.name).toBe('Ada')
     expect(output.input).toEqual({ name: 'Ada', count: 5 })
     expect(output.files).toEqual(files)
+  })
+
+  describe('inputFormat default values', () => {
+    it.concurrent('uses default value when runtime does not provide the field', () => {
+      const block = createBlock('start_trigger', 'start', {
+        subBlocks: {
+          inputFormat: {
+            value: [
+              { name: 'input', type: 'string' },
+              { name: 'customField', type: 'string', value: 'defaultValue' },
+            ],
+          },
+        },
+      })
+
+      const resolution = {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.UNIFIED,
+      } as const
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: { input: 'hello' },
+      })
+
+      expect(output.input).toBe('hello')
+      expect(output.customField).toBe('defaultValue')
+    })
+
+    it.concurrent('runtime value overrides default value', () => {
+      const block = createBlock('start_trigger', 'start', {
+        subBlocks: {
+          inputFormat: {
+            value: [{ name: 'customField', type: 'string', value: 'defaultValue' }],
+          },
+        },
+      })
+
+      const resolution = {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.UNIFIED,
+      } as const
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: { customField: 'runtimeValue' },
+      })
+
+      expect(output.customField).toBe('runtimeValue')
+    })
+
+    it.concurrent('empty string from runtime overrides default value', () => {
+      const block = createBlock('start_trigger', 'start', {
+        subBlocks: {
+          inputFormat: {
+            value: [{ name: 'customField', type: 'string', value: 'defaultValue' }],
+          },
+        },
+      })
+
+      const resolution = {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.UNIFIED,
+      } as const
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: { customField: '' },
+      })
+
+      expect(output.customField).toBe('')
+    })
+
+    it.concurrent('null from runtime does not override default value', () => {
+      const block = createBlock('start_trigger', 'start', {
+        subBlocks: {
+          inputFormat: {
+            value: [{ name: 'customField', type: 'string', value: 'defaultValue' }],
+          },
+        },
+      })
+
+      const resolution = {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.UNIFIED,
+      } as const
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: { customField: null },
+      })
+
+      expect(output.customField).toBe('defaultValue')
+    })
   })
 })
