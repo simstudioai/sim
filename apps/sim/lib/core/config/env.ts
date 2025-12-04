@@ -223,8 +223,6 @@ export const env = createEnv({
     LINKEDIN_CLIENT_SECRET:                z.string().optional(),                  // LinkedIn OAuth client secret
     SHOPIFY_CLIENT_ID:                     z.string().optional(),                  // Shopify OAuth client ID
     SHOPIFY_CLIENT_SECRET:                 z.string().optional(),                  // Shopify OAuth client secret
-    BOX_CLIENT_ID:                         z.string().optional(),                  // Box OAuth client ID
-    BOX_CLIENT_SECRET:                     z.string().optional(),                  // Box OAuth client secret
     ZOOM_CLIENT_ID:                        z.string().optional(),                  // Zoom OAuth client ID
     ZOOM_CLIENT_SECRET:                    z.string().optional(),                  // Zoom OAuth client secret
 
