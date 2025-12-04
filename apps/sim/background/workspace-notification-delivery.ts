@@ -148,11 +148,23 @@ async function buildPayload(
   return payload
 }
 
+interface WebhookConfig {
+  url: string
+  secret?: string
+}
+
+interface SlackConfig {
+  channelId: string
+  channelName: string
+  accountId: string
+}
+
 async function deliverWebhook(
   subscription: typeof workspaceNotificationSubscription.$inferSelect,
   payload: NotificationPayload
 ): Promise<{ success: boolean; status?: number; error?: string }> {
-  if (!subscription.webhookUrl) {
+  const webhookConfig = subscription.webhookConfig as WebhookConfig | null
+  if (!webhookConfig?.url) {
     return { success: false, error: 'No webhook URL configured' }
   }
 
@@ -166,8 +178,8 @@ async function deliverWebhook(
     'Idempotency-Key': deliveryId,
   }
 
-  if (subscription.webhookSecret) {
-    const { decrypted } = await decryptSecret(subscription.webhookSecret)
+  if (webhookConfig.secret) {
+    const { decrypted } = await decryptSecret(webhookConfig.secret)
     const signature = generateSignature(decrypted, payload.timestamp, body)
     headers['sim-signature'] = `t=${payload.timestamp},v1=${signature}`
   }
@@ -176,7 +188,7 @@ async function deliverWebhook(
   const timeoutId = setTimeout(() => controller.abort(), 30000)
 
   try {
-    const response = await fetch(subscription.webhookUrl, {
+    const response = await fetch(webhookConfig.url, {
       method: 'POST',
       headers,
       body,
@@ -390,14 +402,15 @@ async function deliverSlack(
   payload: NotificationPayload,
   alertConfig?: AlertConfig
 ): Promise<{ success: boolean; error?: string }> {
-  if (!subscription.slackChannelId || !subscription.slackAccountId) {
+  const slackConfig = subscription.slackConfig as SlackConfig | null
+  if (!slackConfig?.channelId || !slackConfig?.accountId) {
     return { success: false, error: 'No Slack channel or account configured' }
   }
 
   const [slackAccount] = await db
     .select({ accessToken: account.accessToken, userId: account.userId })
     .from(account)
-    .where(eq(account.id, subscription.slackAccountId))
+    .where(eq(account.id, slackConfig.accountId))
     .limit(1)
 
   if (!slackAccount?.accessToken) {
@@ -417,17 +430,7 @@ async function deliverSlack(
       : '#ef4444'
   const logUrl = buildLogUrl(subscription.workspaceId, payload.data.executionId)
 
-  const blocks: Array<Record<string, unknown>> = [
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: alertReason
-          ? `${statusEmoji} *Alert: ${payload.data.workflowName}*`
-          : `${statusEmoji} *Workflow Execution: ${payload.data.workflowName}*`,
-      },
-    },
-  ]
+  const blocks: Array<Record<string, unknown>> = []
 
   if (alertReason) {
     blocks.push({
@@ -526,7 +529,7 @@ async function deliverSlack(
     : `${payload.data.status === 'success' ? '✅' : '❌'} Workflow ${payload.data.workflowName}: ${payload.data.status}`
 
   const slackPayload = {
-    channel: subscription.slackChannelId,
+    channel: slackConfig.channelId,
     attachments: [{ color: statusColor, blocks }],
     text: fallbackText,
   }

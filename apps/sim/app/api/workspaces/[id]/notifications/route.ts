@@ -63,6 +63,17 @@ const alertConfigSchema = z
   )
   .nullable()
 
+const webhookConfigSchema = z.object({
+  url: z.string().url(),
+  secret: z.string().optional(),
+})
+
+const slackConfigSchema = z.object({
+  channelId: z.string(),
+  channelName: z.string(),
+  accountId: z.string(),
+})
+
 const createNotificationSchema = z
   .object({
     notificationType: notificationTypeSchema,
@@ -75,18 +86,17 @@ const createNotificationSchema = z
     includeRateLimits: z.boolean().default(false),
     includeUsageData: z.boolean().default(false),
     alertConfig: alertConfigSchema.optional(),
-    webhookUrl: z.string().url().optional(),
-    webhookSecret: z.string().optional(),
+    webhookConfig: webhookConfigSchema.optional(),
     emailRecipients: z.array(z.string().email()).max(MAX_EMAIL_RECIPIENTS).optional(),
-    slackChannelId: z.string().optional(),
-    slackAccountId: z.string().optional(),
+    slackConfig: slackConfigSchema.optional(),
   })
   .refine(
     (data) => {
-      if (data.notificationType === 'webhook') return !!data.webhookUrl
+      if (data.notificationType === 'webhook') return !!data.webhookConfig?.url
       if (data.notificationType === 'email')
         return !!data.emailRecipients && data.emailRecipients.length > 0
-      if (data.notificationType === 'slack') return !!data.slackChannelId && !!data.slackAccountId
+      if (data.notificationType === 'slack')
+        return !!data.slackConfig?.channelId && !!data.slackConfig?.accountId
       return false
     },
     { message: 'Missing required fields for notification type' }
@@ -130,10 +140,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         includeTraceSpans: workspaceNotificationSubscription.includeTraceSpans,
         includeRateLimits: workspaceNotificationSubscription.includeRateLimits,
         includeUsageData: workspaceNotificationSubscription.includeUsageData,
-        webhookUrl: workspaceNotificationSubscription.webhookUrl,
+        webhookConfig: workspaceNotificationSubscription.webhookConfig,
         emailRecipients: workspaceNotificationSubscription.emailRecipients,
-        slackChannelId: workspaceNotificationSubscription.slackChannelId,
-        slackAccountId: workspaceNotificationSubscription.slackAccountId,
+        slackConfig: workspaceNotificationSubscription.slackConfig,
         alertConfig: workspaceNotificationSubscription.alertConfig,
         active: workspaceNotificationSubscription.active,
         createdAt: workspaceNotificationSubscription.createdAt,
@@ -212,10 +221,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    let encryptedSecret: string | null = null
-    if (data.webhookSecret) {
-      const { encrypted } = await encryptSecret(data.webhookSecret)
-      encryptedSecret = encrypted
+    // Encrypt webhook secret if provided
+    let webhookConfig = data.webhookConfig || null
+    if (webhookConfig?.secret) {
+      const { encrypted } = await encryptSecret(webhookConfig.secret)
+      webhookConfig = { ...webhookConfig, secret: encrypted }
     }
 
     const [subscription] = await db
@@ -233,11 +243,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         includeRateLimits: data.includeRateLimits,
         includeUsageData: data.includeUsageData,
         alertConfig: data.alertConfig || null,
-        webhookUrl: data.webhookUrl || null,
-        webhookSecret: encryptedSecret,
+        webhookConfig,
         emailRecipients: data.emailRecipients || null,
-        slackChannelId: data.slackChannelId || null,
-        slackAccountId: data.slackAccountId || null,
+        slackConfig: data.slackConfig || null,
         createdBy: session.user.id,
       })
       .returning()
@@ -260,10 +268,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         includeTraceSpans: subscription.includeTraceSpans,
         includeRateLimits: subscription.includeRateLimits,
         includeUsageData: subscription.includeUsageData,
-        webhookUrl: subscription.webhookUrl,
+        webhookConfig: subscription.webhookConfig,
         emailRecipients: subscription.emailRecipients,
-        slackChannelId: subscription.slackChannelId,
-        slackAccountId: subscription.slackAccountId,
+        slackConfig: subscription.slackConfig,
         alertConfig: subscription.alertConfig,
         active: subscription.active,
         createdAt: subscription.createdAt,

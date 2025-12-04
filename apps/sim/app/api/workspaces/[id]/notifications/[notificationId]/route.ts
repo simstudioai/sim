@@ -61,6 +61,17 @@ const alertConfigSchema = z
   )
   .nullable()
 
+const webhookConfigSchema = z.object({
+  url: z.string().url(),
+  secret: z.string().optional(),
+})
+
+const slackConfigSchema = z.object({
+  channelId: z.string(),
+  channelName: z.string(),
+  accountId: z.string(),
+})
+
 const updateNotificationSchema = z
   .object({
     workflowIds: z.array(z.string()).max(MAX_WORKFLOW_IDS).optional(),
@@ -72,11 +83,9 @@ const updateNotificationSchema = z
     includeRateLimits: z.boolean().optional(),
     includeUsageData: z.boolean().optional(),
     alertConfig: alertConfigSchema.optional(),
-    webhookUrl: z.string().url().optional(),
-    webhookSecret: z.string().optional(),
+    webhookConfig: webhookConfigSchema.optional(),
     emailRecipients: z.array(z.string().email()).max(MAX_EMAIL_RECIPIENTS).optional(),
-    slackChannelId: z.string().optional(),
-    slackAccountId: z.string().optional(),
+    slackConfig: slackConfigSchema.optional(),
     active: z.boolean().optional(),
   })
   .refine((data) => !(data.allWorkflows && data.workflowIds && data.workflowIds.length > 0), {
@@ -140,10 +149,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         includeTraceSpans: subscription.includeTraceSpans,
         includeRateLimits: subscription.includeRateLimits,
         includeUsageData: subscription.includeUsageData,
-        webhookUrl: subscription.webhookUrl,
+        webhookConfig: subscription.webhookConfig,
         emailRecipients: subscription.emailRecipients,
-        slackChannelId: subscription.slackChannelId,
-        slackAccountId: subscription.slackAccountId,
+        slackConfig: subscription.slackConfig,
         alertConfig: subscription.alertConfig,
         active: subscription.active,
         createdAt: subscription.createdAt,
@@ -217,19 +225,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (data.includeRateLimits !== undefined) updateData.includeRateLimits = data.includeRateLimits
     if (data.includeUsageData !== undefined) updateData.includeUsageData = data.includeUsageData
     if (data.alertConfig !== undefined) updateData.alertConfig = data.alertConfig
-    if (data.webhookUrl !== undefined) updateData.webhookUrl = data.webhookUrl
     if (data.emailRecipients !== undefined) updateData.emailRecipients = data.emailRecipients
-    if (data.slackChannelId !== undefined) updateData.slackChannelId = data.slackChannelId
-    if (data.slackAccountId !== undefined) updateData.slackAccountId = data.slackAccountId
+    if (data.slackConfig !== undefined) updateData.slackConfig = data.slackConfig
     if (data.active !== undefined) updateData.active = data.active
 
-    if (data.webhookSecret !== undefined) {
-      if (data.webhookSecret) {
-        const { encrypted } = await encryptSecret(data.webhookSecret)
-        updateData.webhookSecret = encrypted
-      } else {
-        updateData.webhookSecret = null
+    // Handle webhookConfig with secret encryption
+    if (data.webhookConfig !== undefined) {
+      let webhookConfig = data.webhookConfig
+      if (webhookConfig?.secret) {
+        const { encrypted } = await encryptSecret(webhookConfig.secret)
+        webhookConfig = { ...webhookConfig, secret: encrypted }
       }
+      updateData.webhookConfig = webhookConfig
     }
 
     const [subscription] = await db
@@ -255,10 +262,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         includeTraceSpans: subscription.includeTraceSpans,
         includeRateLimits: subscription.includeRateLimits,
         includeUsageData: subscription.includeUsageData,
-        webhookUrl: subscription.webhookUrl,
+        webhookConfig: subscription.webhookConfig,
         emailRecipients: subscription.emailRecipients,
-        slackChannelId: subscription.slackChannelId,
-        slackAccountId: subscription.slackAccountId,
+        slackConfig: subscription.slackConfig,
         alertConfig: subscription.alertConfig,
         active: subscription.active,
         createdAt: subscription.createdAt,

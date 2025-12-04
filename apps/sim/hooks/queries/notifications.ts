@@ -41,6 +41,17 @@ interface AlertConfig {
   errorCountThreshold?: number
 }
 
+interface WebhookConfig {
+  url: string
+  secret?: string
+}
+
+interface SlackConfig {
+  channelId: string
+  channelName: string
+  accountId: string
+}
+
 export interface NotificationSubscription {
   id: string
   notificationType: NotificationType
@@ -52,11 +63,9 @@ export interface NotificationSubscription {
   includeTraceSpans: boolean
   includeRateLimits: boolean
   includeUsageData: boolean
-  webhookUrl?: string | null
-  webhookSecret?: string | null
+  webhookConfig?: WebhookConfig | null
   emailRecipients?: string[] | null
-  slackChannelId?: string | null
-  slackAccountId?: string | null
+  slackConfig?: SlackConfig | null
   alertConfig?: AlertConfig | null
   active: boolean
   createdAt: string
@@ -100,11 +109,9 @@ interface CreateNotificationParams {
     includeRateLimits: boolean
     includeUsageData: boolean
     alertConfig?: AlertConfig | null
-    webhookUrl?: string
-    webhookSecret?: string
+    webhookConfig?: WebhookConfig
     emailRecipients?: string[]
-    slackChannelId?: string
-    slackAccountId?: string
+    slackConfig?: SlackConfig
   }
 }
 

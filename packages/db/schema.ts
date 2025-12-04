@@ -524,31 +524,14 @@ export const workspaceNotificationSubscription = pgTable(
     includeTraceSpans: boolean('include_trace_spans').notNull().default(false),
     includeRateLimits: boolean('include_rate_limits').notNull().default(false),
     includeUsageData: boolean('include_usage_data').notNull().default(false),
-    webhookUrl: text('webhook_url'),
-    webhookSecret: text('webhook_secret'),
+
+    // Channel-specific configuration
+    webhookConfig: jsonb('webhook_config'),
     emailRecipients: text('email_recipients').array(),
-    slackChannelId: text('slack_channel_id'),
-    slackAccountId: text('slack_account_id'),
+    slackConfig: jsonb('slack_config'),
 
     // Alert rule configuration (if null, sends on every execution)
-    alertConfig: jsonb('alert_config').$type<{
-      rule:
-        | 'consecutive_failures'
-        | 'failure_rate'
-        | 'latency_threshold'
-        | 'latency_spike'
-        | 'cost_threshold'
-        | 'no_activity'
-        | 'error_count'
-      consecutiveFailures?: number
-      failureRatePercent?: number
-      windowHours?: number
-      durationThresholdMs?: number
-      latencySpikePercent?: number
-      costThresholdDollars?: number
-      inactivityHours?: number
-      errorCountThreshold?: number
-    }>(),
+    alertConfig: jsonb('alert_config'),
     lastAlertAt: timestamp('last_alert_at'),
 
     active: boolean('active').notNull().default(true),

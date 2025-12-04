@@ -14,6 +14,17 @@ const logger = createLogger('WorkspaceNotificationTestAPI')
 
 type RouteParams = { params: Promise<{ id: string; notificationId: string }> }
 
+interface WebhookConfig {
+  url: string
+  secret?: string
+}
+
+interface SlackConfig {
+  channelId: string
+  channelName: string
+  accountId: string
+}
+
 function generateSignature(secret: string, timestamp: number, body: string): string {
   const signatureBase = `${timestamp}.${body}`
   const hmac = createHmac('sha256', secret)
@@ -85,7 +96,8 @@ function buildTestPayload(subscription: typeof workspaceNotificationSubscription
 }
 
 async function testWebhook(subscription: typeof workspaceNotificationSubscription.$inferSelect) {
-  if (!subscription.webhookUrl) {
+  const webhookConfig = subscription.webhookConfig as WebhookConfig | null
+  if (!webhookConfig?.url) {
     return { success: false, error: 'No webhook URL configured' }
   }
 
@@ -101,8 +113,8 @@ async function testWebhook(subscription: typeof workspaceNotificationSubscriptio
     'Idempotency-Key': deliveryId,
   }
 
-  if (subscription.webhookSecret) {
-    const { decrypted } = await decryptSecret(subscription.webhookSecret)
+  if (webhookConfig.secret) {
+    const { decrypted } = await decryptSecret(webhookConfig.secret)
     const signature = generateSignature(decrypted, timestamp, body)
     headers['sim-signature'] = `t=${timestamp},v1=${signature}`
   }
@@ -111,7 +123,7 @@ async function testWebhook(subscription: typeof workspaceNotificationSubscriptio
   const timeoutId = setTimeout(() => controller.abort(), 10000)
 
   try {
-    const response = await fetch(subscription.webhookUrl, {
+    const response = await fetch(webhookConfig.url, {
       method: 'POST',
       headers,
       body,
@@ -176,14 +188,15 @@ async function testSlack(
   subscription: typeof workspaceNotificationSubscription.$inferSelect,
   userId: string
 ) {
-  if (!subscription.slackChannelId || !subscription.slackAccountId) {
+  const slackConfig = subscription.slackConfig as SlackConfig | null
+  if (!slackConfig?.channelId || !slackConfig?.accountId) {
     return { success: false, error: 'No Slack channel or account configured' }
   }
 
   const [slackAccount] = await db
     .select({ accessToken: account.accessToken })
     .from(account)
-    .where(and(eq(account.id, subscription.slackAccountId), eq(account.userId, userId)))
+    .where(and(eq(account.id, slackConfig.accountId), eq(account.userId, userId)))
     .limit(1)
 
   if (!slackAccount?.accessToken) {
@@ -194,7 +207,7 @@ async function testSlack(
   const data = (payload as Record<string, unknown>).data as Record<string, unknown>
 
   const slackPayload = {
-    channel: subscription.slackChannelId,
+    channel: slackConfig.channelId,
     blocks: [
       {
         type: 'header',

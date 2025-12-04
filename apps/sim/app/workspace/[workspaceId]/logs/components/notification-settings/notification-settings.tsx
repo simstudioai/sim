@@ -144,6 +144,7 @@ export function NotificationSettings({
     webhookSecret: '',
     emailRecipients: '',
     slackChannelId: '',
+    slackChannelName: '',
     slackAccountId: '',
     useAlertRule: false,
     alertRule: 'consecutive_failures' as AlertRule,
@@ -187,6 +188,7 @@ export function NotificationSettings({
       webhookSecret: '',
       emailRecipients: '',
       slackChannelId: '',
+      slackChannelName: '',
       slackAccountId: '',
       useAlertRule: false,
       alertRule: 'consecutive_failures',
@@ -365,8 +367,10 @@ export function NotificationSettings({
       includeUsageData: formData.includeUsageData,
       alertConfig,
       ...(activeTab === 'webhook' && {
-        webhookUrl: formData.webhookUrl,
-        webhookSecret: formData.webhookSecret || undefined,
+        webhookConfig: {
+          url: formData.webhookUrl,
+          secret: formData.webhookSecret || undefined,
+        },
       }),
       ...(activeTab === 'email' && {
         emailRecipients: formData.emailRecipients
@@ -375,8 +379,11 @@ export function NotificationSettings({
           .filter(Boolean),
       }),
       ...(activeTab === 'slack' && {
-        slackChannelId: formData.slackChannelId,
-        slackAccountId: formData.slackAccountId,
+        slackConfig: {
+          channelId: formData.slackChannelId,
+          channelName: formData.slackChannelName,
+          accountId: formData.slackAccountId,
+        },
       }),
     }
 
@@ -413,11 +420,12 @@ export function NotificationSettings({
       includeTraceSpans: subscription.includeTraceSpans,
       includeRateLimits: subscription.includeRateLimits,
       includeUsageData: subscription.includeUsageData,
-      webhookUrl: subscription.webhookUrl || '',
+      webhookUrl: subscription.webhookConfig?.url || '',
       webhookSecret: '',
       emailRecipients: subscription.emailRecipients?.join(', ') || '',
-      slackChannelId: subscription.slackChannelId || '',
-      slackAccountId: subscription.slackAccountId || '',
+      slackChannelId: subscription.slackConfig?.channelId || '',
+      slackChannelName: subscription.slackConfig?.channelName || '',
+      slackAccountId: subscription.slackConfig?.accountId || '',
       useAlertRule: !!subscription.alertConfig,
       alertRule: subscription.alertConfig?.rule || 'consecutive_failures',
       consecutiveFailures: subscription.alertConfig?.consecutiveFailures || 3,
@@ -477,10 +485,10 @@ export function NotificationSettings({
   const renderSubscriptionItem = (subscription: NotificationSubscription) => {
     const identifier =
       subscription.notificationType === 'webhook'
-        ? subscription.webhookUrl
+        ? subscription.webhookConfig?.url
         : subscription.notificationType === 'email'
           ? subscription.emailRecipients?.join(', ')
-          : `Channel: ${subscription.slackChannelId}`
+          : `#${subscription.slackConfig?.channelName || subscription.slackConfig?.channelId}`
 
     return (
       <div key={subscription.id} className='mb-4 flex flex-col gap-2'>
@@ -978,8 +986,12 @@ export function NotificationSettings({
                 <SlackChannelSelector
                   accountId={formData.slackAccountId}
                   value={formData.slackChannelId}
-                  onChange={(channelId) => {
-                    setFormData({ ...formData, slackChannelId: channelId })
+                  onChange={(channelId, channelName) => {
+                    setFormData({
+                      ...formData,
+                      slackChannelId: channelId,
+                      slackChannelName: channelName,
+                    })
                     setFormErrors({ ...formErrors, slackChannelId: '' })
                   }}
                   disabled={!formData.slackAccountId}

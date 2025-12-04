@@ -16,7 +16,7 @@ interface SlackChannel {
 interface SlackChannelSelectorProps {
   accountId: string
   value: string
-  onChange: (channelId: string) => void
+  onChange: (channelId: string, channelName: string) => void
   disabled?: boolean
   error?: string
 }
@@ -87,12 +87,17 @@ export function SlackChannelSelector({
     )
   }
 
+  const handleChange = (channelId: string) => {
+    const channel = channels.find((c) => c.id === channelId)
+    onChange(channelId, channel?.name || '')
+  }
+
   return (
     <div className='space-y-1'>
       <Combobox
         options={options}
         value={value}
-        onChange={onChange}
+        onChange={handleChange}
         placeholder={
           channels.length === 0 && !isLoading ? 'No channels available' : 'Select channel...'
         }
