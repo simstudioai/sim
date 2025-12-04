@@ -5,17 +5,21 @@
 /**
  * Updates the theme in next-themes by dispatching a storage event.
  * This works by updating localStorage and notifying next-themes of the change.
- * @param theme - The theme to apply: 'system', 'light', or 'dark'
+ * NOTE: Light mode is temporarily disabled - this function always forces dark mode.
+ * @param _theme - The theme parameter (currently ignored, dark mode is forced)
  */
-export function syncThemeToNextThemes(theme: 'system' | 'light' | 'dark') {
+export function syncThemeToNextThemes(_theme: 'system' | 'light' | 'dark') {
   if (typeof window === 'undefined') return
 
-  localStorage.setItem('sim-theme', theme)
+  // Force dark mode - light mode is temporarily disabled
+  const forcedTheme = 'dark'
+
+  localStorage.setItem('sim-theme', forcedTheme)
 
   window.dispatchEvent(
     new StorageEvent('storage', {
       key: 'sim-theme',
-      newValue: theme,
+      newValue: forcedTheme,
       oldValue: localStorage.getItem('sim-theme'),
       storageArea: localStorage,
       url: window.location.href,
@@ -23,11 +27,8 @@ export function syncThemeToNextThemes(theme: 'system' | 'light' | 'dark') {
   )
 
   const root = document.documentElement
-  const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  const actualTheme = theme === 'system' ? systemTheme : theme
-
   root.classList.remove('light', 'dark')
-  root.classList.add(actualTheme)
+  root.classList.add('dark')
 }
 
 /**
