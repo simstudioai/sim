@@ -1,9 +1,9 @@
+import { db } from '@sim/db'
+import { settings } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/../../packages/db'
-import { settings } from '@/../../packages/db/schema'
 
 const logger = createLogger('CopilotAutoAllowedToolsAPI')
 

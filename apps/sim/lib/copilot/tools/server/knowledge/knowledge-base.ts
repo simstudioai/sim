@@ -1,5 +1,9 @@
-import { z } from 'zod'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import {
+  type KnowledgeBaseArgs,
+  KnowledgeBaseArgsSchema,
+  type KnowledgeBaseResult,
+} from '@/lib/copilot/tools/shared/schemas'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
@@ -11,62 +15,20 @@ import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/se
 
 const logger = createLogger('KnowledgeBaseServerTool')
 
-/**
- * Input schema for the knowledge_base tool
- */
-export const KnowledgeBaseInput = z.object({
-  operation: z.enum(['create', 'list', 'get', 'query']),
-  args: z
-    .object({
-      /** Name of the knowledge base (required for create) */
-      name: z.string().optional(),
-      /** Description of the knowledge base (optional for create) */
-      description: z.string().optional(),
-      /** Workspace ID to associate with (optional for create/list) */
-      workspaceId: z.string().optional(),
-      /** Knowledge base ID (required for get, query) */
-      knowledgeBaseId: z.string().optional(),
-      /** Search query text (required for query) */
-      query: z.string().optional(),
-      /** Number of results to return (optional for query, defaults to 5) */
-      topK: z.number().min(1).max(50).optional(),
-      /** Chunking configuration (optional for create) */
-      chunkingConfig: z
-        .object({
-          maxSize: z.number().min(100).max(4000).default(1024),
-          minSize: z.number().min(1).max(2000).default(1),
-          overlap: z.number().min(0).max(500).default(200),
-        })
-        .optional(),
-    })
-    .optional(),
-})
-
-export type KnowledgeBaseInputType = z.infer<typeof KnowledgeBaseInput>
-
-/**
- * Result schema for the knowledge_base tool
- */
-export const KnowledgeBaseResult = z.object({
-  success: z.boolean(),
-  message: z.string(),
-  data: z.any().optional(),
-})
-
-export type KnowledgeBaseResultType = z.infer<typeof KnowledgeBaseResult>
+// Re-export for backwards compatibility
+export const KnowledgeBaseInput = KnowledgeBaseArgsSchema
+export type KnowledgeBaseInputType = KnowledgeBaseArgs
+export type KnowledgeBaseResultType = KnowledgeBaseResult
 
 /**
  * Knowledge base tool for copilot to create, list, and get knowledge bases
  */
-export const knowledgeBaseServerTool: BaseServerTool<
-  KnowledgeBaseInputType,
-  KnowledgeBaseResultType
-> = {
+export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, KnowledgeBaseResult> = {
   name: 'knowledge_base',
   async execute(
-    params: KnowledgeBaseInputType,
+    params: KnowledgeBaseArgs,
     context?: { userId: string }
-  ): Promise<KnowledgeBaseResultType> {
+  ): Promise<KnowledgeBaseResult> {
     if (!context?.userId) {
       logger.error('Unauthorized attempt to access knowledge base - no authenticated user context')
       throw new Error('Authentication required')

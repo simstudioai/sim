@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -155,11 +155,11 @@ export async function POST(req: NextRequest) {
       logger.info(`[${tracker.requestId}] Resolving OAuth token`, { provider })
 
       try {
-        // Find the account for this provider
+        // Find the account for this provider and user
         const accounts = await db
           .select()
           .from(account)
-          .where(eq(account.providerId, provider))
+          .where(and(eq(account.providerId, provider), eq(account.userId, userId)))
           .limit(1)
 
         if (accounts.length > 0) {

@@ -4,26 +4,12 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
+import {
+  ExecuteResponseSuccessSchema,
+  type KnowledgeBaseArgs,
+} from '@/lib/copilot/tools/shared/schemas'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
-
-interface KnowledgeBaseArgs {
-  operation: 'create' | 'list' | 'get' | 'query'
-  args?: {
-    name?: string
-    description?: string
-    workspaceId?: string
-    knowledgeBaseId?: string
-    query?: string
-    topK?: number
-    chunkingConfig?: {
-      maxSize?: number
-      minSize?: number
-      overlap?: number
-    }
-  }
-}
 
 /**
  * Client tool for knowledge base operations

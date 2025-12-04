@@ -166,13 +166,6 @@ export interface ProviderRequest {
   // GPT-5 specific parameters
   reasoningEffort?: string
   verbosity?: string
-  // Anthropic beta features
-  betas?: string[] // Beta features to enable (e.g., ['advanced-tool-use-2025-11-20'])
-  // Custom tool executor for built-in tools that aren't in the registry
-  customToolExecutor?: (
-    toolName: string,
-    toolInput: Record<string, any>
-  ) => Promise<{ success: boolean; output: any; error?: string } | null>
 }
 
 // Map of provider IDs to their configurations

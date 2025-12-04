@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { KnowledgeBaseArgsSchema, KnowledgeBaseResultSchema } from './tools/shared/schemas'
 
 // Tool IDs supported by the Copilot runtime
 export const ToolIds = z.enum([
@@ -199,26 +200,7 @@ export const ToolArgSchemas = {
     reasoning: z.string(),
   }),
 
-  knowledge_base: z.object({
-    operation: z.enum(['create', 'list', 'get', 'query']),
-    args: z
-      .object({
-        name: z.string().optional(),
-        description: z.string().optional(),
-        workspaceId: z.string().optional(),
-        knowledgeBaseId: z.string().optional(),
-        query: z.string().optional(),
-        topK: z.number().min(1).max(50).optional(),
-        chunkingConfig: z
-          .object({
-            maxSize: z.number().optional(),
-            minSize: z.number().optional(),
-            overlap: z.number().optional(),
-          })
-          .optional(),
-      })
-      .optional(),
-  }),
+  knowledge_base: KnowledgeBaseArgsSchema,
 } as const
 export type ToolArgSchemaMap = typeof ToolArgSchemas
 
@@ -489,11 +471,7 @@ export const ToolResultSchemas = {
     workflowName: z.string().optional(),
     navigated: z.boolean(),
   }),
-  knowledge_base: z.object({
-    success: z.boolean(),
-    message: z.string(),
-    data: z.any().optional(),
-  }),
+  knowledge_base: KnowledgeBaseResultSchema,
 } as const
 export type ToolResultSchemaMap = typeof ToolResultSchemas
 
