@@ -30,7 +30,7 @@ vi.stubGlobal(
   })
 )
 
-vi.mock('@/lib/env', () => ({
+vi.mock('@/lib/core/config/env', () => ({
   env: {},
   getEnv: (key: string) => process.env[key],
   isTruthy: (value: string | boolean | number | undefined) =>
@@ -179,7 +179,7 @@ describe('Knowledge Search Utils', () => {
 
   describe('generateSearchEmbedding', () => {
     it('should use Azure OpenAI when KB-specific config is provided', async () => {
-      const { env } = await import('@/lib/env')
+      const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
         AZURE_OPENAI_API_KEY: 'test-azure-key',
@@ -214,7 +214,7 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('should fallback to OpenAI when no KB Azure config provided', async () => {
-      const { env } = await import('@/lib/env')
+      const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
         OPENAI_API_KEY: 'test-openai-key',
@@ -245,7 +245,7 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('should use default API version when not provided in Azure config', async () => {
-      const { env } = await import('@/lib/env')
+      const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
         AZURE_OPENAI_API_KEY: 'test-azure-key',
@@ -274,7 +274,7 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('should use custom model name when provided in Azure config', async () => {
-      const { env } = await import('@/lib/env')
+      const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
         AZURE_OPENAI_API_KEY: 'test-azure-key',
@@ -304,7 +304,7 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('should throw error when no API configuration provided', async () => {
-      const { env } = await import('@/lib/env')
+      const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
 
       await expect(generateSearchEmbedding('test query')).rejects.toThrow(
@@ -313,7 +313,7 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('should handle Azure OpenAI API errors properly', async () => {
-      const { env } = await import('@/lib/env')
+      const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
         AZURE_OPENAI_API_KEY: 'test-azure-key',
@@ -337,7 +337,7 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('should handle OpenAI API errors properly', async () => {
-      const { env } = await import('@/lib/env')
+      const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
         OPENAI_API_KEY: 'test-openai-key',
@@ -358,7 +358,7 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('should include correct request body for Azure OpenAI', async () => {
-      const { env } = await import('@/lib/env')
+      const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
         AZURE_OPENAI_API_KEY: 'test-azure-key',
@@ -392,7 +392,7 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('should include correct request body for OpenAI', async () => {
-      const { env } = await import('@/lib/env')
+      const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
         OPENAI_API_KEY: 'test-openai-key',

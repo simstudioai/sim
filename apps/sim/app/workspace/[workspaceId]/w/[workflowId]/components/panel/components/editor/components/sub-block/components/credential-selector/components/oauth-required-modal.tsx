@@ -10,7 +10,7 @@ import {
   ModalHeader,
   ModalTitle,
 } from '@/components/emcn'
-import { client } from '@/lib/auth-client'
+import { client } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   getProviderIdFromServiceId,

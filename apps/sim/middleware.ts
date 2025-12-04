@@ -1,8 +1,8 @@
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { isDev } from './lib/environment'
+import { isDev } from './lib/core/config/environment'
+import { generateRuntimeCSP } from './lib/core/security/csp'
 import { createLogger } from './lib/logs/console/logger'
-import { generateRuntimeCSP } from './lib/security/csp'
 
 const logger = createLogger('Middleware')
 

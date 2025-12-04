@@ -15,9 +15,9 @@ import { Button as UIButton } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
-import { isDev } from '@/lib/environment'
+import { isDev } from '@/lib/core/config/environment'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workspace-header/components/invite-modal/invite-modal'
 
@@ -309,7 +309,7 @@ export function WorkspaceSelector({
 
     setIsExporting(true)
     try {
-      const { exportWorkspaceToZip } = await import('@/lib/workflows/import-export')
+      const { exportWorkspaceToZip } = await import('@/lib/workflows/operations/import-export')
       const { useFolderStore } = await import('@/stores/folders/store')
 
       const workflowsUrl = new URL('/api/workflows', window.location.origin)

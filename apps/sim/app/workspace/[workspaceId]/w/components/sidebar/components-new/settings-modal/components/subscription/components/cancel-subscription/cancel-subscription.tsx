@@ -11,11 +11,11 @@ import {
   ModalHeader,
   ModalTitle,
 } from '@/components/emcn'
-import { useSession, useSubscription } from '@/lib/auth-client'
+import { useSession, useSubscription } from '@/lib/auth/auth-client'
+import { getSubscriptionStatus } from '@/lib/billing/client/utils'
+import { cn } from '@/lib/core/utils/cn'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getSubscriptionStatus } from '@/lib/subscription/helpers'
-import { getBaseUrl } from '@/lib/urls/utils'
-import { cn } from '@/lib/utils'
 import { organizationKeys, useOrganizations } from '@/hooks/queries/organization'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 
@@ -137,9 +137,8 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
         let subscriptionId: string | undefined
 
         if ((subscriptionStatus.isTeam || subscriptionStatus.isEnterprise) && activeOrgId) {
-          const orgSubscription = useOrganizationStore.getState().subscriptionData
           referenceId = activeOrgId
-          subscriptionId = orgSubscription?.id
+          subscriptionId = subData?.data?.id
         } else {
           // For personal subscriptions, use user ID and let better-auth find the subscription
           referenceId = session.user.id
@@ -159,7 +158,8 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
         logger.info('Subscription restored successfully', result)
       }
 
-      await refresh()
+      // Invalidate queries to refresh data
+      await queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
       if (activeOrgId) {
         await queryClient.invalidateQueries({ queryKey: organizationKeys.detail(activeOrgId) })
         await queryClient.invalidateQueries({ queryKey: organizationKeys.billing(activeOrgId) })
@@ -277,7 +277,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
             </Button>
 
             {(() => {
-              const subscriptionStatus = getSubscriptionStatus()
+              const subscriptionStatus = currentSubscriptionStatus
               if (subscriptionStatus.isPaid && isCancelAtPeriodEnd) {
                 return (
                   <Button

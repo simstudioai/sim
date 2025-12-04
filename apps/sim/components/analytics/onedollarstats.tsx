@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { configure } from 'onedollarstats'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 
 export function OneDollarStats() {
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { Label } from '@/components/emcn'
-import { getBaseDomain, getEmailDomain } from '@/lib/urls/utils'
+import { getBaseDomain, getEmailDomain } from '@/lib/core/utils/urls'
 
 interface ExistingChat {
   id: string

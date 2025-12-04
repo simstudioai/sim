@@ -12,7 +12,7 @@ import {
   languages,
 } from '@/components/emcn/components/code/code'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 interface CodeEditorProps {
   value: string

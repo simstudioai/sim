@@ -3,11 +3,11 @@ import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/emcn/components/badge/badge'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
-import { getEnv, isTruthy } from '@/lib/env'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
-import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ActionBar,
@@ -180,6 +180,9 @@ const getDisplayValue = (value: unknown): string => {
   }
 
   if (isPlainObject(value)) {
+    if (value.customDisplayValue) {
+      return value.customDisplayValue as string
+    }
     const entries = Object.entries(value).filter(
       ([, val]) => val !== null && val !== undefined && val !== ''
     )

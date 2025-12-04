@@ -2,7 +2,7 @@
 
 import type { Logger } from '@/lib/logs/console/logger'
 import type { StorageContext } from '@/lib/uploads'
-import { isExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-helpers'
+import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 

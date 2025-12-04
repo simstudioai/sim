@@ -10,7 +10,10 @@ import {
   PopoverSection,
   PopoverTrigger,
 } from '@/components/emcn'
-import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
+import {
+  extractFieldsFromSchema,
+  parseResponseFormatSafely,
+} from '@/lib/core/utils/response-format'
 import { getBlock } from '@/blocks'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'

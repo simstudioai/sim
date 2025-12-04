@@ -2,7 +2,7 @@ import { type JSX, type MouseEvent, memo, useRef, useState } from 'react'
 import { AlertTriangle, Wand2 } from 'lucide-react'
 import { Label, Tooltip } from '@/components/emcn/components'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import {
   ChannelSelectorInput,
@@ -43,6 +43,12 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
+import { ArenaAssigneeSelector } from './components/arena/arena-assignee-selector'
+import { ArenaClientsSelector } from './components/arena/arena-clients-selector'
+import { ArenaGroupSelector } from './components/arena/arena-group-selector'
+import { ArenaProjectSelector } from './components/arena/arena-projects-selector'
+import { ArenaStatesSelector } from './components/arena/arena-states-selector'
+import { ArenaTaskSelector } from './components/arena/arena-tasks-selector'
 
 /**
  * Interface for wand control handlers exposed by sub-block inputs
@@ -804,6 +810,73 @@ function SubBlockComponent({
             config={config}
             isPreview={isPreview}
             previewValue={previewValue as any}
+            disabled={isDisabled}
+          />
+        )
+      case 'arena-client-selector':
+        return (
+          <ArenaClientsSelector
+            blockId={blockId}
+            subBlockId={config.id}
+            title={config.title ?? ''}
+            isPreview={isPreview}
+            subBlockValues={subBlockValues}
+            disabled={isDisabled}
+          />
+        )
+      case 'arena-states-selector':
+        return (
+          <ArenaStatesSelector
+            blockId={blockId}
+            subBlockId={config.id}
+            title={config.title ?? ''}
+            isPreview={isPreview}
+            subBlockValues={subBlockValues}
+            disabled={isDisabled}
+          />
+        )
+      case 'arena-task-selector':
+        return (
+          <ArenaTaskSelector
+            blockId={blockId}
+            subBlockId={config.id}
+            title={config.title ?? ''}
+            isPreview={isPreview}
+            subBlockValues={subBlockValues}
+            disabled={isDisabled}
+          />
+        )
+
+      case 'arena-group-selector':
+        return (
+          <ArenaGroupSelector
+            blockId={blockId}
+            subBlockId={config.id}
+            title={config.title ?? ''}
+            isPreview={isPreview}
+            subBlockValues={subBlockValues}
+            disabled={isDisabled}
+          />
+        )
+      case 'arena-assignee-selector':
+        return (
+          <ArenaAssigneeSelector
+            blockId={blockId}
+            subBlockId={config.id}
+            title={config.title ?? ''}
+            isPreview={isPreview}
+            subBlockValues={subBlockValues}
+            disabled={isDisabled}
+          />
+        )
+      case 'arena-project-selector':
+        return (
+          <ArenaProjectSelector
+            blockId={blockId}
+            subBlockId={config.id}
+            title={config.title ?? ''}
+            isPreview={isPreview}
+            subBlockValues={subBlockValues}
             disabled={isDisabled}
           />
         )

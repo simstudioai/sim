@@ -1,3 +1,5 @@
+import { getBrandConfig } from './branding'
+
 // Helper to detect if background is dark
 function isDarkBackground(hexColor: string): boolean {
   const hex = hexColor.replace('#', '')
@@ -10,28 +12,46 @@ function isDarkBackground(hexColor: string): boolean {
 
 export function generateThemeCSS(): string {
   const cssVars: string[] = []
+  const brandConfig = getBrandConfig()
 
-  if (process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR) {
-    cssVars.push(`--brand-primary-hex: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR};`)
+  // Use environment variables if set, otherwise fall back to branding.ts defaults
+  const primaryColor =
+    process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR || brandConfig.theme?.primaryColor
+  const primaryHoverColor =
+    process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR || brandConfig.theme?.primaryHoverColor
+  const secondaryColor =
+    process.env.NEXT_PUBLIC_BRAND_SECONDARY_COLOR || brandConfig.theme?.secondaryColor
+  const accentColor = process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR || brandConfig.theme?.accentColor
+  const accentHoverColor =
+    process.env.NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR || brandConfig.theme?.accentHoverColor
+  const backgroundColor =
+    process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR || brandConfig.theme?.backgroundColor
+
+  if (primaryColor) {
+    cssVars.push(`--brand-primary-hex: ${primaryColor};`)
   }
 
-  if (process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR) {
-    cssVars.push(`--brand-primary-hover-hex: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR};`)
+  if (primaryHoverColor) {
+    cssVars.push(`--brand-primary-hover-hex: ${primaryHoverColor};`)
   }
 
-  if (process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR) {
-    cssVars.push(`--brand-accent-hex: ${process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR};`)
+  if (secondaryColor) {
+    cssVars.push(`--brand-secondary-hex: ${secondaryColor};`)
   }
 
-  if (process.env.NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR) {
-    cssVars.push(`--brand-accent-hover-hex: ${process.env.NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR};`)
+  if (accentColor) {
+    cssVars.push(`--brand-accent-hex: ${accentColor};`)
   }
 
-  if (process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR) {
-    cssVars.push(`--brand-background-hex: ${process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR};`)
+  if (accentHoverColor) {
+    cssVars.push(`--brand-accent-hover-hex: ${accentHoverColor};`)
+  }
+
+  if (backgroundColor) {
+    cssVars.push(`--brand-background-hex: ${backgroundColor};`)
 
     // Add dark theme class when background is dark
-    const isDark = isDarkBackground(process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR)
+    const isDark = isDarkBackground(backgroundColor)
     if (isDark) {
       cssVars.push(`--brand-is-dark: 1;`)
     }

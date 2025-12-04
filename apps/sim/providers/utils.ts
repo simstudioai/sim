@@ -1,5 +1,5 @@
-import { getEnv, isTruthy } from '@/lib/env'
-import { isHosted } from '@/lib/environment'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { anthropicProvider } from '@/providers/anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
@@ -29,6 +29,7 @@ import {
 import { ollamaProvider } from '@/providers/ollama'
 import { openaiProvider } from '@/providers/openai'
 import { openRouterProvider } from '@/providers/openrouter'
+import { sambanovaProvider } from '@/providers/sambanova'
 import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
 import { vllmProvider } from '@/providers/vllm'
 import { xAIProvider } from '@/providers/xai'
@@ -112,6 +113,11 @@ export const providers: Record<
     models: getProviderModelsFromDefinitions('ollama'),
     modelPatterns: PROVIDER_DEFINITIONS.ollama.modelPatterns,
   },
+  sambanova: {
+    ...sambanovaProvider,
+    models: getProviderModelsFromDefinitions('sambanova'),
+    modelPatterns: PROVIDER_DEFINITIONS.sambanova.modelPatterns,
+  },
 }
 
 Object.entries(providers).forEach(([id, provider]) => {
@@ -145,7 +151,12 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
   const allProviders = Object.entries(providers)
     .filter(
       ([providerId]) =>
-        providerId !== 'ollama' && providerId !== 'vllm' && providerId !== 'openrouter'
+        providerId !== 'ollama' &&
+        providerId !== 'vllm' &&
+        providerId !== 'openrouter' &&
+        providerId !== 'mistral' &&
+        providerId !== 'cerebras' &&
+        providerId !== 'azure-openai'
     )
     .reduce(
       (map, [providerId, config]) => {
@@ -645,7 +656,7 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   if (isHosted && (isOpenAIModel || isClaudeModel || isGeminiModel)) {
     try {
       // Import the key rotation function
-      const { getRotatingApiKey } = require('@/lib/utils')
+      const { getRotatingApiKey } = require('@/lib/core/config/api-keys')
       const serverKey = getRotatingApiKey(isGeminiModel ? 'gemini' : provider)
       return serverKey
     } catch (_error) {

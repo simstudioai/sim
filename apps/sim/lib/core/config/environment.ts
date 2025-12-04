@@ -1,0 +1,46 @@
+/**
+ * Environment utility functions for consistent environment detection across the application
+ */
+import { env, getEnv, isTruthy } from './env'
+
+/**
+ * Is the application running in production mode
+ */
+export const isProd = env.NODE_ENV === 'production'
+
+/**
+ * Is the application running in development mode
+ */
+export const isDev = env.NODE_ENV === 'development'
+
+/**
+ * Is the application running in test mode
+ */
+export const isTest = env.NODE_ENV === 'test'
+
+/**
+ * Is this the hosted version of the application
+ */
+export const isHosted =
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.sim.ai' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.staging.sim.ai' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://dev-agent.thearena.ai' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://test-agent.thearena.ai' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'http://localhost:3000' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://agent.thearena.ai'
+/**
+ * Is billing enforcement enabled
+ */
+export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
+
+/**
+ * Is email verification enabled
+ */
+export const isEmailVerificationEnabled = isTruthy(env.EMAIL_VERIFICATION_ENABLED)
+
+/**
+ * Get cost multiplier based on environment
+ */
+export function getCostMultiplier(): number {
+  return isProd ? (env.COST_MULTIPLIER ?? 1) : 1
+}

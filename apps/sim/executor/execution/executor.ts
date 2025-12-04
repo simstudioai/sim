@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { StartBlockPath } from '@/lib/workflows/triggers'
+import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import type { BlockOutput } from '@/blocks/types'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'

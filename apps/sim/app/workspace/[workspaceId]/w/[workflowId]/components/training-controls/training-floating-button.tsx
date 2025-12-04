@@ -3,7 +3,7 @@
 import { Database, Pause } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 
 interface TrainingFloatingButtonProps {
