@@ -9,6 +9,7 @@ const providerEndpoints: Record<ProviderName, string> = {
   ollama: '/api/providers/ollama/models',
   vllm: '/api/providers/vllm/models',
   openrouter: '/api/providers/openrouter/models',
+  sambanova: '/api/providers/sambanova/models',
 }
 
 async function fetchProviderModels(provider: ProviderName): Promise<string[]> {

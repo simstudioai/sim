@@ -62,7 +62,6 @@ export const GoogleAdsBlock: BlockConfig<GoogleAdsResponse> = {
       id: 'accounts',
       title: 'Google Ads Account',
       type: 'dropdown',
-      layout: 'full',
       options: Object.entries(GOOGLE_ADS_ACCOUNTS).map(([key, account]) => ({
         label: account.name,
         id: key,
@@ -75,7 +74,6 @@ export const GoogleAdsBlock: BlockConfig<GoogleAdsResponse> = {
       id: 'question',
       title: 'Question / Query',
       type: 'long-input',
-      layout: 'full',
       placeholder:
         'Ask any question about Google Ads data, e.g., "Show me campaign performance for last 30 days", "What are my top spending campaigns this month?", "How many conversions did I get last week?"',
       rows: 3,
