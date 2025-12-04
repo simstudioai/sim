@@ -23,6 +23,7 @@ import {
   useCreateOrganization,
   useInviteMember,
   useOrganization,
+  useOrganizationBilling,
   useOrganizationSubscription,
   useOrganizations,
   useRemoveMember,
@@ -55,6 +56,8 @@ export function TeamManagement() {
     isLoading: isLoadingSubscription,
     error: subscriptionError,
   } = useOrganizationSubscription(activeOrganization?.id || '')
+
+  const { data: organizationBillingData } = useOrganizationBilling(activeOrganization?.id || '')
 
   const inviteMutation = useInviteMember()
   const removeMemberMutation = useRemoveMember()
@@ -89,6 +92,7 @@ export function TeamManagement() {
   const userRole = getUserRole(organization, session?.user?.email)
   const adminOrOwner = isAdminOrOwner(organization, session?.user?.email)
   const usedSeats = getUsedSeats(organization)
+  const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
 
   useEffect(() => {
     if ((hasTeamPlan || hasEnterprisePlan) && session?.user?.name && !orgName) {
@@ -239,10 +243,10 @@ export function TeamManagement() {
 
   const handleAddSeatDialog = useCallback(() => {
     if (subscriptionData) {
-      setNewSeatCount((subscriptionData.seats || 1) + 1)
+      setNewSeatCount(totalSeats + 1)
       setIsAddSeatDialogOpen(true)
     }
-  }, [subscriptionData?.seats])
+  }, [subscriptionData, totalSeats])
 
   const confirmAddSeats = useCallback(
     async (selectedSeats?: number) => {
@@ -370,6 +374,7 @@ export function TeamManagement() {
           <TeamSeatsOverview
             subscriptionData={subscriptionData || null}
             isLoadingSubscription={isLoadingSubscription}
+            totalSeats={totalSeats}
             usedSeats={usedSeats.used}
             isLoading={isLoading}
             onConfirmTeamUpgrade={confirmTeamUpgrade}
@@ -394,8 +399,8 @@ export function TeamManagement() {
             onLoadUserWorkspaces={async () => {}} // No-op: data is auto-loaded by React Query
             onWorkspaceToggle={handleWorkspaceToggle}
             inviteSuccess={inviteSuccess}
-            availableSeats={Math.max(0, (subscriptionData?.seats || 0) - usedSeats.used)}
-            maxSeats={subscriptionData?.seats || 0}
+            availableSeats={Math.max(0, totalSeats - usedSeats.used)}
+            maxSeats={totalSeats}
             invitationError={inviteMutation.error}
             isLoadingWorkspaces={isLoadingWorkspaces}
           />
@@ -533,7 +538,7 @@ export function TeamManagement() {
         onOpenChange={setIsAddSeatDialogOpen}
         title='Add Team Seats'
         description={`Each seat costs $${env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT}/month and provides $${env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT} in monthly inference credits. Adjust the number of licensed seats for your team.`}
-        currentSeats={subscriptionData?.seats || 1}
+        currentSeats={totalSeats}
         initialSeats={newSeatCount}
         isLoading={isUpdatingSeats}
         error={updateSeatsMutation.error}

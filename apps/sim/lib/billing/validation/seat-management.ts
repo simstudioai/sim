@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { invitation, member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { and, count, eq } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
@@ -66,9 +67,9 @@ export async function validateSeatAvailability(
     const currentSeats = memberCount[0]?.count || 0
 
     // Determine seat limits based on subscription
-    // Team: seats from Stripe subscription quantity
-    // Enterprise: seats from metadata (stored in subscription.seats)
-    const maxSeats = subscription.seats || 1
+    // Team: seats from Stripe subscription quantity (seats column)
+    // Enterprise: seats from metadata.seats (not from seats column which is always 1)
+    const maxSeats = getEffectiveSeats(subscription)
 
     const availableSeats = Math.max(0, maxSeats - currentSeats)
     const canInvite = availableSeats >= additionalSeats
@@ -140,7 +141,8 @@ export async function getOrganizationSeatInfo(
 
     const currentSeats = memberCount[0]?.count || 0
 
-    const maxSeats = subscription.seats || 1
+    // Team: seats from column, Enterprise: seats from metadata
+    const maxSeats = getEffectiveSeats(subscription)
 
     const canAddSeats = subscription.plan !== 'enterprise'
 
