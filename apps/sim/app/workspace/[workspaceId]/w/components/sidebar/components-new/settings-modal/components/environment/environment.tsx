@@ -133,7 +133,7 @@ function WorkspaceVariableRow({
                 <Undo2 className='h-3.5 w-3.5' />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content>Scope: workspace</Tooltip.Content>
+            <Tooltip.Content>Change to personal scope</Tooltip.Content>
           </Tooltip.Root>
         )}
         <Tooltip.Root>
@@ -638,7 +638,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
                     <Share2 className='h-3.5 w-3.5' />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content>Scope: personal</Tooltip.Content>
+                <Tooltip.Content>Change to workspace scope</Tooltip.Content>
               </Tooltip.Root>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
