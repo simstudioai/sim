@@ -136,7 +136,6 @@ export function SSO() {
   const [errors, setErrors] = useState<Record<string, string[]>>(DEFAULT_ERRORS)
   const [showErrors, setShowErrors] = useState(false)
 
-  // Permission checks with early returns
   if (isBillingEnabled) {
     if (!activeOrganization) {
       return (
@@ -172,10 +171,9 @@ export function SSO() {
   }
 
   const validateProviderId = (value: string): string[] => {
-    const out: string[] = []
-    if (!value || !value.trim()) out.push('Provider ID is required.')
-    if (!/^[-a-z0-9]+$/i.test(value.trim())) out.push('Use letters, numbers, and dashes only.')
-    return out
+    if (!value || !value.trim()) return ['Provider ID is required.']
+    if (!/^[-a-z0-9]+$/i.test(value.trim())) return ['Use letters, numbers, and dashes only.']
+    return []
   }
 
   const validateIssuerUrl = (value: string): string[] => {
@@ -223,13 +221,15 @@ export function SSO() {
       audience: [],
     }
 
-    if (data.providerType === 'oidc') {
+    const providerType = data.providerType || 'oidc'
+
+    if (providerType === 'oidc') {
       newErrors.clientId = validateRequired('Client ID', data.clientId)
       newErrors.clientSecret = validateRequired('Client Secret', data.clientSecret)
       if (!data.scopes || !data.scopes.trim()) {
         newErrors.scopes = ['Scopes are required for OIDC providers']
       }
-    } else if (data.providerType === 'saml') {
+    } else if (providerType === 'saml') {
       newErrors.entryPoint = validateIssuerUrl(data.entryPoint || '')
       if (!newErrors.entryPoint.length && !data.entryPoint) {
         newErrors.entryPoint = ['Entry Point URL is required for SAML providers']
@@ -251,7 +251,9 @@ export function SSO() {
       return typeof value === 'string' && value.trim() !== ''
     })
 
-    if (formData.providerType === 'oidc') {
+    const providerType = formData.providerType || 'oidc'
+
+    if (providerType === 'oidc') {
       return (
         hasRequiredFields &&
         formData.clientId.trim() !== '' &&
@@ -259,7 +261,7 @@ export function SSO() {
         formData.scopes.trim() !== ''
       )
     }
-    if (formData.providerType === 'saml') {
+    if (providerType === 'saml') {
       return hasRequiredFields && formData.entryPoint.trim() !== '' && formData.cert.trim() !== ''
     }
 
@@ -277,11 +279,13 @@ export function SSO() {
     }
 
     try {
+      const providerType = formData.providerType || 'oidc'
+
       const requestBody: any = {
         providerId: formData.providerId,
         issuer: formData.issuerUrl,
         domain: formData.domain,
-        providerType: formData.providerType,
+        providerType,
         orgId: activeOrganization?.id,
         mapping: {
           id: 'sub',
@@ -291,11 +295,11 @@ export function SSO() {
         },
       }
 
-      if (formData.providerType === 'oidc') {
+      if (providerType === 'oidc') {
         requestBody.clientId = formData.clientId
         requestBody.clientSecret = formData.clientSecret
         requestBody.scopes = formData.scopes.split(',').map((s) => s.trim())
-      } else if (formData.providerType === 'saml') {
+      } else if (providerType === 'saml') {
         requestBody.entryPoint = formData.entryPoint
         requestBody.cert = formData.cert
         requestBody.wantAssertionsSigned = formData.wantAssertionsSigned
@@ -337,10 +341,9 @@ export function SSO() {
 
       if (field === 'providerType') {
         setShowErrors(false)
-        setErrors(DEFAULT_ERRORS)
-      } else {
-        validateAll(next)
       }
+
+      validateAll(next)
 
       return next
     })
@@ -363,12 +366,26 @@ export function SSO() {
       let clientId = ''
       let clientSecret = ''
       let scopes = 'openid,profile,email'
+      let entryPoint = ''
+      let cert = ''
+      let callbackUrl = ''
+      let audience = ''
+      let wantAssertionsSigned = true
+      let idpMetadata = ''
 
       if (existingProvider.providerType === 'oidc' && existingProvider.oidcConfig) {
         const config = JSON.parse(existingProvider.oidcConfig)
         clientId = config.clientId || ''
         clientSecret = config.clientSecret || ''
         scopes = config.scopes?.join(',') || 'openid,profile,email'
+      } else if (existingProvider.providerType === 'saml' && existingProvider.samlConfig) {
+        const config = JSON.parse(existingProvider.samlConfig)
+        entryPoint = config.entryPoint || ''
+        cert = config.cert || ''
+        callbackUrl = config.callbackUrl || ''
+        audience = config.audience || ''
+        wantAssertionsSigned = config.wantAssertionsSigned ?? true
+        idpMetadata = config.idpMetadata || ''
       }
 
       setFormData({
@@ -379,12 +396,12 @@ export function SSO() {
         clientId,
         clientSecret,
         scopes,
-        entryPoint: '',
-        cert: '',
-        callbackUrl: '',
-        audience: '',
-        wantAssertionsSigned: true,
-        idpMetadata: '',
+        entryPoint,
+        cert,
+        callbackUrl,
+        audience,
+        wantAssertionsSigned,
+        idpMetadata,
         showAdvanced: false,
       })
       setIsEditing(true)
@@ -400,7 +417,6 @@ export function SSO() {
     return <SsoSkeleton />
   }
 
-  // Show preview if provider exists and not editing
   if (existingProvider && !isEditing) {
     const providerCallbackUrl = `${getBaseUrl()}/api/auth/sso/callback/${existingProvider.providerId}`
 
@@ -488,7 +504,6 @@ export function SSO() {
     )
   }
 
-  // Form View (no provider or editing)
   return (
     <form onSubmit={handleSubmit} autoComplete='off' className='flex h-full flex-col gap-[16px]'>
       {/* Hidden dummy inputs to prevent browser password manager autofill */}
