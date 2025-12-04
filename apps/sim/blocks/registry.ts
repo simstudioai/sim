@@ -4,6 +4,7 @@ import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
 import { ApifyBlock } from '@/blocks/blocks/apify'
 import { ApolloBlock } from '@/blocks/blocks/apollo'
+import { ArenaBlock } from '@/blocks/blocks/arena'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
@@ -123,6 +124,7 @@ import type { BlockConfig } from '@/blocks/types'
 // Registry of all available blocks, alphabetically sorted
 export const registry: Record<string, BlockConfig> = {
   agent: AgentBlock,
+  arena: ArenaBlock,
   airtable: AirtableBlock,
   api: ApiBlock,
   api_trigger: ApiTriggerBlock,

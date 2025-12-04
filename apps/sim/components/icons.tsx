@@ -3932,3 +3932,144 @@ export function DynamoDBIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function ArenaIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns='http://www.w3.org/2000/svg'
+      width='34'
+      height='34'
+      viewBox='0 0 34 34'
+      fill='none'
+    >
+      <path
+        d='M29 0.5C31.4853 0.5 33.5 2.51472 33.5 5V29C33.5 31.4853 31.4853 33.5 29 33.5H5C2.51472 33.5 0.5 31.4853 0.5 29V5C0.5 2.51472 2.51472 0.5 5 0.5H29Z'
+        fill='#F3F8FE'
+      />
+      <path
+        d='M29 0.5C31.4853 0.5 33.5 2.51472 33.5 5V29C33.5 31.4853 31.4853 33.5 29 33.5H5C2.51472 33.5 0.5 31.4853 0.5 29V5C0.5 2.51472 2.51472 0.5 5 0.5H29Z'
+        stroke='white'
+      />
+      <mask
+        id='mask0_16706_273'
+        style={{ maskType: 'luminance' }}
+        maskUnits='userSpaceOnUse'
+        x='19'
+        y='19'
+        width='8'
+        height='8'
+      >
+        <path
+          d='M25.2616 19.1885L26.5746 23.2843C27.1901 25.2505 25.5191 27.1259 23.4092 26.5892L19.2812 25.6202L25.2616 19.1885Z'
+          fill='white'
+        />
+      </mask>
+      <g mask='url(#mask0_16706_273)'>
+        <path d='M19.2812 19.1885H26.7038V26.6823H19.2812V19.1885Z' fill='#93CB99' />
+      </g>
+      <mask
+        id='mask1_16706_273'
+        style={{ maskType: 'luminance' }}
+        maskUnits='userSpaceOnUse'
+        x='14'
+        y='5'
+        width='9'
+        height='6'
+      >
+        <path
+          d='M17.1793 5.87803C18.5867 4.44847 20.8732 5.0736 21.4886 6.95018L22.5442 10.4344L14.7163 8.55781L17.1793 5.87803Z'
+          fill='white'
+        />
+      </mask>
+      <g mask='url(#mask1_16706_273)'>
+        <path d='M14.7163 5.09424H22.5442V10.4344H14.7163V5.09424Z' fill='#93CB99' />
+      </g>
+      <mask
+        id='mask2_16706_273'
+        style={{ maskType: 'luminance' }}
+        maskUnits='userSpaceOnUse'
+        x='5'
+        y='14'
+        width='7'
+        height='10'
+      >
+        <path
+          d='M8.73045 14.9883L11.457 23.7424L6.97116 22.4922C5.03657 22.0464 4.33286 19.5446 5.74027 18.1151L8.73045 14.9883Z'
+          fill='white'
+        />
+      </mask>
+      <g mask='url(#mask2_16706_273)'>
+        <path d='M5 14.9883H11.457V23.7424H5V14.9883Z' fill='#93CB99' />
+      </g>
+      <mask
+        id='mask3_16706_273'
+        style={{ maskType: 'luminance' }}
+        maskUnits='userSpaceOnUse'
+        x='7'
+        y='7'
+        width='8'
+        height='8'
+      >
+        <path
+          d='M7.59534 10.8794C7.06817 8.91435 8.73919 7.03899 10.7608 7.4848L14.7195 8.55697L8.73919 14.9887L7.59534 10.8794Z'
+          fill='white'
+        />
+      </mask>
+      <g mask='url(#mask3_16706_273)'>
+        <path d='M7.49707 7.41846H14.7195V14.9887H7.49707V7.41846Z' fill='#93CDEC' />
+      </g>
+      <mask
+        id='mask4_16706_273'
+        style={{ maskType: 'luminance' }}
+        maskUnits='userSpaceOnUse'
+        x='22'
+        y='10'
+        width='7'
+        height='10'
+      >
+        <path
+          d='M22.543 10.4321L27.0289 11.5939C28.9634 12.041 29.6671 14.5427 28.2597 15.971L25.2695 19.1875L22.543 10.4321Z'
+          fill='white'
+        />
+      </mask>
+      <g mask='url(#mask4_16706_273)'>
+        <path d='M22.543 10.4321H29V19.1875H22.543V10.4321Z' fill='#93CDEC' />
+      </g>
+      <mask
+        id='mask5_16706_273'
+        style={{ maskType: 'luminance' }}
+        maskUnits='userSpaceOnUse'
+        x='8'
+        y='8'
+        width='18'
+        height='18'
+      >
+        <path
+          d='M14.7157 8.55859L22.5435 10.4352L25.27 19.1893L19.2885 25.621L11.4607 23.7457L8.73535 14.9904L14.7157 8.55859Z'
+          fill='white'
+        />
+      </mask>
+      <g mask='url(#mask5_16706_273)'>
+        <path d='M8.73535 8.55859H25.27V25.621H8.73535V8.55859Z' fill='#55BE8C' />
+      </g>
+      <mask
+        id='mask6_16706_273'
+        style={{ maskType: 'luminance' }}
+        maskUnits='userSpaceOnUse'
+        x={11}
+        y={23}
+        width={9}
+        height='6'
+      >
+        <path
+          d='M11.4546 23.7451L19.2812 25.6205L16.9065 28.1222C15.4991 29.5518 13.2126 28.9266 12.5972 27.0501L11.4546 23.7451Z'
+          fill='white'
+        />
+      </mask>
+      <g mask='url(#mask6_16706_273)'>
+        <path d='M11.4546 23.7451H19.2812V28.906H11.4546V23.7451Z' fill='#93CDEC' />
+      </g>
+    </svg>
+  )
+}
