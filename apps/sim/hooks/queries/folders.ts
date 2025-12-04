@@ -115,9 +115,16 @@ export function useCreateFolder() {
       // Snapshot previous state for rollback
       const previousFolders = { ...useFolderStore.getState().folders }
 
+      // Calculate max sortOrder to place new folder at the bottom
+      const workspaceFolders = Object.values(previousFolders).filter(
+        (f) =>
+          f.workspaceId === variables.workspaceId && f.parentId === (variables.parentId || null)
+      )
+      const maxSortOrder = workspaceFolders.reduce((max, f) => Math.max(max, f.sortOrder), -1)
+
       const tempId = `temp-folder-${Date.now()}`
 
-      // Optimistically add folder entry immediately
+      // Optimistically add folder entry immediately at the bottom
       useFolderStore.setState((state) => ({
         folders: {
           ...state.folders,
@@ -129,7 +136,7 @@ export function useCreateFolder() {
             parentId: variables.parentId || null,
             color: variables.color || '#808080',
             isExpanded: false,
-            sortOrder: 0,
+            sortOrder: maxSortOrder + 1,
             createdAt: new Date(),
             updatedAt: new Date(),
           },
