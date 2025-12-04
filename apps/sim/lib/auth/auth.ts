@@ -98,6 +98,32 @@ export const auth = betterAuth({
         },
       },
     },
+    account: {
+      create: {
+        after: async (account) => {
+          // Salesforce doesn't return expires_in in its token response (unlike other OAuth providers).
+          // We set a default 2-hour expiration so token refresh logic works correctly.
+          if (account.providerId === 'salesforce' && !account.accessTokenExpiresAt) {
+            const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000)
+            try {
+              await db
+                .update(schema.account)
+                .set({ accessTokenExpiresAt: twoHoursFromNow })
+                .where(eq(schema.account.id, account.id))
+              logger.info(
+                '[databaseHooks.account.create.after] Set default expiration for Salesforce token',
+                { accountId: account.id, expiresAt: twoHoursFromNow }
+              )
+            } catch (error) {
+              logger.error(
+                '[databaseHooks.account.create.after] Failed to set Salesforce token expiration',
+                { accountId: account.id, error }
+              )
+            }
+          }
+        },
+      },
+    },
     session: {
       create: {
         before: async (session) => {
@@ -826,9 +852,10 @@ export const auth = betterAuth({
           authorizationUrl: 'https://login.salesforce.com/services/oauth2/authorize',
           tokenUrl: 'https://login.salesforce.com/services/oauth2/token',
           userInfoUrl: 'https://login.salesforce.com/services/oauth2/userinfo',
-          scopes: ['api', 'refresh_token', 'openid'],
+          scopes: ['api', 'refresh_token', 'openid', 'offline_access'],
           pkce: true,
           prompt: 'consent',
+          accessType: 'offline',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/salesforce`,
           getUserInfo: async (tokens) => {
             try {
