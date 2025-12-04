@@ -44,6 +44,17 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
         { label: 'Create Task', id: 'create_task' },
         { label: 'Update Task', id: 'update_task' },
         { label: 'Delete Task', id: 'delete_task' },
+        { label: 'List Reports', id: 'list_reports' },
+        { label: 'Get Report', id: 'get_report' },
+        { label: 'Run Report', id: 'run_report' },
+        { label: 'List Report Types', id: 'list_report_types' },
+        { label: 'List Dashboards', id: 'list_dashboards' },
+        { label: 'Get Dashboard', id: 'get_dashboard' },
+        { label: 'Refresh Dashboard', id: 'refresh_dashboard' },
+        { label: 'Run SOQL Query', id: 'query' },
+        { label: 'Get More Query Results', id: 'query_more' },
+        { label: 'Describe Object', id: 'describe_object' },
+        { label: 'List Objects', id: 'list_objects' },
       ],
       value: () => 'get_accounts',
     },
@@ -367,6 +378,77 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       placeholder: 'Account or Opportunity ID',
       condition: { field: 'operation', value: ['create_task'] },
     },
+    // Report fields
+    {
+      id: 'reportId',
+      title: 'Report ID',
+      type: 'short-input',
+      placeholder: 'Report ID',
+      condition: { field: 'operation', value: ['get_report', 'run_report'] },
+      required: true,
+    },
+    {
+      id: 'folderName',
+      title: 'Folder Name',
+      type: 'short-input',
+      placeholder: 'Filter by folder name',
+      condition: { field: 'operation', value: ['list_reports', 'list_dashboards'] },
+    },
+    {
+      id: 'searchTerm',
+      title: 'Search Term',
+      type: 'short-input',
+      placeholder: 'Search reports by name',
+      condition: { field: 'operation', value: ['list_reports'] },
+    },
+    {
+      id: 'includeDetails',
+      title: 'Include Details',
+      type: 'short-input',
+      placeholder: 'Include detail rows (true/false)',
+      condition: { field: 'operation', value: ['run_report'] },
+    },
+    {
+      id: 'filters',
+      title: 'Report Filters',
+      type: 'long-input',
+      placeholder: 'JSON array of report filters',
+      condition: { field: 'operation', value: ['run_report'] },
+    },
+    // Dashboard fields
+    {
+      id: 'dashboardId',
+      title: 'Dashboard ID',
+      type: 'short-input',
+      placeholder: 'Dashboard ID',
+      condition: { field: 'operation', value: ['get_dashboard', 'refresh_dashboard'] },
+      required: true,
+    },
+    // Query fields
+    {
+      id: 'query',
+      title: 'SOQL Query',
+      type: 'long-input',
+      placeholder: 'SELECT Id, Name FROM Account LIMIT 10',
+      condition: { field: 'operation', value: ['query'] },
+      required: true,
+    },
+    {
+      id: 'nextRecordsUrl',
+      title: 'Next Records URL',
+      type: 'short-input',
+      placeholder: 'URL from previous query response',
+      condition: { field: 'operation', value: ['query_more'] },
+      required: true,
+    },
+    {
+      id: 'objectName',
+      title: 'Object Name',
+      type: 'short-input',
+      placeholder: 'API name (e.g., Account, Lead, Custom_Object__c)',
+      condition: { field: 'operation', value: ['describe_object'] },
+      required: true,
+    },
     // Long-input fields at the bottom
     {
       id: 'description',
@@ -418,6 +500,17 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       'salesforce_create_task',
       'salesforce_update_task',
       'salesforce_delete_task',
+      'salesforce_list_reports',
+      'salesforce_get_report',
+      'salesforce_run_report',
+      'salesforce_list_report_types',
+      'salesforce_list_dashboards',
+      'salesforce_get_dashboard',
+      'salesforce_refresh_dashboard',
+      'salesforce_query',
+      'salesforce_query_more',
+      'salesforce_describe_object',
+      'salesforce_list_objects',
     ],
     config: {
       tool: (params) => {
@@ -470,6 +563,28 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
             return 'salesforce_update_task'
           case 'delete_task':
             return 'salesforce_delete_task'
+          case 'list_reports':
+            return 'salesforce_list_reports'
+          case 'get_report':
+            return 'salesforce_get_report'
+          case 'run_report':
+            return 'salesforce_run_report'
+          case 'list_report_types':
+            return 'salesforce_list_report_types'
+          case 'list_dashboards':
+            return 'salesforce_list_dashboards'
+          case 'get_dashboard':
+            return 'salesforce_get_dashboard'
+          case 'refresh_dashboard':
+            return 'salesforce_refresh_dashboard'
+          case 'query':
+            return 'salesforce_query'
+          case 'query_more':
+            return 'salesforce_query_more'
+          case 'describe_object':
+            return 'salesforce_describe_object'
+          case 'list_objects':
+            return 'salesforce_list_objects'
           default:
             throw new Error(`Unknown operation: ${params.operation}`)
         }
