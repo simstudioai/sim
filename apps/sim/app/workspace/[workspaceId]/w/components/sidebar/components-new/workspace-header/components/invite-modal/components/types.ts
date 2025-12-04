@@ -1,4 +1,4 @@
-import type { PermissionType } from '@/lib/permissions/utils'
+import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 
 export type { PermissionType }
 

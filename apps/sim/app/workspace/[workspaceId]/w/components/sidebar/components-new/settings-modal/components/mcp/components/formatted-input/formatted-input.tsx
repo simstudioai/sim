@@ -1,5 +1,5 @@
 import { Input } from '@/components/emcn'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import type { EnvVarDropdownConfig } from '../types'

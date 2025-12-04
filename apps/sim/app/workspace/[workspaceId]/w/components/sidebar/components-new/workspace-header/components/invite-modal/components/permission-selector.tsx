@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { Button } from '@/components/emcn'
-import type { PermissionType } from '@/lib/permissions/utils'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
+import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 
 export interface PermissionSelectorProps {
   value: PermissionType

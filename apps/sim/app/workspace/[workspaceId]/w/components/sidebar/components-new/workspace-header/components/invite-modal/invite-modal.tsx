@@ -12,9 +12,9 @@ import {
   ModalHeader,
 } from '@/components/emcn/components/modal/modal'
 import { useSession } from '@/lib/auth/auth-client'
-import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/core/utils/cn'
+import { createLogger } from '@/lib/logs/console/logger'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { API_ENDPOINTS } from '@/stores/constants'
 import type { PermissionType, UserPermissions } from './components'

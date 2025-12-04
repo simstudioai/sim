@@ -341,7 +341,7 @@ try {
       return false
     }
   }
-  
+
   /** Extracts parameters from JSON schema for autocomplete */
   const schemaParameters = useMemo(() => {
     try {

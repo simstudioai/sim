@@ -58,7 +58,7 @@ export function RemoveMemberDialog({
                 Also reduce seat count in my subscription
               </label>
             </div>
-            <p className='mt-1 text-muted-foreground text-xs'>
+            <p className='mt-1 text-[var(--text-muted)] text-xs'>
               If selected, your team seat count will be reduced by 1, lowering your monthly billing.
             </p>
           </div>

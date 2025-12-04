@@ -11,7 +11,7 @@ import {
   ModalHeader,
 } from '@/components/emcn/components/modal/modal'
 import { Skeleton, TagInput } from '@/components/ui'
-import { useSession } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import {

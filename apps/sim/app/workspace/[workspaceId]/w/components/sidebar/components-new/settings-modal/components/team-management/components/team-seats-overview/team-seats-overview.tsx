@@ -29,7 +29,7 @@ interface TeamSeatsOverviewProps {
 
 function TeamSeatsSkeleton() {
   return (
-    <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
+    <div className='rounded-[8px] border bg-[var(--surface-3)] p-3 shadow-xs'>
       <div className='space-y-2'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
@@ -38,7 +38,7 @@ function TeamSeatsSkeleton() {
           </div>
           <div className='flex items-center gap-1 text-xs'>
             <Skeleton className='h-4 w-8' />
-            <span className='text-muted-foreground'>/</span>
+            <span className='text-[var(--text-muted)]'>/</span>
             <Skeleton className='h-4 w-8' />
           </div>
         </div>
@@ -67,11 +67,11 @@ export function TeamSeatsOverview({
 
   if (!subscriptionData) {
     return (
-      <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
+      <div className='rounded-[8px] border bg-[var(--surface-3)] p-3 shadow-xs'>
         <div className='space-y-3 text-center'>
           <div className='space-y-2'>
             <p className='font-medium text-sm'>No Team Subscription Found</p>
-            <p className='text-muted-foreground text-xs'>
+            <p className='text-[var(--text-muted)] text-xs'>
               Your subscription may need to be transferred to this organization.
             </p>
           </div>
@@ -93,12 +93,12 @@ export function TeamSeatsOverview({
   const isEnterprise = checkEnterprisePlan(subscriptionData)
 
   return (
-    <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
+    <div className='rounded-[8px] border bg-[var(--surface-3)] p-3 shadow-xs'>
       <div className='space-y-2'>
         {/* Top row - matching UsageHeader */}
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
-            <span className='font-medium text-[#FFFFFF] text-[12px]'>Seats</span>
+            <span className='font-medium text-[12px] text-[var(--text-primary)]'>Seats</span>
             {!isEnterprise && (
               <Badge
                 className='gradient-text h-[1.125rem] cursor-pointer rounded-[6px] border-gradient-primary/20 bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary px-2 py-0 font-medium text-xs'
@@ -138,7 +138,7 @@ export function TeamSeatsOverview({
         {/* Enterprise message */}
         {isEnterprise && (
           <div className='pt-1 text-center'>
-            <p className='text-muted-foreground text-xs'>
+            <p className='text-[var(--text-muted)] text-xs'>
               Contact support for enterprise usage limit changes
             </p>
           </div>

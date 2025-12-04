@@ -11,7 +11,7 @@ import {
 } from '@/components/emcn/components/modal/modal'
 import { Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/db-helpers'
+import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Versions } from './components'

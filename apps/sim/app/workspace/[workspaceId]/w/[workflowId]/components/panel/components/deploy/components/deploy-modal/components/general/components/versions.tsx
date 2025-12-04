@@ -6,7 +6,7 @@ import { MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/db-helpers'
+import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('Versions')
 

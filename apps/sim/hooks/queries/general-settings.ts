@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
 import { createLogger } from '@/lib/logs/console/logger'
-import { syncThemeToNextThemes } from '@/lib/theme-sync'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
 const logger = createLogger('GeneralSettingsQuery')

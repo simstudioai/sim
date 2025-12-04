@@ -14,7 +14,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { getEnv, isTruthy } from '@/lib/env'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 
 interface WorkflowDeploymentInfo {
