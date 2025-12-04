@@ -18,6 +18,7 @@ import type {
   McpToolResult,
   McpTransport,
 } from '@/lib/mcp/types'
+import { MCP_CONSTANTS } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpService')
 
@@ -41,8 +42,8 @@ interface CacheStats {
 
 class McpService {
   private toolCache = new Map<string, ToolCache>()
-  private readonly cacheTimeout = 30 * 1000 // 30 seconds
-  private readonly maxCacheSize = 1000
+  private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT // 30 seconds
+  private readonly maxCacheSize = MCP_CONSTANTS.MAX_CACHE_SIZE // 1000
   private cleanupInterval: NodeJS.Timeout | null = null
   private cacheHits = 0
   private cacheMisses = 0
