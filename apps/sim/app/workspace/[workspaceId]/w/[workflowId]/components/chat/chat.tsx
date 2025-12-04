@@ -856,8 +856,7 @@ export function Chat() {
             >
               <PopoverScrollArea>
                 <PopoverItem
-                  onClick={(e) => {
-                    e.stopPropagation()
+                  onClick={() => {
                     if (activeWorkflowId) exportChatCSV(activeWorkflowId)
                     setMoreMenuOpen(false)
                   }}
@@ -867,8 +866,7 @@ export function Chat() {
                   <span>Download</span>
                 </PopoverItem>
                 <PopoverItem
-                  onClick={(e) => {
-                    e.stopPropagation()
+                  onClick={() => {
                     if (activeWorkflowId) clearChat(activeWorkflowId)
                     setMoreMenuOpen(false)
                   }}
