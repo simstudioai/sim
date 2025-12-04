@@ -635,11 +635,12 @@ export class PauseResumeManager {
 
     const metadata = {
       ...baseSnapshot.metadata,
-      executionId: resumeExecutionId, // Same as original
-      requestId: baseSnapshot.metadata.requestId, // Keep original requestId
+      executionId: resumeExecutionId,
+      requestId: baseSnapshot.metadata.requestId,
       startTime: new Date().toISOString(),
       userId,
       useDraftState: baseSnapshot.metadata.useDraftState,
+      isClientSession: baseSnapshot.metadata.isClientSession,
       resumeFromSnapshot: true,
     }
 

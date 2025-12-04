@@ -34,7 +34,7 @@ const ExecuteWorkflowSchema = z.object({
   stream: z.boolean().optional(),
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
-  // Optional workflow state override (for executing diff workflows)
+  isClientSession: z.boolean().optional(),
   workflowStateOverride: z
     .object({
       blocks: z.record(z.any()),
@@ -95,6 +95,7 @@ export async function executeWorkflow(
       triggerType,
       useDraftState: false,
       startTime: new Date().toISOString(),
+      isClientSession: false,
     }
 
     const snapshot = new ExecutionSnapshot(
@@ -329,6 +330,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       stream: streamParam,
       useDraftState,
       input: validatedInput,
+      isClientSession = false,
       workflowStateOverride,
     } = validation.data
 
@@ -506,6 +508,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           triggerType,
           useDraftState: shouldUseDraftState,
           startTime: new Date().toISOString(),
+          isClientSession,
           workflowStateOverride: effectiveWorkflowStateOverride,
         }
 
@@ -772,6 +775,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             triggerType,
             useDraftState: shouldUseDraftState,
             startTime: new Date().toISOString(),
+            isClientSession,
             workflowStateOverride: effectiveWorkflowStateOverride,
           }
 

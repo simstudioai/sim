@@ -11,6 +11,7 @@ export interface ExecutionMetadata {
   triggerBlockId?: string
   useDraftState: boolean
   startTime: string
+  isClientSession?: boolean
   pendingBlocks?: string[]
   resumeFromSnapshot?: boolean
   workflowStateOverride?: {

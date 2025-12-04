@@ -226,6 +226,7 @@ async function executeWebhookJobInternal(
           triggerBlockId: payload.blockId,
           useDraftState: false,
           startTime: new Date().toISOString(),
+          isClientSession: false,
         }
 
         const snapshot = new ExecutionSnapshot(
@@ -439,6 +440,7 @@ async function executeWebhookJobInternal(
       triggerBlockId: payload.blockId,
       useDraftState: false,
       startTime: new Date().toISOString(),
+      isClientSession: false,
     }
 
     const snapshot = new ExecutionSnapshot(

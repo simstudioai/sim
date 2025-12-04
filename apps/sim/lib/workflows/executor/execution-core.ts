@@ -152,8 +152,10 @@ export async function executeWorkflowCore(
     // Merge block states
     const mergedStates = mergeSubblockState(blocks)
 
+    const personalEnvUserId = metadata.isClientSession ? userId : workflow.userId || userId
+
     const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } =
-      await getPersonalAndWorkspaceEnv(userId, providedWorkspaceId)
+      await getPersonalAndWorkspaceEnv(personalEnvUserId, providedWorkspaceId)
 
     // Use encrypted values for logging (don't log decrypted secrets)
     const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
