@@ -67,7 +67,6 @@ describe('start-block utilities', () => {
     const output = buildStartBlockOutput({
       resolution,
       workflowInput: { payload: 'value' },
-      isDeployedExecution: true,
     })
 
     expect(output.payload).toBe('value')
@@ -113,7 +112,6 @@ describe('start-block utilities', () => {
         },
         files,
       },
-      isDeployedExecution: false,
     })
 
     expect(output.name).toBe('Ada')

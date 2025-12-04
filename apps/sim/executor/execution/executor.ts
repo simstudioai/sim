@@ -250,7 +250,6 @@ export class DAGExecutor {
     const blockOutput = buildStartBlockOutput({
       resolution: startResolution,
       workflowInput: this.workflowInput,
-      isDeployedExecution: this.contextExtensions?.isDeployedContext === true,
     })
 
     state.setBlockState(startResolution.block.id, {
