@@ -81,7 +81,7 @@
   :root,
   .light {
     /* Neutrals (surfaces) - shadcn stone palette */
-    --bg: #fafaf9; /* stone-50 */
+    --bg: #ffffff; /* pure white for landing/auth pages */
     --surface-1: #fafaf9; /* stone-50 */
     --surface-2: #ffffff; /* white */
     --surface-3: #f5f5f4; /* stone-100 */

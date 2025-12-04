@@ -279,7 +279,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           autoConnect: data.autoConnect ?? true,
           showTrainingControls: data.showTrainingControls ?? false,
           superUserModeEnabled: data.superUserModeEnabled ?? true,
-          theme: data.theme || 'system',
+          // Force dark mode - light mode is temporarily disabled
+          theme: 'dark' as const,
           telemetryEnabled: data.telemetryEnabled ?? true,
           billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
         }

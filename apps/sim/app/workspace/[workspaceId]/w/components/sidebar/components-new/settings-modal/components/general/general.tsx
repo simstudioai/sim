@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Camera, Check, Pencil } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { Button, Combobox, Label, Switch } from '@/components/emcn'
+import { Button, Label, Switch } from '@/components/emcn'
 import {
   Modal,
   ModalBody,
@@ -372,7 +372,7 @@ export function General({ onOpenChange }: GeneralProps) {
       </div>
       {uploadError && <p className='text-[13px] text-[var(--text-error)]'>{uploadError}</p>}
 
-      <div className='flex items-center justify-between border-b pb-[12px]'>
+      {/* <div className='flex items-center justify-between border-b pb-[12px]'>
         <Label htmlFor='theme-select'>Theme</Label>
         <div className='w-[100px]'>
           <Combobox
@@ -390,9 +390,9 @@ export function General({ onOpenChange }: GeneralProps) {
             ]}
           />
         </div>
-      </div>
+      </div> */}
 
-      <div className='flex items-center justify-between'>
+      <div className='flex items-center justify-between pt-[12px]'>
         <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
         <Switch
           id='auto-connect'
@@ -514,11 +514,11 @@ function GeneralSkeleton() {
         </div>
       </div>
 
-      {/* Theme row */}
-      <div className='flex items-center justify-between border-b pb-[12px]'>
+      {/* Theme row - temporarily hidden while light mode is disabled */}
+      {/* <div className='flex items-center justify-between border-b pb-[12px]'>
         <Skeleton className='h-4 w-12' />
         <Skeleton className='h-8 w-[100px] rounded-[8px]' />
-      </div>
+      </div> */}
 
       {/* Auto-connect row */}
       <div className='flex items-center justify-between'>

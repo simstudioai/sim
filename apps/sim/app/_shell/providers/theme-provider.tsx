@@ -7,9 +7,8 @@ import { ThemeProvider as NextThemesProvider } from 'next-themes'
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   const pathname = usePathname()
 
-  // Force light mode for public/marketing pages
-  // Workspace and templates respect user's theme preference from settings
-  const forcedTheme =
+  // Force light mode on public/marketing pages, dark mode everywhere else
+  const isLightModePage =
     pathname === '/' ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/signup') ||
@@ -22,17 +21,15 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     pathname.startsWith('/changelog') ||
     pathname.startsWith('/chat') ||
     pathname.startsWith('/studio')
-      ? 'light'
-      : undefined
 
   return (
     <NextThemesProvider
       attribute='class'
-      defaultTheme='system'
-      enableSystem
+      defaultTheme='dark'
+      enableSystem={false}
       disableTransitionOnChange
       storageKey='sim-theme'
-      forcedTheme={forcedTheme}
+      forcedTheme={isLightModePage ? 'light' : 'dark'}
       {...props}
     >
       {children}
