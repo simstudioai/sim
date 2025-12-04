@@ -202,7 +202,6 @@ import {
   gmailUnarchiveTool,
 } from '@/tools/gmail'
 import { searchTool as googleSearchTool } from '@/tools/google'
-import { createTool as presentationCreateTool } from '@/tools/presentation'
 import { googleAdsQueryTool } from '@/tools/google_ads'
 import {
   googleCalendarCreateTool,
@@ -695,6 +694,7 @@ import {
   posthogUpdatePropertyDefinitionTool,
   posthogUpdateSurveyTool,
 } from '@/tools/posthog'
+import { createTool as presentationCreateTool } from '@/tools/presentation'
 import {
   pylonBulkUpdateAccountsTool,
   pylonCreateAccountTool,

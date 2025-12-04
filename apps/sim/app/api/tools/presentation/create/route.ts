@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 
 const PRESENTATION_API_BASE_URL = env.PRESENTATION_API_BASE_URL
 export async function POST(req: NextRequest) {
