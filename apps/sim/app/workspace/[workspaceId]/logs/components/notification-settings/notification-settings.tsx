@@ -1,43 +1,29 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { AlertCircle, Check, Pencil, Play, Trash2 } from 'lucide-react'
 import {
-  AlertCircle,
-  Bell,
-  Check,
-  Mail,
-  MessageSquare,
-  Pencil,
-  Play,
-  Plus,
-  Trash2,
-  Webhook,
-} from 'lucide-react'
-import {
+  Button,
   Combobox,
-  Button as EmcnButton,
-  Input as EmcnInput,
-  Label as EmcnLabel,
+  Input,
+  Label,
   Modal,
   ModalContent,
   ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTitle,
+  Switch,
   Tooltip,
 } from '@/components/emcn'
 import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  Input,
-  Label,
-  Skeleton,
-  Switch,
-} from '@/components/ui'
-import { cn } from '@/lib/core/utils/cn'
+  ModalBody,
+  ModalTabs,
+  ModalTabsContent,
+  ModalTabsList,
+  ModalTabsTrigger,
+} from '@/components/emcn/components/modal/modal'
+import { Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   type NotificationSubscription,
@@ -94,12 +80,6 @@ interface NotificationSettingsProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
-
-const NOTIFICATION_TYPES: { type: NotificationType; label: string; icon: typeof Webhook }[] = [
-  { type: 'webhook', label: 'Webhook', icon: Webhook },
-  { type: 'email', label: 'Email', icon: Mail },
-  { type: 'slack', label: 'Slack', icon: MessageSquare },
-]
 
 const LOG_LEVELS: LogLevel[] = ['info', 'error']
 const TRIGGER_TYPES: TriggerType[] = ['api', 'webhook', 'schedule', 'manual', 'chat']
@@ -179,7 +159,6 @@ export function NotificationSettings({
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
-  // React Query hooks
   const { data: subscriptions = [], isLoading } = useNotifications(open ? workspaceId : undefined)
   const createNotification = useCreateNotification()
   const updateNotification = useUpdateNotification()
@@ -507,17 +486,14 @@ export function NotificationSettings({
       <div key={subscription.id} className='mb-4 flex flex-col gap-2'>
         <div className='flex items-center justify-between gap-4'>
           <div className='flex flex-1 items-center gap-3'>
-            <div className='flex h-8 max-w-[400px] items-center overflow-hidden rounded-[8px] bg-muted px-3'>
-              <code className='scrollbar-hide overflow-x-auto whitespace-nowrap font-mono text-foreground text-xs'>
+            <div className='flex h-8 max-w-[400px] items-center overflow-hidden rounded-[4px] bg-[var(--surface-6)] px-3'>
+              <code className='scrollbar-hide overflow-x-auto whitespace-nowrap font-mono text-[var(--text-primary)] text-xs'>
                 {identifier}
               </code>
             </div>
             {testStatus?.id === subscription.id && (
               <div
-                className={cn(
-                  'flex items-center gap-2 text-xs',
-                  testStatus.success ? 'text-green-600' : 'text-red-600'
-                )}
+                className={`flex items-center gap-2 text-xs ${testStatus.success ? 'text-green-600' : 'text-red-600'}`}
               >
                 {testStatus.success ? (
                   <Check className='h-3 w-3' />
@@ -538,10 +514,9 @@ export function NotificationSettings({
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  size='icon'
                   onClick={() => handleTest(subscription.id)}
                   disabled={testNotification.isPending}
-                  className='h-8 w-8'
+                  className='h-8 w-8 p-0'
                 >
                   <Play className='h-3.5 w-3.5' />
                 </Button>
@@ -552,9 +527,8 @@ export function NotificationSettings({
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  size='icon'
                   onClick={() => handleEdit(subscription)}
-                  className='h-8 w-8'
+                  className='h-8 w-8 p-0'
                 >
                   <Pencil className='h-3.5 w-3.5' />
                 </Button>
@@ -565,12 +539,11 @@ export function NotificationSettings({
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  size='icon'
                   onClick={() => {
                     setDeletingId(subscription.id)
                     setShowDeleteDialog(true)
                   }}
-                  className='h-8 w-8'
+                  className='h-8 w-8 p-0'
                 >
                   <Trash2 className='h-3.5 w-3.5' />
                 </Button>
@@ -582,33 +555,33 @@ export function NotificationSettings({
 
         <div className='flex flex-wrap items-center gap-2 text-xs'>
           {subscription.allWorkflows ? (
-            <span className='rounded-md bg-muted px-1.5 py-0.5'>All workflows</span>
+            <span className='rounded-[4px] bg-[var(--surface-6)] px-1.5 py-0.5'>All workflows</span>
           ) : (
-            <span className='rounded-md bg-muted px-1.5 py-0.5'>
+            <span className='rounded-[4px] bg-[var(--surface-6)] px-1.5 py-0.5'>
               {subscription.workflowIds.length} workflow(s)
             </span>
           )}
-          <span className='text-muted-foreground'>•</span>
+          <span className='text-[var(--text-muted)]'>•</span>
           {subscription.levelFilter.map((level) => (
-            <span key={level} className='rounded-md bg-muted px-1.5 py-0.5'>
+            <span key={level} className='rounded-[4px] bg-[var(--surface-6)] px-1.5 py-0.5'>
               {level}
             </span>
           ))}
-          <span className='text-muted-foreground'>•</span>
+          <span className='text-[var(--text-muted)]'>•</span>
           {subscription.triggerFilter.slice(0, 3).map((trigger) => (
-            <span key={trigger} className='rounded-md bg-muted px-1.5 py-0.5'>
+            <span key={trigger} className='rounded-[4px] bg-[var(--surface-6)] px-1.5 py-0.5'>
               {trigger}
             </span>
           ))}
           {subscription.triggerFilter.length > 3 && (
-            <span className='rounded-md bg-muted px-1.5 py-0.5'>
+            <span className='rounded-[4px] bg-[var(--surface-6)] px-1.5 py-0.5'>
               +{subscription.triggerFilter.length - 3}
             </span>
           )}
           {subscription.alertConfig && (
             <>
-              <span className='text-muted-foreground'>•</span>
-              <span className='rounded-md bg-amber-100 px-1.5 py-0.5 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'>
+              <span className='text-[var(--text-muted)]'>•</span>
+              <span className='rounded-[4px] bg-amber-100 px-1.5 py-0.5 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'>
                 {formatAlertConfigLabel(subscription.alertConfig)}
               </span>
             </>
@@ -619,18 +592,18 @@ export function NotificationSettings({
   }
 
   const renderForm = () => (
-    <div className='flex flex-col gap-6 pt-1'>
+    <div className='flex flex-col gap-6'>
       <div>
-        <h3 className='font-medium text-base'>
+        <p className='font-medium text-[14px] text-[var(--text-primary)]'>
           {editingId ? 'Edit Notification' : 'Create New Notification'}
-        </h3>
-        <p className='text-muted-foreground text-sm'>
+        </p>
+        <p className='text-[12px] text-[var(--text-muted)]'>
           Configure {activeTab} notifications for workflow executions
         </p>
       </div>
 
       {formErrors.general && (
-        <div className='rounded-[8px] border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-950/20'>
+        <div className='rounded-[4px] border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-950/20'>
           <div className='flex items-start gap-2'>
             <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400' />
             <p className='text-red-800 text-sm dark:text-red-300'>{formErrors.general}</p>
@@ -653,8 +626,8 @@ export function NotificationSettings({
         <div className='space-y-4'>
           <div className='flex items-center justify-between'>
             <div className='flex flex-col'>
-              <Label className='font-medium text-sm'>Alert Mode</Label>
-              <p className='text-muted-foreground text-xs'>
+              <Label>Alert Mode</Label>
+              <p className='text-[12px] text-[var(--text-muted)]'>
                 {formData.useAlertRule
                   ? 'Notify when failure patterns are detected'
                   : 'Notify on every matching execution'}
@@ -667,9 +640,9 @@ export function NotificationSettings({
           </div>
 
           {formData.useAlertRule && (
-            <div className='space-y-4 rounded-lg border bg-muted/30 p-4'>
+            <div className='space-y-4 rounded-[4px] border bg-[var(--surface-2)] p-4'>
               <div className='space-y-2'>
-                <EmcnLabel>Alert Rule</EmcnLabel>
+                <Label>Alert Rule</Label>
                 <Combobox
                   options={ALERT_RULES.map((rule) => ({
                     value: rule.value,
@@ -679,15 +652,15 @@ export function NotificationSettings({
                   onChange={(value) => setFormData({ ...formData, alertRule: value as AlertRule })}
                   placeholder='Select alert rule'
                 />
-                <p className='text-muted-foreground text-xs'>
+                <p className='text-[12px] text-[var(--text-muted)]'>
                   {ALERT_RULES.find((r) => r.value === formData.alertRule)?.description}
                 </p>
               </div>
 
               {formData.alertRule === 'consecutive_failures' && (
                 <div className='space-y-2'>
-                  <EmcnLabel>Failure Count</EmcnLabel>
-                  <EmcnInput
+                  <Label>Failure Count</Label>
+                  <Input
                     type='number'
                     min={1}
                     max={100}
@@ -709,8 +682,8 @@ export function NotificationSettings({
               {formData.alertRule === 'failure_rate' && (
                 <div className='flex gap-4'>
                   <div className='flex-1 space-y-2'>
-                    <EmcnLabel>Failure Rate (%)</EmcnLabel>
-                    <EmcnInput
+                    <Label>Failure Rate (%)</Label>
+                    <Input
                       type='number'
                       min={1}
                       max={100}
@@ -727,8 +700,8 @@ export function NotificationSettings({
                     )}
                   </div>
                   <div className='flex-1 space-y-2'>
-                    <EmcnLabel>Window (hours)</EmcnLabel>
-                    <EmcnInput
+                    <Label>Window (hours)</Label>
+                    <Input
                       type='number'
                       min={1}
                       max={168}
@@ -749,8 +722,8 @@ export function NotificationSettings({
 
               {formData.alertRule === 'latency_threshold' && (
                 <div className='space-y-2'>
-                  <EmcnLabel>Duration Threshold (seconds)</EmcnLabel>
-                  <EmcnInput
+                  <Label>Duration Threshold (seconds)</Label>
+                  <Input
                     type='number'
                     min={1}
                     max={3600}
@@ -772,8 +745,8 @@ export function NotificationSettings({
               {formData.alertRule === 'latency_spike' && (
                 <div className='flex gap-4'>
                   <div className='flex-1 space-y-2'>
-                    <EmcnLabel>Above Average (%)</EmcnLabel>
-                    <EmcnInput
+                    <Label>Above Average (%)</Label>
+                    <Input
                       type='number'
                       min={10}
                       max={1000}
@@ -790,8 +763,8 @@ export function NotificationSettings({
                     )}
                   </div>
                   <div className='flex-1 space-y-2'>
-                    <EmcnLabel>Window (hours)</EmcnLabel>
-                    <EmcnInput
+                    <Label>Window (hours)</Label>
+                    <Input
                       type='number'
                       min={1}
                       max={168}
@@ -812,8 +785,8 @@ export function NotificationSettings({
 
               {formData.alertRule === 'cost_threshold' && (
                 <div className='space-y-2'>
-                  <EmcnLabel>Cost Threshold ($)</EmcnLabel>
-                  <EmcnInput
+                  <Label>Cost Threshold ($)</Label>
+                  <Input
                     type='number'
                     min={0.01}
                     max={1000}
@@ -835,8 +808,8 @@ export function NotificationSettings({
 
               {formData.alertRule === 'no_activity' && (
                 <div className='space-y-2'>
-                  <EmcnLabel>Inactivity Period (hours)</EmcnLabel>
-                  <EmcnInput
+                  <Label>Inactivity Period (hours)</Label>
+                  <Input
                     type='number'
                     min={1}
                     max={168}
@@ -858,8 +831,8 @@ export function NotificationSettings({
               {formData.alertRule === 'error_count' && (
                 <div className='flex gap-4'>
                   <div className='flex-1 space-y-2'>
-                    <EmcnLabel>Error Count</EmcnLabel>
-                    <EmcnInput
+                    <Label>Error Count</Label>
+                    <Input
                       type='number'
                       min={1}
                       max={1000}
@@ -876,8 +849,8 @@ export function NotificationSettings({
                     )}
                   </div>
                   <div className='flex-1 space-y-2'>
-                    <EmcnLabel>Window (hours)</EmcnLabel>
-                    <EmcnInput
+                    <Label>Window (hours)</Label>
+                    <Input
                       type='number'
                       min={1}
                       max={168}
@@ -902,7 +875,7 @@ export function NotificationSettings({
         {activeTab === 'webhook' && (
           <>
             <div className='space-y-2'>
-              <Label className='font-medium text-sm'>Webhook URL</Label>
+              <Label>Webhook URL</Label>
               <Input
                 type='url'
                 placeholder='https://your-app.com/webhook'
@@ -911,22 +884,20 @@ export function NotificationSettings({
                   setFormData({ ...formData, webhookUrl: e.target.value })
                   setFormErrors({ ...formErrors, webhookUrl: '' })
                 }}
-                className='h-9 rounded-[8px]'
               />
               {formErrors.webhookUrl && (
                 <p className='text-red-400 text-xs'>{formErrors.webhookUrl}</p>
               )}
             </div>
             <div className='space-y-2'>
-              <Label className='font-medium text-sm'>Secret (optional)</Label>
+              <Label>Secret (optional)</Label>
               <Input
                 type='password'
                 placeholder='Webhook secret for signature verification'
                 value={formData.webhookSecret}
                 onChange={(e) => setFormData({ ...formData, webhookSecret: e.target.value })}
-                className='h-9 rounded-[8px]'
               />
-              <p className='text-muted-foreground text-xs'>
+              <p className='text-[12px] text-[var(--text-muted)]'>
                 Used to sign webhook payloads with HMAC-SHA256
               </p>
             </div>
@@ -935,7 +906,7 @@ export function NotificationSettings({
 
         {activeTab === 'email' && (
           <div className='space-y-2'>
-            <Label className='font-medium text-sm'>Email Recipients</Label>
+            <Label>Email Recipients</Label>
             <Input
               type='text'
               placeholder='email@example.com, another@example.com'
@@ -944,9 +915,8 @@ export function NotificationSettings({
                 setFormData({ ...formData, emailRecipients: e.target.value })
                 setFormErrors({ ...formErrors, emailRecipients: '' })
               }}
-              className='h-9 rounded-[8px]'
             />
-            <p className='text-muted-foreground text-xs'>
+            <p className='text-[12px] text-[var(--text-muted)]'>
               Comma-separated list of email addresses (max 10)
             </p>
             {formErrors.emailRecipients && (
@@ -958,15 +928,16 @@ export function NotificationSettings({
         {activeTab === 'slack' && (
           <>
             <div className='space-y-2'>
-              <Label className='font-medium text-sm'>Slack Account</Label>
+              <Label>Slack Account</Label>
               {isLoadingSlackAccounts ? (
-                <Skeleton className='h-9 w-full rounded-[8px]' />
+                <Skeleton className='h-9 w-full' />
               ) : slackAccounts.length === 0 ? (
-                <div className='rounded-[8px] border border-dashed p-4 text-center'>
-                  <p className='text-muted-foreground text-sm'>No Slack accounts connected</p>
+                <div className='rounded-[4px] border border-dashed p-4 text-center'>
+                  <p className='text-[12px] text-[var(--text-muted)]'>
+                    No Slack accounts connected
+                  </p>
                   <Button
                     variant='outline'
-                    size='sm'
                     className='mt-2'
                     onClick={async () => {
                       await connectSlack.mutateAsync({
@@ -980,25 +951,22 @@ export function NotificationSettings({
                   </Button>
                 </div>
               ) : (
-                <select
+                <Combobox
+                  options={slackAccounts.map((acc) => ({
+                    value: acc.id,
+                    label: acc.accountId,
+                  }))}
                   value={formData.slackAccountId}
-                  onChange={(e) => {
+                  onChange={(value) => {
                     setFormData({
                       ...formData,
-                      slackAccountId: e.target.value,
+                      slackAccountId: value,
                       slackChannelId: '',
                     })
                     setFormErrors({ ...formErrors, slackAccountId: '', slackChannelId: '' })
                   }}
-                  className='h-9 w-full rounded-[8px] border bg-background px-3 text-sm'
-                >
-                  <option value=''>Select account...</option>
-                  {slackAccounts.map((acc) => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.accountId}
-                    </option>
-                  ))}
-                </select>
+                  placeholder='Select account...'
+                />
               )}
               {formErrors.slackAccountId && (
                 <p className='text-red-400 text-xs'>{formErrors.slackAccountId}</p>
@@ -1006,7 +974,7 @@ export function NotificationSettings({
             </div>
             {slackAccounts.length > 0 && (
               <div className='space-y-2'>
-                <Label className='font-medium text-sm'>Channel</Label>
+                <Label>Channel</Label>
                 <SlackChannelSelector
                   accountId={formData.slackAccountId}
                   value={formData.slackChannelId}
@@ -1023,13 +991,15 @@ export function NotificationSettings({
         )}
 
         <div className='space-y-3'>
-          <Label className='font-medium text-sm'>Log Level Filters</Label>
+          <Label>Log Level Filters</Label>
           <div className='space-y-3'>
             {LOG_LEVELS.map((level) => (
               <div key={level} className='flex items-center justify-between'>
                 <div className='flex flex-col'>
-                  <Label className='font-normal text-sm capitalize'>{level} logs</Label>
-                  <p className='text-muted-foreground text-xs'>
+                  <span className='text-[13px] text-[var(--text-primary)] capitalize'>
+                    {level} logs
+                  </span>
+                  <p className='text-[12px] text-[var(--text-muted)]'>
                     Receive notifications for {level} level logs
                   </p>
                 </div>
@@ -1052,13 +1022,15 @@ export function NotificationSettings({
         </div>
 
         <div className='space-y-3'>
-          <Label className='font-medium text-sm'>Trigger Type Filters</Label>
+          <Label>Trigger Type Filters</Label>
           <div className='space-y-3'>
             {TRIGGER_TYPES.map((trigger) => (
               <div key={trigger} className='flex items-center justify-between'>
                 <div className='flex flex-col'>
-                  <Label className='font-normal text-sm capitalize'>{trigger} triggers</Label>
-                  <p className='text-muted-foreground text-xs'>
+                  <span className='text-[13px] text-[var(--text-primary)] capitalize'>
+                    {trigger} triggers
+                  </span>
+                  <p className='text-[12px] text-[var(--text-muted)]'>
                     Notify when workflow is triggered via {trigger}
                   </p>
                 </div>
@@ -1081,7 +1053,7 @@ export function NotificationSettings({
         </div>
 
         <div className='space-y-3'>
-          <Label className='font-medium text-sm'>Include in Payload</Label>
+          <Label>Include in Payload</Label>
           <div className='flex flex-col gap-3'>
             {[
               {
@@ -1099,8 +1071,8 @@ export function NotificationSettings({
             ].map(({ key, label, desc }) => (
               <div key={key} className='flex items-center justify-between'>
                 <div className='flex flex-col'>
-                  <Label className='font-normal text-sm'>{label}</Label>
-                  <p className='text-muted-foreground text-xs'>{desc}</p>
+                  <span className='text-[13px] text-[var(--text-primary)]'>{label}</span>
+                  <p className='text-[12px] text-[var(--text-muted)]'>{desc}</p>
                 </div>
                 <Switch
                   checked={formData[key as keyof typeof formData] as boolean}
@@ -1114,117 +1086,110 @@ export function NotificationSettings({
     </div>
   )
 
+  const renderTabContent = () => {
+    if (showForm) {
+      return renderForm()
+    }
+
+    if (isLoading) {
+      return (
+        <div className='space-y-4'>
+          {[1, 2].map((i) => (
+            <div key={i} className='flex flex-col gap-2'>
+              <Skeleton className='h-8 w-[300px]' />
+              <Skeleton className='h-6 w-[200px]' />
+            </div>
+          ))}
+        </div>
+      )
+    }
+
+    if (filteredSubscriptions.length === 0) {
+      return (
+        <div className='flex h-full items-center justify-center'>
+          <p className='text-[13px] text-[var(--text-muted)]'>
+            No {activeTab} notifications configured
+          </p>
+        </div>
+      )
+    }
+
+    return <div>{filteredSubscriptions.map(renderSubscriptionItem)}</div>
+  }
+
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className='flex h-[70vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[800px]'>
-        <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
-          <DialogTitle className='flex items-center gap-2 font-medium text-lg'>
-            <Bell className='h-5 w-5' />
-            Notification Settings
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Modal open={open} onOpenChange={handleClose}>
+        <ModalContent className='h-[70vh] w-[660px]'>
+          <ModalHeader>Notifications</ModalHeader>
 
-        <div className='flex min-h-0 flex-1 flex-col'>
-          {!showForm && (
-            <div className='flex flex-shrink-0 items-center justify-between border-b px-6 py-3'>
-              <div className='flex gap-1'>
-                {NOTIFICATION_TYPES.map(({ type, label, icon: Icon }) => (
-                  <button
-                    key={type}
-                    onClick={() => setActiveTab(type)}
-                    className={cn(
-                      'flex items-center gap-2 rounded-[8px] px-3 py-1.5 font-medium text-sm transition-colors',
-                      activeTab === type
-                        ? 'bg-muted text-foreground'
-                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-                    )}
-                  >
-                    <Icon className='h-4 w-4' />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className='min-h-0 flex-1 overflow-y-auto px-6'>
-            <div className='h-full py-4'>
-              {showForm ? (
-                renderForm()
-              ) : isLoading ? (
-                <div className='space-y-4'>
-                  {[1, 2].map((i) => (
-                    <div key={i} className='flex flex-col gap-2'>
-                      <Skeleton className='h-8 w-[300px] rounded-[8px]' />
-                      <Skeleton className='h-6 w-[200px] rounded-[8px]' />
-                    </div>
-                  ))}
-                </div>
-              ) : filteredSubscriptions.length === 0 ? (
-                <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
-                  No {activeTab} notifications configured
-                </div>
-              ) : (
-                <div>{filteredSubscriptions.map(renderSubscriptionItem)}</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className='flex-shrink-0 bg-background'>
-          <div className='flex w-full items-center justify-between border-t px-6 py-4'>
-            {showForm ? (
-              <>
-                <Button
-                  variant='outline'
-                  onClick={() => {
-                    resetForm()
-                    setShowForm(false)
-                  }}
-                  className='h-9 rounded-[8px]'
-                >
-                  Back
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={createNotification.isPending || updateNotification.isPending}
-                  className='h-9 rounded-[8px] bg-[var(--brand-primary-hex)] font-[480] text-white hover:bg-[var(--brand-primary-hover-hex)]'
-                >
-                  {createNotification.isPending || updateNotification.isPending
-                    ? editingId
-                      ? 'Updating...'
-                      : 'Creating...'
-                    : editingId
-                      ? 'Update'
-                      : 'Create'}
-                </Button>
-              </>
-            ) : isLoading ? (
-              <>
-                <Skeleton className='h-9 w-[120px] rounded-[8px]' />
-                <div />
-              </>
-            ) : (
-              <>
-                <Button
-                  onClick={() => {
-                    resetForm()
-                    setShowForm(true)
-                  }}
-                  className='h-9 rounded-[8px] bg-[var(--brand-primary-hex)] px-3 font-[480] text-white hover:bg-[var(--brand-primary-hover-hex)]'
-                >
-                  <Plus className='h-4 w-4' />
-                  Add {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-                </Button>
-                <div />
-              </>
+          <ModalTabs
+            value={activeTab}
+            onValueChange={(value: string) => {
+              if (!showForm) {
+                setActiveTab(value as NotificationType)
+              }
+            }}
+            className='flex min-h-0 flex-1 flex-col'
+          >
+            {!showForm && (
+              <ModalTabsList activeValue={activeTab}>
+                <ModalTabsTrigger value='webhook'>Webhook</ModalTabsTrigger>
+                <ModalTabsTrigger value='email'>Email</ModalTabsTrigger>
+                <ModalTabsTrigger value='slack'>Slack</ModalTabsTrigger>
+              </ModalTabsList>
             )}
-          </div>
-        </div>
-      </DialogContent>
+
+            <ModalBody className='min-h-0 flex-1'>
+              <ModalTabsContent value='webhook'>{renderTabContent()}</ModalTabsContent>
+              <ModalTabsContent value='email'>{renderTabContent()}</ModalTabsContent>
+              <ModalTabsContent value='slack'>{renderTabContent()}</ModalTabsContent>
+            </ModalBody>
+          </ModalTabs>
+
+          {showForm ? (
+            <ModalFooter>
+              <Button
+                variant='default'
+                onClick={() => {
+                  resetForm()
+                  setShowForm(false)
+                }}
+              >
+                Back
+              </Button>
+              <Button
+                variant='primary'
+                onClick={handleSave}
+                disabled={createNotification.isPending || updateNotification.isPending}
+              >
+                {createNotification.isPending || updateNotification.isPending
+                  ? editingId
+                    ? 'Updating...'
+                    : 'Creating...'
+                  : editingId
+                    ? 'Update'
+                    : 'Create'}
+              </Button>
+            </ModalFooter>
+          ) : (
+            <ModalFooter>
+              <Button
+                variant='primary'
+                onClick={() => {
+                  resetForm()
+                  setShowForm(true)
+                }}
+              >
+                Add {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+              </Button>
+            </ModalFooter>
+          )}
+        </ModalContent>
+      </Modal>
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent>
+        <ModalContent className='w-[400px]'>
           <ModalHeader>
             <ModalTitle>Delete notification?</ModalTitle>
             <ModalDescription>
@@ -1233,24 +1198,24 @@ export function NotificationSettings({
             </ModalDescription>
           </ModalHeader>
           <ModalFooter>
-            <EmcnButton
-              variant='outline'
-              className='h-[32px] px-[12px]'
+            <Button
+              variant='default'
               disabled={deleteNotification.isPending}
               onClick={() => setShowDeleteDialog(false)}
             >
               Cancel
-            </EmcnButton>
-            <EmcnButton
+            </Button>
+            <Button
+              variant='primary'
               onClick={handleDelete}
               disabled={deleteNotification.isPending}
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)]'
+              className='bg-[var(--text-error)] hover:bg-[var(--text-error)]'
             >
               {deleteNotification.isPending ? 'Deleting...' : 'Delete'}
-            </EmcnButton>
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </Dialog>
+    </>
   )
 }
