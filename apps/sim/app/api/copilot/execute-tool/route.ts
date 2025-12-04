@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
+import { account, workflow } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -25,6 +25,44 @@ const ExecuteToolSchema = z.object({
   arguments: z.record(z.any()).optional().default({}),
   workflowId: z.string().optional(),
 })
+
+/**
+ * Resolves all {{ENV_VAR}} references in a value recursively
+ * Works with strings, arrays, and objects
+ */
+function resolveEnvVarReferences(
+  value: any,
+  envVars: Record<string, string>
+): any {
+  if (typeof value === 'string') {
+    // Check for exact match: entire string is "{{VAR_NAME}}"
+    const exactMatch = /^\{\{([^}]+)\}\}$/.exec(value)
+    if (exactMatch) {
+      const envVarName = exactMatch[1].trim()
+      return envVars[envVarName] ?? value
+    }
+
+    // Check for embedded references: "prefix {{VAR}} suffix"
+    return value.replace(/\{\{([^}]+)\}\}/g, (match, varName) => {
+      const trimmedName = varName.trim()
+      return envVars[trimmedName] ?? match
+    })
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveEnvVarReferences(item, envVars))
+  }
+
+  if (value !== null && typeof value === 'object') {
+    const resolved: Record<string, any> = {}
+    for (const [key, val] of Object.entries(value)) {
+      resolved[key] = resolveEnvVarReferences(val, envVars)
+    }
+    return resolved
+  }
+
+  return value
+}
 
 /**
  * Maps environment variable names to tool API key parameters
@@ -146,8 +184,36 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Get the workspaceId from the workflow (env vars are stored at workspace level)
+    let workspaceId: string | undefined
+    if (workflowId) {
+      const workflowResult = await db
+        .select({ workspaceId: workflow.workspaceId })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+      workspaceId = workflowResult[0]?.workspaceId ?? undefined
+    }
+
+    // Get decrypted environment variables early so we can resolve all {{VAR}} references
+    const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+
+    logger.info(`[${tracker.requestId}] Fetched environment variables`, {
+      workflowId,
+      workspaceId,
+      envVarCount: Object.keys(decryptedEnvVars).length,
+      envVarKeys: Object.keys(decryptedEnvVars),
+    })
+
     // Build execution params starting with LLM-provided arguments
-    const executionParams: Record<string, any> = { ...toolArgs }
+    // Resolve all {{ENV_VAR}} references in the arguments
+    const executionParams: Record<string, any> = resolveEnvVarReferences(toolArgs, decryptedEnvVars)
+
+    logger.info(`[${tracker.requestId}] Resolved env var references in arguments`, {
+      toolName,
+      originalArgKeys: Object.keys(toolArgs),
+      resolvedArgKeys: Object.keys(executionParams),
+    })
 
     // Resolve OAuth access token if required
     if (toolConfig.oauth?.required && toolConfig.oauth.provider) {
@@ -208,56 +274,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Resolve API key - either from LLM-provided name or from env vars
+    // Resolve API key if tool requires one and not already resolved from {{ENV_VAR}} reference
     const needsApiKey = toolConfig.params?.apiKey?.required
-    const llmProvidedApiKey = executionParams.apiKey as string | undefined
 
-    if (needsApiKey || llmProvidedApiKey) {
-      logger.info(`[${tracker.requestId}] Resolving API key for tool`, {
-        toolName,
-        needsApiKey,
-        hasLlmProvidedKey: !!llmProvidedApiKey,
-        llmProvidedKeyPreview: llmProvidedApiKey
-          ? `${llmProvidedApiKey.substring(0, 20)}...`
-          : null,
-      })
-
-      try {
-        const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workflowId)
-
-        // Case 1: LLM provided an API key name (e.g., "EXA_API_KEY") - resolve it
-        if (llmProvidedApiKey) {
-          // Check if it looks like an env var name (uppercase with underscores, ends with _KEY or _API_KEY)
-          const looksLikeEnvVar = /^[A-Z][A-Z0-9_]*(_KEY|_API_KEY)$/.test(llmProvidedApiKey)
-
-          if (looksLikeEnvVar && decryptedEnvVars[llmProvidedApiKey]) {
-            // Resolve the env var name to its actual value
-            executionParams.apiKey = decryptedEnvVars[llmProvidedApiKey]
-            logger.info(`[${tracker.requestId}] Resolved API key from LLM-provided name`, {
-              toolName,
-              envVarName: llmProvidedApiKey,
-            })
-          } else if (looksLikeEnvVar) {
-            // LLM provided an env var name but it's not configured
-            logger.warn(`[${tracker.requestId}] LLM provided API key name not found in env vars`, {
-              toolName,
-              envVarName: llmProvidedApiKey,
-              availableKeys: Object.keys(decryptedEnvVars),
-            })
-            return NextResponse.json(
-              {
-                success: false,
-                error: `API key "${llmProvidedApiKey}" is not configured. Please add it in settings.`,
-                toolCallId,
-              },
-              { status: 400 }
-            )
-          }
-          // else: LLM provided what looks like an actual API key value, keep it as-is
-        }
-
-        // Case 2: No API key yet but tool requires one - resolve from tool prefix convention
-        if (!executionParams.apiKey && needsApiKey) {
+    if (needsApiKey && !executionParams.apiKey) {
+      // API key not provided or not resolved from env var reference - try tool prefix convention
           const apiKeyParams = mapEnvVarsToToolParams(toolName, toolConfig, decryptedEnvVars)
 
           if (apiKeyParams.apiKey) {
@@ -272,21 +293,6 @@ export async function POST(req: NextRequest) {
                 toolCallId,
               },
               { status: 400 }
-            )
-          }
-        }
-      } catch (error) {
-        logger.error(`[${tracker.requestId}] Failed to resolve API key`, {
-          toolName,
-          error: error instanceof Error ? error.message : String(error),
-        })
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Failed to get API key for ${toolName}`,
-            toolCallId,
-          },
-          { status: 500 }
         )
       }
     }
@@ -299,8 +305,6 @@ export async function POST(req: NextRequest) {
 
     // Special handling for function_execute - inject environment variables
     if (toolName === 'function_execute') {
-      try {
-        const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workflowId)
         executionParams.envVars = decryptedEnvVars
         executionParams.workflowVariables = {} // No workflow variables in copilot context
         executionParams.blockData = {} // No block data in copilot context
@@ -311,13 +315,6 @@ export async function POST(req: NextRequest) {
         logger.info(`[${tracker.requestId}] Injected env vars for function_execute`, {
           envVarCount: Object.keys(decryptedEnvVars).length,
         })
-      } catch (error) {
-        logger.warn(`[${tracker.requestId}] Failed to get env vars for function_execute`, {
-          error: error instanceof Error ? error.message : String(error),
-        })
-        // Continue without env vars - code can still execute
-        executionParams.envVars = {}
-      }
     }
 
     // Execute the tool
