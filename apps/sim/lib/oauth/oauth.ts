@@ -866,8 +866,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       wordpress: {
         id: 'wordpress',
-        name: 'WordPress.com',
-        description: 'Manage posts, pages, media, comments, and more on WordPress.com sites.',
+        name: 'WordPress',
+        description: 'Manage posts, pages, media, comments, and more on WordPress sites.',
         providerId: 'wordpress',
         icon: (props) => WordpressIcon(props),
         baseProviderIcon: (props) => WordpressIcon(props),
