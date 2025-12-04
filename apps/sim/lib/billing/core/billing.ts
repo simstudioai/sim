@@ -3,6 +3,7 @@ import { member, organization, subscription, user, userStats } from '@sim/db/sch
 import { and, eq } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getUserUsageData } from '@/lib/billing/core/usage'
+import { getCreditBalance } from '@/lib/billing/credits/balance'
 import {
   getFreeTierLimit,
   getProTierLimit,
@@ -223,6 +224,7 @@ export async function getSimplifiedBillingSummary(
   isWarning: boolean
   isExceeded: boolean
   daysRemaining: number
+  creditBalance: number
   // Subscription details
   isPaid: boolean
   isPro: boolean
@@ -333,6 +335,8 @@ export async function getSimplifiedBillingSummary(
           )
         : 0
 
+      const orgCredits = await getCreditBalance(userId)
+
       return {
         type: 'organization',
         plan: subscription.plan,
@@ -345,6 +349,7 @@ export async function getSimplifiedBillingSummary(
         isWarning: percentUsed >= 80 && percentUsed < 100,
         isExceeded: usageData.currentUsage >= usageData.limit,
         daysRemaining,
+        creditBalance: orgCredits.balance,
         // Subscription details
         isPaid,
         isPro,
@@ -456,6 +461,8 @@ export async function getSimplifiedBillingSummary(
         )
       : 0
 
+    const userCredits = await getCreditBalance(userId)
+
     return {
       type: 'individual',
       plan,
@@ -468,6 +475,7 @@ export async function getSimplifiedBillingSummary(
       isWarning: percentUsed >= 80 && percentUsed < 100,
       isExceeded: currentUsage >= usageData.limit,
       daysRemaining,
+      creditBalance: userCredits.balance,
       // Subscription details
       isPaid,
       isPro,
@@ -516,6 +524,7 @@ function getDefaultBillingSummary(type: 'individual' | 'organization') {
     isWarning: false,
     isExceeded: false,
     daysRemaining: 0,
+    creditBalance: 0,
     // Subscription details
     isPaid: false,
     isPro: false,

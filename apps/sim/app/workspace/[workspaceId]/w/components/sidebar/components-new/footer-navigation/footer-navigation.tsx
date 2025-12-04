@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { Database, HelpCircle, Layout, LibraryBig, Settings } from 'lucide-react'
 import Link from 'next/link'
@@ -32,6 +32,13 @@ export function FooterNavigation() {
   // Modal states
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
+
+  // Listen for external events to open modals
+  useEffect(() => {
+    const handleOpenHelpModal = () => setIsHelpModalOpen(true)
+    window.addEventListener('open-help-modal', handleOpenHelpModal)
+    return () => window.removeEventListener('open-help-modal', handleOpenHelpModal)
+  }, [])
 
   const navigationItems: FooterNavigationItem[] = [
     {

@@ -21,6 +21,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/shared/usage-header'
 import {
   CancelSubscription,
+  CreditBalance,
   PlanCard,
   UsageLimit,
   type UsageLimitRef,
@@ -169,7 +170,11 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const logger = createLogger('Subscription')
 
-  const { data: subscriptionData, isLoading: isSubscriptionLoading } = useSubscriptionData()
+  const {
+    data: subscriptionData,
+    isLoading: isSubscriptionLoading,
+    refetch: refetchSubscription,
+  } = useSubscriptionData()
   const { data: usageLimitResponse, isLoading: isUsageLimitLoading } = useUsageLimitData()
   const { data: workspaceData, isLoading: isWorkspaceLoading } = useWorkspaceSettings(workspaceId)
   const updateWorkspaceMutation = useUpdateWorkspaceSettings()
@@ -394,6 +399,8 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                   : usage.limit
             }
             isBlocked={Boolean(subscriptionData?.data?.billingBlocked)}
+            blockedReason={subscriptionData?.data?.billingBlockedReason}
+            blockedByOrgOwner={Boolean(subscriptionData?.data?.blockedByOrgOwner)}
             status={billingStatus}
             percentUsed={
               subscription.isEnterprise || subscription.isTeam
@@ -406,6 +413,9 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                   : usage.percentUsed
                 : usage.percentUsed
             }
+            onContactSupport={() => {
+              window.dispatchEvent(new CustomEvent('open-help-modal'))
+            }}
             onResolvePayment={async () => {
               try {
                 const res = await fetch('/api/billing/portal', {
@@ -534,6 +544,21 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                 </>
               )
             })()}
+          </div>
+        )}
+
+        {/* Credit Balance */}
+        {subscription.isPaid && (
+          <div className='mt-4'>
+            <CreditBalance
+              balance={subscriptionData?.data?.creditBalance ?? 0}
+              canPurchase={permissions.canEditUsageLimit}
+              entityType={
+                subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+              }
+              isLoading={isLoading}
+              onPurchaseComplete={() => refetchSubscription()}
+            />
           </div>
         )}
 

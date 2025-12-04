@@ -609,6 +609,11 @@ export const marketplace = pgTable('marketplace', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+export const billingBlockedReasonEnum = pgEnum('billing_blocked_reason', [
+  'payment_failed',
+  'dispute',
+])
+
 export const userStats = pgTable('user_stats', {
   id: text('id').primaryKey(),
   userId: text('user_id')
@@ -630,6 +635,8 @@ export const userStats = pgTable('user_stats', {
   billedOverageThisPeriod: decimal('billed_overage_this_period').notNull().default('0'), // Amount of overage already billed via threshold billing
   // Pro usage snapshot when joining a team (to prevent double-billing)
   proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
+  // Pre-purchased credits (for Pro users only)
+  creditBalance: decimal('credit_balance').notNull().default('0'),
   // Copilot usage tracking
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
   currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
@@ -640,6 +647,7 @@ export const userStats = pgTable('user_stats', {
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
   lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
+  billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
 })
 
 export const customTools = pgTable(
@@ -747,6 +755,7 @@ export const organization = pgTable('organization', {
   orgUsageLimit: decimal('org_usage_limit'),
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
+  creditBalance: decimal('credit_balance').notNull().default('0'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })

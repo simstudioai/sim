@@ -10,7 +10,9 @@ import {
 import { and, eq, inArray } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import PaymentFailedEmail from '@/components/emails/billing/payment-failed-email'
+import { getEmailSubject, renderCreditPurchaseEmail } from '@/components/emails/render-email'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
+import { getCreditBalance, removeCredits } from '@/lib/billing/credits/balance'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -335,21 +337,118 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
 }
 
 /**
- * Handle invoice payment succeeded webhook
- * We unblock any previously blocked users for this subscription.
+ * Handle credit purchase invoice payment succeeded.
+ */
+async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<void> {
+  const { entityType, entityId, amountDollars, purchasedBy } = invoice.metadata || {}
+  if (!entityType || !entityId || !amountDollars) {
+    logger.error('Missing metadata in credit purchase invoice', {
+      invoiceId: invoice.id,
+      metadata: invoice.metadata,
+    })
+    return
+  }
+
+  if (entityType !== 'user' && entityType !== 'organization') {
+    logger.error('Invalid entityType in credit purchase', { invoiceId: invoice.id, entityType })
+    return
+  }
+
+  const amount = Number.parseFloat(amountDollars)
+  if (Number.isNaN(amount) || amount <= 0) {
+    logger.error('Invalid amount in credit purchase', { invoiceId: invoice.id, amountDollars })
+    return
+  }
+
+  // Credits are added synchronously in purchaseCredits() - webhook just handles emails
+  logger.info('Credit purchase webhook received', {
+    invoiceId: invoice.id,
+    entityType,
+    entityId,
+    amount,
+    purchasedBy,
+  })
+
+  // Send confirmation emails
+  try {
+    const { balance: newBalance } = await getCreditBalance(
+      entityType === 'organization' ? entityId : purchasedBy || entityId
+    )
+    let recipients: Array<{ email: string; name: string | null }> = []
+
+    if (entityType === 'organization') {
+      const members = await db
+        .select({ userId: member.userId, role: member.role })
+        .from(member)
+        .where(eq(member.organizationId, entityId))
+
+      const ownerAdminIds = members
+        .filter((m) => m.role === 'owner' || m.role === 'admin')
+        .map((m) => m.userId)
+
+      if (ownerAdminIds.length > 0) {
+        recipients = await db
+          .select({ email: user.email, name: user.name })
+          .from(user)
+          .where(inArray(user.id, ownerAdminIds))
+      }
+    } else if (purchasedBy) {
+      const users = await db
+        .select({ email: user.email, name: user.name })
+        .from(user)
+        .where(eq(user.id, purchasedBy))
+        .limit(1)
+
+      recipients = users
+    }
+
+    for (const recipient of recipients) {
+      if (!recipient.email) continue
+
+      const emailHtml = await renderCreditPurchaseEmail({
+        userName: recipient.name || undefined,
+        amount,
+        newBalance,
+      })
+
+      await sendEmail({
+        to: recipient.email,
+        subject: getEmailSubject('credit-purchase'),
+        html: emailHtml,
+        emailType: 'transactional',
+      })
+
+      logger.info('Sent credit purchase confirmation email', {
+        email: recipient.email,
+        invoiceId: invoice.id,
+      })
+    }
+  } catch (emailError) {
+    logger.error('Failed to send credit purchase emails', { emailError, invoiceId: invoice.id })
+  }
+}
+
+/**
+ * Handle invoice payment succeeded webhook.
+ * Handles both credit purchases and subscription payments.
  */
 export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
 
+    // Handle credit purchase invoices
+    if (invoice.metadata?.type === 'credit_purchase') {
+      await handleCreditPurchaseSuccess(invoice)
+      return
+    }
+
+    // Handle subscription invoices
     const subscription = invoice.parent?.subscription_details?.subscription
     const stripeSubscriptionId = typeof subscription === 'string' ? subscription : subscription?.id
     if (!stripeSubscriptionId) {
-      logger.info('No subscription found on invoice; skipping payment succeeded handler', {
-        invoiceId: invoice.id,
-      })
       return
     }
+
     const records = await db
       .select()
       .from(subscriptionTable)
@@ -392,16 +491,28 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
       const memberIds = members.map((m) => m.userId)
 
       if (memberIds.length > 0) {
+        // Only unblock users blocked for payment_failed, not disputes
         await db
           .update(userStats)
-          .set({ billingBlocked: false })
-          .where(inArray(userStats.userId, memberIds))
+          .set({ billingBlocked: false, billingBlockedReason: null })
+          .where(
+            and(
+              inArray(userStats.userId, memberIds),
+              eq(userStats.billingBlockedReason, 'payment_failed')
+            )
+          )
       }
     } else {
+      // Only unblock users blocked for payment_failed, not disputes
       await db
         .update(userStats)
-        .set({ billingBlocked: false })
-        .where(eq(userStats.userId, sub.referenceId))
+        .set({ billingBlocked: false, billingBlockedReason: null })
+        .where(
+          and(
+            eq(userStats.userId, sub.referenceId),
+            eq(userStats.billingBlockedReason, 'payment_failed')
+          )
+        )
     }
 
     if (wasBlocked) {
@@ -496,7 +607,7 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
           if (memberIds.length > 0) {
             await db
               .update(userStats)
-              .set({ billingBlocked: true })
+              .set({ billingBlocked: true, billingBlockedReason: 'payment_failed' })
               .where(inArray(userStats.userId, memberIds))
           }
           logger.info('Blocked team/enterprise members due to payment failure', {
@@ -507,7 +618,7 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
         } else {
           await db
             .update(userStats)
-            .set({ billingBlocked: true })
+            .set({ billingBlocked: true, billingBlockedReason: 'payment_failed' })
             .where(eq(userStats.userId, sub.referenceId))
           logger.info('Blocked user due to payment failure', {
             userId: sub.referenceId,
@@ -592,12 +703,34 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     const billedOverage = await getBilledOverageForSubscription(sub)
 
     // Only bill the remaining unbilled overage
-    const remainingOverage = Math.max(0, totalOverage - billedOverage)
+    let remainingOverage = Math.max(0, totalOverage - billedOverage)
+
+    // Apply credits to reduce overage at end of cycle
+    let creditsApplied = 0
+    if (remainingOverage > 0) {
+      const entityType = sub.plan === 'team' || sub.plan === 'enterprise' ? 'organization' : 'user'
+      const entityId = sub.referenceId
+      const { balance: creditBalance } = await getCreditBalance(entityId)
+
+      if (creditBalance > 0) {
+        creditsApplied = Math.min(creditBalance, remainingOverage)
+        await removeCredits(entityType, entityId, creditsApplied)
+        remainingOverage = remainingOverage - creditsApplied
+
+        logger.info('Applied credits to reduce overage at cycle end', {
+          subscriptionId: sub.id,
+          creditBalance,
+          creditsApplied,
+          remainingOverageAfterCredits: remainingOverage,
+        })
+      }
+    }
 
     logger.info('Invoice finalized overage calculation', {
       subscriptionId: sub.id,
       totalOverage,
       billedOverage,
+      creditsApplied,
       remainingOverage,
       billingPeriod,
     })

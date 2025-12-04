@@ -20,7 +20,10 @@ interface UsageHeaderProps {
   progressValue?: number
   seatsText?: string
   isBlocked?: boolean
+  blockedReason?: 'payment_failed' | 'dispute' | null
+  blockedByOrgOwner?: boolean
   onResolvePayment?: () => void
+  onContactSupport?: () => void
   status?: 'ok' | 'warning' | 'exceeded' | 'blocked'
   percentUsed?: number
 }
@@ -37,7 +40,10 @@ export function UsageHeader({
   progressValue,
   seatsText,
   isBlocked,
+  blockedReason,
+  blockedByOrgOwner,
   onResolvePayment,
+  onContactSupport,
   status,
   percentUsed,
 }: UsageHeaderProps) {
@@ -108,7 +114,24 @@ export function UsageHeader({
         </div>
 
         {/* Status messages */}
-        {isBlocked && (
+        {isBlocked && blockedReason === 'dispute' && (
+          <div className='flex items-center justify-between rounded-[6px] bg-destructive/10 px-2 py-1'>
+            <span className='text-destructive text-xs'>
+              Account frozen. Please contact support to resolve this issue.
+            </span>
+            {onContactSupport && (
+              <button
+                type='button'
+                className='font-medium text-destructive text-xs underline underline-offset-2'
+                onClick={onContactSupport}
+              >
+                Get help
+              </button>
+            )}
+          </div>
+        )}
+
+        {isBlocked && blockedReason !== 'dispute' && !blockedByOrgOwner && (
           <div className='flex items-center justify-between rounded-[6px] bg-destructive/10 px-2 py-1'>
             <span className='text-destructive text-xs'>
               Payment failed. Please update your payment method.
@@ -122,6 +145,22 @@ export function UsageHeader({
                 Resolve payment
               </button>
             )}
+          </div>
+        )}
+
+        {isBlocked && blockedByOrgOwner && blockedReason !== 'dispute' && (
+          <div className='rounded-[6px] bg-destructive/10 px-2 py-1'>
+            <span className='text-destructive text-xs'>
+              Organization billing issue. Please contact your organization owner.
+            </span>
+          </div>
+        )}
+
+        {isBlocked && blockedByOrgOwner && blockedReason === 'dispute' && (
+          <div className='rounded-[6px] bg-destructive/10 px-2 py-1'>
+            <span className='text-destructive text-xs'>
+              Organization account frozen. Please contact support.
+            </span>
           </div>
         )}
 
