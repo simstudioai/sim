@@ -355,7 +355,7 @@ export async function POST(req: NextRequest) {
       // Fetch user credentials (OAuth + API keys)
       try {
         const rawCredentials = await getCredentialsServerTool.execute(
-          { userId: authenticatedUserId },
+          {},
           { userId: authenticatedUserId }
         )
 
@@ -365,7 +365,7 @@ export async function POST(req: NextRequest) {
           { accessToken: string; accountId: string; name: string; expiresAt?: string }
         > = {}
         const connectedOAuth: Array<{ provider: string; name: string; scopes?: string[] }> = []
-        for (const cred of rawCredentials?.oauth?.credentials || []) {
+        for (const cred of rawCredentials?.oauth?.connected?.credentials || []) {
           if (cred.accessToken) {
             oauthMap[cred.provider] = {
               accessToken: cred.accessToken,

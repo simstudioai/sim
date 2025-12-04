@@ -50,6 +50,9 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { getUniqueBlockName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
+import type { OAuthProvider } from '@/lib/oauth'
 
 const logger = createLogger('Workflow')
 
@@ -94,6 +97,13 @@ const WorkflowContent = React.memo(() => {
 
   // Track whether the active connection drag started from an error handle
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
+  const [oauthModal, setOauthModal] = useState<{
+    provider: OAuthProvider
+    serviceId: string
+    providerName: string
+    requiredScopes: string[]
+    newScopes?: string[]
+  } | null>(null)
 
   // Hooks
   const params = useParams()
@@ -162,6 +172,25 @@ const WorkflowContent = React.memo(() => {
   const isWorkflowEmpty = useMemo(() => {
     return Object.keys(blocks).length === 0
   }, [blocks])
+
+  // Listen for global OAuth connect events (from Copilot tool)
+  useEffect(() => {
+    const handleOpenOAuthConnect = (event: Event) => {
+      const detail = (event as CustomEvent<OAuthConnectEventDetail>).detail
+      if (!detail) return
+      setOauthModal({
+        provider: detail.providerId as OAuthProvider,
+        serviceId: detail.serviceId,
+        providerName: detail.providerName,
+        requiredScopes: detail.requiredScopes || [],
+        newScopes: detail.newScopes || [],
+      })
+    }
+
+    window.addEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
+    return () =>
+      window.removeEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
+  }, [])
 
   // Get diff analysis for edge reconstruction
   const { diffAnalysis, isShowingDiff, isDiffReady, reapplyDiffMarkers, hasActiveDiff } =
@@ -2277,6 +2306,18 @@ const WorkflowContent = React.memo(() => {
       </div>
 
       <Terminal />
+
+      {oauthModal && (
+        <OAuthRequiredModal
+          isOpen={true}
+          onClose={() => setOauthModal(null)}
+          provider={oauthModal.provider}
+          toolName={oauthModal.providerName}
+          serviceId={oauthModal.serviceId}
+          requiredScopes={oauthModal.requiredScopes}
+          newScopes={oauthModal.newScopes}
+        />
+      )}
     </div>
   )
 })

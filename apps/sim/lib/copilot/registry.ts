@@ -72,7 +72,10 @@ export const ToolArgSchemas = {
     ),
   }),
   // New
-  oauth_request_access: z.object({}),
+  oauth_request_access: z.object({
+    providerName: z
+      .string(),
+  }),
 
   deploy_workflow: z.object({
     action: z.enum(['deploy', 'undeploy']).optional().default('deploy'),
