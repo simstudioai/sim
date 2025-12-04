@@ -277,7 +277,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
               code={actualCodeText}
               showGutter
               language={viewerLanguage}
-              className='m-0 rounded-none border-0 bg-transparent'
+              className='[&_pre]:!pb-0 m-0 rounded-none border-0 bg-transparent'
             />
           </div>
         )
