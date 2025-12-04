@@ -97,8 +97,7 @@ export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
   const { snapshot, callbacks, loggingSession, skipLogCreation } = options
-  const { metadata, workflow, input, environmentVariables, workflowVariables, selectedOutputs } =
-    snapshot
+  const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
     metadata
   const { onBlockStart, onBlockComplete, onStream, onExecutorCreated } = callbacks
@@ -153,9 +152,7 @@ export async function executeWorkflowCore(
     const mergedStates = mergeSubblockState(blocks)
 
     const personalEnvUserId =
-      metadata.isClientSession && metadata.sessionUserId
-        ? metadata.sessionUserId
-        : workflow.userId || userId
+      metadata.isClientSession && metadata.sessionUserId ? metadata.sessionUserId : workflow.userId
 
     const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } =
       await getPersonalAndWorkspaceEnv(personalEnvUserId, providedWorkspaceId)

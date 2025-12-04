@@ -113,7 +113,6 @@ export function serializePauseSnapshot(
     executionMetadata,
     context.workflow,
     {},
-    context.environmentVariables ?? {},
     context.workflowVariables ?? {},
     context.selectedOutputs ?? [],
     state

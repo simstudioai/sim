@@ -84,7 +84,6 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       metadata,
       workflow,
       payload.input,
-      {},
       workflow.variables || {},
       []
     )

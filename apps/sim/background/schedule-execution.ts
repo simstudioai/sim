@@ -208,8 +208,7 @@ async function runWorkflowExecution({
 
     const mergedStates = mergeSubblockState(blocks)
 
-    // Use workflow owner's personal env vars for scheduled executions
-    const personalEnvUserId = workflowRecord.userId || actorUserId
+    const personalEnvUserId = workflowRecord.userId
 
     const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
       personalEnvUserId,
@@ -253,7 +252,6 @@ async function runWorkflowExecution({
       metadata,
       workflowRecord,
       input,
-      {},
       workflowRecord.variables || {},
       []
     )

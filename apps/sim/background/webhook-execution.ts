@@ -233,7 +233,6 @@ async function executeWebhookJobInternal(
           metadata,
           workflow,
           airtableInput,
-          {},
           workflowVariables,
           []
         )
@@ -443,14 +442,7 @@ async function executeWebhookJobInternal(
       isClientSession: false,
     }
 
-    const snapshot = new ExecutionSnapshot(
-      metadata,
-      workflow,
-      input || {},
-      {},
-      workflowVariables,
-      []
-    )
+    const snapshot = new ExecutionSnapshot(metadata, workflow, input || {}, workflowVariables, [])
 
     const executionResult = await executeWorkflowCore({
       snapshot,

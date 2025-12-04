@@ -102,7 +102,6 @@ export async function executeWorkflow(
       metadata,
       workflow,
       input,
-      {},
       workflow.variables || {},
       streamConfig?.selectedOutputs || []
     )
@@ -517,7 +516,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           metadata,
           workflow,
           processedInput,
-          {},
           workflow.variables || {},
           selectedOutputs
         )
@@ -785,7 +783,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             metadata,
             workflow,
             processedInput,
-            {},
             workflow.variables || {},
             selectedOutputs
           )

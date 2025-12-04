@@ -59,18 +59,20 @@ export class ExecutionSnapshot {
     public readonly metadata: ExecutionMetadata,
     public readonly workflow: any,
     public readonly input: any,
-    public readonly environmentVariables: Record<string, string>,
     public readonly workflowVariables: Record<string, any>,
     public readonly selectedOutputs: string[] = [],
     public readonly state?: SerializableExecutionState
   ) {}
+
+  get environmentVariables(): Record<string, string> {
+    return {}
+  }
 
   toJSON(): string {
     return JSON.stringify({
       metadata: this.metadata,
       workflow: this.workflow,
       input: this.input,
-      environmentVariables: this.environmentVariables,
       workflowVariables: this.workflowVariables,
       selectedOutputs: this.selectedOutputs,
       state: this.state,
@@ -83,7 +85,6 @@ export class ExecutionSnapshot {
       data.metadata,
       data.workflow,
       data.input,
-      data.environmentVariables,
       data.workflowVariables,
       data.selectedOutputs,
       data.state

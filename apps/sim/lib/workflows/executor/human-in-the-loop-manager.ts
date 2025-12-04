@@ -649,7 +649,6 @@ export class PauseResumeManager {
       metadata,
       baseSnapshot.workflow,
       resumeInput ?? {},
-      baseSnapshot.environmentVariables || {},
       baseSnapshot.workflowVariables || {},
       baseSnapshot.selectedOutputs || [],
       stateCopy
