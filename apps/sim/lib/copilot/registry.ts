@@ -73,8 +73,7 @@ export const ToolArgSchemas = {
   }),
   // New
   oauth_request_access: z.object({
-    providerName: z
-      .string(),
+    providerName: z.string(),
   }),
 
   deploy_workflow: z.object({

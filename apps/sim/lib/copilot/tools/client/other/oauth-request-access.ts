@@ -120,7 +120,9 @@ export class OAuthRequestAccessClientTool extends BaseClientTool {
       // Find the service by name
       const serviceInfo = findServiceByName(this.providerName)
       if (!serviceInfo) {
-        logger.error('Could not find OAuth service for provider', { providerName: this.providerName })
+        logger.error('Could not find OAuth service for provider', {
+          providerName: this.providerName,
+        })
         this.setState(ClientToolCallState.error)
         await this.markToolComplete(400, `Unknown provider: ${this.providerName}`)
         return
