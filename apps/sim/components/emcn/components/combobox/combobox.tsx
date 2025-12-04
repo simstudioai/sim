@@ -13,21 +13,26 @@ import {
   useState,
 } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Check, ChevronDown, Loader2 } from 'lucide-react'
+import { ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
 const comboboxVariants = cva(
-  'flex w-full rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)] px-[8px] py-[6px] font-sans font-medium text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] dark:placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
+  'flex w-full rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] dark:placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
   {
     variants: {
       variant: {
         default: '',
       },
+      size: {
+        default: 'py-[6px] text-sm',
+        sm: 'py-[5px] text-[12px]',
+      },
     },
     defaultVariants: {
       variant: 'default',
+      size: 'default',
     },
   }
 )
@@ -81,6 +86,12 @@ export interface ComboboxProps
   error?: string | null
   /** Callback when popover open state changes */
   onOpenChange?: (open: boolean) => void
+  /** Size variant */
+  size?: 'default' | 'sm'
+  /** Dropdown alignment */
+  align?: 'start' | 'center' | 'end'
+  /** Dropdown width - 'trigger' matches trigger width, or provide a pixel value */
+  dropdownWidth?: 'trigger' | number
 }
 
 /**
@@ -93,6 +104,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
     {
       className,
       variant,
+      size,
       options,
       value,
       multiSelectValues,
@@ -110,6 +122,8 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
       isLoading = false,
       error = null,
       onOpenChange,
+      align = 'start',
+      dropdownWidth = 'trigger',
       ...props
     },
     ref
@@ -396,7 +410,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                   aria-disabled={disabled}
                   tabIndex={disabled ? -1 : 0}
                   className={cn(
-                    comboboxVariants({ variant }),
+                    comboboxVariants({ variant, size }),
                     'relative cursor-pointer items-center justify-between',
                     className
                   )}
@@ -430,9 +444,13 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
 
           <PopoverContent
             side='bottom'
-            align='start'
+            align={align}
             sideOffset={4}
-            className='w-[var(--radix-popover-trigger-width)] rounded-[4px] p-0'
+            className={cn(
+              'rounded-[6px] border border-[var(--surface-11)] p-0',
+              dropdownWidth === 'trigger' && 'w-[var(--radix-popover-trigger-width)]'
+            )}
+            style={typeof dropdownWidth === 'number' ? { width: `${dropdownWidth}px` } : undefined}
             onOpenAutoFocus={(e) => {
               e.preventDefault()
             }}
@@ -483,39 +501,41 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                     {editable && value ? 'No matching options found' : 'No options available'}
                   </div>
                 ) : (
-                  filteredOptions.map((option, index) => {
-                    const isSelected = multiSelect
-                      ? multiSelectValues?.includes(option.value)
-                      : effectiveSelectedValue === option.value
-                    const isHighlighted = index === highlightedIndex
-                    const OptionIcon = option.icon
+                  <div className='space-y-[2px]'>
+                    {filteredOptions.map((option, index) => {
+                      const isSelected = multiSelect
+                        ? multiSelectValues?.includes(option.value)
+                        : effectiveSelectedValue === option.value
+                      const isHighlighted = index === highlightedIndex
+                      const OptionIcon = option.icon
 
-                    return (
-                      <div
-                        key={option.value}
-                        role='option'
-                        aria-selected={isSelected}
-                        data-option-index={index}
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleSelect(option.value)
-                        }}
-                        onMouseEnter={() => setHighlightedIndex(index)}
-                        className={cn(
-                          'relative flex cursor-pointer select-none items-center rounded-[4px] px-[8px] py-[6px] font-medium font-sans text-sm',
-                          isHighlighted && 'bg-[var(--surface-11)]',
-                          !isHighlighted && 'hover:bg-[var(--surface-11)]'
-                        )}
-                      >
-                        {OptionIcon && <OptionIcon className='mr-[8px] h-3 w-3 opacity-60' />}
-                        <span className='flex-1 truncate text-[var(--text-primary)]'>
-                          {option.label}
-                        </span>
-                        {isSelected && <Check className='ml-[8px] h-4 w-4 flex-shrink-0' />}
-                      </div>
-                    )
-                  })
+                      return (
+                        <div
+                          key={option.value}
+                          role='option'
+                          aria-selected={isSelected}
+                          data-option-index={index}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleSelect(option.value)
+                          }}
+                          onMouseEnter={() => setHighlightedIndex(index)}
+                          className={cn(
+                            'relative flex cursor-pointer select-none items-center rounded-[4px] px-[8px] font-medium font-sans',
+                            size === 'sm' ? 'py-[5px] text-[12px]' : 'py-[6px] text-sm',
+                            'hover:bg-[var(--surface-11)]',
+                            (isHighlighted || isSelected) && 'bg-[var(--surface-11)]'
+                          )}
+                        >
+                          {OptionIcon && <OptionIcon className='mr-[8px] h-3 w-3 opacity-60' />}
+                          <span className='flex-1 truncate text-[var(--text-primary)]'>
+                            {option.label}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
             </PopoverScrollArea>

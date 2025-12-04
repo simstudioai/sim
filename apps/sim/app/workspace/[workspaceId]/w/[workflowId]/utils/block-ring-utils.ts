@@ -49,7 +49,7 @@ export function getBlockRingStyles(options: BlockRingOptions): {
       !isFocused &&
       !isDeletedBlock &&
       diffStatus === 'new' &&
-      'ring-[#22C55E]',
+      'ring-[var(--brand-tertiary)]',
     !isActive &&
       !isPending &&
       !isFocused &&

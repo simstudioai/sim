@@ -35,11 +35,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks'
 import { getBlock } from '@/blocks'
 import type { ConsoleEntry } from '@/stores/terminal'
-import {
-  DEFAULT_TERMINAL_HEIGHT,
-  useTerminalConsoleStore,
-  useTerminalStore,
-} from '@/stores/terminal'
+import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
@@ -82,9 +78,8 @@ const RUN_ID_COLORS = [
 /**
  * Shared styling constants
  */
-const HEADER_TEXT_CLASS =
-  'font-medium text-[var(--text-tertiary)] text-[12px] dark:text-[var(--text-tertiary)]'
-const ROW_TEXT_CLASS = 'font-medium text-[#D2D2D2] text-[12px] dark:text-[#D2D2D2]'
+const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-[12px]'
+const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-[12px]'
 const COLUMN_BASE_CLASS = 'flex-shrink-0'
 
 /**
@@ -254,9 +249,11 @@ const isEventFromEditableElement = (e: KeyboardEvent): boolean => {
 export function Terminal() {
   const terminalRef = useRef<HTMLElement>(null)
   const prevEntriesLengthRef = useRef(0)
+  const prevWorkflowEntriesLengthRef = useRef(0)
   const {
     terminalHeight,
     setTerminalHeight,
+    lastExpandedHeight,
     outputPanelWidth,
     setOutputPanelWidth,
     openOnRun,
@@ -300,6 +297,22 @@ export function Terminal() {
   } = useTerminalFilters()
 
   const isExpanded = terminalHeight > NEAR_MIN_THRESHOLD
+
+  /**
+   * Expands the terminal to its last meaningful height, with safeguards:
+   * - Never expands below {@link DEFAULT_EXPANDED_HEIGHT}.
+   * - Never exceeds 70% of the viewport height.
+   */
+  const expandToLastHeight = useCallback(() => {
+    setIsToggling(true)
+    const maxHeight = window.innerHeight * 0.7
+    const desiredHeight = Math.max(
+      lastExpandedHeight || DEFAULT_EXPANDED_HEIGHT,
+      DEFAULT_EXPANDED_HEIGHT
+    )
+    const targetHeight = Math.min(desiredHeight, maxHeight)
+    setTerminalHeight(targetHeight)
+  }, [lastExpandedHeight, setTerminalHeight])
 
   /**
    * Get all entries for current workflow (before filtering) for filter options
@@ -405,6 +418,28 @@ export function Terminal() {
   }, [selectedEntry, showInput])
 
   /**
+   * Auto-open the terminal on new entries when "Open on run" is enabled.
+   * This mirrors the header toggle behavior by using expandToLastHeight,
+   * ensuring we always get the same smooth height transition.
+   */
+  useEffect(() => {
+    if (!openOnRun) {
+      prevWorkflowEntriesLengthRef.current = allWorkflowEntries.length
+      return
+    }
+
+    const previousLength = prevWorkflowEntriesLengthRef.current
+    const currentLength = allWorkflowEntries.length
+
+    // Only react when new entries are added for the active workflow
+    if (currentLength > previousLength && terminalHeight <= MIN_HEIGHT) {
+      expandToLastHeight()
+    }
+
+    prevWorkflowEntriesLengthRef.current = currentLength
+  }, [allWorkflowEntries.length, expandToLastHeight, openOnRun, terminalHeight])
+
+  /**
    * Handle row click - toggle if clicking same entry
    * Disables auto-selection when user manually selects, re-enables when deselecting
    */
@@ -421,14 +456,13 @@ export function Terminal() {
    * Handle header click - toggle between expanded and collapsed
    */
   const handleHeaderClick = useCallback(() => {
-    setIsToggling(true)
-
     if (isExpanded) {
+      setIsToggling(true)
       setTerminalHeight(MIN_HEIGHT)
     } else {
-      setTerminalHeight(DEFAULT_TERMINAL_HEIGHT)
+      expandToLastHeight()
     }
-  }, [isExpanded, setTerminalHeight])
+  }, [expandToLastHeight, isExpanded, setTerminalHeight])
 
   /**
    * Handle transition end - reset toggling state
@@ -628,10 +662,7 @@ export function Terminal() {
       e.preventDefault()
 
       if (!isExpanded) {
-        setIsToggling(true)
-        const maxHeight = window.innerHeight * 0.7
-        const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
-        setTerminalHeight(targetHeight)
+        expandToLastHeight()
       }
 
       if (e.key === 'ArrowLeft') {
@@ -647,7 +678,7 @@ export function Terminal() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEntry, showInput, hasInputData, isExpanded])
+  }, [expandToLastHeight, selectedEntry, showInput, hasInputData, isExpanded])
 
   /**
    * Handle Escape to unselect and Enter to re-enable auto-selection
@@ -721,13 +752,13 @@ export function Terminal() {
       <aside
         ref={terminalRef}
         className={clsx(
-          'terminal-container fixed right-[var(--panel-width)] bottom-0 left-[var(--sidebar-width)] z-10 overflow-hidden dark:bg-[var(--surface-1)]',
+          'terminal-container fixed right-[var(--panel-width)] bottom-0 left-[var(--sidebar-width)] z-10 overflow-hidden bg-[var(--surface-1)]',
           isToggling && 'transition-[height] duration-100 ease-out'
         )}
         onTransitionEnd={handleTransitionEnd}
         aria-label='Terminal'
       >
-        <div className='relative flex h-full border-t dark:border-[var(--border)]'>
+        <div className='relative flex h-full border-[var(--border)] border-t'>
           {/* Left Section - Logs Table */}
           <div
             className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
@@ -827,7 +858,7 @@ export function Terminal() {
                         >
                           <div
                             className='h-[6px] w-[6px] rounded-[2px]'
-                            style={{ backgroundColor: '#EF4444' }}
+                            style={{ backgroundColor: 'var(--text-error)' }}
                           />
                           <span className='flex-1'>Error</span>
                           {filters.statuses.has('error') && <Check className='h-3 w-3' />}
@@ -839,7 +870,7 @@ export function Terminal() {
                         >
                           <div
                             className='h-[6px] w-[6px] rounded-[2px]'
-                            style={{ backgroundColor: '#B7B7B7' }}
+                            style={{ backgroundColor: 'var(--terminal-status-info-color)' }}
                           />
                           <span className='flex-1'>Info</span>
                           {filters.statuses.has('info') && <Check className='h-3 w-3' />}
@@ -1053,8 +1084,8 @@ export function Terminal() {
                     <div
                       key={entry.id}
                       className={clsx(
-                        'flex h-[36px] cursor-pointer items-center px-[24px] hover:bg-[var(--border)]',
-                        isSelected && 'bg-[var(--border)]'
+                        'flex h-[36px] cursor-pointer items-center px-[24px] hover:bg-[var(--surface-9)] dark:hover:bg-[var(--border)]',
+                        isSelected && 'bg-[var(--surface-9)] dark:bg-[var(--border)]'
                       )}
                       onClick={() => handleRowClick(entry)}
                     >
@@ -1067,7 +1098,7 @@ export function Terminal() {
                         )}
                       >
                         {BlockIcon && (
-                          <BlockIcon className='h-[13px] w-[13px] flex-shrink-0 text-[#D2D2D2]' />
+                          <BlockIcon className='h-[13px] w-[13px] flex-shrink-0 text-[var(--text-secondary)]' />
                         )}
                         <span className={clsx('truncate', ROW_TEXT_CLASS)}>{entry.blockName}</span>
                       </div>
@@ -1079,19 +1110,25 @@ export function Terminal() {
                             className={clsx(
                               'flex h-[24px] w-[56px] items-center justify-start rounded-[6px] border pl-[9px]',
                               statusInfo.isError
-                                ? 'gap-[5px] border-[#883827] bg-[#491515]'
-                                : 'gap-[8px] border-[#686868] bg-[#383838]'
+                                ? 'gap-[5px] border-[var(--terminal-status-error-border)] bg-[var(--terminal-status-error-bg)]'
+                                : 'gap-[8px] border-[var(--terminal-status-info-border)] bg-[var(--terminal-status-info-bg)]'
                             )}
                           >
                             <div
                               className='h-[6px] w-[6px] rounded-[2px]'
                               style={{
-                                backgroundColor: statusInfo.isError ? '#EF4444' : '#B7B7B7',
+                                backgroundColor: statusInfo.isError
+                                  ? 'var(--text-error)'
+                                  : 'var(--terminal-status-info-color)',
                               }}
                             />
                             <span
                               className='font-medium text-[11.5px]'
-                              style={{ color: statusInfo.isError ? '#EF4444' : '#B7B7B7' }}
+                              style={{
+                                color: statusInfo.isError
+                                  ? 'var(--text-error)'
+                                  : 'var(--terminal-status-info-color)',
+                              }}
                             >
                               {statusInfo.label}
                             </span>
@@ -1155,7 +1192,7 @@ export function Terminal() {
           {/* Right Section - Block Output (Overlay) */}
           {selectedEntry && (
             <div
-              className='absolute top-0 right-0 bottom-0 flex flex-col border-l dark:border-[var(--border)] dark:bg-[var(--surface-1)]'
+              className='absolute top-0 right-0 bottom-0 flex flex-col border-[var(--border)] border-l bg-[var(--surface-1)]'
               style={{ width: `${outputPanelWidth}px` }}
             >
               {/* Horizontal Resize Handle */}
@@ -1184,10 +1221,7 @@ export function Terminal() {
                     onClick={(e) => {
                       e.stopPropagation()
                       if (!isExpanded) {
-                        setIsToggling(true)
-                        const maxHeight = window.innerHeight * 0.7
-                        const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
-                        setTerminalHeight(targetHeight)
+                        expandToLastHeight()
                       }
                       if (showInput) setShowInput(false)
                     }}
@@ -1205,10 +1239,7 @@ export function Terminal() {
                       onClick={(e) => {
                         e.stopPropagation()
                         if (!isExpanded) {
-                          setIsToggling(true)
-                          const maxHeight = window.innerHeight * 0.7
-                          const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
-                          setTerminalHeight(targetHeight)
+                          expandToLastHeight()
                         }
                         setShowInput(true)
                       }}

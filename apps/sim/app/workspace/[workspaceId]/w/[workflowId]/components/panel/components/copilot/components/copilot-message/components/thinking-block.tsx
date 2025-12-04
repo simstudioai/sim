@@ -37,7 +37,7 @@ function ShimmerOverlayText({ label, value, active = false }: ShimmerOverlayText
   return (
     <span className='relative inline-block'>
       <span style={{ color: '#B8B8B8' }}>{label}</span>
-      <span style={{ color: '#787878' }}>{value}</span>
+      <span style={{ color: 'var(--text-muted)' }}>{value}</span>
       {active ? (
         <span
           aria-hidden='true'

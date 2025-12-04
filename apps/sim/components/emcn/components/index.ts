@@ -42,5 +42,21 @@ export {
   PopoverTrigger,
   usePopoverContext,
 } from './popover/popover'
+export {
+  SModal,
+  SModalClose,
+  SModalContent,
+  SModalMain,
+  SModalMainBody,
+  SModalMainHeader,
+  SModalSidebar,
+  SModalSidebarHeader,
+  SModalSidebarItem,
+  type SModalSidebarItemProps,
+  SModalSidebarSection,
+  SModalSidebarSectionTitle,
+  SModalTrigger,
+} from './s-modal/s-modal'
+export { Switch } from './switch/switch'
 export { Textarea } from './textarea/textarea'
 export { Tooltip } from './tooltip/tooltip'

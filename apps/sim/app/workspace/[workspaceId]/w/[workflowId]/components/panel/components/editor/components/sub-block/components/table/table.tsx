@@ -57,8 +57,9 @@ export function Table({
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
-  // Create refs for input elements
+  // Create refs for input and overlay elements
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
+  const overlayRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Memoized template for empty cells for current columns
   const emptyCellsTemplate = useMemo(
@@ -180,16 +181,42 @@ export function Table({
       cellValue,
       (newValue) => updateCellValue(rowIndex, column, newValue)
     )
-    const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
+    const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
+      const overlay = overlayRefs.current.get(cellKey)
+      if (overlay) {
+        overlay.scrollLeft = e.currentTarget.scrollLeft
+      }
+    }
+
+    const syncScrollAfterUpdate = () => {
+      requestAnimationFrame(() => {
+        const input = inputRefs.current.get(cellKey)
+        const overlay = overlayRefs.current.get(cellKey)
+        if (input && overlay) {
+          overlay.scrollLeft = input.scrollLeft
+        }
+      })
+    }
+
+    const baseTagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
       cellKey,
       cellValue,
       (newValue) => updateCellValue(rowIndex, column, newValue)
     )
-    const envVarSelectHandler = inputController.fieldHelpers.createEnvVarSelectHandler(
+    const tagSelectHandler = (tag: string) => {
+      baseTagSelectHandler(tag)
+      syncScrollAfterUpdate()
+    }
+
+    const baseEnvVarSelectHandler = inputController.fieldHelpers.createEnvVarSelectHandler(
       cellKey,
       cellValue,
       (newValue) => updateCellValue(rowIndex, column, newValue)
     )
+    const envVarSelectHandler = (envVar: string) => {
+      baseEnvVarSelectHandler(envVar)
+      syncScrollAfterUpdate()
+    }
 
     return (
       <td
@@ -208,17 +235,21 @@ export function Table({
             placeholder={column}
             onChange={handlers.onChange}
             onKeyDown={handlers.onKeyDown}
+            onScroll={handleScroll}
             onDrop={handlers.onDrop}
             onDragOver={handlers.onDragOver}
             disabled={isPreview || disabled}
             autoComplete='off'
-            className='w-full border-0 bg-transparent px-[10px] py-[8px] text-transparent caret-white placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='w-full border-0 bg-transparent px-[10px] py-[8px] font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div
+            ref={(el) => {
+              if (el) overlayRefs.current.set(cellKey, el)
+            }}
             data-overlay={cellKey}
-            className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-[10px] font-medium text-[#eeeeee] text-sm'
+            className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'
           >
-            <div className='whitespace-pre leading-[21px]'>
+            <div className='whitespace-pre py-[8px] font-medium text-[var(--text-primary)] text-sm leading-[21px]'>
               {formatDisplayText(cellValue, {
                 accessiblePrefixes,
                 highlightAll: !accessiblePrefixes,
@@ -279,7 +310,7 @@ export function Table({
 
   return (
     <div className='relative'>
-      <div className='overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'>
+      <div className='overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-2)] dark:bg-[#1F1F1F]'>
         <table className='w-full bg-transparent'>
           {renderHeader()}
           <tbody className='bg-transparent'>

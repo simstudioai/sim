@@ -1,4 +1,4 @@
-import { ServerIcon } from '@/components/icons'
+import { McpIcon } from '@/components/icons'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
@@ -16,7 +16,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
   docsLink: 'https://docs.sim.ai/mcp',
   category: 'tools',
   bgColor: '#181C1E',
-  icon: ServerIcon,
+  icon: McpIcon,
   subBlocks: [
     {
       id: 'server',

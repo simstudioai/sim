@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Button } from '@/components/ui'
+import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 export interface PlanFeature {
@@ -47,7 +47,7 @@ export function PlanCard({
         <>
           <span className='font-semibold text-xl'>{price}</span>
           {priceSubtext && (
-            <span className='ml-1 text-muted-foreground text-xs'>{priceSubtext}</span>
+            <span className='ml-1 text-[var(--text-muted)] text-xs'>{priceSubtext}</span>
           )}
         </>
       )
@@ -61,10 +61,10 @@ export function PlanCard({
         <div className='mt-3 flex flex-wrap items-center gap-4'>
           {features.map((feature, index) => (
             <div key={`${feature.text}-${index}`} className='flex items-center gap-2 text-xs'>
-              <feature.icon className='h-3 w-3 flex-shrink-0 text-muted-foreground' />
-              <span className='text-muted-foreground'>{feature.text}</span>
+              <feature.icon className='h-3 w-3 flex-shrink-0 text-[var(--text-muted)]' />
+              <span className='text-[var(--text-muted)]'>{feature.text}</span>
               {index < features.length - 1 && (
-                <div className='ml-4 h-4 w-px bg-border' aria-hidden='true' />
+                <div className='ml-4 h-4 w-px bg-[var(--border)]' aria-hidden='true' />
               )}
             </div>
           ))}
@@ -77,10 +77,10 @@ export function PlanCard({
         {features.map((feature, index) => (
           <li key={`${feature.text}-${index}`} className='flex items-start gap-2 text-xs'>
             <feature.icon
-              className='mt-0.5 h-3 w-3 flex-shrink-0 text-muted-foreground'
+              className='mt-0.5 h-3 w-3 flex-shrink-0 text-[var(--text-muted)]'
               aria-hidden='true'
             />
-            <span className='text-muted-foreground'>{feature.text}</span>
+            <span className='text-[var(--text-muted)]'>{feature.text}</span>
           </li>
         ))}
       </ul>
@@ -90,7 +90,7 @@ export function PlanCard({
   return (
     <article
       className={cn(
-        'relative flex rounded-[8px] border p-4 transition-colors hover:border-muted-foreground/20',
+        'relative flex rounded-[8px] border p-4 transition-colors hover:border-[var(--border-hover)]',
         isHorizontal ? 'flex-row items-center justify-between' : 'flex-col',
         className
       )}
@@ -109,7 +109,7 @@ export function PlanCard({
           className={cn(
             'h-9 rounded-[8px] text-xs',
             isHorizontal ? 'px-4' : 'w-full',
-            isError && 'border-red-500 text-red-500 dark:border-red-500 dark:text-red-500'
+            isError && 'border-[var(--text-error)] text-[var(--text-error)]'
           )}
           variant='outline'
           aria-label={`${buttonText} ${name} plan`}

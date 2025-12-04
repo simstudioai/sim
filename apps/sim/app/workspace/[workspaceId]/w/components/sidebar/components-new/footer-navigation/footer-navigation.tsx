@@ -81,30 +81,28 @@ export function FooterNavigation() {
 
   return (
     <>
-      <div className='flex flex-shrink-0 flex-col gap-[2px] border-t px-[7.75px] pt-[8px] pb-[8px] dark:border-[var(--border)]'>
+      <div className='flex flex-shrink-0 flex-col gap-[2px] border-[var(--border)] border-t px-[7.75px] pt-[8px] pb-[8px]'>
         {navigationItems.map((item) => {
           const Icon = item.icon
           const active = item.href ? isActive(item.href) : false
 
           const itemClasses = clsx(
-            'group flex h-[24px] items-center gap-[8px] rounded-[8px] px-[7px] text-[14px]',
-            active
-              ? 'bg-[var(--border)] dark:bg-[var(--border)]'
-              : 'hover:bg-[var(--border)] dark:hover:bg-[var(--border)]'
+            'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px]',
+            active ? 'bg-[var(--surface-9)]' : 'hover:bg-[var(--surface-9)]'
           )
 
           const iconClasses = clsx(
             'h-[14px] w-[14px] flex-shrink-0',
             active
-              ? 'text-[var(--text-primary)] dark:text-[var(--text-primary)]'
-              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
+              ? 'text-[var(--text-primary)]'
+              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
           )
 
           const labelClasses = clsx(
-            'truncate font-base text-[13px]',
+            'truncate font-medium text-[13px]',
             active
-              ? 'text-[var(--text-primary)] dark:text-[var(--text-primary)]'
-              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
+              ? 'text-[var(--text-primary)]'
+              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
           )
 
           const content = (
