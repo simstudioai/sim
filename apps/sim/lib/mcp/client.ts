@@ -44,11 +44,14 @@ export class McpClient {
 
   /**
    * Creates a new MCP client
+   *
+   * No session ID parameter (we disconnect after each operation).
+   * The SDK handles session management automatically via Mcp-Session-Id header.
+   *
    * @param config - Server configuration
    * @param securityPolicy - Optional security policy
-   * @param sessionId - Optional session ID for session restoration (from previous connection)
    */
-  constructor(config: McpServerConfig, securityPolicy?: McpSecurityPolicy, sessionId?: string) {
+  constructor(config: McpServerConfig, securityPolicy?: McpSecurityPolicy) {
     this.config = config
     this.connectionStatus = { connected: false }
     this.securityPolicy = securityPolicy ?? {
@@ -65,7 +68,6 @@ export class McpClient {
       requestInit: {
         headers: this.config.headers,
       },
-      sessionId,
     })
 
     this.client = new Client(
