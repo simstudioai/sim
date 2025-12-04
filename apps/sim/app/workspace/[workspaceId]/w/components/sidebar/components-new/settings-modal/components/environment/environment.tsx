@@ -27,6 +27,7 @@ const logger = createLogger('EnvironmentVariables')
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto] items-center'
 const ENV_VAR_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+const PERSONAL_VAR_INDEX_OFFSET = 1000
 const PRIMARY_BUTTON_STYLES =
   '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
 
@@ -92,7 +93,7 @@ function VariableRow({
           value={envKey}
           onChange={(e) => isNew && onKeyChange(e.target.value)}
           placeholder='API_KEY'
-          name={`env_key_${rowIndex}_${Math.random()}`}
+          name={`env_key_${rowIndex}`}
           autoComplete='off'
           autoCapitalize='off'
           spellCheck='false'
@@ -115,7 +116,7 @@ function VariableRow({
           onBlur={onValueBlur}
           placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
           disabled={!isNew || isConflict}
-          name={`env_value_${rowIndex}_${Math.random()}`}
+          name={`env_value_${rowIndex}`}
           autoComplete='off'
           autoCapitalize='off'
           spellCheck='false'
@@ -255,8 +256,8 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
       ...v,
       id: generateRowId(),
     }))
-    setInitialPersonalVars(JSON.parse(JSON.stringify(vars)))
-    setPersonalVars(JSON.parse(JSON.stringify(vars)))
+    setInitialPersonalVars(structuredClone(vars))
+    setPersonalVars(structuredClone(vars))
   }, [personalEnvData])
 
   useEffect(() => {
@@ -270,8 +271,8 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
         value,
         id: generateRowId(),
       }))
-      setInitialWorkspaceVars(JSON.parse(JSON.stringify(vars)))
-      setWorkspaceVars(JSON.parse(JSON.stringify(vars)))
+      setInitialWorkspaceVars(structuredClone(vars))
+      setWorkspaceVars(structuredClone(vars))
     }
   }, [workspaceEnvData])
 
@@ -351,8 +352,8 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
   )
 
   const handleCancel = useCallback(() => {
-    setPersonalVars(JSON.parse(JSON.stringify(initialPersonalVars)))
-    setWorkspaceVars(JSON.parse(JSON.stringify(initialWorkspaceVars)))
+    setPersonalVars(structuredClone(initialPersonalVars))
+    setWorkspaceVars(structuredClone(initialWorkspaceVars))
     setShowUnsavedChanges(false)
     pendingProceedCallback.current?.()
     pendingProceedCallback.current = null
@@ -607,7 +608,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
                           value={v.value}
                           isNew={true}
                           focusedValueIndex={focusedValueIndex}
-                          rowIndex={originalIndex + 1000}
+                          rowIndex={originalIndex + PERSONAL_VAR_INDEX_OFFSET}
                           onKeyChange={(val) => updatePersonalVar(originalIndex, 'key', val)}
                           onValueChange={(val) => updatePersonalVar(originalIndex, 'value', val)}
                           onValueFocus={handleValueFocus}

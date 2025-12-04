@@ -64,10 +64,6 @@ export class ExecutionSnapshot {
     public readonly state?: SerializableExecutionState
   ) {}
 
-  get environmentVariables(): Record<string, string> {
-    return {}
-  }
-
   toJSON(): string {
     return JSON.stringify({
       metadata: this.metadata,
