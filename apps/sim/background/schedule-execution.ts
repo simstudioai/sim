@@ -208,8 +208,11 @@ async function runWorkflowExecution({
 
     const mergedStates = mergeSubblockState(blocks)
 
+    // Use workflow creator's userId for personal env vars (not the billing actor)
+    // This ensures pre-checks match the execution behavior in execution-core.ts
+    const envVarUserId = workflowRecord.userId || actorUserId
     const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
-      actorUserId,
+      envVarUserId,
       workflowRecord.workspaceId || undefined
     )
 

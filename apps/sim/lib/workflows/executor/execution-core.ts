@@ -152,8 +152,13 @@ export async function executeWorkflowCore(
     // Merge block states
     const mergedStates = mergeSubblockState(blocks)
 
+    // Use workflow creator's userId for personal env vars (not the billing actor)
+    // This ensures that {{variable}} references in the workflow resolve to the
+    // creator's personal environment variables, not the workspace billing account's.
+    // For shared workspace workflows, workspace-scoped env vars are recommended.
+    const envVarUserId = workflow.userId || userId
     const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } =
-      await getPersonalAndWorkspaceEnv(userId, providedWorkspaceId)
+      await getPersonalAndWorkspaceEnv(envVarUserId, providedWorkspaceId)
 
     // Use encrypted values for logging (don't log decrypted secrets)
     const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
