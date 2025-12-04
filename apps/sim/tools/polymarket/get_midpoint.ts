@@ -1,0 +1,79 @@
+import type { ToolConfig } from '@/tools/types'
+import { buildClobUrl, handlePolymarketError } from './types'
+
+export interface PolymarketGetMidpointParams {
+  tokenId: string // The token ID (CLOB token ID from market)
+}
+
+export interface PolymarketGetMidpointResponse {
+  success: boolean
+  output: {
+    midpoint: string
+    metadata: {
+      operation: 'get_midpoint'
+    }
+    success: boolean
+  }
+}
+
+export const polymarketGetMidpointTool: ToolConfig<
+  PolymarketGetMidpointParams,
+  PolymarketGetMidpointResponse
+> = {
+  id: 'polymarket_get_midpoint',
+  name: 'Get Midpoint Price from Polymarket',
+  description: 'Retrieve the midpoint price for a specific token',
+  version: '1.0.0',
+
+  params: {
+    tokenId: {
+      type: 'string',
+      required: true,
+      description: 'The CLOB token ID (from market clobTokenIds)',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      const queryParams = new URLSearchParams()
+      queryParams.append('token_id', params.tokenId)
+      return `${buildClobUrl('/midpoint')}?${queryParams.toString()}`
+    },
+    method: 'GET',
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    if (!response.ok) {
+      handlePolymarketError(data, response.status, 'get_midpoint')
+    }
+
+    return {
+      success: true,
+      output: {
+        midpoint: data.mid || data.midpoint || data,
+        metadata: {
+          operation: 'get_midpoint' as const,
+        },
+        success: true,
+      },
+    }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Midpoint price data and metadata',
+      properties: {
+        midpoint: { type: 'string', description: 'Midpoint price' },
+        metadata: { type: 'object', description: 'Operation metadata' },
+        success: { type: 'boolean', description: 'Operation success' },
+      },
+    },
+  },
+}

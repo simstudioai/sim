@@ -1,20 +1,20 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
+import { Loader2, PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Combobox,
   Popover,
   PopoverContent,
+  PopoverItem,
   PopoverScrollArea,
   PopoverSearch,
   PopoverSection,
   PopoverTrigger,
-  Tooltip,
 } from '@/components/emcn'
+import { McpIcon } from '@/components/icons'
 import { Switch } from '@/components/ui/switch'
-import { Toggle } from '@/components/ui/toggle'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -1601,7 +1601,7 @@ export function ToolInput({
       {selectedTools.length === 0 ? (
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)]'>
+            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-4)] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-5)]'>
               <div className='flex items-center text-[13px] text-[var(--text-muted)]'>
                 <PlusIcon className='mr-2 h-4 w-4' />
                 Add Tool
@@ -1631,9 +1631,7 @@ export function ToolInput({
                       }}
                       disabled={isPreview}
                     >
-                      <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                        <WrenchIcon className='h-[11px] w-[11px] text-muted-foreground' />
-                      </div>
+                      <WrenchIcon className='h-[14px] w-[14px] flex-shrink-0 text-muted-foreground' />
                       <span className='truncate'>Create Tool</span>
                     </ToolCommand.Item>
 
@@ -1649,9 +1647,7 @@ export function ToolInput({
                       }}
                       disabled={isPreview}
                     >
-                      <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                        <Server className='h-[11px] w-[11px] text-muted-foreground' />
-                      </div>
+                      <McpIcon className='h-[14px] w-[14px] flex-shrink-0 text-muted-foreground' />
                       <span className='truncate'>Add MCP Server</span>
                     </ToolCommand.Item>
 
@@ -1822,7 +1818,7 @@ export function ToolInput({
               <div
                 key={`${tool.toolId}-${toolIndex}`}
                 className={cn(
-                  'group relative flex flex-col overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] transition-all duration-200 ease-in-out',
+                  'group relative flex flex-col overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-4)] transition-all duration-200 ease-in-out',
                   draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
                   dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
                     ? 'translate-y-1 transform border-t-2 border-t-muted-foreground/40'
@@ -1833,7 +1829,7 @@ export function ToolInput({
               >
                 <div
                   className={cn(
-                    'flex items-center justify-between px-[10px] py-[8px]',
+                    'flex items-center justify-between gap-[8px] px-[10px] py-[8px]',
                     isExpandedForDisplay &&
                       !isCustomTool &&
                       'border-[var(--border-strong)] border-b',
@@ -1867,7 +1863,7 @@ export function ToolInput({
                       {isCustomTool ? (
                         <WrenchIcon className='h-[10px] w-[10px] text-white' />
                       ) : isMcpTool ? (
-                        <IconComponent icon={Server} className='h-[10px] w-[10px] text-white' />
+                        <IconComponent icon={McpIcon} className='h-[10px] w-[10px] text-white' />
                       ) : (
                         <IconComponent
                           icon={toolBlock?.icon}
@@ -1875,86 +1871,63 @@ export function ToolInput({
                         />
                       )}
                     </div>
-                    <span className='truncate font-medium text-[#EEEEEE] text-[13px]'>
+                    <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
                       {tool.title}
                     </span>
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-[8px]'>
                     {supportsToolControl && (
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Toggle
-                            className='group flex h-auto items-center justify-center rounded-sm p-0 hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=on]:bg-transparent'
-                            pressed={true}
-                            onPressedChange={() => {}}
-                            onClick={(e: React.MouseEvent) => {
-                              e.stopPropagation()
-                              const currentState = tool.usageControl || 'auto'
-                              const nextState =
-                                currentState === 'auto'
-                                  ? 'force'
-                                  : currentState === 'force'
-                                    ? 'none'
-                                    : 'auto'
-                              handleUsageControlChange(toolIndex, nextState)
-                            }}
-                            aria-label='Toggle tool usage control'
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            className='flex items-center justify-center font-medium text-[12px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                            aria-label='Tool usage control'
                           >
-                            <span
-                              className={`font-medium text-[var(--text-tertiary)] text-xs ${
-                                tool.usageControl === 'auto' ? 'block' : 'hidden'
-                              }`}
-                            >
-                              Auto
-                            </span>
-                            <span
-                              className={`font-medium text-[var(--text-tertiary)] text-xs ${
-                                tool.usageControl === 'force' ? 'block' : 'hidden'
-                              }`}
-                            >
-                              Force
-                            </span>
-                            <span
-                              className={`font-medium text-[var(--text-tertiary)] text-xs ${
-                                tool.usageControl === 'none' ? 'block' : 'hidden'
-                              }`}
-                            >
-                              None
-                            </span>
-                          </Toggle>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content className='max-w-[280px] p-2' side='top'>
-                          <p className='text-xs'>
-                            {tool.usageControl === 'auto' && (
-                              <span>
-                                <span className='font-medium' /> The model decides when to use the
-                                tool
-                              </span>
-                            )}
-                            {tool.usageControl === 'force' && (
-                              <span>
-                                <span className='font-medium' /> Always use this tool in the
-                                response
-                              </span>
-                            )}
-                            {tool.usageControl === 'none' && (
-                              <span>
-                                <span className='font-medium' /> Never use this tool
-                              </span>
-                            )}
-                          </p>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
+                            {tool.usageControl === 'auto' && 'Auto'}
+                            {tool.usageControl === 'force' && 'Force'}
+                            {tool.usageControl === 'none' && 'None'}
+                            {!tool.usageControl && 'Auto'}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          side='bottom'
+                          align='end'
+                          sideOffset={8}
+                          onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                          className='gap-[2px]'
+                        >
+                          <PopoverItem
+                            active={(tool.usageControl || 'auto') === 'auto'}
+                            onClick={() => handleUsageControlChange(toolIndex, 'auto')}
+                          >
+                            Auto{' '}
+                            <span className='text-[var(--text-tertiary)]'>(model decides)</span>
+                          </PopoverItem>
+                          <PopoverItem
+                            active={tool.usageControl === 'force'}
+                            onClick={() => handleUsageControlChange(toolIndex, 'force')}
+                          >
+                            Force <span className='text-[var(--text-tertiary)]'>(always use)</span>
+                          </PopoverItem>
+                          <PopoverItem
+                            active={tool.usageControl === 'none'}
+                            onClick={() => handleUsageControlChange(toolIndex, 'none')}
+                          >
+                            None
+                          </PopoverItem>
+                        </PopoverContent>
+                      </Popover>
                     )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
                         handleRemoveTool(toolIndex)
                       }}
-                      className='text-[var(--text-tertiary)] transition-colors hover:text-[#EEEEEE]'
+                      className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
                       aria-label='Remove tool'
                     >
-                      <XIcon className='h-[14px] w-[14px]' />
+                      <XIcon className='h-[13px] w-[13px]' />
                     </button>
                   </div>
                 </div>
@@ -2143,7 +2116,7 @@ export function ToolInput({
           {/* Add Tool Button */}
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)]'>
+              <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-4)] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-5)]'>
                 <div className='flex items-center text-[13px] text-[var(--text-muted)]'>
                   <PlusIcon className='mr-2 h-4 w-4' />
                   Add Tool
@@ -2170,9 +2143,7 @@ export function ToolInput({
                           setCustomToolModalOpen(true)
                         }}
                       >
-                        <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                          <WrenchIcon className='h-[11px] w-[11px] text-muted-foreground' />
-                        </div>
+                        <WrenchIcon className='h-[14px] w-[14px] flex-shrink-0 text-muted-foreground' />
                         <span className='truncate'>Create Tool</span>
                       </ToolCommand.Item>
 
@@ -2185,9 +2156,7 @@ export function ToolInput({
                           )
                         }}
                       >
-                        <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                          <Server className='h-[11px] w-[11px] text-muted-foreground' />
-                        </div>
+                        <McpIcon className='h-[14px] w-[14px] flex-shrink-0 text-muted-foreground' />
                         <span className='truncate'>Add MCP Server</span>
                       </ToolCommand.Item>
 

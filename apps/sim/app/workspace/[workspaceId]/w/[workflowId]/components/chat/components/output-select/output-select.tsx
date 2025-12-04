@@ -65,7 +65,7 @@ export function OutputSelect({
   valueMode = 'id',
   disablePopoverPortal = false,
   align = 'start',
-  maxHeight = 300,
+  maxHeight = 200,
 }: OutputSelectProps) {
   const [open, setOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
@@ -423,6 +423,7 @@ export function OutputSelect({
         maxHeight={maxHeight}
         maxWidth={300}
         minWidth={160}
+        border
         disablePortal={disablePopoverPortal}
         onKeyDown={handleKeyDown}
         tabIndex={0}

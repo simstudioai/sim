@@ -1,0 +1,219 @@
+---
+title: Dropbox
+description: Dateien in Dropbox hochladen, herunterladen, teilen und verwalten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dropbox"
+  color="#0061FF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Dropbox](https://dropbox.com/) ist eine beliebte Cloud-Speicher- und Kollaborationsplattform, die es Einzelpersonen und Teams ermöglicht, Dateien sicher zu speichern, darauf zuzugreifen und sie von überall aus zu teilen. Dropbox ist für einfache Dateiverwaltung, Synchronisierung und leistungsstarke Zusammenarbeit konzipiert, egal ob Sie allein oder in einer Gruppe arbeiten.
+
+Mit Dropbox in Sim können Sie:
+
+- **Dateien hoch- und herunterladen**: Laden Sie jede Datei nahtlos in Ihre Dropbox hoch oder rufen Sie Inhalte bei Bedarf ab
+- **Ordnerinhalte auflisten**: Durchsuchen Sie die Dateien und Ordner in jedem Dropbox-Verzeichnis
+- **Neue Ordner erstellen**: Organisieren Sie Ihre Dateien, indem Sie programmgesteuert neue Ordner in Ihrer Dropbox erstellen
+- **Dateien und Ordner suchen**: Finden Sie Dokumente, Bilder oder andere Elemente nach Namen oder Inhalt
+- **Geteilte Links generieren**: Erstellen Sie schnell teilbare öffentliche oder private Links für Dateien und Ordner
+- **Dateien verwalten**: Verschieben, löschen oder benennen Sie Dateien und Ordner im Rahmen automatisierter Workflows um
+
+Diese Funktionen ermöglichen es Ihren Sim-Agenten, Dropbox-Operationen direkt in Ihren Workflows zu automatisieren – vom Sichern wichtiger Dateien bis hin zur Verteilung von Inhalten und der Pflege organisierter Ordner. Verwenden Sie Dropbox sowohl als Quelle als auch als Ziel für Dateien und ermöglichen Sie so eine nahtlose Cloud-Speicherverwaltung als Teil Ihrer Geschäftsprozesse.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie Dropbox in Ihren Workflow für Dateiverwaltung, Freigabe und Zusammenarbeit. Laden Sie Dateien hoch, laden Sie Inhalte herunter, erstellen Sie Ordner, verwalten Sie freigegebene Links und mehr.
+
+## Tools
+
+### `dropbox_upload`
+
+Eine Datei zu Dropbox hochladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Ja | Der Pfad in Dropbox, wo die Datei gespeichert werden soll \(z.B. /ordner/dokument.pdf\) |
+| `fileContent` | string | Ja | Der base64-kodierte Inhalt der hochzuladenden Datei |
+| `fileName` | string | Nein | Optionaler Dateiname \(wird verwendet, wenn der Pfad ein Ordner ist\) |
+| `mode` | string | Nein | Schreibmodus: add \(Standard\) oder overwrite |
+| `autorename` | boolean | Nein | Wenn true, wird die Datei umbenannt, falls ein Konflikt besteht |
+| `mute` | boolean | Nein | Wenn true, wird der Benutzer nicht über diesen Upload benachrichtigt |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `file` | object | Die Metadaten der hochgeladenen Datei |
+
+### `dropbox_download`
+
+Eine Datei von Dropbox herunterladen und einen temporären Link erhalten
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Ja | Der Pfad der herunterzuladenden Datei (z.B. /ordner/dokument.pdf) |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `file` | object | Die Metadaten der Datei |
+
+### `dropbox_list_folder`
+
+Den Inhalt eines Ordners in Dropbox auflisten
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Ja | Der Pfad des aufzulistenden Ordners (verwende "" für das Stammverzeichnis) |
+| `recursive` | boolean | Nein | Wenn true, Inhalte rekursiv auflisten |
+| `includeDeleted` | boolean | Nein | Wenn true, gelöschte Dateien/Ordner einbeziehen |
+| `includeMediaInfo` | boolean | Nein | Wenn true, Medieninfos für Fotos/Videos einbeziehen |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse (Standard: 500) |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `entries` | array | Liste der Dateien und Ordner im Verzeichnis |
+
+### `dropbox_create_folder`
+
+Einen neuen Ordner in Dropbox erstellen
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Ja | Der Pfad, an dem der Ordner erstellt werden soll (z.B. /neuer-ordner) |
+| `autorename` | boolean | Nein | Wenn true, den Ordner umbenennen, falls ein Konflikt besteht |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `folder` | object | Die Metadaten des erstellten Ordners |
+
+### `dropbox_delete`
+
+Eine Datei oder einen Ordner in Dropbox löschen (wird in den Papierkorb verschoben)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Ja | Der Pfad der zu löschenden Datei oder des zu löschenden Ordners |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `metadata` | object | Metadaten des gelöschten Elements |
+
+### `dropbox_copy`
+
+Eine Datei oder einen Ordner in Dropbox kopieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `fromPath` | string | Ja | Der Quellpfad der zu kopierenden Datei oder des zu kopierenden Ordners |
+| `toPath` | string | Ja | Der Zielpfad für die kopierte Datei oder den kopierten Ordner |
+| `autorename` | boolean | Nein | Wenn true, wird die Datei umbenannt, falls am Zielort ein Konflikt besteht |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `metadata` | object | Metadaten des kopierten Elements |
+
+### `dropbox_move`
+
+Eine Datei oder einen Ordner in Dropbox verschieben oder umbenennen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `fromPath` | string | Ja | Der Quellpfad der zu verschiebenden Datei oder des zu verschiebenden Ordners |
+| `toPath` | string | Ja | Der Zielpfad für die verschobene Datei oder den verschobenen Ordner |
+| `autorename` | boolean | Nein | Wenn true, wird die Datei umbenannt, falls am Zielort ein Konflikt besteht |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `metadata` | object | Metadaten des verschobenen Elements |
+
+### `dropbox_get_metadata`
+
+Metadaten für eine Datei oder einen Ordner in Dropbox abrufen
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Ja | Der Pfad der Datei oder des Ordners, für die/den Metadaten abgerufen werden sollen |
+| `includeMediaInfo` | boolean | Nein | Wenn true, werden Medieninformationen für Fotos/Videos einbezogen |
+| `includeDeleted` | boolean | Nein | Wenn true, werden gelöschte Dateien in den Ergebnissen einbezogen |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `metadata` | object | Metadaten für die Datei oder den Ordner |
+
+### `dropbox_create_shared_link`
+
+Einen teilbaren Link für eine Datei oder einen Ordner in Dropbox erstellen
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Ja | Der Pfad der Datei oder des Ordners, der geteilt werden soll |
+| `requestedVisibility` | string | Nein | Sichtbarkeit: public, team_only oder password |
+| `linkPassword` | string | Nein | Passwort für den geteilten Link \(nur wenn die Sichtbarkeit password ist\) |
+| `expires` | string | Nein | Ablaufdatum im ISO 8601-Format \(z.B. 2025-12-31T23:59:59Z\) |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `sharedLink` | object | Der erstellte geteilte Link |
+
+### `dropbox_search`
+
+Suche nach Dateien und Ordnern in Dropbox
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Ja | Die Suchanfrage |
+| `path` | string | Nein | Suche auf einen bestimmten Ordnerpfad beschränken |
+| `fileExtensions` | string | Nein | Kommagetrennte Liste von Dateierweiterungen zur Filterung \(z.B. pdf,xlsx\) |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 100\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `matches` | array | Suchergebnisse |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `dropbox`

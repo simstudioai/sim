@@ -1,0 +1,394 @@
+---
+title: SSH
+description: Connectez-vous aux serveurs distants via SSH
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ssh"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SSH (Secure Shell)](https://en.wikipedia.org/wiki/Secure_Shell) est un protocole largement utilisé pour se connecter de manière sécurisée à des serveurs distants, vous permettant d'exécuter des commandes, de transférer des fichiers et de gérer des systèmes via des canaux chiffrés.
+
+Avec la prise en charge SSH dans Sim, vos agents peuvent :
+
+- **Exécuter des commandes à distance** : lancer des commandes shell sur n'importe quel serveur accessible via SSH
+- **Télécharger et exécuter des scripts** : transférer et exécuter facilement des scripts multi-lignes pour une automatisation avancée
+- **Transférer des fichiers en toute sécurité** : télécharger et téléverser des fichiers dans le cadre de vos flux de travail (bientôt disponible ou via commande)
+- **Automatiser la gestion des serveurs** : effectuer des mises à jour, de la maintenance, de la surveillance, des déploiements et des tâches de configuration de manière programmatique
+- **Utiliser une authentification flexible** : se connecter avec une authentification par mot de passe ou par clé privée, y compris la prise en charge des clés chiffrées
+
+Les outils SSH Sim suivants permettent à vos agents d'interagir avec les serveurs dans le cadre d'automatisations plus larges :
+
+- `ssh_execute_command` : exécuter n'importe quelle commande shell à distance et capturer la sortie, le statut et les erreurs.
+- `ssh_execute_script` : téléverser et exécuter un script complet multi-lignes sur le système distant.
+- (D'autres outils seront bientôt disponibles, comme le transfert de fichiers.)
+
+En intégrant SSH dans vos flux de travail d'agents, vous pouvez automatiser l'accès sécurisé, les opérations à distance et l'orchestration de serveurs—simplifiant ainsi DevOps, l'automatisation informatique et la gestion à distance personnalisée, le tout depuis Sim.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Exécutez des commandes, transférez des fichiers et gérez des serveurs distants via SSH. Prend en charge l'authentification par mot de passe et par clé privée pour un accès sécurisé aux serveurs.
+
+## Outils
+
+### `ssh_execute_command`
+
+Exécuter une commande shell sur un serveur SSH distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | number | Oui | Port du serveur SSH \(par défaut : 22\) |
+| `username` | string | Oui | Nom d'utilisateur SSH |
+| `password` | string | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | string | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | string | Non | Phrase secrète pour la clé privée chiffrée |
+| `command` | string | Oui | Commande shell à exécuter sur le serveur distant |
+| `workingDirectory` | string | Non | Répertoire de travail pour l'exécution de la commande |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `stdout` | string | Sortie standard de la commande |
+| `stderr` | string | Sortie d'erreur standard |
+| `exitCode` | number | Code de sortie de la commande |
+| `success` | boolean | Si la commande a réussi \(code de sortie 0\) |
+| `message` | string | Message d'état de l'opération |
+
+### `ssh_execute_script`
+
+Télécharger et exécuter un script multi-lignes sur un serveur SSH distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | number | Oui | Port du serveur SSH \(par défaut : 22\) |
+| `username` | string | Oui | Nom d'utilisateur SSH |
+| `password` | string | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | string | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | string | Non | Phrase secrète pour la clé privée chiffrée |
+| `script` | string | Oui | Contenu du script à exécuter \(bash, python, etc.\) |
+| `interpreter` | string | Non | Interpréteur de script \(par défaut : /bin/bash\) |
+| `workingDirectory` | string | Non | Répertoire de travail pour l'exécution du script |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `stdout` | string | Sortie standard du script |
+| `stderr` | string | Sortie d'erreur standard |
+| `exitCode` | number | Code de sortie du script |
+| `success` | boolean | Si le script a réussi \(code de sortie 0\) |
+| `scriptPath` | string | Chemin temporaire où le script a été téléchargé |
+| `message` | string | Message d'état de l'opération |
+
+### `ssh_check_command_exists`
+
+Vérifier si une commande/un programme existe sur le serveur SSH distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | nombre | Oui | Port du serveur SSH \(par défaut : 22\) |
+| `username` | chaîne | Oui | Nom d'utilisateur SSH |
+| `password` | chaîne | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | chaîne | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | chaîne | Non | Phrase secrète pour la clé privée chiffrée |
+| `commandName` | chaîne | Oui | Nom de la commande à vérifier \(ex. docker, git, python3\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `commandExists` | booléen | Indique si la commande existe |
+| `commandPath` | chaîne | Chemin complet vers la commande \(si trouvée\) |
+| `version` | chaîne | Sortie de la version de la commande \(si applicable\) |
+| `message` | chaîne | Message d'état de l'opération |
+
+### `ssh_upload_file`
+
+Téléverser un fichier vers un serveur SSH distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | nombre | Oui | Port du serveur SSH \(par défaut : 22\) |
+| `username` | chaîne | Oui | Nom d'utilisateur SSH |
+| `password` | chaîne | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | chaîne | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | chaîne | Non | Phrase secrète pour la clé privée chiffrée |
+| `fileContent` | chaîne | Oui | Contenu du fichier à téléverser \(encodé en base64 pour les fichiers binaires\) |
+| `fileName` | chaîne | Oui | Nom du fichier à téléverser |
+| `remotePath` | chaîne | Oui | Chemin de destination sur le serveur distant |
+| `permissions` | chaîne | Non | Permissions du fichier \(ex. 0644\) |
+| `overwrite` | booléen | Non | Indique s'il faut écraser les fichiers existants \(par défaut : true\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `uploaded` | boolean | Indique si le fichier a été téléversé avec succès |
+| `remotePath` | string | Chemin final sur le serveur distant |
+| `size` | number | Taille du fichier en octets |
+| `message` | string | Message d'état de l'opération |
+
+### `ssh_download_file`
+
+Télécharger un fichier depuis un serveur SSH distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | number | Oui | Port du serveur SSH \(par défaut : 22\) |
+| `username` | string | Oui | Nom d'utilisateur SSH |
+| `password` | string | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | string | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | string | Non | Phrase secrète pour la clé privée chiffrée |
+| `remotePath` | string | Oui | Chemin du fichier sur le serveur distant |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `downloaded` | boolean | Indique si le fichier a été téléchargé avec succès |
+| `fileContent` | string | Contenu du fichier \(encodé en base64 pour les fichiers binaires\) |
+| `fileName` | string | Nom du fichier téléchargé |
+| `remotePath` | string | Chemin source sur le serveur distant |
+| `size` | number | Taille du fichier en octets |
+| `message` | string | Message d'état de l'opération |
+
+### `ssh_list_directory`
+
+Lister les fichiers et répertoires dans un répertoire distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | nombre | Oui | Port du serveur SSH (par défaut : 22) |
+| `username` | chaîne | Oui | Nom d'utilisateur SSH |
+| `password` | chaîne | Non | Mot de passe pour l'authentification (si vous n'utilisez pas de clé privée) |
+| `privateKey` | chaîne | Non | Clé privée pour l'authentification (format OpenSSH) |
+| `passphrase` | chaîne | Non | Phrase secrète pour la clé privée chiffrée |
+| `path` | chaîne | Oui | Chemin du répertoire distant à lister |
+| `detailed` | booléen | Non | Inclure les détails des fichiers (taille, permissions, date de modification) |
+| `recursive` | booléen | Non | Lister les sous-répertoires de manière récursive (par défaut : false) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `entries` | tableau | Tableau des entrées de fichiers et de répertoires |
+
+### `ssh_check_file_exists`
+
+Vérifier si un fichier ou un répertoire existe sur le serveur SSH distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | nombre | Oui | Port du serveur SSH (par défaut : 22) |
+| `username` | chaîne | Oui | Nom d'utilisateur SSH |
+| `password` | chaîne | Non | Mot de passe pour l'authentification (si vous n'utilisez pas de clé privée) |
+| `privateKey` | chaîne | Non | Clé privée pour l'authentification (format OpenSSH) |
+| `passphrase` | chaîne | Non | Phrase secrète pour la clé privée chiffrée |
+| `path` | chaîne | Oui | Chemin du fichier ou du répertoire distant à vérifier |
+| `type` | chaîne | Non | Type attendu : fichier, répertoire ou n'importe lequel (par défaut : n'importe lequel) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `exists` | boolean | Indique si le chemin existe |
+| `type` | string | Type de chemin (fichier, répertoire, lien symbolique, non_trouvé) |
+| `size` | number | Taille du fichier s'il s'agit d'un fichier |
+| `permissions` | string | Permissions du fichier (ex. 0755) |
+| `modified` | string | Horodatage de dernière modification |
+| `message` | string | Message d'état de l'opération |
+
+### `ssh_create_directory`
+
+Créer un répertoire sur le serveur SSH distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | number | Oui | Port du serveur SSH (par défaut : 22) |
+| `username` | string | Oui | Nom d'utilisateur SSH |
+| `password` | string | Non | Mot de passe pour l'authentification (si vous n'utilisez pas de clé privée) |
+| `privateKey` | string | Non | Clé privée pour l'authentification (format OpenSSH) |
+| `passphrase` | string | Non | Phrase secrète pour la clé privée chiffrée |
+| `path` | string | Oui | Chemin du répertoire à créer |
+| `recursive` | boolean | Non | Créer les répertoires parents s'ils n'existent pas (par défaut : true) |
+| `permissions` | string | Non | Permissions du répertoire (par défaut : 0755) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `created` | boolean | Indique si le répertoire a été créé avec succès |
+| `remotePath` | string | Chemin du répertoire créé |
+| `alreadyExists` | boolean | Indique si le répertoire existait déjà |
+| `message` | string | Message d'état de l'opération |
+
+### `ssh_delete_file`
+
+Supprimer un fichier ou un répertoire du serveur SSH distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | number | Oui | Port du serveur SSH \(par défaut : 22\) |
+| `username` | string | Oui | Nom d'utilisateur SSH |
+| `password` | string | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | string | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | string | Non | Phrase secrète pour la clé privée chiffrée |
+| `path` | string | Oui | Chemin à supprimer |
+| `recursive` | boolean | Non | Supprimer récursivement les répertoires \(par défaut : false\) |
+| `force` | boolean | Non | Forcer la suppression sans confirmation \(par défaut : false\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Indique si le chemin a été supprimé avec succès |
+| `remotePath` | string | Chemin supprimé |
+| `message` | string | Message d'état de l'opération |
+
+### `ssh_move_rename`
+
+Déplacer ou renommer un fichier ou un répertoire sur le serveur SSH distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | number | Oui | Port du serveur SSH \(par défaut : 22\) |
+| `username` | string | Oui | Nom d'utilisateur SSH |
+| `password` | string | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | string | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | string | Non | Phrase secrète pour la clé privée chiffrée |
+| `sourcePath` | string | Oui | Chemin actuel du fichier ou du répertoire |
+| `destinationPath` | string | Oui | Nouveau chemin pour le fichier ou le répertoire |
+| `overwrite` | boolean | Non | Écraser la destination si elle existe \(par défaut : false\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `moved` | boolean | Indique si l'opération a réussi |
+| `sourcePath` | string | Chemin d'origine |
+| `destinationPath` | string | Nouveau chemin |
+| `message` | string | Message d'état de l'opération |
+
+### `ssh_get_system_info`
+
+Récupérer les informations système du serveur SSH distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | number | Oui | Port du serveur SSH \(par défaut : 22\) |
+| `username` | string | Oui | Nom d'utilisateur SSH |
+| `password` | string | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | string | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | string | Non | Phrase secrète pour la clé privée chiffrée |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `hostname` | string | Nom d'hôte du serveur |
+| `os` | string | Système d'exploitation \(ex. : Linux, Darwin\) |
+| `architecture` | string | Architecture CPU \(ex. : x64, arm64\) |
+| `uptime` | number | Temps de fonctionnement du système en secondes |
+| `memory` | json | Informations sur la mémoire \(totale, libre, utilisée\) |
+| `diskSpace` | json | Informations sur l'espace disque \(total, libre, utilisé\) |
+| `message` | string | Message d'état de l'opération |
+
+### `ssh_read_file_content`
+
+Lire le contenu d'un fichier distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | nombre | Oui | Port du serveur SSH \(par défaut : 22\) |
+| `username` | chaîne | Oui | Nom d'utilisateur SSH |
+| `password` | chaîne | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | chaîne | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | chaîne | Non | Phrase secrète pour la clé privée chiffrée |
+| `path` | chaîne | Oui | Chemin du fichier distant à lire |
+| `encoding` | chaîne | Non | Encodage du fichier \(par défaut : utf-8\) |
+| `maxSize` | nombre | Non | Taille maximale du fichier à lire en Mo \(par défaut : 10\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Contenu du fichier sous forme de chaîne |
+| `size` | nombre | Taille du fichier en octets |
+| `lines` | nombre | Nombre de lignes dans le fichier |
+| `remotePath` | chaîne | Chemin du fichier distant |
+| `message` | chaîne | Message d'état de l'opération |
+
+### `ssh_write_file_content`
+
+Écrire ou ajouter du contenu à un fichier distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur SSH |
+| `port` | nombre | Oui | Port du serveur SSH \(par défaut : 22\) |
+| `username` | chaîne | Oui | Nom d'utilisateur SSH |
+| `password` | chaîne | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | chaîne | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | chaîne | Non | Phrase secrète pour la clé privée chiffrée |
+| `path` | chaîne | Oui | Chemin du fichier distant où écrire |
+| `content` | chaîne | Oui | Contenu à écrire dans le fichier |
+| `mode` | chaîne | Non | Mode d'écriture : overwrite, append, ou create \(par défaut : overwrite\) |
+| `permissions` | chaîne | Non | Permissions du fichier \(ex. : 0644\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `written` | boolean | Indique si le fichier a été écrit avec succès |
+| `remotePath` | string | Chemin du fichier |
+| `size` | number | Taille finale du fichier en octets |
+| `message` | string | Message d'état de l'opération |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `ssh`

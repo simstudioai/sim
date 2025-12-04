@@ -4,6 +4,7 @@ import {
   AsanaIcon,
   ConfluenceIcon,
   // DiscordIcon,
+  DropboxIcon,
   GithubIcon,
   GmailIcon,
   GoogleCalendarIcon,
@@ -27,12 +28,15 @@ import {
   PipedriveIcon,
   RedditIcon,
   SalesforceIcon,
+  ShopifyIcon,
   SlackIcon,
   // SupabaseIcon,
   TrelloIcon,
   WealthboxIcon,
   WebflowIcon,
+  WordpressIcon,
   xIcon,
+  ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -49,6 +53,7 @@ export type OAuthProvider =
   | 'notion'
   | 'jira'
   // | 'discord'
+  | 'dropbox'
   | 'microsoft'
   | 'linear'
   | 'slack'
@@ -61,6 +66,9 @@ export type OAuthProvider =
   | 'hubspot'
   | 'salesforce'
   | 'linkedin'
+  | 'shopify'
+  | 'zoom'
+  | 'wordpress'
   | string
 
 export type OAuthService =
@@ -80,6 +88,7 @@ export type OAuthService =
   | 'notion'
   | 'jira'
   // | 'discord'
+  | 'dropbox'
   | 'microsoft-excel'
   | 'microsoft-teams'
   | 'microsoft-planner'
@@ -97,6 +106,9 @@ export type OAuthService =
   | 'hubspot'
   | 'salesforce'
   | 'linkedin'
+  | 'shopify'
+  | 'zoom'
+  | 'wordpress'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -538,6 +550,55 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'linear',
   },
+  dropbox: {
+    id: 'dropbox',
+    name: 'Dropbox',
+    icon: (props) => DropboxIcon(props),
+    services: {
+      dropbox: {
+        id: 'dropbox',
+        name: 'Dropbox',
+        description: 'Upload, download, share, and manage files in Dropbox.',
+        providerId: 'dropbox',
+        icon: (props) => DropboxIcon(props),
+        baseProviderIcon: (props) => DropboxIcon(props),
+        scopes: [
+          'account_info.read',
+          'files.metadata.read',
+          'files.metadata.write',
+          'files.content.read',
+          'files.content.write',
+          'sharing.read',
+          'sharing.write',
+        ],
+      },
+    },
+    defaultService: 'dropbox',
+  },
+  shopify: {
+    id: 'shopify',
+    name: 'Shopify',
+    icon: (props) => ShopifyIcon(props),
+    services: {
+      shopify: {
+        id: 'shopify',
+        name: 'Shopify',
+        description: 'Manage products, orders, and customers in your Shopify store.',
+        providerId: 'shopify',
+        icon: (props) => ShopifyIcon(props),
+        baseProviderIcon: (props) => ShopifyIcon(props),
+        scopes: [
+          'write_products',
+          'write_orders',
+          'write_customers',
+          'write_inventory',
+          'read_locations',
+          'write_merchant_managed_fulfillment_orders',
+        ],
+      },
+    },
+    defaultService: 'shopify',
+  },
   slack: {
     id: 'slack',
     name: 'Slack',
@@ -768,6 +829,52 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'salesforce',
+  },
+  zoom: {
+    id: 'zoom',
+    name: 'Zoom',
+    icon: (props) => ZoomIcon(props),
+    services: {
+      zoom: {
+        id: 'zoom',
+        name: 'Zoom',
+        description: 'Create and manage Zoom meetings, users, and recordings.',
+        providerId: 'zoom',
+        icon: (props) => ZoomIcon(props),
+        baseProviderIcon: (props) => ZoomIcon(props),
+        scopes: [
+          'user:read:user',
+          'meeting:write:meeting',
+          'meeting:read:meeting',
+          'meeting:read:list_meetings',
+          'meeting:update:meeting',
+          'meeting:delete:meeting',
+          'meeting:read:invitation',
+          'meeting:read:list_past_participants',
+          'cloud_recording:read:list_user_recordings',
+          'cloud_recording:read:list_recording_files',
+          'cloud_recording:delete:recording_file',
+        ],
+      },
+    },
+    defaultService: 'zoom',
+  },
+  wordpress: {
+    id: 'wordpress',
+    name: 'WordPress',
+    icon: (props) => WordpressIcon(props),
+    services: {
+      wordpress: {
+        id: 'wordpress',
+        name: 'WordPress.com',
+        description: 'Manage posts, pages, media, comments, and more on WordPress.com sites.',
+        providerId: 'wordpress',
+        icon: (props) => WordpressIcon(props),
+        baseProviderIcon: (props) => WordpressIcon(props),
+        scopes: ['global'],
+      },
+    },
+    defaultService: 'wordpress',
   },
 }
 
@@ -1149,6 +1256,18 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         useBasicAuth: true,
       }
     }
+    case 'dropbox': {
+      const { clientId, clientSecret } = getCredentials(
+        env.DROPBOX_CLIENT_ID,
+        env.DROPBOX_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.dropboxapi.com/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
     case 'slack': {
       const { clientId, clientSecret } = getCredentials(
         env.SLACK_CLIENT_ID,
@@ -1259,6 +1378,46 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
       )
       return {
         tokenEndpoint: 'https://login.salesforce.com/services/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'shopify': {
+      // Shopify access tokens don't expire and don't support refresh tokens
+      // This configuration is provided for completeness but won't be used for token refresh
+      const { clientId, clientSecret } = getCredentials(
+        env.SHOPIFY_CLIENT_ID,
+        env.SHOPIFY_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://accounts.shopify.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'zoom': {
+      const { clientId, clientSecret } = getCredentials(env.ZOOM_CLIENT_ID, env.ZOOM_CLIENT_SECRET)
+      return {
+        tokenEndpoint: 'https://zoom.us/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'wordpress': {
+      // WordPress.com does NOT support refresh tokens
+      // Users will need to re-authorize when tokens expire (~2 weeks)
+      const { clientId, clientSecret } = getCredentials(
+        env.WORDPRESS_CLIENT_ID,
+        env.WORDPRESS_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://public-api.wordpress.com/oauth2/token',
         clientId,
         clientSecret,
         useBasicAuth: false,

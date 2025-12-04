@@ -80,91 +80,96 @@
 @layer base {
   :root,
   .light {
-    /* Neutrals (surfaces) */
-    --bg: #ffffff;
-    --surface-1: #ffffff;
-    --surface-2: #fafafa;
-    --surface-3: #f8f8f8;
-    --surface-4: #f6f6f6;
-    --surface-5: #f3f3f3;
-    --surface-6: #f0f0f0;
-    --surface-9: #eaeaea;
-    --surface-11: #e6e6e6;
-    --surface-12: #e0e0e0;
-    --surface-13: #dcdcdc;
-    --surface-14: #d6d6d6;
-    --surface-15: #cfcfcf;
-    --surface-elevated: #ffffff;
-    --bg-strong: #f5f5f5;
+    /* Neutrals (surfaces) - shadcn stone palette */
+    --bg: #ffffff; /* pure white for landing/auth pages */
+    --surface-1: #fafaf9; /* stone-50 */
+    --surface-2: #ffffff; /* white */
+    --surface-3: #f5f5f4; /* stone-100 */
+    --surface-4: #f5f5f4; /* stone-100 */
+    --surface-5: #eeedec; /* stone-150 */
+    --surface-6: #f5f5f4; /* stone-100 */
+    --surface-9: #f5f5f4; /* stone-100 */
+    --surface-11: #e7e5e4; /* stone-200 */
+    --surface-12: #d6d3d1; /* stone-300 */
+    --surface-13: #a8a29e; /* stone-400 */
+    --surface-14: #78716c; /* stone-500 */
+    --surface-15: #57534e; /* stone-600 */
+    --surface-elevated: #ffffff; /* white */
+    --bg-strong: #e7e5e4; /* stone-200 */
 
-    /* Text */
-    --text-primary: #1b1b1b;
-    --text-secondary: #404040;
-    --text-tertiary: #555555;
-    --text-muted: #737373;
-    --text-subtle: #8a8a8a;
-    --text-inverse: #1b1b1b;
-    --text-error: #ef4444;
+    /* Text - shadcn stone palette for proper contrast */
+    --text-primary: #1c1917; /* stone-900 */
+    --text-secondary: #292524; /* stone-800 */
+    --text-tertiary: #57534e; /* stone-600 */
+    --text-muted: #78716c; /* stone-500 */
+    --text-subtle: #a8a29e; /* stone-400 */
+    --text-inverse: #fafaf9; /* stone-50 */
+    --text-error: #dc2626;
 
-    /* Borders / dividers */
-    --border: #dddddd;
-    --border-strong: #d1d1d1;
-    --divider: #e5e5e5;
-    --border-muted: #eeeeee;
-    --border-success: #d5d5d5;
+    /* Borders / dividers - shadcn stone palette */
+    --border: #d6d3d1; /* stone-300 */
+    --border-strong: #d6d3d1; /* stone-300 */
+    --divider: #e7e5e4; /* stone-200 */
+    --border-muted: #e7e5e4; /* stone-200 */
+    --border-success: #d6d3d1; /* stone-300 */
 
     /* Brand & state */
     --brand-400: #8e4cfb;
     --brand-500: #6f3dfa;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
-    --warning: #ff6600;
+    --brand-tertiary-2: #33c481;
+    --warning: #ea580c;
 
     /* Utility */
     --white: #ffffff;
 
-    /* RGB for opacity usage */
-    --surface-4-rgb: 246 246 246;
-    --surface-5-rgb: 243 243 243;
-    --surface-7-rgb: 230 230 230;
-    --surface-9-rgb: 234 234 234;
-    --divider-rgb: 229 229 229;
+    /* Font weights - lighter for light mode (-20 from dark) */
+    --font-weight-base: 430;
+    --font-weight-medium: 450;
+    --font-weight-semibold: 500;
+
+    /* RGB for opacity usage - stone palette */
+    --surface-4-rgb: 245 245 244; /* stone-100 */
+    --surface-5-rgb: 238 237 236; /* stone-150 */
+    --surface-7-rgb: 245 245 244; /* stone-100 */
+    --surface-9-rgb: 245 245 244; /* stone-100 */
+    --divider-rgb: 231 229 228; /* stone-200 */
     --white-rgb: 255 255 255;
     --black-rgb: 0 0 0;
 
-    /* Extended palette (exhaustive from code usage via -[#...]) */
-    /* Neutral deep shades */
-    --c-0D0D0D: #0d0d0d;
-    --c-1A1A1A: #1a1a1a;
-    --c-1F1F1F: #1f1f1f;
-    --c-2A2A2A: #2a2a2a;
-    --c-383838: #383838;
-    --c-414141: #414141;
+    /* Extended palette - mapped to shadcn stone palette */
+    --c-0D0D0D: #0c0a09; /* stone-950 */
+    --c-1A1A1A: #1c1917; /* stone-900 */
+    --c-1F1F1F: #1c1917; /* stone-900 */
+    --c-2A2A2A: #292524; /* stone-800 */
+    --c-383838: #44403c; /* stone-700 */
+    --c-414141: #57534e; /* stone-600 */
     --c-442929: #442929;
     --c-491515: #491515;
-    --c-575757: #575757;
-    --c-686868: #686868;
-    --c-707070: #707070;
-    --c-727272: #727272;
-    --c-737373: #737373;
-    --c-808080: #808080;
-    --c-858585: #858585;
-    --c-868686: #868686;
-    --c-8D8D8D: #8d8d8d;
-    --c-939393: #939393;
-    --c-A8A8A8: #a8a8a8;
-    --c-B8B8B8: #b8b8b8;
-    --c-C0C0C0: #c0c0c0;
-    --c-CDCDCD: #cdcdcd;
-    --c-D0D0D0: #d0d0d0;
-    --c-D2D2D2: #d2d2d2;
-    --c-E0E0E0: #e0e0e0;
-    --c-E5E5E5: #e5e5e5;
-    --c-E8E8E8: #e8e8e8;
-    --c-EEEEEE: #eeeeee;
-    --c-F0F0F0: #f0f0f0;
-    --c-F4F4F4: #f4f4f4;
-    --c-F5F5F5: #f5f5f5;
+    --c-575757: #78716c; /* stone-500 */
+    --c-686868: #78716c; /* stone-500 */
+    --c-707070: #78716c; /* stone-500 */
+    --c-727272: #78716c; /* stone-500 */
+    --c-737373: #78716c; /* stone-500 */
+    --c-808080: #a8a29e; /* stone-400 */
+    --c-858585: #a8a29e; /* stone-400 */
+    --c-868686: #a8a29e; /* stone-400 */
+    --c-8D8D8D: #a8a29e; /* stone-400 */
+    --c-939393: #a8a29e; /* stone-400 */
+    --c-A8A8A8: #a8a29e; /* stone-400 */
+    --c-B8B8B8: #d6d3d1; /* stone-300 */
+    --c-C0C0C0: #d6d3d1; /* stone-300 */
+    --c-CDCDCD: #d6d3d1; /* stone-300 */
+    --c-D0D0D0: #d6d3d1; /* stone-300 */
+    --c-D2D2D2: #d6d3d1; /* stone-300 */
+    --c-E0E0E0: #e7e5e4; /* stone-200 */
+    --c-E5E5E5: #e7e5e4; /* stone-200 */
+    --c-E8E8E8: #e7e5e4; /* stone-200 */
+    --c-EEEEEE: #f5f5f4; /* stone-100 */
+    --c-F0F0F0: #f5f5f4; /* stone-100 */
+    --c-F4F4F4: #fafaf9; /* stone-50 */
+    --c-F5F5F5: #fafaf9; /* stone-50 */
 
     /* Blues and cyans */
     --c-00B0B0: #00b0b0;
@@ -180,20 +185,27 @@
     --c-8C10FF: #8c10ff;
 
     /* Greens */
-    --c-4CAF50: #4caf50;
+    --c-4CAF50: #22c55e;
 
     /* Oranges / Ambers */
     --c-F59E0B: #f59e0b;
-    --c-F97316: #f97316;
-    --c-FF972F: #ff972f;
+    --c-F97316: #ea580c;
+    --c-FF972F: #f97316;
 
     /* Reds */
     --c-DC2626: #dc2626;
-    --c-F6D2D2: #f6d2d2;
+    --c-F6D2D2: #fecaca;
     --c-F87171: #f87171;
-    --c-FF402F: #ff402f;
+    --c-FF402F: #ef4444;
     --c-B91C1C: #b91c1c;
-    --c-883827: #883827;
+    --c-883827: #7c2d12;
+
+    /* Terminal status badges */
+    --terminal-status-error-bg: #feeeee;
+    --terminal-status-error-border: #f87171;
+    --terminal-status-info-bg: #f5f5f4; /* stone-100 */
+    --terminal-status-info-border: #a8a29e; /* stone-400 */
+    --terminal-status-info-color: #57534e; /* stone-600 */
   }
   .dark {
     /* Neutrals (surfaces) */
@@ -215,8 +227,8 @@
 
     /* Text */
     --text-primary: #e6e6e6;
-    --text-secondary: #b1b1b1;
-    --text-tertiary: #aeaeae;
+    --text-secondary: #cccccc;
+    --text-tertiary: #b3b3b3;
     --text-muted: #787878;
     --text-subtle: #7d7d7d;
     --text-inverse: #1b1b1b;
@@ -233,10 +245,16 @@
     --brand-400: #8e4cfb;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
+    --brand-tertiary-2: #33c481;
     --warning: #ff6600;
 
     /* Utility */
     --white: #ffffff;
+
+    /* Font weights - standard weights for dark mode */
+    --font-weight-base: 440;
+    --font-weight-medium: 480;
+    --font-weight-semibold: 550;
 
     /* RGB for opacity usage */
     --surface-4-rgb: 37 37 37;
@@ -311,6 +329,13 @@
     --c-FF402F: #ff402f;
     --c-B91C1C: #b91c1c;
     --c-883827: #883827;
+
+    /* Terminal status badges */
+    --terminal-status-error-bg: #491515;
+    --terminal-status-error-border: #883827;
+    --terminal-status-info-bg: #383838;
+    --terminal-status-info-border: #686868;
+    --terminal-status-info-color: #b7b7b7;
   }
 }
 
@@ -360,16 +385,16 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: var(--white);
+    background: var(--surface-1);
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--muted-foreground) / 0.3);
+    background-color: var(--surface-12);
     border-radius: var(--radius);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.4);
+    background-color: var(--surface-13);
   }
 
   /* Dark Mode Global Scrollbar */
@@ -378,20 +403,20 @@
   }
 
   .dark ::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--muted-foreground) / 0.3);
+    background-color: var(--surface-12);
   }
 
   .dark ::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.4);
+    background-color: var(--surface-13);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground) / 0.3) var(--white);
+    scrollbar-color: var(--surface-12) var(--surface-1);
   }
 
   .dark * {
-    scrollbar-color: hsl(var(--muted-foreground) / 0.3) var(--surface-5);
+    scrollbar-color: var(--surface-12) var(--surface-5);
   }
 
   .copilot-scrollable {

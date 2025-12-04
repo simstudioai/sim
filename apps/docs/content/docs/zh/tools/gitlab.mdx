@@ -1,0 +1,429 @@
+---
+title: GitLab
+description: 与 GitLab 项目、问题、合并请求和流水线进行交互
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="gitlab"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[GitLab](https://gitlab.com/) 是一个全面的 DevOps 平台，允许团队管理、协作并自动化其软件开发生命周期。通过 GitLab，您可以轻松处理源代码管理、CI/CD、评审和协作，全部集中在一个应用程序中。
+
+在 Sim 中使用 GitLab，您可以：
+
+- **管理项目和存储库**：列出并检索您的 GitLab 项目，访问详细信息并组织您的存储库
+- **处理问题**：列出、创建并评论问题，以跟踪工作并有效协作
+- **管理合并请求**：审查、创建并管理代码更改和同行评审的合并请求
+- **自动化 CI/CD 流水线**：触发、监控并与 GitLab 流水线交互，作为自动化流程的一部分
+- **通过评论协作**：为问题或合并请求添加评论，以提高团队内部的高效沟通
+
+通过 Sim 的 GitLab 集成，您的代理可以以编程方式与您的 GitLab 项目交互。无缝自动化项目管理、问题跟踪、代码评审和流水线操作，在您的工作流程中优化软件开发过程，并增强团队协作。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 GitLab 集成到工作流程中。可以管理项目、问题、合并请求、流水线并添加评论。支持所有核心 GitLab DevOps 操作。
+
+## 工具
+
+### `gitlab_list_projects`
+
+列出经过身份验证的用户可访问的 GitLab 项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owned` | boolean | 否 | 限制为当前用户拥有的项目 |
+| `membership` | boolean | 否 | 限制为当前用户是成员的项目 |
+| `search` | string | 否 | 按名称搜索项目 |
+| `visibility` | string | 否 | 按可见性筛选 \(public, internal, private\) |
+| `orderBy` | string | 否 | 按字段排序 \(id, name, path, created_at, updated_at, last_activity_at\) |
+| `sort` | string | 否 | 排序方向 \(asc, desc\) |
+| `perPage` | number | 否 | 每页结果数量 \(默认 20, 最大 100\) |
+| `page` | number | 否 | 分页的页码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `projects` | array | GitLab 项目列表 |
+| `total` | number | 项目总数 |
+
+### `gitlab_get_project`
+
+获取特定 GitLab 项目的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 \(例如："namespace/project"\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `project` | object | GitLab 项目详情 |
+
+### `gitlab_list_issues`
+
+列出 GitLab 项目中的问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `state` | string | 否 | 按状态过滤 \(opened, closed, all\) |
+| `labels` | string | 否 | 以逗号分隔的标签名称列表 |
+| `assigneeId` | number | 否 | 按分配的用户 ID 过滤 |
+| `milestoneTitle` | string | 否 | 按里程碑标题过滤 |
+| `search` | string | 否 | 按标题和描述搜索问题 |
+| `orderBy` | string | 否 | 按字段排序 \(created_at, updated_at\) |
+| `sort` | string | 否 | 排序方向 \(asc, desc\) |
+| `perPage` | number | 否 | 每页结果数量 \(默认 20，最大 100\) |
+| `page` | number | 否 | 分页页码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `issues` | array | GitLab 问题的列表 |
+| `total` | number | 问题的总数 |
+
+### `gitlab_get_issue`
+
+获取特定 GitLab 问题的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `issueIid` | number | 是 | 项目中的问题编号 \(在 GitLab 界面中显示的 #\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `issue` | object | GitLab 问题的详细信息 |
+
+### `gitlab_create_issue`
+
+在 GitLab 项目中创建一个新问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `title` | string | 是 | 问题标题 |
+| `description` | string | 否 | 问题描述 \(支持 Markdown\) |
+| `labels` | string | 否 | 逗号分隔的标签名称列表 |
+| `assigneeIds` | array | 否 | 分配的用户 ID 数组 |
+| `milestoneId` | number | 否 | 分配的里程碑 ID |
+| `dueDate` | string | 否 | YYYY-MM-DD 格式的截止日期 |
+| `confidential` | boolean | 否 | 问题是否为机密 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `issue` | object | 创建的 GitLab 问题 |
+
+### `gitlab_update_issue`
+
+更新 GitLab 项目中的现有问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `issueIid` | number | 是 | 问题内部 ID \(IID\) |
+| `title` | string | 否 | 新问题标题 |
+| `description` | string | 否 | 新问题描述 \(支持 Markdown\) |
+| `stateEvent` | string | 否 | 状态事件 \(关闭或重新打开\) |
+| `labels` | string | 否 | 逗号分隔的标签名称列表 |
+| `assigneeIds` | array | 否 | 分配的用户 ID 数组 |
+| `milestoneId` | number | 否 | 分配的里程碑 ID |
+| `dueDate` | string | 否 | YYYY-MM-DD 格式的截止日期 |
+| `confidential` | boolean | 否 | 问题是否为机密 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `issue` | object | 更新的 GitLab 问题 |
+
+### `gitlab_delete_issue`
+
+从 GitLab 项目中删除问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `issueIid` | number | 是 | 问题内部 ID \(IID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 问题是否成功删除 |
+
+### `gitlab_create_issue_note`
+
+向 GitLab 问题添加评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | 字符串 | 是 | 项目 ID 或 URL 编码路径 |
+| `issueIid` | 数字 | 是 | 问题内部 ID \(IID\) |
+| `body` | 字符串 | 是 | 评论正文 \(支持 Markdown\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `note` | 对象 | 创建的评论 |
+
+### `gitlab_list_merge_requests`
+
+列出 GitLab 项目中的合并请求
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | 字符串 | 是 | 项目 ID 或 URL 编码路径 |
+| `state` | 字符串 | 否 | 按状态筛选 \(opened, closed, merged, all\) |
+| `labels` | 字符串 | 否 | 逗号分隔的标签名称列表 |
+| `sourceBranch` | 字符串 | 否 | 按源分支筛选 |
+| `targetBranch` | 字符串 | 否 | 按目标分支筛选 |
+| `orderBy` | 字符串 | 否 | 按字段排序 \(created_at, updated_at\) |
+| `sort` | 字符串 | 否 | 排序方向 \(asc, desc\) |
+| `perPage` | 数字 | 否 | 每页结果数量 \(默认 20，最大 100\) |
+| `page` | 数字 | 否 | 分页页码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `mergeRequests` | array | GitLab 合并请求列表 |
+| `total` | number | 合并请求的总数 |
+
+### `gitlab_get_merge_request`
+
+获取特定 GitLab 合并请求的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `mergeRequestIid` | number | 是 | 合并请求的内部 ID \(IID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `mergeRequest` | object | GitLab 合并请求的详细信息 |
+
+### `gitlab_create_merge_request`
+
+在 GitLab 项目中创建新的合并请求
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `sourceBranch` | string | 是 | 源分支名称 |
+| `targetBranch` | string | 是 | 目标分支名称 |
+| `title` | string | 是 | 合并请求标题 |
+| `description` | string | 否 | 合并请求描述 \(支持 Markdown\) |
+| `labels` | string | 否 | 逗号分隔的标签名称列表 |
+| `assigneeIds` | array | 否 | 分配的用户 ID 数组 |
+| `milestoneId` | number | 否 | 分配的里程碑 ID |
+| `removeSourceBranch` | boolean | 否 | 合并后删除源分支 |
+| `squash` | boolean | 否 | 合并时压缩提交 |
+| `draft` | boolean | 否 | 标记为草稿 \(进行中\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `mergeRequest` | object | 创建的 GitLab 合并请求 |
+
+### `gitlab_update_merge_request`
+
+更新 GitLab 项目中的现有合并请求
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `mergeRequestIid` | number | 是 | 合并请求内部 ID \(IID\) |
+| `title` | string | 否 | 新的合并请求标题 |
+| `description` | string | 否 | 新的合并请求描述 |
+| `stateEvent` | string | 否 | 状态事件 \(关闭或重新打开\) |
+| `labels` | string | 否 | 逗号分隔的标签名称列表 |
+| `assigneeIds` | array | 否 | 分配的用户 ID 数组 |
+| `milestoneId` | number | 否 | 分配的里程碑 ID |
+| `targetBranch` | string | 否 | 新的目标分支 |
+| `removeSourceBranch` | boolean | 否 | 合并后删除源分支 |
+| `squash` | boolean | 否 | 合并时压缩提交 |
+| `draft` | boolean | 否 | 标记为草稿 \(进行中\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `mergeRequest` | object | 更新的 GitLab 合并请求 |
+
+### `gitlab_merge_merge_request`
+
+在 GitLab 项目中合并合并请求
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `mergeRequestIid` | number | 是 | 合并请求内部 ID \(IID\) |
+| `mergeCommitMessage` | string | 否 | 自定义合并提交消息 |
+| `squashCommitMessage` | string | 否 | 自定义压缩提交消息 |
+| `squash` | boolean | 否 | 合并前压缩提交 |
+| `shouldRemoveSourceBranch` | boolean | 否 | 合并后删除源分支 |
+| `mergeWhenPipelineSucceeds` | boolean | 否 | 在流水线成功时合并 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `mergeRequest` | object | 合并的 GitLab 合并请求 |
+
+### `gitlab_create_merge_request_note`
+
+向 GitLab 合并请求添加评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `mergeRequestIid` | number | 是 | 合并请求内部 ID \(IID\) |
+| `body` | string | 是 | 评论正文 \(支持 Markdown\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `note` | object | 创建的评论 |
+
+### `gitlab_list_pipelines`
+
+列出 GitLab 项目中的流水线
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `ref` | string | 否 | 按 ref 过滤 \(分支或标签\) |
+| `status` | string | 否 | 按状态过滤 \(created, waiting_for_resource, preparing, pending, running, success, failed, canceled, skipped, manual, scheduled\) |
+| `orderBy` | string | 否 | 按字段排序 \(id, status, ref, updated_at, user_id\) |
+| `sort` | string | 否 | 排序方向 \(asc, desc\) |
+| `perPage` | number | 否 | 每页结果数量 \(默认 20，最大 100\) |
+| `page` | number | 否 | 分页页码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `pipelines` | array | GitLab 流水线列表 |
+| `total` | number | 流水线总数 |
+
+### `gitlab_get_pipeline`
+
+获取特定 GitLab 流水线的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `pipelineId` | number | 是 | 流水线 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `pipeline` | object | GitLab 流水线详情 |
+
+### `gitlab_create_pipeline`
+
+在 GitLab 项目中触发新的流水线
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `ref` | string | 是 | 要运行流水线的分支或标签 |
+| `variables` | array | 否 | 流水线的变量数组（每个包含 key、value 和可选的 variable_type） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `pipeline` | object | 创建的 GitLab 流水线 |
+
+### `gitlab_retry_pipeline`
+
+重试失败的 GitLab 流水线
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `pipelineId` | number | 是 | 流水线 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `pipeline` | object | 重试的 GitLab 流水线 |
+
+### `gitlab_cancel_pipeline`
+
+取消正在运行的 GitLab 流水线
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 项目 ID 或 URL 编码路径 |
+| `pipelineId` | number | 是 | 流水线 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `pipeline` | object | 已取消的 GitLab 流水线 |
+
+## 注意
+
+- 类别: `tools`
+- 类型: `gitlab`

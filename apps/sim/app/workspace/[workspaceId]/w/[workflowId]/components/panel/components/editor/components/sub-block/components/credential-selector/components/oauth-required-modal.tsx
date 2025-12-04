@@ -1,15 +1,7 @@
 'use client'
 
 import { Check } from 'lucide-react'
-import {
-  Button,
-  Modal,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTitle,
-} from '@/components/emcn'
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -232,6 +224,38 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'webhooks:read': 'Read your Pipedrive webhooks',
   'webhooks:full': 'Full access to manage your Pipedrive webhooks',
   w_member_social: 'Access your LinkedIn profile',
+  // Box scopes
+  root_readwrite: 'Read and write all files and folders in your Box account',
+  root_readonly: 'Read all files and folders in your Box account',
+  // Shopify scopes (write_* implicitly includes read access)
+  write_products: 'Read and manage your Shopify products',
+  write_orders: 'Read and manage your Shopify orders',
+  write_customers: 'Read and manage your Shopify customers',
+  write_inventory: 'Read and manage your Shopify inventory levels',
+  read_locations: 'View your store locations',
+  write_merchant_managed_fulfillment_orders: 'Create fulfillments for orders',
+  // Zoom scopes
+  'user:read:user': 'View your Zoom profile information',
+  'meeting:write:meeting': 'Create Zoom meetings',
+  'meeting:read:meeting': 'View Zoom meeting details',
+  'meeting:read:list_meetings': 'List your Zoom meetings',
+  'meeting:update:meeting': 'Update Zoom meetings',
+  'meeting:delete:meeting': 'Delete Zoom meetings',
+  'meeting:read:invitation': 'View Zoom meeting invitations',
+  'meeting:read:list_past_participants': 'View past meeting participants',
+  'cloud_recording:read:list_user_recordings': 'List your Zoom cloud recordings',
+  'cloud_recording:read:list_recording_files': 'View recording files',
+  'cloud_recording:delete:recording_file': 'Delete cloud recordings',
+  // Dropbox scopes
+  'account_info.read': 'View your Dropbox account information',
+  'files.metadata.read': 'View file and folder names, sizes, and dates',
+  'files.metadata.write': 'Modify file and folder metadata',
+  'files.content.read': 'Download and read your Dropbox files',
+  'files.content.write': 'Upload, copy, move, and delete files in your Dropbox',
+  'sharing.read': 'View your shared files and folders',
+  'sharing.write': 'Share files and folders with others',
+  // WordPress.com scopes
+  global: 'Full access to manage your WordPress.com sites, posts, pages, media, and settings',
 }
 
 function getScopeDescription(scope: string): string {
@@ -289,6 +313,13 @@ export function OAuthRequiredModal({
         return
       }
 
+      if (providerId === 'shopify') {
+        // Pass the current URL so we can redirect back after OAuth
+        const returnUrl = encodeURIComponent(window.location.href)
+        window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
+        return
+      }
+
       await client.oauth2.link({
         providerId,
         callbackURL: window.location.href,
@@ -300,63 +331,63 @@ export function OAuthRequiredModal({
 
   return (
     <Modal open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <ModalContent className='sm:max-w-md'>
-        <ModalHeader>
-          <ModalTitle>Additional Access Required</ModalTitle>
-          <ModalDescription>
-            The "{toolName}" tool requires access to your {providerName} account to function
-            properly.
-          </ModalDescription>
-        </ModalHeader>
-        <div className='flex flex-col gap-4 py-4'>
-          <div className='flex items-center gap-4'>
-            <div className='rounded-full bg-muted p-2'>
-              <ProviderIcon className='h-5 w-5' />
-            </div>
-            <div className='flex-1'>
-              <p className='font-medium text-sm'>Connect {providerName}</p>
-              <p className='text-muted-foreground text-sm'>
-                You need to connect your {providerName} account to continue
-              </p>
-            </div>
-          </div>
-
-          {displayScopes.length > 0 && (
-            <div className='rounded-md border bg-muted/50'>
-              <div className='border-b px-4 py-3'>
-                <h4 className='font-medium text-sm'>Permissions requested</h4>
+      <ModalContent className='w-[460px]'>
+        <ModalHeader>Connect {providerName}</ModalHeader>
+        <ModalBody>
+          <div className='flex flex-col gap-[16px]'>
+            <div className='flex items-center gap-[14px]'>
+              <div className='flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-6)]'>
+                <ProviderIcon className='h-[18px] w-[18px]' />
               </div>
-              <ul className='max-h-[400px] space-y-3 overflow-y-auto px-4 py-3'>
-                {displayScopes.map((scope) => (
-                  <li key={scope} className='flex items-start gap-2 text-sm'>
-                    <div className='mt-1 rounded-full bg-muted p-0.5'>
-                      <Check className='h-3 w-3' />
-                    </div>
-                    <div className='text-muted-foreground'>
-                      <span>{getScopeDescription(scope)}</span>
-                      {newScopesSet.has(scope) && (
-                        <span className='ml-2 rounded-[4px] border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300'>
-                          New
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <div className='flex-1'>
+                <p className='font-medium text-[13px] text-[var(--text-primary)]'>
+                  Connect your {providerName} account
+                </p>
+                <p className='text-[12px] text-[var(--text-tertiary)]'>
+                  The "{toolName}" tool requires access to your account
+                </p>
+              </div>
             </div>
-          )}
-        </div>
+
+            {displayScopes.length > 0 && (
+              <div className='rounded-[8px] border bg-[var(--surface-6)]'>
+                <div className='border-b px-[14px] py-[10px]'>
+                  <h4 className='font-medium text-[13px] text-[var(--text-primary)]'>
+                    Permissions requested
+                  </h4>
+                </div>
+                <ul className='max-h-[330px] space-y-[10px] overflow-y-auto px-[14px] py-[12px]'>
+                  {displayScopes.map((scope) => (
+                    <li key={scope} className='flex items-start gap-[10px]'>
+                      <div className='mt-[3px] flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                        <Check className='h-[10px] w-[10px] text-[var(--text-primary)]' />
+                      </div>
+                      <div className='flex-1 text-[12px] text-[var(--text-primary)]'>
+                        <span>{getScopeDescription(scope)}</span>
+                        {newScopesSet.has(scope) && (
+                          <span className='ml-[8px] rounded-[4px] border border-amber-500/30 bg-amber-500/10 px-[6px] py-[2px] text-[10px] text-amber-300'>
+                            New
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </ModalBody>
         <ModalFooter>
-          <Button variant='outline' onClick={onClose} className='h-[32px] px-[12px]'>
+          <Button variant='active' onClick={onClose}>
             Cancel
           </Button>
           <Button
             variant='primary'
             type='button'
             onClick={handleConnectDirectly}
-            className='h-[32px] px-[12px]'
+            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
           >
-            Connect Now
+            Connect
           </Button>
         </ModalFooter>
       </ModalContent>

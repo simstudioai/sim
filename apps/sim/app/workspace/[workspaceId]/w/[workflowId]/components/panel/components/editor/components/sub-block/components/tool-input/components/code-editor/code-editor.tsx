@@ -20,6 +20,7 @@ interface CodeEditorProps {
   language: 'javascript' | 'json'
   placeholder?: string
   className?: string
+  gutterClassName?: string
   minHeight?: string
   highlightVariables?: boolean
   onKeyDown?: (e: React.KeyboardEvent) => void
@@ -36,6 +37,7 @@ export function CodeEditor({
   language,
   placeholder = '',
   className = '',
+  gutterClassName = '',
   minHeight = '360px',
   highlightVariables = true,
   onKeyDown,
@@ -180,7 +182,9 @@ export function CodeEditor({
         </Button>
       )}
 
-      <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
+      <Code.Gutter width={gutterWidth} className={gutterClassName}>
+        {renderLineNumbers()}
+      </Code.Gutter>
 
       <Code.Content paddingLeft={`${gutterWidth}px`} editorRef={editorRef}>
         <Code.Placeholder gutterWidth={gutterWidth} show={code.length === 0 && !!placeholder}>

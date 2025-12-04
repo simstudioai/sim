@@ -232,7 +232,7 @@ function TemplateCardInner({
                     key={index}
                     className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
                     style={{
-                      backgroundColor: blockConfig.bgColor || 'gray',
+                      background: blockConfig.bgColor || 'gray',
                       marginLeft: index > 0 ? '-4px' : '0',
                     }}
                   >
@@ -257,7 +257,7 @@ function TemplateCardInner({
                   key={index}
                   className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
                   style={{
-                    backgroundColor: blockConfig.bgColor || 'gray',
+                    background: blockConfig.bgColor || 'gray',
                     marginLeft: index > 0 ? '-4px' : '0',
                   }}
                 >
@@ -270,7 +270,7 @@ function TemplateCardInner({
       </div>
 
       <div className='mt-[10px] flex items-center justify-between'>
-        <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
+        <div className='flex min-w-0 items-center gap-[8px]'>
           {authorImageUrl ? (
             <div className='h-[20px] w-[20px] flex-shrink-0 overflow-hidden rounded-full'>
               <img src={authorImageUrl} alt={author} className='h-full w-full object-cover' />

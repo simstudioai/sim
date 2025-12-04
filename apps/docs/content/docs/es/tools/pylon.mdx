@@ -81,12 +81,19 @@ Crear un nuevo problema con propiedades específicas
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `apiToken` | string | Sí | Token de API de Pylon |
 | `title` | string | Sí | Título del problema |
 | `bodyHtml` | string | Sí | Cuerpo del problema en formato HTML |
-| `accountId` | string | No | ID de cuenta para asociar con el problema |
-| `assigneeId` | string | No | ID de usuario para asignar el problema |
+| `accountId` | string | No | ID de la cuenta a asociar con el problema |
+| `assigneeId` | string | No | ID del usuario al que asignar el problema |
+| `teamId` | string | No | ID del equipo al que asignar el problema |
+| `requesterId` | string | No | ID del usuario solicitante \(alternativa a requester_email\) |
+| `requesterEmail` | string | No | Dirección de correo electrónico del solicitante \(alternativa a requester_id\) |
+| `priority` | string | No | Prioridad del problema |
+| `tags` | string | No | IDs de etiquetas separados por comas |
+| `customFields` | string | No | Campos personalizados como objeto JSON |
+| `attachmentUrls` | string | No | URLs de archivos adjuntos separados por comas |
 
 #### Salida
 
@@ -124,10 +131,13 @@ Actualizar un problema existente
 | `apiToken` | string | Sí | Token de API de Pylon |
 | `issueId` | string | Sí | El ID del problema a actualizar |
 | `state` | string | No | Estado del problema |
-| `assigneeId` | string | No | ID de usuario para asignar el problema |
-| `teamId` | string | No | ID del equipo para asignar el problema |
+| `assigneeId` | string | No | ID del usuario al que asignar el problema |
+| `teamId` | string | No | ID del equipo al que asignar el problema |
 | `tags` | string | No | IDs de etiquetas separados por comas |
 | `customFields` | string | No | Campos personalizados como objeto JSON |
+| `customerPortalVisible` | boolean | No | Si el problema es visible en el portal del cliente |
+| `requesterId` | string | No | ID del usuario solicitante |
+| `accountId` | string | No | ID de la cuenta a asociar con el problema |
 
 #### Salida
 

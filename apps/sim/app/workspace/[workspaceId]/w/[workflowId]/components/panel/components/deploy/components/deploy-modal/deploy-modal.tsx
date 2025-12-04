@@ -1,33 +1,38 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Loader2, MoreVertical, X } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import clsx from 'clsx'
+import { Button } from '@/components/emcn'
 import {
-  Badge,
-  Button,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
-} from '@/components/emcn'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalTabs,
+  ModalTabsContent,
+  ModalTabsList,
+  ModalTabsTrigger,
+} from '@/components/emcn/components/modal/modal'
 import { getEnv } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
-import { ChatDeploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/chat-deploy'
-import { DeployedWorkflowModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/deployed-workflow-modal'
-import { DeploymentInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/deployment-info'
-import { TemplateDeploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/template-deploy'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { ApiDeploy } from './components/api/api'
+import { ChatDeploy, type ExistingChat } from './components/chat/chat'
+import { GeneralDeploy } from './components/general/general'
+import { TemplateDeploy } from './components/template/template'
 
 const logger = createLogger('DeployModal')
+
 interface DeployModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workflowId: string | null
+  isDeployed: boolean
   needsRedeployment: boolean
   setNeedsRedeployment: (value: boolean) => void
   deployedState: WorkflowState
@@ -44,12 +49,13 @@ interface WorkflowDeploymentInfo {
   needsRedeployment: boolean
 }
 
-type TabView = 'api' | 'versions' | 'chat' | 'template'
+type TabView = 'general' | 'api' | 'chat' | 'template'
 
 export function DeployModal({
   open,
   onOpenChange,
   workflowId,
+  isDeployed: isDeployedProp,
   needsRedeployment,
   setNeedsRedeployment,
   deployedState,
@@ -59,7 +65,7 @@ export function DeployModal({
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(workflowId)
   )
-  const isDeployed = deploymentStatus?.isDeployed || false
+  const isDeployed = deploymentStatus?.isDeployed ?? isDeployedProp
   const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUndeploying, setIsUndeploying] = useState(false)
@@ -69,7 +75,7 @@ export function DeployModal({
     workflowId ? state.workflows[workflowId] : undefined
   )
   const workflowWorkspaceId = workflowMetadata?.workspaceId ?? null
-  const [activeTab, setActiveTab] = useState<TabView>('api')
+  const [activeTab, setActiveTab] = useState<TabView>('general')
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [apiDeployError, setApiDeployError] = useState<string | null>(null)
   const [chatExists, setChatExists] = useState(false)
@@ -78,25 +84,18 @@ export function DeployModal({
 
   const [versions, setVersions] = useState<WorkflowDeploymentVersionResponse[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
-  const [activatingVersion, setActivatingVersion] = useState<number | null>(null)
-  const [previewVersion, setPreviewVersion] = useState<number | null>(null)
-  const [previewing, setPreviewing] = useState(false)
-  const [previewDeployedState, setPreviewDeployedState] = useState<WorkflowState | null>(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 5
-  const [editingVersion, setEditingVersion] = useState<number | null>(null)
-  const [editValue, setEditValue] = useState('')
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [openDropdown, setOpenDropdown] = useState<number | null>(null)
-  const [versionToActivate, setVersionToActivate] = useState<number | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [showUndeployConfirm, setShowUndeployConfirm] = useState(false)
+  const [templateFormValid, setTemplateFormValid] = useState(false)
+  const [templateSubmitting, setTemplateSubmitting] = useState(false)
+  const [hasExistingTemplate, setHasExistingTemplate] = useState(false)
+  const [templateStatus, setTemplateStatus] = useState<{
+    status: 'pending' | 'approved' | 'rejected' | null
+    views?: number
+    stars?: number
+  } | null>(null)
 
-  useEffect(() => {
-    if (editingVersion !== null && inputRef.current) {
-      inputRef.current.focus()
-      inputRef.current.select()
-    }
-  }, [editingVersion])
+  const [existingChat, setExistingChat] = useState<ExistingChat | null>(null)
+  const [isLoadingChat, setIsLoadingChat] = useState(false)
 
   const getApiKeyLabel = (value?: string | null) => {
     if (value && value.trim().length > 0) {
@@ -112,41 +111,48 @@ export function DeployModal({
     return getInputFormatExampleUtil(includeStreaming, selectedStreamingOutputs)
   }
 
-  const fetchChatDeploymentInfo = async () => {
-    if (!open || !workflowId) return
+  const fetchChatDeploymentInfo = useCallback(async () => {
+    if (!workflowId) return
 
     try {
-      setIsLoading(true)
+      setIsLoadingChat(true)
       const response = await fetch(`/api/workflows/${workflowId}/chat/status`)
 
       if (response.ok) {
         const data = await response.json()
         if (data.isDeployed && data.deployment) {
-          setChatExists(true)
+          const detailResponse = await fetch(`/api/chat/manage/${data.deployment.id}`)
+          if (detailResponse.ok) {
+            const chatDetail = await detailResponse.json()
+            setExistingChat(chatDetail)
+            setChatExists(true)
+          } else {
+            setExistingChat(null)
+            setChatExists(false)
+          }
         } else {
+          setExistingChat(null)
           setChatExists(false)
         }
       } else {
+        setExistingChat(null)
         setChatExists(false)
       }
     } catch (error) {
       logger.error('Error fetching chat deployment info:', { error })
+      setExistingChat(null)
       setChatExists(false)
     } finally {
-      setIsLoading(false)
+      setIsLoadingChat(false)
     }
-  }
+  }, [workflowId])
 
   useEffect(() => {
-    if (open) {
-      setIsLoading(true)
+    if (open && workflowId) {
+      setActiveTab('general')
       fetchChatDeploymentInfo()
-      setActiveTab('api')
-      setVersionToActivate(null)
-    } else {
-      setVersionToActivate(null)
     }
-  }, [open, workflowId])
+  }, [open, workflowId, fetchChatDeploymentInfo])
 
   useEffect(() => {
     async function fetchDeploymentInfo() {
@@ -199,12 +205,7 @@ export function DeployModal({
     try {
       setIsSubmitting(true)
 
-      let deployEndpoint = `/api/workflows/${workflowId}/deploy`
-      if (versionToActivate !== null) {
-        deployEndpoint = `/api/workflows/${workflowId}/deployments/${versionToActivate}/activate`
-      }
-
-      const response = await fetch(deployEndpoint, {
+      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -221,17 +222,15 @@ export function DeployModal({
 
       const responseData = await response.json()
 
-      const isActivating = versionToActivate !== null
-      const isDeployedStatus = isActivating ? true : (responseData.isDeployed ?? false)
+      const isDeployedStatus = responseData.isDeployed ?? false
       const deployedAtTime = responseData.deployedAt ? new Date(responseData.deployedAt) : undefined
       const apiKeyLabel = getApiKeyLabel(responseData.apiKey)
 
       setDeploymentStatus(workflowId, isDeployedStatus, deployedAtTime, apiKeyLabel)
 
-      const isActivatingVersion = versionToActivate !== null
-      setNeedsRedeployment(isActivatingVersion)
+      setNeedsRedeployment(false)
       if (workflowId) {
-        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, isActivatingVersion)
+        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
       }
 
       await refetchDeployedState()
@@ -250,15 +249,11 @@ export function DeployModal({
           apiKey: getApiKeyLabel(deploymentData.apiKey),
           endpoint: apiEndpoint,
           exampleCommand: `curl -X POST -H "X-API-Key: ${placeholderKey}" -H "Content-Type: application/json"${inputFormatExample} ${apiEndpoint}`,
-          needsRedeployment: isActivatingVersion,
+          needsRedeployment: false,
         })
       }
 
-      setVersionToActivate(null)
       setApiDeployError(null)
-
-      // Templates connected to this workflow are automatically updated with the new state
-      // The deployWorkflow function handles updating template states in db-helpers.ts
     } catch (error: unknown) {
       logger.error('Error deploying workflow:', { error })
       const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
@@ -268,10 +263,9 @@ export function DeployModal({
     }
   }
 
-  const fetchVersions = async () => {
+  const fetchVersions = useCallback(async () => {
     if (!workflowId) return
     try {
-      setVersionsLoading(true)
       const res = await fetch(`/api/workflows/${workflowId}/deployments`)
       if (res.ok) {
         const data = await res.json()
@@ -281,18 +275,16 @@ export function DeployModal({
       }
     } catch {
       setVersions([])
-    } finally {
-      setVersionsLoading(false)
     }
-  }
+  }, [workflowId])
 
   useEffect(() => {
     if (open && workflowId) {
-      fetchVersions()
+      setVersionsLoading(true)
+      fetchVersions().finally(() => setVersionsLoading(false))
     }
-  }, [open, workflowId])
+  }, [open, workflowId, fetchVersions])
 
-  // Clean up selectedStreamingOutputs when blocks are deleted
   useEffect(() => {
     if (!open || selectedStreamingOutputs.length === 0) return
 
@@ -300,7 +292,6 @@ export function DeployModal({
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 
     const validOutputs = selectedStreamingOutputs.filter((outputId) => {
-      // If it starts with a UUID, extract the blockId and check if the block exists
       if (UUID_REGEX.test(outputId)) {
         const underscoreIndex = outputId.indexOf('_')
         if (underscoreIndex === -1) return false
@@ -310,7 +301,6 @@ export function DeployModal({
         return !!block
       }
 
-      // If it's in blockName.attribute format, check if a block with that name exists
       const parts = outputId.split('.')
       if (parts.length >= 2) {
         const blockName = parts[0]
@@ -323,13 +313,11 @@ export function DeployModal({
       return true
     })
 
-    // Update the state if any outputs were filtered out
     if (validOutputs.length !== selectedStreamingOutputs.length) {
       setSelectedStreamingOutputs(validOutputs)
     }
   }, [open, selectedStreamingOutputs, setSelectedStreamingOutputs])
 
-  // Listen for event to reopen deploy modal
   useEffect(() => {
     const handleOpenDeployModal = (event: Event) => {
       const customEvent = event as CustomEvent<{ tab?: TabView }>
@@ -346,73 +334,72 @@ export function DeployModal({
     }
   }, [onOpenChange])
 
-  const handleActivateVersion = (version: number) => {
-    setVersionToActivate(version)
-    setActiveTab('api')
-  }
+  const handlePromoteToLive = useCallback(
+    async (version: number) => {
+      if (!workflowId) return
 
-  const openVersionPreview = async (version: number) => {
-    if (!workflowId) return
-    try {
-      setPreviewing(true)
-      setPreviewVersion(version)
-      const res = await fetch(`/api/workflows/${workflowId}/deployments/${version}`)
-      if (res.ok) {
-        const data = await res.json()
-        setPreviewDeployedState(data.deployedState || null)
-      } else {
-        setPreviewDeployedState(null)
+      // Optimistically update versions to show the new active version immediately
+      const previousVersions = [...versions]
+      setVersions((prev) =>
+        prev.map((v) => ({
+          ...v,
+          isActive: v.version === version,
+        }))
+      )
+
+      try {
+        const response = await fetch(
+          `/api/workflows/${workflowId}/deployments/${version}/activate`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to promote version')
+        }
+
+        const responseData = await response.json()
+
+        const deployedAtTime = responseData.deployedAt
+          ? new Date(responseData.deployedAt)
+          : undefined
+        const apiKeyLabel = getApiKeyLabel(responseData.apiKey)
+
+        setDeploymentStatus(workflowId, true, deployedAtTime, apiKeyLabel)
+
+        // Refresh deployed state in background (no loading flash)
+        refetchDeployedState()
+        fetchVersions()
+
+        const deploymentInfoResponse = await fetch(`/api/workflows/${workflowId}/deploy`)
+        if (deploymentInfoResponse.ok) {
+          const deploymentData = await deploymentInfoResponse.json()
+          const apiEndpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
+          const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
+          const placeholderKey = getApiHeaderPlaceholder()
+
+          setDeploymentInfo({
+            isDeployed: deploymentData.isDeployed,
+            deployedAt: deploymentData.deployedAt,
+            apiKey: getApiKeyLabel(deploymentData.apiKey),
+            endpoint: apiEndpoint,
+            exampleCommand: `curl -X POST -H "X-API-Key: ${placeholderKey}" -H "Content-Type: application/json"${inputFormatExample} ${apiEndpoint}`,
+            needsRedeployment: false,
+          })
+        }
+      } catch (error) {
+        // Rollback optimistic update on error
+        setVersions(previousVersions)
+        throw error
       }
-    } finally {
-      // keep modal open even if error; user can close
-    }
-  }
-
-  const handleStartRename = (version: number, currentName: string | null | undefined) => {
-    setOpenDropdown(null) // Close dropdown first
-    setEditingVersion(version)
-    setEditValue(currentName || `v${version}`)
-  }
-
-  const handleSaveRename = async (version: number) => {
-    if (!workflowId || !editValue.trim()) {
-      setEditingVersion(null)
-      return
-    }
-
-    const currentVersion = versions.find((v) => v.version === version)
-    const currentName = currentVersion?.name || `v${version}`
-
-    if (editValue.trim() === currentName) {
-      setEditingVersion(null)
-      return
-    }
-
-    setIsRenaming(true)
-    try {
-      const res = await fetch(`/api/workflows/${workflowId}/deployments/${version}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editValue.trim() }),
-      })
-
-      if (res.ok) {
-        await fetchVersions()
-        setEditingVersion(null)
-      } else {
-        logger.error('Failed to rename version')
-      }
-    } catch (error) {
-      logger.error('Error renaming version:', error)
-    } finally {
-      setIsRenaming(false)
-    }
-  }
-
-  const handleCancelRename = () => {
-    setEditingVersion(null)
-    setEditValue('')
-  }
+    },
+    [workflowId, versions, refetchDeployedState, fetchVersions, selectedStreamingOutputs]
+  )
 
   const handleUndeploy = async () => {
     try {
@@ -429,6 +416,7 @@ export function DeployModal({
 
       setDeploymentStatus(workflowId, false)
       setChatExists(false)
+      setShowUndeployConfirm(false)
       onOpenChange(false)
     } catch (error: unknown) {
       logger.error('Error undeploying workflow:', { error })
@@ -490,8 +478,6 @@ export function DeployModal({
   const handlePostDeploymentUpdate = async () => {
     if (!workflowId) return
 
-    const isActivating = versionToActivate !== null
-
     setDeploymentStatus(workflowId, true, new Date(), getApiKeyLabel())
 
     const deploymentInfoResponse = await fetch(`/api/workflows/${workflowId}/deploy`)
@@ -508,19 +494,18 @@ export function DeployModal({
         apiKey: getApiKeyLabel(deploymentData.apiKey),
         endpoint: apiEndpoint,
         exampleCommand: `curl -X POST -H "X-API-Key: ${placeholderKey}" -H "Content-Type: application/json"${inputFormatExample} ${apiEndpoint}`,
-        needsRedeployment: isActivating,
+        needsRedeployment: false,
       })
     }
 
     await refetchDeployedState()
     await fetchVersions()
-    useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, isActivating)
+    useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
   }
 
   const handleChatFormSubmit = () => {
     const form = document.getElementById('chat-deploy-form') as HTMLFormElement
     if (form) {
-      // Check if we're in success view and need to trigger update
       const updateTrigger = form.querySelector('[data-update-trigger]') as HTMLButtonElement
       if (updateTrigger) {
         updateTrigger.click()
@@ -530,325 +515,124 @@ export function DeployModal({
     }
   }
 
+  const handleChatDelete = () => {
+    const form = document.getElementById('chat-deploy-form') as HTMLFormElement
+    if (form) {
+      const deleteButton = form.querySelector('[data-delete-trigger]') as HTMLButtonElement
+      if (deleteButton) {
+        deleteButton.click()
+      }
+    }
+  }
+
+  const handleTemplateFormSubmit = useCallback(() => {
+    const form = document.getElementById('template-deploy-form') as HTMLFormElement
+    form?.requestSubmit()
+  }, [])
+
+  const handleTemplateDelete = useCallback(() => {
+    const form = document.getElementById('template-deploy-form')
+    const deleteTrigger = form?.querySelector('[data-template-delete-trigger]') as HTMLButtonElement
+    deleteTrigger?.click()
+  }, [])
+
   return (
     <>
-      <Dialog open={open} onOpenChange={handleCloseModal}>
-        <DialogContent
-          className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[700px]'
-          hideCloseButton
-        >
-          <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <DialogTitle className='font-medium text-lg'>Deploy Workflow</DialogTitle>
-                {needsRedeployment && versions.length > 0 && versionToActivate === null && (
-                  <Badge variant='default'>
-                    {versions.find((v) => v.isActive)?.name ||
-                      `v${versions.find((v) => v.isActive)?.version}`}{' '}
-                    active
-                  </Badge>
-                )}
-              </div>
-              <Button variant='ghost' className='h-8 w-8 p-0' onClick={handleCloseModal}>
-                <X className='h-4 w-4' />
-                <span className='sr-only'>Close</span>
-              </Button>
-            </div>
-          </DialogHeader>
+      <Modal open={open} onOpenChange={handleCloseModal}>
+        <ModalContent className='h-[76vh] w-[660px]'>
+          <ModalHeader>Deploy Workflow</ModalHeader>
 
-          <div className='flex flex-1 flex-col overflow-hidden'>
-            <div className='flex h-14 flex-none items-center border-b px-6'>
-              <div className='flex gap-2'>
-                <Button
-                  variant={activeTab === 'api' ? 'active' : 'default'}
-                  onClick={() => setActiveTab('api')}
-                >
-                  API
-                </Button>
-                <Button
-                  variant={activeTab === 'chat' ? 'active' : 'default'}
-                  onClick={() => setActiveTab('chat')}
-                >
-                  Chat
-                </Button>
-                <Button
-                  variant={activeTab === 'versions' ? 'active' : 'default'}
-                  onClick={() => setActiveTab('versions')}
-                >
-                  Versions
-                </Button>
-                <Button
-                  variant={activeTab === 'template' ? 'active' : 'default'}
-                  onClick={() => setActiveTab('template')}
-                >
-                  Template
-                </Button>
-              </div>
-            </div>
+          <ModalTabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as TabView)}
+            className='flex min-h-0 flex-1 flex-col'
+          >
+            <ModalTabsList activeValue={activeTab}>
+              <ModalTabsTrigger value='general'>General</ModalTabsTrigger>
+              <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
+              <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
+              <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
+            </ModalTabsList>
 
-            <div className='flex-1 overflow-y-auto'>
-              <div className='p-6' key={`${activeTab}-${versionToActivate}`}>
-                {activeTab === 'api' && (
-                  <div className='space-y-4'>
-                    {apiDeployError && (
-                      <div className='rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
-                        <div className='font-semibold'>API Deployment Error</div>
-                        <div>{apiDeployError}</div>
-                      </div>
-                    )}
+            <ModalBody className='min-h-0 flex-1'>
+              <ModalTabsContent value='general'>
+                <GeneralDeploy
+                  workflowId={workflowId}
+                  deployedState={deployedState}
+                  isLoadingDeployedState={isLoadingDeployedState}
+                  versions={versions}
+                  versionsLoading={versionsLoading}
+                  onPromoteToLive={handlePromoteToLive}
+                  onLoadDeploymentComplete={handleCloseModal}
+                  fetchVersions={fetchVersions}
+                />
+              </ModalTabsContent>
 
-                    {versionToActivate !== null ? (
-                      <div className='space-y-4'>
-                        <div className='rounded-md border bg-muted/40 p-4 text-muted-foreground text-sm'>
-                          {`Deploy version ${
-                            versions.find((v) => v.version === versionToActivate)?.name ||
-                            `v${versionToActivate}`
-                          } to production.`}
-                        </div>
-                        <div className='flex gap-2'>
-                          <Button variant='primary' onClick={onDeploy} disabled={isSubmitting}>
-                            {isSubmitting ? (
-                              <>
-                                <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-                                Deploying...
-                              </>
-                            ) : (
-                              'Deploy version'
-                            )}
-                          </Button>
-                          <Button variant='outline' onClick={() => setVersionToActivate(null)}>
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <DeploymentInfo
-                        isLoading={isLoading}
-                        deploymentInfo={
-                          deploymentInfo ? { ...deploymentInfo, needsRedeployment } : null
-                        }
-                        onRedeploy={handleRedeploy}
-                        onUndeploy={handleUndeploy}
-                        isSubmitting={isSubmitting}
-                        isUndeploying={isUndeploying}
-                        workflowId={workflowId}
-                        deployedState={deployedState}
-                        isLoadingDeployedState={isLoadingDeployedState}
-                        getInputFormatExample={getInputFormatExample}
-                        selectedStreamingOutputs={selectedStreamingOutputs}
-                        onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
-                        onLoadDeploymentComplete={handleCloseModal}
-                      />
-                    )}
-                  </div>
-                )}
+              <ModalTabsContent value='api'>
+                <ApiDeploy
+                  workflowId={workflowId}
+                  deploymentInfo={deploymentInfo}
+                  isLoading={isLoading}
+                  needsRedeployment={needsRedeployment}
+                  apiDeployError={apiDeployError}
+                  getInputFormatExample={getInputFormatExample}
+                  selectedStreamingOutputs={selectedStreamingOutputs}
+                  onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
+                />
+              </ModalTabsContent>
 
-                {activeTab === 'versions' && (
-                  <>
-                    <div className='mb-3 font-medium text-sm'>Deployment Versions</div>
-                    {versionsLoading ? (
-                      <div className='rounded-md border p-4 text-center text-muted-foreground text-sm'>
-                        Loading deployments...
-                      </div>
-                    ) : versions.length === 0 ? (
-                      <div className='rounded-md border p-4 text-center text-muted-foreground text-sm'>
-                        No deployments yet
-                      </div>
-                    ) : (
-                      <>
-                        <div className='overflow-hidden rounded-md border'>
-                          <table className='w-full'>
-                            <thead className='border-b bg-muted/50'>
-                              <tr>
-                                <th className='w-10' />
-                                <th className='w-[200px] whitespace-nowrap px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
-                                  Version
-                                </th>
-                                <th className='whitespace-nowrap px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
-                                  Deployed By
-                                </th>
-                                <th className='whitespace-nowrap px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
-                                  Created
-                                </th>
-                                <th className='w-10' />
-                              </tr>
-                            </thead>
-                            <tbody className='divide-y'>
-                              {versions
-                                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                                .map((v) => (
-                                  <tr
-                                    key={v.id}
-                                    className='cursor-pointer transition-colors hover:bg-muted/30'
-                                    onClick={() => {
-                                      if (editingVersion !== v.version) {
-                                        openVersionPreview(v.version)
-                                      }
-                                    }}
-                                  >
-                                    <td className='px-4 py-2.5'>
-                                      <div
-                                        className={`h-2 w-2 rounded-full ${
-                                          v.isActive ? 'bg-green-500' : 'bg-muted-foreground/40'
-                                        }`}
-                                        title={v.isActive ? 'Active' : 'Inactive'}
-                                      />
-                                    </td>
-                                    <td className='w-[220px] max-w-[220px] px-4 py-2.5'>
-                                      {editingVersion === v.version ? (
-                                        <input
-                                          ref={inputRef}
-                                          value={editValue}
-                                          onChange={(e) => setEditValue(e.target.value)}
-                                          onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                              e.preventDefault()
-                                              handleSaveRename(v.version)
-                                            } else if (e.key === 'Escape') {
-                                              e.preventDefault()
-                                              handleCancelRename()
-                                            }
-                                          }}
-                                          onBlur={() => handleSaveRename(v.version)}
-                                          className='w-full border-0 bg-transparent p-0 font-medium text-sm leading-5 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
-                                          maxLength={100}
-                                          disabled={isRenaming}
-                                          autoComplete='off'
-                                          autoCorrect='off'
-                                          autoCapitalize='off'
-                                          spellCheck='false'
-                                        />
-                                      ) : (
-                                        <span className='block whitespace-pre-wrap break-words break-all font-medium text-sm leading-5'>
-                                          {v.name || `v${v.version}`}
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className='whitespace-nowrap px-4 py-2.5'>
-                                      <span className='text-muted-foreground text-sm'>
-                                        {v.deployedBy || 'Unknown'}
-                                      </span>
-                                    </td>
-                                    <td className='whitespace-nowrap px-4 py-2.5'>
-                                      <span className='text-muted-foreground text-sm'>
-                                        {new Date(v.createdAt).toLocaleDateString()}{' '}
-                                        {new Date(v.createdAt).toLocaleTimeString()}
-                                      </span>
-                                    </td>
-                                    <td
-                                      className='px-4 py-2.5'
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <Popover
-                                        open={openDropdown === v.version}
-                                        onOpenChange={(open) =>
-                                          setOpenDropdown(open ? v.version : null)
-                                        }
-                                      >
-                                        <PopoverTrigger asChild>
-                                          <Button
-                                            variant='ghost'
-                                            disabled={activatingVersion === v.version}
-                                            className='h-8 w-8 p-0'
-                                          >
-                                            <MoreVertical className='h-4 w-4' />
-                                          </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent align='end'>
-                                          <PopoverItem
-                                            onClick={() => openVersionPreview(v.version)}
-                                          >
-                                            {v.isActive ? 'View Active' : 'Inspect'}
-                                          </PopoverItem>
-                                          <PopoverItem
-                                            onClick={() => handleStartRename(v.version, v.name)}
-                                          >
-                                            Rename
-                                          </PopoverItem>
-                                        </PopoverContent>
-                                      </Popover>
-                                    </td>
-                                  </tr>
-                                ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        {versions.length > itemsPerPage && (
-                          <div className='mt-3 flex items-center justify-between'>
-                            <span className='text-muted-foreground text-sm'>
-                              Showing{' '}
-                              {Math.min((currentPage - 1) * itemsPerPage + 1, versions.length)} -{' '}
-                              {Math.min(currentPage * itemsPerPage, versions.length)} of{' '}
-                              {versions.length}
-                            </span>
-                            <div className='flex gap-2'>
-                              <Button
-                                variant='outline'
-                                onClick={() => setCurrentPage(currentPage - 1)}
-                                disabled={currentPage === 1}
-                              >
-                                Previous
-                              </Button>
-                              <Button
-                                variant='outline'
-                                onClick={() => setCurrentPage(currentPage + 1)}
-                                disabled={currentPage * itemsPerPage >= versions.length}
-                              >
-                                Next
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </>
-                )}
+              <ModalTabsContent value='chat'>
+                <ChatDeploy
+                  workflowId={workflowId || ''}
+                  deploymentInfo={deploymentInfo}
+                  existingChat={existingChat}
+                  isLoadingChat={isLoadingChat}
+                  onRefetchChat={fetchChatDeploymentInfo}
+                  onChatExistsChange={setChatExists}
+                  chatSubmitting={chatSubmitting}
+                  setChatSubmitting={setChatSubmitting}
+                  onValidationChange={setIsChatFormValid}
+                  onDeploymentComplete={handleCloseModal}
+                  onDeployed={handlePostDeploymentUpdate}
+                  onVersionActivated={() => {}}
+                />
+              </ModalTabsContent>
 
-                {activeTab === 'chat' && (
-                  <ChatDeploy
-                    workflowId={workflowId || ''}
-                    deploymentInfo={deploymentInfo}
-                    onChatExistsChange={setChatExists}
-                    chatSubmitting={chatSubmitting}
-                    setChatSubmitting={setChatSubmitting}
-                    onValidationChange={setIsChatFormValid}
+              <ModalTabsContent value='template'>
+                {workflowId && (
+                  <TemplateDeploy
+                    workflowId={workflowId}
                     onDeploymentComplete={handleCloseModal}
-                    onDeployed={handlePostDeploymentUpdate}
-                    onUndeploy={handleUndeploy}
-                    onVersionActivated={() => setVersionToActivate(null)}
+                    onValidationChange={setTemplateFormValid}
+                    onSubmittingChange={setTemplateSubmitting}
+                    onExistingTemplateChange={setHasExistingTemplate}
+                    onTemplateStatusChange={setTemplateStatus}
                   />
                 )}
+              </ModalTabsContent>
+            </ModalBody>
+          </ModalTabs>
 
-                {activeTab === 'template' && workflowId && (
-                  <TemplateDeploy workflowId={workflowId} onDeploymentComplete={handleCloseModal} />
-                )}
-              </div>
-            </div>
-          </div>
-
+          {activeTab === 'general' && (
+            <GeneralFooter
+              isDeployed={isDeployed}
+              needsRedeployment={needsRedeployment}
+              isSubmitting={isSubmitting}
+              isUndeploying={isUndeploying}
+              onDeploy={onDeploy}
+              onRedeploy={handleRedeploy}
+              onUndeploy={() => setShowUndeployConfirm(true)}
+            />
+          )}
           {activeTab === 'chat' && (
-            <div className='flex flex-shrink-0 justify-between border-t px-6 py-4'>
-              <Button variant='outline' onClick={handleCloseModal}>
-                Cancel
-              </Button>
-
+            <ModalFooter className='items-center'>
               <div className='flex gap-2'>
                 {chatExists && (
                   <Button
                     type='button'
-                    onClick={() => {
-                      const form = document.getElementById('chat-deploy-form') as HTMLFormElement
-                      if (form) {
-                        const deleteButton = form.querySelector(
-                          '[data-delete-trigger]'
-                        ) as HTMLButtonElement
-                        if (deleteButton) {
-                          deleteButton.click()
-                        }
-                      }
-                    }}
+                    variant='default'
+                    onClick={handleChatDelete}
                     disabled={chatSubmitting}
-                    className='bg-red-500 text-white hover:bg-red-600'
                   >
                     Delete
                   </Button>
@@ -859,49 +643,215 @@ export function DeployModal({
                   onClick={handleChatFormSubmit}
                   disabled={chatSubmitting || !isChatFormValid}
                 >
-                  {chatSubmitting ? (
-                    <>
-                      <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-                      Deploying...
-                    </>
-                  ) : chatExists ? (
-                    'Update'
-                  ) : (
-                    'Deploy Chat'
-                  )}
+                  {chatSubmitting
+                    ? chatExists
+                      ? 'Updating...'
+                      : 'Launching...'
+                    : chatExists
+                      ? 'Update'
+                      : 'Launch Chat'}
                 </Button>
               </div>
-            </div>
+            </ModalFooter>
           )}
-        </DialogContent>
-        {previewVersion !== null && previewDeployedState && workflowId && (
-          <DeployedWorkflowModal
-            isOpen={true}
-            onClose={() => {
-              setPreviewVersion(null)
-              setPreviewDeployedState(null)
-              setPreviewing(false)
-            }}
-            needsRedeployment={true}
-            activeDeployedState={deployedState}
-            selectedDeployedState={previewDeployedState as WorkflowState}
-            selectedVersion={previewVersion}
-            onActivateVersion={() => {
-              handleActivateVersion(previewVersion)
-              setPreviewVersion(null)
-              setPreviewDeployedState(null)
-              setPreviewing(false)
-            }}
-            isActivating={activatingVersion === previewVersion}
-            selectedVersionLabel={
-              versions.find((v) => v.version === previewVersion)?.name || `v${previewVersion}`
-            }
-            workflowId={workflowId}
-            isSelectedVersionActive={versions.find((v) => v.version === previewVersion)?.isActive}
-            onLoadDeploymentComplete={handleCloseModal}
-          />
-        )}
-      </Dialog>
+          {activeTab === 'template' && (
+            <ModalFooter
+              className={`items-center ${hasExistingTemplate && templateStatus ? 'justify-between' : ''}`}
+            >
+              {hasExistingTemplate && templateStatus && (
+                <TemplateStatusBadge
+                  status={templateStatus.status}
+                  views={templateStatus.views}
+                  stars={templateStatus.stars}
+                />
+              )}
+              <div className='flex gap-2'>
+                {hasExistingTemplate && (
+                  <Button
+                    type='button'
+                    variant='default'
+                    onClick={handleTemplateDelete}
+                    disabled={templateSubmitting}
+                  >
+                    Delete
+                  </Button>
+                )}
+                <Button
+                  type='button'
+                  variant='primary'
+                  onClick={handleTemplateFormSubmit}
+                  disabled={templateSubmitting || !templateFormValid}
+                >
+                  {templateSubmitting
+                    ? hasExistingTemplate
+                      ? 'Updating...'
+                      : 'Publishing...'
+                    : hasExistingTemplate
+                      ? 'Update Template'
+                      : 'Publish Template'}
+                </Button>
+              </div>
+            </ModalFooter>
+          )}
+        </ModalContent>
+      </Modal>
+
+      <Modal open={showUndeployConfirm} onOpenChange={setShowUndeployConfirm}>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Undeploy API</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              Are you sure you want to undeploy this workflow?{' '}
+              <span className='text-[var(--text-error)]'>
+                This will remove the API endpoint and make it unavailable to external users.
+              </span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant='default'
+              onClick={() => setShowUndeployConfirm(false)}
+              disabled={isUndeploying}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='primary'
+              onClick={handleUndeploy}
+              disabled={isUndeploying}
+              className='bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
+            >
+              {isUndeploying ? 'Undeploying...' : 'Undeploy'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </>
+  )
+}
+
+interface StatusBadgeProps {
+  isWarning: boolean
+}
+
+function StatusBadge({ isWarning }: StatusBadgeProps) {
+  const label = isWarning ? 'Update deployment' : 'Live'
+
+  return (
+    <div
+      className={clsx(
+        'flex h-[24px] items-center justify-start gap-[8px] rounded-[6px] border px-[9px]',
+        isWarning ? 'border-[#A16207] bg-[#452C0F]' : 'border-[#22703D] bg-[#14291B]'
+      )}
+    >
+      <div
+        className='h-[6px] w-[6px] rounded-[2px]'
+        style={{
+          backgroundColor: isWarning ? '#EAB308' : '#4ADE80',
+        }}
+      />
+      <span
+        className='font-medium text-[11.5px]'
+        style={{
+          color: isWarning ? '#EAB308' : '#86EFAC',
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  )
+}
+
+interface TemplateStatusBadgeProps {
+  status: 'pending' | 'approved' | 'rejected' | null
+  views?: number
+  stars?: number
+}
+
+function TemplateStatusBadge({ status, views, stars }: TemplateStatusBadgeProps) {
+  const isPending = status === 'pending'
+  const label = isPending ? 'Under review' : 'Live'
+
+  const statsText =
+    status === 'approved' && views !== undefined && views > 0
+      ? `${views} views${stars !== undefined && stars > 0 ? ` • ${stars} stars` : ''}`
+      : null
+
+  return (
+    <div
+      className={clsx(
+        'flex h-[24px] items-center justify-start gap-[8px] rounded-[6px] border px-[9px]',
+        isPending ? 'border-[#A16207] bg-[#452C0F]' : 'border-[#22703D] bg-[#14291B]'
+      )}
+    >
+      <div
+        className='h-[6px] w-[6px] rounded-[2px]'
+        style={{
+          backgroundColor: isPending ? '#EAB308' : '#4ADE80',
+        }}
+      />
+      <span
+        className='font-medium text-[11.5px]'
+        style={{
+          color: isPending ? '#EAB308' : '#86EFAC',
+        }}
+      >
+        {label}
+      </span>
+      {statsText && (
+        <span
+          className='font-medium text-[11.5px]'
+          style={{ color: isPending ? '#EAB308' : '#86EFAC' }}
+        >
+          • {statsText}
+        </span>
+      )}
+    </div>
+  )
+}
+
+interface GeneralFooterProps {
+  isDeployed?: boolean
+  needsRedeployment: boolean
+  isSubmitting: boolean
+  isUndeploying: boolean
+  onDeploy: () => Promise<void>
+  onRedeploy: () => Promise<void>
+  onUndeploy: () => void
+}
+
+function GeneralFooter({
+  isDeployed,
+  needsRedeployment,
+  isSubmitting,
+  isUndeploying,
+  onDeploy,
+  onRedeploy,
+  onUndeploy,
+}: GeneralFooterProps) {
+  if (!isDeployed) {
+    return (
+      <ModalFooter>
+        <Button variant='primary' onClick={onDeploy} disabled={isSubmitting}>
+          {isSubmitting ? 'Deploying...' : 'Deploy API'}
+        </Button>
+      </ModalFooter>
+    )
+  }
+
+  return (
+    <ModalFooter className='items-center justify-between'>
+      <StatusBadge isWarning={needsRedeployment} />
+      <div className='flex items-center gap-2'>
+        <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
+          {isUndeploying ? 'Undeploying...' : 'Undeploy'}
+        </Button>
+        {needsRedeployment && (
+          <Button variant='primary' onClick={onRedeploy} disabled={isSubmitting || isUndeploying}>
+            {isSubmitting ? 'Updating...' : 'Update'}
+          </Button>
+        )}
+      </div>
+    </ModalFooter>
   )
 }

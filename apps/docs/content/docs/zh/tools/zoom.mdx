@@ -1,0 +1,250 @@
+---
+title: Zoom
+description: 创建和管理 Zoom 会议及录制内容
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zoom"
+  color="#2D8CFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Zoom](https://zoom.us/) 是一个领先的基于云的通信平台，提供视频会议、网络研讨会和在线协作功能。它让用户和组织可以轻松安排、主持和管理会议，并提供屏幕共享、聊天、录制等工具。
+
+使用 Zoom，您可以：
+
+- **安排和管理会议**：创建即时或计划会议，包括定期活动
+- **配置会议选项**：设置会议密码、启用等候室以及控制参与者的视频/音频
+- **发送邀请和共享详情**：获取会议邀请和信息，便于分享
+- **获取和更新会议数据**：访问会议详情、修改现有会议并以编程方式管理设置
+
+在 Sim 中，Zoom 集成使您的代理能够自动化安排和会议管理。使用工具操作可以：
+
+- 以编程方式创建具有自定义设置的新会议
+- 列出特定用户（或您自己）的所有会议
+- 检索任何会议的详情或邀请
+- 直接从您的自动化中更新或删除现有会议
+
+这些功能使您能够简化远程协作、自动化定期视频会议，并将您的组织 Zoom 环境管理整合到工作流程中。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Zoom 集成到工作流程中。创建、列出、更新和删除 Zoom 会议。获取会议详情、邀请、录制内容和参与者信息。以编程方式管理云录制内容。
+
+## 工具
+
+### `zoom_create_meeting`
+
+创建一个新的 Zoom 会议
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | 是 | 用户 ID 或电子邮件地址。使用 "me" 表示已认证用户。 |
+| `topic` | string | 是 | 会议主题 |
+| `type` | number | 否 | 会议类型：1=即时，2=计划，3=无固定时间的定期会议，8=有固定时间的定期会议 |
+| `startTime` | string | 否 | ISO 8601 格式的会议开始时间 \(例如：2025-06-03T10:00:00Z\) |
+| `duration` | number | 否 | 会议时长（分钟） |
+| `timezone` | string | 否 | 会议的时区 \(例如：America/Los_Angeles\) |
+| `password` | string | 否 | 会议密码 |
+| `agenda` | string | 否 | 会议议程 |
+| `hostVideo` | boolean | 否 | 主持人视频开启时开始 |
+| `participantVideo` | boolean | 否 | 参与者视频开启时开始 |
+| `joinBeforeHost` | boolean | 否 | 允许参与者在主持人之前加入 |
+| `muteUponEntry` | boolean | 否 | 参与者进入时静音 |
+| `waitingRoom` | boolean | 否 | 启用等候室 |
+| `autoRecording` | string | 否 | 自动录制设置：本地、云或无 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `meeting` | object | 创建的会议及其所有属性 |
+
+### `zoom_list_meetings`
+
+列出 Zoom 用户的所有会议
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | 是 | 用户 ID 或电子邮件地址。使用 "me" 表示已认证用户。 |
+| `type` | string | 否 | 会议类型过滤器：scheduled, live, upcoming, upcoming_meetings, 或 previous_meetings |
+| `pageSize` | number | 否 | 每页记录数（最大 300） |
+| `nextPageToken` | string | 否 | 分页令牌，用于获取下一页结果 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `meetings` | array | 会议列表 |
+| `pageInfo` | object | 分页信息 |
+
+### `zoom_get_meeting`
+
+获取特定 Zoom 会议的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | 是 | 会议 ID |
+| `occurrenceId` | string | 否 | 循环会议的发生 ID |
+| `showPreviousOccurrences` | boolean | 否 | 显示循环会议的先前发生记录 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `meeting` | object | 会议详情 |
+
+### `zoom_update_meeting`
+
+更新现有的 Zoom 会议
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | 是 | 要更新的会议 ID |
+| `topic` | string | 否 | 会议主题 |
+| `type` | number | 否 | 会议类型：1=即时会议，2=预定会议，3=无固定时间的循环会议，8=固定时间的循环会议 |
+| `startTime` | string | 否 | ISO 8601 格式的会议开始时间 \(例如：2025-06-03T10:00:00Z\) |
+| `duration` | number | 否 | 会议时长（分钟） |
+| `timezone` | string | 否 | 会议的时区 \(例如：America/Los_Angeles\) |
+| `password` | string | 否 | 会议密码 |
+| `agenda` | string | 否 | 会议议程 |
+| `hostVideo` | boolean | 否 | 主持人视频开启时开始 |
+| `participantVideo` | boolean | 否 | 参与者视频开启时开始 |
+| `joinBeforeHost` | boolean | 否 | 允许参与者在主持人之前加入 |
+| `muteUponEntry` | boolean | 否 | 参与者进入时静音 |
+| `waitingRoom` | boolean | 否 | 启用等候室 |
+| `autoRecording` | string | 否 | 自动录制设置：本地、云端或无 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 会议是否成功更新 |
+
+### `zoom_delete_meeting`
+
+删除或取消 Zoom 会议
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | 是 | 要删除的会议 ID |
+| `occurrenceId` | string | 否 | 删除循环会议中特定场次的场次 ID |
+| `scheduleForReminder` | boolean | 否 | 向注册者发送取消提醒邮件 |
+| `cancelMeetingReminder` | boolean | 否 | 向注册者和替代主持人发送取消邮件 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 会议是否成功删除 |
+
+### `zoom_get_meeting_invitation`
+
+获取 Zoom 会议的邀请文本
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | 是 | 会议 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `invitation` | string | 会议邀请文本 |
+
+### `zoom_list_recordings`
+
+列出 Zoom 用户的所有云录制
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | 是 | 用户 ID 或电子邮件地址。对于已认证用户，请使用 "me"。 |
+| `from` | string | 否 | 开始日期，格式为 yyyy-mm-dd（最近 6 个月内） |
+| `to` | string | 否 | 结束日期，格式为 yyyy-mm-dd |
+| `pageSize` | number | 否 | 每页记录数（最大 300） |
+| `nextPageToken` | string | 否 | 分页令牌，用于获取下一页结果 |
+| `trash` | boolean | 否 | 设置为 true 以列出回收站中的录制 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `recordings` | array | 录制列表 |
+| `pageInfo` | object | 分页信息 |
+
+### `zoom_get_meeting_recordings`
+
+获取特定 Zoom 会议的所有录制内容
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | 是 | 会议 ID 或会议 UUID |
+| `includeFolderItems` | boolean | 否 | 包括文件夹内的项目 |
+| `ttl` | number | 否 | 下载 URL 的有效时间（秒）\(最大值 604800\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `recording` | object | 包含所有文件的会议录制内容 |
+
+### `zoom_delete_recording`
+
+删除 Zoom 会议的云录制内容
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | 是 | 会议 ID 或会议 UUID |
+| `recordingId` | string | 否 | 要删除的特定录制文件 ID。如果未提供，则删除所有录制内容。 |
+| `action` | string | 否 | 删除操作："trash" \(移至回收站\) 或 "delete" \(永久删除\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 录制内容是否成功删除 |
+
+### `zoom_list_past_participants`
+
+列出过去 Zoom 会议的参与者
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | 是 | 过去会议的 ID 或 UUID |
+| `pageSize` | number | 否 | 每页记录数 \(最大值 300\) |
+| `nextPageToken` | string | 否 | 分页令牌，用于获取下一页结果 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `participants` | 数组 | 会议参与者列表 |
+| `pageInfo` | 对象 | 分页信息 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`zoom`

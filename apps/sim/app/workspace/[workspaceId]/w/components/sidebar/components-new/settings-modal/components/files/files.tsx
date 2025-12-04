@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { ArrowDown, Search } from 'lucide-react'
+import { ArrowDown, Loader2, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Tooltip, Trash } from '@/components/emcn'
-import { Input, Progress } from '@/components/ui'
+import { Input, Progress, Skeleton } from '@/components/ui'
 import {
   Table,
   TableBody,
@@ -30,6 +30,9 @@ import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 
 const logger = createLogger('FileUploadsSettings')
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
+
+const PRIMARY_BUTTON_STYLES =
+  '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
 
 const SUPPORTED_EXTENSIONS = [
   // Documents
@@ -66,6 +69,16 @@ const SUPPORTED_EXTENSIONS = [
 const ACCEPT_ATTR =
   '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.yaml,.yml,.mp3,.m4a,.wav,.webm,.ogg,.flac,.aac,.opus,.mp4,.mov,.avi,.mkv'
 
+const PLAN_NAMES = {
+  enterprise: 'Enterprise',
+  team: 'Team',
+  pro: 'Pro',
+  free: 'Free',
+} as const
+
+const GRADIENT_TEXT_STYLES =
+  'gradient-text bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
+
 export function Files() {
   const params = useParams()
   const workspaceId = params?.workspaceId as string
@@ -80,7 +93,10 @@ export function Files() {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const { permissions: workspacePermissions, loading: permissionsLoading } =
     useWorkspacePermissions(workspaceId)
@@ -139,9 +155,35 @@ export function Files() {
   }
 
   const handleDownload = async (file: WorkspaceFileRecord) => {
-    if (!workspaceId) return
+    if (!workspaceId || downloadingFileId === file.id) return
 
-    window.open(`/workspace/${workspaceId}/files/${file.id}/view`, '_blank')
+    setDownloadingFileId(file.id)
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/files/${file.id}/download`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get download URL')
+      }
+
+      const data = await response.json()
+
+      if (!data.success || !data.downloadUrl) {
+        throw new Error('Invalid download response')
+      }
+
+      const link = document.createElement('a')
+      link.href = data.downloadUrl
+      link.download = data.fileName || file.name
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (error) {
+      logger.error('Error downloading file:', error)
+    } finally {
+      setDownloadingFileId(null)
+    }
   }
 
   const handleDelete = async (file: WorkspaceFileRecord) => {
@@ -172,7 +214,6 @@ export function Files() {
     return `${mm}/${dd}/${yy}`
   }
 
-  const [search, setSearch] = useState('')
   const filteredFiles = useMemo(() => {
     if (!search) return files
     const q = search.toLowerCase()
@@ -192,143 +233,202 @@ export function Files() {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
   }
 
-  const PLAN_NAMES = {
-    enterprise: 'Enterprise',
-    team: 'Team',
-    pro: 'Pro',
-    free: 'Free',
-  } as const
-
   const planName = storageInfo?.plan || 'free'
   const displayPlanName = PLAN_NAMES[planName as keyof typeof PLAN_NAMES] || 'Free'
 
-  const GRADIENT_TEXT_STYLES =
-    'gradient-text bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
+  const renderTableSkeleton = () => (
+    <Table className='table-auto text-[13px]'>
+      <TableHeader>
+        <TableRow className='hover:bg-transparent'>
+          <TableHead className='w-[56%] px-[12px] py-[6px] text-[12px] text-[var(--text-secondary)]'>
+            <Skeleton className='h-[12px] w-[40px]' />
+          </TableHead>
+          <TableHead className='w-[14%] px-[12px] py-[6px] text-left text-[12px] text-[var(--text-secondary)]'>
+            <Skeleton className='h-[12px] w-[28px]' />
+          </TableHead>
+          <TableHead className='w-[15%] px-[12px] py-[6px] text-left text-[12px] text-[var(--text-secondary)]'>
+            <Skeleton className='h-[12px] w-[56px]' />
+          </TableHead>
+          <TableHead className='w-[15%] px-[12px] py-[6px] text-left text-[12px] text-[var(--text-secondary)]'>
+            <Skeleton className='h-[12px] w-[48px]' />
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {Array.from({ length: 3 }, (_, i) => (
+          <TableRow key={i} className='hover:bg-transparent'>
+            <TableCell className='px-[12px] py-[6px]'>
+              <div className='flex min-w-0 items-center gap-[8px]'>
+                <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+                <Skeleton className='h-[14px] w-[180px]' />
+              </div>
+            </TableCell>
+            <TableCell className='whitespace-nowrap px-[12px] py-[6px] text-[12px]'>
+              <Skeleton className='h-[12px] w-[48px]' />
+            </TableCell>
+            <TableCell className='whitespace-nowrap px-[12px] py-[6px] text-[12px]'>
+              <Skeleton className='h-[12px] w-[56px]' />
+            </TableCell>
+            <TableCell className='px-[12px] py-[6px]'>
+              <div className='flex items-center gap-[4px]'>
+                <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
+                <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
 
   return (
-    <div className='relative flex h-full flex-col'>
-      {/* Header: search left, file count + Upload right */}
-      <div className='flex items-center justify-between px-6 pt-4 pb-2'>
-        <div className='flex h-9 w-56 items-center gap-2 rounded-[8px] border bg-transparent pr-2 pl-3'>
-          <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
+    <div className='flex h-full flex-col gap-[2px]'>
+      {/* Search Input and Upload Button */}
+      <div className='flex items-center gap-[8px]'>
+        <div
+          className={cn(
+            'flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]',
+            permissionsLoading && 'opacity-50'
+          )}
+        >
+          <Search
+            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+            strokeWidth={2}
+          />
           <Input
             placeholder='Search files...'
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+            disabled={permissionsLoading}
+            className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-100'
           />
         </div>
-        <div className='flex items-center gap-3'>
-          {isBillingEnabled && storageInfo && (
-            <div className='flex flex-col items-end gap-1'>
-              <div className='flex items-center gap-2 text-sm'>
-                <span
-                  className={cn(
-                    'font-medium',
-                    planName === 'free' ? 'text-foreground' : GRADIENT_TEXT_STYLES
-                  )}
-                >
-                  {displayPlanName}
-                </span>
-                <span className='text-muted-foreground tabular-nums'>
-                  {formatStorageSize(storageInfo.usedBytes)} /{' '}
-                  {formatStorageSize(storageInfo.limitBytes)}
-                </span>
-              </div>
-              <Progress
-                value={Math.min(storageInfo.percentUsed, 100)}
-                className='h-1 w-full'
-                indicatorClassName='bg-black dark:bg-white'
-              />
-            </div>
-          )}
-          {userPermissions.canEdit && (
-            <div className='flex items-center'>
-              <input
-                ref={fileInputRef}
-                type='file'
-                className='hidden'
-                onChange={handleFileChange}
-                disabled={uploading}
-                accept={ACCEPT_ATTR}
-                multiple
-              />
-              <Button
-                onClick={handleUploadClick}
-                disabled={uploading}
-                variant='ghost'
-                className='h-9 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+        {!permissionsLoading && isBillingEnabled && storageInfo && (
+          <div className='flex flex-col items-end gap-[4px]'>
+            <div className='flex items-center gap-[8px] text-[13px]'>
+              <span
+                className={cn(
+                  'font-medium',
+                  planName === 'free' ? 'text-[var(--text-primary)]' : GRADIENT_TEXT_STYLES
+                )}
               >
-                {uploading && uploadProgress.total > 0
-                  ? `Uploading ${uploadProgress.completed}/${uploadProgress.total}...`
-                  : uploading
-                    ? 'Uploading...'
-                    : 'Upload File'}
-              </Button>
+                {displayPlanName}
+              </span>
+              <span className='text-[var(--text-muted)] tabular-nums'>
+                {formatStorageSize(storageInfo.usedBytes)} /{' '}
+                {formatStorageSize(storageInfo.limitBytes)}
+              </span>
             </div>
-          )}
-        </div>
+            <Progress
+              value={Math.min(storageInfo.percentUsed, 100)}
+              className='h-1 w-full'
+              indicatorClassName='bg-black dark:bg-white'
+            />
+          </div>
+        )}
+        {(permissionsLoading || userPermissions.canEdit) && (
+          <>
+            <input
+              ref={fileInputRef}
+              type='file'
+              className='hidden'
+              onChange={handleFileChange}
+              disabled={uploading || permissionsLoading}
+              accept={ACCEPT_ATTR}
+              multiple
+            />
+            <Button
+              onClick={handleUploadClick}
+              disabled={uploading || permissionsLoading}
+              variant='primary'
+              className={PRIMARY_BUTTON_STYLES}
+            >
+              <Plus className='mr-[6px] h-[13px] w-[13px]' />
+              {uploading && uploadProgress.total > 0
+                ? `${uploadProgress.completed}/${uploadProgress.total}`
+                : uploading
+                  ? 'Uploading...'
+                  : 'Upload'}
+            </Button>
+          </>
+        )}
       </div>
 
       {/* Error message */}
       {uploadError && (
-        <div className='px-6 pb-2'>
-          <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-            {uploadError}
-          </p>
-        </div>
+        <p className='text-[11px] text-[var(--text-error)] leading-tight'>{uploadError}</p>
       )}
 
-      {/* Files Table */}
-      <div className='min-h-0 flex-1 overflow-y-auto px-6'>
-        {files.length === 0 ? (
-          <div className='py-8 text-center text-muted-foreground text-sm'>
+      {/* Scrollable Content */}
+      <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
+        {permissionsLoading ? (
+          renderTableSkeleton()
+        ) : files.length === 0 ? (
+          <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
             No files uploaded yet
+          </div>
+        ) : filteredFiles.length === 0 ? (
+          <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
+            No files found matching "{search}"
           </div>
         ) : (
           <Table className='table-auto text-[13px]'>
             <TableHeader>
               <TableRow className='hover:bg-transparent'>
-                <TableHead className='w-[56%] px-3 text-xs'>Name</TableHead>
-                <TableHead className='w-[14%] px-3 text-left text-xs'>Size</TableHead>
-                <TableHead className='w-[15%] px-3 text-left text-xs'>Uploaded</TableHead>
-                <TableHead className='w-[15%] px-3 text-left text-xs'>Actions</TableHead>
+                <TableHead className='w-[56%] px-[12px] py-[6px] text-[12px] text-[var(--text-secondary)]'>
+                  Name
+                </TableHead>
+                <TableHead className='w-[14%] px-[12px] py-[6px] text-left text-[12px] text-[var(--text-secondary)]'>
+                  Size
+                </TableHead>
+                <TableHead className='w-[15%] px-[12px] py-[6px] text-left text-[12px] text-[var(--text-secondary)]'>
+                  Uploaded
+                </TableHead>
+                <TableHead className='w-[15%] px-[12px] py-[6px] text-left text-[12px] text-[var(--text-secondary)]'>
+                  Actions
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredFiles.map((file) => {
                 const Icon = getDocumentIcon(file.type || '', file.name)
                 return (
-                  <TableRow key={file.id} className='hover:bg-muted/50'>
-                    <TableCell className='px-3'>
-                      <div className='flex min-w-0 items-center gap-2'>
-                        <Icon className='h-3.5 w-3.5 shrink-0 text-muted-foreground' />
+                  <TableRow key={file.id} className='hover:bg-[var(--surface-2)]'>
+                    <TableCell className='px-[12px] py-[6px]'>
+                      <div className='flex min-w-0 items-center gap-[8px]'>
+                        <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
                         <button
                           onClick={() => handleDownload(file)}
-                          className='min-w-0 truncate text-left font-normal hover:underline'
+                          disabled={downloadingFileId === file.id}
+                          className='min-w-0 truncate text-left font-normal text-[14px] text-[var(--text-primary)] hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50'
                           title={file.name}
                         >
                           {truncateMiddle(file.name)}
                         </button>
                       </div>
                     </TableCell>
-                    <TableCell className='whitespace-nowrap px-3 text-[12px] text-muted-foreground'>
+                    <TableCell className='whitespace-nowrap px-[12px] py-[6px] text-[12px] text-[var(--text-muted)]'>
                       {formatFileSize(file.size)}
                     </TableCell>
-                    <TableCell className='whitespace-nowrap px-3 text-[12px] text-muted-foreground'>
+                    <TableCell className='whitespace-nowrap px-[12px] py-[6px] text-[12px] text-[var(--text-muted)]'>
                       {formatDate(file.uploadedAt)}
                     </TableCell>
-                    <TableCell className='px-3'>
-                      <div className='flex items-center gap-1'>
+                    <TableCell className='px-[12px] py-[6px]'>
+                      <div className='flex items-center gap-[4px]'>
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
                             <Button
                               variant='ghost'
                               onClick={() => handleDownload(file)}
-                              className='h-6 w-6 p-0'
+                              className='h-[28px] w-[28px] p-0'
+                              disabled={downloadingFileId === file.id}
                               aria-label={`Download ${file.name}`}
                             >
-                              <ArrowDown className='h-[14px] w-[14px]' />
+                              {downloadingFileId === file.id ? (
+                                <Loader2 className='h-[14px] w-[14px] animate-spin' />
+                              ) : (
+                                <ArrowDown className='h-[14px] w-[14px]' />
+                              )}
                             </Button>
                           </Tooltip.Trigger>
                           <Tooltip.Content>Download file</Tooltip.Content>
@@ -339,7 +439,7 @@ export function Files() {
                               <Button
                                 variant='ghost'
                                 onClick={() => handleDelete(file)}
-                                className='h-6 w-6 p-0'
+                                className='h-[28px] w-[28px] p-0'
                                 disabled={deleteFile.isPending}
                                 aria-label={`Delete ${file.name}`}
                               >

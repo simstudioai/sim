@@ -109,11 +109,14 @@ Ein neues Ticket in Zendesk erstellen mit Unterstützung für benutzerdefinierte
 | `subdomain` | string | Ja | Ihre Zendesk-Subdomain |
 | `subject` | string | Nein | Ticket-Betreff \(optional - wird automatisch generiert, wenn nicht angegeben\) |
 | `description` | string | Ja | Ticket-Beschreibung \(erster Kommentar\) |
-| `priority` | string | Nein | Priorität \(niedrig, normal, hoch, dringend\) |
-| `status` | string | Nein | Status \(neu, offen, ausstehend, angehalten, gelöst, geschlossen\) |
-| `type` | string | Nein | Typ \(problem, vorfall, frage, aufgabe\) |
+| `priority` | string | Nein | Priorität \(low, normal, high, urgent\) |
+| `status` | string | Nein | Status \(new, open, pending, hold, solved, closed\) |
+| `type` | string | Nein | Typ \(problem, incident, question, task\) |
 | `tags` | string | Nein | Kommagetrennte Tags |
 | `assigneeId` | string | Nein | Bearbeiter-Benutzer-ID |
+| `groupId` | string | Nein | Gruppen-ID |
+| `requesterId` | string | Nein | Anforderer-Benutzer-ID |
+| `customFields` | string | Nein | Benutzerdefinierte Felder als JSON-Objekt \(z.B. \{"field_id": "value"\}\) |
 
 #### Output
 

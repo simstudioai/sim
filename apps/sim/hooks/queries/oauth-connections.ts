@@ -135,6 +135,13 @@ export function useConnectOAuthService() {
         return { success: true }
       }
 
+      // Shopify requires a custom OAuth flow with shop domain input
+      if (providerId === 'shopify') {
+        const returnUrl = encodeURIComponent(callbackURL)
+        window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
+        return { success: true }
+      }
+
       await client.oauth2.link({
         providerId,
         callbackURL,

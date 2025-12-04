@@ -1,0 +1,255 @@
+---
+title: Zoom
+description: Create and manage Zoom meetings and recordings
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zoom"
+  color="#2D8CFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Zoom](https://zoom.us/) is a leading cloud-based communications platform for video meetings, webinars, and online collaboration. It allows users and organizations to easily schedule, host, and manage meetings, providing tools for screen sharing, chat, recordings, and more.
+
+With Zoom, you can:
+
+- **Schedule and manage meetings**: Create instant or scheduled meetings, including recurring events
+- **Configure meeting options**: Set meeting passwords, enable waiting rooms, and control participant video/audio
+- **Send invitations and share details**: Retrieve meeting invitations and information for easy sharing
+- **Get and update meeting data**: Access meeting details, modify existing meetings, and manage settings programmatically
+
+In Sim, the Zoom integration empowers your agents to automate scheduling and meeting management. Use tool actions to:
+
+- Programmatically create new meetings with custom settings
+- List all meetings for a specific user (or yourself)
+- Retrieve details or invitations for any meeting
+- Update or delete existing meetings directly from your automations
+
+These capabilities let you streamline remote collaboration, automate recurring video sessions, and manage your organization's Zoom environment all as part of your workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Zoom into workflows. Create, list, update, and delete Zoom meetings. Get meeting details, invitations, recordings, and participants. Manage cloud recordings programmatically.
+
+
+
+## Tools
+
+### `zoom_create_meeting`
+
+Create a new Zoom meeting
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The user ID or email address. Use "me" for the authenticated user. |
+| `topic` | string | Yes | Meeting topic |
+| `type` | number | No | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
+| `startTime` | string | No | Meeting start time in ISO 8601 format \(e.g., 2025-06-03T10:00:00Z\) |
+| `duration` | number | No | Meeting duration in minutes |
+| `timezone` | string | No | Timezone for the meeting \(e.g., America/Los_Angeles\) |
+| `password` | string | No | Meeting password |
+| `agenda` | string | No | Meeting agenda |
+| `hostVideo` | boolean | No | Start with host video on |
+| `participantVideo` | boolean | No | Start with participant video on |
+| `joinBeforeHost` | boolean | No | Allow participants to join before host |
+| `muteUponEntry` | boolean | No | Mute participants upon entry |
+| `waitingRoom` | boolean | No | Enable waiting room |
+| `autoRecording` | string | No | Auto recording setting: local, cloud, or none |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meeting` | object | The created meeting with all its properties |
+
+### `zoom_list_meetings`
+
+List all meetings for a Zoom user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The user ID or email address. Use "me" for the authenticated user. |
+| `type` | string | No | Meeting type filter: scheduled, live, upcoming, upcoming_meetings, or previous_meetings |
+| `pageSize` | number | No | Number of records per page \(max 300\) |
+| `nextPageToken` | string | No | Token for pagination to get next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meetings` | array | List of meetings |
+| `pageInfo` | object | Pagination information |
+
+### `zoom_get_meeting`
+
+Get details of a specific Zoom meeting
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Yes | The meeting ID |
+| `occurrenceId` | string | No | Occurrence ID for recurring meetings |
+| `showPreviousOccurrences` | boolean | No | Show previous occurrences for recurring meetings |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meeting` | object | The meeting details |
+
+### `zoom_update_meeting`
+
+Update an existing Zoom meeting
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Yes | The meeting ID to update |
+| `topic` | string | No | Meeting topic |
+| `type` | number | No | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
+| `startTime` | string | No | Meeting start time in ISO 8601 format \(e.g., 2025-06-03T10:00:00Z\) |
+| `duration` | number | No | Meeting duration in minutes |
+| `timezone` | string | No | Timezone for the meeting \(e.g., America/Los_Angeles\) |
+| `password` | string | No | Meeting password |
+| `agenda` | string | No | Meeting agenda |
+| `hostVideo` | boolean | No | Start with host video on |
+| `participantVideo` | boolean | No | Start with participant video on |
+| `joinBeforeHost` | boolean | No | Allow participants to join before host |
+| `muteUponEntry` | boolean | No | Mute participants upon entry |
+| `waitingRoom` | boolean | No | Enable waiting room |
+| `autoRecording` | string | No | Auto recording setting: local, cloud, or none |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the meeting was updated successfully |
+
+### `zoom_delete_meeting`
+
+Delete or cancel a Zoom meeting
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Yes | The meeting ID to delete |
+| `occurrenceId` | string | No | Occurrence ID for deleting a specific occurrence of a recurring meeting |
+| `scheduleForReminder` | boolean | No | Send cancellation reminder email to registrants |
+| `cancelMeetingReminder` | boolean | No | Send cancellation email to registrants and alternative hosts |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the meeting was deleted successfully |
+
+### `zoom_get_meeting_invitation`
+
+Get the meeting invitation text for a Zoom meeting
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Yes | The meeting ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invitation` | string | The meeting invitation text |
+
+### `zoom_list_recordings`
+
+List all cloud recordings for a Zoom user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The user ID or email address. Use "me" for the authenticated user. |
+| `from` | string | No | Start date in yyyy-mm-dd format \(within last 6 months\) |
+| `to` | string | No | End date in yyyy-mm-dd format |
+| `pageSize` | number | No | Number of records per page \(max 300\) |
+| `nextPageToken` | string | No | Token for pagination to get next page of results |
+| `trash` | boolean | No | Set to true to list recordings from trash |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordings` | array | List of recordings |
+| `pageInfo` | object | Pagination information |
+
+### `zoom_get_meeting_recordings`
+
+Get all recordings for a specific Zoom meeting
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Yes | The meeting ID or meeting UUID |
+| `includeFolderItems` | boolean | No | Include items within a folder |
+| `ttl` | number | No | Time to live for download URLs in seconds \(max 604800\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recording` | object | The meeting recording with all files |
+
+### `zoom_delete_recording`
+
+Delete cloud recordings for a Zoom meeting
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Yes | The meeting ID or meeting UUID |
+| `recordingId` | string | No | Specific recording file ID to delete. If not provided, deletes all recordings. |
+| `action` | string | No | Delete action: "trash" \(move to trash\) or "delete" \(permanently delete\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the recording was deleted successfully |
+
+### `zoom_list_past_participants`
+
+List participants from a past Zoom meeting
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Yes | The past meeting ID or UUID |
+| `pageSize` | number | No | Number of records per page \(max 300\) |
+| `nextPageToken` | string | No | Token for pagination to get next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `participants` | array | List of meeting participants |
+| `pageInfo` | object | Pagination information |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `zoom`

@@ -1170,9 +1170,7 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
             <ModalTitle>Delete webhook?</ModalTitle>
             <ModalDescription>
               This will permanently remove the webhook configuration and stop all notifications.{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </ModalDescription>
           </ModalHeader>
           <ModalFooter>
@@ -1187,7 +1185,7 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
             <EmcnButton
               onClick={confirmDeleteWebhook}
               disabled={isDeleting}
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
             >
               {isDeleting ? 'Deleting...' : 'Delete'}
             </EmcnButton>

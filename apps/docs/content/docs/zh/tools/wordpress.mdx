@@ -1,0 +1,566 @@
+---
+title: WordPress
+description: 管理 WordPress 内容
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="wordpress"
+  color="#21759B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[WordPress](https://wordpress.org/) 是全球领先的开源内容管理系统，使发布和管理网站、博客以及各种在线内容变得简单。通过 WordPress，您可以创建和更新文章或页面，使用分类和标签组织内容，管理媒体文件，审核评论，以及处理用户账户——从个人博客到复杂的企业网站都可以轻松运行。
+
+Sim 与 WordPress 的集成让您的代理可以自动化处理重要的网站任务。您可以通过编程方式创建具有特定标题、内容、分类、标签和特色图片的新博客文章。更新现有文章（例如更改其内容、标题或发布状态）也非常简单。您还可以发布或保存内容为草稿，管理静态页面，处理媒体上传，监督评论，并将内容分配到相关的组织分类中。
+
+通过将 WordPress 连接到您的自动化流程，Sim 使您的代理能够简化内容发布、编辑工作流程和日常网站管理——帮助您无需手动操作即可保持网站的新鲜、有序和安全。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+集成 WordPress 以创建、更新和管理文章、页面、媒体、评论、分类、标签和用户。支持通过 OAuth 认证的 WordPress.com 网站以及使用应用密码认证的自托管 WordPress 网站。
+
+## 工具
+
+### `wordpress_create_post`
+
+在 WordPress.com 中创建一篇新博客文章
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 网站 ID 或域名 \(例如，12345678 或 mysite.wordpress.com\) |
+| `title` | string | 是 | 文章标题 |
+| `content` | string | 否 | 文章内容 \(HTML 或纯文本\) |
+| `status` | string | 否 | 文章状态：publish, draft, pending, private, 或 future |
+| `excerpt` | string | 否 | 文章摘要 |
+| `categories` | string | 否 | 逗号分隔的分类 ID |
+| `tags` | string | 否 | 逗号分隔的标签 ID |
+| `featuredMedia` | number | 否 | 特色图片媒体 ID |
+| `slug` | string | 否 | 文章的 URL slug |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `post` | object | 创建的文章 |
+
+### `wordpress_update_post`
+
+更新 WordPress.com 中的现有博客文章
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `postId` | number | 是 | 要更新的文章 ID |
+| `title` | string | 否 | 文章标题 |
+| `content` | string | 否 | 文章内容 \(HTML 或纯文本\) |
+| `status` | string | 否 | 文章状态：发布、草稿、待审核、私密或未来 |
+| `excerpt` | string | 否 | 文章摘要 |
+| `categories` | string | 否 | 逗号分隔的分类 ID |
+| `tags` | string | 否 | 逗号分隔的标签 ID |
+| `featuredMedia` | number | 否 | 特色图片媒体 ID |
+| `slug` | string | 否 | 文章的 URL slug |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `post` | object | 更新的文章 |
+
+### `wordpress_delete_post`
+
+从 WordPress.com 删除博客文章
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `postId` | number | 是 | 要删除的文章 ID |
+| `force` | boolean | 否 | 跳过回收站并永久删除 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 帖子是否已被删除 |
+| `post` | object | 已删除的帖子 |
+
+### `wordpress_get_post`
+
+通过 ID 从 WordPress.com 获取单个博客帖子
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `postId` | number | 是 | 要检索的帖子 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `post` | object | 检索到的帖子 |
+
+### `wordpress_list_posts`
+
+从 WordPress.com 列出博客帖子并可选添加筛选条件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `perPage` | number | 否 | 每页帖子数量 \(默认值：10，最大值：100\) |
+| `page` | number | 否 | 分页的页码 |
+| `status` | string | 否 | 帖子状态筛选：publish, draft, pending, private |
+| `author` | number | 否 | 按作者 ID 筛选 |
+| `categories` | string | 否 | 按逗号分隔的分类 ID 筛选 |
+| `tags` | string | 否 | 按逗号分隔的标签 ID 筛选 |
+| `search` | string | 否 | 用搜索词筛选帖子 |
+| `orderBy` | string | 否 | 按字段排序：date, id, title, slug, modified |
+| `order` | string | 否 | 排序方向：asc 或 desc |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `posts` | 数组 | 帖子列表 |
+
+### `wordpress_create_page`
+
+在 WordPress.com 中创建新页面
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | 字符串 | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `title` | 字符串 | 是 | 页面标题 |
+| `content` | 字符串 | 否 | 页面内容 \(HTML 或纯文本\) |
+| `status` | 字符串 | 否 | 页面状态：发布、草稿、待定、私密 |
+| `excerpt` | 字符串 | 否 | 页面摘要 |
+| `parent` | 数字 | 否 | 分层页面的父页面 ID |
+| `menuOrder` | 数字 | 否 | 页面菜单中的顺序 |
+| `featuredMedia` | 数字 | 否 | 特色图片媒体 ID |
+| `slug` | 字符串 | 否 | 页面 URL slug |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `page` | 对象 | 创建的页面 |
+
+### `wordpress_update_page`
+
+更新 WordPress.com 中的现有页面
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | 字符串 | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `pageId` | 数字 | 是 | 要更新页面的 ID |
+| `title` | 字符串 | 否 | 页面标题 |
+| `content` | 字符串 | 否 | 页面内容 \(HTML 或纯文本\) |
+| `status` | 字符串 | 否 | 页面状态：发布、草稿、待定、私密 |
+| `excerpt` | 字符串 | 否 | 页面摘要 |
+| `parent` | 数字 | 否 | 分层页面的父页面 ID |
+| `menuOrder` | 数字 | 否 | 页面菜单中的顺序 |
+| `featuredMedia` | 数字 | 否 | 特色图片媒体 ID |
+| `slug` | 字符串 | 否 | 页面 URL slug |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `page` | object | 更新后的页面 |
+
+### `wordpress_delete_page`
+
+从 WordPress.com 删除页面
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `pageId` | number | 是 | 要删除的页面 ID |
+| `force` | boolean | 否 | 跳过回收站并永久删除 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 页面是否已删除 |
+| `page` | object | 已删除的页面 |
+
+### `wordpress_get_page`
+
+通过 ID 从 WordPress.com 获取单个页面
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `pageId` | number | 是 | 要检索的页面 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `page` | object | 检索到的页面 |
+
+### `wordpress_list_pages`
+
+从 WordPress.com 列出页面并可选添加筛选条件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `perPage` | number | 否 | 每次请求的页面数量 \(默认值：10，最大值：100\) |
+| `page` | number | 否 | 分页的页码 |
+| `status` | string | 否 | 页面状态筛选：publish, draft, pending, private |
+| `parent` | number | 否 | 按父页面 ID 筛选 |
+| `search` | string | 否 | 用于筛选页面的搜索词 |
+| `orderBy` | string | 否 | 按字段排序：date, id, title, slug, modified, menu_order |
+| `order` | string | 否 | 排序方向：asc 或 desc |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `pages` | 数组 | 页面列表 |
+
+### `wordpress_upload_media`
+
+上传媒体文件（图片、视频、文档）到 WordPress.com
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | 字符串 | 是 | WordPress.com 站点 ID 或域名（例如：12345678 或 mysite.wordpress.com） |
+| `file` | 字符串 | 是 | Base64 编码的文件数据或用于获取文件的 URL |
+| `filename` | 字符串 | 是 | 带扩展名的文件名（例如：image.jpg） |
+| `title` | 字符串 | 否 | 媒体标题 |
+| `caption` | 字符串 | 否 | 媒体说明 |
+| `altText` | 字符串 | 否 | 用于无障碍的替代文本 |
+| `description` | 字符串 | 否 | 媒体描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `media` | 对象 | 上传的媒体项 |
+
+### `wordpress_get_media`
+
+通过 ID 从 WordPress.com 获取单个媒体项
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | 字符串 | 是 | WordPress.com 站点 ID 或域名（例如：12345678 或 mysite.wordpress.com） |
+| `mediaId` | 数字 | 是 | 要检索的媒体项 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `media` | 对象 | 检索到的媒体项 |
+
+### `wordpress_list_media`
+
+列出 WordPress.com 媒体库中的媒体项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名（例如：12345678 或 mysite.wordpress.com） |
+| `perPage` | number | 否 | 每次请求的媒体项目数量（默认：10，最大值：100） |
+| `page` | number | 否 | 分页的页码 |
+| `search` | string | 否 | 用于筛选媒体的搜索词 |
+| `mediaType` | string | 否 | 按媒体类型筛选：image, video, audio, application |
+| `mimeType` | string | 否 | 按特定 MIME 类型筛选（例如：image/jpeg） |
+| `orderBy` | string | 否 | 按字段排序：date, id, title, slug |
+| `order` | string | 否 | 排序方向：asc 或 desc |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `media` | array | 媒体项目列表 |
+
+### `wordpress_delete_media`
+
+从 WordPress.com 删除媒体项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名（例如：12345678 或 mysite.wordpress.com） |
+| `mediaId` | number | 是 | 要删除的媒体项目 ID |
+| `force` | boolean | 否 | 强制删除（媒体没有回收站，因此删除是永久性的） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | 布尔值 | 媒体是否已被删除 |
+| `media` | 对象 | 被删除的媒体项 |
+
+### `wordpress_create_comment`
+
+在 WordPress.com 的文章上创建新评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | 字符串 | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `postId` | 数字 | 是 | 要评论的文章 ID |
+| `content` | 字符串 | 是 | 评论内容 |
+| `parent` | 数字 | 否 | 回复的父评论 ID |
+| `authorName` | 字符串 | 否 | 评论作者显示名称 |
+| `authorEmail` | 字符串 | 否 | 评论作者邮箱 |
+| `authorUrl` | 字符串 | 否 | 评论作者 URL |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `comment` | 对象 | 创建的评论 |
+
+### `wordpress_list_comments`
+
+从 WordPress.com 列出评论并可选添加筛选条件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | 字符串 | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `perPage` | 数字 | 否 | 每次请求的评论数量 \(默认：10，最大：100\) |
+| `page` | 数字 | 否 | 分页的页码 |
+| `postId` | 数字 | 否 | 按文章 ID 筛选 |
+| `status` | 字符串 | 否 | 按评论状态筛选：approved, hold, spam, trash |
+| `search` | 字符串 | 否 | 筛选评论的搜索词 |
+| `orderBy` | 字符串 | 否 | 按字段排序：date, id, parent |
+| `order` | 字符串 | 否 | 排序方向：asc 或 desc |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `comments` | array | 评论列表 |
+
+### `wordpress_update_comment`
+
+更新 WordPress.com 中的评论（内容或状态）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `commentId` | number | 是 | 要更新的评论 ID |
+| `content` | string | 否 | 更新后的评论内容 |
+| `status` | string | 否 | 评论状态：approved, hold, spam, trash |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `comment` | object | 更新后的评论 |
+
+### `wordpress_delete_comment`
+
+从 WordPress.com 删除评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `commentId` | number | 是 | 要删除的评论 ID |
+| `force` | boolean | 否 | 跳过回收站并永久删除 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 评论是否已删除 |
+| `comment` | object | 已删除的评论 |
+
+### `wordpress_create_category`
+
+在 WordPress.com 中创建新分类
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `name` | string | 是 | 分类名称 |
+| `description` | string | 否 | 分类描述 |
+| `parent` | number | 否 | 层级分类的父分类 ID |
+| `slug` | string | 否 | 分类的 URL slug |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `category` | object | 创建的分类 |
+
+### `wordpress_list_categories`
+
+从 WordPress.com 列出分类
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `perPage` | number | 否 | 每次请求的分类数量 \(默认：10，最大：100\) |
+| `page` | number | 否 | 分页的页码 |
+| `search` | string | 否 | 用于筛选分类的搜索词 |
+| `order` | string | 否 | 排序方向：asc 或 desc |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `categories` | array | 分类列表 |
+
+### `wordpress_create_tag`
+
+在 WordPress.com 中创建新标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `name` | string | 是 | 标签名称 |
+| `description` | string | 否 | 标签描述 |
+| `slug` | string | 否 | 标签的 URL slug |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tag` | object | 创建的标签 |
+
+### `wordpress_list_tags`
+
+从 WordPress.com 列出标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `perPage` | number | 否 | 每次请求的标签数量 \(默认：10，最大：100\) |
+| `page` | number | 否 | 分页的页码 |
+| `search` | string | 否 | 用于筛选标签的搜索词 |
+| `order` | string | 否 | 排序方向：asc 或 desc |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tags` | array | 标签列表 |
+
+### `wordpress_get_current_user`
+
+获取当前已认证的 WordPress.com 用户信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `user` | object | 当前用户 |
+
+### `wordpress_list_users`
+
+从 WordPress.com 列出用户（需要管理员权限）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `perPage` | number | 否 | 每次请求的用户数量 \(默认：10，最大：100\) |
+| `page` | number | 否 | 分页的页码 |
+| `search` | string | 否 | 用于筛选用户的搜索词 |
+| `roles` | string | 否 | 用于筛选的逗号分隔角色名称 |
+| `order` | string | 否 | 排序方向：asc 或 desc |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `users` | 数组 | 用户列表 |
+
+### `wordpress_get_user`
+
+通过 ID 从 WordPress.com 获取特定用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | 字符串 | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `userId` | 数字 | 是 | 要检索的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `user` | 对象 | 检索到的用户 |
+
+### `wordpress_search_content`
+
+在 WordPress.com 中搜索所有内容类型（文章、页面、媒体）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | 字符串 | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `query` | 字符串 | 是 | 搜索查询 |
+| `perPage` | 数字 | 否 | 每次请求的结果数量 \(默认值：10，最大值：100\) |
+| `page` | 数字 | 否 | 分页的页码 |
+| `type` | 字符串 | 否 | 按内容类型过滤：post、page、attachment |
+| `subtype` | 字符串 | 否 | 按文章类型 slug 过滤 \(例如：post、page\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | 数组 | 搜索结果 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`wordpress`

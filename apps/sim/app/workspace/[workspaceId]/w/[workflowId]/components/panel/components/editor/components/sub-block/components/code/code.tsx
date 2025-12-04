@@ -633,8 +633,12 @@ export function Code({
       numbers.push(
         <div
           key={`${lineNumber}-0`}
-          className={cn('text-right text-xs tabular-nums leading-[21px]')}
-          style={{ color: isActive ? '#eeeeee' : '#a8a8a8' }}
+          className={cn(
+            'text-right text-xs tabular-nums leading-[21px]',
+            isActive
+              ? 'text-[var(--text-primary)] dark:text-[#eeeeee]'
+              : 'text-[var(--text-muted)] dark:text-[#a8a8a8]'
+          )}
         >
           {lineNumber}
         </div>
@@ -656,8 +660,10 @@ export function Code({
       numbers.push(
         <div
           key={'1-0'}
-          className={cn('text-right text-xs tabular-nums leading-[21px]')}
-          style={{ color: '#a8a8a8' }}
+          className={cn(
+            'text-right text-xs tabular-nums leading-[21px]',
+            'text-[var(--text-muted)] dark:text-[#a8a8a8]'
+          )}
         >
           1
         </div>

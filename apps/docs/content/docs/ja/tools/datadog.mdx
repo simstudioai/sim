@@ -1,0 +1,302 @@
+---
+title: Datadog
+description: Datadogでインフラストラクチャ、アプリケーション、ログを監視
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="datadog"
+  color="#632CA6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Datadog](https://datadoghq.com/)は、インフラストラクチャ、アプリケーション、ログなどを包括的に監視・分析するプラットフォームです。組織がシステムの健全性とパフォーマンスをリアルタイムで可視化し、異常を検出し、インシデント対応を自動化することを可能にします。
+
+Datadogでは以下のことができます：
+
+- **メトリクスの監視**: サーバー、クラウドサービス、カスタムアプリケーションからメトリクスを収集、視覚化、分析。
+- **時系列データのクエリ**: トレンド分析とレポート作成のためにパフォーマンスメトリクスに対して高度なクエリを実行。
+- **モニターとイベントの管理**: 問題を検出し、アラートをトリガーし、可観測性のためのイベントを作成するモニターを設定。
+- **ダウンタイムの処理**: メンテナンス中にアラートを抑制するための計画的なダウンタイムをスケジュールし、プログラムで管理。
+- **ログとトレースの分析** *(Datadogで追加設定が必要)*: より深いトラブルシューティングのためにログや分散トレースを一元化して検査。
+
+SimのDatadog統合により、エージェントはこれらの操作を自動化し、Datadogアカウントとプログラム的に対話することができます。カスタムメトリクスの送信、時系列データのクエリ、モニターの管理、イベントの作成、Sim自動化内で直接監視ワークフローを効率化するために使用できます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+ワークフローにDatadog監視を統合します。メトリクスの送信、モニターの管理、ログのクエリ、イベントの作成、ダウンタイムの処理などが可能です。
+
+## ツール
+
+### `datadog_submit_metrics`
+
+カスタムメトリクスをDatadogに送信します。アプリケーションのパフォーマンス、ビジネスメトリクス、またはカスタム監視データの追跡に使用します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `series` | string | はい | 送信するメトリクスシリーズのJSON配列。各シリーズにはメトリクス名、タイプ\(gauge/rate/count\)、ポイント\(タイムスタンプ/値のペア\)、およびオプションのタグを含める必要があります。 |
+| `apiKey` | string | はい | Datadog APIキー |
+| `site` | string | いいえ | Datadogサイト/リージョン\(デフォルト: datadoghq.com\) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | メトリクスが正常に送信されたかどうか |
+| `errors` | array | 送信中に発生したエラー |
+
+### `datadog_query_timeseries`
+
+Datadogからメトリクスの時系列データをクエリします。トレンド分析、レポート作成、またはメトリクス値の取得に使用します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | はい | Datadogメトリクスクエリ（例："avg:system.cpu.user\{*\}"） |
+| `from` | number | はい | 開始時間（Unix秒タイムスタンプ） |
+| `to` | number | はい | 終了時間（Unix秒タイムスタンプ） |
+| `apiKey` | string | はい | Datadog APIキー |
+| `applicationKey` | string | はい | Datadog アプリケーションキー |
+| `site` | string | いいえ | Datadogサイト/リージョン（デフォルト: datadoghq.com） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `series` | array | メトリクス名、タグ、データポイントを含む時系列データの配列 |
+| `status` | string | クエリステータス |
+
+### `datadog_create_event`
+
+Datadogイベントストリームにイベントを投稿します。デプロイ通知、アラート、または重要な出来事に使用します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | はい | イベントタイトル |
+| `text` | string | はい | イベント本文/説明。マークダウンをサポート。 |
+| `alertType` | string | いいえ | アラートタイプ: error、warning、info、success、user_update、recommendation、またはsnapshot |
+| `priority` | string | いいえ | イベント優先度: normalまたはlow |
+| `host` | string | いいえ | このイベントに関連付けるホスト名 |
+| `tags` | string | いいえ | カンマ区切りのタグリスト（例："env:production,service:api"） |
+| `aggregationKey` | string | いいえ | イベントをまとめるためのキー |
+| `sourceTypeName` | string | いいえ | イベントのソースタイプ名 |
+| `dateHappened` | number | いいえ | イベントが発生したUnixタイムスタンプ（デフォルトは現在時刻） |
+| `apiKey` | string | はい | Datadog APIキー |
+| `site` | string | いいえ | Datadogサイト/リージョン（デフォルト: datadoghq.com） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `event` | object | 作成されたイベントの詳細 |
+
+### `datadog_create_monitor`
+
+Datadogで新しいモニター/アラートを作成します。モニターはメトリクス、サービスチェック、イベントなどを追跡できます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | はい | モニター名 |
+| `type` | string | はい | モニタータイプ: metric alert、service check、event alert、process alert、log alert、query alert、composite、synthetics alert、slo alert |
+| `query` | string | はい | モニタークエリ（例："avg\(last_5m\):avg:system.cpu.idle\{*\} &lt; 20"） |
+| `message` | string | いいえ | 通知に含めるメッセージ。@メンションやマークダウンを含めることができます。 |
+| `tags` | string | いいえ | カンマ区切りのタグリスト |
+| `priority` | number | いいえ | モニターの優先度（1-5、1が最高）|
+| `options` | string | いいえ | モニターオプションのJSON文字列（しきい値、notify_no_data、renotify_intervalなど） |
+| `apiKey` | string | はい | Datadog APIキー |
+| `applicationKey` | string | はい | Datadog アプリケーションキー |
+| `site` | string | いいえ | Datadogサイト/リージョン（デフォルト: datadoghq.com） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `monitor` | object | 作成されたモニターの詳細 |
+
+### `datadog_get_monitor`
+
+IDで特定のモニターの詳細を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | はい | 取得するモニターのID |
+| `groupStates` | string | いいえ | 含めるグループ状態のカンマ区切りリスト: alert、warn、no data、ok |
+| `withDowntimes` | boolean | いいえ | モニターとともにダウンタイムデータを含める |
+| `apiKey` | string | はい | Datadog APIキー |
+| `applicationKey` | string | はい | Datadog アプリケーションキー |
+| `site` | string | いいえ | Datadogサイト/リージョン（デフォルト: datadoghq.com） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `monitor` | object | モニターの詳細 |
+
+### `datadog_list_monitors`
+
+Datadogのすべてのモニターを、名前、タグ、または状態によるオプションのフィルタリングと共に一覧表示します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupStates` | string | いいえ | フィルタリングするグループ状態のカンマ区切りリスト: alert, warn, no data, ok |
+| `name` | string | いいえ | 名前でモニターをフィルタリング（部分一致） |
+| `tags` | string | いいえ | フィルタリングするタグのカンマ区切りリスト |
+| `monitorTags` | string | いいえ | フィルタリングするモニタータグのカンマ区切りリスト |
+| `withDowntimes` | boolean | いいえ | モニターとともにダウンタイムデータを含める |
+| `page` | number | いいえ | ページネーションのページ番号（0から始まる） |
+| `pageSize` | number | いいえ | 1ページあたりのモニター数（最大1000） |
+| `apiKey` | string | はい | Datadog APIキー |
+| `applicationKey` | string | はい | Datadog アプリケーションキー |
+| `site` | string | いいえ | Datadogサイト/リージョン（デフォルト: datadoghq.com） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `monitors` | array | モニターのリスト |
+
+### `datadog_mute_monitor`
+
+通知を一時的に抑制するためにモニターをミュートします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | はい | ミュートするモニターのID |
+| `scope` | string | いいえ | ミュートするスコープ（例: "host:myhost"）。指定しない場合、すべてのスコープをミュートします。 |
+| `end` | number | いいえ | ミュートを終了するUnixタイムスタンプ。指定しない場合、無期限にミュートします。 |
+| `apiKey` | string | はい | Datadog APIキー |
+| `applicationKey` | string | はい | Datadog アプリケーションキー |
+| `site` | string | いいえ | Datadogサイト/リージョン（デフォルト: datadoghq.com） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | モニターが正常にミュートされたかどうか |
+
+### `datadog_query_logs`
+
+Datadogからログを検索して取得します。トラブルシューティング、分析、またはモニタリングに使用します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | はい | ログ検索クエリ（例："service:web-app status:error"） |
+| `from` | string | はい | ISO-8601形式または相対形式の開始時間（例："now-1h"） |
+| `to` | string | はい | ISO-8601形式または相対形式の終了時間（例："now"） |
+| `limit` | number | いいえ | 返すログの最大数（デフォルト：50、最大：1000） |
+| `sort` | string | いいえ | ソート順：timestamp（古い順）または-timestamp（新しい順） |
+| `indexes` | string | いいえ | 検索するログインデックスのカンマ区切りリスト |
+| `apiKey` | string | はい | Datadog APIキー |
+| `applicationKey` | string | はい | Datadog アプリケーションキー |
+| `site` | string | いいえ | Datadogサイト/リージョン（デフォルト：datadoghq.com） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `logs` | array | ログエントリのリスト |
+
+### `datadog_send_logs`
+
+集中ログ記録と分析のために、ログエントリをDatadogに送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `logs` | string | はい | ログエントリのJSON配列。各エントリにはmessageが必要で、オプションでddsource、ddtags、hostname、serviceを含めることができます。 |
+| `apiKey` | string | はい | Datadog APIキー |
+| `site` | string | いいえ | Datadogサイト/リージョン（デフォルト：datadoghq.com） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | ログが正常に送信されたかどうか |
+
+### `datadog_create_downtime`
+
+メンテナンス期間中にモニター通知を抑制するためのダウンタイムをスケジュールします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `scope` | string | はい | ダウンタイムを適用する範囲（例："host:myhost"、"env:production"、または全てに対して"*"） |
+| `message` | string | いいえ | ダウンタイム中に表示するメッセージ |
+| `start` | number | いいえ | ダウンタイム開始のUnixタイムスタンプ（デフォルトは現在時刻） |
+| `end` | number | いいえ | ダウンタイム終了のUnixタイムスタンプ |
+| `timezone` | string | いいえ | ダウンタイムのタイムゾーン（例："America/New_York"） |
+| `monitorId` | string | いいえ | ミュートする特定のモニターID |
+| `monitorTags` | string | いいえ | 一致させるモニタータグ（カンマ区切り、例："team:backend,priority:high"） |
+| `muteFirstRecoveryNotification` | boolean | いいえ | 最初の復旧通知をミュートする |
+| `apiKey` | string | はい | Datadog APIキー |
+| `applicationKey` | string | はい | Datadog アプリケーションキー |
+| `site` | string | いいえ | Datadogサイト/リージョン（デフォルト: datadoghq.com） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `downtime` | object | 作成されたダウンタイムの詳細 |
+
+### `datadog_list_downtimes`
+
+Datadogでスケジュールされたすべてのダウンタイムを一覧表示します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `currentOnly` | boolean | いいえ | 現在アクティブなダウンタイムのみを返す |
+| `monitorId` | string | いいえ | モニターIDでフィルタリング |
+| `apiKey` | string | はい | Datadog APIキー |
+| `applicationKey` | string | はい | Datadog アプリケーションキー |
+| `site` | string | いいえ | Datadogサイト/リージョン（デフォルト: datadoghq.com） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `downtimes` | array | ダウンタイムのリスト |
+
+### `datadog_cancel_downtime`
+
+スケジュールされたダウンタイムをキャンセルします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `downtimeId` | string | はい | キャンセルするダウンタイムのID |
+| `apiKey` | string | はい | Datadog APIキー |
+| `applicationKey` | string | はい | Datadog アプリケーションキー |
+| `site` | string | いいえ | Datadogサイト/リージョン \(デフォルト: datadoghq.com\) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | ダウンタイムが正常にキャンセルされたかどうか |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `datadog`

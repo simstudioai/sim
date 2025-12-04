@@ -79,9 +79,9 @@ export default {
         },
       },
       fontWeight: {
-        base: '450',
-        medium: '480',
-        semibold: '550',
+        base: 'var(--font-weight-base)',
+        medium: 'var(--font-weight-medium)',
+        semibold: 'var(--font-weight-semibold)',
       },
       borderRadius: {
         lg: 'var(--radius)',

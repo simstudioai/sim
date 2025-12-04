@@ -3,7 +3,7 @@
 import { type FC, memo, useMemo, useState } from 'react'
 import { Check, Copy, RotateCcw, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { Button } from '@/components/emcn'
-import { InlineToolCall } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
+import { ToolCall } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
 import {
   FileAttachmentDisplay,
   SmoothStreamingText,
@@ -221,7 +221,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               key={`tool-${block.toolCall.id}`}
               className='opacity-100 transition-opacity duration-300 ease-in-out'
             >
-              <InlineToolCall toolCallId={block.toolCall.id} toolCall={block.toolCall} />
+              <ToolCall toolCallId={block.toolCall.id} toolCall={block.toolCall} />
             </div>
           )
         }
@@ -264,7 +264,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
               {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}
               {showCheckpointDiscardModal && (
-                <div className='mt-[8px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] p-[10px] dark:border-[var(--surface-11)] dark:bg-[var(--surface-9)]'>
+                <div className='mt-[8px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] p-[10px] dark:bg-[var(--surface-9)]'>
                   <p className='mb-[8px] text-[var(--text-primary)] text-sm'>
                     Continue from a previous message?
                   </p>
@@ -311,7 +311,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 onClick={handleMessageClick}
                 onMouseEnter={() => setIsHoveringMessage(true)}
                 onMouseLeave={() => setIsHoveringMessage(false)}
-                className='group relative w-full cursor-pointer rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[6px] transition-all duration-200 hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:border-[var(--surface-11)] dark:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]'
+                className='group relative w-full cursor-pointer rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[6px] transition-all duration-200 hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]'
               >
                 <div
                   ref={messageContentRef}
@@ -405,7 +405,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           {/* Inline Restore Checkpoint Confirmation */}
           {showRestoreConfirmation && (
-            <div className='mt-[8px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] p-[10px] dark:border-[var(--surface-11)] dark:bg-[var(--surface-9)]'>
+            <div className='mt-[8px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] p-[10px] dark:bg-[var(--surface-9)]'>
               <p className='mb-[8px] text-[var(--text-primary)] text-sm'>
                 Revert to checkpoint? This will restore your workflow to the state saved at this
                 checkpoint.{' '}

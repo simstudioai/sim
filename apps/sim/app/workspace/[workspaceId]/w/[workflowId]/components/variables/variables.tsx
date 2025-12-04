@@ -19,12 +19,23 @@ import { Label } from '@/components/emcn/components/label/label'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
 import { validateName } from '@/lib/core/utils/validation'
+import {
+  useFloatBoundarySync,
+  useFloatDrag,
+  useFloatResize,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useVariablesStore as usePanelVariablesStore } from '@/stores/panel/variables/store'
-import { getVariablesPosition, useVariablesStore } from '@/stores/variables/store'
+import {
+  getVariablesPosition,
+  MAX_VARIABLES_HEIGHT,
+  MAX_VARIABLES_WIDTH,
+  MIN_VARIABLES_HEIGHT,
+  MIN_VARIABLES_WIDTH,
+  useVariablesStore,
+} from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useChatBoundarySync, useChatDrag, useChatResize } from '../chat/hooks'
 
 /**
  * Type options for variable type selection
@@ -42,7 +53,7 @@ const TYPE_OPTIONS: ComboboxOption[] = [
  */
 const BADGE_HEIGHT = 20
 const BADGE_TEXT_SIZE = 13
-const ICON_SIZE = 14
+const ICON_SIZE = 13
 const HEADER_ICON_SIZE = 16
 const LINE_HEIGHT = 21
 const MIN_EDITOR_HEIGHT = 120
@@ -97,14 +108,14 @@ export function Variables() {
     [position, width, height]
   )
 
-  const { handleMouseDown } = useChatDrag({
+  const { handleMouseDown } = useFloatDrag({
     position: actualPosition,
     width,
     height,
     onPositionChange: setPosition,
   })
 
-  useChatBoundarySync({
+  useFloatBoundarySync({
     isOpen,
     position: actualPosition,
     width,
@@ -117,12 +128,16 @@ export function Variables() {
     handleMouseMove: handleResizeMouseMove,
     handleMouseLeave: handleResizeMouseLeave,
     handleMouseDown: handleResizeMouseDown,
-  } = useChatResize({
+  } = useFloatResize({
     position: actualPosition,
     width,
     height,
     onPositionChange: setPosition,
     onDimensionsChange: setDimensions,
+    minWidth: MIN_VARIABLES_WIDTH,
+    minHeight: MIN_VARIABLES_HEIGHT,
+    maxWidth: MAX_VARIABLES_WIDTH,
+    maxHeight: MAX_VARIABLES_HEIGHT,
   })
 
   const [collapsedById, setCollapsedById] = useState<Record<string, boolean>>({})
