@@ -107,7 +107,7 @@ Erstellen Sie einen neuen Monitor/Alert in Datadog. Monitore können Metriken, S
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Ja | Name des Monitors |
 | `type` | string | Ja | Monitor-Typ: metric alert, service check, event alert, process alert, log alert, query alert, composite, synthetics alert, slo alert |
-| `query` | string | Ja | Monitor-Abfrage (z.B. "avg(last_5m):avg:system.cpu.idle{*} < 20") |
+| `query` | string | Ja | Monitor-Abfrage (z.B. `avg(last_5m):avg:system.cpu.idle{*} < 20`) |
 | `message` | string | Nein | Nachricht, die bei Benachrichtigungen enthalten sein soll. Kann @-Erwähnungen und Markdown enthalten. |
 | `tags` | string | Nein | Kommagetrennte Liste von Tags |
 | `priority` | number | Nein | Monitor-Priorität (1-5, wobei 1 die höchste ist) |
