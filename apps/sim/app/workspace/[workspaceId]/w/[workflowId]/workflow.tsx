@@ -308,7 +308,7 @@ const WorkflowContent = React.memo(() => {
    */
   const connectionLineStyle = useMemo(() => {
     return {
-      stroke: isErrorConnectionDrag ? '#EF4444' : '#434343',
+      stroke: isErrorConnectionDrag ? 'var(--text-error)' : 'var(--surface-12)',
       strokeWidth: 2,
     }
   }, [isErrorConnectionDrag])

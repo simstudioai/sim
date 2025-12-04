@@ -25,7 +25,7 @@ const SubflowNodeStyles: React.FC = () => {
       /* Drag-over states */
       .loop-node-drag-over,
       .parallel-node-drag-over {
-        box-shadow: 0 0 0 1.75px #33B4FF !important;
+        box-shadow: 0 0 0 1.75px var(--brand-secondary) !important;
         border-radius: 8px !important;
       }
 
@@ -161,7 +161,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
           {/* Header Section */}
           <div
             className={cn(
-              'workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--divider)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px] dark:bg-[var(--surface-2)] [&:active]:cursor-grabbing'
+              'workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--divider)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px] [&:active]:cursor-grabbing'
             )}
             onMouseDown={(e) => {
               e.stopPropagation()
@@ -216,7 +216,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
               data-node-role={`${data.kind}-start`}
               data-extent='parent'
             >
-              <span className='font-medium text-[14px] text-white'>Start</span>
+              <span className='font-medium text-[14px] text-[var(--text-primary)]'>Start</span>
 
               <Handle
                 type='source'

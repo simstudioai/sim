@@ -1,31 +1,51 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
-import { Modal, ModalContent, ModalDescription, ModalTitle } from '@/components/emcn'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { createLogger } from '@/lib/logs/console/logger'
+import { useQueryClient } from '@tanstack/react-query'
+import { Files, LogIn, Settings, User, Users, Wrench } from 'lucide-react'
 import {
-  Account,
+  Card,
+  Connections,
+  FolderCode,
+  HexSimple,
+  Key,
+  SModal,
+  SModalContent,
+  SModalMain,
+  SModalMainBody,
+  SModalMainHeader,
+  SModalSidebar,
+  SModalSidebarHeader,
+  SModalSidebarItem,
+  SModalSidebarSection,
+  SModalSidebarSectionTitle,
+} from '@/components/emcn'
+import { McpIcon } from '@/components/icons'
+import { useSession } from '@/lib/auth/auth-client'
+import { getSubscriptionStatus } from '@/lib/billing/client'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/environment'
+import { getUserRole } from '@/lib/workspaces/organization'
+import {
   ApiKeys,
   Copilot,
-  Credentials,
   CustomTools,
   EnvironmentVariables,
   FileUploads,
   General,
+  Integrations,
   MCP,
-  Privacy,
-  SettingsNavigation,
   SSO,
   Subscription,
   TeamManagement,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components'
-import { CreatorProfile } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/creator-profile/creator-profile'
-import { useGeneralSettings } from '@/hooks/queries/general-settings'
-import { useOrganizations } from '@/hooks/queries/organization'
-
-const logger = createLogger('SettingsModal')
+import { TemplateProfile } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/template-profile/template-profile'
+import { generalSettingsKeys, useGeneralSettings } from '@/hooks/queries/general-settings'
+import { organizationKeys, useOrganizations } from '@/hooks/queries/organization'
+import { ssoKeys, useSSOProviders } from '@/hooks/queries/sso'
+import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
@@ -37,37 +57,186 @@ interface SettingsModalProps {
 type SettingsSection =
   | 'general'
   | 'environment'
-  | 'account'
-  | 'creator-profile'
-  | 'credentials'
+  | 'template-profile'
+  | 'integrations'
   | 'apikeys'
   | 'files'
   | 'subscription'
   | 'team'
   | 'sso'
-  | 'privacy'
   | 'copilot'
   | 'mcp'
   | 'custom-tools'
 
+type NavigationSection = 'account' | 'subscription' | 'tools' | 'system'
+
+type NavigationItem = {
+  id: SettingsSection
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  section: NavigationSection
+  hideWhenBillingDisabled?: boolean
+  requiresTeam?: boolean
+  requiresEnterprise?: boolean
+  requiresOwner?: boolean
+  requiresHosted?: boolean
+}
+
+const sectionConfig: { key: NavigationSection; title: string }[] = [
+  { key: 'account', title: 'Account' },
+  { key: 'tools', title: 'Tools' },
+  { key: 'subscription', title: 'Subscription' },
+  { key: 'system', title: 'System' },
+]
+
+const allNavigationItems: NavigationItem[] = [
+  { id: 'general', label: 'General', icon: Settings, section: 'account' },
+  { id: 'template-profile', label: 'Template Profile', icon: User, section: 'account' },
+  {
+    id: 'subscription',
+    label: 'Subscription',
+    icon: Card,
+    section: 'subscription',
+    hideWhenBillingDisabled: true,
+  },
+  {
+    id: 'team',
+    label: 'Team',
+    icon: Users,
+    section: 'subscription',
+    hideWhenBillingDisabled: true,
+    requiresTeam: true,
+  },
+  { id: 'integrations', label: 'Integrations', icon: Connections, section: 'tools' },
+  { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
+  { id: 'mcp', label: 'MCPs', icon: McpIcon, section: 'tools' },
+  { id: 'environment', label: 'Environment', icon: FolderCode, section: 'system' },
+  { id: 'apikeys', label: 'API Keys', icon: Key, section: 'system' },
+  {
+    id: 'copilot',
+    label: 'Copilot Keys',
+    icon: HexSimple,
+    section: 'system',
+    requiresHosted: true,
+  },
+  { id: 'files', label: 'Files', icon: Files, section: 'system' },
+  {
+    id: 'sso',
+    label: 'Single Sign-On',
+    icon: LogIn,
+    section: 'system',
+    requiresTeam: true,
+    requiresEnterprise: true,
+    requiresOwner: true,
+  },
+]
+
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
+  const { data: session } = useSession()
+  const queryClient = useQueryClient()
   const { data: organizationsData } = useOrganizations()
+  const { data: subscriptionData } = useSubscriptionData()
+  const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
+
   const activeOrganization = organizationsData?.activeOrganization
-  const environmentCloseHandler = useRef<((open: boolean) => void) | null>(null)
-  const credentialsCloseHandler = useRef<((open: boolean) => void) | null>(null)
+  const environmentBeforeLeaveHandler = useRef<((onProceed: () => void) => void) | null>(null)
+  const integrationsCloseHandler = useRef<((open: boolean) => void) | null>(null)
+
+  const userEmail = session?.user?.email
+  const userId = session?.user?.id
+  const userRole = getUserRole(activeOrganization, userEmail)
+  const isOwner = userRole === 'owner'
+  const isAdmin = userRole === 'admin'
+  const canManageSSO = isOwner || isAdmin
+  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
+  const hasEnterprisePlan = subscriptionStatus.isEnterprise
+  const hasOrganization = !!activeOrganization?.id
+
+  // Memoize SSO provider ownership check
+  const isSSOProviderOwner = useMemo(() => {
+    if (isHosted) return null
+    if (!userId || isLoadingSSO) return null
+    return ssoProvidersData?.providers?.some((p: any) => p.userId === userId) || false
+  }, [userId, ssoProvidersData?.providers, isLoadingSSO])
+
+  // Memoize navigation items to avoid filtering on every render
+  const navigationItems = useMemo(() => {
+    return allNavigationItems.filter((item) => {
+      if (item.hideWhenBillingDisabled && !isBillingEnabled) {
+        return false
+      }
+
+      if (item.requiresTeam) {
+        const isMember = userRole === 'member' || isAdmin
+        const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
+
+        if (isMember) return true
+        if (isOwner && hasTeamPlan) return true
+
+        return false
+      }
+
+      if (item.requiresEnterprise && !hasEnterprisePlan) {
+        return false
+      }
+
+      if (item.requiresHosted && !isHosted) {
+        return false
+      }
+
+      if (item.id === 'sso') {
+        if (isHosted) {
+          return hasOrganization && hasEnterprisePlan && canManageSSO
+        }
+        return isSSOProviderOwner === true
+      }
+
+      if (item.requiresOwner && !isOwner) {
+        return false
+      }
+
+      return true
+    })
+  }, [
+    hasOrganization,
+    hasEnterprisePlan,
+    canManageSSO,
+    isSSOProviderOwner,
+    isOwner,
+    isAdmin,
+    userRole,
+    subscriptionStatus.isTeam,
+    subscriptionStatus.isEnterprise,
+  ])
 
   // Memoized callbacks to prevent infinite loops in child components
-  const registerEnvironmentCloseHandler = useCallback((handler: (open: boolean) => void) => {
-    environmentCloseHandler.current = handler
+  const registerEnvironmentBeforeLeaveHandler = useCallback(
+    (handler: (onProceed: () => void) => void) => {
+      environmentBeforeLeaveHandler.current = handler
+    },
+    []
+  )
+
+  const registerIntegrationsCloseHandler = useCallback((handler: (open: boolean) => void) => {
+    integrationsCloseHandler.current = handler
   }, [])
 
-  const registerCredentialsCloseHandler = useCallback((handler: (open: boolean) => void) => {
-    credentialsCloseHandler.current = handler
-  }, [])
+  const handleSectionChange = useCallback(
+    (sectionId: SettingsSection) => {
+      if (sectionId === activeSection) return
+
+      if (activeSection === 'environment' && environmentBeforeLeaveHandler.current) {
+        environmentBeforeLeaveHandler.current(() => setActiveSection(sectionId))
+        return
+      }
+
+      setActiveSection(sectionId)
+    },
+    [activeSection]
+  )
 
   // React Query hook automatically loads and syncs settings
-  // No need for manual loading logic - placeholderData provides instant UI
   useGeneralSettings()
 
   useEffect(() => {
@@ -96,125 +265,178 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     }
   }, [activeSection])
 
+  // Prefetch functions for React Query
+  const prefetchGeneral = () => {
+    queryClient.prefetchQuery({
+      queryKey: generalSettingsKeys.settings(),
+      queryFn: async () => {
+        const response = await fetch('/api/users/me/settings')
+        if (!response.ok) {
+          throw new Error('Failed to fetch general settings')
+        }
+        const { data } = await response.json()
+        return {
+          autoConnect: data.autoConnect ?? true,
+          showTrainingControls: data.showTrainingControls ?? false,
+          superUserModeEnabled: data.superUserModeEnabled ?? true,
+          // Force dark mode - light mode is temporarily disabled
+          theme: 'dark' as const,
+          telemetryEnabled: data.telemetryEnabled ?? true,
+          billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
+        }
+      },
+      staleTime: 60 * 60 * 1000,
+    })
+  }
+
+  const prefetchSubscription = () => {
+    queryClient.prefetchQuery({
+      queryKey: subscriptionKeys.user(),
+      queryFn: async () => {
+        const response = await fetch('/api/billing?context=user')
+        if (!response.ok) {
+          throw new Error('Failed to fetch subscription data')
+        }
+        return response.json()
+      },
+      staleTime: 30 * 1000,
+    })
+  }
+
+  const prefetchOrganization = () => {
+    queryClient.prefetchQuery({
+      queryKey: organizationKeys.lists(),
+      queryFn: async () => {
+        const { client } = await import('@/lib/auth/auth-client')
+        const [orgsResponse, activeOrgResponse, billingResponse] = await Promise.all([
+          client.organization.list(),
+          client.organization.getFullOrganization(),
+          fetch('/api/billing?context=user').then((r) => r.json()),
+        ])
+
+        return {
+          organizations: orgsResponse.data || [],
+          activeOrganization: activeOrgResponse.data,
+          billingData: billingResponse,
+        }
+      },
+      staleTime: 30 * 1000,
+    })
+  }
+
+  const prefetchSSO = () => {
+    queryClient.prefetchQuery({
+      queryKey: ssoKeys.providers(),
+      queryFn: async () => {
+        const response = await fetch('/api/auth/sso/providers')
+        if (!response.ok) {
+          throw new Error('Failed to fetch SSO providers')
+        }
+        return response.json()
+      },
+      staleTime: 5 * 60 * 1000,
+    })
+  }
+
+  const handlePrefetch = (id: SettingsSection) => {
+    switch (id) {
+      case 'general':
+        prefetchGeneral()
+        break
+      case 'subscription':
+        prefetchSubscription()
+        break
+      case 'team':
+        prefetchOrganization()
+        break
+      case 'sso':
+        prefetchSSO()
+        break
+      default:
+        break
+    }
+  }
+
   // Handle dialog close - delegate to environment component if it's active
   const handleDialogOpenChange = (newOpen: boolean) => {
-    if (!newOpen && activeSection === 'environment' && environmentCloseHandler.current) {
-      environmentCloseHandler.current(newOpen)
-    } else if (!newOpen && activeSection === 'credentials' && credentialsCloseHandler.current) {
-      credentialsCloseHandler.current(newOpen)
+    if (!newOpen && activeSection === 'environment' && environmentBeforeLeaveHandler.current) {
+      environmentBeforeLeaveHandler.current(() => onOpenChange(false))
+    } else if (!newOpen && activeSection === 'integrations' && integrationsCloseHandler.current) {
+      integrationsCloseHandler.current(newOpen)
     } else {
       onOpenChange(newOpen)
     }
   }
 
   return (
-    <Modal open={open} onOpenChange={handleDialogOpenChange}>
-      <ModalContent className='flex h-[70vh] w-full max-w-[840px] flex-col gap-0 p-0'>
+    <SModal open={open} onOpenChange={handleDialogOpenChange}>
+      <SModalContent>
         <VisuallyHidden.Root>
-          <ModalTitle>Settings</ModalTitle>
+          <DialogPrimitive.Title>Settings</DialogPrimitive.Title>
         </VisuallyHidden.Root>
         <VisuallyHidden.Root>
-          <ModalDescription>
-            Configure your workspace settings, environment variables, credentials, and preferences
-          </ModalDescription>
+          <DialogPrimitive.Description>
+            Configure your workspace settings, environment variables, integrations, and preferences
+          </DialogPrimitive.Description>
         </VisuallyHidden.Root>
-        <div className='flex flex-col border-[var(--surface-11)] border-b px-[16px] py-[12px]'>
-          <h2 className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-            Settings
-          </h2>
-        </div>
 
-        <div className='flex min-h-0 flex-1'>
-          {/* Navigation Sidebar */}
-          <div className='w-[180px] border-[var(--surface-11)] border-r'>
-            <SettingsNavigation
-              activeSection={activeSection}
-              onSectionChange={setActiveSection}
-              hasOrganization={!!activeOrganization?.id}
-            />
-          </div>
+        <SModalSidebar>
+          <SModalSidebarHeader>Settings</SModalSidebarHeader>
+          {sectionConfig.map(({ key, title }) => {
+            const sectionItems = navigationItems.filter((item) => item.section === key)
+            if (sectionItems.length === 0) return null
 
-          {/* Content Area */}
-          <div className='flex-1 overflow-y-auto'>
-            {activeSection === 'general' && (
-              <div className='h-full'>
-                <General />
-              </div>
-            )}
+            return (
+              <SModalSidebarSection key={key}>
+                <SModalSidebarSectionTitle>{title}</SModalSidebarSectionTitle>
+                {sectionItems.map((item) => (
+                  <SModalSidebarItem
+                    key={item.id}
+                    active={activeSection === item.id}
+                    icon={<item.icon />}
+                    onMouseEnter={() => handlePrefetch(item.id)}
+                    onClick={() => handleSectionChange(item.id)}
+                    data-section={item.id}
+                  >
+                    {item.label}
+                  </SModalSidebarItem>
+                ))}
+              </SModalSidebarSection>
+            )
+          })}
+        </SModalSidebar>
+
+        <SModalMain>
+          <SModalMainHeader>
+            {navigationItems.find((item) => item.id === activeSection)?.label || activeSection}
+          </SModalMainHeader>
+          <SModalMainBody>
+            {activeSection === 'general' && <General onOpenChange={onOpenChange} />}
             {activeSection === 'environment' && (
-              <div className='h-full'>
-                <EnvironmentVariables
-                  onOpenChange={onOpenChange}
-                  registerCloseHandler={registerEnvironmentCloseHandler}
-                />
-              </div>
+              <EnvironmentVariables
+                registerBeforeLeaveHandler={registerEnvironmentBeforeLeaveHandler}
+              />
             )}
-            {activeSection === 'account' && (
-              <div className='h-full'>
-                <Account onOpenChange={onOpenChange} />
-              </div>
+            {activeSection === 'template-profile' && <TemplateProfile />}
+            {activeSection === 'integrations' && (
+              <Integrations
+                onOpenChange={onOpenChange}
+                registerCloseHandler={registerIntegrationsCloseHandler}
+              />
             )}
-            {activeSection === 'creator-profile' && (
-              <div className='h-full'>
-                <CreatorProfile />
-              </div>
-            )}
-            {activeSection === 'credentials' && (
-              <div className='h-full'>
-                <Credentials
-                  onOpenChange={onOpenChange}
-                  registerCloseHandler={registerCredentialsCloseHandler}
-                />
-              </div>
-            )}
-            {activeSection === 'apikeys' && (
-              <div className='h-full'>
-                <ApiKeys onOpenChange={onOpenChange} />
-              </div>
-            )}
-            {activeSection === 'files' && (
-              <div className='h-full'>
-                <FileUploads />
-              </div>
-            )}
+            {activeSection === 'apikeys' && <ApiKeys onOpenChange={onOpenChange} />}
+            {activeSection === 'files' && <FileUploads />}
             {isBillingEnabled && activeSection === 'subscription' && (
-              <div className='h-full'>
-                <Subscription onOpenChange={onOpenChange} />
-              </div>
+              <Subscription onOpenChange={onOpenChange} />
             )}
-            {isBillingEnabled && activeSection === 'team' && (
-              <div className='h-full'>
-                <TeamManagement />
-              </div>
-            )}
-            {activeSection === 'sso' && (
-              <div className='h-full'>
-                <SSO />
-              </div>
-            )}
-            {activeSection === 'copilot' && (
-              <div className='h-full'>
-                <Copilot />
-              </div>
-            )}
-            {activeSection === 'privacy' && (
-              <div className='h-full'>
-                <Privacy />
-              </div>
-            )}
-            {activeSection === 'mcp' && (
-              <div className='h-full'>
-                <MCP />
-              </div>
-            )}
-            {activeSection === 'custom-tools' && (
-              <div className='h-full'>
-                <CustomTools />
-              </div>
-            )}
-          </div>
-        </div>
-      </ModalContent>
-    </Modal>
+            {isBillingEnabled && activeSection === 'team' && <TeamManagement />}
+            {activeSection === 'sso' && <SSO />}
+            {activeSection === 'copilot' && <Copilot />}
+            {activeSection === 'mcp' && <MCP />}
+            {activeSection === 'custom-tools' && <CustomTools />}
+          </SModalMainBody>
+        </SModalMain>
+      </SModalContent>
+    </SModal>
   )
 }

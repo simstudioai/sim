@@ -38,20 +38,22 @@ const Content = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
 >(({ className, sideOffset = 6, ...props }, ref) => (
-  <TooltipPrimitive.Content
-    ref={ref}
-    sideOffset={sideOffset}
-    collisionPadding={8}
-    avoidCollisions={true}
-    className={cn(
-      'z-[60] rounded-[3px] bg-black px-[7.5px] py-[6px] font-base text-white text-xs shadow-md dark:bg-white dark:text-black',
-      className
-    )}
-    {...props}
-  >
-    {props.children}
-    <TooltipPrimitive.Arrow className='fill-black dark:fill-white' />
-  </TooltipPrimitive.Content>
+  <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Content
+      ref={ref}
+      sideOffset={sideOffset}
+      collisionPadding={8}
+      avoidCollisions={true}
+      className={cn(
+        'z-50 rounded-[3px] bg-black px-[7.5px] py-[6px] font-base text-white text-xs shadow-md dark:bg-white dark:text-black',
+        className
+      )}
+      {...props}
+    >
+      {props.children}
+      <TooltipPrimitive.Arrow className='fill-black dark:fill-white' />
+    </TooltipPrimitive.Content>
+  </TooltipPrimitive.Portal>
 ))
 Content.displayName = TooltipPrimitive.Content.displayName
 

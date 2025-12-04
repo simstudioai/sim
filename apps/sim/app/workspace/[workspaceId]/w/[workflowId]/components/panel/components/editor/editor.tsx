@@ -183,7 +183,7 @@ export function Editor() {
   return (
     <div className='flex h-full flex-col'>
       {/* Header */}
-      <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px] dark:bg-[#2A2A2A]'>
+      <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[var(--surface-5)] px-[12px] py-[8px]'>
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
           {(blockConfig || isSubflow) && (
             <div
@@ -210,11 +210,11 @@ export function Editor() {
                   handleCancelRename()
                 }
               }}
-              className='min-w-0 flex-1 truncate bg-transparent pr-[8px] font-medium text-[14px] text-[var(--white)] outline-none dark:text-[var(--white)]'
+              className='min-w-0 flex-1 truncate bg-transparent pr-[8px] font-medium text-[14px] text-[var(--text-primary)] outline-none'
             />
           ) : (
             <h2
-              className='min-w-0 flex-1 cursor-pointer select-none truncate pr-[8px] font-medium text-[14px] text-[var(--white)] dark:text-[var(--white)]'
+              className='min-w-0 flex-1 cursor-pointer select-none truncate pr-[8px] font-medium text-[14px] text-[var(--text-primary)]'
               title={title}
               onDoubleClick={handleStartRename}
               onMouseDown={(e) => {
@@ -363,7 +363,7 @@ export function Editor() {
                               className='h-[1.25px]'
                               style={{
                                 backgroundImage:
-                                  'repeating-linear-gradient(to right, #2C2C2C 0px, #2C2C2C 6px, transparent 6px, transparent 12px)',
+                                  'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
                               }}
                             />
                           </div>
@@ -380,7 +380,7 @@ export function Editor() {
           {hasIncomingConnections && (
             <div
               className={
-                'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t dark:border-[var(--border)]' +
+                'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
                 (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
               }
               style={{ height: `${connectionsHeight}px` }}
@@ -415,7 +415,7 @@ export function Editor() {
                     (!isConnectionsAtMinHeight ? ' rotate-180' : '')
                   }
                 />
-                <div className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                <div className='font-medium text-[13px] text-[var(--text-primary)]'>
                   Connections
                 </div>
               </div>

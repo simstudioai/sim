@@ -27,7 +27,12 @@ interface TemplateCardProps {
 
 export function TemplateCardSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn('h-[268px] w-full rounded-[8px] bg-[#202020] p-[8px]', className)}>
+    <div
+      className={cn(
+        'h-[268px] w-full rounded-[8px] bg-[var(--surface-elevated)] p-[8px]',
+        className
+      )}
+    >
       <div className='h-[180px] w-full animate-pulse rounded-[6px] bg-gray-700' />
 
       <div className='mt-[14px] flex items-center justify-between'>
@@ -43,8 +48,8 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
       </div>
 
       <div className='mt-[14px] flex items-center justify-between'>
-        <div className='flex items-center gap-[8px]'>
-          <div className='h-[14px] w-[14px] animate-pulse rounded-full bg-gray-700' />
+        <div className='flex items-center gap-[6px]'>
+          <div className='h-[20px] w-[20px] animate-pulse rounded-full bg-gray-700' />
           <div className='h-3 w-20 animate-pulse rounded bg-gray-700' />
         </div>
         <div className='flex items-center gap-[6px]'>
@@ -196,7 +201,10 @@ function TemplateCardInner({
   return (
     <div
       onClick={handleCardClick}
-      className={cn('w-full cursor-pointer rounded-[8px] bg-[#202020] p-[8px]', className)}
+      className={cn(
+        'w-full cursor-pointer rounded-[8px] bg-[var(--surface-elevated)] p-[8px]',
+        className
+      )}
     >
       <div
         ref={previewRef}
@@ -211,6 +219,7 @@ function TemplateCardInner({
             isPannable={false}
             defaultZoom={0.8}
             fitPadding={0.2}
+            lightweight
           />
         ) : (
           <div className='h-full w-full bg-[#2A2A2A]' />
@@ -241,7 +250,7 @@ function TemplateCardInner({
                 )
               })}
               <div
-                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[#4A4A4A]'
+                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-14)]'
                 style={{ marginLeft: '-4px' }}
               >
                 <span className='font-medium text-[10px] text-white'>+{blockTypes.length - 3}</span>
@@ -270,17 +279,17 @@ function TemplateCardInner({
       </div>
 
       <div className='mt-[10px] flex items-center justify-between'>
-        <div className='flex items-center gap-[8px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
           {authorImageUrl ? (
-            <div className='h-[26px] w-[26px] flex-shrink-0 overflow-hidden rounded-full'>
+            <div className='h-[20px] w-[20px] flex-shrink-0 overflow-hidden rounded-full'>
               <img src={authorImageUrl} alt={author} className='h-full w-full object-cover' />
             </div>
           ) : (
-            <div className='flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-full bg-[#4A4A4A]'>
-              <User className='h-[18px] w-[18px] text-[#888888]' />
+            <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-14)]'>
+              <User className='h-[12px] w-[12px] text-[#888888]' />
             </div>
           )}
-          <div className='flex items-center gap-[4px]'>
+          <div className='flex min-w-0 items-center gap-[4px]'>
             <span className='truncate font-medium text-[#888888] text-[12px]'>{author}</span>
             {isVerified && <VerifiedBadge size='sm' />}
           </div>

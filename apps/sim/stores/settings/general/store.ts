@@ -7,9 +7,6 @@ const logger = createLogger('GeneralStore')
 
 const initialState: General = {
   isAutoConnectEnabled: true,
-  isAutoPanEnabled: true,
-  isConsoleExpandedByDefault: true,
-  showFloatingControls: true,
   showTrainingControls: false,
   superUserModeEnabled: true,
   theme: 'system',

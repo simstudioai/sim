@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Braces, Square } from 'lucide-react'
+import { ArrowUp, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   BubbleChatPreview,
@@ -43,7 +43,6 @@ import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspace
 import { useChatStore } from '@/stores/chat/store'
 import { usePanelStore } from '@/stores/panel/store'
 import type { PanelTab } from '@/stores/panel/types'
-import { DEFAULT_TERMINAL_HEIGHT, MIN_TERMINAL_HEIGHT, useTerminalStore } from '@/stores/terminal'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -142,10 +141,6 @@ export function Panel() {
     if (usageExceeded) {
       openSubscriptionSettings()
       return
-    }
-    const { openOnRun, terminalHeight, setTerminalHeight } = useTerminalStore.getState()
-    if (openOnRun && terminalHeight <= MIN_TERMINAL_HEIGHT) {
-      setTerminalHeight(DEFAULT_TERMINAL_HEIGHT)
     }
     await handleRunWorkflow()
   }, [usageExceeded, handleRunWorkflow])
@@ -373,10 +368,10 @@ export function Panel() {
     <>
       <aside
         ref={panelRef}
-        className='panel-container fixed inset-y-0 right-0 z-10 overflow-hidden dark:bg-[var(--surface-1)]'
+        className='panel-container fixed inset-y-0 right-0 z-10 overflow-hidden bg-[var(--surface-1)]'
         aria-label='Workflow panel'
       >
-        <div className='flex h-full flex-col border-l pt-[14px] dark:border-[var(--border)]'>
+        <div className='flex h-full flex-col border-[var(--border)] border-l pt-[14px]'>
           {/* Header */}
           <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
             {/* More and Chat */}
@@ -413,7 +408,7 @@ export function Panel() {
                     onClick={handleExportJson}
                     disabled={!userPermissions.canEdit || isExporting || !currentWorkflow}
                   >
-                    <Braces className='h-3 w-3' />
+                    <ArrowUp className='h-3 w-3' />
                     <span>Export workflow</span>
                   </PopoverItem>
                   <PopoverItem
@@ -467,7 +462,7 @@ export function Panel() {
           <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
             <div className='flex gap-[4px]'>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-9)] dark:hover:text-[var(--text-primary)]'
+                className='h-[28px] truncate px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('copilot')}
                 data-tab-button='copilot'
@@ -475,7 +470,7 @@ export function Panel() {
                 Copilot
               </Button>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-9)] dark:hover:text-[var(--text-primary)]'
+                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
@@ -483,7 +478,7 @@ export function Panel() {
                 Toolbar
               </Button>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-9)] dark:hover:text-[var(--text-primary)]'
+                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
@@ -555,9 +550,7 @@ export function Panel() {
             <ModalDescription>
               Deleting this workflow will permanently remove all associated blocks, executions, and
               configuration.{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </ModalDescription>
           </ModalHeader>
           <ModalFooter>
@@ -570,7 +563,7 @@ export function Panel() {
               Cancel
             </Button>
             <Button
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
               onClick={handleDeleteWorkflow}
               disabled={isDeleting}
             >

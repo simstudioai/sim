@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Check, Pencil, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
@@ -173,7 +173,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       <div className='flex items-center'>
         {isEditing ? (
           <>
-            <span className='text-muted-foreground text-xs tabular-nums'>$</span>
+            <span className='text-[var(--text-muted)] text-xs tabular-nums'>$</span>
             <input
               ref={inputRef}
               type='number'
@@ -191,7 +191,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
                 'border-0 bg-transparent p-0 text-xs tabular-nums',
                 'outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
                 '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
-                hasError && 'text-red-500'
+                hasError && 'text-[var(--text-error)]'
               )}
               min={minimumLimit}
               step='1'
@@ -204,19 +204,18 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
             />
           </>
         ) : (
-          <span className='text-muted-foreground text-xs tabular-nums'>
+          <span className='text-[var(--text-muted)] text-xs tabular-nums'>
             ${pendingLimit !== null ? pendingLimit : currentLimit}
           </span>
         )}
         {canEdit && (
           <Button
             variant='ghost'
-            size='icon'
             className={cn(
               'ml-1 h-4 w-4 p-0 transition-colors hover:bg-transparent',
               hasError
-                ? 'text-red-500 hover:text-red-600'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'text-[var(--text-error)] hover:text-[var(--text-error)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             )}
             onClick={isEditing ? handleSubmit : handleStartEdit}
             disabled={isUpdating}

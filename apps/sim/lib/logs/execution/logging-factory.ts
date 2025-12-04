@@ -80,7 +80,6 @@ export function calculateCostSummary(traceSpans: any[]): {
     }
   }
 
-  // Recursively collect all spans with cost information from the trace span tree
   const collectCostSpans = (spans: any[]): any[] => {
     const costSpans: any[] = []
 
@@ -119,12 +118,10 @@ export function calculateCostSummary(traceSpans: any[]): {
     totalCost += span.cost.total || 0
     totalInputCost += span.cost.input || 0
     totalOutputCost += span.cost.output || 0
-    // Tokens are at span.tokens, not span.cost.tokens
     totalTokens += span.tokens?.total || 0
-    totalPromptTokens += span.tokens?.prompt || 0
-    totalCompletionTokens += span.tokens?.completion || 0
+    totalPromptTokens += span.tokens?.input ?? span.tokens?.prompt ?? 0
+    totalCompletionTokens += span.tokens?.output ?? span.tokens?.completion ?? 0
 
-    // Aggregate model-specific costs - model is at span.model, not span.cost.model
     if (span.model) {
       const model = span.model
       if (!models[model]) {
@@ -138,8 +135,8 @@ export function calculateCostSummary(traceSpans: any[]): {
       models[model].input += span.cost.input || 0
       models[model].output += span.cost.output || 0
       models[model].total += span.cost.total || 0
-      models[model].tokens.prompt += span.tokens?.prompt || 0
-      models[model].tokens.completion += span.tokens?.completion || 0
+      models[model].tokens.prompt += span.tokens?.input ?? span.tokens?.prompt ?? 0
+      models[model].tokens.completion += span.tokens?.output ?? span.tokens?.completion ?? 0
       models[model].tokens.total += span.tokens?.total || 0
     }
   }
