@@ -7,6 +7,7 @@ export interface ExecutionMetadata {
   workflowId: string
   workspaceId?: string
   userId: string
+  sessionUserId?: string
   triggerType: string
   triggerBlockId?: string
   useDraftState: boolean

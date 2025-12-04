@@ -152,7 +152,10 @@ export async function executeWorkflowCore(
     // Merge block states
     const mergedStates = mergeSubblockState(blocks)
 
-    const personalEnvUserId = metadata.isClientSession ? userId : workflow.userId || userId
+    const personalEnvUserId =
+      metadata.isClientSession && metadata.sessionUserId
+        ? metadata.sessionUserId
+        : workflow.userId || userId
 
     const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } =
       await getPersonalAndWorkspaceEnv(personalEnvUserId, providedWorkspaceId)
