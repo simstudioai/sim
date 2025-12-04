@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Store the token - redirect to store endpoint with token data
-    const storeUrl = new URL(`${baseUrl}/api/auth/shopify/store`)
+    const storeUrl = new URL(`${baseUrl}/api/auth/oauth2/shopify/store`)
 
     // Create response with redirect to store page that will handle token storage
     const response = NextResponse.redirect(storeUrl)

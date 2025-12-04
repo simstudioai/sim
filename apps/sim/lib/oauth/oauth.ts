@@ -584,18 +584,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'shopify',
         icon: (props) => ShopifyIcon(props),
         baseProviderIcon: (props) => ShopifyIcon(props),
-        scopes: [
-          'read_products',
-          'write_products',
-          'read_orders',
-          'write_orders',
-          'read_customers',
-          'write_customers',
-          'read_inventory',
-          'write_inventory',
-          'read_fulfillments',
-          'write_fulfillments',
-        ],
+        scopes: ['write_products', 'write_orders', 'write_customers', 'write_inventory'],
       },
     },
     defaultService: 'shopify',
@@ -844,11 +833,17 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: (props) => ZoomIcon(props),
         baseProviderIcon: (props) => ZoomIcon(props),
         scopes: [
-          'meeting:write:meeting:admin',
-          'meeting:read:meeting:admin',
-          'meeting:read:list_meetings:admin',
-          'meeting:update:meeting:admin',
-          'meeting:delete:meeting:admin',
+          'user:read:user',
+          'meeting:write:meeting',
+          'meeting:read:meeting',
+          'meeting:read:list_meetings',
+          'meeting:update:meeting',
+          'meeting:delete:meeting',
+          'meeting:read:invitation',
+          'meeting:read:list_past_participants',
+          'cloud_recording:read:list_user_recordings',
+          'cloud_recording:read:list_recording_files',
+          'cloud_recording:delete:recording_file',
         ],
       },
     },
@@ -1374,6 +1369,16 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'zoom': {
+      const { clientId, clientSecret } = getCredentials(env.ZOOM_CLIENT_ID, env.ZOOM_CLIENT_SECRET)
+      return {
+        tokenEndpoint: 'https://zoom.us/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
         supportsRefreshTokenRotation: false,
       }
     }

@@ -53,16 +53,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       title: 'Shopify Account',
       type: 'oauth-input',
       serviceId: 'shopify',
-      requiredScopes: [
-        'read_products',
-        'write_products',
-        'read_orders',
-        'write_orders',
-        'read_customers',
-        'write_customers',
-        'read_inventory',
-        'write_inventory',
-      ],
+      requiredScopes: ['write_products', 'write_orders', 'write_customers', 'write_inventory'],
       placeholder: 'Select Shopify account',
       required: true,
     },
@@ -71,7 +62,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       title: 'Shop Domain',
       type: 'short-input',
       placeholder: 'Auto-detected from OAuth or enter manually',
-      // Not required - will use shop domain from OAuth credential if not provided
+      hidden: true, // Auto-detected from OAuth credential's idToken field
     },
     // Product ID (for get/update/delete operations)
     {

@@ -16,6 +16,7 @@ export const zoomGetMeetingInvitationTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'zoom',
+    requiredScopes: ['meeting:read:invitation'],
   },
 
   params: {

@@ -1,31 +1,30 @@
 import type { ToolConfig } from '@/tools/types'
-import type { ZoomListMeetingsParams, ZoomListMeetingsResponse } from '@/tools/zoom/types'
+import type {
+  ZoomListPastParticipantsParams,
+  ZoomListPastParticipantsResponse,
+} from '@/tools/zoom/types'
 
-export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMeetingsResponse> = {
-  id: 'zoom_list_meetings',
-  name: 'Zoom List Meetings',
-  description: 'List all meetings for a Zoom user',
+export const zoomListPastParticipantsTool: ToolConfig<
+  ZoomListPastParticipantsParams,
+  ZoomListPastParticipantsResponse
+> = {
+  id: 'zoom_list_past_participants',
+  name: 'Zoom List Past Participants',
+  description: 'List participants from a past Zoom meeting',
   version: '1.0.0',
 
   oauth: {
     required: true,
     provider: 'zoom',
-    requiredScopes: ['meeting:read:list_meetings'],
+    requiredScopes: ['meeting:read:list_past_participants'],
   },
 
   params: {
-    userId: {
+    meetingId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The user ID or email address. Use "me" for the authenticated user.',
-    },
-    type: {
-      type: 'string',
-      required: false,
       visibility: 'user-or-llm',
-      description:
-        'Meeting type filter: scheduled, live, upcoming, upcoming_meetings, or previous_meetings',
+      description: 'The past meeting ID or UUID',
     },
     pageSize: {
       type: 'number',
@@ -43,12 +42,9 @@ export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMe
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.zoom.us/v2/users/${encodeURIComponent(params.userId)}/meetings`
+      const baseUrl = `https://api.zoom.us/v2/past_meetings/${encodeURIComponent(params.meetingId)}/participants`
       const queryParams = new URLSearchParams()
 
-      if (params.type) {
-        queryParams.append('type', params.type)
-      }
       if (params.pageSize) {
         queryParams.append('page_size', String(params.pageSize))
       }
@@ -78,10 +74,8 @@ export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMe
         success: false,
         error: errorData.message || `Zoom API error: ${response.status} ${response.statusText}`,
         output: {
-          meetings: [],
+          participants: [],
           pageInfo: {
-            pageCount: 0,
-            pageNumber: 0,
             pageSize: 0,
             totalRecords: 0,
           },
@@ -94,22 +88,19 @@ export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMe
     return {
       success: true,
       output: {
-        meetings: (data.meetings || []).map((meeting: any) => ({
-          id: meeting.id,
-          uuid: meeting.uuid,
-          host_id: meeting.host_id,
-          topic: meeting.topic,
-          type: meeting.type,
-          start_time: meeting.start_time,
-          duration: meeting.duration,
-          timezone: meeting.timezone,
-          agenda: meeting.agenda,
-          created_at: meeting.created_at,
-          join_url: meeting.join_url,
+        participants: (data.participants || []).map((participant: any) => ({
+          id: participant.id,
+          user_id: participant.user_id,
+          name: participant.name,
+          user_email: participant.user_email,
+          join_time: participant.join_time,
+          leave_time: participant.leave_time,
+          duration: participant.duration,
+          attentiveness_score: participant.attentiveness_score,
+          failover: participant.failover,
+          status: participant.status,
         })),
         pageInfo: {
-          pageCount: data.page_count || 0,
-          pageNumber: data.page_number || 0,
           pageSize: data.page_size || 0,
           totalRecords: data.total_records || 0,
           nextPageToken: data.next_page_token,
@@ -119,16 +110,14 @@ export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMe
   },
 
   outputs: {
-    meetings: {
+    participants: {
       type: 'array',
-      description: 'List of meetings',
+      description: 'List of meeting participants',
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
       properties: {
-        pageCount: { type: 'number', description: 'Total number of pages' },
-        pageNumber: { type: 'number', description: 'Current page number' },
         pageSize: { type: 'number', description: 'Number of records per page' },
         totalRecords: { type: 'number', description: 'Total number of records' },
         nextPageToken: { type: 'string', description: 'Token for next page' },

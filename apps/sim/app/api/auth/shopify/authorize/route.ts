@@ -9,17 +9,12 @@ const logger = createLogger('ShopifyAuthorize')
 export const dynamic = 'force-dynamic'
 
 // Shopify OAuth scopes needed for the integration
+// Note: In Shopify, write scopes imply read access
 const SHOPIFY_SCOPES = [
-  'read_products',
   'write_products',
-  'read_orders',
   'write_orders',
-  'read_customers',
   'write_customers',
-  'read_inventory',
   'write_inventory',
-  'read_fulfillments',
-  'write_fulfillments',
 ].join(',')
 
 export async function GET(request: NextRequest) {
@@ -160,7 +155,7 @@ export async function GET(request: NextRequest) {
     }
 
     const baseUrl = getBaseUrl()
-    const redirectUri = `${baseUrl}/api/auth/shopify/callback`
+    const redirectUri = `${baseUrl}/api/auth/oauth2/callback/shopify`
 
     // Generate a random state for CSRF protection
     const state = crypto.randomUUID()

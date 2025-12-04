@@ -176,6 +176,118 @@ export interface ZoomGetMeetingInvitationResponse extends ToolResponse {
   }
 }
 
+// Recording types
+export interface ZoomRecordingFile {
+  id: string
+  meeting_id: string
+  recording_start: string
+  recording_end: string
+  file_type: string
+  file_extension: string
+  file_size: number
+  play_url?: string
+  download_url?: string
+  status: string
+  recording_type: string
+}
+
+export interface ZoomRecording {
+  uuid: string
+  id: number
+  account_id: string
+  host_id: string
+  topic: string
+  type: number
+  start_time: string
+  duration: number
+  total_size: number
+  recording_count: number
+  share_url?: string
+  recording_files: ZoomRecordingFile[]
+}
+
+// List Recordings tool types
+export interface ZoomListRecordingsParams extends ZoomBaseParams {
+  userId: string
+  from?: string
+  to?: string
+  pageSize?: number
+  nextPageToken?: string
+  trash?: boolean
+  trashType?: 'meeting_recordings' | 'recording_file'
+}
+
+export interface ZoomListRecordingsResponse extends ToolResponse {
+  output: {
+    recordings: ZoomRecording[]
+    pageInfo: {
+      from: string
+      to: string
+      pageSize: number
+      totalRecords: number
+      nextPageToken?: string
+    }
+  }
+}
+
+// Get Meeting Recordings tool types
+export interface ZoomGetMeetingRecordingsParams extends ZoomBaseParams {
+  meetingId: string
+  includeFolderItems?: boolean
+  ttl?: number
+}
+
+export interface ZoomGetMeetingRecordingsResponse extends ToolResponse {
+  output: {
+    recording: ZoomRecording
+  }
+}
+
+// Delete Recording tool types
+export interface ZoomDeleteRecordingParams extends ZoomBaseParams {
+  meetingId: string
+  recordingId?: string
+  action?: 'trash' | 'delete'
+}
+
+export interface ZoomDeleteRecordingResponse extends ToolResponse {
+  output: {
+    success: boolean
+  }
+}
+
+// Participant types
+export interface ZoomParticipant {
+  id: string
+  user_id?: string
+  name: string
+  user_email?: string
+  join_time: string
+  leave_time?: string
+  duration: number
+  attentiveness_score?: string
+  failover?: boolean
+  status?: string
+}
+
+// List Past Participants tool types
+export interface ZoomListPastParticipantsParams extends ZoomBaseParams {
+  meetingId: string
+  pageSize?: number
+  nextPageToken?: string
+}
+
+export interface ZoomListPastParticipantsResponse extends ToolResponse {
+  output: {
+    participants: ZoomParticipant[]
+    pageInfo: {
+      pageSize: number
+      totalRecords: number
+      nextPageToken?: string
+    }
+  }
+}
+
 // Combined response type for block
 export type ZoomResponse =
   | ZoomCreateMeetingResponse
@@ -184,3 +296,7 @@ export type ZoomResponse =
   | ZoomUpdateMeetingResponse
   | ZoomDeleteMeetingResponse
   | ZoomGetMeetingInvitationResponse
+  | ZoomListRecordingsResponse
+  | ZoomGetMeetingRecordingsResponse
+  | ZoomDeleteRecordingResponse
+  | ZoomListPastParticipantsResponse

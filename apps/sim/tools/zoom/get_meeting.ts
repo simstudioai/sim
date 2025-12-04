@@ -10,6 +10,7 @@ export const zoomGetMeetingTool: ToolConfig<ZoomGetMeetingParams, ZoomGetMeeting
   oauth: {
     required: true,
     provider: 'zoom',
+    requiredScopes: ['meeting:read:meeting'],
   },
 
   params: {

@@ -225,6 +225,8 @@ export const env = createEnv({
     SHOPIFY_CLIENT_SECRET:                 z.string().optional(),                  // Shopify OAuth client secret
     BOX_CLIENT_ID:                         z.string().optional(),                  // Box OAuth client ID
     BOX_CLIENT_SECRET:                     z.string().optional(),                  // Box OAuth client secret
+    ZOOM_CLIENT_ID:                        z.string().optional(),                  // Zoom OAuth client ID
+    ZOOM_CLIENT_SECRET:                    z.string().optional(),                  // Zoom OAuth client secret
 
     // E2B Remote Code Execution
     E2B_ENABLED:                           z.string().optional(),                  // Enable E2B remote code execution

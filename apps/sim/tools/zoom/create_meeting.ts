@@ -11,6 +11,7 @@ export const zoomCreateMeetingTool: ToolConfig<ZoomCreateMeetingParams, ZoomCrea
     oauth: {
       required: true,
       provider: 'zoom',
+      requiredScopes: ['meeting:write:meeting'],
     },
 
     params: {

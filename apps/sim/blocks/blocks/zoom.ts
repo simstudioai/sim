@@ -6,10 +6,10 @@ import type { ZoomResponse } from '@/tools/zoom/types'
 export const ZoomBlock: BlockConfig<ZoomResponse> = {
   type: 'zoom',
   name: 'Zoom',
-  description: 'Create and manage Zoom meetings',
+  description: 'Create and manage Zoom meetings and recordings',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Zoom into workflows. Create, list, update, and delete Zoom meetings. Get meeting details, invitations, and manage meeting settings programmatically.',
+    'Integrate Zoom into workflows. Create, list, update, and delete Zoom meetings. Get meeting details, invitations, recordings, and participants. Manage cloud recordings programmatically.',
   docsLink: 'https://docs.sim.ai/tools/zoom',
   category: 'tools',
   bgColor: '#2D8CFF',
@@ -26,6 +26,10 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
         { label: 'Update Meeting', id: 'zoom_update_meeting' },
         { label: 'Delete Meeting', id: 'zoom_delete_meeting' },
         { label: 'Get Meeting Invitation', id: 'zoom_get_meeting_invitation' },
+        { label: 'List Recordings', id: 'zoom_list_recordings' },
+        { label: 'Get Meeting Recordings', id: 'zoom_get_meeting_recordings' },
+        { label: 'Delete Recording', id: 'zoom_delete_recording' },
+        { label: 'List Past Participants', id: 'zoom_list_past_participants' },
       ],
       value: () => 'zoom_create_meeting',
     },
@@ -35,11 +39,17 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       type: 'oauth-input',
       serviceId: 'zoom',
       requiredScopes: [
-        'meeting:write:meeting:admin',
-        'meeting:read:meeting:admin',
-        'meeting:read:list_meetings:admin',
-        'meeting:update:meeting:admin',
-        'meeting:delete:meeting:admin',
+        'user:read:user',
+        'meeting:write:meeting',
+        'meeting:read:meeting',
+        'meeting:read:list_meetings',
+        'meeting:update:meeting',
+        'meeting:delete:meeting',
+        'meeting:read:invitation',
+        'meeting:read:list_past_participants',
+        'cloud_recording:read:list_user_recordings',
+        'cloud_recording:read:list_recording_files',
+        'cloud_recording:delete:recording_file',
       ],
       placeholder: 'Select Zoom account',
       required: true,
@@ -53,10 +63,10 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       required: true,
       condition: {
         field: 'operation',
-        value: ['zoom_create_meeting', 'zoom_list_meetings'],
+        value: ['zoom_create_meeting', 'zoom_list_meetings', 'zoom_list_recordings'],
       },
     },
-    // Meeting ID for get/update/delete/invitation operations
+    // Meeting ID for get/update/delete/invitation/recordings/participants operations
     {
       id: 'meetingId',
       title: 'Meeting ID',
@@ -70,6 +80,9 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
           'zoom_update_meeting',
           'zoom_delete_meeting',
           'zoom_get_meeting_invitation',
+          'zoom_get_meeting_recordings',
+          'zoom_delete_recording',
+          'zoom_list_past_participants',
         ],
       },
     },
@@ -254,7 +267,7 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       placeholder: 'Number of results (max 300)',
       condition: {
         field: 'operation',
-        value: ['zoom_list_meetings'],
+        value: ['zoom_list_meetings', 'zoom_list_recordings', 'zoom_list_past_participants'],
       },
     },
     {
@@ -264,7 +277,54 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       placeholder: 'Token for next page',
       condition: {
         field: 'operation',
-        value: ['zoom_list_meetings'],
+        value: ['zoom_list_meetings', 'zoom_list_recordings', 'zoom_list_past_participants'],
+      },
+    },
+    // Recording date range
+    {
+      id: 'fromDate',
+      title: 'From Date',
+      type: 'short-input',
+      placeholder: 'yyyy-mm-dd (within last 6 months)',
+      condition: {
+        field: 'operation',
+        value: ['zoom_list_recordings'],
+      },
+    },
+    {
+      id: 'toDate',
+      title: 'To Date',
+      type: 'short-input',
+      placeholder: 'yyyy-mm-dd',
+      condition: {
+        field: 'operation',
+        value: ['zoom_list_recordings'],
+      },
+    },
+    // Recording ID for delete
+    {
+      id: 'recordingId',
+      title: 'Recording ID',
+      type: 'short-input',
+      placeholder: 'Specific recording file ID (optional)',
+      condition: {
+        field: 'operation',
+        value: ['zoom_delete_recording'],
+      },
+    },
+    // Delete action
+    {
+      id: 'deleteAction',
+      title: 'Delete Action',
+      type: 'dropdown',
+      options: [
+        { label: 'Move to Trash', id: 'trash' },
+        { label: 'Permanently Delete', id: 'delete' },
+      ],
+      value: () => 'trash',
+      condition: {
+        field: 'operation',
+        value: ['zoom_delete_recording'],
       },
     },
     // Delete options
@@ -296,6 +356,10 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       'zoom_update_meeting',
       'zoom_delete_meeting',
       'zoom_get_meeting_invitation',
+      'zoom_list_recordings',
+      'zoom_get_meeting_recordings',
+      'zoom_delete_recording',
+      'zoom_list_past_participants',
     ],
     config: {
       tool: (params) => {
@@ -396,6 +460,50 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
               meetingId: params.meetingId.trim(),
             }
 
+          case 'zoom_list_recordings':
+            if (!params.userId?.trim()) {
+              throw new Error('User ID is required.')
+            }
+            return {
+              ...baseParams,
+              userId: params.userId.trim(),
+              from: params.fromDate,
+              to: params.toDate,
+              pageSize: params.pageSize ? Number(params.pageSize) : undefined,
+              nextPageToken: params.nextPageToken,
+            }
+
+          case 'zoom_get_meeting_recordings':
+            if (!params.meetingId?.trim()) {
+              throw new Error('Meeting ID is required.')
+            }
+            return {
+              ...baseParams,
+              meetingId: params.meetingId.trim(),
+            }
+
+          case 'zoom_delete_recording':
+            if (!params.meetingId?.trim()) {
+              throw new Error('Meeting ID is required.')
+            }
+            return {
+              ...baseParams,
+              meetingId: params.meetingId.trim(),
+              recordingId: params.recordingId,
+              action: params.deleteAction,
+            }
+
+          case 'zoom_list_past_participants':
+            if (!params.meetingId?.trim()) {
+              throw new Error('Meeting ID is required.')
+            }
+            return {
+              ...baseParams,
+              meetingId: params.meetingId.trim(),
+              pageSize: params.pageSize ? Number(params.pageSize) : undefined,
+              nextPageToken: params.nextPageToken,
+            }
+
           default:
             return baseParams
         }
@@ -426,6 +534,10 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
     nextPageToken: { type: 'string', description: 'Page token for pagination' },
     occurrenceId: { type: 'string', description: 'Occurrence ID for recurring meetings' },
     cancelMeetingReminder: { type: 'boolean', description: 'Send cancellation email' },
+    fromDate: { type: 'string', description: 'Start date for recordings list (yyyy-mm-dd)' },
+    toDate: { type: 'string', description: 'End date for recordings list (yyyy-mm-dd)' },
+    recordingId: { type: 'string', description: 'Specific recording file ID' },
+    deleteAction: { type: 'string', description: 'Delete action (trash or delete)' },
   },
   outputs: {
     // Meeting outputs
@@ -445,6 +557,13 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
     settings: { type: 'json', description: 'Meeting settings' },
     // Invitation
     invitation: { type: 'string', description: 'Meeting invitation text' },
+    // Recording outputs
+    recording: { type: 'json', description: 'Recording data' },
+    recordings: { type: 'json', description: 'List of recordings' },
+    recording_files: { type: 'json', description: 'Recording files' },
+    share_url: { type: 'string', description: 'Share URL for recording' },
+    // Participant outputs
+    participants: { type: 'json', description: 'List of participants' },
     // Pagination
     pageInfo: { type: 'json', description: 'Pagination information' },
     // Success indicator

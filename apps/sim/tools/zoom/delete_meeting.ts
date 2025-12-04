@@ -11,6 +11,7 @@ export const zoomDeleteMeetingTool: ToolConfig<ZoomDeleteMeetingParams, ZoomDele
     oauth: {
       required: true,
       provider: 'zoom',
+      requiredScopes: ['meeting:delete:meeting'],
     },
 
     params: {

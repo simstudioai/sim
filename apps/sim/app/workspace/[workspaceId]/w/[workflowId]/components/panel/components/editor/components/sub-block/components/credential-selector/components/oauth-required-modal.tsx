@@ -235,17 +235,23 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Box scopes
   root_readwrite: 'Read and write all files and folders in your Box account',
   root_readonly: 'Read all files and folders in your Box account',
-  // Shopify scopes
-  read_products: 'View your Shopify products',
-  write_products: 'Create and manage your Shopify products',
-  read_orders: 'View your Shopify orders',
-  write_orders: 'Manage your Shopify orders',
-  read_customers: 'View your Shopify customers',
-  write_customers: 'Create and manage your Shopify customers',
-  read_inventory: 'View your Shopify inventory',
-  write_inventory: 'Manage your Shopify inventory levels',
-  read_fulfillments: 'View your Shopify fulfillments',
-  write_fulfillments: 'Create and manage your Shopify fulfillments',
+  // Shopify scopes (write implies read in Shopify)
+  write_products: 'Read and manage your Shopify products',
+  write_orders: 'Read and manage your Shopify orders',
+  write_customers: 'Read and manage your Shopify customers',
+  write_inventory: 'Read and manage your Shopify inventory levels',
+  // Zoom scopes
+  'user:read:user': 'View your Zoom profile information',
+  'meeting:write:meeting': 'Create Zoom meetings',
+  'meeting:read:meeting': 'View Zoom meeting details',
+  'meeting:read:list_meetings': 'List your Zoom meetings',
+  'meeting:update:meeting': 'Update Zoom meetings',
+  'meeting:delete:meeting': 'Delete Zoom meetings',
+  'meeting:read:invitation': 'View Zoom meeting invitations',
+  'meeting:read:list_past_participants': 'View past meeting participants',
+  'cloud_recording:read:list_user_recordings': 'List your Zoom cloud recordings',
+  'cloud_recording:read:list_recording_files': 'View recording files',
+  'cloud_recording:delete:recording_file': 'Delete cloud recordings',
 }
 
 function getScopeDescription(scope: string): string {

@@ -11,6 +11,7 @@ export const zoomUpdateMeetingTool: ToolConfig<ZoomUpdateMeetingParams, ZoomUpda
     oauth: {
       required: true,
       provider: 'zoom',
+      requiredScopes: ['meeting:update:meeting'],
     },
 
     params: {
