@@ -25,8 +25,8 @@ import {
 import { McpIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/environment'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getUserRole } from '@/lib/workspaces/organization'
 import {
   ApiKeys,
@@ -47,11 +47,7 @@ import { organizationKeys, useOrganizations } from '@/hooks/queries/organization
 import { ssoKeys, useSSOProviders } from '@/hooks/queries/sso'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 
-const logger = createLogger('SettingsModal')
-
-// TODO: Remove this
-// const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
-const isBillingEnabled = true
+const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 interface SettingsModalProps {
   open: boolean
