@@ -81,12 +81,19 @@ Créer un nouveau problème avec les propriétés spécifiées
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `apiToken` | chaîne | Oui | Jeton API Pylon |
-| `title` | chaîne | Oui | Titre du problème |
-| `bodyHtml` | chaîne | Oui | Corps du problème au format HTML |
-| `accountId` | chaîne | Non | ID du compte à associer au problème |
-| `assigneeId` | chaîne | Non | ID de l'utilisateur à qui attribuer le problème |
+| --------- | ---- | -------- | ----------- |
+| `apiToken` | string | Oui | Jeton API Pylon |
+| `title` | string | Oui | Titre du problème |
+| `bodyHtml` | string | Oui | Corps du problème au format HTML |
+| `accountId` | string | Non | ID du compte à associer au problème |
+| `assigneeId` | string | Non | ID de l'utilisateur à qui assigner le problème |
+| `teamId` | string | Non | ID de l'équipe à qui assigner le problème |
+| `requesterId` | string | Non | ID de l'utilisateur demandeur \(alternative à requester_email\) |
+| `requesterEmail` | string | Non | Adresse e-mail du demandeur \(alternative à requester_id\) |
+| `priority` | string | Non | Priorité du problème |
+| `tags` | string | Non | IDs de tags séparés par des virgules |
+| `customFields` | string | Non | Champs personnalisés sous forme d'objet JSON |
+| `attachmentUrls` | string | Non | URLs des pièces jointes séparées par des virgules |
 
 #### Sortie
 
@@ -124,10 +131,13 @@ Mettre à jour un problème existant
 | `apiToken` | string | Oui | Jeton API Pylon |
 | `issueId` | string | Oui | L'ID du problème à mettre à jour |
 | `state` | string | Non | État du problème |
-| `assigneeId` | string | Non | ID utilisateur à qui assigner le problème |
-| `teamId` | string | Non | ID d'équipe à qui assigner le problème |
+| `assigneeId` | string | Non | ID de l'utilisateur à qui assigner le problème |
+| `teamId` | string | Non | ID de l'équipe à qui assigner le problème |
 | `tags` | string | Non | IDs de tags séparés par des virgules |
 | `customFields` | string | Non | Champs personnalisés sous forme d'objet JSON |
+| `customerPortalVisible` | boolean | Non | Indique si le problème est visible dans le portail client |
+| `requesterId` | string | Non | ID de l'utilisateur demandeur |
+| `accountId` | string | Non | ID du compte à associer au problème |
 
 #### Sortie
 

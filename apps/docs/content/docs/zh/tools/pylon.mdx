@@ -84,8 +84,15 @@ Pylon 的端点提供了对客户问题和关系全生命周期管理的精细�
 | `apiToken` | string | 是 | Pylon API 令牌 |
 | `title` | string | 是 | 问题标题 |
 | `bodyHtml` | string | 是 | HTML 格式的问题正文 |
-| `accountId` | string | 否 | 要与问题关联的账户 ID |
-| `assigneeId` | string | 否 | 要分配问题的用户 ID |
+| `accountId` | string | 否 | 与问题关联的账户 ID |
+| `assigneeId` | string | 否 | 分配问题的用户 ID |
+| `teamId` | string | 否 | 分配问题的团队 ID |
+| `requesterId` | string | 否 | 请求者用户 ID（请求者邮箱的替代选项） |
+| `requesterEmail` | string | 否 | 请求者邮箱地址（请求者 ID 的替代选项） |
+| `priority` | string | 否 | 问题优先级 |
+| `tags` | string | 否 | 逗号分隔的标签 ID |
+| `customFields` | string | 否 | 作为 JSON 对象的自定义字段 |
+| `attachmentUrls` | string | 否 | 逗号分隔的附件 URL |
 
 #### 输出
 
@@ -127,6 +134,9 @@ Pylon 的端点提供了对客户问题和关系全生命周期管理的精细�
 | `teamId` | string | 否 | 分配问题的团队 ID |
 | `tags` | string | 否 | 逗号分隔的标签 ID |
 | `customFields` | string | 否 | 作为 JSON 对象的自定义字段 |
+| `customerPortalVisible` | boolean | 否 | 问题是否在客户门户中可见 |
+| `requesterId` | string | 否 | 请求者用户 ID |
+| `accountId` | string | 否 | 与问题关联的账户 ID |
 
 #### 输出
 

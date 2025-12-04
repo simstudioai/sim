@@ -1,0 +1,302 @@
+---
+title: Datadog
+description: 使用 Datadog 监控基础设施、应用程序和日志
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="datadog"
+  color="#632CA6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Datadog](https://datadoghq.com/) 是一个全面的监控和分析平台，用于基础设施、应用程序、日志等。它使组织能够实时了解系统的健康状况和性能，检测异常，并自动化事件响应。
+
+使用 Datadog，您可以：
+
+- **监控指标**：收集、可视化和分析来自服务器、云服务和自定义应用程序的指标。
+- **查询时间序列数据**：对性能指标运行高级查询，用于趋势分析和报告。
+- **管理监控和事件**：设置监控以检测问题、触发警报并创建可观察性的事件。
+- **处理停机时间**：计划和以编程方式管理计划的停机时间，在维护期间抑制警报。
+- **分析日志和跟踪**（需要在 Datadog 中进行额外设置）：集中检查日志或分布式跟踪以进行更深入的故障排除。
+
+Sim 的 Datadog 集成让您的代理能够自动化这些操作，并以编程方式与您的 Datadog 账户交互。使用它提交自定义指标、查询时间序列数据、管理监控、创建事件，并直接在 Sim 自动化中简化您的监控工作流程。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Datadog 监控集成到工作流程中。提交指标、管理监控、查询日志、创建事件、处理停机时间等。
+
+## 工具
+
+### `datadog_submit_metrics`
+
+向 Datadog 提交自定义指标。用于跟踪应用程序性能、业务指标或自定义监控数据。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `series` | string | 是 | 要提交的指标系列的 JSON 数组。每个系列应包括指标名称、类型（gauge/rate/count）、点（时间戳/值对）以及可选标签。 |
+| `apiKey` | string | 是 | Datadog API 密钥 |
+| `site` | string | 否 | Datadog 站点/区域（默认：datadoghq.com） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 指标是否成功提交 |
+| `errors` | 数组 | 提交过程中发生的任何错误 |
+
+### `datadog_query_timeseries`
+
+从 Datadog 查询指标时间序列数据。用于分析趋势、创建报告或检索指标值。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | 字符串 | 是 | Datadog 指标查询 \(例如："avg:system.cpu.user\{*\}"\) |
+| `from` | 数字 | 是 | 起始时间，单位为秒的 Unix 时间戳 |
+| `to` | 数字 | 是 | 结束时间，单位为秒的 Unix 时间戳 |
+| `apiKey` | 字符串 | 是 | Datadog API 密钥 |
+| `applicationKey` | 字符串 | 是 | Datadog 应用密钥 |
+| `site` | 字符串 | 否 | Datadog 站点/区域 \(默认：datadoghq.com\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `series` | 数组 | 包含指标名称、标签和数据点的时间序列数据数组 |
+| `status` | 字符串 | 查询状态 |
+
+### `datadog_create_event`
+
+向 Datadog 事件流发布事件。用于部署通知、警报或任何重要事件。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `title` | 字符串 | 是 | 事件标题 |
+| `text` | 字符串 | 是 | 事件正文/描述。支持 markdown。 |
+| `alertType` | 字符串 | 否 | 警报类型：error、warning、info、success、user_update、recommendation 或 snapshot |
+| `priority` | 字符串 | 否 | 事件优先级：normal 或 low |
+| `host` | 字符串 | 否 | 与此事件关联的主机名 |
+| `tags` | 字符串 | 否 | 逗号分隔的标签列表 \(例如："env:production,service:api"\) |
+| `aggregationKey` | 字符串 | 否 | 用于将事件聚合在一起的键 |
+| `sourceTypeName` | 字符串 | 否 | 事件的来源类型名称 |
+| `dateHappened` | 数字 | 否 | 事件发生的 Unix 时间戳 \(默认为当前时间\) |
+| `apiKey` | 字符串 | 是 | Datadog API 密钥 |
+| `site` | 字符串 | 否 | Datadog 站点/区域 \(默认：datadoghq.com\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `event` | object | 创建的事件详情 |
+
+### `datadog_create_monitor`
+
+在 Datadog 中创建一个新的监控/警报。监控可以跟踪指标、服务检查、事件等。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | 是 | 监控名称 |
+| `type` | string | 是 | 监控类型：指标警报、服务检查、事件警报、进程警报、日志警报、查询警报、复合警报、合成警报、SLO 警报 |
+| `query` | string | 是 | 监控查询 \(例如："avg\(last_5m\):avg:system.cpu.idle\{*\} &lt; 20"\) |
+| `message` | string | 否 | 通知中包含的消息。可以包含 @ 提及和 markdown。 |
+| `tags` | string | 否 | 逗号分隔的标签列表 |
+| `priority` | number | 否 | 监控优先级 \(1-5，其中 1 为最高\) |
+| `options` | string | 否 | 监控选项的 JSON 字符串 \(阈值、notify_no_data、renotify_interval 等\) |
+| `apiKey` | string | 是 | Datadog API 密钥 |
+| `applicationKey` | string | 是 | Datadog 应用程序密钥 |
+| `site` | string | 否 | Datadog 站点/区域 \(默认：datadoghq.com\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `monitor` | object | 创建的监控详情 |
+
+### `datadog_get_monitor`
+
+通过 ID 检索特定监控的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | 是 | 要检索的监控 ID |
+| `groupStates` | string | 否 | 要包含的逗号分隔的组状态：alert、warn、no data、ok |
+| `withDowntimes` | boolean | 否 | 包含监控的停机数据 |
+| `apiKey` | string | 是 | Datadog API 密钥 |
+| `applicationKey` | string | 是 | Datadog 应用程序密钥 |
+| `site` | string | 否 | Datadog 站点/区域 \(默认：datadoghq.com\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `monitor` | object | 监控详情 |
+
+### `datadog_list_monitors`
+
+列出 Datadog 中的所有监控，并可选择按名称、标签或状态进行筛选。
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupStates` | string | 否 | 用逗号分隔的组状态进行筛选：alert、warn、no data、ok |
+| `name` | string | 否 | 按名称筛选监控（部分匹配） |
+| `tags` | string | 否 | 用逗号分隔的标签列表进行筛选 |
+| `monitorTags` | string | 否 | 用逗号分隔的监控标签列表进行筛选 |
+| `withDowntimes` | boolean | 否 | 包括监控的停机时间数据 |
+| `page` | number | 否 | 分页的页码（从 0 开始） |
+| `pageSize` | number | 否 | 每页的监控数量（最大 1000） |
+| `apiKey` | string | 是 | Datadog API 密钥 |
+| `applicationKey` | string | 是 | Datadog 应用密钥 |
+| `site` | string | 否 | Datadog 站点/区域（默认：datadoghq.com） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `monitors` | array | 监控列表 |
+
+### `datadog_mute_monitor`
+
+静音监控以暂时抑制通知。
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | 是 | 要静音的监控 ID |
+| `scope` | string | 否 | 静音范围（例如："host:myhost"）。如果未指定，则静音所有范围。 |
+| `end` | number | 否 | 静音结束的 Unix 时间戳。如果未指定，则无限期静音。 |
+| `apiKey` | string | 是 | Datadog API 密钥 |
+| `applicationKey` | string | 是 | Datadog 应用密钥 |
+| `site` | string | 否 | Datadog 站点/区域（默认：datadoghq.com） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 监控是否成功静音 |
+
+### `datadog_query_logs`
+
+搜索并检索 Datadog 的日志。用于故障排除、分析或监控。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | 字符串 | 是 | 日志搜索查询 \(例如："service:web-app status:error"\) |
+| `from` | 字符串 | 是 | ISO-8601 格式的开始时间或相对时间 \(例如："now-1h"\) |
+| `to` | 字符串 | 是 | ISO-8601 格式的结束时间或相对时间 \(例如："now"\) |
+| `limit` | 数字 | 否 | 返回的最大日志数量 \(默认：50，最大：1000\) |
+| `sort` | 字符串 | 否 | 排序顺序：时间戳 \(最早优先\) 或 -时间戳 \(最新优先\) |
+| `indexes` | 字符串 | 否 | 要搜索的日志索引的逗号分隔列表 |
+| `apiKey` | 字符串 | 是 | Datadog API 密钥 |
+| `applicationKey` | 字符串 | 是 | Datadog 应用程序密钥 |
+| `site` | 字符串 | 否 | Datadog 站点/区域 \(默认：datadoghq.com\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `logs` | 数组 | 日志条目列表 |
+
+### `datadog_send_logs`
+
+将日志条目发送到 Datadog 进行集中式日志记录和分析。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `logs` | 字符串 | 是 | JSON 格式的日志条目数组。每个条目应包含消息，并可选包含 ddsource、ddtags、hostname、service。 |
+| `apiKey` | 字符串 | 是 | Datadog API 密钥 |
+| `site` | 字符串 | 否 | Datadog 站点/区域 \(默认：datadoghq.com\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 日志是否成功发送 |
+
+### `datadog_create_downtime`
+
+安排停机时间以在维护窗口期间抑制监控通知。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `scope` | 字符串 | 是 | 应用停机的范围 \(例如："host:myhost"、"env:production" 或 "*" 表示全部\) |
+| `message` | 字符串 | 否 | 停机期间显示的消息 |
+| `start` | 数字 | 否 | 停机开始的 Unix 时间戳 \(默认为当前时间\) |
+| `end` | 数字 | 否 | 停机结束的 Unix 时间戳 |
+| `timezone` | 字符串 | 否 | 停机的时区 \(例如："America/New_York"\) |
+| `monitorId` | 字符串 | 否 | 要静音的特定监控 ID |
+| `monitorTags` | 字符串 | 否 | 用逗号分隔的监控标签以匹配 \(例如："team:backend,priority:high"\) |
+| `muteFirstRecoveryNotification` | 布尔值 | 否 | 静音首次恢复通知 |
+| `apiKey` | 字符串 | 是 | Datadog API 密钥 |
+| `applicationKey` | 字符串 | 是 | Datadog 应用程序密钥 |
+| `site` | 字符串 | 否 | Datadog 站点/区域 \(默认：datadoghq.com\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `downtime` | 对象 | 创建的停机详细信息 |
+
+### `datadog_list_downtimes`
+
+列出 Datadog 中所有已安排的停机时间。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `currentOnly` | 布尔值 | 否 | 仅返回当前活动的停机时间 |
+| `monitorId` | 字符串 | 否 | 按监控 ID 过滤 |
+| `apiKey` | 字符串 | 是 | Datadog API 密钥 |
+| `applicationKey` | 字符串 | 是 | Datadog 应用程序密钥 |
+| `site` | 字符串 | 否 | Datadog 站点/区域 \(默认：datadoghq.com\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `downtimes` | 数组 | 停机时间列表 |
+
+### `datadog_cancel_downtime`
+
+取消已计划的停机时间。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `downtimeId` | 字符串 | 是 | 要取消的停机时间的 ID |
+| `apiKey` | 字符串 | 是 | Datadog API 密钥 |
+| `applicationKey` | 字符串 | 是 | Datadog 应用程序密钥 |
+| `site` | 字符串 | 否 | Datadog 站点/区域（默认值：datadoghq.com） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 停机时间是否成功取消 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`datadog`

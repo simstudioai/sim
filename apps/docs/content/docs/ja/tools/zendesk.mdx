@@ -107,13 +107,16 @@ IDによってZendeskから単一のチケットを取得
 | `email` | string | はい | あなたのZendeskメールアドレス |
 | `apiToken` | string | はい | Zendesk APIトークン |
 | `subdomain` | string | はい | あなたのZendeskサブドメイン |
-| `subject` | string | いいえ | チケットの件名（オプション - 提供されない場合は自動生成されます） |
+| `subject` | string | いいえ | チケットの件名（任意 - 提供されない場合は自動生成されます） |
 | `description` | string | はい | チケットの説明（最初のコメント） |
 | `priority` | string | いいえ | 優先度（low、normal、high、urgent） |
 | `status` | string | いいえ | ステータス（new、open、pending、hold、solved、closed） |
 | `type` | string | いいえ | タイプ（problem、incident、question、task） |
 | `tags` | string | いいえ | カンマ区切りのタグ |
 | `assigneeId` | string | いいえ | 担当者ユーザーID |
+| `groupId` | string | いいえ | グループID |
+| `requesterId` | string | いいえ | 要求者ユーザーID |
+| `customFields` | string | いいえ | JSONオブジェクトとしてのカスタムフィールド（例：\{"field_id": "value"\}） |
 
 #### 出力
 

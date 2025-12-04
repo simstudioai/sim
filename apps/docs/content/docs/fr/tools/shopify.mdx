@@ -1,0 +1,445 @@
+---
+title: Shopify
+description: Gérez les produits, les commandes, les clients et l'inventaire dans
+  votre boutique Shopify
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="shopify"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Shopify](https://www.shopify.com/) est une plateforme e-commerce de premier plan conçue pour aider les marchands à construire, gérer et développer leurs boutiques en ligne. Shopify facilite la gestion de tous les aspects de votre boutique, des produits et de l'inventaire aux commandes et aux clients.
+
+Avec Shopify dans Sim, vos agents peuvent :
+
+- **Créer et gérer des produits** : ajouter de nouveaux produits, mettre à jour les détails des produits et supprimer des produits de votre boutique.
+- **Lister et récupérer les commandes** : obtenir des informations sur les commandes des clients, y compris le filtrage et la gestion des commandes.
+- **Gérer les clients** : accéder et mettre à jour les détails des clients, ou ajouter de nouveaux clients à votre boutique.
+- **Ajuster les niveaux d'inventaire** : modifier par programmation les niveaux de stock des produits pour maintenir votre inventaire précis.
+
+Utilisez l'intégration Shopify de Sim pour automatiser les flux de travail courants de gestion de boutique — comme la synchronisation de l'inventaire, l'exécution des commandes ou la gestion des annonces — directement depuis vos automatisations. Donnez à vos agents les moyens d'accéder, de mettre à jour et d'organiser toutes les données de votre boutique à l'aide d'outils simples et programmatiques.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Shopify dans votre flux de travail. Gérez les produits, les commandes, les clients et l'inventaire. Créez, lisez, mettez à jour et supprimez des produits. Listez et gérez les commandes. Traitez les données clients et ajustez les niveaux d'inventaire.
+
+## Outils
+
+### `shopify_create_product`
+
+Créer un nouveau produit dans votre boutique Shopify
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `title` | string | Oui | Titre du produit |
+| `descriptionHtml` | string | Non | Description du produit \(HTML\) |
+| `vendor` | string | Non | Fournisseur/marque du produit |
+| `productType` | string | Non | Type/catégorie du produit |
+| `tags` | array | Non | Tags du produit |
+| `status` | string | Non | Statut du produit \(ACTIVE, DRAFT, ARCHIVED\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `product` | object | Le produit créé |
+
+### `shopify_get_product`
+
+Obtenir un produit unique par ID depuis votre boutique Shopify
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `productId` | string | Oui | ID du produit \(gid://shopify/Product/123456789\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `product` | object | Les détails du produit |
+
+### `shopify_list_products`
+
+Lister les produits de votre boutique Shopify avec filtrage optionnel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `first` | number | Non | Nombre de produits à retourner \(par défaut : 50, max : 250\) |
+| `query` | string | Non | Requête de recherche pour filtrer les produits \(ex., "title:chemise" ou "vendor:Nike" ou "status:active"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `products` | array | Liste des produits |
+| `pageInfo` | object | Informations de pagination |
+
+### `shopify_update_product`
+
+Mettre à jour un produit existant dans votre boutique Shopify
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `productId` | string | Oui | ID du produit à mettre à jour \(gid://shopify/Product/123456789\) |
+| `title` | string | Non | Nouveau titre du produit |
+| `descriptionHtml` | string | Non | Nouvelle description du produit \(HTML\) |
+| `vendor` | string | Non | Nouveau fournisseur/marque du produit |
+| `productType` | string | Non | Nouveau type/catégorie du produit |
+| `tags` | array | Non | Nouvelles étiquettes du produit |
+| `status` | string | Non | Nouveau statut du produit \(ACTIVE, DRAFT, ARCHIVED\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `product` | objet | Le produit mis à jour |
+
+### `shopify_delete_product`
+
+Supprimer un produit de votre boutique Shopify
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex. : maboutique.myshopify.com\) |
+| `productId` | chaîne | Oui | ID du produit à supprimer \(gid://shopify/Product/123456789\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deletedId` | chaîne | L'ID du produit supprimé |
+
+### `shopify_get_order`
+
+Obtenir une commande spécifique par ID depuis votre boutique Shopify
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex. : maboutique.myshopify.com\) |
+| `orderId` | chaîne | Oui | ID de la commande \(gid://shopify/Order/123456789\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `order` | objet | Les détails de la commande |
+
+### `shopify_list_orders`
+
+Lister les commandes de votre boutique Shopify avec filtrage optionnel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex. : maboutique.myshopify.com\) |
+| `first` | nombre | Non | Nombre de commandes à retourner \(par défaut : 50, max : 250\) |
+| `status` | chaîne | Non | Filtrer par statut de commande \(open, closed, cancelled, any\) |
+| `query` | chaîne | Non | Requête de recherche pour filtrer les commandes \(ex. : "financial_status:paid" ou "fulfillment_status:unfulfilled" ou "email:customer@example.com"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `orders` | array | Liste des commandes |
+| `pageInfo` | object | Informations de pagination |
+
+### `shopify_update_order`
+
+Mettre à jour une commande existante dans votre boutique Shopify (note, tags, email)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `orderId` | string | Oui | ID de la commande à mettre à jour \(gid://shopify/Order/123456789\) |
+| `note` | string | Non | Nouvelle note de commande |
+| `tags` | array | Non | Nouveaux tags de commande |
+| `email` | string | Non | Nouvel email client pour la commande |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `order` | object | La commande mise à jour |
+
+### `shopify_cancel_order`
+
+Annuler une commande dans votre boutique Shopify
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `orderId` | string | Oui | ID de la commande à annuler \(gid://shopify/Order/123456789\) |
+| `reason` | string | Oui | Motif d'annulation \(CUSTOMER, DECLINED, FRAUD, INVENTORY, STAFF, OTHER\) |
+| `notifyCustomer` | boolean | Non | Indique s'il faut informer le client de l'annulation |
+| `refund` | boolean | Non | Indique s'il faut rembourser la commande |
+| `restock` | boolean | Non | Indique s'il faut réapprovisionner le stock |
+| `staffNote` | string | Non | Une note sur l'annulation pour référence interne |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `order` | objet | Le résultat de l'annulation |
+
+### `shopify_create_customer`
+
+Créer un nouveau client dans votre boutique Shopify
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `email` | chaîne | Non | Adresse e-mail du client |
+| `firstName` | chaîne | Non | Prénom du client |
+| `lastName` | chaîne | Non | Nom de famille du client |
+| `phone` | chaîne | Non | Numéro de téléphone du client |
+| `note` | chaîne | Non | Note concernant le client |
+| `tags` | tableau | Non | Tags du client |
+| `addresses` | tableau | Non | Adresses du client |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | objet | Le client créé |
+
+### `shopify_get_customer`
+
+Obtenir un client unique par ID depuis votre boutique Shopify
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `customerId` | chaîne | Oui | ID du client \(gid://shopify/Customer/123456789\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | objet | Les détails du client |
+
+### `shopify_list_customers`
+
+Listez les clients de votre boutique Shopify avec filtrage optionnel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex. : maboutique.myshopify.com\) |
+| `first` | nombre | Non | Nombre de clients à retourner \(par défaut : 50, max : 250\) |
+| `query` | chaîne | Non | Requête de recherche pour filtrer les clients \(ex. : "first_name:John" ou "last_name:Smith" ou "email:*@gmail.com" ou "tag:vip"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `customers` | tableau | Liste des clients |
+| `pageInfo` | objet | Informations de pagination |
+
+### `shopify_update_customer`
+
+Mettre à jour un client existant dans votre boutique Shopify
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex. : maboutique.myshopify.com\) |
+| `customerId` | chaîne | Oui | ID du client à mettre à jour \(gid://shopify/Customer/123456789\) |
+| `email` | chaîne | Non | Nouvelle adresse e-mail du client |
+| `firstName` | chaîne | Non | Nouveau prénom du client |
+| `lastName` | chaîne | Non | Nouveau nom de famille du client |
+| `phone` | chaîne | Non | Nouveau numéro de téléphone du client |
+| `note` | chaîne | Non | Nouvelle note concernant le client |
+| `tags` | tableau | Non | Nouvelles étiquettes du client |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | objet | Le client mis à jour |
+
+### `shopify_delete_customer`
+
+Supprimer un client de votre boutique Shopify
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `customerId` | chaîne | Oui | ID du client à supprimer \(gid://shopify/Customer/123456789\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deletedId` | chaîne | L'ID du client supprimé |
+
+### `shopify_list_inventory_items`
+
+Lister les articles d'inventaire de votre boutique Shopify. Utilisez cette fonction pour trouver les ID d'articles d'inventaire par SKU.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `first` | nombre | Non | Nombre d'articles d'inventaire à retourner \(par défaut : 50, max : 250\) |
+| `query` | chaîne | Non | Requête de recherche pour filtrer les articles d'inventaire \(ex., "sku:ABC123"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `inventoryItems` | tableau | Liste des articles d'inventaire avec leurs ID, SKU et niveaux de stock |
+| `pageInfo` | objet | Informations de pagination |
+
+### `shopify_get_inventory_level`
+
+Obtenir le niveau d'inventaire pour une variante de produit à un emplacement spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `inventoryItemId` | chaîne | Oui | ID de l'article d'inventaire \(gid://shopify/InventoryItem/123456789\) |
+| `locationId` | chaîne | Non | ID de l'emplacement pour filtrer \(facultatif\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `inventoryLevel` | objet | Les détails du niveau d'inventaire |
+
+### `shopify_adjust_inventory`
+
+Ajuster la quantité d'inventaire pour une variante de produit à un emplacement spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `inventoryItemId` | chaîne | Oui | ID de l'article d'inventaire \(gid://shopify/InventoryItem/123456789\) |
+| `locationId` | chaîne | Oui | ID de l'emplacement \(gid://shopify/Location/123456789\) |
+| `delta` | nombre | Oui | Montant à ajuster \(positif pour augmenter, négatif pour diminuer\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `inventoryLevel` | objet | Le résultat de l'ajustement d'inventaire |
+
+### `shopify_list_locations`
+
+Lister les emplacements d'inventaire de votre boutique Shopify. Utilisez ceci pour trouver les ID d'emplacement nécessaires pour les opérations d'inventaire.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `first` | nombre | Non | Nombre d'emplacements à retourner \(par défaut : 50, max : 250\) |
+| `includeInactive` | booléen | Non | Inclure ou non les emplacements désactivés \(par défaut : false\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `locations` | tableau | Liste des emplacements avec leurs ID, noms et adresses |
+| `pageInfo` | objet | Informations de pagination |
+
+### `shopify_create_fulfillment`
+
+Créez un traitement pour marquer les articles de commande comme expédiés. Nécessite un ID de commande de traitement (obtenez-le à partir des détails de la commande).
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `fulfillmentOrderId` | chaîne | Oui | L'ID de commande de traitement \(ex., gid://shopify/FulfillmentOrder/123456789\) |
+| `trackingNumber` | chaîne | Non | Numéro de suivi pour l'expédition |
+| `trackingCompany` | chaîne | Non | Nom du transporteur \(ex., UPS, FedEx, USPS, DHL\) |
+| `trackingUrl` | chaîne | Non | URL pour suivre l'expédition |
+| `notifyCustomer` | booléen | Non | Indique s'il faut envoyer un e-mail de confirmation d'expédition au client \(par défaut : true\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `fulfillment` | objet | Le traitement créé avec les informations de suivi et les articles traités |
+
+### `shopify_list_collections`
+
+Listez les collections de produits de votre boutique Shopify. Filtrez par titre, type (personnalisé/intelligent) ou identifiant.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `first` | nombre | Non | Nombre de collections à retourner \(par défaut : 50, max : 250\) |
+| `query` | chaîne | Non | Requête de recherche pour filtrer les collections \(ex., "title:Été" ou "collection_type:smart"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `collections` | tableau | Liste des collections avec leurs IDs, titres et nombre de produits |
+| `pageInfo` | objet | Informations de pagination |
+
+### `shopify_get_collection`
+
+Obtenez une collection spécifique par ID, y compris ses produits. Utilisez ceci pour récupérer les produits au sein d'une collection.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `shopDomain` | chaîne | Oui | Le domaine de votre boutique Shopify \(ex., maboutique.myshopify.com\) |
+| `collectionId` | chaîne | Oui | L'ID de la collection \(ex., gid://shopify/Collection/123456789\) |
+| `productsFirst` | nombre | Non | Nombre de produits à retourner de cette collection \(par défaut : 50, max : 250\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | objet | Les détails de la collection incluant ses produits |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `shopify`

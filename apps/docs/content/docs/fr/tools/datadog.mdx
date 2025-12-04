@@ -1,0 +1,302 @@
+---
+title: Datadog
+description: Surveillez l'infrastructure, les applications et les journaux avec Datadog
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="datadog"
+  color="#632CA6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Datadog](https://datadoghq.com/) est une plateforme complète de surveillance et d'analyse pour l'infrastructure, les applications, les journaux et plus encore. Elle permet aux organisations d'obtenir une visibilité en temps réel sur la santé et les performances des systèmes, de détecter les anomalies et d'automatiser la réponse aux incidents.
+
+Avec Datadog, vous pouvez :
+
+- **Surveiller les métriques** : collecter, visualiser et analyser les métriques des serveurs, des services cloud et des applications personnalisées.
+- **Interroger les données chronologiques** : exécuter des requêtes avancées sur les métriques de performance pour l'analyse des tendances et les rapports.
+- **Gérer les moniteurs et les événements** : configurer des moniteurs pour détecter les problèmes, déclencher des alertes et créer des événements pour l'observabilité.
+- **Gérer les temps d'arrêt** : planifier et gérer de manière programmatique les temps d'arrêt planifiés pour supprimer les alertes pendant la maintenance.
+- **Analyser les journaux et les traces** *(avec une configuration supplémentaire dans Datadog)* : centraliser et inspecter les journaux ou les traces distribuées pour un dépannage plus approfondi.
+
+L'intégration Datadog de Sim permet à vos agents d'automatiser ces opérations et d'interagir avec votre compte Datadog de manière programmatique. Utilisez-la pour soumettre des métriques personnalisées, interroger des données chronologiques, gérer des moniteurs, créer des événements et rationaliser vos flux de travail de surveillance directement dans les automatisations Sim.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez la surveillance Datadog dans les flux de travail. Soumettez des métriques, gérez des moniteurs, interrogez des journaux, créez des événements, gérez des temps d'arrêt et plus encore.
+
+## Outils
+
+### `datadog_submit_metrics`
+
+Soumettez des métriques personnalisées à Datadog. Utilisez-les pour suivre les performances des applications, les métriques commerciales ou les données de surveillance personnalisées.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `series` | string | Oui | Tableau JSON des séries de métriques à soumettre. Chaque série doit inclure le nom de la métrique, le type \(gauge/rate/count\), les points \(paires timestamp/valeur\) et des tags optionnels. |
+| `apiKey` | string | Oui | Clé API Datadog |
+| `site` | string | Non | Site/région Datadog \(par défaut : datadoghq.com\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si les métriques ont été soumises avec succès |
+| `errors` | array | Toutes les erreurs survenues pendant la soumission |
+
+### `datadog_query_timeseries`
+
+Interroge les données de séries temporelles de métriques depuis Datadog. Utilisez-le pour analyser les tendances, créer des rapports ou récupérer des valeurs de métriques.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Oui | Requête de métriques Datadog (par exemple, "avg:system.cpu.user\{*\}") |
+| `from` | number | Oui | Heure de début sous forme d'horodatage Unix en secondes |
+| `to` | number | Oui | Heure de fin sous forme d'horodatage Unix en secondes |
+| `apiKey` | string | Oui | Clé API Datadog |
+| `applicationKey` | string | Oui | Clé d'application Datadog |
+| `site` | string | Non | Site/région Datadog (par défaut : datadoghq.com) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | array | Tableau de données de séries temporelles avec nom de métrique, tags et points de données |
+| `status` | string | Statut de la requête |
+
+### `datadog_create_event`
+
+Publie un événement dans le flux d'événements Datadog. Utilisez-le pour les notifications de déploiement, les alertes ou tout autre événement significatif.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Oui | Titre de l'événement |
+| `text` | string | Oui | Corps/description de l'événement. Prend en charge le markdown. |
+| `alertType` | string | Non | Type d'alerte : error, warning, info, success, user_update, recommendation ou snapshot |
+| `priority` | string | Non | Priorité de l'événement : normal ou low |
+| `host` | string | Non | Nom d'hôte à associer à cet événement |
+| `tags` | string | Non | Liste de tags séparés par des virgules (par exemple, "env:production,service:api") |
+| `aggregationKey` | string | Non | Clé pour regrouper les événements ensemble |
+| `sourceTypeName` | string | Non | Nom du type de source pour l'événement |
+| `dateHappened` | number | Non | Horodatage Unix indiquant quand l'événement s'est produit (par défaut : maintenant) |
+| `apiKey` | string | Oui | Clé API Datadog |
+| `site` | string | Non | Site/région Datadog (par défaut : datadoghq.com) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | objet | Les détails de l'événement créé |
+
+### `datadog_create_monitor`
+
+Créer un nouveau moniteur/alerte dans Datadog. Les moniteurs peuvent suivre des métriques, des vérifications de service, des événements et plus encore.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | chaîne | Oui | Nom du moniteur |
+| `type` | chaîne | Oui | Type de moniteur : alerte métrique, vérification de service, alerte d'événement, alerte de processus, alerte de journal, alerte de requête, composite, alerte de synthèse, alerte SLO |
+| `query` | chaîne | Oui | Requête du moniteur \(ex., "avg\(last_5m\):avg:system.cpu.idle\{*\} &lt; 20"\) |
+| `message` | chaîne | Non | Message à inclure avec les notifications. Peut inclure des @-mentions et du markdown. |
+| `tags` | chaîne | Non | Liste de tags séparés par des virgules |
+| `priority` | nombre | Non | Priorité du moniteur \(1-5, où 1 est la plus haute\) |
+| `options` | chaîne | Non | Chaîne JSON des options du moniteur \(seuils, notify_no_data, renotify_interval, etc.\) |
+| `apiKey` | chaîne | Oui | Clé API Datadog |
+| `applicationKey` | chaîne | Oui | Clé d'application Datadog |
+| `site` | chaîne | Non | Site/région Datadog \(par défaut : datadoghq.com\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `monitor` | objet | Les détails du moniteur créé |
+
+### `datadog_get_monitor`
+
+Récupérer les détails d'un moniteur spécifique par ID.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | chaîne | Oui | L'ID du moniteur à récupérer |
+| `groupStates` | chaîne | Non | États de groupe séparés par des virgules à inclure : alert, warn, no data, ok |
+| `withDowntimes` | booléen | Non | Inclure les données de temps d'arrêt avec le moniteur |
+| `apiKey` | chaîne | Oui | Clé API Datadog |
+| `applicationKey` | chaîne | Oui | Clé d'application Datadog |
+| `site` | chaîne | Non | Site/région Datadog \(par défaut : datadoghq.com\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `monitor` | objet | Les détails du moniteur |
+
+### `datadog_list_monitors`
+
+Liste tous les moniteurs dans Datadog avec filtrage optionnel par nom, tags ou état.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupStates` | chaîne | Non | États de groupe séparés par des virgules pour filtrer : alert, warn, no data, ok |
+| `name` | chaîne | Non | Filtrer les moniteurs par nom \(correspondance partielle\) |
+| `tags` | chaîne | Non | Liste de tags séparés par des virgules pour filtrer |
+| `monitorTags` | chaîne | Non | Liste de tags de moniteur séparés par des virgules pour filtrer |
+| `withDowntimes` | booléen | Non | Inclure les données de temps d'arrêt avec les moniteurs |
+| `page` | nombre | Non | Numéro de page pour la pagination \(indexé à partir de 0\) |
+| `pageSize` | nombre | Non | Nombre de moniteurs par page \(max 1000\) |
+| `apiKey` | chaîne | Oui | Clé API Datadog |
+| `applicationKey` | chaîne | Oui | Clé d'application Datadog |
+| `site` | chaîne | Non | Site/région Datadog \(par défaut : datadoghq.com\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `monitors` | tableau | Liste des moniteurs |
+
+### `datadog_mute_monitor`
+
+Mettre en sourdine un moniteur pour supprimer temporairement les notifications.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | chaîne | Oui | L'ID du moniteur à mettre en sourdine |
+| `scope` | chaîne | Non | Portée à mettre en sourdine \(par ex., "host:myhost"\). Si non spécifié, met en sourdine toutes les portées. |
+| `end` | nombre | Non | Horodatage Unix indiquant quand la mise en sourdine doit se terminer. Si non spécifié, met en sourdine indéfiniment. |
+| `apiKey` | chaîne | Oui | Clé API Datadog |
+| `applicationKey` | chaîne | Oui | Clé d'application Datadog |
+| `site` | chaîne | Non | Site/région Datadog \(par défaut : datadoghq.com\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si le moniteur a été mis en sourdine avec succès |
+
+### `datadog_query_logs`
+
+Recherchez et récupérez des logs depuis Datadog. Utilisez-les pour le dépannage, l'analyse ou la surveillance.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Oui | Requête de recherche de logs \(ex., "service:web-app status:error"\) |
+| `from` | string | Oui | Heure de début au format ISO-8601 ou relatif \(ex., "now-1h"\) |
+| `to` | string | Oui | Heure de fin au format ISO-8601 ou relatif \(ex., "now"\) |
+| `limit` | number | Non | Nombre maximum de logs à retourner \(par défaut : 50, max : 1000\) |
+| `sort` | string | Non | Ordre de tri : timestamp \(plus ancien d'abord\) ou -timestamp \(plus récent d'abord\) |
+| `indexes` | string | Non | Liste d'index de logs à rechercher, séparés par des virgules |
+| `apiKey` | string | Oui | Clé API Datadog |
+| `applicationKey` | string | Oui | Clé d'application Datadog |
+| `site` | string | Non | Site/région Datadog \(par défaut : datadoghq.com\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `logs` | array | Liste des entrées de logs |
+
+### `datadog_send_logs`
+
+Envoyez des entrées de logs à Datadog pour une journalisation et une analyse centralisées.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `logs` | string | Oui | Tableau JSON d'entrées de logs. Chaque entrée doit avoir un message et éventuellement ddsource, ddtags, hostname, service. |
+| `apiKey` | string | Oui | Clé API Datadog |
+| `site` | string | Non | Site/région Datadog \(par défaut : datadoghq.com\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si les journaux ont été envoyés avec succès |
+
+### `datadog_create_downtime`
+
+Planifiez une période d'arrêt pour supprimer les notifications de surveillance pendant les fenêtres de maintenance.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `scope` | string | Oui | Portée à laquelle appliquer la période d'arrêt (par ex., "host:myhost", "env:production", ou "*" pour tous) |
+| `message` | string | Non | Message à afficher pendant la période d'arrêt |
+| `start` | number | Non | Horodatage Unix pour le début de la période d'arrêt (par défaut : maintenant) |
+| `end` | number | Non | Horodatage Unix pour la fin de la période d'arrêt |
+| `timezone` | string | Non | Fuseau horaire pour la période d'arrêt (par ex., "America/New_York") |
+| `monitorId` | string | Non | ID de surveillance spécifique à mettre en sourdine |
+| `monitorTags` | string | Non | Tags de surveillance séparés par des virgules à faire correspondre (par ex., "team:backend,priority:high") |
+| `muteFirstRecoveryNotification` | boolean | Non | Mettre en sourdine la première notification de récupération |
+| `apiKey` | string | Oui | Clé API Datadog |
+| `applicationKey` | string | Oui | Clé d'application Datadog |
+| `site` | string | Non | Site/région Datadog (par défaut : datadoghq.com) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `downtime` | object | Les détails de la période d'arrêt créée |
+
+### `datadog_list_downtimes`
+
+Listez toutes les périodes d'arrêt planifiées dans Datadog.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `currentOnly` | boolean | Non | Renvoyer uniquement les périodes d'arrêt actuellement actives |
+| `monitorId` | string | Non | Filtrer par ID de surveillance |
+| `apiKey` | string | Oui | Clé API Datadog |
+| `applicationKey` | string | Oui | Clé d'application Datadog |
+| `site` | string | Non | Site/région Datadog (par défaut : datadoghq.com) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `downtimes` | array | Liste des temps d'arrêt |
+
+### `datadog_cancel_downtime`
+
+Annuler un temps d'arrêt programmé.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `downtimeId` | string | Oui | L'ID du temps d'arrêt à annuler |
+| `apiKey` | string | Oui | Clé API Datadog |
+| `applicationKey` | string | Oui | Clé d'application Datadog |
+| `site` | string | Non | Site/région Datadog \(par défaut : datadoghq.com\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si le temps d'arrêt a été annulé avec succès |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `datadog`
