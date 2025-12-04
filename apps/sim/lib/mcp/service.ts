@@ -18,7 +18,6 @@ import type {
   McpToolResult,
   McpTransport,
 } from '@/lib/mcp/types'
-import { MCP_CONSTANTS } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpService')
 
@@ -42,40 +41,15 @@ interface CacheStats {
 
 class McpService {
   private toolCache = new Map<string, ToolCache>()
-  private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT
+  private readonly cacheTimeout = 30 * 1000 // 30 seconds
   private readonly maxCacheSize = 1000
   private cleanupInterval: NodeJS.Timeout | null = null
   private cacheHits = 0
   private cacheMisses = 0
   private entriesEvicted = 0
 
-  private sessionCache = new Map<string, string>()
-
   constructor() {
     this.startPeriodicCleanup()
-  }
-
-  /**
-   * Get cached session ID for a server
-   */
-  private getCachedSessionId(serverId: string): string | undefined {
-    return this.sessionCache.get(serverId)
-  }
-
-  /**
-   * Cache session ID for a server
-   */
-  private cacheSessionId(serverId: string, sessionId: string): void {
-    this.sessionCache.set(serverId, sessionId)
-    logger.debug(`Cached session ID for server ${serverId}`)
-  }
-
-  /**
-   * Clear cached session ID for a server
-   */
-  private clearCachedSessionId(serverId: string): void {
-    this.sessionCache.delete(serverId)
-    logger.debug(`Cleared cached session ID for server ${serverId}`)
   }
 
   /**
@@ -341,49 +315,9 @@ class McpService {
       allowedOrigins: config.url ? [new URL(config.url).origin] : undefined,
     }
 
-    const cachedSessionId = this.getCachedSessionId(config.id)
-
-    const client = new McpClient(config, securityPolicy, cachedSessionId)
-
-    try {
-      await client.connect()
-
-      const newSessionId = client.getSessionId()
-      if (newSessionId) {
-        this.cacheSessionId(config.id, newSessionId)
-      }
-
-      return client
-    } catch (error) {
-      if (cachedSessionId && this.isSessionError(error)) {
-        logger.debug(`Session restoration failed for server ${config.id}, retrying fresh`)
-        this.clearCachedSessionId(config.id)
-
-        const freshClient = new McpClient(config, securityPolicy)
-        await freshClient.connect()
-
-        const freshSessionId = freshClient.getSessionId()
-        if (freshSessionId) {
-          this.cacheSessionId(config.id, freshSessionId)
-        }
-
-        return freshClient
-      }
-
-      throw error
-    }
-  }
-
-  private isSessionError(error: unknown): boolean {
-    if (error instanceof Error) {
-      const message = error.message.toLowerCase()
-      return (
-        message.includes('no valid session') ||
-        message.includes('invalid session') ||
-        message.includes('session expired')
-      )
-    }
-    return false
+    const client = new McpClient(config, securityPolicy)
+    await client.connect()
+    return client
   }
 
   /**
@@ -466,10 +400,12 @@ class McpService {
         })
       )
 
+      let failedCount = 0
       results.forEach((result, index) => {
         if (result.status === 'fulfilled') {
           allTools.push(...result.value)
         } else {
+          failedCount++
           logger.warn(
             `[${requestId}] Failed to discover tools from server ${servers[index].name}:`,
             result.reason
@@ -477,10 +413,16 @@ class McpService {
         }
       })
 
-      this.setCacheEntry(cacheKey, allTools)
+      if (failedCount === 0) {
+        this.setCacheEntry(cacheKey, allTools)
+      } else {
+        logger.warn(
+          `[${requestId}] Skipping cache due to ${failedCount} failed server(s) - will retry on next request`
+        )
+      }
 
       logger.info(
-        `[${requestId}] Discovered ${allTools.length} tools from ${servers.length} servers`
+        `[${requestId}] Discovered ${allTools.length} tools from ${servers.length - failedCount}/${servers.length} servers`
       )
       return allTools
     } catch (error) {
