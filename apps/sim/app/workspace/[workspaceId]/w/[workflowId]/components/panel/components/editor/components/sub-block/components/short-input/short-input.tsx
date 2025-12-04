@@ -84,7 +84,6 @@ export function ShortInput({
   const [isFocused, setIsFocused] = useState(false)
   const [copied, setCopied] = useState(false)
   const persistSubBlockValueRef = useRef<(value: string) => void>(() => {})
-  const justPastedRef = useRef(false)
 
   // Always call the hook - hooks must be called unconditionally
   const webhookManagement = useWebhookManagement({
@@ -178,11 +177,6 @@ export function ShortInput({
         return { show: true, searchTerm: '' }
       }
       if (event === 'change') {
-        // Don't show dropdown if user just pasted (they want to use the value directly)
-        if (justPastedRef.current) {
-          justPastedRef.current = false
-          return { show: false }
-        }
         // For API key fields, show env vars while typing without requiring '{{'
         return { show: true, searchTerm: value }
       }
@@ -275,8 +269,6 @@ export function ShortInput({
 
   // Handle paste events to ensure long values are handled correctly
   const handlePaste = useCallback((_e: React.ClipboardEvent<HTMLInputElement>) => {
-    // Mark that a paste just happened so we don't show env var dropdown
-    justPastedRef.current = true
     // Let the paste happen normally
     // Then ensure scroll positions are synced after the content is updated
     setTimeout(() => {
