@@ -26,15 +26,13 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'The ID of the spreadsheet to append to',
+      description: 'The ID of the spreadsheet to append to',
     },
     range: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'The A1 notation range to append after (e.g. "Sheet1", "Sheet1!A:D")',
+      description: 'The A1 notation range to append after (e.g. "Sheet1", "Sheet1!A:D")',
     },
     values: {
       type: 'array',

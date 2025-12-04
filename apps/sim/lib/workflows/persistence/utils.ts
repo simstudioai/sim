@@ -339,7 +339,6 @@ export async function saveWorkflowToNormalizedTables(
 
     // Start a transaction
     await db.transaction(async (tx) => {
-
       // Clear existing data for this workflow
       await Promise.all([
         tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),

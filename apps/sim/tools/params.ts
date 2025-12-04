@@ -327,11 +327,7 @@ export function getToolParametersConfig(
 /**
  * Creates a tool schema for LLM with user-provided parameters excluded
  */
-function buildParameterSchema(
-  toolId: string,
-  paramId: string,
-  param: ToolParamDefinition
-) {
+function buildParameterSchema(toolId: string, paramId: string, param: ToolParamDefinition) {
   let schemaType = param.type
   if (schemaType === 'json' || schemaType === 'any') {
     schemaType = 'object'
@@ -350,9 +346,7 @@ function buildParameterSchema(
       }),
     }
   } else if (param.items) {
-    logger.warn(
-      `items property ignored for non-array param "${paramId}" in tool "${toolId}"`
-    )
+    logger.warn(`items property ignored for non-array param "${paramId}" in tool "${toolId}"`)
   }
 
   return propertySchema

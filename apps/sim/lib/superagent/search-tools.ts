@@ -10,11 +10,18 @@ const logger = createLogger('ToolSearch')
 export function searchTools(
   query: string,
   maxResults = 20
-): Array<{ id: string; name: string; description: string; score: number; requiresOAuth: boolean; provider?: string }> {
+): Array<{
+  id: string
+  name: string
+  description: string
+  score: number
+  requiresOAuth: boolean
+  provider?: string
+}> {
   const normalizedQuery = query.toLowerCase().trim()
   const queryTerms = normalizedQuery.split(/\s+/)
-  
-  const results: Array<{ 
+
+  const results: Array<{
     id: string
     name: string
     description: string
@@ -22,35 +29,35 @@ export function searchTools(
     requiresOAuth: boolean
     provider?: string
   }> = []
-  
+
   for (const [toolId, toolConfig] of Object.entries(tools)) {
     const name = toolConfig.name?.toLowerCase() || toolId.toLowerCase()
     const description = toolConfig.description?.toLowerCase() || ''
     const searchText = `${name} ${description}`
-    
+
     // Calculate relevance score
     let score = 0
-    
+
     // Exact match in tool ID or name gets highest score
     if (toolId.toLowerCase().includes(normalizedQuery)) score += 100
     if (name.includes(normalizedQuery)) score += 80
-    
+
     // Term matching with TF-IDF-like scoring
     for (const term of queryTerms) {
       if (term.length < 2) continue
-      
+
       const nameMatches = (name.match(new RegExp(term, 'g')) || []).length
       const descMatches = (description.match(new RegExp(term, 'g')) || []).length
-      
+
       score += nameMatches * 20
       score += descMatches * 5
-      
+
       // Bonus for word boundary matches
       if (new RegExp(`\\b${term}\\b`).test(searchText)) {
         score += 15
       }
     }
-    
+
     if (score > 0) {
       results.push({
         id: toolId,
@@ -62,16 +69,16 @@ export function searchTools(
       })
     }
   }
-  
+
   // Sort by score descending and return top results
   const topResults = results.sort((a, b) => b.score - a.score).slice(0, maxResults)
-  
+
   logger.info('Tool search completed', {
     query,
     resultsFound: topResults.length,
     topTools: topResults.slice(0, 3).map((r) => r.id),
   })
-  
+
   return topResults
 }
 
@@ -100,7 +107,8 @@ IMPORTANT: Always search for tools first to find the right integration for your 
     properties: {
       query: {
         type: 'string',
-        description: 'Search query to find relevant tools (e.g., "github create pr", "slack send message", "google drive list files")',
+        description:
+          'Search query to find relevant tools (e.g., "github create pr", "slack send message", "google drive list files")',
       },
       max_results: {
         type: 'number',
@@ -111,4 +119,3 @@ IMPORTANT: Always search for tools first to find the right integration for your 
   },
   execute: searchTools,
 }
-

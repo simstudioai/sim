@@ -60,9 +60,12 @@ export async function GET(request: NextRequest) {
       .where(eq(workflowDeploymentVersion.workflowId, workflowId))
       .orderBy(desc(workflowDeploymentVersion.version))
 
-    logger.info(`[${requestId}] Successfully retrieved ${versions.length} deployments for workflow ${workflowId}`, {
-      superUserId: session.user.id,
-    })
+    logger.info(
+      `[${requestId}] Successfully retrieved ${versions.length} deployments for workflow ${workflowId}`,
+      {
+        superUserId: session.user.id,
+      }
+    )
 
     return NextResponse.json({
       success: true,
@@ -71,9 +74,11 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logger.error(`[${requestId}] Error listing workflow deployments:`, error)
     return NextResponse.json(
-      { error: 'Failed to list deployments', details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: 'Failed to list deployments',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     )
   }
 }
-

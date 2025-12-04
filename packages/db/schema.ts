@@ -1299,7 +1299,10 @@ export const superagentChats = pgTable(
     // Primary access patterns
     userIdIdx: index('superagent_chats_user_id_idx').on(table.userId),
     workspaceIdIdx: index('superagent_chats_workspace_id_idx').on(table.workspaceId),
-    userWorkspaceIdx: index('superagent_chats_user_workspace_idx').on(table.userId, table.workspaceId),
+    userWorkspaceIdx: index('superagent_chats_user_workspace_idx').on(
+      table.userId,
+      table.workspaceId
+    ),
 
     // Ordering indexes
     createdAtIdx: index('superagent_chats_created_at_idx').on(table.createdAt),

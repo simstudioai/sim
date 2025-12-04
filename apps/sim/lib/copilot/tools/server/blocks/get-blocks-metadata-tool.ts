@@ -767,30 +767,30 @@ function resolveSubblockOptions(
     return undefined
   }
 
-    const normalized = rawOptions
-      .map((opt: any) => {
-        if (!opt) return undefined
+  const normalized = rawOptions
+    .map((opt: any) => {
+      if (!opt) return undefined
 
-        const id = typeof opt === 'object' ? opt.id : opt
-        if (id === undefined || id === null) return undefined
+      const id = typeof opt === 'object' ? opt.id : opt
+      if (id === undefined || id === null) return undefined
 
-        const result: { id: string; label?: string; hasIcon?: boolean } = {
-          id: String(id),
-        }
+      const result: { id: string; label?: string; hasIcon?: boolean } = {
+        id: String(id),
+      }
 
-        if (typeof opt === 'object' && typeof opt.label === 'string') {
-          result.label = opt.label
-        }
+      if (typeof opt === 'object' && typeof opt.label === 'string') {
+        result.label = opt.label
+      }
 
-        if (typeof opt === 'object' && opt.icon) {
-          result.hasIcon = true
-        }
+      if (typeof opt === 'object' && opt.icon) {
+        result.hasIcon = true
+      }
 
-        return result
-      })
-      .filter((o): o is { id: string; label?: string; hasIcon?: boolean } => o !== undefined)
+      return result
+    })
+    .filter((o): o is { id: string; label?: string; hasIcon?: boolean } => o !== undefined)
 
-    return normalized.length > 0 ? normalized : undefined
+  return normalized.length > 0 ? normalized : undefined
 }
 
 function removeNullish(obj: any): any {

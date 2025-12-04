@@ -18,6 +18,7 @@ import { SummarizeClientTool } from '@/lib/copilot/tools/client/examples/summari
 import { ListGDriveFilesClientTool } from '@/lib/copilot/tools/client/gdrive/list-files'
 import { ReadGDriveFileClientTool } from '@/lib/copilot/tools/client/gdrive/read-file'
 import { GDriveRequestAccessClientTool } from '@/lib/copilot/tools/client/google/gdrive-request-access'
+import { KnowledgeBaseClientTool } from '@/lib/copilot/tools/client/knowledge/knowledge-base'
 import {
   getClientTool,
   registerClientTool,
@@ -35,7 +36,6 @@ import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
-import { KnowledgeBaseClientTool } from '@/lib/copilot/tools/client/knowledge/knowledge-base'
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
 import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
@@ -3012,9 +3012,12 @@ export const useCopilotStore = create<CopilotStore>()(
 
     removeAutoAllowedTool: async (toolId: string) => {
       try {
-        const res = await fetch(`/api/copilot/auto-allowed-tools?toolId=${encodeURIComponent(toolId)}`, {
-          method: 'DELETE',
-        })
+        const res = await fetch(
+          `/api/copilot/auto-allowed-tools?toolId=${encodeURIComponent(toolId)}`,
+          {
+            method: 'DELETE',
+          }
+        )
         if (res.ok) {
           const data = await res.json()
           set({ autoAllowedTools: data.autoAllowedTools || [] })

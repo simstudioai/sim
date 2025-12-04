@@ -23,15 +23,13 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'The ID of the spreadsheet',
+      description: 'The ID of the spreadsheet',
     },
     range: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'The A1 notation range to write to (e.g. "Sheet1!A1:D10", "A1:B5")',
+      description: 'The A1 notation range to write to (e.g. "Sheet1!A1:D10", "A1:B5")',
     },
     values: {
       type: 'array',

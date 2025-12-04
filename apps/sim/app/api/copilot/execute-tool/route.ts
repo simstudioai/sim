@@ -3,7 +3,6 @@ import { account } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getSession } from '@/lib/auth'
 import {
   createBadRequestResponse,
@@ -14,6 +13,7 @@ import {
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
+import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
 
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
       const allToolNames = Object.keys(allTools)
       const prefix = toolName.split('_').slice(0, 2).join('_')
       const similarTools = allToolNames
-        .filter((name) => name.startsWith(prefix.split('_')[0] + '_'))
+        .filter((name) => name.startsWith(`${prefix.split('_')[0]}_`))
         .slice(0, 10)
 
       logger.warn(`[${tracker.requestId}] Tool not found in registry`, {
@@ -354,4 +354,3 @@ export async function POST(req: NextRequest) {
     return createInternalServerErrorResponse(errorMessage)
   }
 }
-

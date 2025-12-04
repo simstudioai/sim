@@ -448,7 +448,11 @@ function applyOperationsToWorkflowState(
             Object.entries(params.inputs).forEach(([inputKey, value]) => {
               // Normalize common field name variations (LLM may use plural/singular inconsistently)
               let key = inputKey
-              if (key === 'credentials' && !block.subBlocks['credentials'] && block.subBlocks['credential']) {
+              if (
+                key === 'credentials' &&
+                !block.subBlocks.credentials &&
+                block.subBlocks.credential
+              ) {
                 key = 'credential'
               }
 

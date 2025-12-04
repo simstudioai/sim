@@ -142,4 +142,3 @@ export class KnowledgeBaseClientTool extends BaseClientTool {
     }
   }
 }
-

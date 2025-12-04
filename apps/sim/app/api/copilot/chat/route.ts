@@ -319,7 +319,10 @@ export async function POST(req: NextRequest) {
     let integrationTools: any[] = []
     let baseTools: any[] = []
     let credentials: {
-      oauth: Record<string, { accessToken: string; accountId: string; name: string; expiresAt?: string }>
+      oauth: Record<
+        string,
+        { accessToken: string; accountId: string; name: string; expiresAt?: string }
+      >
       apiKeys: string[]
       metadata?: {
         connectedOAuth: Array<{ provider: string; name: string; scopes?: string[] }>

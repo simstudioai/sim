@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
@@ -8,10 +7,7 @@ import {
   getKnowledgeBases,
 } from '@/lib/knowledge/service'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  getQueryStrategy,
-  handleVectorOnlySearch,
-} from '@/app/api/knowledge/search/utils'
+import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
 
@@ -62,7 +58,10 @@ export type KnowledgeBaseResultType = z.infer<typeof KnowledgeBaseResult>
 /**
  * Knowledge base tool for copilot to create, list, and get knowledge bases
  */
-export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseInputType, KnowledgeBaseResultType> = {
+export const knowledgeBaseServerTool: BaseServerTool<
+  KnowledgeBaseInputType,
+  KnowledgeBaseResultType
+> = {
   name: 'knowledge_base',
   async execute(
     params: KnowledgeBaseInputType,
@@ -275,4 +274,3 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseInputType, Kno
     }
   },
 }
-
