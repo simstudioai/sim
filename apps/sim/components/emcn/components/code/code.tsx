@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, type ReactNode, useEffect, useMemo } from 'react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-python'
@@ -272,11 +272,91 @@ interface CodeViewerProps {
   gutterStyle?: React.CSSProperties
   /** Whether to wrap text instead of using horizontal scroll */
   wrapText?: boolean
+  /** Search query to highlight in the code */
+  searchQuery?: string
+  /** Index of the currently active match (for distinct highlighting) */
+  currentMatchIndex?: number
+  /** Callback when match count changes */
+  onMatchCountChange?: (count: number) => void
+  /** Ref for the content container (for scrolling to matches) */
+  contentRef?: React.RefObject<HTMLDivElement | null>
+}
+
+/**
+ * Escapes special regex characters in a string.
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Applies search highlighting to already syntax-highlighted HTML.
+ * Wraps matches in spans with appropriate highlighting classes.
+ *
+ * @param html - The syntax-highlighted HTML string
+ * @param searchQuery - The search query to highlight
+ * @param currentMatchIndex - Index of the current match (for distinct highlighting)
+ * @param matchCounter - Mutable counter object to track match indices across calls
+ * @returns The HTML with search highlighting applied
+ */
+function applySearchHighlighting(
+  html: string,
+  searchQuery: string,
+  currentMatchIndex: number,
+  matchCounter: { count: number }
+): string {
+  if (!searchQuery.trim()) return html
+
+  const escaped = escapeRegex(searchQuery)
+  const regex = new RegExp(`(${escaped})`, 'gi')
+
+  // We need to be careful not to match inside HTML tags
+  // Split by HTML tags and only process text parts
+  const parts = html.split(/(<[^>]+>)/g)
+
+  return parts
+    .map((part) => {
+      // If it's an HTML tag, don't modify it
+      if (part.startsWith('<') && part.endsWith('>')) {
+        return part
+      }
+
+      // Process text content
+      return part.replace(regex, (match) => {
+        const isCurrentMatch = matchCounter.count === currentMatchIndex
+        matchCounter.count++
+
+        const bgClass = isCurrentMatch
+          ? 'bg-[#F6AD55] text-[#1a1a1a] dark:bg-[#F6AD55] dark:text-[#1a1a1a]'
+          : 'bg-[#FCD34D]/40 dark:bg-[#FCD34D]/30'
+
+        return `<mark class="${bgClass} rounded-[2px]" data-search-match>${match}</mark>`
+      })
+    })
+    .join('')
+}
+
+/**
+ * Counts all matches for a search query in the given code.
+ *
+ * @param code - The raw code string
+ * @param searchQuery - The search query
+ * @returns Number of matches found
+ */
+function countSearchMatches(code: string, searchQuery: string): number {
+  if (!searchQuery.trim()) return 0
+
+  const escaped = escapeRegex(searchQuery)
+  const regex = new RegExp(escaped, 'gi')
+  const matches = code.match(regex)
+
+  return matches?.length ?? 0
 }
 
 /**
  * Readonly code viewer with optional gutter and syntax highlighting.
  * Handles all complexity internally - line numbers, gutter width calculation, and highlighting.
+ * Supports optional search highlighting with navigation.
  *
  * @example
  * ```tsx
@@ -284,6 +364,8 @@ interface CodeViewerProps {
  *   code={JSON.stringify(data, null, 2)}
  *   showGutter
  *   language="json"
+ *   searchQuery="error"
+ *   currentMatchIndex={0}
  * />
  * ```
  */
@@ -295,9 +377,17 @@ function Viewer({
   paddingLeft = 0,
   gutterStyle,
   wrapText = false,
+  searchQuery,
+  currentMatchIndex = 0,
+  onMatchCountChange,
+  contentRef,
 }: CodeViewerProps) {
-  // Apply syntax highlighting using the specified language
-  const highlightedCode = highlight(code, languages[language] || languages.javascript, language)
+  // Compute match count and notify parent
+  const matchCount = useMemo(() => countSearchMatches(code, searchQuery || ''), [code, searchQuery])
+
+  useEffect(() => {
+    onMatchCountChange?.(matchCount)
+  }, [matchCount, onMatchCountChange])
 
   // Determine whitespace class based on wrap setting
   const whitespaceClass = wrapText ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
@@ -307,10 +397,11 @@ function Viewer({
   if (showGutter && wrapText) {
     const lines = code.split('\n')
     const gutterWidth = calculateGutterWidth(lines.length)
+    const matchCounter = { count: 0 }
 
     return (
       <Container className={className}>
-        <Content className='code-editor-theme'>
+        <Content className='code-editor-theme' editorRef={contentRef}>
           <div
             style={{
               paddingLeft,
@@ -321,11 +412,22 @@ function Viewer({
             }}
           >
             {lines.map((line, idx) => {
-              const perLineHighlighted = highlight(
+              let perLineHighlighted = highlight(
                 line,
                 languages[language] || languages.javascript,
                 language
               )
+
+              // Apply search highlighting if query exists
+              if (searchQuery?.trim()) {
+                perLineHighlighted = applySearchHighlighting(
+                  perLineHighlighted,
+                  searchQuery,
+                  currentMatchIndex,
+                  matchCounter
+                )
+              }
+
               return (
                 <Fragment key={idx}>
                   <div
@@ -336,7 +438,6 @@ function Viewer({
                   </div>
                   <pre
                     className='m-0 min-w-0 whitespace-pre-wrap break-words pr-2 pl-2 font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:text-[#eeeeee]'
-                    // Using per-line highlighting keeps the gutter height in sync with wrapped content
                     dangerouslySetInnerHTML={{ __html: perLineHighlighted || '&nbsp;' }}
                   />
                 </Fragment>
@@ -348,11 +449,25 @@ function Viewer({
     )
   }
 
+  // Apply syntax highlighting
+  let highlightedCode = highlight(code, languages[language] || languages.javascript, language)
+
+  // Apply search highlighting if query exists
+  if (searchQuery?.trim()) {
+    const matchCounter = { count: 0 }
+    highlightedCode = applySearchHighlighting(
+      highlightedCode,
+      searchQuery,
+      currentMatchIndex,
+      matchCounter
+    )
+  }
+
   if (!showGutter) {
     // Simple display without gutter
     return (
       <Container className={className}>
-        <Content className='code-editor-theme'>
+        <Content className='code-editor-theme' editorRef={contentRef}>
           <pre
             className={cn(
               whitespaceClass,
@@ -387,7 +502,11 @@ function Viewer({
       <Gutter width={gutterWidth} style={{ left: `${paddingLeft}px`, ...gutterStyle }}>
         {lineNumbers}
       </Gutter>
-      <Content className='code-editor-theme' paddingLeft={`${gutterWidth + paddingLeft}px`}>
+      <Content
+        className='code-editor-theme'
+        paddingLeft={`${gutterWidth + paddingLeft}px`}
+        editorRef={contentRef}
+      >
         <pre
           className={cn(
             whitespaceClass,

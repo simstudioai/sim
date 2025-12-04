@@ -54,8 +54,8 @@ export const DEFAULT_TERMINAL_HEIGHT = 196
 /**
  * Output panel width constraints.
  */
-const MIN_OUTPUT_PANEL_WIDTH = 300
-const DEFAULT_OUTPUT_PANEL_WIDTH = 400
+const MIN_OUTPUT_PANEL_WIDTH = 440
+const DEFAULT_OUTPUT_PANEL_WIDTH = 440
 
 /**
  * Default display mode for terminal output.

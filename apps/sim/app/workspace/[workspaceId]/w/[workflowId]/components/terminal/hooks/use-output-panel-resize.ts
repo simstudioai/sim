@@ -5,7 +5,7 @@ import { useTerminalStore } from '@/stores/terminal'
  * Constants for output panel sizing
  * Must match MIN_OUTPUT_PANEL_WIDTH_PX and BLOCK_COLUMN_WIDTH_PX in terminal.tsx
  */
-const MIN_WIDTH = 300
+const MIN_WIDTH = 440
 const BLOCK_COLUMN_WIDTH = 240
 
 /**
