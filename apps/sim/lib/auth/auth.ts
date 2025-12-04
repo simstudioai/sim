@@ -1424,6 +1424,66 @@ export const auth = betterAuth({
         },
 
         {
+          providerId: 'dropbox',
+          clientId: env.DROPBOX_CLIENT_ID as string,
+          clientSecret: env.DROPBOX_CLIENT_SECRET as string,
+          authorizationUrl: 'https://www.dropbox.com/oauth2/authorize',
+          tokenUrl: 'https://api.dropboxapi.com/oauth2/token',
+          scopes: [
+            'account_info.read',
+            'files.metadata.read',
+            'files.metadata.write',
+            'files.content.read',
+            'files.content.write',
+            'sharing.read',
+            'sharing.write',
+          ],
+          responseType: 'code',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/dropbox`,
+          pkce: true,
+          accessType: 'offline',
+          prompt: 'consent',
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch(
+                'https://api.dropboxapi.com/2/users/get_current_account',
+                {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                  },
+                }
+              )
+
+              if (!response.ok) {
+                const errorText = await response.text()
+                logger.error('Dropbox API error:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                  body: errorText,
+                })
+                throw new Error(`Dropbox API error: ${response.status} ${response.statusText}`)
+              }
+
+              const data = await response.json()
+
+              return {
+                id: data.account_id,
+                email: data.email,
+                name: data.name?.display_name || data.email,
+                emailVerified: data.email_verified || false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                image: data.profile_photo_url || undefined,
+              }
+            } catch (error) {
+              logger.error('Error in getUserInfo:', error)
+              throw error
+            }
+          },
+        },
+
+        {
           providerId: 'asana',
           clientId: env.ASANA_CLIENT_ID as string,
           clientSecret: env.ASANA_CLIENT_SECRET as string,
@@ -1630,6 +1690,117 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in LinkedIn getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
+        // Zoom provider
+        {
+          providerId: 'zoom',
+          clientId: env.ZOOM_CLIENT_ID as string,
+          clientSecret: env.ZOOM_CLIENT_SECRET as string,
+          authorizationUrl: 'https://zoom.us/oauth/authorize',
+          tokenUrl: 'https://zoom.us/oauth/token',
+          userInfoUrl: 'https://api.zoom.us/v2/users/me',
+          scopes: [
+            'user:read:user',
+            'meeting:write:meeting',
+            'meeting:read:meeting',
+            'meeting:read:list_meetings',
+            'meeting:update:meeting',
+            'meeting:delete:meeting',
+            'meeting:read:invitation',
+            'meeting:read:list_past_participants',
+            'cloud_recording:read:list_user_recordings',
+            'cloud_recording:read:list_recording_files',
+            'cloud_recording:delete:recording_file',
+          ],
+          responseType: 'code',
+          accessType: 'offline',
+          authentication: 'basic',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/zoom`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching Zoom user profile')
+
+              const response = await fetch('https://api.zoom.us/v2/users/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Failed to fetch Zoom user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const profile = await response.json()
+
+              return {
+                id: profile.id,
+                name:
+                  `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Zoom User',
+                email: profile.email || `${profile.id}@zoom.user`,
+                emailVerified: profile.verified === 1,
+                image: profile.pic_url || undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in Zoom getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
+        // WordPress.com provider
+        {
+          providerId: 'wordpress',
+          clientId: env.WORDPRESS_CLIENT_ID as string,
+          clientSecret: env.WORDPRESS_CLIENT_SECRET as string,
+          authorizationUrl: 'https://public-api.wordpress.com/oauth2/authorize',
+          tokenUrl: 'https://public-api.wordpress.com/oauth2/token',
+          userInfoUrl: 'https://public-api.wordpress.com/rest/v1.1/me',
+          scopes: ['global'],
+          responseType: 'code',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/wordpress`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching WordPress.com user profile')
+
+              const response = await fetch('https://public-api.wordpress.com/rest/v1.1/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Failed to fetch WordPress.com user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const profile = await response.json()
+
+              return {
+                id: profile.ID?.toString() || profile.id?.toString(),
+                name: profile.display_name || profile.username || 'WordPress User',
+                email: profile.email || `${profile.username}@wordpress.com`,
+                emailVerified: profile.email_verified || false,
+                image: profile.avatar_URL || undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in WordPress.com getUserInfo:', { error })
               return null
             }
           },

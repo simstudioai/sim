@@ -89,6 +89,13 @@ Create a new issue with specified properties
 | `bodyHtml` | string | Yes | Issue body in HTML format |
 | `accountId` | string | No | Account ID to associate with issue |
 | `assigneeId` | string | No | User ID to assign issue to |
+| `teamId` | string | No | Team ID to assign issue to |
+| `requesterId` | string | No | Requester user ID \(alternative to requester_email\) |
+| `requesterEmail` | string | No | Requester email address \(alternative to requester_id\) |
+| `priority` | string | No | Issue priority |
+| `tags` | string | No | Comma-separated tag IDs |
+| `customFields` | string | No | Custom fields as JSON object |
+| `attachmentUrls` | string | No | Comma-separated attachment URLs |
 
 #### Output
 
@@ -130,6 +137,9 @@ Update an existing issue
 | `teamId` | string | No | Team ID to assign issue to |
 | `tags` | string | No | Comma-separated tag IDs |
 | `customFields` | string | No | Custom fields as JSON object |
+| `customerPortalVisible` | boolean | No | Whether issue is visible in customer portal |
+| `requesterId` | string | No | Requester user ID |
+| `accountId` | string | No | Account ID to associate with issue |
 
 #### Output
 

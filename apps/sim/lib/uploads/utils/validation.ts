@@ -50,7 +50,13 @@ export const SUPPORTED_MIME_TYPES: Record<SupportedDocumentExtension, string[]> 
     'application/octet-stream',
   ],
   txt: ['text/plain', 'text/x-plain', 'application/txt'],
-  md: ['text/markdown', 'text/x-markdown', 'text/plain', 'application/markdown'],
+  md: [
+    'text/markdown',
+    'text/x-markdown',
+    'text/plain',
+    'application/markdown',
+    'application/octet-stream',
+  ],
   xlsx: [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/octet-stream',

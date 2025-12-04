@@ -388,7 +388,7 @@ function extractToolInfo(
 } | null {
   try {
     const toolConfigRegex =
-      /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|request|directExecution|postProcess|transformResponse)/
+      /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|request|directExecution|postProcess|transformResponse)\s*:/
     const toolConfigMatch = fileContent.match(toolConfigRegex)
 
     const descriptionRegex = /description\s*:\s*['"](.*?)['"].*/
@@ -461,7 +461,7 @@ function extractToolInfo(
 
     let outputs: Record<string, any> = {}
     const outputsFieldRegex =
-      /outputs\s*:\s*{([\s\S]*?)}\s*,?\s*(?:oauth|params|request|directExecution|postProcess|transformResponse|$|\})/
+      /outputs\s*:\s*{([\s\S]*?)}\s*,?\s*(?:(?:oauth|params|request|directExecution|postProcess|transformResponse)\s*:|$|\})/
     const outputsFieldMatch = fileContent.match(outputsFieldRegex)
 
     if (outputsFieldMatch) {

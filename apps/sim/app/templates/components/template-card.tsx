@@ -232,7 +232,7 @@ function TemplateCardInner({
                     key={index}
                     className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
                     style={{
-                      backgroundColor: blockConfig.bgColor || 'gray',
+                      background: blockConfig.bgColor || 'gray',
                       marginLeft: index > 0 ? '-4px' : '0',
                     }}
                   >
@@ -257,7 +257,7 @@ function TemplateCardInner({
                   key={index}
                   className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
                   style={{
-                    backgroundColor: blockConfig.bgColor || 'gray',
+                    background: blockConfig.bgColor || 'gray',
                     marginLeft: index > 0 ? '-4px' : '0',
                   }}
                 >

@@ -232,6 +232,38 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'webhooks:read': 'Read your Pipedrive webhooks',
   'webhooks:full': 'Full access to manage your Pipedrive webhooks',
   w_member_social: 'Access your LinkedIn profile',
+  // Box scopes
+  root_readwrite: 'Read and write all files and folders in your Box account',
+  root_readonly: 'Read all files and folders in your Box account',
+  // Shopify scopes (write_* implicitly includes read access)
+  write_products: 'Read and manage your Shopify products',
+  write_orders: 'Read and manage your Shopify orders',
+  write_customers: 'Read and manage your Shopify customers',
+  write_inventory: 'Read and manage your Shopify inventory levels',
+  read_locations: 'View your store locations',
+  write_merchant_managed_fulfillment_orders: 'Create fulfillments for orders',
+  // Zoom scopes
+  'user:read:user': 'View your Zoom profile information',
+  'meeting:write:meeting': 'Create Zoom meetings',
+  'meeting:read:meeting': 'View Zoom meeting details',
+  'meeting:read:list_meetings': 'List your Zoom meetings',
+  'meeting:update:meeting': 'Update Zoom meetings',
+  'meeting:delete:meeting': 'Delete Zoom meetings',
+  'meeting:read:invitation': 'View Zoom meeting invitations',
+  'meeting:read:list_past_participants': 'View past meeting participants',
+  'cloud_recording:read:list_user_recordings': 'List your Zoom cloud recordings',
+  'cloud_recording:read:list_recording_files': 'View recording files',
+  'cloud_recording:delete:recording_file': 'Delete cloud recordings',
+  // Dropbox scopes
+  'account_info.read': 'View your Dropbox account information',
+  'files.metadata.read': 'View file and folder names, sizes, and dates',
+  'files.metadata.write': 'Modify file and folder metadata',
+  'files.content.read': 'Download and read your Dropbox files',
+  'files.content.write': 'Upload, copy, move, and delete files in your Dropbox',
+  'sharing.read': 'View your shared files and folders',
+  'sharing.write': 'Share files and folders with others',
+  // WordPress.com scopes
+  global: 'Full access to manage your WordPress.com sites, posts, pages, media, and settings',
 }
 
 function getScopeDescription(scope: string): string {
@@ -286,6 +318,13 @@ export function OAuthRequiredModal({
 
       if (providerId === 'trello') {
         window.location.href = '/api/auth/trello/authorize'
+        return
+      }
+
+      if (providerId === 'shopify') {
+        // Pass the current URL so we can redirect back after OAuth
+        const returnUrl = encodeURIComponent(window.location.href)
+        window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
         return
       }
 
