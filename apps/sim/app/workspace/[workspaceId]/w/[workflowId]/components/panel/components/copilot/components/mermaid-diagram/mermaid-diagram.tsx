@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, ExternalLink } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import mermaid from 'mermaid'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -112,13 +112,6 @@ export function MermaidDiagram({ diagramText }: MermaidDiagramProps) {
 
   const handleMouseUp = useCallback(() => setIsDragging(false), [])
 
-  const openInNewTab = useCallback(() => {
-    if (!dataUrl) return
-    const html = `<!DOCTYPE html><html><head><title>Diagram</title><style>body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f8fafc}img{max-width:95vw;max-height:95vh}</style></head><body><img src="${dataUrl}"></body></html>`
-    const blob = new Blob([html], { type: 'text/html' })
-    window.open(URL.createObjectURL(blob), '_blank')
-  }, [dataUrl])
-
   if (error) {
     return (
       <div className='flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-red-400 text-sm'>
@@ -137,39 +130,29 @@ export function MermaidDiagram({ diagramText }: MermaidDiagramProps) {
   }
 
   return (
-    <div className='relative'>
-      <button
-        type='button'
-        onClick={openInNewTab}
-        className='absolute top-2 right-2 z-10 rounded bg-white/90 p-1.5 text-gray-600 shadow-sm transition-colors hover:bg-white hover:text-gray-900'
-        title='Open in new tab'
-      >
-        <ExternalLink className='h-4 w-4' />
-      </button>
-      <div
-        ref={containerRef}
-        className='select-none overflow-hidden rounded-md border border-[var(--border-strong)] bg-white'
-        style={{
-          height: 500,
-          minHeight: 150,
-          resize: 'vertical',
-          cursor: isDragging ? 'grabbing' : 'grab',
-        }}
-        onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        title='Scroll to zoom, drag to pan, drag edge to resize'
-      >
-        <img
-          src={dataUrl}
-          alt='Mermaid diagram'
-          className='pointer-events-none h-full w-full object-contain'
-          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
-          draggable={false}
-        />
-      </div>
+    <div
+      ref={containerRef}
+      className='select-none overflow-hidden rounded-md border border-[var(--border-strong)] bg-white'
+      style={{
+        height: 500,
+        minHeight: 150,
+        resize: 'vertical',
+        cursor: isDragging ? 'grabbing' : 'grab',
+      }}
+      onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      title='Scroll to zoom, drag to pan, drag edge to resize'
+    >
+      <img
+        src={dataUrl}
+        alt='Mermaid diagram'
+        className='pointer-events-none h-full w-full object-contain'
+        style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+        draggable={false}
+      />
     </div>
   )
 }
