@@ -268,8 +268,10 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
   }
 
   // Also show buttons for integration tools in pending state (they need user confirmation)
+  // But NOT if the tool is auto-allowed (it will auto-execute)
   const mode = useCopilotStore.getState().mode
-  if (mode === 'build' && isIntegrationTool(toolCall.name) && toolCall.state === 'pending') {
+  const isAutoAllowed = useCopilotStore.getState().isToolAutoAllowed(toolCall.name)
+  if (mode === 'build' && isIntegrationTool(toolCall.name) && toolCall.state === 'pending' && !isAutoAllowed) {
     return true
   }
 
