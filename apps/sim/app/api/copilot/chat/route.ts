@@ -62,7 +62,7 @@ const ChatMessageSchema = z.object({
       'gemini-3-pro',
     ])
     .optional()
-    .default('claude-4.5-sonnet'),
+    .default('claude-4.5-opus'),
   mode: z.enum(['ask', 'agent', 'plan']).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),

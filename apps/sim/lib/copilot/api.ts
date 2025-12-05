@@ -86,6 +86,7 @@ export interface SendMessageRequest {
     | 'claude-4.5-sonnet'
     | 'claude-4.5-opus'
     | 'claude-4.1-opus'
+    | 'gemini-3-pro'
   prefetch?: boolean
   createNewChat?: boolean
   stream?: boolean
