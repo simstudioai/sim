@@ -15,13 +15,9 @@ export const dynamic = 'force-dynamic'
 /**
  * PATCH - Update an MCP server in the workspace (requires write or admin permission)
  */
-export const PATCH = withMcpAuth('write')(
-  async (
-    request: NextRequest,
-    { userId, workspaceId, requestId },
-    { params }: { params: { id: string } }
-  ) => {
-    const serverId = params.id
+export const PATCH = withMcpAuth<{ id: string }>('write')(
+  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+    const { id: serverId } = await params
 
     try {
       const body = getParsedBody(request) || (await request.json())

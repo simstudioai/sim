@@ -15,10 +15,10 @@ export async function GET(
   {
     params,
   }: {
-    params: { id: string }
+    params: Promise<{ id: string }>
   }
 ) {
-  const workflowId = params.id
+  const { id: workflowId } = await params
 
   const access = await validateWorkflowAccess(request, workflowId, false)
   if (access.error) {
