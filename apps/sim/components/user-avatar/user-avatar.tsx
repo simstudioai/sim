@@ -55,7 +55,7 @@ export function UserAvatar({
           sizes={`${size}px`}
           className='object-cover'
           referrerPolicy='no-referrer'
-          unoptimized={avatarUrl.startsWith('http')}
+          unoptimized
           onError={() => setImageError(true)}
         />
       ) : (
