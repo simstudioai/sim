@@ -1,5 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "bun install",
-  "buildCommand": "fumadocs-mdx && bun run build"
+  "installCommand": "bun install"
 }
