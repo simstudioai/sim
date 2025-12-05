@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getPlanPricing } from '@/lib/billing/core/billing'
-import { getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
+import { getEffectiveSeats, getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationBilling')
@@ -133,9 +133,12 @@ export async function getOrganizationBillingData(
     // Get per-seat pricing for the plan
     const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan)
 
-    // Use Stripe subscription seats as source of truth
-    // Ensure we always have at least 1 seat (protect against 0 or falsy values)
-    const licensedSeats = Math.max(subscription.seats || 1, 1)
+    const licensedSeats = subscription.seats ?? 0
+
+    // For seat count used in UI (invitations, team management):
+    // Team: seats column (Stripe quantity)
+    // Enterprise: metadata.seats (allocated seats, not Stripe quantity which is always 1)
+    const effectiveSeats = getEffectiveSeats(subscription)
 
     // Calculate minimum billing amount
     let minimumBillingAmount: number
@@ -174,9 +177,9 @@ export async function getOrganizationBillingData(
       organizationName: organizationData.name || '',
       subscriptionPlan: subscription.plan,
       subscriptionStatus: subscription.status || 'inactive',
-      totalSeats: Math.max(subscription.seats || 1, 1),
+      totalSeats: effectiveSeats, // Uses metadata.seats for enterprise, seats column for team
       usedSeats: members.length,
-      seatsCount: licensedSeats,
+      seatsCount: licensedSeats, // Used for billing calculations (Stripe quantity)
       totalCurrentUsage: roundCurrency(totalCurrentUsage),
       totalUsageLimit: roundCurrency(totalUsageLimit),
       minimumBillingAmount: roundCurrency(minimumBillingAmount),
@@ -232,9 +235,8 @@ export async function updateOrganizationUsageLimit(
       }
     }
 
-    // Team plans have minimum based on seats
     const { basePrice } = getPlanPricing(subscription.plan)
-    const minimumLimit = Math.max(subscription.seats || 1, 1) * basePrice
+    const minimumLimit = (subscription.seats ?? 0) * basePrice
 
     // Validate new limit is not below minimum
     if (newLimit < minimumLimit) {

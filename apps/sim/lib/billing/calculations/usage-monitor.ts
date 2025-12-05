@@ -115,7 +115,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
               const orgSub = await getOrganizationSubscription(org.id)
               if (orgSub?.seats) {
                 const { basePrice } = getPlanPricing(orgSub.plan)
-                orgCap = (orgSub.seats || 1) * basePrice
+                orgCap = (orgSub.seats ?? 0) * basePrice
               } else {
                 // If no subscription, use team default
                 const { basePrice } = getPlanPricing('team')

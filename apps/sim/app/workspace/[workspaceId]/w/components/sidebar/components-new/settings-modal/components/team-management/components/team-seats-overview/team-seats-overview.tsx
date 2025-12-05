@@ -3,23 +3,20 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
 
-const PILL_COUNT = 8
-
 type Subscription = {
   id: string
   plan: string
   status: string
-  seats?: number
   referenceId: string
   cancelAtPeriodEnd?: boolean
   periodEnd?: number | Date
   trialEnd?: number | Date
-  metadata?: any
 }
 
 interface TeamSeatsOverviewProps {
   subscriptionData: Subscription | null
   isLoadingSubscription: boolean
+  totalSeats: number
   usedSeats: number
   isLoading: boolean
   onConfirmTeamUpgrade: (seats: number) => Promise<void>
@@ -55,6 +52,7 @@ function TeamSeatsSkeleton() {
 export function TeamSeatsOverview({
   subscriptionData,
   isLoadingSubscription,
+  totalSeats,
   usedSeats,
   isLoading,
   onConfirmTeamUpgrade,
@@ -78,7 +76,7 @@ export function TeamSeatsOverview({
           <Button
             variant='primary'
             onClick={() => {
-              onConfirmTeamUpgrade(2) // Start with 2 seats as default
+              onConfirmTeamUpgrade(2)
             }}
             disabled={isLoading}
           >
@@ -89,7 +87,6 @@ export function TeamSeatsOverview({
     )
   }
 
-  const totalSeats = subscriptionData.seats || 0
   const isEnterprise = checkEnterprisePlan(subscriptionData)
 
   return (

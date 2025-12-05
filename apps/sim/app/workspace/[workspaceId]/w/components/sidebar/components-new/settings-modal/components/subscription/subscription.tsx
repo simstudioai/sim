@@ -197,7 +197,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
       subscriptionData?.data?.status === 'active',
     plan: subscriptionData?.data?.plan || 'free',
     status: subscriptionData?.data?.status || 'inactive',
-    seats: subscriptionData?.data?.seats || 1,
+    seats: organizationBillingData?.totalSeats ?? 0,
   }
 
   const usage = {
@@ -373,7 +373,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
           onBadgeClick={handleBadgeClick}
           seatsText={
             permissions.canManageTeam || subscription.isEnterprise
-              ? `${organizationBillingData?.totalSeats || subscription.seats || 1} seats`
+              ? `${subscription.seats} seats`
               : undefined
           }
           current={

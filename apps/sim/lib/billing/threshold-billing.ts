@@ -330,7 +330,7 @@ export async function checkAndBillOrganizationOverageThreshold(
       }
 
       const { basePrice: basePricePerSeat } = getPlanPricing(orgSubscription.plan)
-      const basePrice = basePricePerSeat * (orgSubscription.seats || 1)
+      const basePrice = basePricePerSeat * (orgSubscription.seats ?? 0)
       const currentOverage = Math.max(0, totalTeamUsage - basePrice)
       const unbilledOverage = Math.max(0, currentOverage - totalBilledOverage)
 
