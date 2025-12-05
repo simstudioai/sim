@@ -1,0 +1,295 @@
+---
+title: Kalshi
+description: Accédez aux données des marchés prédictifs de Kalshi
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="kalshi"
+  color="#09C285"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Kalshi](https://kalshi.com) est une bourse réglementée au niveau fédéral où les utilisateurs peuvent négocier directement sur les résultats d'événements futurs — des marchés prédictifs. L'API robuste de Kalshi et l'intégration Sim permettent aux agents et aux flux de travail d'accéder par programmation à tous les aspects de la plateforme, prenant en charge tout, de la recherche et l'analyse jusqu'au trading automatisé et à la surveillance.
+
+Avec l'intégration de Kalshi dans Sim, vous pouvez :
+
+- **Données de marché et d'événement :** rechercher, filtrer et récupérer des données en temps réel et historiques pour les marchés et les événements ; obtenir des détails précis sur le statut du marché, les séries, les regroupements d'événements, et plus encore.
+- **Gestion de compte et de solde :** accéder aux soldes de compte, aux fonds disponibles et surveiller les positions ouvertes en temps réel.
+- **Gestion des ordres et des transactions :** placer de nouveaux ordres, annuler ceux existants, consulter les ordres ouverts, récupérer un carnet d'ordres en direct et accéder aux historiques complets des transactions.
+- **Analyse d'exécution :** récupérer les transactions récentes, les exécutions historiques et les données en chandeliers pour le backtesting ou la recherche sur la structure du marché.
+- **Surveillance :** vérifier le statut à l'échelle de la bourse ou au niveau des séries, recevoir des mises à jour en temps réel sur les changements de marché ou les arrêts de trading, et automatiser les réponses.
+- **Prêt pour l'automatisation :** créer des agents automatisés et des tableaux de bord de bout en bout qui consomment, analysent et négocient sur les probabilités d'événements réels.
+
+En utilisant ces outils et points d'accès unifiés, vous pouvez intégrer de manière transparente les marchés prédictifs de Kalshi, les capacités de trading en direct et les données d'événements approfondies dans vos applications, tableaux de bord et flux de travail alimentés par l'IA — permettant une prise de décision sophistiquée et automatisée liée aux résultats du monde réel.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez les marchés prédictifs de Kalshi dans le flux de travail. Peut obtenir les marchés, le marché, les événements, l'événement, le solde, les positions, les ordres, le carnet d'ordres, les transactions, les chandeliers, les exécutions, les séries et le statut de la bourse.
+
+## Outils
+
+### `kalshi_get_markets`
+
+Récupérer une liste de marchés prédictifs de Kalshi avec filtrage optionnel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `status` | chaîne | Non | Filtrer par statut \(non ouvert, ouvert, fermé, réglé\) |
+| `seriesTicker` | chaîne | Non | Filtrer par code de série |
+| `eventTicker` | chaîne | Non | Filtrer par code d'événement |
+| `limit` | chaîne | Non | Nombre de résultats \(1-1000, par défaut : 100\) |
+| `cursor` | chaîne | Non | Curseur de pagination pour la page suivante |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Données des marchés et métadonnées |
+
+### `kalshi_get_market`
+
+Récupérer les détails d'un marché prédictif spécifique par code
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticker` | chaîne | Oui | Le code du marché \(ex. : "KXBTC-24DEC31"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Données du marché et métadonnées |
+
+### `kalshi_get_events`
+
+Récupérer une liste d'événements de Kalshi avec filtrage optionnel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `status` | chaîne | Non | Filtrer par statut \(ouvert, fermé, réglé\) |
+| `seriesTicker` | chaîne | Non | Filtrer par code de série |
+| `withNestedMarkets` | chaîne | Non | Inclure les marchés imbriqués dans la réponse \(vrai/faux\) |
+| `limit` | chaîne | Non | Nombre de résultats \(1-200, par défaut : 200\) |
+| `cursor` | chaîne | Non | Curseur de pagination pour la page suivante |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées des événements |
+
+### `kalshi_get_event`
+
+Récupérer les détails d'un événement spécifique par ticker
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventTicker` | string | Oui | Le ticker de l'événement |
+| `withNestedMarkets` | string | Non | Inclure les marchés imbriqués dans la réponse \(true/false\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées de l'événement |
+
+### `kalshi_get_balance`
+
+Récupérer le solde de votre compte et la valeur de votre portefeuille depuis Kalshi
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Oui | Votre ID de clé API Kalshi |
+| `privateKey` | string | Oui | Votre clé privée RSA \(format PEM\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées du solde |
+
+### `kalshi_get_positions`
+
+Récupérer vos positions ouvertes depuis Kalshi
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Oui | Votre ID de clé API Kalshi |
+| `privateKey` | string | Oui | Votre clé privée RSA \(format PEM\) |
+| `ticker` | string | Non | Filtrer par ticker de marché |
+| `eventTicker` | string | Non | Filtrer par ticker d'événement \(max 10 séparés par des virgules\) |
+| `settlementStatus` | string | Non | Filtrer par statut de règlement \(all, unsettled, settled\). Par défaut : unsettled |
+| `limit` | string | Non | Nombre de résultats \(1-1000, par défaut : 100\) |
+| `cursor` | string | Non | Curseur de pagination pour la page suivante |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données de positions et métadonnées |
+
+### `kalshi_get_orders`
+
+Récupérez vos ordres depuis Kalshi avec filtrage optionnel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Oui | Votre ID de clé API Kalshi |
+| `privateKey` | string | Oui | Votre clé privée RSA \(format PEM\) |
+| `ticker` | string | Non | Filtrer par ticker de marché |
+| `eventTicker` | string | Non | Filtrer par ticker d'événement \(max 10 séparés par des virgules\) |
+| `status` | string | Non | Filtrer par statut \(en attente, annulé, exécuté\) |
+| `limit` | string | Non | Nombre de résultats \(1-200, par défaut : 100\) |
+| `cursor` | string | Non | Curseur de pagination pour la page suivante |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données des ordres et métadonnées |
+
+### `kalshi_get_orderbook`
+
+Récupérez le carnet d'ordres (offres d'achat et de vente) pour un marché spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticker` | string | Oui | Ticker du marché \(ex. : KXBTC-24DEC31\) |
+| `depth` | number | Non | Nombre de niveaux de prix à retourner par côté |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées du carnet d'ordres |
+
+### `kalshi_get_trades`
+
+Récupérer les transactions récentes sur tous les marchés ou pour un marché spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `ticker` | string | Non | Filtrer par symbole de marché |
+| `minTs` | number | Non | Horodatage minimum (millisecondes Unix) |
+| `maxTs` | number | Non | Horodatage maximum (millisecondes Unix) |
+| `limit` | string | Non | Nombre de résultats (1-1000, par défaut : 100) |
+| `cursor` | string | Non | Curseur de pagination pour la page suivante |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées des transactions |
+
+### `kalshi_get_candlesticks`
+
+Récupérer les données de chandeliers OHLC pour un marché spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `seriesTicker` | string | Oui | Symbole de la série |
+| `ticker` | string | Oui | Symbole du marché (ex. : KXBTC-24DEC31) |
+| `startTs` | number | Non | Horodatage de début (millisecondes Unix) |
+| `endTs` | number | Non | Horodatage de fin (millisecondes Unix) |
+| `periodInterval` | number | Non | Intervalle de période : 1 (1min), 60 (1heure), ou 1440 (1jour) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées du chandelier |
+
+### `kalshi_get_fills`
+
+Récupérer votre portefeuille
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Oui | Votre ID de clé API Kalshi |
+| `privateKey` | string | Oui | Votre clé privée RSA \(format PEM\) |
+| `ticker` | string | Non | Filtrer par ticker de marché |
+| `orderId` | string | Non | Filtrer par ID de commande |
+| `minTs` | number | Non | Horodatage minimum \(millisecondes Unix\) |
+| `maxTs` | number | Non | Horodatage maximum \(millisecondes Unix\) |
+| `limit` | string | Non | Nombre de résultats \(1-1000, par défaut : 100\) |
+| `cursor` | string | Non | Curseur de pagination pour la page suivante |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées des exécutions |
+
+### `kalshi_get_series_by_ticker`
+
+Récupérer les détails d'une série de marché spécifique par ticker
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `seriesTicker` | string | Oui | Ticker de la série |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées de la série |
+
+### `kalshi_get_exchange_status`
+
+Récupérer l'état actuel de l'échange Kalshi (activité de trading et d'échange)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données d'état de l'échange et métadonnées |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `kalshi`

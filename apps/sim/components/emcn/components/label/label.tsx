@@ -18,7 +18,7 @@ function Label({ className, ...props }: LabelProps) {
   return (
     <LabelPrimitive.Root
       className={cn(
-        'inline-flex items-center font-medium text-[13px] text-[var(--text-primary)] leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50 dark:text-[var(--text-primary)]',
+        'inline-flex items-center font-medium text-[13px] text-[var(--text-primary)] leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50',
         className
       )}
       {...props}

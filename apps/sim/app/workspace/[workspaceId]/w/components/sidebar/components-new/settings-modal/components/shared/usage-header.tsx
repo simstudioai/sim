@@ -80,15 +80,17 @@ export function UsageHeader({
           </div>
           <div className='flex items-center gap-[4px] text-xs tabular-nums'>
             {isBlocked ? (
-              <span className='font-medium text-[#B1B1B1] text-[12px]'>Payment required</span>
+              <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                Payment required
+              </span>
             ) : (
               <>
-                <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
+                <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
                   ${current.toFixed(2)}
                 </span>
-                <span className='font-medium text-[#B1B1B1] text-[12px]'>/</span>
+                <span className='font-medium text-[12px] text-[var(--text-secondary)]'>/</span>
                 {rightContent ?? (
-                  <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
+                  <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
                     ${limit}
                   </span>
                 )}
@@ -106,7 +108,11 @@ export function UsageHeader({
                 key={i}
                 className='h-[6px] flex-1 rounded-[2px]'
                 style={{
-                  backgroundColor: isFilled ? (isAlmostOut ? '#ef4444' : '#34B5FF') : '#414141',
+                  backgroundColor: isFilled
+                    ? isAlmostOut
+                      ? 'var(--text-error)'
+                      : '#34B5FF'
+                    : '#414141',
                 }}
               />
             )

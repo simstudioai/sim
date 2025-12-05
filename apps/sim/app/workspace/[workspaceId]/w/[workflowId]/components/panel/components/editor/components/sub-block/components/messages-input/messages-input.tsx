@@ -12,6 +12,7 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import type { SubBlockConfig } from '@/blocks/types'
 
 const MIN_TEXTAREA_HEIGHT_PX = 80
+const MAX_TEXTAREA_HEIGHT_PX = 320
 
 /**
  * Interface for individual message in the messages array
@@ -236,10 +237,12 @@ export function MessagesInput({
       return
     }
 
-    // Auto-resize to fit content only when user hasn't manually resized.
     textarea.style.height = 'auto'
     const naturalHeight = textarea.scrollHeight || MIN_TEXTAREA_HEIGHT_PX
-    const nextHeight = Math.max(MIN_TEXTAREA_HEIGHT_PX, naturalHeight)
+    const nextHeight = Math.min(
+      MAX_TEXTAREA_HEIGHT_PX,
+      Math.max(MIN_TEXTAREA_HEIGHT_PX, naturalHeight)
+    )
     textarea.style.height = `${nextHeight}px`
 
     if (overlay) {
@@ -453,7 +456,7 @@ export function MessagesInput({
                     ref={(el) => {
                       textareaRefs.current[fieldId] = el
                     }}
-                    className='allow-scroll box-border min-h-[80px] w-full resize-none whitespace-pre-wrap break-words border-none bg-transparent px-[8px] py-[8px] font-[inherit] font-medium text-sm text-transparent leading-[inherit] caret-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed'
+                    className='allow-scroll box-border min-h-[80px] w-full resize-none whitespace-pre-wrap break-words border-none bg-transparent px-[8px] pt-[8px] font-[inherit] font-medium text-sm text-transparent leading-[inherit] caret-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed'
                     rows={3}
                     placeholder='Enter message content...'
                     value={message.content}
@@ -496,7 +499,7 @@ export function MessagesInput({
                     ref={(el) => {
                       overlayRefs.current[fieldId] = el
                     }}
-                    className='pointer-events-none absolute top-0 left-0 box-border w-full overflow-auto whitespace-pre-wrap break-words border-none bg-transparent px-[8px] py-[8px] font-[inherit] font-medium text-[var(--text-primary)] text-sm leading-[inherit]'
+                    className='scrollbar-none pointer-events-none absolute top-0 left-0 box-border w-full overflow-auto whitespace-pre-wrap break-words border-none bg-transparent px-[8px] pt-[8px] font-[inherit] font-medium text-[var(--text-primary)] text-sm leading-[inherit]'
                   >
                     {formatDisplayText(message.content, {
                       accessiblePrefixes,

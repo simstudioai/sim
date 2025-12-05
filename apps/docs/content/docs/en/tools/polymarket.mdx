@@ -1,0 +1,357 @@
+---
+title: Polymarket
+description: Access prediction markets data from Polymarket
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="polymarket"
+  color="#4C82FB"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Polymarket](https://polymarket.com) is a decentralized prediction markets platform where users can trade on the outcome of future events using blockchain technology. Polymarket provides a comprehensive API, enabling developers and agents to access live market data, event listings, price information, and orderbook statistics to power data-driven workflows and AI automations.
+
+With Polymarket’s API and Sim integration, you can enable agents to programmatically retrieve prediction market information, explore open markets and associated events, analyze historical price data, and access orderbooks and market midpoints. This creates new possibilities for research, automated analysis, and developing intelligent agents that react to real-time event probabilities derived from market prices.
+
+Key features of the Polymarket integration include:
+
+- **Market Listing & Filtering:** List all current or historical prediction markets, filter by tag, sort, and paginate through results.
+- **Market Detail:** Retrieve details for a single market by market ID or slug, including its outcomes and status.
+- **Event Listings:** Access lists of Polymarket events and detailed event information.
+- **Orderbook & Price Data:** Analyze the orderbook, get the latest market prices, view the midpoint, or obtain historical price information for any market.
+- **Automation Ready:** Build agents or tools that react programmatically to market developments, changing odds, or specific event outcomes.
+
+By using these documented API endpoints, you can seamlessly integrate Polymarket’s rich on-chain prediction market data into your own AI workflows, dashboards, research tools, and trading automations.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Polymarket prediction markets into the workflow. Can get markets, market, events, event, tags, series, orderbook, price, midpoint, price history, last trade price, spread, tick size, positions, trades, and search.
+
+
+
+## Tools
+
+### `polymarket_get_markets`
+
+Retrieve a list of prediction markets from Polymarket with optional filtering
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `closed` | string | No | Filter by closed status \(true/false\). Use false for active markets only. |
+| `order` | string | No | Sort field \(e.g., id, volume, liquidity\) |
+| `ascending` | string | No | Sort direction \(true for ascending, false for descending\) |
+| `tagId` | string | No | Filter by tag ID |
+| `limit` | string | No | Number of results per page \(recommended: 25-50\) |
+| `offset` | string | No | Pagination offset \(skip this many results\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Markets data and metadata |
+
+### `polymarket_get_market`
+
+Retrieve details of a specific prediction market by ID or slug
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `marketId` | string | No | The market ID. Required if slug is not provided. |
+| `slug` | string | No | The market slug \(e.g., "will-trump-win"\). Required if marketId is not provided. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Market data and metadata |
+
+### `polymarket_get_events`
+
+Retrieve a list of events from Polymarket with optional filtering
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `closed` | string | No | Filter by closed status \(true/false\). Use false for active events only. |
+| `order` | string | No | Sort field \(e.g., id, volume\) |
+| `ascending` | string | No | Sort direction \(true for ascending, false for descending\) |
+| `tagId` | string | No | Filter by tag ID |
+| `limit` | string | No | Number of results per page \(recommended: 25-50\) |
+| `offset` | string | No | Pagination offset \(skip this many results\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Events data and metadata |
+
+### `polymarket_get_event`
+
+Retrieve details of a specific event by ID or slug
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventId` | string | No | The event ID. Required if slug is not provided. |
+| `slug` | string | No | The event slug \(e.g., "2024-presidential-election"\). Required if eventId is not provided. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Event data and metadata |
+
+### `polymarket_get_tags`
+
+Retrieve available tags for filtering markets from Polymarket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | No | Number of results per page \(recommended: 25-50\) |
+| `offset` | string | No | Pagination offset \(skip this many results\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Tags data and metadata |
+
+### `polymarket_search`
+
+Search for markets, events, and profiles on Polymarket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query term |
+| `limit` | string | No | Number of results per page \(recommended: 25-50\) |
+| `offset` | string | No | Pagination offset \(skip this many results\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Search results and metadata |
+
+### `polymarket_get_series`
+
+Retrieve series (related market groups) from Polymarket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | No | Number of results per page \(recommended: 25-50\) |
+| `offset` | string | No | Pagination offset \(skip this many results\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Series data and metadata |
+
+### `polymarket_get_series_by_id`
+
+Retrieve a specific series (related market group) by ID from Polymarket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `seriesId` | string | Yes | The series ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Series data and metadata |
+
+### `polymarket_get_orderbook`
+
+Retrieve the order book summary for a specific token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Orderbook data and metadata |
+
+### `polymarket_get_price`
+
+Retrieve the market price for a specific token and side
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+| `side` | string | Yes | Order side: buy or sell |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Price data and metadata |
+
+### `polymarket_get_midpoint`
+
+Retrieve the midpoint price for a specific token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Midpoint price data and metadata |
+
+### `polymarket_get_price_history`
+
+Retrieve historical price data for a specific market token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+| `interval` | string | No | Duration ending at current time \(1m, 1h, 6h, 1d, 1w, max\). Mutually exclusive with startTs/endTs. |
+| `fidelity` | number | No | Data resolution in minutes \(e.g., 60 for hourly\) |
+| `startTs` | number | No | Start timestamp \(Unix seconds UTC\) |
+| `endTs` | number | No | End timestamp \(Unix seconds UTC\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Price history data and metadata |
+
+### `polymarket_get_last_trade_price`
+
+Retrieve the last trade price for a specific token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Last trade price and metadata |
+
+### `polymarket_get_spread`
+
+Retrieve the bid-ask spread for a specific token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Spread data and metadata |
+
+### `polymarket_get_tick_size`
+
+Retrieve the minimum tick size for a specific token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Tick size and metadata |
+
+### `polymarket_get_positions`
+
+Retrieve user positions from Polymarket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | Yes | User wallet address |
+| `market` | string | No | Optional market ID to filter positions |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Positions data and metadata |
+
+### `polymarket_get_trades`
+
+Retrieve trade history from Polymarket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | No | User wallet address to filter trades |
+| `market` | string | No | Market ID to filter trades |
+| `limit` | string | No | Number of results per page \(recommended: 25-50\) |
+| `offset` | string | No | Pagination offset \(skip this many results\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Trades data and metadata |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `polymarket`

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useTerminalStore } from '@/stores/terminal'
 
 /**
@@ -15,15 +15,14 @@ const MAX_HEIGHT_PERCENTAGE = 0.7 // 70% of viewport height
  * @returns Resize state and handlers
  */
 export function useTerminalResize() {
-  const { setTerminalHeight } = useTerminalStore()
-  const [isResizing, setIsResizing] = useState(false)
+  const { setTerminalHeight, isResizing, setIsResizing } = useTerminalStore()
 
   /**
    * Handles mouse down on resize handle
    */
   const handleMouseDown = useCallback(() => {
     setIsResizing(true)
-  }, [])
+  }, [setIsResizing])
 
   /**
    * Setup resize event listeners and body styles when resizing
@@ -57,7 +56,7 @@ export function useTerminalResize() {
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [isResizing, setTerminalHeight])
+  }, [isResizing, setTerminalHeight, setIsResizing])
 
   return {
     isResizing,

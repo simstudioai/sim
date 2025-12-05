@@ -1,0 +1,365 @@
+---
+title: Elasticsearch
+description: Recherchez, indexez et gérez des données dans Elasticsearch
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="elasticsearch"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Elasticsearch](https://www.elastic.co/elasticsearch/) est un puissant moteur de recherche et d'analyse distribué qui vous permet d'indexer, de rechercher et d'analyser de grands volumes de données en temps réel. Il est largement utilisé pour alimenter les fonctionnalités de recherche, l'analyse des données de journaux et d'événements, l'observabilité, et plus encore.
+
+Avec Elasticsearch dans Sim, vous bénéficiez d'un accès programmatique aux capacités essentielles d'Elasticsearch, notamment :
+
+- **Recherche de documents** : effectuez des recherches avancées sur du texte structuré ou non structuré à l'aide du langage DSL, avec prise en charge du tri, de la pagination et de la sélection de champs.
+- **Indexation de documents** : ajoutez de nouveaux documents ou mettez à jour des documents existants dans n'importe quel index Elasticsearch pour une récupération et une analyse immédiates.
+- **Obtenir, mettre à jour ou supprimer des documents** : récupérez, modifiez ou supprimez des documents spécifiques par ID.
+- **Opérations en masse** : exécutez plusieurs actions d'indexation ou de mise à jour en une seule requête pour un traitement de données à haut débit.
+- **Gestion des index** : créez, supprimez ou obtenez des détails sur les index dans le cadre de votre automatisation de flux de travail.
+- **Surveillance du cluster** : vérifiez l'état et les statistiques de votre déploiement Elasticsearch.
+
+Les outils Elasticsearch de Sim fonctionnent aussi bien avec des environnements auto-hébergés qu'avec Elastic Cloud. Intégrez Elasticsearch dans vos flux de travail d'agents pour automatiser l'ingestion de données, effectuer des recherches dans de vastes ensembles de données, exécuter des rapports ou créer des applications personnalisées basées sur la recherche - le tout sans intervention manuelle.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Elasticsearch dans les flux de travail pour une recherche puissante, l'indexation et la gestion des données. Prend en charge les opérations CRUD de documents, les requêtes de recherche avancées, les opérations en masse, la gestion des index et la surveillance des clusters. Fonctionne avec les déploiements auto-hébergés et Elastic Cloud.
+
+## Outils
+
+### `elasticsearch_search`
+
+Recherchez des documents dans Elasticsearch en utilisant Query DSL. Renvoie les documents correspondants avec scores et métadonnées.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `deploymentType` | chaîne | Oui | Type de déploiement : self_hosted ou cloud |
+| `host` | chaîne | Non | URL de l'hôte Elasticsearch (pour self-hosted) |
+| `cloudId` | chaîne | Non | ID Elastic Cloud (pour les déploiements cloud) |
+| `authMethod` | chaîne | Oui | Méthode d'authentification : api_key ou basic_auth |
+| `apiKey` | chaîne | Non | Clé API Elasticsearch |
+| `username` | chaîne | Non | Nom d'utilisateur pour l'authentification basique |
+| `password` | chaîne | Non | Mot de passe pour l'authentification basique |
+| `index` | chaîne | Oui | Nom de l'index à rechercher |
+| `query` | chaîne | Non | Query DSL sous forme de chaîne JSON |
+| `from` | nombre | Non | Décalage initial pour la pagination (par défaut : 0) |
+| `size` | nombre | Non | Nombre de résultats à renvoyer (par défaut : 10) |
+| `sort` | chaîne | Non | Spécification de tri sous forme de chaîne JSON |
+| `sourceIncludes` | chaîne | Non | Liste de champs séparés par des virgules à inclure dans _source |
+| `sourceExcludes` | chaîne | Non | Liste de champs séparés par des virgules à exclure de _source |
+| `trackTotalHits` | booléen | Non | Suivre le nombre exact de résultats (par défaut : true) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `took` | nombre | Temps en millisecondes pris par la recherche |
+| `timed_out` | booléen | Si la recherche a expiré |
+| `hits` | objet | Résultats de recherche avec nombre total et documents correspondants |
+| `aggregations` | json | Résultats d'agrégation, le cas échéant |
+
+### `elasticsearch_index_document`
+
+Indexer (créer ou mettre à jour) un document dans Elasticsearch.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | chaîne | Oui | Type de déploiement : self_hosted ou cloud |
+| `host` | chaîne | Non | URL de l'hôte Elasticsearch \(pour self-hosted\) |
+| `cloudId` | chaîne | Non | ID Cloud Elastic \(pour les déploiements cloud\) |
+| `authMethod` | chaîne | Oui | Méthode d'authentification : api_key ou basic_auth |
+| `apiKey` | chaîne | Non | Clé API Elasticsearch |
+| `username` | chaîne | Non | Nom d'utilisateur pour l'authentification basique |
+| `password` | chaîne | Non | Mot de passe pour l'authentification basique |
+| `index` | chaîne | Oui | Nom de l'index cible |
+| `documentId` | chaîne | Non | ID du document \(généré automatiquement si non fourni\) |
+| `document` | chaîne | Oui | Corps du document au format JSON |
+| `refresh` | chaîne | Non | Politique de rafraîchissement : true, false ou wait_for |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `_index` | chaîne | Index où le document a été stocké |
+| `_id` | chaîne | ID du document |
+| `_version` | nombre | Version du document |
+| `result` | chaîne | Résultat de l'opération \(créé ou mis à jour\) |
+
+### `elasticsearch_get_document`
+
+Récupérer un document par ID depuis Elasticsearch.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | chaîne | Oui | Type de déploiement : self_hosted ou cloud |
+| `host` | chaîne | Non | URL de l'hôte Elasticsearch \(pour self-hosted\) |
+| `cloudId` | chaîne | Non | ID Cloud Elastic \(pour les déploiements cloud\) |
+| `authMethod` | chaîne | Oui | Méthode d'authentification : api_key ou basic_auth |
+| `apiKey` | chaîne | Non | Clé API Elasticsearch |
+| `username` | chaîne | Non | Nom d'utilisateur pour l'authentification basique |
+| `password` | chaîne | Non | Mot de passe pour l'authentification basique |
+| `index` | chaîne | Oui | Nom de l'index |
+| `documentId` | chaîne | Oui | ID du document à récupérer |
+| `sourceIncludes` | chaîne | Non | Liste de champs à inclure, séparés par des virgules |
+| `sourceExcludes` | chaîne | Non | Liste de champs à exclure, séparés par des virgules |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `_index` | string | Nom de l'index |
+| `_id` | string | ID du document |
+| `_version` | number | Version du document |
+| `found` | boolean | Si le document a été trouvé |
+| `_source` | json | Contenu du document |
+
+### `elasticsearch_update_document`
+
+Mettre à jour partiellement un document dans Elasticsearch en utilisant la fusion de documents.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `deploymentType` | string | Oui | Type de déploiement : self_hosted ou cloud |
+| `host` | string | Non | URL de l'hôte Elasticsearch \(pour self-hosted\) |
+| `cloudId` | string | Non | ID Elastic Cloud \(pour les déploiements cloud\) |
+| `authMethod` | string | Oui | Méthode d'authentification : api_key ou basic_auth |
+| `apiKey` | string | Non | Clé API Elasticsearch |
+| `username` | string | Non | Nom d'utilisateur pour l'authentification basique |
+| `password` | string | Non | Mot de passe pour l'authentification basique |
+| `index` | string | Oui | Nom de l'index |
+| `documentId` | string | Oui | ID du document à mettre à jour |
+| `document` | string | Oui | Document partiel à fusionner sous forme de chaîne JSON |
+| `retryOnConflict` | number | Non | Nombre de tentatives en cas de conflit de version |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `_index` | string | Nom de l'index |
+| `_id` | string | ID du document |
+| `_version` | number | Nouvelle version du document |
+| `result` | string | Résultat de l'opération \(updated ou noop\) |
+
+### `elasticsearch_delete_document`
+
+Supprimer un document d'Elasticsearch par ID.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Oui | Type de déploiement : self_hosted ou cloud |
+| `host` | string | Non | URL de l'hôte Elasticsearch \(pour self-hosted\) |
+| `cloudId` | string | Non | ID Elastic Cloud \(pour les déploiements cloud\) |
+| `authMethod` | string | Oui | Méthode d'authentification : api_key ou basic_auth |
+| `apiKey` | string | Non | Clé API Elasticsearch |
+| `username` | string | Non | Nom d'utilisateur pour l'authentification basique |
+| `password` | string | Non | Mot de passe pour l'authentification basique |
+| `index` | string | Oui | Nom de l'index |
+| `documentId` | string | Oui | ID du document à supprimer |
+| `refresh` | string | Non | Politique de rafraîchissement : true, false, ou wait_for |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `_index` | string | Nom de l'index |
+| `_id` | string | ID du document |
+| `_version` | number | Version du document |
+| `result` | string | Résultat de l'opération \(deleted ou not_found\) |
+
+### `elasticsearch_bulk`
+
+Effectuer plusieurs opérations d'indexation, de création, de suppression ou de mise à jour en une seule requête pour une performance élevée.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Oui | Type de déploiement : self_hosted ou cloud |
+| `host` | string | Non | URL de l'hôte Elasticsearch \(pour self-hosted\) |
+| `cloudId` | string | Non | ID Elastic Cloud \(pour les déploiements cloud\) |
+| `authMethod` | string | Oui | Méthode d'authentification : api_key ou basic_auth |
+| `apiKey` | string | Non | Clé API Elasticsearch |
+| `username` | string | Non | Nom d'utilisateur pour l'authentification basique |
+| `password` | string | Non | Mot de passe pour l'authentification basique |
+| `index` | string | Non | Index par défaut pour les opérations qui n'en spécifient pas |
+| `operations` | string | Oui | Opérations en masse sous forme de chaîne NDJSON \(JSON délimité par des sauts de ligne\) |
+| `refresh` | string | Non | Politique de rafraîchissement : true, false, ou wait_for |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `took` | number | Temps en millisecondes pris par l'opération en masse |
+| `errors` | boolean | Indique si une opération a rencontré une erreur |
+| `items` | array | Résultats pour chaque opération |
+
+### `elasticsearch_count`
+
+Compter les documents correspondant à une requête dans Elasticsearch.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Oui | Type de déploiement : self_hosted ou cloud |
+| `host` | string | Non | URL de l'hôte Elasticsearch \(pour self-hosted\) |
+| `cloudId` | string | Non | ID Elastic Cloud \(pour les déploiements cloud\) |
+| `authMethod` | string | Oui | Méthode d'authentification : api_key ou basic_auth |
+| `apiKey` | string | Non | Clé API Elasticsearch |
+| `username` | string | Non | Nom d'utilisateur pour l'authentification basique |
+| `password` | string | Non | Mot de passe pour l'authentification basique |
+| `index` | string | Oui | Nom de l'index dans lequel compter les documents |
+| `query` | string | Non | Requête optionnelle pour filtrer les documents \(chaîne JSON\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Nombre de documents correspondant à la requête |
+| `_shards` | object | Statistiques des partitions |
+
+### `elasticsearch_create_index`
+
+Créer un nouvel index avec des paramètres et des mappages optionnels.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Oui | Type de déploiement : self_hosted ou cloud |
+| `host` | string | Non | URL de l'hôte Elasticsearch \(pour self-hosted\) |
+| `cloudId` | string | Non | ID Elastic Cloud \(pour les déploiements cloud\) |
+| `authMethod` | string | Oui | Méthode d'authentification : api_key ou basic_auth |
+| `apiKey` | string | Non | Clé API Elasticsearch |
+| `username` | string | Non | Nom d'utilisateur pour l'authentification basique |
+| `password` | string | Non | Mot de passe pour l'authentification basique |
+| `index` | string | Oui | Nom de l'index à créer |
+| `settings` | string | Non | Paramètres de l'index sous forme de chaîne JSON |
+| `mappings` | string | Non | Mappages de l'index sous forme de chaîne JSON |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `acknowledged` | boolean | Indique si la requête a été confirmée |
+| `shards_acknowledged` | boolean | Indique si les shards ont été confirmés |
+| `index` | string | Nom de l'index créé |
+
+### `elasticsearch_delete_index`
+
+Supprimer un index et tous ses documents. Cette opération est irréversible.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Oui | Type de déploiement : self_hosted ou cloud |
+| `host` | string | Non | URL de l'hôte Elasticsearch \(pour self-hosted\) |
+| `cloudId` | string | Non | ID Elastic Cloud \(pour les déploiements cloud\) |
+| `authMethod` | string | Oui | Méthode d'authentification : api_key ou basic_auth |
+| `apiKey` | string | Non | Clé API Elasticsearch |
+| `username` | string | Non | Nom d'utilisateur pour l'authentification basique |
+| `password` | string | Non | Mot de passe pour l'authentification basique |
+| `index` | string | Oui | Nom de l'index à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `acknowledged` | boolean | Indique si la suppression a été confirmée |
+
+### `elasticsearch_get_index`
+
+Récupérer les informations d'un index, y compris les paramètres, les mappings et les alias.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Oui | Type de déploiement : self_hosted ou cloud |
+| `host` | string | Non | URL de l'hôte Elasticsearch \(pour self-hosted\) |
+| `cloudId` | string | Non | ID Elastic Cloud \(pour les déploiements cloud\) |
+| `authMethod` | string | Oui | Méthode d'authentification : api_key ou basic_auth |
+| `apiKey` | string | Non | Clé API Elasticsearch |
+| `username` | string | Non | Nom d'utilisateur pour l'authentification basique |
+| `password` | string | Non | Mot de passe pour l'authentification basique |
+| `index` | string | Oui | Nom de l'index dont on souhaite récupérer les informations |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `index` | json | Informations d'index incluant les alias, les mappages et les paramètres |
+
+### `elasticsearch_cluster_health`
+
+Obtenir l'état de santé du cluster Elasticsearch.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Oui | Type de déploiement : self_hosted ou cloud |
+| `host` | string | Non | URL de l'hôte Elasticsearch \(pour self-hosted\) |
+| `cloudId` | string | Non | ID Elastic Cloud \(pour les déploiements cloud\) |
+| `authMethod` | string | Oui | Méthode d'authentification : api_key ou basic_auth |
+| `apiKey` | string | Non | Clé API Elasticsearch |
+| `username` | string | Non | Nom d'utilisateur pour l'authentification basique |
+| `password` | string | Non | Mot de passe pour l'authentification basique |
+| `waitForStatus` | string | Non | Attendre jusqu'à ce que le cluster atteigne ce statut : green, yellow ou red |
+| `timeout` | string | Non | Délai d'attente pour l'opération d'attente \(ex. 30s, 1m\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `cluster_name` | string | Nom du cluster |
+| `status` | string | État de santé du cluster : green, yellow ou red |
+| `number_of_nodes` | number | Nombre total de nœuds dans le cluster |
+| `number_of_data_nodes` | number | Nombre de nœuds de données |
+| `active_shards` | number | Nombre de shards actifs |
+| `unassigned_shards` | number | Nombre de shards non assignés |
+
+### `elasticsearch_cluster_stats`
+
+Obtenez des statistiques complètes sur le cluster Elasticsearch.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `deploymentType` | chaîne | Oui | Type de déploiement : self_hosted ou cloud |
+| `host` | chaîne | Non | URL de l'hôte Elasticsearch (pour self-hosted) |
+| `cloudId` | chaîne | Non | ID Elastic Cloud (pour les déploiements cloud) |
+| `authMethod` | chaîne | Oui | Méthode d'authentification : api_key ou basic_auth |
+| `apiKey` | chaîne | Non | Clé API Elasticsearch |
+| `username` | chaîne | Non | Nom d'utilisateur pour l'authentification de base |
+| `password` | chaîne | Non | Mot de passe pour l'authentification de base |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `cluster_name` | chaîne | Nom du cluster |
+| `status` | chaîne | État de santé du cluster |
+| `nodes` | objet | Statistiques des nœuds incluant le nombre et les versions |
+| `indices` | objet | Statistiques des index incluant le nombre de documents et la taille de stockage |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `elasticsearch`

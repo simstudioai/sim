@@ -109,11 +109,14 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `subdomain` | string | 是 | 您的 Zendesk 子域名 |
 | `subject` | string | 否 | 工单主题（可选 - 如果未提供，将自动生成） |
 | `description` | string | 是 | 工单描述（第一条评论） |
-| `priority` | string | 否 | 优先级（低、普通、高、紧急） |
+| `priority` | string | 否 | 优先级（低、正常、高、紧急） |
 | `status` | string | 否 | 状态（新建、打开、待处理、挂起、已解决、已关闭） |
 | `type` | string | 否 | 类型（问题、事件、问题、任务） |
 | `tags` | string | 否 | 逗号分隔的标签 |
 | `assigneeId` | string | 否 | 分配的用户 ID |
+| `groupId` | string | 否 | 组 ID |
+| `requesterId` | string | 否 | 请求者用户 ID |
+| `customFields` | string | 否 | 自定义字段作为 JSON 对象（例如：\{"field_id": "value"\}） |
 
 #### 输出
 

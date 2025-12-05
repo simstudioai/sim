@@ -501,14 +501,14 @@ export function SearchModal({
           </VisuallyHidden.Root>
 
           {/* Search input container */}
-          <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-5)] px-[12px] py-[8px] shadow-sm dark:border-[var(--border)] dark:bg-[var(--surface-5)]'>
-            <Search className='h-[15px] w-[15px] flex-shrink-0 text-[var(--text-subtle)] dark:text-[var(--text-subtle)]' />
+          <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-5)] px-[12px] py-[8px] shadow-sm'>
+            <Search className='h-[15px] w-[15px] flex-shrink-0 text-[var(--text-subtle)]' />
             <input
               type='text'
               placeholder='Search anything...'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className='w-full border-0 bg-transparent font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-secondary)]'
+              className='w-full border-0 bg-transparent font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none'
               autoFocus
             />
           </div>
@@ -523,7 +523,7 @@ export function SearchModal({
                 return (
                   <div key={type} className='mb-[10px] last:mb-0'>
                     {/* Section header */}
-                    <div className='pt-[2px] pb-[4px] font-medium text-[13px] text-[var(--text-subtle)] uppercase tracking-wide dark:text-[var(--text-subtle)]'>
+                    <div className='pt-[2px] pb-[4px] font-medium text-[13px] text-[var(--text-subtle)] uppercase tracking-wide'>
                       {sectionTitles[type]}
                     </div>
 
@@ -545,10 +545,10 @@ export function SearchModal({
                             onClick={() => handleItemClick(item)}
                             onMouseDown={(e) => e.preventDefault()}
                             className={cn(
-                              'group flex h-[28px] w-full items-center gap-[8px] rounded-[6px] bg-[var(--surface-4)]/60 px-[10px] text-left text-[15px] transition-all focus:outline-none dark:bg-[var(--surface-4)]/60',
+                              'group flex h-[28px] w-full items-center gap-[8px] rounded-[6px] bg-[var(--surface-4)]/60 px-[10px] text-left text-[15px] transition-all focus:outline-none',
                               isSelected
-                                ? 'bg-[var(--border)] shadow-sm dark:bg-[var(--border)]'
-                                : 'hover:bg-[var(--border)] dark:hover:bg-[var(--border)]'
+                                ? 'bg-[var(--border)] shadow-sm'
+                                : 'hover:bg-[var(--border)]'
                             )}
                           >
                             {/* Icon - different rendering for workflows vs others */}
@@ -564,9 +564,7 @@ export function SearchModal({
                                     <div
                                       className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
                                       style={{
-                                        backgroundColor: showColoredIcon
-                                          ? item.bgColor
-                                          : 'transparent',
+                                        background: showColoredIcon ? item.bgColor : 'transparent',
                                       }}
                                     >
                                       <Icon
@@ -574,7 +572,7 @@ export function SearchModal({
                                           'transition-transform duration-100 group-hover:scale-110',
                                           showColoredIcon
                                             ? '!h-[10px] !w-[10px] text-white'
-                                            : 'h-[14px] w-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
+                                            : 'h-[14px] w-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
                                         )}
                                       />
                                     </div>
@@ -588,8 +586,8 @@ export function SearchModal({
                               className={cn(
                                 'truncate font-medium',
                                 isSelected
-                                  ? 'text-[var(--text-primary)] dark:text-[var(--text-primary)]'
-                                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
+                                  ? 'text-[var(--text-primary)]'
+                                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
                               )}
                             >
                               {item.name}
@@ -598,7 +596,7 @@ export function SearchModal({
 
                             {/* Shortcut */}
                             {item.shortcut && (
-                              <span className='ml-auto flex-shrink-0 font-medium text-[13px] text-[var(--text-subtle)] dark:text-[var(--text-subtle)]'>
+                              <span className='ml-auto flex-shrink-0 font-medium text-[13px] text-[var(--text-subtle)]'>
                                 {item.shortcut}
                               </span>
                             )}
@@ -611,8 +609,8 @@ export function SearchModal({
               })}
             </div>
           ) : searchQuery ? (
-            <div className='flex items-center justify-center rounded-[10px] bg-[var(--surface-5)] px-[16px] py-[24px] shadow-sm dark:bg-[var(--surface-5)]'>
-              <p className='text-[15px] text-[var(--text-subtle)] dark:text-[var(--text-subtle)]'>
+            <div className='flex items-center justify-center rounded-[10px] bg-[var(--surface-5)] px-[16px] py-[24px] shadow-sm'>
+              <p className='text-[15px] text-[var(--text-subtle)]'>
                 No results found for "{searchQuery}"
               </p>
             </div>

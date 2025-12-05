@@ -2,15 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  Button,
-  Modal,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTitle,
-} from '@/components/emcn'
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client/utils'
 import { cn } from '@/lib/core/utils/cn'
@@ -211,11 +203,11 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
     <>
       <div className='flex items-center justify-between'>
         <div>
-          <span className='font-medium text-sm'>
+          <span className='font-medium text-[13px]'>
             {isCancelAtPeriodEnd ? 'Restore Subscription' : 'Manage Subscription'}
           </span>
           {isCancelAtPeriodEnd && (
-            <p className='mt-1 text-muted-foreground text-xs'>
+            <p className='mt-1 text-[var(--text-muted)] text-xs'>
               You'll keep access until {formatDate(periodEndDate)}
             </p>
           )}
@@ -226,7 +218,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
           disabled={isLoading}
           className={cn(
             'h-8 rounded-[8px] font-medium text-xs',
-            error && 'border-red-500 text-red-500 dark:border-red-500 dark:text-red-500'
+            error && 'border-[var(--text-error)] text-[var(--text-error)]'
           )}
         >
           {error ? 'Error' : isCancelAtPeriodEnd ? 'Restore' : 'Manage'}
@@ -234,42 +226,38 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
       </div>
 
       <Modal open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <ModalContent>
+        <ModalContent className='w-[400px]'>
           <ModalHeader>
-            <ModalTitle>
-              {isCancelAtPeriodEnd ? 'Restore' : 'Cancel'} {subscription.plan} subscription?
-            </ModalTitle>
-            <ModalDescription>
+            {isCancelAtPeriodEnd ? 'Restore' : 'Cancel'} {subscription.plan} Subscription
+          </ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               {isCancelAtPeriodEnd
                 ? 'Your subscription is set to cancel at the end of the billing period. Would you like to keep your subscription active?'
                 : `You'll be redirected to Stripe to manage your subscription. You'll keep access until ${formatDate(
                     periodEndDate
                   )}, then downgrade to free plan.`}{' '}
               {!isCancelAtPeriodEnd && (
-                <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                  This action cannot be undone.
-                </span>
+                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
               )}
-            </ModalDescription>
-          </ModalHeader>
+            </p>
 
-          {!isCancelAtPeriodEnd && (
-            <div className='py-2'>
-              <div className='rounded-[8px] bg-muted/50 p-3 text-sm'>
-                <ul className='space-y-1 text-muted-foreground text-xs'>
-                  <li>• Keep all features until {formatDate(periodEndDate)}</li>
-                  <li>• No more charges</li>
-                  <li>• Data preserved</li>
-                  <li>• Can reactivate anytime</li>
-                </ul>
+            {!isCancelAtPeriodEnd && (
+              <div className='mt-3'>
+                <div className='rounded-[8px] bg-[var(--surface-3)] p-3 text-sm'>
+                  <ul className='space-y-1 text-[var(--text-muted)] text-xs'>
+                    <li>• Keep all features until {formatDate(periodEndDate)}</li>
+                    <li>• No more charges</li>
+                    <li>• Data preserved</li>
+                    <li>• Can reactivate anytime</li>
+                  </ul>
+                </div>
               </div>
-            </div>
-          )}
-
+            )}
+          </ModalBody>
           <ModalFooter>
             <Button
-              variant='outline'
-              className='h-[32px] px-[12px]'
+              variant='active'
               onClick={isCancelAtPeriodEnd ? () => setIsDialogOpen(false) : handleKeep}
               disabled={isLoading}
             >

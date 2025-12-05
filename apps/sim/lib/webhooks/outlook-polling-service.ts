@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { account, webhook } from '@sim/db/schema'
+import { account, webhook, workflow } from '@sim/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { htmlToText } from 'html-to-text'
 import { nanoid } from 'nanoid'
@@ -66,7 +66,6 @@ interface OutlookWebhookConfig {
   markAsRead?: boolean
   maxEmailsPerPoll?: number
   lastCheckedTimestamp?: string
-  pollingInterval?: number
   includeAttachments?: boolean
   includeRawEmail?: boolean
 }
@@ -126,15 +125,14 @@ export interface SimplifiedOutlookEmail {
   attachments: OutlookAttachment[]
   isRead: boolean
   folderId: string
-  // Thread support fields
-  messageId: string // Same as id, but explicit for threading
-  threadId: string // Same as conversationId, but explicit for threading
+  messageId: string
+  threadId: string
 }
 
 export interface OutlookWebhookPayload {
   email: SimplifiedOutlookEmail
   timestamp: string
-  rawEmail?: OutlookEmail // Only included when includeRawEmail is true
+  rawEmail?: OutlookEmail
 }
 
 /**
@@ -159,11 +157,19 @@ export async function pollOutlookWebhooks() {
   logger.info('Starting Outlook webhook polling')
 
   try {
-    // Get all active Outlook webhooks
-    const activeWebhooks = await db
-      .select()
+    const activeWebhooksResult = await db
+      .select({ webhook })
       .from(webhook)
-      .where(and(eq(webhook.provider, 'outlook'), eq(webhook.isActive, true)))
+      .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+      .where(
+        and(
+          eq(webhook.provider, 'outlook'),
+          eq(webhook.isActive, true),
+          eq(workflow.isDeployed, true)
+        )
+      )
+
+    const activeWebhooks = activeWebhooksResult.map((r) => r.webhook)
 
     if (!activeWebhooks.length) {
       logger.info('No active Outlook webhooks found')
@@ -172,7 +178,6 @@ export async function pollOutlookWebhooks() {
 
     logger.info(`Found ${activeWebhooks.length} active Outlook webhooks`)
 
-    // Limit concurrency to avoid exhausting connections
     const CONCURRENCY = 10
     const running: Promise<void>[] = []
     let successCount = 0
@@ -185,7 +190,6 @@ export async function pollOutlookWebhooks() {
       try {
         logger.info(`[${requestId}] Processing Outlook webhook: ${webhookId}`)
 
-        // Extract metadata
         const metadata = webhookData.providerConfig as any
         const credentialId: string | undefined = metadata?.credentialId
         const userId: string | undefined = metadata?.userId
@@ -197,7 +201,6 @@ export async function pollOutlookWebhooks() {
           return
         }
 
-        // Resolve access token
         let accessToken: string | null = null
         if (credentialId) {
           const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
@@ -212,7 +215,6 @@ export async function pollOutlookWebhooks() {
           const ownerUserId = rows[0].userId
           accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
         } else if (userId) {
-          // Backward-compat fallback to workflow owner token
           accessToken = await getOAuthToken(userId, 'outlook')
         }
 
@@ -225,17 +227,14 @@ export async function pollOutlookWebhooks() {
           return
         }
 
-        // Get webhook configuration
         const config = webhookData.providerConfig as unknown as OutlookWebhookConfig
 
         const now = new Date()
 
-        // Fetch new emails
         const fetchResult = await fetchNewOutlookEmails(accessToken, config, requestId)
         const { emails } = fetchResult
 
         if (!emails || !emails.length) {
-          // Update last checked timestamp
           await updateWebhookLastChecked(webhookId, now.toISOString())
           await markWebhookSuccess(webhookId)
           logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
@@ -247,7 +246,6 @@ export async function pollOutlookWebhooks() {
 
         logger.info(`[${requestId}] Processing ${emails.length} emails for webhook ${webhookId}`)
 
-        // Process emails
         const { processedCount, failedCount } = await processOutlookEmails(
           emails,
           webhookData,
@@ -256,19 +254,15 @@ export async function pollOutlookWebhooks() {
           requestId
         )
 
-        // Update webhook with latest timestamp
         await updateWebhookLastChecked(webhookId, now.toISOString())
 
-        // If all emails failed, mark webhook as failed. Otherwise mark as success.
         if (failedCount > 0 && processedCount === 0) {
-          // All emails failed to process - mark webhook as failed
           await markWebhookFailed(webhookId)
           failureCount++
           logger.warn(
             `[${requestId}] All ${failedCount} emails failed to process for webhook ${webhookId}`
           )
         } else {
-          // At least some emails processed successfully
           await markWebhookSuccess(webhookId)
           successCount++
           logger.info(
@@ -276,7 +270,6 @@ export async function pollOutlookWebhooks() {
           )
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         logger.error(`[${requestId}] Error processing Outlook webhook ${webhookId}:`, error)
         await markWebhookFailed(webhookId)
         failureCount++
@@ -285,9 +278,7 @@ export async function pollOutlookWebhooks() {
 
     for (const webhookData of activeWebhooks) {
       const promise = enqueue(webhookData)
-        .then(() => {
-          // Result processed, memory released
-        })
+        .then(() => {})
         .catch((err) => {
           logger.error('Unexpected error in webhook processing:', err)
           failureCount++
@@ -301,7 +292,6 @@ export async function pollOutlookWebhooks() {
       }
     }
 
-    // Wait for remaining webhooks to complete
     await Promise.allSettled(running)
 
     logger.info(`Outlook polling completed: ${successCount} successful, ${failureCount} failed`)
@@ -310,7 +300,7 @@ export async function pollOutlookWebhooks() {
       total: activeWebhooks.length,
       successful: successCount,
       failed: failureCount,
-      details: [], // Don't store details to save memory
+      details: [],
     }
   } catch (error) {
     logger.error('Error during Outlook webhook polling:', error)
@@ -324,27 +314,21 @@ async function fetchNewOutlookEmails(
   requestId: string
 ) {
   try {
-    // Build the Microsoft Graph API URL
     const apiUrl = 'https://graph.microsoft.com/v1.0/me/messages'
     const params = new URLSearchParams()
 
-    // Add select parameters to get the fields we need
     params.append(
       '$select',
       'id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,isRead,parentFolderId'
     )
 
-    // Add ordering (newest first)
     params.append('$orderby', 'receivedDateTime desc')
 
-    // Limit results
     params.append('$top', (config.maxEmailsPerPoll || 25).toString())
 
-    // Add time filter if we have a last checked timestamp
     if (config.lastCheckedTimestamp) {
       const lastChecked = new Date(config.lastCheckedTimestamp)
-      // Add a small buffer to avoid missing emails due to clock differences
-      const bufferTime = new Date(lastChecked.getTime() - 60000) // 1 minute buffer
+      const bufferTime = new Date(lastChecked.getTime() - 60000)
       params.append('$filter', `receivedDateTime gt ${bufferTime.toISOString()}`)
     }
 
@@ -366,13 +350,14 @@ async function fetchNewOutlookEmails(
         statusText: response.statusText,
         error: errorData,
       })
-      return { emails: [] }
+      throw new Error(
+        `Microsoft Graph API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
+      )
     }
 
     const data = await response.json()
     const emails = data.value || []
 
-    // Filter by folder if configured
     const filteredEmails = filterEmailsByFolder(emails, config)
 
     logger.info(
@@ -383,7 +368,7 @@ async function fetchNewOutlookEmails(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     logger.error(`[${requestId}] Error fetching new Outlook emails:`, errorMessage)
-    return { emails: [] }
+    throw error
   }
 }
 
@@ -401,9 +386,7 @@ function filterEmailsByFolder(
       emailFolderId.toLowerCase().includes(configFolder.toLowerCase())
     )
 
-    return config.folderFilterBehavior === 'INCLUDE'
-      ? hasMatchingFolder // Include emails from matching folders
-      : !hasMatchingFolder // Exclude emails from matching folders
+    return config.folderFilterBehavior === 'INCLUDE' ? hasMatchingFolder : !hasMatchingFolder
   })
 }
 
@@ -419,7 +402,7 @@ async function processOutlookEmails(
 
   for (const email of emails) {
     try {
-      const result = await pollingIdempotency.executeWithIdempotency(
+      await pollingIdempotency.executeWithIdempotency(
         'outlook',
         `${webhookData.id}:${email.id}`,
         async () => {
@@ -435,7 +418,6 @@ async function processOutlookEmails(
             }
           }
 
-          // Convert to simplified format
           const simplifiedEmail: SimplifiedOutlookEmail = {
             id: email.id,
             conversationId: email.conversationId,
@@ -460,18 +442,15 @@ async function processOutlookEmails(
             attachments,
             isRead: email.isRead,
             folderId: email.parentFolderId,
-            // Thread support fields
             messageId: email.id,
             threadId: email.conversationId,
           }
 
-          // Create webhook payload
           const payload: OutlookWebhookPayload = {
             email: simplifiedEmail,
             timestamp: new Date().toISOString(),
           }
 
-          // Include raw email if configured
           if (config.includeRawEmail) {
             payload.rawEmail = email
           }
@@ -480,7 +459,6 @@ async function processOutlookEmails(
             `[${requestId}] Processing email: ${email.subject} from ${email.from?.emailAddress?.address}`
           )
 
-          // Trigger the webhook
           const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
 
           const response = await fetch(webhookUrl, {
@@ -503,7 +481,6 @@ async function processOutlookEmails(
             throw new Error(`Webhook request failed: ${response.status} - ${errorText}`)
           }
 
-          // Mark email as read if configured
           if (config.markAsRead) {
             await markOutlookEmailAsRead(accessToken, email.id)
           }
@@ -537,7 +514,6 @@ async function downloadOutlookAttachments(
   const attachments: OutlookAttachment[] = []
 
   try {
-    // Fetch attachments list from Microsoft Graph API
     const response = await fetch(
       `https://graph.microsoft.com/v1.0/me/messages/${messageId}/attachments`,
       {
@@ -558,11 +534,9 @@ async function downloadOutlookAttachments(
 
     for (const attachment of attachmentsList) {
       try {
-        // Microsoft Graph returns attachment data directly in the list response for file attachments
         if (attachment['@odata.type'] === '#microsoft.graph.fileAttachment') {
           const contentBytes = attachment.contentBytes
           if (contentBytes) {
-            // contentBytes is base64 encoded
             const buffer = Buffer.from(contentBytes, 'base64')
             attachments.push({
               name: attachment.name,
@@ -577,7 +551,6 @@ async function downloadOutlookAttachments(
           `[${requestId}] Error processing attachment ${attachment.id} for message ${messageId}:`,
           error
         )
-        // Continue with other attachments
       }
     }
 
@@ -618,7 +591,6 @@ async function markOutlookEmailAsRead(accessToken: string, messageId: string) {
 
 async function updateWebhookLastChecked(webhookId: string, timestamp: string) {
   try {
-    // Get current config first
     const currentWebhook = await db
       .select({ providerConfig: webhook.providerConfig })
       .from(webhook)
@@ -632,7 +604,7 @@ async function updateWebhookLastChecked(webhookId: string, timestamp: string) {
 
     const currentConfig = (currentWebhook[0].providerConfig as any) || {}
     const updatedConfig = {
-      ...currentConfig, // Preserve ALL existing config including userId
+      ...currentConfig,
       lastCheckedTimestamp: timestamp,
     }
 

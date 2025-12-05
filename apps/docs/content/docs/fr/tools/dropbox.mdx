@@ -1,0 +1,219 @@
+---
+title: Dropbox
+description: Téléchargez, téléchargez, partagez et gérez des fichiers dans Dropbox
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dropbox"
+  color="#0061FF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Dropbox](https://dropbox.com/) est une plateforme populaire de stockage cloud et de collaboration qui permet aux individus et aux équipes de stocker, d'accéder et de partager des fichiers en toute sécurité depuis n'importe où. Dropbox est conçu pour une gestion de fichiers facile, la synchronisation et une collaboration puissante, que vous travailliez seul ou en groupe.
+
+Avec Dropbox dans Sim, vous pouvez :
+
+- **Télécharger et télécharger des fichiers** : téléchargez facilement n'importe quel fichier vers votre Dropbox ou récupérez du contenu à la demande
+- **Lister le contenu des dossiers** : parcourez les fichiers et dossiers dans n'importe quel répertoire Dropbox
+- **Créer de nouveaux dossiers** : organisez vos fichiers en créant programmatiquement de nouveaux dossiers dans votre Dropbox
+- **Rechercher des fichiers et dossiers** : localisez des documents, des images ou d'autres éléments par nom ou contenu
+- **Générer des liens partagés** : créez rapidement des liens publics ou privés partageables pour des fichiers et dossiers
+- **Gérer des fichiers** : déplacez, supprimez ou renommez des fichiers et dossiers dans le cadre de flux de travail automatisés
+
+Ces capacités permettent à vos agents Sim d'automatiser les opérations Dropbox directement dans vos flux de travail — de la sauvegarde de fichiers importants à la distribution de contenu et à la maintenance de dossiers organisés. Utilisez Dropbox comme source et destination pour les fichiers, permettant une gestion transparente du stockage cloud dans le cadre de vos processus d'entreprise.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Dropbox dans votre flux de travail pour la gestion de fichiers, le partage et la collaboration. Téléchargez des fichiers, téléchargez du contenu, créez des dossiers, gérez des liens partagés, et plus encore.
+
+## Outils
+
+### `dropbox_upload`
+
+Télécharger un fichier vers Dropbox
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Oui | Le chemin dans Dropbox où le fichier doit être enregistré \(ex. : /dossier/document.pdf\) |
+| `fileContent` | string | Oui | Le contenu encodé en base64 du fichier à télécharger |
+| `fileName` | string | Non | Nom de fichier optionnel \(utilisé si le chemin est un dossier\) |
+| `mode` | string | Non | Mode d'écriture : add \(par défaut\) ou overwrite |
+| `autorename` | boolean | Non | Si vrai, renomme le fichier en cas de conflit |
+| `mute` | boolean | Non | Si vrai, ne notifie pas l'utilisateur de ce téléchargement |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | objet | Les métadonnées du fichier téléversé |
+
+### `dropbox_download`
+
+Télécharger un fichier depuis Dropbox et obtenir un lien temporaire
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | chaîne | Oui | Le chemin du fichier à télécharger \(ex. : /dossier/document.pdf\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | objet | Les métadonnées du fichier |
+
+### `dropbox_list_folder`
+
+Lister le contenu d'un dossier dans Dropbox
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | chaîne | Oui | Le chemin du dossier à lister \(utilisez "" pour la racine\) |
+| `recursive` | booléen | Non | Si vrai, liste le contenu de façon récursive |
+| `includeDeleted` | booléen | Non | Si vrai, inclut les fichiers/dossiers supprimés |
+| `includeMediaInfo` | booléen | Non | Si vrai, inclut les informations média pour les photos/vidéos |
+| `limit` | nombre | Non | Nombre maximum de résultats à retourner \(par défaut : 500\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `entries` | tableau | Liste des fichiers et dossiers dans le répertoire |
+
+### `dropbox_create_folder`
+
+Créer un nouveau dossier dans Dropbox
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | chaîne | Oui | Le chemin où le dossier doit être créé \(ex. : /nouveau-dossier\) |
+| `autorename` | booléen | Non | Si vrai, renomme le dossier s'il y a un conflit |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | objet | Les métadonnées du dossier créé |
+
+### `dropbox_delete`
+
+Supprimer un fichier ou un dossier dans Dropbox (déplace vers la corbeille)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | chaîne | Oui | Le chemin du fichier ou du dossier à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | objet | Métadonnées de l'élément supprimé |
+
+### `dropbox_copy`
+
+Copier un fichier ou un dossier dans Dropbox
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `fromPath` | chaîne | Oui | Le chemin source du fichier ou du dossier à copier |
+| `toPath` | chaîne | Oui | Le chemin de destination pour le fichier ou dossier copié |
+| `autorename` | booléen | Non | Si vrai, renomme le fichier en cas de conflit à destination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | objet | Métadonnées de l'élément copié |
+
+### `dropbox_move`
+
+Déplacer ou renommer un fichier ou un dossier dans Dropbox
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `fromPath` | chaîne | Oui | Le chemin source du fichier ou du dossier à déplacer |
+| `toPath` | chaîne | Oui | Le chemin de destination pour le fichier ou dossier déplacé |
+| `autorename` | booléen | Non | Si vrai, renomme le fichier en cas de conflit à destination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | objet | Métadonnées de l'élément déplacé |
+
+### `dropbox_get_metadata`
+
+Obtenir les métadonnées d'un fichier ou d'un dossier dans Dropbox
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `path` | chaîne | Oui | Le chemin du fichier ou du dossier dont on souhaite obtenir les métadonnées |
+| `includeMediaInfo` | booléen | Non | Si vrai, inclure les informations média pour les photos/vidéos |
+| `includeDeleted` | booléen | Non | Si vrai, inclure les fichiers supprimés dans les résultats |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | objet | Métadonnées du fichier ou du dossier |
+
+### `dropbox_create_shared_link`
+
+Créer un lien partageable pour un fichier ou un dossier dans Dropbox
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `path` | chaîne | Oui | Le chemin du fichier ou du dossier à partager |
+| `requestedVisibility` | chaîne | Non | Visibilité : public, team_only, ou password |
+| `linkPassword` | chaîne | Non | Mot de passe pour le lien partagé \(uniquement si la visibilité est password\) |
+| `expires` | chaîne | Non | Date d'expiration au format ISO 8601 \(ex., 2025-12-31T23:59:59Z\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `sharedLink` | objet | Le lien partagé créé |
+
+### `dropbox_search`
+
+Rechercher des fichiers et dossiers dans Dropbox
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `query` | string | Oui | La requête de recherche |
+| `path` | string | Non | Limiter la recherche à un chemin de dossier spécifique |
+| `fileExtensions` | string | Non | Liste d'extensions de fichiers séparées par des virgules pour filtrer \(ex. pdf,xlsx\) |
+| `maxResults` | number | Non | Nombre maximum de résultats à retourner \(par défaut : 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | array | Résultats de recherche |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `dropbox`

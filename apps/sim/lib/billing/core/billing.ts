@@ -145,7 +145,7 @@ export async function calculateSubscriptionOverage(sub: {
 
     const totalUsageWithDeparted = totalTeamUsage + departedUsage
     const { basePrice } = getPlanPricing(sub.plan)
-    const baseSubscriptionAmount = (sub.seats || 1) * basePrice
+    const baseSubscriptionAmount = (sub.seats ?? 0) * basePrice
     totalOverage = Math.max(0, totalUsageWithDeparted - baseSubscriptionAmount)
 
     logger.info('Calculated team overage', {
@@ -288,7 +288,7 @@ export async function getSimplifiedBillingSummary(
 
       const { basePrice: basePricePerSeat } = getPlanPricing(subscription.plan)
       // Use licensed seats from Stripe as source of truth
-      const licensedSeats = subscription.seats || 1
+      const licensedSeats = subscription.seats ?? 0
       const totalBasePrice = basePricePerSeat * licensedSeats // Based on Stripe subscription
 
       let totalCurrentUsage = 0

@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
@@ -17,9 +19,6 @@ export const generalSettingsKeys = {
  */
 export interface GeneralSettings {
   autoConnect: boolean
-  autoPan: boolean
-  consoleExpandedByDefault: boolean
-  showFloatingControls: boolean
   showTrainingControls: boolean
   superUserModeEnabled: boolean
   theme: 'light' | 'dark' | 'system'
@@ -42,12 +41,11 @@ async function fetchGeneralSettings(): Promise<GeneralSettings> {
 
   return {
     autoConnect: data.autoConnect ?? true,
-    autoPan: data.autoPan ?? true,
-    consoleExpandedByDefault: data.consoleExpandedByDefault ?? true,
-    showFloatingControls: data.showFloatingControls ?? true,
     showTrainingControls: data.showTrainingControls ?? false,
     superUserModeEnabled: data.superUserModeEnabled ?? true,
-    theme: data.theme || 'system',
+    // theme: data.theme || 'system',
+    // Force dark mode - light mode is temporarily disabled (TODO: Remove this)
+    theme: 'dark' as const,
     telemetryEnabled: data.telemetryEnabled ?? true,
     billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
     errorNotificationsEnabled: data.errorNotificationsEnabled ?? true,
@@ -55,17 +53,15 @@ async function fetchGeneralSettings(): Promise<GeneralSettings> {
 }
 
 /**
- * Sync React Query cache to Zustand store
- * This ensures the rest of the app (which uses Zustand) stays in sync
+ * Sync React Query cache to Zustand store and next-themes.
+ * This ensures the rest of the app (which uses Zustand) stays in sync.
+ * @param settings - The general settings to sync
  */
 function syncSettingsToZustand(settings: GeneralSettings) {
   const { setSettings } = useGeneralStore.getState()
 
   setSettings({
     isAutoConnectEnabled: settings.autoConnect,
-    isAutoPanEnabled: settings.autoPan,
-    isConsoleExpandedByDefault: settings.consoleExpandedByDefault,
-    showFloatingControls: settings.showFloatingControls,
     showTrainingControls: settings.showTrainingControls,
     superUserModeEnabled: settings.superUserModeEnabled,
     theme: settings.theme,
@@ -73,24 +69,27 @@ function syncSettingsToZustand(settings: GeneralSettings) {
     isBillingUsageNotificationsEnabled: settings.billingUsageNotificationsEnabled,
     isErrorNotificationsEnabled: settings.errorNotificationsEnabled,
   })
+
+  syncThemeToNextThemes(settings.theme)
 }
 
 /**
- * Hook to fetch general settings
- * Also syncs to Zustand store to keep the rest of the app in sync
+ * Hook to fetch general settings.
+ * Also syncs to Zustand store to keep the rest of the app in sync.
  */
 export function useGeneralSettings() {
   const query = useQuery({
     queryKey: generalSettingsKeys.settings(),
     queryFn: fetchGeneralSettings,
-    staleTime: 60 * 60 * 1000, // 1 hour - settings rarely change
-    placeholderData: keepPreviousData, // Show cached data immediately while refetching
+    staleTime: 60 * 60 * 1000,
+    placeholderData: keepPreviousData,
   })
 
-  // Sync to Zustand whenever React Query cache updates
-  if (query.data) {
-    syncSettingsToZustand(query.data)
-  }
+  useEffect(() => {
+    if (query.data) {
+      syncSettingsToZustand(query.data)
+    }
+  }, [query.data])
 
   return query
 }

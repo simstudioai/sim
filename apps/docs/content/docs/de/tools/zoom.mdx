@@ -1,0 +1,250 @@
+---
+title: Zoom
+description: Zoom-Meetings und -Aufzeichnungen erstellen und verwalten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zoom"
+  color="#2D8CFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Zoom](https://zoom.us/) ist eine führende cloudbasierte Kommunikationsplattform für Videomeetings, Webinare und Online-Zusammenarbeit. Sie ermöglicht Benutzern und Organisationen, Meetings einfach zu planen, zu hosten und zu verwalten und bietet Tools für Bildschirmfreigabe, Chat, Aufzeichnungen und mehr.
+
+Mit Zoom können Sie:
+
+- **Meetings planen und verwalten**: Sofortige oder geplante Meetings erstellen, einschließlich wiederkehrender Termine
+- **Meeting-Optionen konfigurieren**: Meeting-Passwörter festlegen, Warteräume aktivieren und Video/Audio der Teilnehmer steuern
+- **Einladungen versenden und Details teilen**: Meeting-Einladungen und Informationen zum einfachen Teilen abrufen
+- **Meeting-Daten abrufen und aktualisieren**: Auf Meeting-Details zugreifen, bestehende Meetings ändern und Einstellungen programmgesteuert verwalten
+
+In Sim ermöglicht die Zoom-Integration Ihren Agenten die Automatisierung der Planung und Meeting-Verwaltung. Verwenden Sie Tool-Aktionen, um:
+
+- Neue Meetings mit benutzerdefinierten Einstellungen programmgesteuert zu erstellen
+- Alle Meetings für einen bestimmten Benutzer (oder sich selbst) aufzulisten
+- Details oder Einladungen für jedes Meeting abzurufen
+- Bestehende Meetings direkt aus Ihren Automatisierungen zu aktualisieren oder zu löschen
+
+Diese Funktionen ermöglichen es Ihnen, die Remote-Zusammenarbeit zu optimieren, wiederkehrende Videositzungen zu automatisieren und die Zoom-Umgebung Ihrer Organisation als Teil Ihrer Workflows zu verwalten.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie Zoom in Workflows. Erstellen, listen, aktualisieren und löschen Sie Zoom-Meetings. Rufen Sie Meeting-Details, Einladungen, Aufzeichnungen und Teilnehmer ab. Verwalten Sie Cloud-Aufzeichnungen programmgesteuert.
+
+## Tools
+
+### `zoom_create_meeting`
+
+Ein neues Zoom-Meeting erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Ja | Die Benutzer-ID oder E-Mail-Adresse. Verwenden Sie "me" für den authentifizierten Benutzer. |
+| `topic` | string | Ja | Meeting-Thema |
+| `type` | number | Nein | Meeting-Typ: 1=sofort, 2=geplant, 3=wiederkehrend ohne feste Zeit, 8=wiederkehrend mit fester Zeit |
+| `startTime` | string | Nein | Meeting-Startzeit im ISO 8601-Format \(z.B. 2025-06-03T10:00:00Z\) |
+| `duration` | number | Nein | Meeting-Dauer in Minuten |
+| `timezone` | string | Nein | Zeitzone für das Meeting \(z.B. Europe/Berlin\) |
+| `password` | string | Nein | Meeting-Passwort |
+| `agenda` | string | Nein | Meeting-Agenda |
+| `hostVideo` | boolean | Nein | Mit eingeschaltetem Host-Video starten |
+| `participantVideo` | boolean | Nein | Mit eingeschaltetem Teilnehmer-Video starten |
+| `joinBeforeHost` | boolean | Nein | Teilnehmern erlauben, vor dem Host beizutreten |
+| `muteUponEntry` | boolean | Nein | Teilnehmer beim Betreten stummschalten |
+| `waitingRoom` | boolean | Nein | Warteraum aktivieren |
+| `autoRecording` | string | Nein | Automatische Aufzeichnungseinstellung: local, cloud oder none |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `meeting` | object | Das erstellte Meeting mit allen seinen Eigenschaften |
+
+### `zoom_list_meetings`
+
+Alle Meetings eines Zoom-Benutzers auflisten
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Ja | Die Benutzer-ID oder E-Mail-Adresse. Verwenden Sie "me" für den authentifizierten Benutzer. |
+| `type` | string | Nein | Meeting-Typ-Filter: scheduled, live, upcoming, upcoming_meetings oder previous_meetings |
+| `pageSize` | number | Nein | Anzahl der Datensätze pro Seite (max. 300) |
+| `nextPageToken` | string | Nein | Token für Paginierung, um die nächste Ergebnisseite zu erhalten |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `meetings` | array | Liste der Meetings |
+| `pageInfo` | object | Paginierungsinformationen |
+
+### `zoom_get_meeting`
+
+Details eines bestimmten Zoom-Meetings abrufen
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Ja | Die Meeting-ID |
+| `occurrenceId` | string | Nein | Vorkommnis-ID für wiederkehrende Meetings |
+| `showPreviousOccurrences` | boolean | Nein | Frühere Vorkommnisse für wiederkehrende Meetings anzeigen |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `meeting` | object | Die Meeting-Details |
+
+### `zoom_update_meeting`
+
+Ein bestehendes Zoom-Meeting aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Ja | Die zu aktualisierende Meeting-ID |
+| `topic` | string | Nein | Meeting-Thema |
+| `type` | number | Nein | Meeting-Typ: 1=sofort, 2=geplant, 3=wiederkehrend ohne feste Zeit, 8=wiederkehrend mit fester Zeit |
+| `startTime` | string | Nein | Meeting-Startzeit im ISO 8601-Format \(z.B. 2025-06-03T10:00:00Z\) |
+| `duration` | number | Nein | Meeting-Dauer in Minuten |
+| `timezone` | string | Nein | Zeitzone für das Meeting \(z.B. America/Los_Angeles\) |
+| `password` | string | Nein | Meeting-Passwort |
+| `agenda` | string | Nein | Meeting-Agenda |
+| `hostVideo` | boolean | Nein | Mit eingeschalteter Host-Kamera starten |
+| `participantVideo` | boolean | Nein | Mit eingeschalteter Teilnehmer-Kamera starten |
+| `joinBeforeHost` | boolean | Nein | Teilnehmern erlauben, vor dem Host beizutreten |
+| `muteUponEntry` | boolean | Nein | Teilnehmer beim Betreten stummschalten |
+| `waitingRoom` | boolean | Nein | Warteraum aktivieren |
+| `autoRecording` | string | Nein | Automatische Aufzeichnungseinstellung: local, cloud oder none |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Meeting erfolgreich aktualisiert wurde |
+
+### `zoom_delete_meeting`
+
+Ein Zoom-Meeting löschen oder abbrechen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Ja | Die zu löschende Meeting-ID |
+| `occurrenceId` | string | Nein | Vorkommnis-ID zum Löschen eines bestimmten Vorkommnisses eines wiederkehrenden Meetings |
+| `scheduleForReminder` | boolean | Nein | Erinnerungs-E-Mail zur Stornierung an Teilnehmer senden |
+| `cancelMeetingReminder` | boolean | Nein | Stornierungsmail an Teilnehmer und alternative Hosts senden |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Meeting erfolgreich gelöscht wurde |
+
+### `zoom_get_meeting_invitation`
+
+Abrufen des Einladungstextes für ein Zoom-Meeting
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Ja | Die Meeting-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `invitation` | string | Der Einladungstext für das Meeting |
+
+### `zoom_list_recordings`
+
+Alle Cloud-Aufzeichnungen für einen Zoom-Benutzer auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Ja | Die Benutzer-ID oder E-Mail-Adresse. Verwenden Sie "me" für den authentifizierten Benutzer. |
+| `from` | string | Nein | Startdatum im Format jjjj-mm-tt \(innerhalb der letzten 6 Monate\) |
+| `to` | string | Nein | Enddatum im Format jjjj-mm-tt |
+| `pageSize` | number | Nein | Anzahl der Datensätze pro Seite \(max. 300\) |
+| `nextPageToken` | string | Nein | Token für die Paginierung, um die nächste Ergebnisseite zu erhalten |
+| `trash` | boolean | Nein | Auf true setzen, um Aufzeichnungen aus dem Papierkorb aufzulisten |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `recordings` | array | Liste der Aufzeichnungen |
+| `pageInfo` | object | Paginierungsinformationen |
+
+### `zoom_get_meeting_recordings`
+
+Alle Aufzeichnungen für ein bestimmtes Zoom-Meeting abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Ja | Die Meeting-ID oder Meeting-UUID |
+| `includeFolderItems` | boolean | Nein | Elemente innerhalb eines Ordners einschließen |
+| `ttl` | number | Nein | Gültigkeitsdauer für Download-URLs in Sekunden \(max 604800\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `recording` | object | Die Meeting-Aufzeichnung mit allen Dateien |
+
+### `zoom_delete_recording`
+
+Cloud-Aufzeichnungen für ein Zoom-Meeting löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Ja | Die Meeting-ID oder Meeting-UUID |
+| `recordingId` | string | Nein | Spezifische Aufzeichnungsdatei-ID zum Löschen. Wenn nicht angegeben, werden alle Aufzeichnungen gelöscht. |
+| `action` | string | Nein | Löschaktion: "trash" \(in Papierkorb verschieben\) oder "delete" \(dauerhaft löschen\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Aufzeichnung erfolgreich gelöscht wurde |
+
+### `zoom_list_past_participants`
+
+Teilnehmer eines vergangenen Zoom-Meetings auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Ja | Die vergangene Meeting-ID oder UUID |
+| `pageSize` | number | Nein | Anzahl der Datensätze pro Seite \(max 300\) |
+| `nextPageToken` | string | Nein | Token für Paginierung, um die nächste Ergebnisseite zu erhalten |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `participants` | array | Liste der Besprechungsteilnehmer |
+| `pageInfo` | object | Paginierungsinformationen |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `zoom`
