@@ -65,6 +65,19 @@ interface SkippedItem {
 }
 
 /**
+ * Logs and records a skipped item
+ */
+function logSkippedItem(skippedItems: SkippedItem[], item: SkippedItem): void {
+  validationLogger.warn(`Skipped ${item.operationType} operation: ${item.reason}`, {
+    type: item.type,
+    operationType: item.operationType,
+    blockId: item.blockId,
+    ...(item.details && { details: item.details }),
+  })
+  skippedItems.push(item)
+}
+
+/**
  * Result of input validation
  */
 interface ValidationResult {
@@ -79,8 +92,7 @@ interface ValidationResult {
 function validateInputsForBlock(
   blockType: string,
   inputs: Record<string, any>,
-  blockId: string,
-  existingInputs?: Record<string, any>
+  blockId: string
 ): ValidationResult {
   const errors: ValidationError[] = []
   const blockConfig = getBlock(blockType)
@@ -98,9 +110,6 @@ function validateInputsForBlock(
   for (const subBlock of blockConfig.subBlocks) {
     subBlockMap.set(subBlock.id, subBlock)
   }
-
-  // Merge existing inputs with new inputs to evaluate conditions properly
-  const mergedInputs = { ...existingInputs, ...inputs }
 
   for (const [key, value] of Object.entries(inputs)) {
     // Skip runtime subblock IDs
@@ -128,17 +137,10 @@ function validateInputsForBlock(
       continue
     }
 
-    // Check if the field's condition is met
-    if (subBlockConfig.condition && !evaluateCondition(subBlockConfig.condition, mergedInputs)) {
-      errors.push({
-        blockId,
-        blockType,
-        field: key,
-        value,
-        error: `Field "${key}" condition not met - this field is not applicable for the current configuration`,
-      })
-      continue
-    }
+    // Note: We do NOT check subBlockConfig.condition here.
+    // Conditions are for UI display logic (show/hide fields in the editor).
+    // For API/Copilot, any valid field in the block schema should be accepted.
+    // The runtime will use the relevant fields based on the actual operation.
 
     // Validate value based on subBlock type
     const validationResult = validateValueForSubBlockType(
@@ -156,44 +158,6 @@ function validateInputsForBlock(
   }
 
   return { validInputs: validatedInputs, errors }
-}
-
-/**
- * Evaluates a condition object against current inputs
- */
-function evaluateCondition(
-  condition: SubBlockConfig['condition'],
-  inputs: Record<string, any>
-): boolean {
-  if (!condition) return true
-
-  // Handle function conditions
-  const resolvedCondition = typeof condition === 'function' ? condition() : condition
-
-  const fieldValue = inputs[resolvedCondition.field]
-  const expectedValues = Array.isArray(resolvedCondition.value)
-    ? resolvedCondition.value
-    : [resolvedCondition.value]
-
-  let matches = expectedValues.includes(fieldValue)
-  if (resolvedCondition.not) {
-    matches = !matches
-  }
-
-  // Handle AND condition
-  if (matches && resolvedCondition.and) {
-    const andFieldValue = inputs[resolvedCondition.and.field]
-    const andExpectedValues = Array.isArray(resolvedCondition.and.value)
-      ? resolvedCondition.and.value
-      : [resolvedCondition.and.value]
-    let andMatches = andExpectedValues.includes(andFieldValue)
-    if (resolvedCondition.and.not) {
-      andMatches = !andMatches
-    }
-    matches = matches && andMatches
-  }
-
-  return matches
 }
 
 /**
@@ -920,7 +884,7 @@ function applyOperationsToWorkflowState(
     switch (operation_type) {
       case 'delete': {
         if (!modifiedState.blocks[block_id]) {
-          skippedItems.push({
+          logSkippedItem(skippedItems, {
             type: 'block_not_found',
             operationType: 'delete',
             blockId: block_id,
@@ -953,7 +917,7 @@ function applyOperationsToWorkflowState(
 
       case 'edit': {
         if (!modifiedState.blocks[block_id]) {
-          skippedItems.push({
+          logSkippedItem(skippedItems, {
             type: 'block_not_found',
             operationType: 'edit',
             blockId: block_id,
@@ -970,7 +934,7 @@ function applyOperationsToWorkflowState(
             blockKeys: Object.keys(block),
             blockData: JSON.stringify(block),
           })
-          skippedItems.push({
+          logSkippedItem(skippedItems, {
             type: 'block_not_found',
             operationType: 'edit',
             blockId: block_id,
@@ -983,18 +947,11 @@ function applyOperationsToWorkflowState(
         if (params?.inputs) {
           if (!block.subBlocks) block.subBlocks = {}
 
-          // Get existing input values for condition evaluation
-          const existingInputs: Record<string, any> = {}
-          Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
-            existingInputs[key] = subBlock?.value
-          })
-
           // Validate inputs against block configuration
           const validationResult = validateInputsForBlock(
             block.type,
             params.inputs,
-            block_id,
-            existingInputs
+            block_id
           )
           validationErrors.push(...validationResult.errors)
 
@@ -1119,7 +1076,7 @@ function applyOperationsToWorkflowState(
           // Validate type before setting (skip validation for container types)
           const blockConfig = getBlock(params.type)
           if (!blockConfig && !isContainerType) {
-            skippedItems.push({
+            logSkippedItem(skippedItems, {
               type: 'invalid_block_type',
               operationType: 'edit',
               blockId: block_id,
@@ -1269,7 +1226,7 @@ function applyOperationsToWorkflowState(
                     existingBlocks: Object.keys(modifiedState.blocks),
                   }
                 )
-                skippedItems.push({
+                logSkippedItem(skippedItems, {
                   type: 'invalid_edge_target',
                   operationType: 'edit',
                   blockId: block_id,
@@ -1322,7 +1279,7 @@ function applyOperationsToWorkflowState(
 
       case 'add': {
         if (!params?.type || !params?.name) {
-          skippedItems.push({
+          logSkippedItem(skippedItems, {
             type: 'missing_required_params',
             operationType: 'add',
             blockId: block_id,
@@ -1338,7 +1295,7 @@ function applyOperationsToWorkflowState(
         // Validate block type before adding (skip validation for container types)
         const addBlockConfig = getBlock(params.type)
         if (!addBlockConfig && !isContainerType) {
-          skippedItems.push({
+          logSkippedItem(skippedItems, {
             type: 'invalid_block_type',
             operationType: 'add',
             blockId: block_id,
@@ -1427,7 +1384,7 @@ function applyOperationsToWorkflowState(
       case 'insert_into_subflow': {
         const subflowId = params?.subflowId
         if (!subflowId || !params?.type || !params?.name) {
-          skippedItems.push({
+          logSkippedItem(skippedItems, {
             type: 'missing_required_params',
             operationType: 'insert_into_subflow',
             blockId: block_id,
@@ -1443,7 +1400,7 @@ function applyOperationsToWorkflowState(
 
         const subflowBlock = modifiedState.blocks[subflowId]
         if (!subflowBlock) {
-          skippedItems.push({
+          logSkippedItem(skippedItems, {
             type: 'invalid_subflow_parent',
             operationType: 'insert_into_subflow',
             blockId: block_id,
@@ -1478,20 +1435,11 @@ function applyOperationsToWorkflowState(
 
           // Update inputs if provided (with validation)
           if (params.inputs) {
-            // Get existing input values for condition evaluation
-            const existingInputs: Record<string, any> = {}
-            Object.entries(existingBlock.subBlocks || {}).forEach(
-              ([key, subBlock]: [string, any]) => {
-                existingInputs[key] = subBlock?.value
-              }
-            )
-
             // Validate inputs against block configuration
             const validationResult = validateInputsForBlock(
               existingBlock.type,
               params.inputs,
-              block_id,
-              existingInputs
+              block_id
             )
             validationErrors.push(...validationResult.errors)
 
@@ -1537,7 +1485,7 @@ function applyOperationsToWorkflowState(
           // Validate block type before creating (skip validation for container types)
           const insertBlockConfig = getBlock(params.type)
           if (!insertBlockConfig && !isContainerType) {
-            skippedItems.push({
+            logSkippedItem(skippedItems, {
               type: 'invalid_block_type',
               operationType: 'insert_into_subflow',
               blockId: block_id,
@@ -1566,7 +1514,7 @@ function applyOperationsToWorkflowState(
       case 'extract_from_subflow': {
         const subflowId = params?.subflowId
         if (!subflowId) {
-          skippedItems.push({
+          logSkippedItem(skippedItems, {
             type: 'missing_required_params',
             operationType: 'extract_from_subflow',
             blockId: block_id,
@@ -1577,7 +1525,7 @@ function applyOperationsToWorkflowState(
 
         const block = modifiedState.blocks[block_id]
         if (!block) {
-          skippedItems.push({
+          logSkippedItem(skippedItems, {
             type: 'block_not_found',
             operationType: 'extract_from_subflow',
             blockId: block_id,
