@@ -229,20 +229,24 @@ describe('Copilot Chat API Route', () => {
             'Content-Type': 'application/json',
             'x-api-key': 'test-sim-agent-key',
           },
-          body: JSON.stringify({
-            message: 'Hello',
-            workflowId: 'workflow-123',
-            userId: 'user-123',
-            stream: true,
-            streamToolCalls: true,
-            model: 'claude-4.5-sonnet',
-            mode: 'agent',
-            messageId: 'mock-uuid-1234-5678',
-            version: '1.0.2',
-            chatId: 'chat-123',
-          }),
         })
       )
+
+      // Verify body contains expected fields (allows for additional fields like tools, baseTools)
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      const body = JSON.parse(fetchCall[1].body)
+      expect(body).toMatchObject({
+        message: 'Hello',
+        workflowId: 'workflow-123',
+        userId: 'user-123',
+        stream: true,
+        streamToolCalls: true,
+        model: 'claude-4.5-opus',
+        mode: 'agent',
+        messageId: 'mock-uuid-1234-5678',
+        version: '1.0.3',
+        chatId: 'chat-123',
+      })
     })
 
     it('should load existing chat and include conversation history', async () => {
@@ -290,20 +294,25 @@ describe('Copilot Chat API Route', () => {
       expect(global.fetch).toHaveBeenCalledWith(
         'http://localhost:8000/api/chat-completion-streaming',
         expect.objectContaining({
-          body: JSON.stringify({
-            message: 'New message',
-            workflowId: 'workflow-123',
-            userId: 'user-123',
-            stream: true,
-            streamToolCalls: true,
-            model: 'claude-4.5-sonnet',
-            mode: 'agent',
-            messageId: 'mock-uuid-1234-5678',
-            version: '1.0.2',
-            chatId: 'chat-123',
-          }),
+          method: 'POST',
         })
       )
+
+      // Verify body contains expected fields (allows for additional fields like tools, baseTools)
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      const body = JSON.parse(fetchCall[1].body)
+      expect(body).toMatchObject({
+        message: 'New message',
+        workflowId: 'workflow-123',
+        userId: 'user-123',
+        stream: true,
+        streamToolCalls: true,
+        model: 'claude-4.5-opus',
+        mode: 'agent',
+        messageId: 'mock-uuid-1234-5678',
+        version: '1.0.3',
+        chatId: 'chat-123',
+      })
     })
 
     it('should include implicit feedback in messages', async () => {
@@ -341,20 +350,25 @@ describe('Copilot Chat API Route', () => {
       expect(global.fetch).toHaveBeenCalledWith(
         'http://localhost:8000/api/chat-completion-streaming',
         expect.objectContaining({
-          body: JSON.stringify({
-            message: 'Hello',
-            workflowId: 'workflow-123',
-            userId: 'user-123',
-            stream: true,
-            streamToolCalls: true,
-            model: 'claude-4.5-sonnet',
-            mode: 'agent',
-            messageId: 'mock-uuid-1234-5678',
-            version: '1.0.2',
-            chatId: 'chat-123',
-          }),
+          method: 'POST',
         })
       )
+
+      // Verify body contains expected fields (allows for additional fields like tools, baseTools)
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      const body = JSON.parse(fetchCall[1].body)
+      expect(body).toMatchObject({
+        message: 'Hello',
+        workflowId: 'workflow-123',
+        userId: 'user-123',
+        stream: true,
+        streamToolCalls: true,
+        model: 'claude-4.5-opus',
+        mode: 'agent',
+        messageId: 'mock-uuid-1234-5678',
+        version: '1.0.3',
+        chatId: 'chat-123',
+      })
     })
 
     it('should handle sim agent API errors', async () => {
@@ -432,20 +446,25 @@ describe('Copilot Chat API Route', () => {
       expect(global.fetch).toHaveBeenCalledWith(
         'http://localhost:8000/api/chat-completion-streaming',
         expect.objectContaining({
-          body: JSON.stringify({
-            message: 'What is this workflow?',
-            workflowId: 'workflow-123',
-            userId: 'user-123',
-            stream: true,
-            streamToolCalls: true,
-            model: 'claude-4.5-sonnet',
-            mode: 'ask',
-            messageId: 'mock-uuid-1234-5678',
-            version: '1.0.2',
-            chatId: 'chat-123',
-          }),
+          method: 'POST',
         })
       )
+
+      // Verify body contains expected fields (allows for additional fields like tools, baseTools)
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      const body = JSON.parse(fetchCall[1].body)
+      expect(body).toMatchObject({
+        message: 'What is this workflow?',
+        workflowId: 'workflow-123',
+        userId: 'user-123',
+        stream: true,
+        streamToolCalls: true,
+        model: 'claude-4.5-opus',
+        mode: 'ask',
+        messageId: 'mock-uuid-1234-5678',
+        version: '1.0.3',
+        chatId: 'chat-123',
+      })
     })
   })
 
