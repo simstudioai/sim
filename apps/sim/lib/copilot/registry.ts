@@ -23,7 +23,7 @@ export const ToolIds = z.enum([
   'reason',
   'list_user_workflows',
   'get_workflow_from_name',
-  'get_global_workflow_variables',
+  'get_workflow_data',
   'set_global_workflow_variables',
   'oauth_request_access',
   'get_trigger_blocks',
@@ -57,8 +57,10 @@ export const ToolArgSchemas = {
   // New tools
   list_user_workflows: z.object({}),
   get_workflow_from_name: z.object({ workflow_name: z.string() }),
-  // New variable tools
-  get_global_workflow_variables: z.object({}),
+  // Workflow data tool (variables, custom tools, MCP tools, files)
+  get_workflow_data: z.object({
+    data_type: z.enum(['global_variables', 'custom_tools', 'mcp_tools', 'files']),
+  }),
   set_global_workflow_variables: z.object({
     operations: z.array(
       z.object({
@@ -209,11 +211,8 @@ export const ToolSSESchemas = {
     'get_workflow_from_name',
     ToolArgSchemas.get_workflow_from_name
   ),
-  // New variable tools
-  get_global_workflow_variables: toolCallSSEFor(
-    'get_global_workflow_variables',
-    ToolArgSchemas.get_global_workflow_variables
-  ),
+  // Workflow data tool (variables, custom tools, MCP tools, files)
+  get_workflow_data: toolCallSSEFor('get_workflow_data', ToolArgSchemas.get_workflow_data),
   set_global_workflow_variables: toolCallSSEFor(
     'set_global_workflow_variables',
     ToolArgSchemas.set_global_workflow_variables
@@ -299,10 +298,47 @@ export const ToolResultSchemas = {
     .object({ yamlContent: z.string() })
     .or(z.object({ userWorkflow: z.string() }))
     .or(z.string()),
-  // New variable tools
-  get_global_workflow_variables: z
-    .object({ variables: z.record(z.any()) })
-    .or(z.array(z.object({ name: z.string(), value: z.any() }))),
+  // Workflow data tool results (variables, custom tools, MCP tools, files)
+  get_workflow_data: z.union([
+    z.object({
+      variables: z.array(z.object({ id: z.string(), name: z.string(), value: z.any() })),
+    }),
+    z.object({
+      customTools: z.array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          functionName: z.string(),
+          description: z.string(),
+          parameters: z.any().optional(),
+        })
+      ),
+    }),
+    z.object({
+      mcpTools: z.array(
+        z.object({
+          name: z.string(),
+          serverId: z.string(),
+          serverName: z.string(),
+          description: z.string(),
+          inputSchema: z.any().optional(),
+        })
+      ),
+    }),
+    z.object({
+      files: z.array(
+        z.object({
+          id: z.string(),
+          name: z.string(),
+          key: z.string(),
+          path: z.string(),
+          size: z.number(),
+          type: z.string(),
+          uploadedAt: z.string(),
+        })
+      ),
+    }),
+  ]),
   set_global_workflow_variables: z
     .object({ variables: z.record(z.any()) })
     .or(z.object({ message: z.any().optional(), data: z.any().optional() })),

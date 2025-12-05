@@ -147,9 +147,44 @@ export class EditWorkflowClientTool extends BaseClientTool {
     // Get the workflow state that was applied, merge subblocks, and sanitize
     // This matches what get_user_workflow would return
     const workflowJson = this.getSanitizedWorkflowJson(currentState)
-    const sanitizedData = workflowJson ? { userWorkflow: workflowJson } : undefined
 
-    await this.markToolComplete(200, 'Workflow edits accepted', sanitizedData)
+    // Build sanitized data including workflow JSON and any skipped/validation info from the result
+    const sanitizedData: Record<string, any> = {}
+    if (workflowJson) {
+      sanitizedData.userWorkflow = workflowJson
+    }
+
+    // Include skipped items and validation errors in the accept response for LLM feedback
+    if (this.lastResult?.skippedItems?.length > 0) {
+      sanitizedData.skippedItems = this.lastResult.skippedItems
+      sanitizedData.skippedItemsMessage = this.lastResult.skippedItemsMessage
+    }
+    if (this.lastResult?.inputValidationErrors?.length > 0) {
+      sanitizedData.inputValidationErrors = this.lastResult.inputValidationErrors
+      sanitizedData.inputValidationMessage = this.lastResult.inputValidationMessage
+    }
+
+    // Build a message that includes info about skipped items
+    let acceptMessage = 'Workflow edits accepted'
+    if (
+      this.lastResult?.skippedItems?.length > 0 ||
+      this.lastResult?.inputValidationErrors?.length > 0
+    ) {
+      const parts: string[] = []
+      if (this.lastResult?.skippedItems?.length > 0) {
+        parts.push(`${this.lastResult.skippedItems.length} operation(s) were skipped`)
+      }
+      if (this.lastResult?.inputValidationErrors?.length > 0) {
+        parts.push(`${this.lastResult.inputValidationErrors.length} input(s) were rejected`)
+      }
+      acceptMessage = `Workflow edits accepted. Note: ${parts.join(', ')}.`
+    }
+
+    await this.markToolComplete(
+      200,
+      acceptMessage,
+      Object.keys(sanitizedData).length > 0 ? sanitizedData : undefined
+    )
     this.setState(ClientToolCallState.success)
   }
 
@@ -248,7 +283,23 @@ export class EditWorkflowClientTool extends BaseClientTool {
         blocksCount: result?.workflowState
           ? Object.keys(result.workflowState.blocks || {}).length
           : 0,
+        hasSkippedItems: !!result?.skippedItems,
+        skippedItemsCount: result?.skippedItems?.length || 0,
+        hasInputValidationErrors: !!result?.inputValidationErrors,
+        inputValidationErrorsCount: result?.inputValidationErrors?.length || 0,
       })
+
+      // Log skipped items and validation errors for visibility
+      if (result?.skippedItems?.length > 0) {
+        logger.warn('Some operations were skipped during edit_workflow', {
+          skippedItems: result.skippedItems,
+        })
+      }
+      if (result?.inputValidationErrors?.length > 0) {
+        logger.warn('Some inputs were rejected during edit_workflow', {
+          inputValidationErrors: result.inputValidationErrors,
+        })
+      }
 
       // Update diff directly with workflow state - no YAML conversion needed!
       // The diff engine may transform the workflow state (e.g., assign new IDs), so we must use
@@ -288,10 +339,42 @@ export class EditWorkflowClientTool extends BaseClientTool {
       // Get the workflow state that was just applied, merge subblocks, and sanitize
       // This matches what get_user_workflow would return (the true state after edits were applied)
       const workflowJson = this.getSanitizedWorkflowJson(actualDiffWorkflow)
-      const sanitizedData = workflowJson ? { userWorkflow: workflowJson } : undefined
+
+      // Build sanitized data including workflow JSON and any skipped/validation info
+      const sanitizedData: Record<string, any> = {}
+      if (workflowJson) {
+        sanitizedData.userWorkflow = workflowJson
+      }
+
+      // Include skipped items and validation errors in the response for LLM feedback
+      if (result?.skippedItems?.length > 0) {
+        sanitizedData.skippedItems = result.skippedItems
+        sanitizedData.skippedItemsMessage = result.skippedItemsMessage
+      }
+      if (result?.inputValidationErrors?.length > 0) {
+        sanitizedData.inputValidationErrors = result.inputValidationErrors
+        sanitizedData.inputValidationMessage = result.inputValidationMessage
+      }
+
+      // Build a message that includes info about skipped items
+      let completeMessage = 'Workflow diff ready for review'
+      if (result?.skippedItems?.length > 0 || result?.inputValidationErrors?.length > 0) {
+        const parts: string[] = []
+        if (result?.skippedItems?.length > 0) {
+          parts.push(`${result.skippedItems.length} operation(s) skipped`)
+        }
+        if (result?.inputValidationErrors?.length > 0) {
+          parts.push(`${result.inputValidationErrors.length} input(s) rejected`)
+        }
+        completeMessage = `Workflow diff ready for review. Note: ${parts.join(', ')}.`
+      }
 
       // Mark complete early to unblock LLM stream
-      await this.markToolComplete(200, 'Workflow diff ready for review', sanitizedData)
+      await this.markToolComplete(
+        200,
+        completeMessage,
+        Object.keys(sanitizedData).length > 0 ? sanitizedData : undefined
+      )
 
       // Move into review state
       this.setState(ClientToolCallState.review, { result })
