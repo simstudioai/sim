@@ -523,6 +523,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                               src={image.preview}
                               alt={`Preview ${index + 1}`}
                               fill
+                              unoptimized
                               className='object-contain'
                             />
                             <button
