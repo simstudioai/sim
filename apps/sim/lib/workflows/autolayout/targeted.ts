@@ -4,7 +4,7 @@ import {
   DEFAULT_HORIZONTAL_SPACING,
   DEFAULT_VERTICAL_SPACING,
 } from '@/lib/workflows/autolayout/constants'
-import { layoutBlocksCore } from '@/lib/workflows/autolayout/core'
+import { assignLayers, layoutBlocksCore } from '@/lib/workflows/autolayout/core'
 import type { Edge, LayoutOptions } from '@/lib/workflows/autolayout/types'
 import {
   filterLayoutEligibleBlockIds,
@@ -22,6 +22,60 @@ export interface TargetedLayoutOptions extends LayoutOptions {
   changedBlockIds: string[]
   verticalSpacing?: number
   horizontalSpacing?: number
+}
+
+/**
+ * Calculates the internal depth (max layer count) for each subflow container.
+ * This is used to properly position blocks that connect after a subflow ends.
+ *
+ * @param blocks - All blocks in the workflow
+ * @param edges - All edges in the workflow
+ * @returns Map of container block IDs to their internal layer depth
+ */
+function calculateSubflowDepths(
+  blocks: Record<string, BlockState>,
+  edges: Edge[]
+): Map<string, number> {
+  const depths = new Map<string, number>()
+  const { children } = getBlocksByParent(blocks)
+
+  for (const [containerId, childIds] of children.entries()) {
+    if (childIds.length === 0) {
+      // Empty subflows have depth of 1 (the subflow itself takes up a layer)
+      depths.set(containerId, 1)
+      continue
+    }
+
+    // Get child blocks for this container
+    const childBlocks: Record<string, BlockState> = {}
+    const layoutChildIds = filterLayoutEligibleBlockIds(childIds, blocks)
+    for (const childId of layoutChildIds) {
+      childBlocks[childId] = blocks[childId]
+    }
+
+    // Filter edges to only those within this container
+    const childEdges = edges.filter(
+      (edge) => layoutChildIds.includes(edge.source) && layoutChildIds.includes(edge.target)
+    )
+
+    if (Object.keys(childBlocks).length === 0) {
+      depths.set(containerId, 1)
+      continue
+    }
+
+    // Calculate layers for child blocks to find max depth
+    const childNodes = assignLayers(childBlocks, childEdges)
+    let maxLayer = 0
+    for (const node of childNodes.values()) {
+      maxLayer = Math.max(maxLayer, node.layer)
+    }
+
+    // Depth is maxLayer + 1 (since layers are 0-indexed)
+    // Minimum depth of 1 to ensure subflows always "take up space"
+    depths.set(containerId, Math.max(maxLayer + 1, 1))
+  }
+
+  return depths
 }
 
 /**
@@ -48,7 +102,19 @@ export function applyTargetedLayout(
 
   const groups = getBlocksByParent(blocksCopy)
 
-  layoutGroup(null, groups.root, blocksCopy, edges, changedSet, verticalSpacing, horizontalSpacing)
+  // Calculate subflow depths before layout to properly position blocks after subflow ends
+  const subflowDepths = calculateSubflowDepths(blocksCopy, edges)
+
+  layoutGroup(
+    null,
+    groups.root,
+    blocksCopy,
+    edges,
+    changedSet,
+    verticalSpacing,
+    horizontalSpacing,
+    subflowDepths
+  )
 
   for (const [parentId, childIds] of groups.children.entries()) {
     layoutGroup(
@@ -58,7 +124,8 @@ export function applyTargetedLayout(
       edges,
       changedSet,
       verticalSpacing,
-      horizontalSpacing
+      horizontalSpacing,
+      subflowDepths
     )
   }
 
@@ -75,7 +142,8 @@ function layoutGroup(
   edges: Edge[],
   changedSet: Set<string>,
   verticalSpacing: number,
-  horizontalSpacing: number
+  horizontalSpacing: number,
+  subflowDepths: Map<string, number>
 ): void {
   if (childIds.length === 0) return
 
@@ -123,13 +191,15 @@ function layoutGroup(
   }
 
   // Compute layout positions using core function
+  // Only pass subflowDepths for root-level layout (not inside containers)
   const layoutPositions = computeLayoutPositions(
     layoutEligibleChildIds,
     blocks,
     edges,
     parentBlock,
     horizontalSpacing,
-    verticalSpacing
+    verticalSpacing,
+    parentId === null ? subflowDepths : undefined
   )
 
   if (layoutPositions.size === 0) {
@@ -177,7 +247,8 @@ function computeLayoutPositions(
   edges: Edge[],
   parentBlock: BlockState | undefined,
   horizontalSpacing: number,
-  verticalSpacing: number
+  verticalSpacing: number,
+  subflowDepths?: Map<string, number>
 ): Map<string, { x: number; y: number }> {
   const subsetBlocks: Record<string, BlockState> = {}
   for (const id of childIds) {
@@ -200,6 +271,7 @@ function computeLayoutPositions(
       verticalSpacing,
       alignment: 'center',
     },
+    subflowDepths,
   })
 
   // Update parent container dimensions if applicable
