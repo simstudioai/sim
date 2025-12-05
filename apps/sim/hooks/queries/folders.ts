@@ -1,6 +1,10 @@
 import { useEffect } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createLogger } from '@/lib/logs/console/logger'
+import {
+  createOptimisticMutationHandlers,
+  generateTempId,
+} from '@/hooks/queries/utils/optimistic-mutation'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { useFolderStore, type WorkflowFolder } from '@/stores/folders/store'
 
@@ -65,11 +69,6 @@ interface CreateFolderVariables {
   color?: string
 }
 
-interface CreateFolderContext {
-  tempId: string
-  previousFolders: Record<string, WorkflowFolder>
-}
-
 interface UpdateFolderVariables {
   workspaceId: string
   id: string
@@ -89,8 +88,82 @@ interface DuplicateFolderVariables {
   color?: string
 }
 
+/**
+ * Creates optimistic mutation handlers for folder operations
+ */
+function createFolderMutationHandlers<TVariables extends { workspaceId: string }>(
+  queryClient: ReturnType<typeof useQueryClient>,
+  name: string,
+  createOptimisticFolder: (
+    variables: TVariables,
+    tempId: string,
+    previousFolders: Record<string, WorkflowFolder>
+  ) => WorkflowFolder
+) {
+  return createOptimisticMutationHandlers<WorkflowFolder, TVariables, WorkflowFolder>(queryClient, {
+    name,
+    getQueryKey: (variables) => folderKeys.list(variables.workspaceId),
+    getSnapshot: () => ({ ...useFolderStore.getState().folders }),
+    generateTempId: () => generateTempId('temp-folder'),
+    createOptimisticItem: (variables, tempId) => {
+      const previousFolders = useFolderStore.getState().folders
+      return createOptimisticFolder(variables, tempId, previousFolders)
+    },
+    applyOptimisticUpdate: (tempId, item) => {
+      useFolderStore.setState((state) => ({
+        folders: { ...state.folders, [tempId]: item },
+      }))
+    },
+    replaceOptimisticEntry: (tempId, data) => {
+      useFolderStore.setState((state) => {
+        const { [tempId]: _, ...remainingFolders } = state.folders
+        return {
+          folders: {
+            ...remainingFolders,
+            [data.id]: data,
+          },
+        }
+      })
+    },
+    rollback: (snapshot) => {
+      useFolderStore.setState({ folders: snapshot })
+    },
+  })
+}
+
+/**
+ * Calculates the next sort order for a folder in a given parent
+ */
+function getNextSortOrder(
+  folders: Record<string, WorkflowFolder>,
+  workspaceId: string,
+  parentId: string | null | undefined
+): number {
+  const siblingFolders = Object.values(folders).filter(
+    (f) => f.workspaceId === workspaceId && f.parentId === (parentId || null)
+  )
+  return siblingFolders.reduce((max, f) => Math.max(max, f.sortOrder), -1) + 1
+}
+
 export function useCreateFolder() {
   const queryClient = useQueryClient()
+
+  const handlers = createFolderMutationHandlers<CreateFolderVariables>(
+    queryClient,
+    'CreateFolder',
+    (variables, tempId, previousFolders) => ({
+      id: tempId,
+      name: variables.name,
+      userId: '',
+      workspaceId: variables.workspaceId,
+      parentId: variables.parentId || null,
+      color: variables.color || '#808080',
+      isExpanded: false,
+      sortOrder: getNextSortOrder(previousFolders, variables.workspaceId, variables.parentId),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  )
 
   return useMutation({
     mutationFn: async ({ workspaceId, ...payload }: CreateFolderVariables) => {
@@ -108,71 +181,7 @@ export function useCreateFolder() {
       const { folder } = await response.json()
       return mapFolder(folder)
     },
-    onMutate: async (variables): Promise<CreateFolderContext> => {
-      // Cancel any outgoing refetches to prevent race conditions
-      await queryClient.cancelQueries({ queryKey: folderKeys.list(variables.workspaceId) })
-
-      // Snapshot previous state for rollback
-      const previousFolders = { ...useFolderStore.getState().folders }
-
-      // Calculate max sortOrder to place new folder at the bottom
-      const workspaceFolders = Object.values(previousFolders).filter(
-        (f) =>
-          f.workspaceId === variables.workspaceId && f.parentId === (variables.parentId || null)
-      )
-      const maxSortOrder = workspaceFolders.reduce((max, f) => Math.max(max, f.sortOrder), -1)
-
-      const tempId = `temp-folder-${Date.now()}`
-
-      // Optimistically add folder entry immediately at the bottom
-      useFolderStore.setState((state) => ({
-        folders: {
-          ...state.folders,
-          [tempId]: {
-            id: tempId,
-            name: variables.name,
-            userId: '',
-            workspaceId: variables.workspaceId,
-            parentId: variables.parentId || null,
-            color: variables.color || '#808080',
-            isExpanded: false,
-            sortOrder: maxSortOrder + 1,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        },
-      }))
-
-      logger.info(`Added optimistic folder entry: ${tempId}`)
-      return { tempId, previousFolders }
-    },
-    onSuccess: (data, _variables, context) => {
-      logger.info(`Folder ${data.id} created successfully, replacing temp entry ${context.tempId}`)
-
-      // Replace optimistic entry with real folder data
-      useFolderStore.setState((state) => {
-        const { [context.tempId]: _, ...remainingFolders } = state.folders
-        return {
-          folders: {
-            ...remainingFolders,
-            [data.id]: data,
-          },
-        }
-      })
-    },
-    onError: (error: Error, _variables, context) => {
-      logger.error('Failed to create folder:', error)
-
-      // Rollback to previous state snapshot
-      if (context?.previousFolders) {
-        useFolderStore.setState({ folders: context.previousFolders })
-        logger.info(`Rolled back to previous folders state`)
-      }
-    },
-    onSettled: (_data, _error, variables) => {
-      // Always invalidate to sync with server state
-      queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
-    },
+    ...handlers,
   })
 }
 
@@ -225,8 +234,35 @@ export function useDeleteFolderMutation() {
 export function useDuplicateFolderMutation() {
   const queryClient = useQueryClient()
 
+  const handlers = createFolderMutationHandlers<DuplicateFolderVariables>(
+    queryClient,
+    'DuplicateFolder',
+    (variables, tempId, previousFolders) => {
+      // Get source folder info if available
+      const sourceFolder = previousFolders[variables.id]
+      return {
+        id: tempId,
+        name: variables.name,
+        userId: sourceFolder?.userId || '',
+        workspaceId: variables.workspaceId,
+        parentId: variables.parentId ?? sourceFolder?.parentId ?? null,
+        color: variables.color || sourceFolder?.color || '#808080',
+        isExpanded: false,
+        sortOrder: getNextSortOrder(previousFolders, variables.workspaceId, variables.parentId),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+    }
+  )
+
   return useMutation({
-    mutationFn: async ({ id, workspaceId, name, parentId, color }: DuplicateFolderVariables) => {
+    mutationFn: async ({
+      id,
+      workspaceId,
+      name,
+      parentId,
+      color,
+    }: DuplicateFolderVariables): Promise<WorkflowFolder> => {
       const response = await fetch(`/api/folders/${id}/duplicate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -243,9 +279,12 @@ export function useDuplicateFolderMutation() {
         throw new Error(error.error || 'Failed to duplicate folder')
       }
 
-      return response.json()
+      const data = await response.json()
+      return mapFolder(data.folder || data)
     },
-    onSuccess: async (_data, variables) => {
+    ...handlers,
+    onSettled: (_data, _error, variables) => {
+      // Invalidate both folders and workflows (duplicated folder may contain workflows)
       queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
       queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
     },

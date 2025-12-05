@@ -2,6 +2,10 @@ import { useEffect } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import {
+  createOptimisticMutationHandlers,
+  generateTempId,
+} from '@/hooks/queries/utils/optimistic-mutation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import {
@@ -87,16 +91,106 @@ interface CreateWorkflowVariables {
   folderId?: string | null
 }
 
-interface CreateWorkflowContext {
-  tempId: string
-  previousWorkflows: Record<string, WorkflowMetadata>
+interface CreateWorkflowResult {
+  id: string
+  name: string
+  description?: string
+  color: string
+  workspaceId: string
+  folderId?: string | null
+}
+
+interface DuplicateWorkflowVariables {
+  workspaceId: string
+  sourceId: string
+  name: string
+  description?: string
+  color: string
+  folderId?: string | null
+}
+
+interface DuplicateWorkflowResult {
+  id: string
+  name: string
+  description?: string
+  color: string
+  workspaceId: string
+  folderId?: string | null
+  blocksCount: number
+  edgesCount: number
+  subflowsCount: number
+}
+
+/**
+ * Creates optimistic mutation handlers for workflow operations
+ */
+function createWorkflowMutationHandlers<TVariables extends { workspaceId: string }>(
+  queryClient: ReturnType<typeof useQueryClient>,
+  name: string,
+  createOptimisticWorkflow: (variables: TVariables, tempId: string) => WorkflowMetadata
+) {
+  return createOptimisticMutationHandlers<
+    CreateWorkflowResult | DuplicateWorkflowResult,
+    TVariables,
+    WorkflowMetadata
+  >(queryClient, {
+    name,
+    getQueryKey: (variables) => workflowKeys.list(variables.workspaceId),
+    getSnapshot: () => ({ ...useWorkflowRegistry.getState().workflows }),
+    generateTempId: () => generateTempId('temp-workflow'),
+    createOptimisticItem: createOptimisticWorkflow,
+    applyOptimisticUpdate: (tempId, item) => {
+      useWorkflowRegistry.setState((state) => ({
+        workflows: { ...state.workflows, [tempId]: item },
+      }))
+    },
+    replaceOptimisticEntry: (tempId, data) => {
+      useWorkflowRegistry.setState((state) => {
+        const { [tempId]: _, ...remainingWorkflows } = state.workflows
+        return {
+          workflows: {
+            ...remainingWorkflows,
+            [data.id]: {
+              id: data.id,
+              name: data.name,
+              lastModified: new Date(),
+              createdAt: new Date(),
+              description: data.description,
+              color: data.color,
+              workspaceId: data.workspaceId,
+              folderId: data.folderId,
+            },
+          },
+          error: null,
+        }
+      })
+    },
+    rollback: (snapshot) => {
+      useWorkflowRegistry.setState({ workflows: snapshot })
+    },
+  })
 }
 
 export function useCreateWorkflow() {
   const queryClient = useQueryClient()
 
+  const handlers = createWorkflowMutationHandlers<CreateWorkflowVariables>(
+    queryClient,
+    'CreateWorkflow',
+    (variables, tempId) => ({
+      id: tempId,
+      name: variables.name || generateCreativeWorkflowName(),
+      lastModified: new Date(),
+      createdAt: new Date(),
+      description: variables.description || 'New workflow',
+      color: variables.color || getNextWorkflowColor(),
+      workspaceId: variables.workspaceId,
+      folderId: variables.folderId || null,
+    })
+  )
+
   return useMutation({
-    mutationFn: async (variables: CreateWorkflowVariables) => {
+    mutationFn: async (variables: CreateWorkflowVariables): Promise<CreateWorkflowResult> => {
       const { workspaceId, name, description, color, folderId } = variables
 
       logger.info(`Creating new workflow in workspace: ${workspaceId}`)
@@ -149,40 +243,11 @@ export function useCreateWorkflow() {
         folderId: createdWorkflow.folderId,
       }
     },
-    onMutate: async (variables): Promise<CreateWorkflowContext> => {
-      // Cancel any outgoing refetches to prevent race conditions
-      await queryClient.cancelQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
+    ...handlers,
+    onSuccess: (data, variables, context) => {
+      handlers.onSuccess(data, variables, context)
 
-      // Snapshot previous state for rollback
-      const previousWorkflows = { ...useWorkflowRegistry.getState().workflows }
-
-      const tempId = `temp-${Date.now()}`
-
-      // Optimistically add workflow entry immediately
-      useWorkflowRegistry.setState((state) => ({
-        workflows: {
-          ...state.workflows,
-          [tempId]: {
-            id: tempId,
-            name: variables.name || 'New Workflow',
-            lastModified: new Date(),
-            createdAt: new Date(),
-            description: variables.description || 'New workflow',
-            color: variables.color || '#808080',
-            workspaceId: variables.workspaceId,
-            folderId: variables.folderId || null,
-          },
-        },
-      }))
-
-      logger.info(`Added optimistic workflow entry: ${tempId}`)
-      return { tempId, previousWorkflows }
-    },
-    onSuccess: (data, _variables, context) => {
-      logger.info(
-        `Workflow ${data.id} created successfully, replacing temp entry ${context.tempId}`
-      )
-
+      // Initialize subblock values for new workflow
       const { subBlockValues } = buildDefaultWorkflowArtifacts()
       useSubBlockStore.setState((state) => ({
         workflowValues: {
@@ -190,40 +255,87 @@ export function useCreateWorkflow() {
           [data.id]: subBlockValues,
         },
       }))
-
-      // Replace optimistic entry with real workflow data
-      useWorkflowRegistry.setState((state) => {
-        const { [context.tempId]: _, ...remainingWorkflows } = state.workflows
-        return {
-          workflows: {
-            ...remainingWorkflows,
-            [data.id]: {
-              id: data.id,
-              name: data.name,
-              lastModified: new Date(),
-              createdAt: new Date(),
-              description: data.description,
-              color: data.color,
-              workspaceId: data.workspaceId,
-              folderId: data.folderId,
-            },
-          },
-          error: null,
-        }
-      })
     },
-    onError: (error: Error, _variables, context) => {
-      logger.error('Failed to create workflow:', error)
+  })
+}
 
-      // Rollback to previous state snapshot
-      if (context?.previousWorkflows) {
-        useWorkflowRegistry.setState({ workflows: context.previousWorkflows })
-        logger.info(`Rolled back to previous workflows state`)
+export function useDuplicateWorkflowMutation() {
+  const queryClient = useQueryClient()
+
+  const handlers = createWorkflowMutationHandlers<DuplicateWorkflowVariables>(
+    queryClient,
+    'DuplicateWorkflow',
+    (variables, tempId) => ({
+      id: tempId,
+      name: variables.name,
+      lastModified: new Date(),
+      createdAt: new Date(),
+      description: variables.description,
+      color: variables.color,
+      workspaceId: variables.workspaceId,
+      folderId: variables.folderId || null,
+    })
+  )
+
+  return useMutation({
+    mutationFn: async (variables: DuplicateWorkflowVariables): Promise<DuplicateWorkflowResult> => {
+      const { workspaceId, sourceId, name, description, color, folderId } = variables
+
+      logger.info(`Duplicating workflow ${sourceId} in workspace: ${workspaceId}`)
+
+      const response = await fetch(`/api/workflows/${sourceId}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          description,
+          color,
+          workspaceId,
+          folderId: folderId ?? null,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(`Failed to duplicate workflow: ${errorData.error || response.statusText}`)
+      }
+
+      const duplicatedWorkflow = await response.json()
+
+      logger.info(`Successfully duplicated workflow ${sourceId} to ${duplicatedWorkflow.id}`, {
+        blocksCount: duplicatedWorkflow.blocksCount,
+        edgesCount: duplicatedWorkflow.edgesCount,
+        subflowsCount: duplicatedWorkflow.subflowsCount,
+      })
+
+      return {
+        id: duplicatedWorkflow.id,
+        name: duplicatedWorkflow.name || name,
+        description: duplicatedWorkflow.description || description,
+        color: duplicatedWorkflow.color || color,
+        workspaceId,
+        folderId: duplicatedWorkflow.folderId ?? folderId,
+        blocksCount: duplicatedWorkflow.blocksCount || 0,
+        edgesCount: duplicatedWorkflow.edgesCount || 0,
+        subflowsCount: duplicatedWorkflow.subflowsCount || 0,
       }
     },
-    onSettled: (_data, _error, variables) => {
-      // Always invalidate to sync with server state
-      queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
+    ...handlers,
+    onSuccess: (data, variables, context) => {
+      handlers.onSuccess(data, variables, context)
+
+      // Copy subblock values from source if it's the active workflow
+      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+      if (variables.sourceId === activeWorkflowId) {
+        const sourceSubblockValues =
+          useSubBlockStore.getState().workflowValues[variables.sourceId] || {}
+        useSubBlockStore.setState((state) => ({
+          workflowValues: {
+            ...state.workflowValues,
+            [data.id]: { ...sourceSubblockValues },
+          },
+        }))
+      }
     },
   })
 }
