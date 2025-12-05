@@ -74,6 +74,9 @@ export interface BlockConfig {
 export interface SchemaProperty {
   type: string
   description: string
+  items?: Record<string, any>
+  properties?: Record<string, SchemaProperty>
+  required?: string[]
 }
 
 export interface ToolSchema {
@@ -327,13 +330,17 @@ export function getToolParametersConfig(
 /**
  * Creates a tool schema for LLM with user-provided parameters excluded
  */
-function buildParameterSchema(toolId: string, paramId: string, param: ToolParamDefinition) {
+function buildParameterSchema(
+  toolId: string,
+  paramId: string,
+  param: ToolParamDefinition
+): SchemaProperty {
   let schemaType = param.type
   if (schemaType === 'json' || schemaType === 'any') {
     schemaType = 'object'
   }
 
-  const propertySchema: Record<string, any> = {
+  const propertySchema: SchemaProperty = {
     type: schemaType,
     description: param.description || '',
   }
