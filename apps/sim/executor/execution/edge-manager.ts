@@ -112,13 +112,6 @@ export class EdgeManager {
     }
 
     switch (handle) {
-      case EDGE.LOOP_CONTINUE:
-      case EDGE.LOOP_CONTINUE_ALT:
-        return output.selectedRoute === EDGE.LOOP_CONTINUE
-
-      case EDGE.LOOP_EXIT:
-        return output.selectedRoute === EDGE.LOOP_EXIT
-
       case EDGE.ERROR:
         return !!output.error
 
