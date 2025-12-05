@@ -89,6 +89,18 @@ vi.mock('@/blocks/registry', () => ({
   getAllBlocks: vi.fn(() => ({})),
 }))
 
+vi.mock('@trigger.dev/sdk', () => ({
+  task: vi.fn(() => ({ trigger: vi.fn() })),
+  tasks: {
+    trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
+    batchTrigger: vi.fn().mockResolvedValue([{ id: 'mock-task-id' }]),
+  },
+  runs: {
+    retrieve: vi.fn().mockResolvedValue({ id: 'mock-run-id', status: 'COMPLETED' }),
+  },
+  configure: vi.fn(),
+}))
+
 const originalConsoleError = console.error
 const originalConsoleWarn = console.warn
 
