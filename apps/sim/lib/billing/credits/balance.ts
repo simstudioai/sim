@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { member, organization, userStats } from '@sim/db/schema'
-import { and, eq, gte, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -94,44 +94,52 @@ export interface DeductResult {
 async function atomicDeductUserCredits(userId: string, cost: number): Promise<number> {
   const costStr = cost.toFixed(6)
 
-  const result = await db
-    .update(userStats)
-    .set({
-      creditBalance: sql`CASE 
-        WHEN ${userStats.creditBalance} >= ${costStr}::decimal THEN ${userStats.creditBalance} - ${costStr}::decimal
-        ELSE 0
-      END`,
-    })
-    .where(and(eq(userStats.userId, userId), gte(userStats.creditBalance, '0')))
-    .returning({
-      oldBalance: sql<string>`(SELECT credit_balance FROM user_stats WHERE user_id = ${userId})`,
-    })
+  // Use raw SQL with CTE to capture old balance before update
+  const result = await db.execute<{ old_balance: string; new_balance: string }>(sql`
+    WITH old_balance AS (
+      SELECT credit_balance FROM user_stats WHERE user_id = ${userId}
+    )
+    UPDATE user_stats 
+    SET credit_balance = CASE 
+      WHEN credit_balance >= ${costStr}::decimal THEN credit_balance - ${costStr}::decimal
+      ELSE 0
+    END
+    WHERE user_id = ${userId} AND credit_balance >= 0
+    RETURNING 
+      (SELECT credit_balance FROM old_balance) as old_balance,
+      credit_balance as new_balance
+  `)
 
-  if (result.length === 0) return 0
+  const rows = Array.from(result)
+  if (rows.length === 0) return 0
 
-  const oldBalance = Number.parseFloat(result[0].oldBalance || '0')
+  const oldBalance = Number.parseFloat(rows[0].old_balance || '0')
   return Math.min(oldBalance, cost)
 }
 
 async function atomicDeductOrgCredits(orgId: string, cost: number): Promise<number> {
   const costStr = cost.toFixed(6)
 
-  const result = await db
-    .update(organization)
-    .set({
-      creditBalance: sql`CASE 
-        WHEN ${organization.creditBalance} >= ${costStr}::decimal THEN ${organization.creditBalance} - ${costStr}::decimal
-        ELSE 0
-      END`,
-    })
-    .where(and(eq(organization.id, orgId), gte(organization.creditBalance, '0')))
-    .returning({
-      oldBalance: sql<string>`(SELECT credit_balance FROM organization WHERE id = ${orgId})`,
-    })
+  // Use raw SQL with CTE to capture old balance before update
+  const result = await db.execute<{ old_balance: string; new_balance: string }>(sql`
+    WITH old_balance AS (
+      SELECT credit_balance FROM organization WHERE id = ${orgId}
+    )
+    UPDATE organization 
+    SET credit_balance = CASE 
+      WHEN credit_balance >= ${costStr}::decimal THEN credit_balance - ${costStr}::decimal
+      ELSE 0
+    END
+    WHERE id = ${orgId} AND credit_balance >= 0
+    RETURNING 
+      (SELECT credit_balance FROM old_balance) as old_balance,
+      credit_balance as new_balance
+  `)
 
-  if (result.length === 0) return 0
+  const rows = Array.from(result)
+  if (rows.length === 0) return 0
 
-  const oldBalance = Number.parseFloat(result[0].oldBalance || '0')
+  const oldBalance = Number.parseFloat(rows[0].old_balance || '0')
   return Math.min(oldBalance, cost)
 }
 
