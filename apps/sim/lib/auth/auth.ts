@@ -28,6 +28,7 @@ import { handleNewUser } from '@/lib/billing/core/usage'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { getPlans } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
+import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
 import {
   handleInvoiceFinalized,
@@ -1979,6 +1980,14 @@ export const auth = betterAuth({
                   }
                   case 'customer.subscription.created': {
                     await handleManualEnterpriseSubscription(event)
+                    break
+                  }
+                  case 'charge.dispute.created': {
+                    await handleChargeDispute(event)
+                    break
+                  }
+                  case 'charge.dispute.closed': {
+                    await handleDisputeClosed(event)
                     break
                   }
                   default:
