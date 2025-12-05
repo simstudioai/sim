@@ -197,7 +197,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: (props) => GoogleSlidesIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
         scopes: [
-          'https://www.googleapis.com/auth/presentations',
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],

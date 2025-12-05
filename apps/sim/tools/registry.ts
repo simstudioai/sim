@@ -296,8 +296,12 @@ import {
   googleSheetsWriteTool,
 } from '@/tools/google_sheets'
 import {
+  googleSlidesAddImageTool,
+  googleSlidesAddSlideTool,
   googleSlidesCreateTool,
+  googleSlidesGetThumbnailTool,
   googleSlidesReadTool,
+  googleSlidesReplaceAllTextTool,
   googleSlidesWriteTool,
 } from '@/tools/google_slides'
 import {
@@ -1687,6 +1691,10 @@ export const tools: Record<string, ToolConfig> = {
   google_slides_read: googleSlidesReadTool,
   google_slides_write: googleSlidesWriteTool,
   google_slides_create: googleSlidesCreateTool,
+  google_slides_replace_all_text: googleSlidesReplaceAllTextTool,
+  google_slides_add_slide: googleSlidesAddSlideTool,
+  google_slides_get_thumbnail: googleSlidesGetThumbnailTool,
+  google_slides_add_image: googleSlidesAddImageTool,
   perplexity_chat: perplexityChatTool,
   perplexity_search: perplexitySearchTool,
   posthog_capture_event: posthogCaptureEventTool,
