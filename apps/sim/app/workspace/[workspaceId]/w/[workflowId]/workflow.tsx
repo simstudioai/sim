@@ -1277,7 +1277,7 @@ const WorkflowContent = React.memo(() => {
     [screenToFlowPosition, isPointInLoopNode, getNodes]
   )
 
-  // Initialize workflow when it exists in registry and isn't active
+  // Initialize workflow when it exists in registry and isn't active or needs hydration
   useEffect(() => {
     let cancelled = false
     const currentId = params.workflowId as string
@@ -1295,8 +1295,16 @@ const WorkflowContent = React.memo(() => {
       return
     }
 
-    if (activeWorkflowId !== currentId) {
-      // Clear diff and set as active
+    // Check if we need to load the workflow state:
+    // 1. Different workflow than currently active
+    // 2. Same workflow but hydration phase is not 'ready' (e.g., after a quick refresh)
+    const needsWorkflowLoad =
+      activeWorkflowId !== currentId ||
+      (activeWorkflowId === currentId &&
+        hydration.phase !== 'ready' &&
+        hydration.phase !== 'state-loading')
+
+    if (needsWorkflowLoad) {
       const { clearDiff } = useWorkflowDiffStore.getState()
       clearDiff()
 

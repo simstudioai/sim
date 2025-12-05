@@ -20,18 +20,12 @@ interface UseFolderOperationsProps {
 export function useFolderOperations({ workspaceId }: UseFolderOperationsProps) {
   const createFolderMutation = useCreateFolder()
 
-  /**
-   * Create folder handler - creates folder with auto-generated name.
-   * Generates name upfront to enable optimistic UI updates.
-   */
   const handleCreateFolder = useCallback(async (): Promise<string | null> => {
-    if (createFolderMutation.isPending || !workspaceId) {
-      logger.info('Folder creation already in progress or no workspaceId available')
+    if (!workspaceId) {
       return null
     }
 
     try {
-      // Generate folder name upfront for optimistic updates
       const folderName = await generateFolderName(workspaceId)
       const folder = await createFolderMutation.mutateAsync({ name: folderName, workspaceId })
       logger.info(`Created folder: ${folderName}`)
