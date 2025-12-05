@@ -91,7 +91,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       serviceId: 'slack',
       placeholder: 'Select Slack channel',
       mode: 'basic',
-      dependsOn: ['credential', 'authMethod'],
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
       condition: {
         field: 'operation',
         value: ['list_channels', 'list_users', 'get_user'],
