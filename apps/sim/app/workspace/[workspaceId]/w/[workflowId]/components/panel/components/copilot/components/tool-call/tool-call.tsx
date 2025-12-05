@@ -237,6 +237,16 @@ function isSpecialToolCall(toolCall: CopilotToolCall): boolean {
   return workflowOperationTools.includes(toolCall.name)
 }
 
+/**
+ * Checks if a tool is an integration tool (server-side executed, not a client tool)
+ */
+function isIntegrationTool(toolName: string): boolean {
+  // Check if it's NOT a client tool (not in CLASS_TOOL_METADATA and not in registered tools)
+  const isClientTool = !!CLASS_TOOL_METADATA[toolName]
+  const isRegisteredTool = !!getRegisteredTools()[toolName]
+  return !isClientTool && !isRegisteredTool
+}
+
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
   const instance = getClientTool(toolCall.id)
   let hasInterrupt = !!instance?.getInterruptDisplays?.()
@@ -251,7 +261,19 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
       }
     } catch {}
   }
-  return hasInterrupt && toolCall.state === 'pending'
+
+  // Show buttons for client tools with interrupts
+  if (hasInterrupt && toolCall.state === 'pending') {
+    return true
+  }
+
+  // Also show buttons for integration tools in pending state (they need user confirmation)
+  const mode = useCopilotStore.getState().mode
+  if (mode === 'build' && isIntegrationTool(toolCall.name) && toolCall.state === 'pending') {
+    return true
+  }
+
+  return false
 }
 
 async function handleRun(
@@ -261,6 +283,18 @@ async function handleRun(
   editedParams?: any
 ) {
   const instance = getClientTool(toolCall.id)
+
+  // Handle integration tools (server-side execution)
+  if (!instance && isIntegrationTool(toolCall.name)) {
+    try {
+      onStateChange?.('executing')
+      await useCopilotStore.getState().executeIntegrationTool(toolCall.id)
+    } catch (e) {
+      setToolCallState(toolCall, 'errored', { error: e instanceof Error ? e.message : String(e) })
+    }
+    return
+  }
+
   if (!instance) return
   try {
     const mergedParams =
@@ -278,6 +312,27 @@ async function handleRun(
 
 async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onStateChange?: any) {
   const instance = getClientTool(toolCall.id)
+
+  // Handle integration tools (skip by marking as rejected and notifying backend)
+  if (!instance && isIntegrationTool(toolCall.name)) {
+    setToolCallState(toolCall, 'rejected')
+    onStateChange?.('rejected')
+    // Notify backend that tool was skipped
+    try {
+      await fetch('/api/copilot/tools/mark-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: toolCall.id,
+          name: toolCall.name,
+          status: 400,
+          message: 'Tool execution skipped by user',
+        }),
+      })
+    } catch {}
+    return
+  }
+
   if (instance) {
     try {
       await instance.handleReject?.()
@@ -346,17 +401,34 @@ function RunSkipButtons({
 }) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [buttonsHidden, setButtonsHidden] = useState(false)
-  const { setToolCallState } = useCopilotStore()
+  const { setToolCallState, addAutoAllowedTool } = useCopilotStore()
 
   const instance = getClientTool(toolCall.id)
   const interruptDisplays = instance?.getInterruptDisplays?.()
-  const acceptLabel = interruptDisplays?.accept?.text || 'Run'
+  const isIntegration = isIntegrationTool(toolCall.name)
+
+  // For integration tools: Allow, Always Allow, Skip
+  // For client tools with interrupts: Run, Skip (or custom labels)
+  const acceptLabel = isIntegration ? 'Allow' : interruptDisplays?.accept?.text || 'Run'
   const rejectLabel = interruptDisplays?.reject?.text || 'Skip'
 
   const onRun = async () => {
     setIsProcessing(true)
     setButtonsHidden(true)
     try {
+      await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const onAlwaysAllow = async () => {
+    setIsProcessing(true)
+    setButtonsHidden(true)
+    try {
+      // Add to auto-allowed list
+      await addAutoAllowedTool(toolCall.name)
+      // Then execute
       await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
     } finally {
       setIsProcessing(false)
@@ -371,6 +443,12 @@ function RunSkipButtons({
         {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
         {acceptLabel}
       </Button>
+      {isIntegration && (
+        <Button onClick={onAlwaysAllow} disabled={isProcessing} variant='default'>
+          {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
+          Always Allow
+        </Button>
+      )}
       <Button
         onClick={async () => {
           setButtonsHidden(true)
@@ -402,11 +480,16 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       toolCall.name === 'run_workflow')
 
   const [expanded, setExpanded] = useState(isExpandablePending)
+  const [showRemoveAutoAllow, setShowRemoveAutoAllow] = useState(false)
 
   // State for editable parameters
   const params = (toolCall as any).parameters || (toolCall as any).input || toolCall.params || {}
   const [editedParams, setEditedParams] = useState(params)
   const paramsRef = useRef(params)
+
+  // Check if this integration tool is auto-allowed
+  const { isToolAutoAllowed, removeAutoAllowedTool } = useCopilotStore()
+  const isAutoAllowed = isIntegrationTool(toolCall.name) && isToolAutoAllowed(toolCall.name)
 
   // Update edited params when toolCall params change (deep comparison to avoid resetting user edits on ref change)
   useEffect(() => {
@@ -846,14 +929,20 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     )
   }
 
+  // Determine if tool name should be clickable (expandable tools or auto-allowed integration tools)
+  const isToolNameClickable = isExpandableTool || isAutoAllowed
+
+  const handleToolNameClick = () => {
+    if (isExpandableTool) {
+      setExpanded((e) => !e)
+    } else if (isAutoAllowed) {
+      setShowRemoveAutoAllow((prev) => !prev)
+    }
+  }
+
   return (
     <div className='w-full'>
-      <div
-        className={isExpandableTool ? 'cursor-pointer' : ''}
-        onClick={() => {
-          if (isExpandableTool) setExpanded((e) => !e)
-        }}
-      >
+      <div className={isToolNameClickable ? 'cursor-pointer' : ''} onClick={handleToolNameClick}>
         <ShimmerOverlayText
           text={displayName}
           active={isLoadingState}
@@ -862,6 +951,21 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         />
       </div>
       {isExpandableTool && expanded && <div>{renderPendingDetails()}</div>}
+      {showRemoveAutoAllow && isAutoAllowed && (
+        <div className='mt-[8px]'>
+          <Button
+            onClick={async () => {
+              await removeAutoAllowedTool(toolCall.name)
+              setShowRemoveAutoAllow(false)
+              forceUpdate({})
+            }}
+            variant='default'
+            className='text-xs'
+          >
+            Remove from Always Allowed
+          </Button>
+        </div>
+      )}
       {showButtons ? (
         <RunSkipButtons
           toolCall={toolCall}
