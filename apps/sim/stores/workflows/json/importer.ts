@@ -110,9 +110,7 @@ function regenerateIds(workflowState: WorkflowState): WorkflowState {
  * This provides backwards compatibility for workflows exported before the null sanitization fix,
  * preventing Zod validation errors like "Expected array, received string".
  */
-function normalizeSubblockValues(
-  blocks: Record<string, any>
-): Record<string, any> {
+function normalizeSubblockValues(blocks: Record<string, any>): Record<string, any> {
   const normalizedBlocks: Record<string, any> = {}
 
   Object.entries(blocks).forEach(([blockId, block]) => {
