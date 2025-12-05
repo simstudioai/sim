@@ -493,7 +493,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                 <Search className='mr-2 h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
                 <input
                   ref={searchInputRef}
-                  className='w-full bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none'
+                  className='w-full bg-transparent text-[var(--text-primary)] text-sm placeholder:text-[var(--text-muted)] focus:outline-none'
                   placeholder={searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}

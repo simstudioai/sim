@@ -25,20 +25,21 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The ID of the spreadsheet to update',
     },
     range: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The range of cells to update',
+      description: 'The A1 notation range to update (e.g. "Sheet1!A1:D10", "A1:B5")',
     },
     values: {
       type: 'array',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The data to update in the spreadsheet',
+      description:
+        'The data to update as a 2D array (e.g. [["Name", "Age"], ["Alice", 30]]) or array of objects.',
     },
     valueInputOption: {
       type: 'string',

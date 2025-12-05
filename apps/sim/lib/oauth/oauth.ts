@@ -878,6 +878,37 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
   },
 }
 
+/**
+ * Service metadata without React components - safe for server-side use
+ */
+export interface OAuthServiceMetadata {
+  providerId: string
+  name: string
+  description: string
+  baseProvider: string
+}
+
+/**
+ * Returns a flat list of all available OAuth services with metadata.
+ * This is safe to use on the server as it doesn't include React components.
+ */
+export function getAllOAuthServices(): OAuthServiceMetadata[] {
+  const services: OAuthServiceMetadata[] = []
+
+  for (const [baseProviderId, provider] of Object.entries(OAUTH_PROVIDERS)) {
+    for (const service of Object.values(provider.services)) {
+      services.push({
+        providerId: service.providerId,
+        name: service.name,
+        description: service.description,
+        baseProvider: baseProviderId,
+      })
+    }
+  }
+
+  return services
+}
+
 export function getServiceByProviderAndId(
   provider: OAuthProvider,
   serviceId?: string

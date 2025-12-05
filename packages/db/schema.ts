@@ -430,6 +430,9 @@ export const settings = pgTable('settings', {
   // Copilot preferences - maps model_id to enabled/disabled boolean
   copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),
 
+  // Copilot auto-allowed integration tools - array of tool IDs that can run without confirmation
+  copilotAutoAllowedTools: jsonb('copilot_auto_allowed_tools').notNull().default('[]'),
+
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 

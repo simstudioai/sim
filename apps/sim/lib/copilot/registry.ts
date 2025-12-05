@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { KnowledgeBaseArgsSchema, KnowledgeBaseResultSchema } from './tools/shared/schemas'
 
 // Tool IDs supported by the Copilot runtime
 export const ToolIds = z.enum([
@@ -32,6 +33,8 @@ export const ToolIds = z.enum([
   'deploy_workflow',
   'check_deployment_status',
   'navigate_ui',
+  'knowledge_base',
+  'generate_diagram',
 ])
 export type ToolId = z.infer<typeof ToolIds>
 
@@ -71,7 +74,9 @@ export const ToolArgSchemas = {
     ),
   }),
   // New
-  oauth_request_access: z.object({}),
+  oauth_request_access: z.object({
+    providerName: z.string(),
+  }),
 
   deploy_workflow: z.object({
     action: z.enum(['deploy', 'undeploy']).optional().default('deploy'),
@@ -195,6 +200,13 @@ export const ToolArgSchemas = {
   reason: z.object({
     reasoning: z.string(),
   }),
+
+  knowledge_base: KnowledgeBaseArgsSchema,
+
+  generate_diagram: z.object({
+    diagramText: z.string().describe('The raw diagram text content (e.g., mermaid syntax)'),
+    language: z.enum(['mermaid']).default('mermaid').describe('The diagram language/format'),
+  }),
 } as const
 export type ToolArgSchemaMap = typeof ToolArgSchemas
 
@@ -267,6 +279,8 @@ export const ToolSSESchemas = {
     ToolArgSchemas.check_deployment_status
   ),
   navigate_ui: toolCallSSEFor('navigate_ui', ToolArgSchemas.navigate_ui),
+  knowledge_base: toolCallSSEFor('knowledge_base', ToolArgSchemas.knowledge_base),
+  generate_diagram: toolCallSSEFor('generate_diagram', ToolArgSchemas.generate_diagram),
 } as const
 export type ToolSSESchemaMap = typeof ToolSSESchemas
 
@@ -463,6 +477,12 @@ export const ToolResultSchemas = {
     destination: z.enum(['workflow', 'logs', 'templates', 'vector_db', 'settings']),
     workflowName: z.string().optional(),
     navigated: z.boolean(),
+  }),
+  knowledge_base: KnowledgeBaseResultSchema,
+  generate_diagram: z.object({
+    diagramText: z.string(),
+    language: z.enum(['mermaid']),
+    rendered: z.boolean().optional(),
   }),
 } as const
 export type ToolResultSchemaMap = typeof ToolResultSchemas

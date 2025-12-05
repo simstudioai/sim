@@ -610,22 +610,19 @@ export class WorkflowDiffEngine {
       const finalEdges: Edge[] = Array.from(edgeMap.values())
 
       // Build final proposed state
+      // Always regenerate loops and parallels from finalBlocks because the block IDs may have
+      // been remapped (via idMap) and the server's loops/parallels would have stale references.
+      // This ensures the nodes arrays in loops/parallels contain the correct (remapped) block IDs,
+      // which is critical for variable resolution in the tag dropdown.
+      const { generateLoopBlocks, generateParallelBlocks } = await import(
+        '@/stores/workflows/workflow/utils'
+      )
       const finalProposedState: WorkflowState = {
         blocks: finalBlocks,
         edges: finalEdges,
-        loops: proposedState.loops || {},
-        parallels: proposedState.parallels || {},
+        loops: generateLoopBlocks(finalBlocks),
+        parallels: generateParallelBlocks(finalBlocks),
         lastSaved: Date.now(),
-      }
-
-      // Ensure loops and parallels are generated
-      if (Object.keys(finalProposedState.loops).length === 0) {
-        const { generateLoopBlocks } = await import('@/stores/workflows/workflow/utils')
-        finalProposedState.loops = generateLoopBlocks(finalProposedState.blocks)
-      }
-      if (Object.keys(finalProposedState.parallels).length === 0) {
-        const { generateParallelBlocks } = await import('@/stores/workflows/workflow/utils')
-        finalProposedState.parallels = generateParallelBlocks(finalProposedState.blocks)
       }
 
       // Transfer block heights from baseline workflow for better measurements in diff view
