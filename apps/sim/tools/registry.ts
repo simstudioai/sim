@@ -296,6 +296,11 @@ import {
   googleSheetsWriteTool,
 } from '@/tools/google_sheets'
 import {
+  googleSlidesCreateTool,
+  googleSlidesReadTool,
+  googleSlidesWriteTool,
+} from '@/tools/google_slides'
+import {
   createMattersExportTool,
   createMattersHoldsTool,
   createMattersTool,
@@ -1679,6 +1684,9 @@ export const tools: Record<string, ToolConfig> = {
   google_sheets_write: googleSheetsWriteTool,
   google_sheets_update: googleSheetsUpdateTool,
   google_sheets_append: googleSheetsAppendTool,
+  google_slides_read: googleSlidesReadTool,
+  google_slides_write: googleSlidesWriteTool,
+  google_slides_create: googleSlidesCreateTool,
   perplexity_chat: perplexityChatTool,
   perplexity_search: perplexitySearchTool,
   posthog_capture_event: posthogCaptureEventTool,
