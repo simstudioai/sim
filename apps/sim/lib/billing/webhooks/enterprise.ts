@@ -115,7 +115,7 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
       ? new Date(referenceItem.current_period_end * 1000)
       : null,
     cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end ?? null,
-    seats,
+    seats: 1, // Enterprise uses metadata.seats for actual seat count, column is always 1
     trialStart: stripeSubscription.trial_start
       ? new Date(stripeSubscription.trial_start * 1000)
       : null,
@@ -140,7 +140,7 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
         periodStart: subscriptionRow.periodStart,
         periodEnd: subscriptionRow.periodEnd,
         cancelAtPeriodEnd: subscriptionRow.cancelAtPeriodEnd,
-        seats: subscriptionRow.seats,
+        seats: 1, // Enterprise uses metadata.seats for actual seat count, column is always 1
         trialStart: subscriptionRow.trialStart,
         trialEnd: subscriptionRow.trialEnd,
         metadata: subscriptionRow.metadata,

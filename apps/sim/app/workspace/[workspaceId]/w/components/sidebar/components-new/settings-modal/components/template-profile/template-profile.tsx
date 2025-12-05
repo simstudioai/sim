@@ -261,7 +261,7 @@ export function TemplateProfile() {
           <div className='flex flex-col gap-[16px]'>
             {/* Display Skeleton */}
             <div className='flex flex-col gap-[8px]'>
-              <Skeleton className='h-[13px] w-[50px]' />
+              <Skeleton className='h-5 w-[50px]' />
               <div className='flex items-center gap-[10px]'>
                 <Skeleton className='h-9 w-9 flex-shrink-0 rounded-full' />
                 <Skeleton className='h-9 flex-1' />
@@ -270,13 +270,13 @@ export function TemplateProfile() {
 
             {/* About Skeleton */}
             <div className='flex flex-col gap-[8px]'>
-              <Skeleton className='h-[13px] w-[35px]' />
+              <Skeleton className='h-5 w-[35px]' />
               <Skeleton className='min-h-[100px] w-full' />
             </div>
 
             {/* Socials Skeleton */}
             <div className='flex flex-col gap-[8px]'>
-              <Skeleton className='h-[13px] w-[45px]' />
+              <Skeleton className='h-5 w-[45px]' />
               <Skeleton className='h-9 w-full' />
               <Skeleton className='h-9 w-full' />
               <Skeleton className='h-9 w-full' />
@@ -348,6 +348,7 @@ export function TemplateProfile() {
                           alt={formData.name || 'Profile picture'}
                           width={36}
                           height={36}
+                          unoptimized
                           className={`h-full w-full object-cover transition-opacity duration-300 ${
                             isUploadingProfilePicture ? 'opacity-50' : 'opacity-100'
                           }`}

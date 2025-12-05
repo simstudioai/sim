@@ -474,9 +474,21 @@ async function handleInternalRequest(
 
     if (toolId.startsWith('custom_') && tool.request.body) {
       const requestBody = tool.request.body(params)
-      if (requestBody.schema && requestBody.params) {
+      if (
+        typeof requestBody === 'object' &&
+        requestBody !== null &&
+        'schema' in requestBody &&
+        'params' in requestBody
+      ) {
         try {
-          validateClientSideParams(requestBody.params, requestBody.schema)
+          validateClientSideParams(
+            requestBody.params as Record<string, any>,
+            requestBody.schema as {
+              type: string
+              properties: Record<string, any>
+              required?: string[]
+            }
+          )
         } catch (validationError) {
           logger.error(`[${requestId}] Custom tool validation failed for ${toolId}:`, {
             error:

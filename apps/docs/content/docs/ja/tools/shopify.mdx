@@ -1,0 +1,444 @@
+---
+title: Shopify
+description: Shopifyストアで商品、注文、顧客、在庫を管理する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="shopify"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Shopify](https://www.shopify.com/)は、商人がオンラインストアを構築、運営、成長させるのを支援するために設計された主要なeコマースプラットフォームです。Shopifyを使えば、商品や在庫から注文や顧客まで、ストアのあらゆる側面を簡単に管理できます。
+
+SimでShopifyを使用すると、エージェントは以下のことができます：
+
+- **商品の作成と管理**：新しい商品の追加、商品詳細の更新、ストアからの商品の削除。
+- **注文の一覧表示と取得**：フィルタリングや注文管理を含む、顧客注文に関する情報の取得。
+- **顧客の管理**：顧客詳細へのアクセスと更新、またはストアへの新規顧客の追加。
+- **在庫レベルの調整**：商品の在庫レベルをプログラムで変更し、在庫を正確に保つ。
+
+SimのShopify統合を使用して、在庫の同期、注文の履行、リスティングの管理などの一般的なストア管理ワークフローを自動化から直接自動化します。エージェントがシンプルでプログラム的なツールを使用して、すべてのストアデータにアクセス、更新、整理できるようにします。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Shopifyをワークフローに統合します。商品、注文、顧客、在庫を管理します。商品の作成、読み取り、更新、削除を行います。注文の一覧表示と管理。顧客データの処理と在庫レベルの調整。
+
+## ツール
+
+### `shopify_create_product`
+
+Shopifyストアに新しい商品を作成する
+
+#### 入力
+
+| パラメータ | 種類 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `title` | string | はい | 商品タイトル |
+| `descriptionHtml` | string | いいえ | 商品説明（HTML） |
+| `vendor` | string | いいえ | 商品ベンダー/ブランド |
+| `productType` | string | いいえ | 商品タイプ/カテゴリー |
+| `tags` | array | いいえ | 商品タグ |
+| `status` | string | いいえ | 商品ステータス（ACTIVE、DRAFT、ARCHIVED） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `product` | object | 作成された商品 |
+
+### `shopify_get_product`
+
+IDを使用してShopifyストアから単一の商品を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `productId` | string | はい | 商品ID（gid://shopify/Product/123456789） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `product` | object | 商品の詳細 |
+
+### `shopify_list_products`
+
+オプションのフィルタリングを使用してShopifyストアから商品リストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `first` | number | いいえ | 返す商品数（デフォルト：50、最大：250） |
+| `query` | string | いいえ | 商品をフィルタリングする検索クエリ（例："title:shirt"または"vendor:Nike"または"status:active"） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `products` | array | 商品リスト |
+| `pageInfo` | object | ページネーション情報 |
+
+### `shopify_update_product`
+
+Shopifyストアの既存の商品を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `productId` | string | はい | 更新する商品ID（gid://shopify/Product/123456789） |
+| `title` | string | いいえ | 新しい商品タイトル |
+| `descriptionHtml` | string | いいえ | 新しい商品説明（HTML） |
+| `vendor` | string | いいえ | 新しい商品ベンダー/ブランド |
+| `productType` | string | いいえ | 新しい商品タイプ/カテゴリー |
+| `tags` | array | いいえ | 新しい商品タグ |
+| `status` | string | いいえ | 新しい商品ステータス（ACTIVE、DRAFT、ARCHIVED） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `product` | object | 更新された商品 |
+
+### `shopify_delete_product`
+
+Shopifyストアから商品を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `productId` | string | はい | 削除する商品ID（gid://shopify/Product/123456789） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deletedId` | string | 削除された商品のID |
+
+### `shopify_get_order`
+
+IDを指定してShopifyストアから単一の注文を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `orderId` | string | はい | 注文ID（gid://shopify/Order/123456789） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `order` | object | 注文の詳細 |
+
+### `shopify_list_orders`
+
+オプションのフィルタリングを使用してShopifyストアから注文一覧を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `first` | number | いいえ | 返す注文数（デフォルト：50、最大：250） |
+| `status` | string | いいえ | 注文ステータスでフィルタリング（open、closed、cancelled、any） |
+| `query` | string | いいえ | 注文をフィルタリングする検索クエリ（例："financial_status:paid"または"fulfillment_status:unfulfilled"または"email:customer@example.com"） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `orders` | array | 注文のリスト |
+| `pageInfo` | object | ページネーション情報 |
+
+### `shopify_update_order`
+
+Shopifyストアの既存の注文を更新します（メモ、タグ、メール）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン \(例：mystore.myshopify.com\) |
+| `orderId` | string | はい | 更新する注文ID \(gid://shopify/Order/123456789\) |
+| `note` | string | いいえ | 新しい注文メモ |
+| `tags` | array | いいえ | 新しい注文タグ |
+| `email` | string | いいえ | 注文の新しい顧客メール |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `order` | object | 更新された注文 |
+
+### `shopify_cancel_order`
+
+Shopifyストアの注文をキャンセルします
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン \(例：mystore.myshopify.com\) |
+| `orderId` | string | はい | キャンセルする注文ID \(gid://shopify/Order/123456789\) |
+| `reason` | string | はい | キャンセル理由 \(CUSTOMER, DECLINED, FRAUD, INVENTORY, STAFF, OTHER\) |
+| `notifyCustomer` | boolean | いいえ | キャンセルについて顧客に通知するかどうか |
+| `refund` | boolean | いいえ | 注文を返金するかどうか |
+| `restock` | boolean | いいえ | 在庫を補充するかどうか |
+| `staffNote` | string | いいえ | スタッフ参照用のキャンセルに関するメモ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `order` | object | キャンセル結果 |
+
+### `shopify_create_customer`
+
+Shopifyストアに新しい顧客を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `email` | string | いいえ | 顧客のメールアドレス |
+| `firstName` | string | いいえ | 顧客の名 |
+| `lastName` | string | いいえ | 顧客の姓 |
+| `phone` | string | いいえ | 顧客の電話番号 |
+| `note` | string | いいえ | 顧客に関するメモ |
+| `tags` | array | いいえ | 顧客タグ |
+| `addresses` | array | いいえ | 顧客の住所 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `customer` | object | 作成された顧客 |
+
+### `shopify_get_customer`
+
+IDからShopifyストアの単一顧客を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `customerId` | string | はい | 顧客ID（gid://shopify/Customer/123456789） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `customer` | object | 顧客の詳細 |
+
+### `shopify_list_customers`
+
+オプションのフィルタリングを使用してShopifyストアから顧客をリストアップする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | あなたのShopifyストアドメイン（例：mystore.myshopify.com） |
+| `first` | number | いいえ | 返す顧客の数（デフォルト：50、最大：250） |
+| `query` | string | いいえ | 顧客をフィルタリングする検索クエリ（例："first_name:John"または"last_name:Smith"または"email:*@gmail.com"または"tag:vip"） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `customers` | array | 顧客のリスト |
+| `pageInfo` | object | ページネーション情報 |
+
+### `shopify_update_customer`
+
+Shopifyストアの既存の顧客を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | あなたのShopifyストアドメイン（例：mystore.myshopify.com） |
+| `customerId` | string | はい | 更新する顧客ID（gid://shopify/Customer/123456789） |
+| `email` | string | いいえ | 新しい顧客のメールアドレス |
+| `firstName` | string | いいえ | 新しい顧客の名 |
+| `lastName` | string | いいえ | 新しい顧客の姓 |
+| `phone` | string | いいえ | 新しい顧客の電話番号 |
+| `note` | string | いいえ | 顧客に関する新しいメモ |
+| `tags` | array | いいえ | 新しい顧客タグ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `customer` | object | 更新された顧客 |
+
+### `shopify_delete_customer`
+
+Shopifyストアから顧客を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `customerId` | string | はい | 削除する顧客ID（gid://shopify/Customer/123456789） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deletedId` | string | 削除された顧客のID |
+
+### `shopify_list_inventory_items`
+
+Shopifyストアから在庫アイテムを一覧表示します。SKUで在庫アイテムIDを検索する際に使用します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `first` | number | いいえ | 返す在庫アイテム数（デフォルト：50、最大：250） |
+| `query` | string | いいえ | 在庫アイテムをフィルタリングする検索クエリ（例："sku:ABC123"） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `inventoryItems` | array | ID、SKU、在庫レベルを含む在庫アイテムのリスト |
+| `pageInfo` | object | ページネーション情報 |
+
+### `shopify_get_inventory_level`
+
+特定の場所での商品バリアントの在庫レベルを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `inventoryItemId` | string | はい | 在庫アイテムID（gid://shopify/InventoryItem/123456789） |
+| `locationId` | string | いいえ | フィルタリングする場所ID（オプション） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `inventoryLevel` | object | 在庫レベルの詳細 |
+
+### `shopify_adjust_inventory`
+
+特定の場所で商品バリアントの在庫数量を調整する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `inventoryItemId` | string | はい | 在庫アイテムID（gid://shopify/InventoryItem/123456789） |
+| `locationId` | string | はい | ロケーションID（gid://shopify/Location/123456789） |
+| `delta` | number | はい | 調整する量（増加は正の値、減少は負の値） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `inventoryLevel` | object | 在庫調整の結果 |
+
+### `shopify_list_locations`
+
+Shopifyストアから在庫ロケーションを一覧表示します。在庫操作に必要なロケーションIDを見つけるために使用します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | Shopifyストアドメイン（例：mystore.myshopify.com） |
+| `first` | number | いいえ | 返すロケーションの数（デフォルト：50、最大：250） |
+| `includeInactive` | boolean | いいえ | 非アクティブ化されたロケーションを含めるかどうか（デフォルト：false） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `locations` | array | ID、名前、住所を含むロケーションのリスト |
+| `pageInfo` | object | ページネーション情報 |
+
+### `shopify_create_fulfillment`
+
+注文商品を発送済みとしてマークするためのフルフィルメントを作成します。フルフィルメント注文ID（注文詳細から取得）が必要です。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | あなたのShopifyストアドメイン（例：mystore.myshopify.com） |
+| `fulfillmentOrderId` | string | はい | フルフィルメント注文ID（例：gid://shopify/FulfillmentOrder/123456789） |
+| `trackingNumber` | string | いいえ | 配送の追跡番号 |
+| `trackingCompany` | string | いいえ | 配送業者名（例：UPS、FedEx、USPS、DHL） |
+| `trackingUrl` | string | いいえ | 配送を追跡するためのURL |
+| `notifyCustomer` | boolean | いいえ | 顧客に発送確認メールを送信するかどうか（デフォルト：true） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `fulfillment` | object | 追跡情報とフルフィルメントされた商品を含む作成されたフルフィルメント |
+
+### `shopify_list_collections`
+
+Shopifyストアから商品コレクションを一覧表示します。タイトル、タイプ（カスタム/スマート）、またはハンドルでフィルタリングできます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | あなたのShopifyストアドメイン（例：mystore.myshopify.com） |
+| `first` | number | いいえ | 返すコレクションの数（デフォルト：50、最大：250） |
+| `query` | string | いいえ | コレクションをフィルタリングする検索クエリ（例："title:Summer"または"collection_type:smart"） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `collections` | array | ID、タイトル、商品数を含むコレクションのリスト |
+| `pageInfo` | object | ページネーション情報 |
+
+### `shopify_get_collection`
+
+IDで特定のコレクションを取得し、その製品も含めます。これを使用してコレクション内の製品を取得できます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | はい | あなたのShopifyストアドメイン（例：mystore.myshopify.com） |
+| `collectionId` | string | はい | コレクションID（例：gid://shopify/Collection/123456789） |
+| `productsFirst` | number | いいえ | このコレクションから返す製品の数（デフォルト：50、最大：250） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `collection` | object | 製品を含むコレクションの詳細 |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `shopify`

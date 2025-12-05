@@ -210,6 +210,8 @@ export const env = createEnv({
     PIPEDRIVE_CLIENT_SECRET:               z.string().optional(),                  // Pipedrive OAuth client secret
     LINEAR_CLIENT_ID:                      z.string().optional(),                  // Linear OAuth client ID
     LINEAR_CLIENT_SECRET:                  z.string().optional(),                  // Linear OAuth client secret
+    DROPBOX_CLIENT_ID:                     z.string().optional(),                  // Dropbox OAuth client ID
+    DROPBOX_CLIENT_SECRET:                 z.string().optional(),                  // Dropbox OAuth client secret
     SLACK_CLIENT_ID:                       z.string().optional(),                  // Slack OAuth client ID
     SLACK_CLIENT_SECRET:                   z.string().optional(),                  // Slack OAuth client secret
     REDDIT_CLIENT_ID:                      z.string().optional(),                  // Reddit OAuth client ID
@@ -219,6 +221,12 @@ export const env = createEnv({
     TRELLO_API_KEY:                        z.string().optional(),                  // Trello API Key
     LINKEDIN_CLIENT_ID:                    z.string().optional(),                  // LinkedIn OAuth client ID
     LINKEDIN_CLIENT_SECRET:                z.string().optional(),                  // LinkedIn OAuth client secret
+    SHOPIFY_CLIENT_ID:                     z.string().optional(),                  // Shopify OAuth client ID
+    SHOPIFY_CLIENT_SECRET:                 z.string().optional(),                  // Shopify OAuth client secret
+    ZOOM_CLIENT_ID:                        z.string().optional(),                  // Zoom OAuth client ID
+    ZOOM_CLIENT_SECRET:                    z.string().optional(),                  // Zoom OAuth client secret
+    WORDPRESS_CLIENT_ID:                   z.string().optional(),                  // WordPress.com OAuth client ID
+    WORDPRESS_CLIENT_SECRET:               z.string().optional(),                  // WordPress.com OAuth client secret
 
     // E2B Remote Code Execution
     E2B_ENABLED:                           z.string().optional(),                  // Enable E2B remote code execution

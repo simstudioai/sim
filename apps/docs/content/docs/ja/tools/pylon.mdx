@@ -82,10 +82,17 @@ Pylonをワークフローに統合します。問題（一覧表示、作成、
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `apiToken` | string | はい | Pylon APIトークン |
-| `title` | string | はい | 問題のタイトル |
-| `bodyHtml` | string | はい | HTML形式の問題本文 |
-| `accountId` | string | いいえ | 問題に関連付けるアカウントID |
-| `assigneeId` | string | いいえ | 問題を割り当てるユーザーID |
+| `title` | string | はい | 課題のタイトル |
+| `bodyHtml` | string | はい | HTML形式の課題本文 |
+| `accountId` | string | いいえ | 課題に関連付けるアカウントID |
+| `assigneeId` | string | いいえ | 課題を割り当てるユーザーID |
+| `teamId` | string | いいえ | 課題を割り当てるチームID |
+| `requesterId` | string | いいえ | 要求者ユーザーID（requester_emailの代替） |
+| `requesterEmail` | string | いいえ | 要求者のメールアドレス（requester_idの代替） |
+| `priority` | string | いいえ | 課題の優先度 |
+| `tags` | string | いいえ | カンマ区切りのタグID |
+| `customFields` | string | いいえ | JSONオブジェクトとしてのカスタムフィールド |
+| `attachmentUrls` | string | いいえ | カンマ区切りの添付ファイルURL |
 
 #### 出力
 
@@ -127,6 +134,9 @@ IDで特定の課題を取得する
 | `teamId` | string | いいえ | 課題を割り当てるチームID |
 | `tags` | string | いいえ | カンマ区切りのタグID |
 | `customFields` | string | いいえ | JSONオブジェクトとしてのカスタムフィールド |
+| `customerPortalVisible` | boolean | いいえ | 課題がカスタマーポータルで表示されるかどうか |
+| `requesterId` | string | いいえ | 要求者ユーザーID |
+| `accountId` | string | いいえ | 課題に関連付けるアカウントID |
 
 #### 出力
 

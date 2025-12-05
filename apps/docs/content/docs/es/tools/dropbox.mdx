@@ -1,0 +1,219 @@
+---
+title: Dropbox
+description: Sube, descarga, comparte y gestiona archivos en Dropbox
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dropbox"
+  color="#0061FF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Dropbox](https://dropbox.com/) es una popular plataforma de almacenamiento en la nube y colaboración que permite a individuos y equipos almacenar, acceder y compartir archivos de forma segura desde cualquier lugar. Dropbox está diseñado para facilitar la gestión de archivos, la sincronización y una potente colaboración, ya sea que trabajes solo o en grupo.
+
+Con Dropbox en Sim, puedes:
+
+- **Subir y descargar archivos**: Sube cualquier archivo a tu Dropbox o recupera contenido bajo demanda sin problemas
+- **Listar contenidos de carpetas**: Navega por los archivos y carpetas dentro de cualquier directorio de Dropbox
+- **Crear nuevas carpetas**: Organiza tus archivos creando programáticamente nuevas carpetas en tu Dropbox
+- **Buscar archivos y carpetas**: Localiza documentos, imágenes u otros elementos por nombre o contenido
+- **Generar enlaces compartidos**: Crea rápidamente enlaces públicos o privados compartibles para archivos y carpetas
+- **Gestionar archivos**: Mueve, elimina o renombra archivos y carpetas como parte de flujos de trabajo automatizados
+
+Estas capacidades permiten a tus agentes Sim automatizar operaciones de Dropbox directamente dentro de tus flujos de trabajo — desde hacer copias de seguridad de archivos importantes hasta distribuir contenido y mantener carpetas organizadas. Usa Dropbox como fuente y destino para archivos, permitiendo una gestión fluida del almacenamiento en la nube como parte de tus procesos de negocio.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Dropbox en tu flujo de trabajo para la gestión de archivos, compartir y colaboración. Sube archivos, descarga contenido, crea carpetas, gestiona enlaces compartidos y más.
+
+## Herramientas
+
+### `dropbox_upload`
+
+Subir un archivo a Dropbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Sí | La ruta en Dropbox donde se guardará el archivo \(p. ej., /carpeta/documento.pdf\) |
+| `fileContent` | string | Sí | El contenido codificado en base64 del archivo a subir |
+| `fileName` | string | No | Nombre de archivo opcional \(usado si la ruta es una carpeta\) |
+| `mode` | string | No | Modo de escritura: add \(predeterminado\) u overwrite |
+| `autorename` | boolean | No | Si es true, renombra el archivo si hay un conflicto |
+| `mute` | boolean | No | Si es true, no notifica al usuario sobre esta subida |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | object | Los metadatos del archivo subido |
+
+### `dropbox_download`
+
+Descargar un archivo de Dropbox y obtener un enlace temporal
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Sí | La ruta del archivo a descargar \(p. ej., /carpeta/documento.pdf\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | object | Los metadatos del archivo |
+
+### `dropbox_list_folder`
+
+Listar el contenido de una carpeta en Dropbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Sí | La ruta de la carpeta a listar \(usar "" para la raíz\) |
+| `recursive` | boolean | No | Si es verdadero, lista el contenido recursivamente |
+| `includeDeleted` | boolean | No | Si es verdadero, incluye archivos/carpetas eliminados |
+| `includeMediaInfo` | boolean | No | Si es verdadero, incluye información multimedia para fotos/videos |
+| `limit` | number | No | Número máximo de resultados a devolver \(predeterminado: 500\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `entries` | array | Lista de archivos y carpetas en el directorio |
+
+### `dropbox_create_folder`
+
+Crear una nueva carpeta en Dropbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Sí | La ruta donde se debe crear la carpeta \(p. ej., /nueva-carpeta\) |
+| `autorename` | boolean | No | Si es verdadero, renombra la carpeta si hay un conflicto |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `folder` | objeto | Los metadatos de la carpeta creada |
+
+### `dropbox_delete`
+
+Eliminar un archivo o carpeta en Dropbox (mueve a la papelera)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `path` | cadena | Sí | La ruta del archivo o carpeta a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `metadata` | objeto | Metadatos del elemento eliminado |
+
+### `dropbox_copy`
+
+Copiar un archivo o carpeta en Dropbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fromPath` | cadena | Sí | La ruta de origen del archivo o carpeta a copiar |
+| `toPath` | cadena | Sí | La ruta de destino para el archivo o carpeta copiado |
+| `autorename` | booleano | No | Si es verdadero, renombra el archivo si hay un conflicto en el destino |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `metadata` | objeto | Metadatos del elemento copiado |
+
+### `dropbox_move`
+
+Mover o renombrar un archivo o carpeta en Dropbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fromPath` | cadena | Sí | La ruta de origen del archivo o carpeta a mover |
+| `toPath` | cadena | Sí | La ruta de destino para el archivo o carpeta movido |
+| `autorename` | booleano | No | Si es verdadero, renombra el archivo si hay un conflicto en el destino |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `metadata` | object | Metadatos del elemento movido |
+
+### `dropbox_get_metadata`
+
+Obtener metadatos de un archivo o carpeta en Dropbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Sí | La ruta del archivo o carpeta del que obtener metadatos |
+| `includeMediaInfo` | boolean | No | Si es verdadero, incluye información multimedia para fotos/videos |
+| `includeDeleted` | boolean | No | Si es verdadero, incluye archivos eliminados en los resultados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `metadata` | object | Metadatos del archivo o carpeta |
+
+### `dropbox_create_shared_link`
+
+Crear un enlace compartible para un archivo o carpeta en Dropbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Sí | La ruta del archivo o carpeta a compartir |
+| `requestedVisibility` | string | No | Visibilidad: public, team_only, o password |
+| `linkPassword` | string | No | Contraseña para el enlace compartido \(solo si la visibilidad es password\) |
+| `expires` | string | No | Fecha de caducidad en formato ISO 8601 \(p. ej., 2025-12-31T23:59:59Z\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `sharedLink` | object | El enlace compartido creado |
+
+### `dropbox_search`
+
+Buscar archivos y carpetas en Dropbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `query` | string | Sí | La consulta de búsqueda |
+| `path` | string | No | Limitar la búsqueda a una ruta de carpeta específica |
+| `fileExtensions` | string | No | Lista separada por comas de extensiones de archivo para filtrar \(p. ej., pdf,xlsx\) |
+| `maxResults` | number | No | Número máximo de resultados a devolver \(predeterminado: 100\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `matches` | array | Resultados de la búsqueda |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `dropbox`

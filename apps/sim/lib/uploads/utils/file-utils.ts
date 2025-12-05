@@ -1,6 +1,6 @@
 import type { Logger } from '@/lib/logs/console/logger'
 import type { StorageContext } from '@/lib/uploads'
-import { ACCEPTED_FILE_TYPES } from '@/lib/uploads/utils/validation'
+import { ACCEPTED_FILE_TYPES, SUPPORTED_DOCUMENT_EXTENSIONS } from '@/lib/uploads/utils/validation'
 import type { UserFile } from '@/executor/types'
 
 export interface FileAttachment {
@@ -258,11 +258,22 @@ export function validateKnowledgeBaseFile(
     return `File "${file.name}" is too large. Maximum size is ${maxSizeMB}MB.`
   }
 
-  if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
-    return `File "${file.name}" has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON, YAML, or YML files.`
+  // Check MIME type first
+  if (ACCEPTED_FILE_TYPES.includes(file.type)) {
+    return null
   }
 
-  return null
+  // Fallback: check file extension (browsers often misidentify file types like .md)
+  const extension = getFileExtension(file.name)
+  if (
+    SUPPORTED_DOCUMENT_EXTENSIONS.includes(
+      extension as (typeof SUPPORTED_DOCUMENT_EXTENSIONS)[number]
+    )
+  ) {
+    return null
+  }
+
+  return `File "${file.name}" has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON, YAML, or YML files.`
 }
 
 /**

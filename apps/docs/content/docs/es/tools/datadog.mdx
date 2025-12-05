@@ -1,0 +1,302 @@
+---
+title: Datadog
+description: Monitorea infraestructura, aplicaciones y registros con Datadog
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="datadog"
+  color="#632CA6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Datadog](https://datadoghq.com/) es una plataforma integral de monitoreo y análisis para infraestructura, aplicaciones, registros y más. Permite a las organizaciones obtener visibilidad en tiempo real sobre la salud y el rendimiento de los sistemas, detectar anomalías y automatizar la respuesta a incidentes.
+
+Con Datadog, puedes:
+
+- **Monitorear métricas**: Recopilar, visualizar y analizar métricas de servidores, servicios en la nube y aplicaciones personalizadas.
+- **Consultar datos de series temporales**: Ejecutar consultas avanzadas sobre métricas de rendimiento para análisis de tendencias e informes.
+- **Gestionar monitores y eventos**: Configurar monitores para detectar problemas, activar alertas y crear eventos para observabilidad.
+- **Manejar tiempos de inactividad**: Programar y gestionar de forma programática los tiempos de inactividad planificados para suprimir alertas durante el mantenimiento.
+- **Analizar registros y trazas** *(con configuración adicional en Datadog)*: Centralizar e inspeccionar registros o trazas distribuidas para una solución de problemas más profunda.
+
+La integración de Datadog de Sim permite que tus agentes automaticen estas operaciones e interactúen con tu cuenta de Datadog de forma programática. Úsala para enviar métricas personalizadas, consultar datos de series temporales, gestionar monitores, crear eventos y optimizar tus flujos de trabajo de monitoreo directamente dentro de las automatizaciones de Sim.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra el monitoreo de Datadog en los flujos de trabajo. Envía métricas, gestiona monitores, consulta registros, crea eventos, maneja tiempos de inactividad y más.
+
+## Herramientas
+
+### `datadog_submit_metrics`
+
+Envía métricas personalizadas a Datadog. Utilízalo para seguir el rendimiento de aplicaciones, métricas de negocio o datos de monitoreo personalizados.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `series` | string | Sí | Array JSON de series métricas para enviar. Cada serie debe incluir nombre de métrica, tipo \(gauge/rate/count\), puntos \(pares de marca de tiempo/valor\) y etiquetas opcionales. |
+| `apiKey` | string | Sí | Clave API de Datadog |
+| `site` | string | No | Sitio/región de Datadog \(predeterminado: datadoghq.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si las métricas se enviaron correctamente |
+| `errors` | array | Cualquier error que haya ocurrido durante el envío |
+
+### `datadog_query_timeseries`
+
+Consulta datos de series temporales de métricas desde Datadog. Útil para analizar tendencias, crear informes o recuperar valores de métricas.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | Consulta de métricas de Datadog (p. ej., "avg:system.cpu.user\{*\}") |
+| `from` | number | Sí | Tiempo de inicio como marca de tiempo Unix en segundos |
+| `to` | number | Sí | Tiempo de finalización como marca de tiempo Unix en segundos |
+| `apiKey` | string | Sí | Clave API de Datadog |
+| `applicationKey` | string | Sí | Clave de aplicación de Datadog |
+| `site` | string | No | Sitio/región de Datadog (predeterminado: datadoghq.com) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `series` | array | Array de datos de series temporales con nombre de métrica, etiquetas y puntos de datos |
+| `status` | string | Estado de la consulta |
+
+### `datadog_create_event`
+
+Publica un evento en el flujo de eventos de Datadog. Útil para notificaciones de despliegue, alertas o cualquier suceso significativo.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Sí | Título del evento |
+| `text` | string | Sí | Cuerpo/descripción del evento. Admite markdown. |
+| `alertType` | string | No | Tipo de alerta: error, warning, info, success, user_update, recommendation o snapshot |
+| `priority` | string | No | Prioridad del evento: normal o low |
+| `host` | string | No | Nombre del host asociado con este evento |
+| `tags` | string | No | Lista de etiquetas separadas por comas (p. ej., "env:production,service:api") |
+| `aggregationKey` | string | No | Clave para agrupar eventos |
+| `sourceTypeName` | string | No | Nombre del tipo de fuente para el evento |
+| `dateHappened` | number | No | Marca de tiempo Unix cuando ocurrió el evento (por defecto: ahora) |
+| `apiKey` | string | Sí | Clave API de Datadog |
+| `site` | string | No | Sitio/región de Datadog (predeterminado: datadoghq.com) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `event` | object | Los detalles del evento creado |
+
+### `datadog_create_monitor`
+
+Crear un nuevo monitor/alerta en Datadog. Los monitores pueden rastrear métricas, verificaciones de servicio, eventos y más.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Sí | Nombre del monitor |
+| `type` | string | Sí | Tipo de monitor: alerta de métrica, verificación de servicio, alerta de evento, alerta de proceso, alerta de registro, alerta de consulta, compuesto, alerta de sintéticos, alerta de slo |
+| `query` | string | Sí | Consulta del monitor \(p. ej., "avg\(last_5m\):avg:system.cpu.idle\{*\} &lt; 20"\) |
+| `message` | string | No | Mensaje para incluir con las notificaciones. Puede incluir menciones con @ y markdown. |
+| `tags` | string | No | Lista de etiquetas separadas por comas |
+| `priority` | number | No | Prioridad del monitor \(1-5, donde 1 es la más alta\) |
+| `options` | string | No | Cadena JSON de opciones del monitor \(umbrales, notify_no_data, renotify_interval, etc.\) |
+| `apiKey` | string | Sí | Clave API de Datadog |
+| `applicationKey` | string | Sí | Clave de aplicación de Datadog |
+| `site` | string | No | Sitio/región de Datadog \(predeterminado: datadoghq.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `monitor` | object | Los detalles del monitor creado |
+
+### `datadog_get_monitor`
+
+Recuperar detalles de un monitor específico por ID.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | Sí | El ID del monitor a recuperar |
+| `groupStates` | string | No | Estados de grupo separados por comas para incluir: alerta, advertencia, sin datos, ok |
+| `withDowntimes` | boolean | No | Incluir datos de tiempo de inactividad con el monitor |
+| `apiKey` | string | Sí | Clave API de Datadog |
+| `applicationKey` | string | Sí | Clave de aplicación de Datadog |
+| `site` | string | No | Sitio/región de Datadog \(predeterminado: datadoghq.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `monitor` | object | Los detalles del monitor |
+
+### `datadog_list_monitors`
+
+Lista todos los monitores en Datadog con filtrado opcional por nombre, etiquetas o estado.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `groupStates` | string | No | Estados de grupo separados por comas para filtrar: alert, warn, no data, ok |
+| `name` | string | No | Filtrar monitores por nombre \(coincidencia parcial\) |
+| `tags` | string | No | Lista de etiquetas separadas por comas para filtrar |
+| `monitorTags` | string | No | Lista de etiquetas de monitor separadas por comas para filtrar |
+| `withDowntimes` | boolean | No | Incluir datos de tiempo de inactividad con los monitores |
+| `page` | number | No | Número de página para paginación \(indexado desde 0\) |
+| `pageSize` | number | No | Número de monitores por página \(máximo 1000\) |
+| `apiKey` | string | Sí | Clave API de Datadog |
+| `applicationKey` | string | Sí | Clave de aplicación de Datadog |
+| `site` | string | No | Sitio/región de Datadog \(predeterminado: datadoghq.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `monitors` | array | Lista de monitores |
+
+### `datadog_mute_monitor`
+
+Silencia un monitor para suprimir temporalmente las notificaciones.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | Sí | El ID del monitor a silenciar |
+| `scope` | string | No | Ámbito a silenciar \(p. ej., "host:myhost"\). Si no se especifica, silencia todos los ámbitos. |
+| `end` | number | No | Marca de tiempo Unix cuando debe finalizar el silenciamiento. Si no se especifica, silencia indefinidamente. |
+| `apiKey` | string | Sí | Clave API de Datadog |
+| `applicationKey` | string | Sí | Clave de aplicación de Datadog |
+| `site` | string | No | Sitio/región de Datadog \(predeterminado: datadoghq.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si el monitor se silenció correctamente |
+
+### `datadog_query_logs`
+
+Busca y recupera registros desde Datadog. Útil para solución de problemas, análisis o monitoreo.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | Consulta de búsqueda de registros \(p. ej., "service:web-app status:error"\) |
+| `from` | string | Sí | Hora de inicio en formato ISO-8601 o relativo \(p. ej., "now-1h"\) |
+| `to` | string | Sí | Hora de fin en formato ISO-8601 o relativo \(p. ej., "now"\) |
+| `limit` | number | No | Número máximo de registros a devolver \(predeterminado: 50, máx: 1000\) |
+| `sort` | string | No | Orden de clasificación: timestamp \(más antiguos primero\) o -timestamp \(más recientes primero\) |
+| `indexes` | string | No | Lista separada por comas de índices de registros para buscar |
+| `apiKey` | string | Sí | Clave API de Datadog |
+| `applicationKey` | string | Sí | Clave de aplicación de Datadog |
+| `site` | string | No | Sitio/región de Datadog \(predeterminado: datadoghq.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `logs` | array | Lista de entradas de registro |
+
+### `datadog_send_logs`
+
+Envía entradas de registro a Datadog para registro centralizado y análisis.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `logs` | string | Sí | Array JSON de entradas de registro. Cada entrada debe tener message y opcionalmente ddsource, ddtags, hostname, service. |
+| `apiKey` | string | Sí | Clave API de Datadog |
+| `site` | string | No | Sitio/región de Datadog \(predeterminado: datadoghq.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si los registros se enviaron correctamente |
+
+### `datadog_create_downtime`
+
+Programa un tiempo de inactividad para suprimir las notificaciones del monitor durante las ventanas de mantenimiento.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `scope` | string | Sí | Ámbito para aplicar el tiempo de inactividad \(p. ej., "host:myhost", "env:production", o "*" para todos\) |
+| `message` | string | No | Mensaje a mostrar durante el tiempo de inactividad |
+| `start` | number | No | Marca de tiempo Unix para el inicio del tiempo de inactividad \(por defecto es ahora\) |
+| `end` | number | No | Marca de tiempo Unix para el final del tiempo de inactividad |
+| `timezone` | string | No | Zona horaria para el tiempo de inactividad \(p. ej., "America/New_York"\) |
+| `monitorId` | string | No | ID específico del monitor a silenciar |
+| `monitorTags` | string | No | Etiquetas de monitor separadas por comas para coincidir \(p. ej., "team:backend,priority:high"\) |
+| `muteFirstRecoveryNotification` | boolean | No | Silenciar la primera notificación de recuperación |
+| `apiKey` | string | Sí | Clave API de Datadog |
+| `applicationKey` | string | Sí | Clave de aplicación de Datadog |
+| `site` | string | No | Sitio/región de Datadog \(por defecto: datadoghq.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `downtime` | object | Los detalles del tiempo de inactividad creado |
+
+### `datadog_list_downtimes`
+
+Listar todos los tiempos de inactividad programados en Datadog.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `currentOnly` | boolean | No | Solo devolver tiempos de inactividad actualmente activos |
+| `monitorId` | string | No | Filtrar por ID de monitor |
+| `apiKey` | string | Sí | Clave API de Datadog |
+| `applicationKey` | string | Sí | Clave de aplicación de Datadog |
+| `site` | string | No | Sitio/región de Datadog \(por defecto: datadoghq.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `downtimes` | array | Lista de tiempos de inactividad |
+
+### `datadog_cancel_downtime`
+
+Cancelar un tiempo de inactividad programado.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `downtimeId` | string | Sí | El ID del tiempo de inactividad a cancelar |
+| `apiKey` | string | Sí | Clave API de Datadog |
+| `applicationKey` | string | Sí | Clave de aplicación de Datadog |
+| `site` | string | No | Sitio/región de Datadog (predeterminado: datadoghq.com) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si el tiempo de inactividad se canceló correctamente |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `datadog`

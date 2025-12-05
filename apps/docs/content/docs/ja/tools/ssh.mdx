@@ -1,0 +1,394 @@
+---
+title: SSH
+description: SSHを介してリモートサーバーに接続する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ssh"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SSH（Secure Shell）](https://en.wikipedia.org/wiki/Secure_Shell)は、リモートサーバーに安全に接続するための広く使用されているプロトコルで、暗号化されたチャネルを通じてコマンドの実行、ファイル転送、システム管理を行うことができます。
+
+SimのSSHサポートにより、エージェントは以下のことが可能になります：
+
+- **リモートコマンドの実行**: SSHでアクセス可能な任意のサーバーでシェルコマンドを実行
+- **スクリプトのアップロードと実行**: 高度な自動化のための複数行スクリプトを簡単に転送して実行
+- **ファイルの安全な転送**: ワークフローの一部としてファイルのアップロードとダウンロード（近日公開予定またはコマンド経由）
+- **サーバー管理の自動化**: 更新、メンテナンス、監視、デプロイメント、設定タスクをプログラムで実行
+- **柔軟な認証の使用**: パスワードまたは秘密鍵認証で接続、暗号化された鍵のサポートを含む
+
+以下のSim SSHツールにより、エージェントはより大きな自動化の一部としてサーバーと対話することができます：
+
+- `ssh_execute_command`: 任意の単一シェルコマンドをリモートで実行し、出力、ステータス、エラーを取得します。
+- `ssh_execute_script`: 完全な複数行スクリプトをリモートシステムにアップロードして実行します。
+-（ファイル転送などの追加ツールが近日公開予定）
+
+SSHをエージェントワークフローに統合することで、安全なアクセス、リモート操作、サーバーオーケストレーションを自動化し、DevOps、IT自動化、カスタムリモート管理をすべてSim内からスムーズに行うことができます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+SSHを介してコマンドの実行、ファイル転送、リモートサーバーの管理を行います。安全なサーバーアクセスのためのパスワードと秘密鍵認証をサポートしています。
+
+## ツール
+
+### `ssh_execute_command`
+
+リモートSSHサーバーでシェルコマンドを実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+| `command` | string | はい | リモートサーバーで実行するシェルコマンド |
+| `workingDirectory` | string | いいえ | コマンド実行のための作業ディレクトリ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `stdout` | string | コマンドからの標準出力 |
+| `stderr` | string | 標準エラー出力 |
+| `exitCode` | number | コマンド終了コード |
+| `success` | boolean | コマンドが成功したかどうか（終了コード0） |
+| `message` | string | 操作ステータスメッセージ |
+
+### `ssh_execute_script`
+
+リモートSSHサーバーに複数行スクリプトをアップロードして実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+| `script` | string | はい | 実行するスクリプト内容（bash、pythonなど） |
+| `interpreter` | string | いいえ | スクリプトインタープリター（デフォルト：/bin/bash） |
+| `workingDirectory` | string | いいえ | スクリプト実行用作業ディレクトリ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `stdout` | string | スクリプトからの標準出力 |
+| `stderr` | string | 標準エラー出力 |
+| `exitCode` | number | スクリプト終了コード |
+| `success` | boolean | スクリプトが成功したかどうか（終了コード0） |
+| `scriptPath` | string | スクリプトがアップロードされた一時パス |
+| `message` | string | 操作ステータスメッセージ |
+
+### `ssh_check_command_exists`
+
+リモートSSHサーバー上でコマンド/プログラムが存在するかを確認する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーのポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+| `commandName` | string | はい | 確認するコマンド名（例：docker、git、python3） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `commandExists` | boolean | コマンドが存在するかどうか |
+| `commandPath` | string | コマンドへのフルパス（見つかった場合） |
+| `version` | string | コマンドのバージョン出力（該当する場合） |
+| `message` | string | 操作ステータスメッセージ |
+
+### `ssh_upload_file`
+
+リモートSSHサーバーにファイルをアップロードする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーのポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+| `fileContent` | string | はい | アップロードするファイルの内容（バイナリファイルの場合はbase64エンコード） |
+| `fileName` | string | はい | アップロードするファイルの名前 |
+| `remotePath` | string | はい | リモートサーバー上の保存先パス |
+| `permissions` | string | いいえ | ファイルのパーミッション（例：0644） |
+| `overwrite` | boolean | いいえ | 既存のファイルを上書きするかどうか（デフォルト：true） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `uploaded` | boolean | ファイルが正常にアップロードされたかどうか |
+| `remotePath` | string | リモートサーバー上の最終パス |
+| `size` | number | ファイルサイズ（バイト単位） |
+| `message` | string | 操作ステータスメッセージ |
+
+### `ssh_download_file`
+
+リモートSSHサーバーからファイルをダウンロードする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+| `remotePath` | string | はい | リモートサーバー上のファイルパス |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `downloaded` | boolean | ファイルが正常にダウンロードされたかどうか |
+| `fileContent` | string | ファイルコンテンツ（バイナリファイルの場合はbase64エンコード） |
+| `fileName` | string | ダウンロードしたファイルの名前 |
+| `remotePath` | string | リモートサーバー上のソースパス |
+| `size` | number | ファイルサイズ（バイト単位） |
+| `message` | string | 操作ステータスメッセージ |
+
+### `ssh_list_directory`
+
+リモートディレクトリ内のファイルとディレクトリを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーのポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+| `path` | string | はい | 一覧表示するリモートディレクトリのパス |
+| `detailed` | boolean | いいえ | ファイルの詳細を含める（サイズ、権限、更新日） |
+| `recursive` | boolean | いいえ | サブディレクトリを再帰的に一覧表示する（デフォルト：false） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `entries` | array | ファイルとディレクトリエントリの配列 |
+
+### `ssh_check_file_exists`
+
+リモートSSHサーバー上にファイルまたはディレクトリが存在するかを確認する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーのポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+| `path` | string | はい | 確認するリモートファイルまたはディレクトリのパス |
+| `type` | string | いいえ | 期待されるタイプ：file、directory、またはany（デフォルト：any） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `exists` | boolean | パスが存在するかどうか |
+| `type` | string | パスの種類（ファイル、ディレクトリ、シンボリックリンク、見つからない） |
+| `size` | number | ファイルの場合のファイルサイズ |
+| `permissions` | string | ファイルのパーミッション（例：0755） |
+| `modified` | string | 最終更新タイムスタンプ |
+| `message` | string | 操作ステータスメッセージ |
+
+### `ssh_create_directory`
+
+リモートSSHサーバーにディレクトリを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+| `path` | string | はい | 作成するディレクトリパス |
+| `recursive` | boolean | いいえ | 親ディレクトリが存在しない場合に作成する（デフォルト：true） |
+| `permissions` | string | いいえ | ディレクトリのパーミッション（デフォルト：0755） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `created` | boolean | ディレクトリが正常に作成されたかどうか |
+| `remotePath` | string | 作成されたディレクトリパス |
+| `alreadyExists` | boolean | ディレクトリがすでに存在していたかどうか |
+| `message` | string | 操作ステータスメッセージ |
+
+### `ssh_delete_file`
+
+リモートSSHサーバーからファイルまたはディレクトリを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーのポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+| `path` | string | はい | 削除するパス |
+| `recursive` | boolean | いいえ | ディレクトリを再帰的に削除する（デフォルト：false） |
+| `force` | boolean | いいえ | 確認なしで強制削除する（デフォルト：false） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | パスが正常に削除されたかどうか |
+| `remotePath` | string | 削除されたパス |
+| `message` | string | 操作のステータスメッセージ |
+
+### `ssh_move_rename`
+
+リモートSSHサーバー上のファイルまたはディレクトリを移動または名前変更する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーのポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+| `sourcePath` | string | はい | ファイルまたはディレクトリの現在のパス |
+| `destinationPath` | string | はい | ファイルまたはディレクトリの新しいパス |
+| `overwrite` | boolean | いいえ | 宛先が存在する場合に上書きする（デフォルト：false） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `moved` | boolean | 操作が成功したかどうか |
+| `sourcePath` | string | 元のパス |
+| `destinationPath` | string | 新しいパス |
+| `message` | string | 操作のステータスメッセージ |
+
+### `ssh_get_system_info`
+
+リモートSSHサーバーからシステム情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーのポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `hostname` | string | サーバーのホスト名 |
+| `os` | string | オペレーティングシステム（例：Linux、Darwin） |
+| `architecture` | string | CPUアーキテクチャ（例：x64、arm64） |
+| `uptime` | number | システムの稼働時間（秒） |
+| `memory` | json | メモリ情報（合計、空き、使用中） |
+| `diskSpace` | json | ディスク容量情報（合計、空き、使用中） |
+| `message` | string | 操作のステータスメッセージ |
+
+### `ssh_read_file_content`
+
+リモートファイルの内容を読み取る
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーのポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+| `path` | string | はい | 読み取るリモートファイルのパス |
+| `encoding` | string | いいえ | ファイルエンコーディング（デフォルト：utf-8） |
+| `maxSize` | number | いいえ | 読み取る最大ファイルサイズ（MB単位、デフォルト：10） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `content` | string | 文字列としてのファイル内容 |
+| `size` | number | バイト単位のファイルサイズ |
+| `lines` | number | ファイル内の行数 |
+| `remotePath` | string | リモートファイルパス |
+| `message` | string | 操作ステータスメッセージ |
+
+### `ssh_write_file_content`
+
+リモートファイルに内容を書き込むまたは追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | SSHサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | SSHサーバーのポート（デフォルト：22） |
+| `username` | string | はい | SSHユーザー名 |
+| `password` | string | いいえ | 認証用パスワード（秘密鍵を使用しない場合） |
+| `privateKey` | string | いいえ | 認証用秘密鍵（OpenSSH形式） |
+| `passphrase` | string | いいえ | 暗号化された秘密鍵のパスフレーズ |
+| `path` | string | はい | 書き込み先のリモートファイルパス |
+| `content` | string | はい | ファイルに書き込む内容 |
+| `mode` | string | いいえ | 書き込みモード：上書き、追加、または作成（デフォルト：上書き） |
+| `permissions` | string | いいえ | ファイルのパーミッション（例：0644） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `written` | boolean | ファイルが正常に書き込まれたかどうか |
+| `remotePath` | string | ファイルパス |
+| `size` | number | 最終的なファイルサイズ（バイト単位） |
+| `message` | string | 操作ステータスメッセージ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `ssh`

@@ -13,12 +13,15 @@ import {
   FilterX,
   MoreHorizontal,
   RepeatIcon,
+  Search,
   SplitIcon,
   Trash2,
+  X,
 } from 'lucide-react'
 import {
   Button,
   Code,
+  Input,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -49,7 +52,7 @@ const DEFAULT_EXPANDED_HEIGHT = 196
  * Column width constants - numeric values for calculations
  */
 const BLOCK_COLUMN_WIDTH_PX = 240
-const MIN_OUTPUT_PANEL_WIDTH_PX = 300
+const MIN_OUTPUT_PANEL_WIDTH_PX = 440
 
 /**
  * Column width constants - Tailwind classes for styling
@@ -154,7 +157,7 @@ const ToggleButton = ({
   isExpanded: boolean
   onClick: (e: React.MouseEvent) => void
 }) => (
-  <Button variant='ghost' className='!p-0' onClick={onClick} aria-label='Toggle terminal'>
+  <Button variant='ghost' className='!p-1.5 -m-1.5' onClick={onClick} aria-label='Toggle terminal'>
     <ChevronDown
       className={clsx(
         'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
@@ -258,8 +261,6 @@ export function Terminal() {
     setOutputPanelWidth,
     openOnRun,
     setOpenOnRun,
-    // displayMode,
-    // setDisplayMode,
     setHasHydrated,
   } = useTerminalStore()
   const entries = useTerminalConsoleStore((state) => state.entries)
@@ -268,7 +269,6 @@ export function Terminal() {
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
   const [isToggling, setIsToggling] = useState(false)
-  // const [displayPopoverOpen, setDisplayPopoverOpen] = useState(false)
   const [wrapText, setWrapText] = useState(true)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showInput, setShowInput] = useState(false)
@@ -278,6 +278,14 @@ export function Terminal() {
   const [runIdFilterOpen, setRunIdFilterOpen] = useState(false)
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
   const [outputOptionsOpen, setOutputOptionsOpen] = useState(false)
+
+  // Output panel search state
+  const [isOutputSearchActive, setIsOutputSearchActive] = useState(false)
+  const [outputSearchQuery, setOutputSearchQuery] = useState('')
+  const [matchCount, setMatchCount] = useState(0)
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+  const outputSearchInputRef = useRef<HTMLInputElement>(null)
+  const outputContentRef = useRef<HTMLDivElement>(null)
 
   // Terminal resize hooks
   const { handleMouseDown } = useTerminalResize()
@@ -498,6 +506,50 @@ export function Terminal() {
   }, [activeWorkflowId, clearWorkflowConsole])
 
   /**
+   * Activates output search and focuses the search input.
+   */
+  const activateOutputSearch = useCallback(() => {
+    setIsOutputSearchActive(true)
+    setTimeout(() => {
+      outputSearchInputRef.current?.focus()
+    }, 0)
+  }, [])
+
+  /**
+   * Closes output search and clears the query.
+   */
+  const closeOutputSearch = useCallback(() => {
+    setIsOutputSearchActive(false)
+    setOutputSearchQuery('')
+    setMatchCount(0)
+    setCurrentMatchIndex(0)
+  }, [])
+
+  /**
+   * Navigates to the next match in the search results.
+   */
+  const goToNextMatch = useCallback(() => {
+    if (matchCount === 0) return
+    setCurrentMatchIndex((prev) => (prev + 1) % matchCount)
+  }, [matchCount])
+
+  /**
+   * Navigates to the previous match in the search results.
+   */
+  const goToPreviousMatch = useCallback(() => {
+    if (matchCount === 0) return
+    setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount)
+  }, [matchCount])
+
+  /**
+   * Handles match count change from Code.Viewer.
+   */
+  const handleMatchCountChange = useCallback((count: number) => {
+    setMatchCount(count)
+    setCurrentMatchIndex(0)
+  }, [])
+
+  /**
    * Handle clear console for current workflow via mouse interaction.
    */
   const handleClearConsole = useCallback(
@@ -681,20 +733,66 @@ export function Terminal() {
   }, [expandToLastHeight, selectedEntry, showInput, hasInputData, isExpanded])
 
   /**
-   * Handle Escape to unselect and Enter to re-enable auto-selection
+   * Handle Escape to close search or unselect entry
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && selectedEntry) {
+      if (e.key === 'Escape') {
         e.preventDefault()
-        setSelectedEntry(null)
-        setAutoSelectEnabled(true)
+        // First close search if active
+        if (isOutputSearchActive) {
+          closeOutputSearch()
+          return
+        }
+        // Then unselect entry
+        if (selectedEntry) {
+          setSelectedEntry(null)
+          setAutoSelectEnabled(true)
+        }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEntry])
+  }, [selectedEntry, isOutputSearchActive, closeOutputSearch])
+
+  /**
+   * Handle Enter/Shift+Enter for search navigation when search input is focused
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOutputSearchActive) return
+
+      const isSearchInputFocused = document.activeElement === outputSearchInputRef.current
+
+      if (e.key === 'Enter' && isSearchInputFocused && matchCount > 0) {
+        e.preventDefault()
+        if (e.shiftKey) {
+          goToPreviousMatch()
+        } else {
+          goToNextMatch()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOutputSearchActive, matchCount, goToNextMatch, goToPreviousMatch])
+
+  /**
+   * Scroll to current match when it changes
+   */
+  useEffect(() => {
+    if (!isOutputSearchActive || matchCount === 0 || !outputContentRef.current) return
+
+    // Find all match elements and scroll to the current one
+    const matchElements = outputContentRef.current.querySelectorAll('[data-search-match]')
+    const currentElement = matchElements[currentMatchIndex]
+
+    if (currentElement) {
+      currentElement.scrollIntoView({ block: 'center' })
+    }
+  }, [currentMatchIndex, isOutputSearchActive, matchCount])
 
   /**
    * Adjust output panel width when sidebar or panel width changes.
@@ -1206,7 +1304,7 @@ export function Terminal() {
 
               {/* Header */}
               <div
-                className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--surface-1)] px-[16px]'
+                className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--surface-1)] pr-[16px] pl-[10px]'
                 onClick={handleHeaderClick}
               >
                 <div className='flex items-center'>
@@ -1234,7 +1332,7 @@ export function Terminal() {
                       variant='ghost'
                       className={clsx(
                         'px-[8px] py-[6px] text-[12px]',
-                        showInput && '!text-[var(--text-primary)] dark:!text-[var(--text-primary)] '
+                        showInput && '!text-[var(--text-primary)]'
                       )}
                       onClick={(e) => {
                         e.stopPropagation()
@@ -1249,7 +1347,47 @@ export function Terminal() {
                     </Button>
                   )}
                 </div>
-                <div className='flex items-center gap-[8px]'>
+                <div className='flex flex-shrink-0 items-center gap-[8px]'>
+                  {isOutputSearchActive ? (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            closeOutputSearch()
+                          }}
+                          aria-label='Search in output'
+                          className='!p-1.5 -m-1.5'
+                        >
+                          <X className='h-[12px] w-[12px]' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Close search</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  ) : (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            activateOutputSearch()
+                          }}
+                          aria-label='Search in output'
+                          className='!p-1.5 -m-1.5'
+                        >
+                          <Search className='h-[12px] w-[12px]' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Search</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
+
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <Button
@@ -1262,7 +1400,7 @@ export function Terminal() {
                         className='!p-1.5 -m-1.5'
                       >
                         {showCopySuccess ? (
-                          <Check className='h-3.5 w-3.5' />
+                          <Check className='h-[12px] w-[12px]' />
                         ) : (
                           <Clipboard className='h-[12px] w-[12px]' />
                         )}
@@ -1380,14 +1518,63 @@ export function Terminal() {
                 </div>
               </div>
 
+              {/* Search Overlay */}
+              {isOutputSearchActive && (
+                <div
+                  className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-[6px] rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--surface-1)] px-[6px] shadow-sm'
+                  onClick={(e) => e.stopPropagation()}
+                  data-toolbar-root
+                  data-search-active='true'
+                >
+                  <Input
+                    ref={outputSearchInputRef}
+                    type='text'
+                    value={outputSearchQuery}
+                    onChange={(e) => setOutputSearchQuery(e.target.value)}
+                    placeholder='Search...'
+                    className='mr-[2px] h-[23px] w-[94px] text-[12px]'
+                  />
+                  <span
+                    className={clsx(
+                      'w-[58px] font-medium text-[11px]',
+                      matchCount > 0
+                        ? 'text-[var(--text-secondary)]'
+                        : 'text-[var(--text-tertiary)]'
+                    )}
+                  >
+                    {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : 'No results'}
+                  </span>
+                  <Button
+                    variant='ghost'
+                    onClick={goToPreviousMatch}
+                    aria-label='Previous match'
+                    className='!p-1.5 -m-1.5'
+                    disabled={matchCount === 0}
+                  >
+                    <ArrowUp className='h-[12px] w-[12px]' />
+                  </Button>
+                  <Button
+                    variant='ghost'
+                    onClick={goToNextMatch}
+                    aria-label='Next match'
+                    className='!p-1.5 -m-1.5'
+                    disabled={matchCount === 0}
+                  >
+                    <ArrowDown className='h-[12px] w-[12px]' />
+                  </Button>
+                  <Button
+                    variant='ghost'
+                    onClick={closeOutputSearch}
+                    aria-label='Close search'
+                    className='!p-1.5 -m-1.5'
+                  >
+                    <X className='h-[12px] w-[12px]' />
+                  </Button>
+                </div>
+              )}
+
               {/* Content */}
-              <div
-                className='flex-1 overflow-x-auto overflow-y-auto'
-                // className={clsx(
-                //   'flex-1 overflow-x-auto overflow-y-auto',
-                //   displayMode === 'prettier' && 'px-[8px] pb-[8px]'
-                // )}
-              >
+              <div className='flex-1 overflow-x-auto overflow-y-auto'>
                 {shouldShowCodeDisplay ? (
                   <Code.Viewer
                     code={selectedEntry.input.code}
@@ -1399,6 +1586,10 @@ export function Terminal() {
                     paddingLeft={8}
                     gutterStyle={{ backgroundColor: 'transparent' }}
                     wrapText={wrapText}
+                    searchQuery={isOutputSearchActive ? outputSearchQuery : undefined}
+                    currentMatchIndex={currentMatchIndex}
+                    onMatchCountChange={handleMatchCountChange}
+                    contentRef={outputContentRef}
                   />
                 ) : (
                   <Code.Viewer
@@ -1409,21 +1600,12 @@ export function Terminal() {
                     paddingLeft={8}
                     gutterStyle={{ backgroundColor: 'transparent' }}
                     wrapText={wrapText}
+                    searchQuery={isOutputSearchActive ? outputSearchQuery : undefined}
+                    currentMatchIndex={currentMatchIndex}
+                    onMatchCountChange={handleMatchCountChange}
+                    contentRef={outputContentRef}
                   />
                 )}
-                {/* ) : displayMode === 'raw' ? (
-                  <Code.Viewer
-                    code={JSON.stringify(outputData, null, 2)}
-                    showGutter
-                    language='json'
-                    className='m-0 min-h-full rounded-none border-0 bg-[var(--surface-1)]'
-                    paddingLeft={8}
-                    gutterStyle={{ backgroundColor: 'transparent' }}
-                    wrapText={wrapText}
-                  />
-                ) : (
-                  <PrettierOutput output={outputData} wrapText={wrapText} />
-                )} */}
               </div>
             </div>
           )}

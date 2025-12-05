@@ -133,7 +133,7 @@ function WorkspaceVariableRow({
                 <Undo2 className='h-3.5 w-3.5' />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content>Scope: workspace</Tooltip.Content>
+            <Tooltip.Content>Change to personal scope</Tooltip.Content>
           </Tooltip.Root>
         )}
         <Tooltip.Root>
@@ -638,7 +638,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
                     <Share2 className='h-3.5 w-3.5' />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content>Scope: personal</Tooltip.Content>
+                <Tooltip.Content>Change to workspace scope</Tooltip.Content>
               </Tooltip.Root>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -752,13 +752,13 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
             {isLoading ? (
               <>
                 <div className='flex flex-col gap-[8px]'>
-                  <Skeleton className='h-[14px] w-[70px]' />
+                  <Skeleton className='h-5 w-[70px]' />
                   <div className='text-[13px] text-[var(--text-muted)]'>
-                    <Skeleton className='h-[13px] w-[160px]' />
+                    <Skeleton className='h-5 w-[160px]' />
                   </div>
                 </div>
                 <div className='flex flex-col gap-[8px]'>
-                  <Skeleton className='h-[14px] w-[55px]' />
+                  <Skeleton className='h-5 w-[55px]' />
                   {Array.from({ length: 2 }, (_, i) => (
                     <div key={`personal-${i}`} className={GRID_COLS}>
                       <Skeleton className='h-9 rounded-[6px]' />

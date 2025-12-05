@@ -1,0 +1,365 @@
+---
+title: Elasticsearch
+description: 在 Elasticsearch 中搜索、索引和管理数据
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="elasticsearch"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Elasticsearch](https://www.elastic.co/elasticsearch/) 是一个功能强大的分布式搜索和分析引擎，可以让您实时索引、搜索和分析海量数据。它被广泛用于支持搜索功能、日志和事件数据分析、可观测性等。
+
+在 Sim 中使用 Elasticsearch，您可以以编程方式访问 Elasticsearch 的核心功能，包括：
+
+- **搜索文档**：使用 Query DSL 对结构化或非结构化文本执行高级搜索，支持排序、分页和字段选择。
+- **索引文档**：在任何 Elasticsearch 索引中添加新文档或更新现有文档，以便即时检索和分析。
+- **获取、更新或删除文档**：通过 ID 检索、修改或删除特定文档。
+- **批量操作**：在单个请求中执行多个索引或更新操作，以实现高吞吐量的数据处理。
+- **管理索引**：在工作流自动化中创建、删除或获取索引的详细信息。
+- **集群监控**：检查 Elasticsearch 部署的健康状况和统计信息。
+
+Sim 的 Elasticsearch 工具支持自托管和 Elastic Cloud 环境。将 Elasticsearch 集成到您的代理工作流中，以自动化数据摄取、跨大型数据集搜索、运行报告或构建自定义搜索驱动的应用程序——无需人工干预。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Elasticsearch 集成到工作流中，实现强大的搜索、索引和数据管理。支持文档的 CRUD 操作、高级搜索查询、批量操作、索引管理和集群监控。适用于自托管和 Elastic Cloud 部署。
+
+## 工具
+
+### `elasticsearch_search`
+
+使用 Query DSL 在 Elasticsearch 中搜索文档。返回匹配的文档及其分数和元数据。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管） |
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署） |
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+| `index` | string | 是 | 要搜索的索引名称 |
+| `query` | string | 否 | 作为 JSON 字符串的 Query DSL |
+| `from` | number | 否 | 分页的起始偏移量（默认值：0） |
+| `size` | number | 否 | 返回结果的数量（默认值：10） |
+| `sort` | string | 否 | 作为 JSON 字符串的排序规范 |
+| `sourceIncludes` | string | 否 | 逗号分隔的字段列表以包含在 _source 中 |
+| `sourceExcludes` | string | 否 | 逗号分隔的字段列表以从 _source 中排除 |
+| `trackTotalHits` | boolean | 否 | 跟踪准确的总命中计数（默认值：true） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `took` | number | 搜索所花费的时间（以毫秒为单位） |
+| `timed_out` | boolean | 搜索是否超时 |
+| `hits` | object | 包含总数和匹配文档的搜索结果 |
+| `aggregations` | json | 聚合结果（如果有） |
+
+### `elasticsearch_index_document`
+
+在 Elasticsearch 中索引（创建或更新）文档。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管）|
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署）|
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+| `index` | string | 是 | 目标索引名称 |
+| `documentId` | string | 否 | 文档 ID（如果未提供则自动生成）|
+| `document` | string | 是 | 文档正文，格式为 JSON 字符串 |
+| `refresh` | string | 否 | 刷新策略：true、false 或 wait_for |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `_index` | string | 文档存储的索引 |
+| `_id` | string | 文档 ID |
+| `_version` | number | 文档版本 |
+| `result` | string | 操作结果（创建或更新）|
+
+### `elasticsearch_get_document`
+
+通过 ID 从 Elasticsearch 检索文档。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管）|
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署）|
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+| `index` | string | 是 | 索引名称 |
+| `documentId` | string | 是 | 要检索的文档 ID |
+| `sourceIncludes` | string | 否 | 要包含的字段的逗号分隔列表 |
+| `sourceExcludes` | string | 否 | 要排除的字段的逗号分隔列表 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `_index` | string | 索引名称 |
+| `_id` | string | 文档 ID |
+| `_version` | number | 文档版本 |
+| `found` | boolean | 文档是否被找到 |
+| `_source` | json | 文档内容 |
+
+### `elasticsearch_update_document`
+
+使用 doc merge 部分更新 Elasticsearch 中的文档。
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管） |
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署） |
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+| `index` | string | 是 | 索引名称 |
+| `documentId` | string | 是 | 要更新的文档 ID |
+| `document` | string | 是 | 要合并的部分文档（JSON 字符串） |
+| `retryOnConflict` | number | 否 | 版本冲突时的重试次数 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `_index` | string | 索引名称 |
+| `_id` | string | 文档 ID |
+| `_version` | number | 新的文档版本 |
+| `result` | string | 操作结果（updated 或 noop） |
+
+### `elasticsearch_delete_document`
+
+通过 ID 从 Elasticsearch 中删除文档。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管）|
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署）|
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+| `index` | string | 是 | 索引名称 |
+| `documentId` | string | 是 | 要删除的文档 ID |
+| `refresh` | string | 否 | 刷新策略：true、false 或 wait_for |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `_index` | string | 索引名称 |
+| `_id` | string | 文档 ID |
+| `_version` | number | 文档版本 |
+| `result` | string | 操作结果（deleted 或 not_found）|
+
+### `elasticsearch_bulk`
+
+在单个请求中执行多个索引、创建、删除或更新操作以实现高性能。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管）|
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署）|
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+| `index` | string | 否 | 未指定索引时的默认索引 |
+| `operations` | string | 是 | 批量操作的 NDJSON 字符串（换行分隔的 JSON）|
+| `refresh` | string | 否 | 刷新策略：true、false 或 wait_for |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `took` | number | 批量操作所花费的时间（以毫秒为单位） |
+| `errors` | boolean | 是否有任何操作出现错误 |
+| `items` | array | 每个操作的结果 |
+
+### `elasticsearch_count`
+
+统计 Elasticsearch 中符合查询条件的文档数量。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管） |
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署） |
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+| `index` | string | 是 | 要统计文档数量的索引名称 |
+| `query` | string | 否 | 用于过滤文档的可选查询（JSON 字符串） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `count` | number | 符合查询条件的文档数量 |
+| `_shards` | object | 分片统计信息 |
+
+### `elasticsearch_create_index`
+
+创建一个具有可选设置和映射的新索引。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管） |
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署） |
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+| `index` | string | 是 | 要创建的索引名称 |
+| `settings` | string | 否 | 索引设置（JSON 字符串） |
+| `mappings` | string | 否 | 索引映射（JSON 字符串） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `acknowledged` | boolean | 请求是否被确认 |
+| `shards_acknowledged` | boolean | 分片是否被确认 |
+| `index` | string | 创建的索引名称 |
+
+### `elasticsearch_delete_index`
+
+删除一个索引及其所有文档。此操作不可逆。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管）|
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署）|
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+| `index` | string | 是 | 要删除的索引名称 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `acknowledged` | boolean | 删除是否被确认 |
+
+### `elasticsearch_get_index`
+
+检索索引信息，包括设置、映射和别名。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管）|
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署）|
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+| `index` | string | 是 | 要检索信息的索引名称 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `index` | json | 包括别名、映射和设置的索引信息 |
+
+### `elasticsearch_cluster_health`
+
+获取 Elasticsearch 集群的健康状态。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管）|
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署）|
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+| `waitForStatus` | string | 否 | 等待集群达到此状态：green、yellow 或 red |
+| `timeout` | string | 否 | 等待操作的超时时间（例如，30s，1m）|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `cluster_name` | string | 集群名称 |
+| `status` | string | 集群健康状态：green、yellow 或 red |
+| `number_of_nodes` | number | 集群中的节点总数 |
+| `number_of_data_nodes` | number | 数据节点的数量 |
+| `active_shards` | number | 活跃分片的数量 |
+| `unassigned_shards` | number | 未分配分片的数量 |
+
+### `elasticsearch_cluster_stats`
+
+获取有关 Elasticsearch 集群的综合统计信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管） |
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署） |
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `cluster_name` | string | 集群名称 |
+| `status` | string | 集群健康状态 |
+| `nodes` | object | 节点统计信息，包括数量和版本 |
+| `indices` | object | 索引统计信息，包括文档数量和存储大小 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`elasticsearch`
