@@ -132,8 +132,8 @@ export function MemberInvitationCard({
       <div className='space-y-3'>
         {/* Header */}
         <div>
-          <h4 className='font-medium text-sm'>Invite Team Members</h4>
-          <p className='text-muted-foreground text-xs'>
+          <h4 className='font-medium text-[13px]'>Invite Team Members</h4>
+          <p className='text-[var(--text-muted)] text-xs'>
             Add new members to your team and optionally give them access to specific workspaces
           </p>
         </div>

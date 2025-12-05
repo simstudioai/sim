@@ -112,7 +112,7 @@ export function TeamMembers({
   }
 
   if (teamItems.length === 0) {
-    return <div className='text-center text-muted-foreground text-sm'>No team members yet.</div>
+    return <div className='text-center text-[var(--text-muted)] text-sm'>No team members yet.</div>
   }
 
   // Check if current user can leave (is a member but not owner)
@@ -147,7 +147,7 @@ export function TeamMembers({
     <div className='flex flex-col gap-4'>
       {/* Header - simple like account page */}
       <div>
-        <h4 className='font-medium text-sm'>Team Members</h4>
+        <h4 className='font-medium text-[13px]'>Team Members</h4>
       </div>
 
       {/* Members list - clean like account page */}
@@ -173,29 +173,29 @@ export function TeamMembers({
                       className={`inline-flex h-[1.125rem] items-center rounded-[6px] px-2 py-0 font-medium text-xs ${
                         item.role === 'owner'
                           ? 'gradient-text border-gradient-primary/20 bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
-                          : 'bg-primary/10 text-muted-foreground'
+                          : 'bg-[var(--surface-3)] text-[var(--text-muted)]'
                       } `}
                     >
                       {item.role.charAt(0).toUpperCase() + item.role.slice(1)}
                     </span>
                   )}
                   {item.type === 'invitation' && (
-                    <span className='inline-flex h-[1.125rem] items-center rounded-[6px] bg-muted px-2 py-0 font-medium text-muted-foreground text-xs'>
+                    <span className='inline-flex h-[1.125rem] items-center rounded-[6px] bg-[var(--surface-3)] px-2 py-0 font-medium text-[var(--text-muted)] text-xs'>
                       Pending
                     </span>
                   )}
                 </div>
-                <div className='truncate text-muted-foreground text-xs'>{item.email}</div>
+                <div className='truncate text-[var(--text-muted)] text-xs'>{item.email}</div>
               </div>
 
               {/* Usage stats - matching subscription layout */}
               {isAdminOrOwner && (
                 <div className='hidden items-center text-xs tabular-nums sm:flex'>
                   <div className='text-center'>
-                    <div className='text-muted-foreground'>Usage</div>
+                    <div className='text-[var(--text-muted)]'>Usage</div>
                     <div className='font-medium'>
                       {isLoadingUsage && item.type === 'member' ? (
-                        <span className='inline-block h-3 w-12 animate-pulse rounded bg-muted' />
+                        <span className='inline-block h-3 w-12 animate-pulse rounded bg-[var(--surface-3)]' />
                       ) : (
                         item.usage
                       )}
@@ -215,7 +215,7 @@ export function TeamMembers({
                   <Button
                     variant='ghost'
                     onClick={() => onRemoveMember(item.member)}
-                    className='h-8 text-muted-foreground hover:text-foreground'
+                    className='h-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                   >
                     Remove
                   </Button>
@@ -227,7 +227,7 @@ export function TeamMembers({
                   variant='ghost'
                   onClick={() => handleCancelInvitation(item.invitation.id)}
                   disabled={cancellingInvitations.has(item.invitation.id)}
-                  className='h-8 text-muted-foreground hover:text-foreground'
+                  className='h-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 >
                   {cancellingInvitations.has(item.invitation.id) ? 'Cancelling...' : 'Cancel'}
                 </Button>

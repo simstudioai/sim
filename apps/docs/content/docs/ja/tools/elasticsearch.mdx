@@ -1,0 +1,365 @@
+---
+title: Elasticsearch
+description: Elasticsearchでデータの検索、インデックス作成、管理を行う
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="elasticsearch"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Elasticsearch](https://www.elastic.co/elasticsearch/)は、大量のデータをリアルタイムでインデックス作成、検索、分析できる強力な分散型検索・分析エンジンです。検索機能、ログやイベントデータの分析、可観測性など、幅広い用途に利用されています。
+
+SimのElasticsearchを使用すると、以下のような主要なElasticsearch機能にプログラムからアクセスできます：
+
+- **ドキュメント検索**: Query DSLを使用して構造化または非構造化テキストの高度な検索を実行し、ソート、ページネーション、フィールド選択をサポートします。
+- **ドキュメントのインデックス作成**: 新しいドキュメントを追加したり、任意のElasticsearchインデックス内の既存のドキュメントを更新したりして、即時に取得・分析できます。
+- **ドキュメントの取得、更新、削除**: IDによって特定のドキュメントを取得、変更、または削除します。
+- **一括操作**: 高スループットのデータ処理のために、単一のリクエストで複数のインデックス作成または更新アクションを実行します。
+- **インデックス管理**: ワークフロー自動化の一部として、インデックスの作成、削除、または詳細の取得を行います。
+- **クラスターモニタリング**: Elasticsearchデプロイメントの健全性と統計を確認します。
+
+SimのElasticsearchツールは、セルフホスト型とElastic Cloudの両方の環境で動作します。Elasticsearchをエージェントワークフローに統合することで、データ取り込みの自動化、膨大なデータセットの検索、レポートの実行、検索機能を備えたカスタムアプリケーションの構築など、すべて手動介入なしで実行できます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+強力な検索、インデックス作成、データ管理のためにElasticsearchをワークフローに統合します。ドキュメントのCRUD操作、高度な検索クエリ、一括操作、インデックス管理、クラスターモニタリングをサポートします。セルフホスト型とElastic Cloudの両方のデプロイメントで動作します。
+
+## ツール
+
+### `elasticsearch_search`
+
+Query DSLを使用してElasticsearchでドキュメントを検索します。スコアとメタデータを含む一致するドキュメントを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | はい | デプロイメントタイプ: self_hosted または cloud |
+| `host` | string | いいえ | Elasticsearch ホストURL（self-hosted用） |
+| `cloudId` | string | いいえ | Elastic Cloud ID（cloudデプロイメント用） |
+| `authMethod` | string | はい | 認証方法: api_key または basic_auth |
+| `apiKey` | string | いいえ | Elasticsearch APIキー |
+| `username` | string | いいえ | 基本認証のユーザー名 |
+| `password` | string | いいえ | 基本認証のパスワード |
+| `index` | string | はい | 検索するインデックス名 |
+| `query` | string | いいえ | JSON文字列としてのQuery DSL |
+| `from` | number | いいえ | ページネーションの開始オフセット（デフォルト: 0） |
+| `size` | number | いいえ | 返す結果の数（デフォルト: 10） |
+| `sort` | string | いいえ | JSON文字列としてのソート指定 |
+| `sourceIncludes` | string | いいえ | _sourceに含めるフィールドのカンマ区切りリスト |
+| `sourceExcludes` | string | いいえ | _sourceから除外するフィールドのカンマ区切りリスト |
+| `trackTotalHits` | boolean | いいえ | 正確なヒット数をカウントするかどうか（デフォルト: true） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `took` | number | 検索にかかった時間（ミリ秒） |
+| `timed_out` | boolean | 検索がタイムアウトしたかどうか |
+| `hits` | object | 合計カウントと一致するドキュメントを含む検索結果 |
+| `aggregations` | json | 集計結果（ある場合） |
+
+### `elasticsearch_index_document`
+
+Elasticsearchにドキュメントをインデックス（作成または更新）します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | はい | デプロイメントタイプ: self_hosted または cloud |
+| `host` | string | いいえ | Elasticsearch ホスト URL （self-hosted の場合） |
+| `cloudId` | string | いいえ | Elastic Cloud ID （cloud デプロイメントの場合） |
+| `authMethod` | string | はい | 認証方法: api_key または basic_auth |
+| `apiKey` | string | いいえ | Elasticsearch API キー |
+| `username` | string | いいえ | 基本認証のユーザー名 |
+| `password` | string | いいえ | 基本認証のパスワード |
+| `index` | string | はい | 対象インデックス名 |
+| `documentId` | string | いいえ | ドキュメント ID （指定しない場合は自動生成） |
+| `document` | string | はい | JSON 文字列としてのドキュメント本文 |
+| `refresh` | string | いいえ | リフレッシュポリシー: true, false, または wait_for |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `_index` | string | ドキュメントが保存されたインデックス |
+| `_id` | string | ドキュメント ID |
+| `_version` | number | ドキュメントバージョン |
+| `result` | string | 操作結果 （created または updated） |
+
+### `elasticsearch_get_document`
+
+Elasticsearchから ID によりドキュメントを取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | はい | デプロイメントタイプ: self_hosted または cloud |
+| `host` | string | いいえ | Elasticsearch ホスト URL （self-hosted の場合） |
+| `cloudId` | string | いいえ | Elastic Cloud ID （cloud デプロイメントの場合） |
+| `authMethod` | string | はい | 認証方法: api_key または basic_auth |
+| `apiKey` | string | いいえ | Elasticsearch API キー |
+| `username` | string | いいえ | 基本認証のユーザー名 |
+| `password` | string | いいえ | 基本認証のパスワード |
+| `index` | string | はい | インデックス名 |
+| `documentId` | string | はい | 取得するドキュメント ID |
+| `sourceIncludes` | string | いいえ | 含めるフィールドのカンマ区切りリスト |
+| `sourceExcludes` | string | いいえ | 除外するフィールドのカンマ区切りリスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `_index` | string | インデックス名 |
+| `_id` | string | ドキュメントID |
+| `_version` | number | ドキュメントバージョン |
+| `found` | boolean | ドキュメントが見つかったかどうか |
+| `_source` | json | ドキュメントの内容 |
+
+### `elasticsearch_update_document`
+
+docマージを使用してElasticsearchのドキュメントを部分的に更新します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | はい | デプロイメントタイプ: self_hosted または cloud |
+| `host` | string | いいえ | Elasticsearch ホストURL（self_hosted用） |
+| `cloudId` | string | いいえ | Elastic Cloud ID（cloudデプロイメント用） |
+| `authMethod` | string | はい | 認証方法: api_key または basic_auth |
+| `apiKey` | string | いいえ | Elasticsearch APIキー |
+| `username` | string | いいえ | 基本認証のユーザー名 |
+| `password` | string | いいえ | 基本認証のパスワード |
+| `index` | string | はい | インデックス名 |
+| `documentId` | string | はい | 更新するドキュメントID |
+| `document` | string | はい | マージする部分的なドキュメント（JSON文字列形式） |
+| `retryOnConflict` | number | いいえ | バージョン競合時の再試行回数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `_index` | string | インデックス名 |
+| `_id` | string | ドキュメントID |
+| `_version` | number | 新しいドキュメントバージョン |
+| `result` | string | 操作結果（updated または noop） |
+
+### `elasticsearch_delete_document`
+
+IDによってElasticsearchからドキュメントを削除します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | はい | デプロイメントタイプ: self_hosted または cloud |
+| `host` | string | いいえ | Elasticsearch ホスト URL （self-hosted の場合） |
+| `cloudId` | string | いいえ | Elastic Cloud ID （cloud デプロイメントの場合） |
+| `authMethod` | string | はい | 認証方法: api_key または basic_auth |
+| `apiKey` | string | いいえ | Elasticsearch API キー |
+| `username` | string | いいえ | 基本認証のユーザー名 |
+| `password` | string | いいえ | 基本認証のパスワード |
+| `index` | string | はい | インデックス名 |
+| `documentId` | string | はい | 削除するドキュメントID |
+| `refresh` | string | いいえ | リフレッシュポリシー: true、false、または wait_for |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `_index` | string | インデックス名 |
+| `_id` | string | ドキュメントID |
+| `_version` | number | ドキュメントバージョン |
+| `result` | string | 操作結果（deleted または not_found） |
+
+### `elasticsearch_bulk`
+
+高パフォーマンスのために、複数のインデックス作成、削除、または更新操作を1つのリクエストで実行します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | はい | デプロイメントタイプ: self_hosted または cloud |
+| `host` | string | いいえ | Elasticsearch ホスト URL （self-hosted の場合） |
+| `cloudId` | string | いいえ | Elastic Cloud ID （cloud デプロイメントの場合） |
+| `authMethod` | string | はい | 認証方法: api_key または basic_auth |
+| `apiKey` | string | いいえ | Elasticsearch API キー |
+| `username` | string | いいえ | 基本認証のユーザー名 |
+| `password` | string | いいえ | 基本認証のパスワード |
+| `index` | string | いいえ | インデックスを指定しない操作のデフォルトインデックス |
+| `operations` | string | はい | NDJSON文字列（改行区切りJSON）としての一括操作 |
+| `refresh` | string | いいえ | リフレッシュポリシー: true、false、または wait_for |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `took` | number | 一括操作にかかった時間（ミリ秒） |
+| `errors` | boolean | いずれかの操作でエラーが発生したかどうか |
+| `items` | array | 各操作の結果 |
+
+### `elasticsearch_count`
+
+Elasticsearchでクエリに一致するドキュメント数をカウントします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | はい | デプロイメントタイプ: self_hosted または cloud |
+| `host` | string | いいえ | Elasticsearch ホスト URL（self_hosted の場合） |
+| `cloudId` | string | いいえ | Elastic Cloud ID（cloud デプロイメントの場合） |
+| `authMethod` | string | はい | 認証方法: api_key または basic_auth |
+| `apiKey` | string | いいえ | Elasticsearch API キー |
+| `username` | string | いいえ | 基本認証のユーザー名 |
+| `password` | string | いいえ | 基本認証のパスワード |
+| `index` | string | はい | ドキュメントをカウントするインデックス名 |
+| `query` | string | いいえ | ドキュメントをフィルタリングするオプションクエリ（JSON文字列） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `count` | number | クエリに一致するドキュメント数 |
+| `_shards` | object | シャード統計 |
+
+### `elasticsearch_create_index`
+
+オプションの設定とマッピングを使用して新しいインデックスを作成します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | はい | デプロイメントタイプ: self_hosted または cloud |
+| `host` | string | いいえ | Elasticsearch ホスト URL（self_hosted の場合） |
+| `cloudId` | string | いいえ | Elastic Cloud ID（cloud デプロイメントの場合） |
+| `authMethod` | string | はい | 認証方法: api_key または basic_auth |
+| `apiKey` | string | いいえ | Elasticsearch API キー |
+| `username` | string | いいえ | 基本認証のユーザー名 |
+| `password` | string | いいえ | 基本認証のパスワード |
+| `index` | string | はい | 作成するインデックス名 |
+| `settings` | string | いいえ | JSON文字列としてのインデックス設定 |
+| `mappings` | string | いいえ | JSON文字列としてのインデックスマッピング |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `acknowledged` | boolean | リクエストが承認されたかどうか |
+| `shards_acknowledged` | boolean | シャードが承認されたかどうか |
+| `index` | string | 作成されたインデックス名 |
+
+### `elasticsearch_delete_index`
+
+インデックスとそのすべてのドキュメントを削除します。この操作は元に戻せません。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | はい | デプロイメントタイプ: self_hosted または cloud |
+| `host` | string | いいえ | Elasticsearch ホスト URL （self-hosted の場合） |
+| `cloudId` | string | いいえ | Elastic Cloud ID （cloud デプロイメントの場合） |
+| `authMethod` | string | はい | 認証方法: api_key または basic_auth |
+| `apiKey` | string | いいえ | Elasticsearch API キー |
+| `username` | string | いいえ | 基本認証のユーザー名 |
+| `password` | string | いいえ | 基本認証のパスワード |
+| `index` | string | はい | 削除するインデックス名 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `acknowledged` | boolean | 削除が承認されたかどうか |
+
+### `elasticsearch_get_index`
+
+設定、マッピング、エイリアスを含むインデックス情報を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | はい | デプロイメントタイプ: self_hosted または cloud |
+| `host` | string | いいえ | Elasticsearch ホスト URL （self-hosted の場合） |
+| `cloudId` | string | いいえ | Elastic Cloud ID （cloud デプロイメントの場合） |
+| `authMethod` | string | はい | 認証方法: api_key または basic_auth |
+| `apiKey` | string | いいえ | Elasticsearch API キー |
+| `username` | string | いいえ | 基本認証のユーザー名 |
+| `password` | string | いいえ | 基本認証のパスワード |
+| `index` | string | はい | 情報を取得するインデックス名 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `index` | json | エイリアス、マッピング、設定を含むインデックス情報 |
+
+### `elasticsearch_cluster_health`
+
+Elasticsearchクラスターの健全性ステータスを取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | はい | デプロイメントタイプ: self_hosted または cloud |
+| `host` | string | いいえ | Elasticsearch ホスト URL \(self_hosted の場合\) |
+| `cloudId` | string | いいえ | Elastic Cloud ID \(cloud デプロイメントの場合\) |
+| `authMethod` | string | はい | 認証方法: api_key または basic_auth |
+| `apiKey` | string | いいえ | Elasticsearch API キー |
+| `username` | string | いいえ | 基本認証のユーザー名 |
+| `password` | string | いいえ | 基本認証のパスワード |
+| `waitForStatus` | string | いいえ | クラスターがこのステータスに達するまで待機: green、yellow、または red |
+| `timeout` | string | いいえ | 待機操作のタイムアウト \(例: 30s、1m\) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `cluster_name` | string | クラスターの名前 |
+| `status` | string | クラスターの健全性ステータス: green、yellow、または red |
+| `number_of_nodes` | number | クラスター内のノードの総数 |
+| `number_of_data_nodes` | number | データノードの数 |
+| `active_shards` | number | アクティブなシャードの数 |
+| `unassigned_shards` | number | 未割り当てのシャードの数 |
+
+### `elasticsearch_cluster_stats`
+
+Elasticsearchクラスターに関する包括的な統計情報を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | はい | デプロイメントタイプ: self_hosted または cloud |
+| `host` | string | いいえ | Elasticsearch ホスト URL （self-hosted の場合） |
+| `cloudId` | string | いいえ | Elastic Cloud ID （cloud デプロイメントの場合） |
+| `authMethod` | string | はい | 認証方法: api_key または basic_auth |
+| `apiKey` | string | いいえ | Elasticsearch API キー |
+| `username` | string | いいえ | 基本認証のユーザー名 |
+| `password` | string | いいえ | 基本認証のパスワード |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `cluster_name` | string | クラスターの名前 |
+| `status` | string | クラスターの健全性ステータス |
+| `nodes` | object | ノード数とバージョンを含むノード統計 |
+| `indices` | object | ドキュメント数とストアサイズを含むインデックス統計 |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `elasticsearch`

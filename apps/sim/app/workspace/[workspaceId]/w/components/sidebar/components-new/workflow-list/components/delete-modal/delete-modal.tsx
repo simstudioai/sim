@@ -1,14 +1,13 @@
 'use client'
 
+import { Button } from '@/components/emcn'
 import {
   Modal,
+  ModalBody,
   ModalContent,
-  ModalDescription,
   ModalFooter,
   ModalHeader,
-  ModalTitle,
-} from '@/components/emcn'
-import { Button } from '@/components/ui/button'
+} from '@/components/emcn/components/modal/modal'
 
 interface DeleteModalProps {
   /**
@@ -60,61 +59,73 @@ export function DeleteModal({
 
   let title = ''
   if (itemType === 'workflow') {
-    title = isMultiple ? 'Delete workflows?' : 'Delete workflow?'
+    title = isMultiple ? 'Delete Workflows' : 'Delete Workflow'
   } else if (itemType === 'folder') {
-    title = 'Delete folder?'
+    title = 'Delete Folder'
   } else {
-    title = 'Delete workspace?'
+    title = 'Delete Workspace'
   }
 
-  let description = ''
-  if (itemType === 'workflow') {
-    if (isMultiple) {
-      const workflowList = displayNames.join(', ')
-      description = `Deleting ${workflowList} will permanently remove all associated blocks, executions, and configuration.`
-    } else if (isSingle && displayNames.length > 0) {
-      description = `Deleting ${displayNames[0]} will permanently remove all associated blocks, executions, and configuration.`
-    } else {
-      description =
-        'Deleting this workflow will permanently remove all associated blocks, executions, and configuration.'
+  const renderDescription = () => {
+    if (itemType === 'workflow') {
+      if (isMultiple) {
+        return (
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {displayNames.join(', ')}
+            </span>
+            ? This will permanently remove all associated blocks, executions, and configuration.
+          </>
+        )
+      }
+      if (isSingle && displayNames.length > 0) {
+        return (
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
+            will permanently remove all associated blocks, executions, and configuration.
+          </>
+        )
+      }
+      return 'Are you sure you want to delete this workflow? This will permanently remove all associated blocks, executions, and configuration.'
     }
-  } else if (itemType === 'folder') {
-    if (isSingle && displayNames.length > 0) {
-      description = `Deleting ${displayNames[0]} will permanently remove all associated workflows, logs, and knowledge bases.`
-    } else {
-      description =
-        'Deleting this folder will permanently remove all associated workflows, logs, and knowledge bases.'
+
+    if (itemType === 'folder') {
+      if (isSingle && displayNames.length > 0) {
+        return (
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
+            will permanently remove all associated workflows, logs, and knowledge bases.
+          </>
+        )
+      }
+      return 'Are you sure you want to delete this folder? This will permanently remove all associated workflows, logs, and knowledge bases.'
     }
-  } else {
-    description =
-      'Deleting this workspace will permanently remove all associated workflows, folders, logs, and knowledge bases.'
+
+    return 'Are you sure you want to delete this workspace? This will permanently remove all associated workflows, folders, logs, and knowledge bases.'
   }
 
   return (
     <Modal open={isOpen} onOpenChange={onClose}>
-      <ModalContent>
-        <ModalHeader>
-          <ModalTitle>{title}</ModalTitle>
-          <ModalDescription>
-            {description}{' '}
-            <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-              This action cannot be undone.
-            </span>
-          </ModalDescription>
-        </ModalHeader>
+      <ModalContent className='w-[400px]'>
+        <ModalHeader>{title}</ModalHeader>
+        <ModalBody>
+          <p className='text-[12px] text-[var(--text-tertiary)]'>
+            {renderDescription()}{' '}
+            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+          </p>
+        </ModalBody>
         <ModalFooter>
-          <Button
-            className='h-[32px] px-[12px]'
-            variant='outline'
-            onClick={onClose}
-            disabled={isDeleting}
-          >
+          <Button variant='active' onClick={onClose} disabled={isDeleting}>
             Cancel
           </Button>
           <Button
-            className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+            variant='primary'
             onClick={onConfirm}
             disabled={isDeleting}
+            className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
           >
             {isDeleting ? 'Deleting...' : 'Delete'}
           </Button>

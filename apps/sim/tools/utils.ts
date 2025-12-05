@@ -172,7 +172,7 @@ export function validateRequiredParametersAfterMerge(
       const toolName = tool.name || toolId
       const friendlyParamName =
         parameterNameMap?.[paramName] || formatParameterNameForError(paramName)
-      throw new Error(`"${friendlyParamName}" is required for ${toolName}`)
+      throw new Error(`${friendlyParamName} is required for ${toolName}`)
     }
   }
 }

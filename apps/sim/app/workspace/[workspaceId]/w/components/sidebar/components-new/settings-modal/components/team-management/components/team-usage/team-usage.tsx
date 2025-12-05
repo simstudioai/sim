@@ -30,7 +30,7 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
 
   if (isLoadingOrgBilling) {
     return (
-      <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
+      <div className='rounded-[8px] border bg-[var(--surface-3)] p-3 shadow-xs'>
         <div className='space-y-2'>
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
@@ -39,7 +39,7 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
             </div>
             <div className='flex items-center gap-1 text-xs'>
               <Skeleton className='h-4 w-8' />
-              <span className='text-muted-foreground'>/</span>
+              <span className='text-[var(--text-muted)]'>/</span>
               <Skeleton className='h-4 w-8' />
             </div>
           </div>
@@ -51,7 +51,7 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
 
   if (error) {
     return (
-      <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
+      <div className='rounded-[8px] border bg-[var(--surface-3)] p-3 shadow-xs'>
         <p className='text-center text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
           {error instanceof Error ? error.message : 'Failed to load billing data'}
         </p>
@@ -126,7 +126,7 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
             organizationId={activeOrg.id}
           />
         ) : (
-          <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
+          <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
             ${currentCap.toFixed(0)}
           </span>
         )

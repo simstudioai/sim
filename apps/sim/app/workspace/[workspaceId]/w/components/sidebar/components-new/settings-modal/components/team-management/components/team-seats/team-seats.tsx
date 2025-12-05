@@ -3,6 +3,7 @@ import {
   Button,
   Combobox,
   type ComboboxOption,
+  Label,
   Modal,
   ModalContent,
   ModalDescription,
@@ -11,7 +12,6 @@ import {
   ModalTitle,
   Tooltip,
 } from '@/components/emcn'
-import { Label } from '@/components/ui/label'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
 import { env } from '@/lib/core/config/env'
 
@@ -82,23 +82,23 @@ export function TeamSeats({
             placeholder='Select number of seats'
           />
 
-          <p className='mt-2 text-muted-foreground text-sm'>
+          <p className='mt-2 text-[var(--text-muted)] text-sm'>
             Your team will have {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} with a
             total of ${totalMonthlyCost} inference credits per month.
           </p>
 
           {showCostBreakdown && currentSeats !== undefined && (
-            <div className='mt-3 rounded-md bg-muted/50 p-3'>
+            <div className='mt-3 rounded-[8px] bg-[var(--surface-3)] p-3'>
               <div className='flex justify-between text-sm'>
-                <span>Current seats:</span>
+                <span className='text-[var(--text-muted)]'>Current seats:</span>
                 <span>{currentSeats}</span>
               </div>
               <div className='flex justify-between text-sm'>
-                <span>New seats:</span>
+                <span className='text-[var(--text-muted)]'>New seats:</span>
                 <span>{selectedSeats}</span>
               </div>
               <div className='mt-2 flex justify-between border-t pt-2 font-medium text-sm'>
-                <span>Monthly cost change:</span>
+                <span className='text-[var(--text-muted)]'>Monthly cost change:</span>
                 <span>
                   {costChange > 0 ? '+' : ''}${costChange}
                 </span>

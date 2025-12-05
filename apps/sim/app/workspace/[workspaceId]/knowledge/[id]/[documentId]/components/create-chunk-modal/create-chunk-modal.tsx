@@ -2,7 +2,8 @@
 
 import { useRef, useState } from 'react'
 import { AlertCircle, Loader2, X } from 'lucide-react'
-import { Button, Modal, ModalContent, ModalTitle, Textarea } from '@/components/emcn'
+import { Button, Textarea } from '@/components/emcn'
+import { Modal, ModalContent, ModalTitle } from '@/components/emcn/components/modal/modal'
 import { Label } from '@/components/ui/label'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ChunkData, DocumentData } from '@/stores/knowledge/store'

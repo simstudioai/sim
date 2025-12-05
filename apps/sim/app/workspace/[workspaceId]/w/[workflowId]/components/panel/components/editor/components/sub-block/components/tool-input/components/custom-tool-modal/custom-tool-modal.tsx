@@ -1,14 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Code, FileJson, Wand2, X } from 'lucide-react'
+import { AlertCircle, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
-  Button as EmcnButton,
-  Modal,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTitle,
+  Button,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -16,16 +10,17 @@ import {
   PopoverScrollArea,
   PopoverSection,
 } from '@/components/emcn'
-import { Trash } from '@/components/emcn/icons/trash'
-import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalTabs,
+  ModalTabsContent,
+  ModalTabsList,
+  ModalTabsTrigger,
+} from '@/components/emcn/components/modal/modal'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -347,10 +342,7 @@ try {
     }
   }
 
-  const validateFunctionCode = (code: string): boolean => {
-    return true // Allow empty code
-  }
-
+  /** Extracts parameters from JSON schema for autocomplete */
   const schemaParameters = useMemo(() => {
     try {
       if (!jsonSchema) return []
@@ -369,8 +361,8 @@ try {
     }
   }, [jsonSchema])
 
+  /** Memoized schema validation result */
   const isSchemaValid = useMemo(() => validateJsonSchema(jsonSchema), [jsonSchema])
-  const isCodeValid = useMemo(() => validateFunctionCode(functionCode), [functionCode])
 
   const handleSave = async () => {
     try {
@@ -835,53 +827,11 @@ try {
     }
   }
 
-  const navigationItems = [
-    {
-      id: 'schema' as const,
-      label: 'Schema',
-      icon: FileJson,
-      complete: isSchemaValid,
-    },
-    {
-      id: 'code' as const,
-      label: 'Code',
-      icon: Code,
-      complete: isCodeValid,
-    },
-  ]
-
-  useEffect(() => {
-    if (!open) return
-
-    const styleId = 'custom-tool-modal-z-index'
-    let styleEl = document.getElementById(styleId) as HTMLStyleElement
-
-    if (!styleEl) {
-      styleEl = document.createElement('style')
-      styleEl.id = styleId
-      styleEl.textContent = `
-        [data-radix-portal] [data-radix-dialog-overlay] {
-          z-index: 10000048 !important;
-        }
-      `
-      document.head.appendChild(styleEl)
-    }
-
-    return () => {
-      const el = document.getElementById(styleId)
-      if (el) {
-        el.remove()
-      }
-    }
-  }, [open])
-
   return (
     <>
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent
-          className='flex h-[80vh] w-full max-w-[840px] flex-col gap-0 p-0'
-          style={{ zIndex: 10000050 }}
-          hideCloseButton
+      <Modal open={open} onOpenChange={handleClose}>
+        <ModalContent
+          className='h-[80vh] w-[900px]'
           onKeyDown={(e) => {
             if (e.key === 'Escape' && (showEnvVars || showTags || showSchemaParams)) {
               e.preventDefault()
@@ -892,57 +842,27 @@ try {
             }
           }}
         >
-          <DialogHeader className='border-b px-6 py-4'>
-            <div className='flex items-center justify-between'>
-              <DialogTitle className='font-medium text-lg'>
-                {isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'}
-              </DialogTitle>
-              <EmcnButton variant='ghost' onClick={handleClose}>
-                <X className='h-4 w-4' />
-                <span className='sr-only'>Close</span>
-              </EmcnButton>
-            </div>
-            <DialogDescription className='mt-1.5'>
-              Step {activeSection === 'schema' ? '1' : '2'} of 2:{' '}
-              {activeSection === 'schema' ? 'Define schema' : 'Implement code'}
-            </DialogDescription>
-          </DialogHeader>
+          <ModalHeader>{isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'}</ModalHeader>
 
-          <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
-            <div className='flex border-b'>
-              {navigationItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveSection(item.id)}
-                  className={cn(
-                    'flex items-center gap-2 border-b-2 px-6 py-3 text-sm transition-colors',
-                    'hover:bg-muted/50',
-                    activeSection === item.id
-                      ? 'border-primary font-medium text-foreground'
-                      : 'border-transparent text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <item.icon className='h-4 w-4' />
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </div>
+          <ModalTabs
+            value={activeSection}
+            onValueChange={(value) => setActiveSection(value as ToolSection)}
+            className='flex min-h-0 flex-1 flex-col'
+          >
+            <ModalTabsList activeValue={activeSection}>
+              <ModalTabsTrigger value='schema'>Schema</ModalTabsTrigger>
+              <ModalTabsTrigger value='code'>Code</ModalTabsTrigger>
+            </ModalTabsList>
 
-            <div className='relative flex-1 overflow-auto px-6 pt-6 pb-12'>
-              <div
-                className={cn(
-                  'flex h-full flex-1 flex-col',
-                  activeSection === 'schema' ? 'block' : 'hidden'
-                )}
-              >
+            <ModalBody className='min-h-0 flex-1'>
+              <ModalTabsContent value='schema'>
                 <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
                   <div className='flex min-w-0 items-center gap-2'>
-                    <FileJson className='h-4 w-4' />
-                    <Label htmlFor='json-schema' className='font-medium'>
+                    <Label htmlFor='json-schema' className='font-medium text-[13px]'>
                       JSON Schema
                     </Label>
                     {schemaError && (
-                      <div className='ml-2 flex min-w-0 items-center gap-1 text-destructive text-xs'>
+                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-xs'>
                         <AlertCircle className='h-3 w-3 flex-shrink-0' />
                         <span className='truncate'>{schemaError}</span>
                       </div>
@@ -950,7 +870,7 @@ try {
                   </div>
                   <div className='flex min-w-0 flex-1 items-center justify-end gap-1 pr-[4px]'>
                     {!isSchemaPromptActive && schemaPromptSummary && (
-                      <span className='text-muted-foreground text-xs italic'>
+                      <span className='text-[var(--text-tertiary)] text-xs italic'>
                         with {schemaPromptSummary}
                       </span>
                     )}
@@ -973,19 +893,18 @@ try {
                         onBlur={handleSchemaPromptBlur}
                         onKeyDown={handleSchemaPromptKeyDown}
                         disabled={schemaGeneration.isStreaming}
-                        className='h-[16px] w-full border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[#737373] focus:outline-none'
+                        className='h-[16px] w-full border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[var(--text-muted)] focus:outline-none'
                         placeholder='Describe schema...'
                       />
                     )}
                   </div>
                 </div>
-                <div className='relative'>
-                  <CodeEditor
-                    value={jsonSchema}
-                    onChange={handleJsonSchemaChange}
-                    language='json'
-                    showWandButton={false}
-                    placeholder={`{
+                <CodeEditor
+                  value={jsonSchema}
+                  onChange={handleJsonSchemaChange}
+                  language='json'
+                  showWandButton={false}
+                  placeholder={`{
   "type": "function",
   "function": {
     "name": "addItemToOrder",
@@ -1002,35 +921,35 @@ try {
     }
   }
 }`}
-                    minHeight='360px'
-                    className={cn(
-                      schemaError && 'border-red-500',
-                      (schemaGeneration.isLoading || schemaGeneration.isStreaming) &&
-                        'cursor-not-allowed opacity-50'
-                    )}
-                    disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming} // Use disabled prop instead of readOnly
-                    onKeyDown={handleKeyDown} // Pass keydown handler
-                  />
-                </div>
-                <div className='h-6' />
-              </div>
+                  minHeight='420px'
+                  className={cn(
+                    'bg-[var(--bg)]',
+                    schemaError && 'border-[var(--text-error)]',
+                    (schemaGeneration.isLoading || schemaGeneration.isStreaming) &&
+                      'cursor-not-allowed opacity-50'
+                  )}
+                  gutterClassName='bg-[var(--bg)]'
+                  disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
+                  onKeyDown={handleKeyDown}
+                />
+              </ModalTabsContent>
 
-              <div
-                className={cn(
-                  'flex h-full flex-1 flex-col pb-6',
-                  activeSection === 'code' ? 'block' : 'hidden'
-                )}
-              >
+              <ModalTabsContent value='code'>
                 <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
                   <div className='flex min-w-0 items-center gap-2'>
-                    <Code className='h-4 w-4' />
-                    <Label htmlFor='function-code' className='font-medium'>
+                    <Label htmlFor='function-code' className='font-medium text-[13px]'>
                       Code
                     </Label>
+                    {codeError && !codeGeneration.isStreaming && (
+                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-xs'>
+                        <AlertCircle className='h-3 w-3 flex-shrink-0' />
+                        <span className='truncate'>{codeError}</span>
+                      </div>
+                    )}
                   </div>
                   <div className='flex min-w-0 flex-1 items-center justify-end gap-1 pr-[4px]'>
                     {!isCodePromptActive && codePromptSummary && (
-                      <span className='text-muted-foreground text-xs italic'>
+                      <span className='text-[var(--text-tertiary)] text-xs italic'>
                         with {codePromptSummary}
                       </span>
                     )}
@@ -1053,23 +972,19 @@ try {
                         onBlur={handleCodePromptBlur}
                         onKeyDown={handleCodePromptKeyDown}
                         disabled={codeGeneration.isStreaming}
-                        className='h-[16px] w-full border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[#737373] focus:outline-none'
+                        className='h-[16px] w-full border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[var(--text-muted)] focus:outline-none'
                         placeholder='Describe code...'
                       />
                     )}
                   </div>
-                  {codeError &&
-                    !codeGeneration.isStreaming && ( // Hide code error while streaming
-                      <div className='ml-4 break-words text-red-600 text-sm'>{codeError}</div>
-                    )}
                 </div>
                 {schemaParameters.length > 0 && (
-                  <div className='mb-2 rounded-md bg-muted/50 p-2'>
-                    <p className='text-muted-foreground text-xs'>
+                  <div className='mb-2 rounded-[6px] border bg-[var(--surface-2)] p-2'>
+                    <p className='text-[var(--text-tertiary)] text-xs'>
                       <span className='font-medium'>Available parameters:</span>{' '}
                       {schemaParameters.map((param, index) => (
                         <span key={param.name}>
-                          <code className='rounded bg-background px-1 py-0.5 text-foreground'>
+                          <code className='rounded bg-[var(--bg)] px-1 py-0.5 text-[var(--text-primary)]'>
                             {param.name}
                           </code>
                           {index < schemaParameters.length - 1 && ', '}
@@ -1085,22 +1000,21 @@ try {
                     onChange={handleFunctionCodeChange}
                     language='javascript'
                     showWandButton={false}
-                    placeholder={
-                      '// This code will be executed when the tool is called. You can use environment variables with {{VARIABLE_NAME}}.'
-                    }
-                    minHeight='360px'
+                    placeholder={'return schemaVariable + {{environmentVariable}}'}
+                    minHeight={schemaParameters.length > 0 ? '380px' : '420px'}
                     className={cn(
-                      codeError && !codeGeneration.isStreaming ? 'border-red-500' : '',
+                      'bg-[var(--bg)]',
+                      codeError && !codeGeneration.isStreaming && 'border-[var(--text-error)]',
                       (codeGeneration.isLoading || codeGeneration.isStreaming) &&
                         'cursor-not-allowed opacity-50'
                     )}
+                    gutterClassName='bg-[var(--bg)]'
                     highlightVariables={true}
-                    disabled={codeGeneration.isLoading || codeGeneration.isStreaming} // Use disabled prop instead of readOnly
-                    onKeyDown={handleKeyDown} // Pass keydown handler
-                    schemaParameters={schemaParameters} // Pass schema parameters for highlighting
+                    disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
+                    onKeyDown={handleKeyDown}
+                    schemaParameters={schemaParameters}
                   />
 
-                  {/* Environment variables dropdown */}
                   {showEnvVars && (
                     <EnvVarDropdown
                       visible={showEnvVars}
@@ -1122,7 +1036,6 @@ try {
                     />
                   )}
 
-                  {/* Tags dropdown */}
                   {showTags && (
                     <TagDropdown
                       visible={showTags}
@@ -1144,7 +1057,6 @@ try {
                     />
                   )}
 
-                  {/* Schema parameters dropdown */}
                   {showSchemaParams && schemaParameters.length > 0 && (
                     <Popover
                       open={showSchemaParams}
@@ -1172,7 +1084,6 @@ try {
                         side='bottom'
                         align='start'
                         collisionPadding={6}
-                        style={{ zIndex: 100000000 }}
                         onOpenAutoFocus={(e) => e.preventDefault()}
                         onCloseAutoFocus={(e) => e.preventDefault()}
                       >
@@ -1198,7 +1109,9 @@ try {
                                 <span className='h-3 w-3 font-bold text-white text-xs'>P</span>
                               </div>
                               <span className='flex-1 truncate'>{param.name}</span>
-                              <span className='text-muted-foreground text-xs'>{param.type}</span>
+                              <span className='text-[var(--text-tertiary)] text-xs'>
+                                {param.type}
+                              </span>
                             </PopoverItem>
                           ))}
                         </PopoverScrollArea>
@@ -1206,90 +1119,92 @@ try {
                     </Popover>
                   )}
                 </div>
-                <div className='h-6' />
-              </div>
-            </div>
-          </div>
+              </ModalTabsContent>
+            </ModalBody>
+          </ModalTabs>
 
-          <DialogFooter className='mt-auto border-t px-6 py-4'>
-            <div className='flex w-full justify-between'>
+          {activeSection === 'schema' && (
+            <ModalFooter className='items-center justify-between'>
               {isEditing ? (
-                <EmcnButton
-                  className='h-[32px] gap-1 bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+                <Button
+                  variant='default'
                   onClick={() => setShowDeleteConfirm(true)}
+                  className='bg-[var(--text-error)] text-white hover:bg-[var(--text-error)]'
                 >
-                  <Trash className='h-4 w-4' />
                   Delete
-                </EmcnButton>
+                </Button>
               ) : (
-                <EmcnButton
-                  variant='outline'
-                  className='h-[32px] px-[12px]'
-                  onClick={() => {
-                    if (activeSection === 'code') {
-                      setActiveSection('schema')
-                    }
-                  }}
-                  disabled={activeSection === 'schema'}
-                >
-                  Back
-                </EmcnButton>
+                <div />
               )}
-              <div className='flex space-x-2'>
-                <EmcnButton variant='outline' className='h-[32px] px-[12px]' onClick={handleClose}>
+              <div className='flex gap-2'>
+                <Button variant='default' onClick={handleClose}>
                   Cancel
-                </EmcnButton>
-                {activeSection === 'schema' ? (
-                  <EmcnButton
-                    variant='primary'
-                    className='h-[32px] px-[12px]'
-                    onClick={() => setActiveSection('code')}
-                    disabled={!isSchemaValid || !!schemaError}
-                  >
-                    Next
-                  </EmcnButton>
-                ) : (
-                  <EmcnButton
-                    variant='primary'
-                    className='h-[32px] px-[12px]'
-                    onClick={handleSave}
-                    disabled={!isSchemaValid || !!schemaError}
-                  >
-                    {isEditing ? 'Update Tool' : 'Save Tool'}
-                  </EmcnButton>
-                )}
+                </Button>
+                <Button
+                  variant='primary'
+                  onClick={() => setActiveSection('code')}
+                  disabled={!isSchemaValid || !!schemaError}
+                >
+                  Next
+                </Button>
               </div>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </ModalFooter>
+          )}
 
-      {/* Delete Confirmation Dialog */}
+          {activeSection === 'code' && (
+            <ModalFooter className='items-center justify-between'>
+              {isEditing ? (
+                <Button
+                  variant='default'
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className='bg-[var(--text-error)] text-white hover:bg-[var(--text-error)]'
+                >
+                  Delete
+                </Button>
+              ) : (
+                <Button variant='default' onClick={() => setActiveSection('schema')}>
+                  Back
+                </Button>
+              )}
+              <div className='flex gap-2'>
+                <Button variant='default' onClick={handleClose}>
+                  Cancel
+                </Button>
+                <Button
+                  variant='primary'
+                  onClick={handleSave}
+                  disabled={!isSchemaValid || !!schemaError}
+                >
+                  {isEditing ? 'Update Tool' : 'Save Tool'}
+                </Button>
+              </div>
+            </ModalFooter>
+          )}
+        </ModalContent>
+      </Modal>
+
       <Modal open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>Delete custom tool?</ModalTitle>
-            <ModalDescription>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete Custom Tool</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               This will permanently delete the tool and remove it from any workflows that are using
-              it.{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
-            </ModalDescription>
-          </ModalHeader>
+              it. <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
           <ModalFooter>
             <Button
-              variant='outline'
-              className='h-[32px] px-[12px]'
+              variant='default'
               onClick={() => setShowDeleteConfirm(false)}
               disabled={deleteToolMutation.isPending}
             >
               Cancel
             </Button>
             <Button
+              variant='primary'
               onClick={handleDelete}
               disabled={deleteToolMutation.isPending}
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {deleteToolMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>

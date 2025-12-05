@@ -13,12 +13,15 @@ import {
   FilterX,
   MoreHorizontal,
   RepeatIcon,
+  Search,
   SplitIcon,
   Trash2,
+  X,
 } from 'lucide-react'
 import {
   Button,
   Code,
+  Input,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -35,11 +38,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks'
 import { getBlock } from '@/blocks'
 import type { ConsoleEntry } from '@/stores/terminal'
-import {
-  DEFAULT_TERMINAL_HEIGHT,
-  useTerminalConsoleStore,
-  useTerminalStore,
-} from '@/stores/terminal'
+import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
@@ -53,7 +52,7 @@ const DEFAULT_EXPANDED_HEIGHT = 196
  * Column width constants - numeric values for calculations
  */
 const BLOCK_COLUMN_WIDTH_PX = 240
-const MIN_OUTPUT_PANEL_WIDTH_PX = 300
+const MIN_OUTPUT_PANEL_WIDTH_PX = 440
 
 /**
  * Column width constants - Tailwind classes for styling
@@ -82,9 +81,8 @@ const RUN_ID_COLORS = [
 /**
  * Shared styling constants
  */
-const HEADER_TEXT_CLASS =
-  'font-medium text-[var(--text-tertiary)] text-[12px] dark:text-[var(--text-tertiary)]'
-const ROW_TEXT_CLASS = 'font-medium text-[#D2D2D2] text-[12px] dark:text-[#D2D2D2]'
+const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-[12px]'
+const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-[12px]'
 const COLUMN_BASE_CLASS = 'flex-shrink-0'
 
 /**
@@ -159,7 +157,7 @@ const ToggleButton = ({
   isExpanded: boolean
   onClick: (e: React.MouseEvent) => void
 }) => (
-  <Button variant='ghost' className='!p-0' onClick={onClick} aria-label='Toggle terminal'>
+  <Button variant='ghost' className='!p-1.5 -m-1.5' onClick={onClick} aria-label='Toggle terminal'>
     <ChevronDown
       className={clsx(
         'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
@@ -254,15 +252,15 @@ const isEventFromEditableElement = (e: KeyboardEvent): boolean => {
 export function Terminal() {
   const terminalRef = useRef<HTMLElement>(null)
   const prevEntriesLengthRef = useRef(0)
+  const prevWorkflowEntriesLengthRef = useRef(0)
   const {
     terminalHeight,
     setTerminalHeight,
+    lastExpandedHeight,
     outputPanelWidth,
     setOutputPanelWidth,
     openOnRun,
     setOpenOnRun,
-    // displayMode,
-    // setDisplayMode,
     setHasHydrated,
   } = useTerminalStore()
   const entries = useTerminalConsoleStore((state) => state.entries)
@@ -271,7 +269,6 @@ export function Terminal() {
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
   const [isToggling, setIsToggling] = useState(false)
-  // const [displayPopoverOpen, setDisplayPopoverOpen] = useState(false)
   const [wrapText, setWrapText] = useState(true)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showInput, setShowInput] = useState(false)
@@ -281,6 +278,14 @@ export function Terminal() {
   const [runIdFilterOpen, setRunIdFilterOpen] = useState(false)
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
   const [outputOptionsOpen, setOutputOptionsOpen] = useState(false)
+
+  // Output panel search state
+  const [isOutputSearchActive, setIsOutputSearchActive] = useState(false)
+  const [outputSearchQuery, setOutputSearchQuery] = useState('')
+  const [matchCount, setMatchCount] = useState(0)
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+  const outputSearchInputRef = useRef<HTMLInputElement>(null)
+  const outputContentRef = useRef<HTMLDivElement>(null)
 
   // Terminal resize hooks
   const { handleMouseDown } = useTerminalResize()
@@ -300,6 +305,22 @@ export function Terminal() {
   } = useTerminalFilters()
 
   const isExpanded = terminalHeight > NEAR_MIN_THRESHOLD
+
+  /**
+   * Expands the terminal to its last meaningful height, with safeguards:
+   * - Never expands below {@link DEFAULT_EXPANDED_HEIGHT}.
+   * - Never exceeds 70% of the viewport height.
+   */
+  const expandToLastHeight = useCallback(() => {
+    setIsToggling(true)
+    const maxHeight = window.innerHeight * 0.7
+    const desiredHeight = Math.max(
+      lastExpandedHeight || DEFAULT_EXPANDED_HEIGHT,
+      DEFAULT_EXPANDED_HEIGHT
+    )
+    const targetHeight = Math.min(desiredHeight, maxHeight)
+    setTerminalHeight(targetHeight)
+  }, [lastExpandedHeight, setTerminalHeight])
 
   /**
    * Get all entries for current workflow (before filtering) for filter options
@@ -405,6 +426,28 @@ export function Terminal() {
   }, [selectedEntry, showInput])
 
   /**
+   * Auto-open the terminal on new entries when "Open on run" is enabled.
+   * This mirrors the header toggle behavior by using expandToLastHeight,
+   * ensuring we always get the same smooth height transition.
+   */
+  useEffect(() => {
+    if (!openOnRun) {
+      prevWorkflowEntriesLengthRef.current = allWorkflowEntries.length
+      return
+    }
+
+    const previousLength = prevWorkflowEntriesLengthRef.current
+    const currentLength = allWorkflowEntries.length
+
+    // Only react when new entries are added for the active workflow
+    if (currentLength > previousLength && terminalHeight <= MIN_HEIGHT) {
+      expandToLastHeight()
+    }
+
+    prevWorkflowEntriesLengthRef.current = currentLength
+  }, [allWorkflowEntries.length, expandToLastHeight, openOnRun, terminalHeight])
+
+  /**
    * Handle row click - toggle if clicking same entry
    * Disables auto-selection when user manually selects, re-enables when deselecting
    */
@@ -421,14 +464,13 @@ export function Terminal() {
    * Handle header click - toggle between expanded and collapsed
    */
   const handleHeaderClick = useCallback(() => {
-    setIsToggling(true)
-
     if (isExpanded) {
+      setIsToggling(true)
       setTerminalHeight(MIN_HEIGHT)
     } else {
-      setTerminalHeight(DEFAULT_TERMINAL_HEIGHT)
+      expandToLastHeight()
     }
-  }, [isExpanded, setTerminalHeight])
+  }, [expandToLastHeight, isExpanded, setTerminalHeight])
 
   /**
    * Handle transition end - reset toggling state
@@ -462,6 +504,50 @@ export function Terminal() {
       setSelectedEntry(null)
     }
   }, [activeWorkflowId, clearWorkflowConsole])
+
+  /**
+   * Activates output search and focuses the search input.
+   */
+  const activateOutputSearch = useCallback(() => {
+    setIsOutputSearchActive(true)
+    setTimeout(() => {
+      outputSearchInputRef.current?.focus()
+    }, 0)
+  }, [])
+
+  /**
+   * Closes output search and clears the query.
+   */
+  const closeOutputSearch = useCallback(() => {
+    setIsOutputSearchActive(false)
+    setOutputSearchQuery('')
+    setMatchCount(0)
+    setCurrentMatchIndex(0)
+  }, [])
+
+  /**
+   * Navigates to the next match in the search results.
+   */
+  const goToNextMatch = useCallback(() => {
+    if (matchCount === 0) return
+    setCurrentMatchIndex((prev) => (prev + 1) % matchCount)
+  }, [matchCount])
+
+  /**
+   * Navigates to the previous match in the search results.
+   */
+  const goToPreviousMatch = useCallback(() => {
+    if (matchCount === 0) return
+    setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount)
+  }, [matchCount])
+
+  /**
+   * Handles match count change from Code.Viewer.
+   */
+  const handleMatchCountChange = useCallback((count: number) => {
+    setMatchCount(count)
+    setCurrentMatchIndex(0)
+  }, [])
 
   /**
    * Handle clear console for current workflow via mouse interaction.
@@ -628,10 +714,7 @@ export function Terminal() {
       e.preventDefault()
 
       if (!isExpanded) {
-        setIsToggling(true)
-        const maxHeight = window.innerHeight * 0.7
-        const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
-        setTerminalHeight(targetHeight)
+        expandToLastHeight()
       }
 
       if (e.key === 'ArrowLeft') {
@@ -647,23 +730,69 @@ export function Terminal() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEntry, showInput, hasInputData, isExpanded])
+  }, [expandToLastHeight, selectedEntry, showInput, hasInputData, isExpanded])
 
   /**
-   * Handle Escape to unselect and Enter to re-enable auto-selection
+   * Handle Escape to close search or unselect entry
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && selectedEntry) {
+      if (e.key === 'Escape') {
         e.preventDefault()
-        setSelectedEntry(null)
-        setAutoSelectEnabled(true)
+        // First close search if active
+        if (isOutputSearchActive) {
+          closeOutputSearch()
+          return
+        }
+        // Then unselect entry
+        if (selectedEntry) {
+          setSelectedEntry(null)
+          setAutoSelectEnabled(true)
+        }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEntry])
+  }, [selectedEntry, isOutputSearchActive, closeOutputSearch])
+
+  /**
+   * Handle Enter/Shift+Enter for search navigation when search input is focused
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOutputSearchActive) return
+
+      const isSearchInputFocused = document.activeElement === outputSearchInputRef.current
+
+      if (e.key === 'Enter' && isSearchInputFocused && matchCount > 0) {
+        e.preventDefault()
+        if (e.shiftKey) {
+          goToPreviousMatch()
+        } else {
+          goToNextMatch()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOutputSearchActive, matchCount, goToNextMatch, goToPreviousMatch])
+
+  /**
+   * Scroll to current match when it changes
+   */
+  useEffect(() => {
+    if (!isOutputSearchActive || matchCount === 0 || !outputContentRef.current) return
+
+    // Find all match elements and scroll to the current one
+    const matchElements = outputContentRef.current.querySelectorAll('[data-search-match]')
+    const currentElement = matchElements[currentMatchIndex]
+
+    if (currentElement) {
+      currentElement.scrollIntoView({ block: 'center' })
+    }
+  }, [currentMatchIndex, isOutputSearchActive, matchCount])
 
   /**
    * Adjust output panel width when sidebar or panel width changes.
@@ -721,13 +850,13 @@ export function Terminal() {
       <aside
         ref={terminalRef}
         className={clsx(
-          'terminal-container fixed right-[var(--panel-width)] bottom-0 left-[var(--sidebar-width)] z-10 overflow-hidden dark:bg-[var(--surface-1)]',
+          'terminal-container fixed right-[var(--panel-width)] bottom-0 left-[var(--sidebar-width)] z-10 overflow-hidden bg-[var(--surface-1)]',
           isToggling && 'transition-[height] duration-100 ease-out'
         )}
         onTransitionEnd={handleTransitionEnd}
         aria-label='Terminal'
       >
-        <div className='relative flex h-full border-t dark:border-[var(--border)]'>
+        <div className='relative flex h-full border-[var(--border)] border-t'>
           {/* Left Section - Logs Table */}
           <div
             className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
@@ -827,7 +956,7 @@ export function Terminal() {
                         >
                           <div
                             className='h-[6px] w-[6px] rounded-[2px]'
-                            style={{ backgroundColor: '#EF4444' }}
+                            style={{ backgroundColor: 'var(--text-error)' }}
                           />
                           <span className='flex-1'>Error</span>
                           {filters.statuses.has('error') && <Check className='h-3 w-3' />}
@@ -839,7 +968,7 @@ export function Terminal() {
                         >
                           <div
                             className='h-[6px] w-[6px] rounded-[2px]'
-                            style={{ backgroundColor: '#B7B7B7' }}
+                            style={{ backgroundColor: 'var(--terminal-status-info-color)' }}
                           />
                           <span className='flex-1'>Info</span>
                           {filters.statuses.has('info') && <Check className='h-3 w-3' />}
@@ -1053,8 +1182,8 @@ export function Terminal() {
                     <div
                       key={entry.id}
                       className={clsx(
-                        'flex h-[36px] cursor-pointer items-center px-[24px] hover:bg-[var(--border)]',
-                        isSelected && 'bg-[var(--border)]'
+                        'flex h-[36px] cursor-pointer items-center px-[24px] hover:bg-[var(--surface-9)] dark:hover:bg-[var(--border)]',
+                        isSelected && 'bg-[var(--surface-9)] dark:bg-[var(--border)]'
                       )}
                       onClick={() => handleRowClick(entry)}
                     >
@@ -1067,7 +1196,7 @@ export function Terminal() {
                         )}
                       >
                         {BlockIcon && (
-                          <BlockIcon className='h-[13px] w-[13px] flex-shrink-0 text-[#D2D2D2]' />
+                          <BlockIcon className='h-[13px] w-[13px] flex-shrink-0 text-[var(--text-secondary)]' />
                         )}
                         <span className={clsx('truncate', ROW_TEXT_CLASS)}>{entry.blockName}</span>
                       </div>
@@ -1079,19 +1208,25 @@ export function Terminal() {
                             className={clsx(
                               'flex h-[24px] w-[56px] items-center justify-start rounded-[6px] border pl-[9px]',
                               statusInfo.isError
-                                ? 'gap-[5px] border-[#883827] bg-[#491515]'
-                                : 'gap-[8px] border-[#686868] bg-[#383838]'
+                                ? 'gap-[5px] border-[var(--terminal-status-error-border)] bg-[var(--terminal-status-error-bg)]'
+                                : 'gap-[8px] border-[var(--terminal-status-info-border)] bg-[var(--terminal-status-info-bg)]'
                             )}
                           >
                             <div
                               className='h-[6px] w-[6px] rounded-[2px]'
                               style={{
-                                backgroundColor: statusInfo.isError ? '#EF4444' : '#B7B7B7',
+                                backgroundColor: statusInfo.isError
+                                  ? 'var(--text-error)'
+                                  : 'var(--terminal-status-info-color)',
                               }}
                             />
                             <span
                               className='font-medium text-[11.5px]'
-                              style={{ color: statusInfo.isError ? '#EF4444' : '#B7B7B7' }}
+                              style={{
+                                color: statusInfo.isError
+                                  ? 'var(--text-error)'
+                                  : 'var(--terminal-status-info-color)',
+                              }}
                             >
                               {statusInfo.label}
                             </span>
@@ -1155,7 +1290,7 @@ export function Terminal() {
           {/* Right Section - Block Output (Overlay) */}
           {selectedEntry && (
             <div
-              className='absolute top-0 right-0 bottom-0 flex flex-col border-l dark:border-[var(--border)] dark:bg-[var(--surface-1)]'
+              className='absolute top-0 right-0 bottom-0 flex flex-col border-[var(--border)] border-l bg-[var(--surface-1)]'
               style={{ width: `${outputPanelWidth}px` }}
             >
               {/* Horizontal Resize Handle */}
@@ -1169,7 +1304,7 @@ export function Terminal() {
 
               {/* Header */}
               <div
-                className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--surface-1)] px-[16px]'
+                className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--surface-1)] pr-[16px] pl-[10px]'
                 onClick={handleHeaderClick}
               >
                 <div className='flex items-center'>
@@ -1184,10 +1319,7 @@ export function Terminal() {
                     onClick={(e) => {
                       e.stopPropagation()
                       if (!isExpanded) {
-                        setIsToggling(true)
-                        const maxHeight = window.innerHeight * 0.7
-                        const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
-                        setTerminalHeight(targetHeight)
+                        expandToLastHeight()
                       }
                       if (showInput) setShowInput(false)
                     }}
@@ -1200,15 +1332,12 @@ export function Terminal() {
                       variant='ghost'
                       className={clsx(
                         'px-[8px] py-[6px] text-[12px]',
-                        showInput && '!text-[var(--text-primary)] dark:!text-[var(--text-primary)] '
+                        showInput && '!text-[var(--text-primary)]'
                       )}
                       onClick={(e) => {
                         e.stopPropagation()
                         if (!isExpanded) {
-                          setIsToggling(true)
-                          const maxHeight = window.innerHeight * 0.7
-                          const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
-                          setTerminalHeight(targetHeight)
+                          expandToLastHeight()
                         }
                         setShowInput(true)
                       }}
@@ -1218,7 +1347,47 @@ export function Terminal() {
                     </Button>
                   )}
                 </div>
-                <div className='flex items-center gap-[8px]'>
+                <div className='flex flex-shrink-0 items-center gap-[8px]'>
+                  {isOutputSearchActive ? (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            closeOutputSearch()
+                          }}
+                          aria-label='Search in output'
+                          className='!p-1.5 -m-1.5'
+                        >
+                          <X className='h-[12px] w-[12px]' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Close search</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  ) : (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            activateOutputSearch()
+                          }}
+                          aria-label='Search in output'
+                          className='!p-1.5 -m-1.5'
+                        >
+                          <Search className='h-[12px] w-[12px]' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Search</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
+
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <Button
@@ -1231,7 +1400,7 @@ export function Terminal() {
                         className='!p-1.5 -m-1.5'
                       >
                         {showCopySuccess ? (
-                          <Check className='h-3.5 w-3.5' />
+                          <Check className='h-[12px] w-[12px]' />
                         ) : (
                           <Clipboard className='h-[12px] w-[12px]' />
                         )}
@@ -1349,14 +1518,63 @@ export function Terminal() {
                 </div>
               </div>
 
+              {/* Search Overlay */}
+              {isOutputSearchActive && (
+                <div
+                  className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-[6px] rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--surface-1)] px-[6px] shadow-sm'
+                  onClick={(e) => e.stopPropagation()}
+                  data-toolbar-root
+                  data-search-active='true'
+                >
+                  <Input
+                    ref={outputSearchInputRef}
+                    type='text'
+                    value={outputSearchQuery}
+                    onChange={(e) => setOutputSearchQuery(e.target.value)}
+                    placeholder='Search...'
+                    className='mr-[2px] h-[23px] w-[94px] text-[12px]'
+                  />
+                  <span
+                    className={clsx(
+                      'w-[58px] font-medium text-[11px]',
+                      matchCount > 0
+                        ? 'text-[var(--text-secondary)]'
+                        : 'text-[var(--text-tertiary)]'
+                    )}
+                  >
+                    {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : 'No results'}
+                  </span>
+                  <Button
+                    variant='ghost'
+                    onClick={goToPreviousMatch}
+                    aria-label='Previous match'
+                    className='!p-1.5 -m-1.5'
+                    disabled={matchCount === 0}
+                  >
+                    <ArrowUp className='h-[12px] w-[12px]' />
+                  </Button>
+                  <Button
+                    variant='ghost'
+                    onClick={goToNextMatch}
+                    aria-label='Next match'
+                    className='!p-1.5 -m-1.5'
+                    disabled={matchCount === 0}
+                  >
+                    <ArrowDown className='h-[12px] w-[12px]' />
+                  </Button>
+                  <Button
+                    variant='ghost'
+                    onClick={closeOutputSearch}
+                    aria-label='Close search'
+                    className='!p-1.5 -m-1.5'
+                  >
+                    <X className='h-[12px] w-[12px]' />
+                  </Button>
+                </div>
+              )}
+
               {/* Content */}
-              <div
-                className='flex-1 overflow-x-auto overflow-y-auto'
-                // className={clsx(
-                //   'flex-1 overflow-x-auto overflow-y-auto',
-                //   displayMode === 'prettier' && 'px-[8px] pb-[8px]'
-                // )}
-              >
+              <div className='flex-1 overflow-x-auto overflow-y-auto'>
                 {shouldShowCodeDisplay ? (
                   <Code.Viewer
                     code={selectedEntry.input.code}
@@ -1368,6 +1586,10 @@ export function Terminal() {
                     paddingLeft={8}
                     gutterStyle={{ backgroundColor: 'transparent' }}
                     wrapText={wrapText}
+                    searchQuery={isOutputSearchActive ? outputSearchQuery : undefined}
+                    currentMatchIndex={currentMatchIndex}
+                    onMatchCountChange={handleMatchCountChange}
+                    contentRef={outputContentRef}
                   />
                 ) : (
                   <Code.Viewer
@@ -1378,21 +1600,12 @@ export function Terminal() {
                     paddingLeft={8}
                     gutterStyle={{ backgroundColor: 'transparent' }}
                     wrapText={wrapText}
+                    searchQuery={isOutputSearchActive ? outputSearchQuery : undefined}
+                    currentMatchIndex={currentMatchIndex}
+                    onMatchCountChange={handleMatchCountChange}
+                    contentRef={outputContentRef}
                   />
                 )}
-                {/* ) : displayMode === 'raw' ? (
-                  <Code.Viewer
-                    code={JSON.stringify(outputData, null, 2)}
-                    showGutter
-                    language='json'
-                    className='m-0 min-h-full rounded-none border-0 bg-[var(--surface-1)]'
-                    paddingLeft={8}
-                    gutterStyle={{ backgroundColor: 'transparent' }}
-                    wrapText={wrapText}
-                  />
-                ) : (
-                  <PrettierOutput output={outputData} wrapText={wrapText} />
-                )} */}
               </div>
             </div>
           )}
