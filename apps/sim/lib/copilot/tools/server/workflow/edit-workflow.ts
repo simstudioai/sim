@@ -948,11 +948,7 @@ function applyOperationsToWorkflowState(
           if (!block.subBlocks) block.subBlocks = {}
 
           // Validate inputs against block configuration
-          const validationResult = validateInputsForBlock(
-            block.type,
-            params.inputs,
-            block_id
-          )
+          const validationResult = validateInputsForBlock(block.type, params.inputs, block_id)
           validationErrors.push(...validationResult.errors)
 
           Object.entries(validationResult.validInputs).forEach(([inputKey, value]) => {
