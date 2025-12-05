@@ -11,6 +11,7 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { Loader2 } from 'lucide-react'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthProvider } from '@/lib/oauth'
@@ -1276,7 +1277,7 @@ const WorkflowContent = React.memo(() => {
     [screenToFlowPosition, isPointInLoopNode, getNodes]
   )
 
-  // Initialize workflow when it exists in registry and isn't active
+  // Initialize workflow when it exists in registry and isn't active or needs hydration
   useEffect(() => {
     let cancelled = false
     const currentId = params.workflowId as string
@@ -1294,8 +1295,16 @@ const WorkflowContent = React.memo(() => {
       return
     }
 
-    if (activeWorkflowId !== currentId) {
-      // Clear diff and set as active
+    // Check if we need to load the workflow state:
+    // 1. Different workflow than currently active
+    // 2. Same workflow but hydration phase is not 'ready' (e.g., after a quick refresh)
+    const needsWorkflowLoad =
+      activeWorkflowId !== currentId ||
+      (activeWorkflowId === currentId &&
+        hydration.phase !== 'ready' &&
+        hydration.phase !== 'state-loading')
+
+    if (needsWorkflowLoad) {
       const { clearDiff } = useWorkflowDiffStore.getState()
       clearDiff()
 
@@ -2216,7 +2225,11 @@ const WorkflowContent = React.memo(() => {
     return (
       <div className='flex h-screen w-full flex-col overflow-hidden'>
         <div className='relative h-full w-full flex-1 transition-all duration-200'>
-          <div className='workflow-container h-full' />
+          <div className='workflow-container flex h-full items-center justify-center'>
+            <div className='flex flex-col items-center gap-3'>
+              <Loader2 className='h-[24px] w-[24px] animate-spin text-muted-foreground' />
+            </div>
+          </div>
         </div>
         <Panel />
         <Terminal />

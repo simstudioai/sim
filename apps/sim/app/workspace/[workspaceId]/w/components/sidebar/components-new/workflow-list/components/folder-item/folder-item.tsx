@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/delete-modal/delete-modal'
@@ -17,6 +18,12 @@ import { useDeleteFolder, useDuplicateFolder } from '@/app/workspace/[workspaceI
 import { useUpdateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import type { FolderTreeNode } from '@/stores/folders/store'
+import {
+  generateCreativeWorkflowName,
+  getNextWorkflowColor,
+} from '@/stores/workflows/registry/utils'
+
+const logger = createLogger('FolderItem')
 
 interface FolderItemProps {
   folder: FolderTreeNode
@@ -60,16 +67,29 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   })
 
   /**
-   * Handle create workflow in folder using React Query mutation
+   * Handle create workflow in folder using React Query mutation.
+   * Generates name and color upfront for optimistic UI updates.
+   * The UI disables the trigger when isPending, so no guard needed here.
    */
   const handleCreateWorkflowInFolder = useCallback(async () => {
-    const result = await createWorkflowMutation.mutateAsync({
-      workspaceId,
-      folderId: folder.id,
-    })
+    try {
+      // Generate name and color upfront for optimistic updates
+      const name = generateCreativeWorkflowName()
+      const color = getNextWorkflowColor()
 
-    if (result.id) {
-      router.push(`/workspace/${workspaceId}/w/${result.id}`)
+      const result = await createWorkflowMutation.mutateAsync({
+        workspaceId,
+        folderId: folder.id,
+        name,
+        color,
+      })
+
+      if (result.id) {
+        router.push(`/workspace/${workspaceId}/w/${result.id}`)
+      }
+    } catch (error) {
+      // Error already handled by mutation's onError callback
+      logger.error('Failed to create workflow in folder:', error)
     }
   }, [createWorkflowMutation, workspaceId, folder.id, router])
 
@@ -263,6 +283,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         onDelete={() => setIsDeleteModalOpen(true)}
         showCreate={true}
         disableRename={!userPermissions.canEdit}
+        disableCreate={!userPermissions.canEdit || createWorkflowMutation.isPending}
         disableDuplicate={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit}
       />

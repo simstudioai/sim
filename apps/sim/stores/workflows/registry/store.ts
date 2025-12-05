@@ -426,12 +426,22 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
       // Modified setActiveWorkflow to work with clean DB-only architecture
       setActiveWorkflow: async (id: string) => {
-        const { activeWorkflowId } = get()
+        const { activeWorkflowId, hydration } = get()
 
         const workflowStoreState = useWorkflowStore.getState()
         const hasWorkflowData = Object.keys(workflowStoreState.blocks).length > 0
 
-        if (activeWorkflowId === id && hasWorkflowData) {
+        // Skip loading only if:
+        // - Same workflow is already active
+        // - Workflow data exists
+        // - Hydration is complete (phase is 'ready')
+        const isFullyHydrated =
+          activeWorkflowId === id &&
+          hasWorkflowData &&
+          hydration.phase === 'ready' &&
+          hydration.workflowId === id
+
+        if (isFullyHydrated) {
           logger.info(`Already active workflow ${id} with data loaded, skipping switch`)
           return
         }
