@@ -1002,97 +1002,157 @@ export function NotificationSettings({
           </>
         )}
 
-        <div className='space-y-3'>
-          <Label>Log Level Filters</Label>
-          <div className='space-y-3'>
-            {LOG_LEVELS.map((level) => (
-              <div key={level} className='flex items-center justify-between'>
-                <div className='flex flex-col'>
-                  <span className='text-[13px] text-[var(--text-primary)] capitalize'>
-                    {level} logs
-                  </span>
-                  <p className='text-[12px] text-[var(--text-muted)]'>
-                    Receive notifications for {level} level logs
-                  </p>
-                </div>
-                <Switch
-                  checked={formData.levelFilter.includes(level)}
-                  onCheckedChange={(checked) => {
-                    const updated = checked
-                      ? [...formData.levelFilter, level]
-                      : formData.levelFilter.filter((l) => l !== level)
-                    setFormData({ ...formData, levelFilter: updated })
-                    setFormErrors({ ...formErrors, levelFilter: '' })
-                  }}
-                />
-              </div>
-            ))}
+        <div className='space-y-2'>
+          <div>
+            <Label>Log Level Filters</Label>
+            <p className='text-[12px] text-[var(--text-muted)]'>
+              Select which log levels trigger notifications
+            </p>
           </div>
+          <Combobox
+            options={LOG_LEVELS.map((level) => ({
+              label: level.charAt(0).toUpperCase() + level.slice(1),
+              value: level,
+            }))}
+            multiSelect
+            multiSelectValues={formData.levelFilter}
+            onMultiSelectChange={(values) => {
+              setFormData({ ...formData, levelFilter: values as LogLevel[] })
+              setFormErrors({ ...formErrors, levelFilter: '' })
+            }}
+            placeholder='Select log levels...'
+            overlayContent={
+              formData.levelFilter.length > 0 ? (
+                <div className='flex items-center gap-1'>
+                  {formData.levelFilter.map((level) => (
+                    <span
+                      key={level}
+                      className='rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs capitalize'
+                    >
+                      {level}
+                    </span>
+                  ))}
+                </div>
+              ) : null
+            }
+          />
           {formErrors.levelFilter && (
             <p className='text-red-400 text-xs'>{formErrors.levelFilter}</p>
           )}
         </div>
 
-        <div className='space-y-3'>
-          <Label>Trigger Type Filters</Label>
-          <div className='space-y-3'>
-            {TRIGGER_TYPES.map((trigger) => (
-              <div key={trigger} className='flex items-center justify-between'>
-                <div className='flex flex-col'>
-                  <span className='text-[13px] text-[var(--text-primary)] capitalize'>
-                    {trigger} triggers
-                  </span>
-                  <p className='text-[12px] text-[var(--text-muted)]'>
-                    Notify when workflow is triggered via {trigger}
-                  </p>
-                </div>
-                <Switch
-                  checked={formData.triggerFilter.includes(trigger)}
-                  onCheckedChange={(checked) => {
-                    const updated = checked
-                      ? [...formData.triggerFilter, trigger]
-                      : formData.triggerFilter.filter((t) => t !== trigger)
-                    setFormData({ ...formData, triggerFilter: updated })
-                    setFormErrors({ ...formErrors, triggerFilter: '' })
-                  }}
-                />
-              </div>
-            ))}
+        <div className='space-y-2'>
+          <div>
+            <Label>Trigger Type Filters</Label>
+            <p className='text-[12px] text-[var(--text-muted)]'>
+              Select which trigger types send notifications
+            </p>
           </div>
+          <Combobox
+            options={TRIGGER_TYPES.map((trigger) => ({
+              label: trigger.charAt(0).toUpperCase() + trigger.slice(1),
+              value: trigger,
+            }))}
+            multiSelect
+            multiSelectValues={formData.triggerFilter}
+            onMultiSelectChange={(values) => {
+              setFormData({ ...formData, triggerFilter: values as TriggerType[] })
+              setFormErrors({ ...formErrors, triggerFilter: '' })
+            }}
+            placeholder='Select trigger types...'
+            overlayContent={
+              formData.triggerFilter.length > 0 ? (
+                <div className='flex items-center gap-1 overflow-hidden'>
+                  {formData.triggerFilter.slice(0, 3).map((trigger) => (
+                    <span
+                      key={trigger}
+                      className='rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs capitalize'
+                    >
+                      {trigger}
+                    </span>
+                  ))}
+                  {formData.triggerFilter.length > 3 && (
+                    <span className='rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs'>
+                      +{formData.triggerFilter.length - 3}
+                    </span>
+                  )}
+                </div>
+              ) : null
+            }
+          />
           {formErrors.triggerFilter && (
             <p className='text-red-400 text-xs'>{formErrors.triggerFilter}</p>
           )}
         </div>
 
-        <div className='space-y-3'>
-          <Label>Include in Payload</Label>
-          <div className='flex flex-col gap-3'>
-            {[
-              {
-                key: 'includeFinalOutput',
-                label: 'Final output',
-                desc: 'Include workflow execution results',
-              },
-              { key: 'includeTraceSpans', label: 'Trace spans', desc: 'Detailed execution steps' },
-              { key: 'includeRateLimits', label: 'Rate limits', desc: 'Workflow execution limits' },
-              {
-                key: 'includeUsageData',
-                label: 'Usage data',
-                desc: 'Billing period cost and limits',
-              },
-            ].map(({ key, label, desc }) => (
-              <div key={key} className='flex items-center justify-between'>
-                <div className='flex flex-col'>
-                  <span className='text-[13px] text-[var(--text-primary)]'>{label}</span>
-                  <p className='text-[12px] text-[var(--text-muted)]'>{desc}</p>
-                </div>
-                <Switch
-                  checked={formData[key as keyof typeof formData] as boolean}
-                  onCheckedChange={(checked) => setFormData({ ...formData, [key]: checked })}
-                />
-              </div>
-            ))}
+        <div className='space-y-2'>
+          <div>
+            <Label>Include in Payload</Label>
+            <p className='text-[12px] text-[var(--text-muted)]'>
+              Additional data to include in notifications
+            </p>
           </div>
+          <Combobox
+            options={[
+              { label: 'Final Output', value: 'includeFinalOutput' },
+              { label: 'Trace Spans', value: 'includeTraceSpans' },
+              { label: 'Rate Limits', value: 'includeRateLimits' },
+              { label: 'Usage Data', value: 'includeUsageData' },
+            ]}
+            multiSelect
+            multiSelectValues={
+              [
+                formData.includeFinalOutput && 'includeFinalOutput',
+                formData.includeTraceSpans && 'includeTraceSpans',
+                formData.includeRateLimits && 'includeRateLimits',
+                formData.includeUsageData && 'includeUsageData',
+              ].filter(Boolean) as string[]
+            }
+            onMultiSelectChange={(values) => {
+              setFormData({
+                ...formData,
+                includeFinalOutput: values.includes('includeFinalOutput'),
+                includeTraceSpans: values.includes('includeTraceSpans'),
+                includeRateLimits: values.includes('includeRateLimits'),
+                includeUsageData: values.includes('includeUsageData'),
+              })
+            }}
+            placeholder='Select data to include...'
+            overlayContent={(() => {
+              const labels: Record<string, string> = {
+                includeFinalOutput: 'Final Output',
+                includeTraceSpans: 'Trace Spans',
+                includeRateLimits: 'Rate Limits',
+                includeUsageData: 'Usage Data',
+              }
+              const selected = [
+                formData.includeFinalOutput && 'includeFinalOutput',
+                formData.includeTraceSpans && 'includeTraceSpans',
+                formData.includeRateLimits && 'includeRateLimits',
+                formData.includeUsageData && 'includeUsageData',
+              ].filter(Boolean) as string[]
+
+              if (selected.length === 0) return null
+
+              return (
+                <div className='flex items-center gap-1 overflow-hidden'>
+                  {selected.slice(0, 2).map((key) => (
+                    <span
+                      key={key}
+                      className='rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs'
+                    >
+                      {labels[key]}
+                    </span>
+                  ))}
+                  {selected.length > 2 && (
+                    <span className='rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs'>
+                      +{selected.length - 2}
+                    </span>
+                  )}
+                </div>
+              )
+            })()}
+          />
         </div>
       </div>
     </div>
