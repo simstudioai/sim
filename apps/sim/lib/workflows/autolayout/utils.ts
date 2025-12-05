@@ -7,7 +7,7 @@ import {
   ROOT_PADDING_X,
   ROOT_PADDING_Y,
 } from '@/lib/workflows/autolayout/constants'
-import type { BlockMetrics, BoundingBox, GraphNode } from '@/lib/workflows/autolayout/types'
+import type { BlockMetrics, BoundingBox, Edge, GraphNode } from '@/lib/workflows/autolayout/types'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -264,4 +264,54 @@ export function transferBlockHeights(
       block.layout.measuredWidth = measurements.width
     }
   }
+}
+
+/**
+ * Calculates the internal depth (max layer count) for each subflow container.
+ * Used to properly position blocks that connect after a subflow ends.
+ *
+ * @param blocks - All blocks in the workflow
+ * @param edges - All edges in the workflow
+ * @param assignLayersFn - Function to assign layers to blocks
+ * @returns Map of container block IDs to their internal layer depth
+ */
+export function calculateSubflowDepths(
+  blocks: Record<string, BlockState>,
+  edges: Edge[],
+  assignLayersFn: (blocks: Record<string, BlockState>, edges: Edge[]) => Map<string, GraphNode>
+): Map<string, number> {
+  const depths = new Map<string, number>()
+  const { children } = getBlocksByParent(blocks)
+
+  for (const [containerId, childIds] of children.entries()) {
+    if (childIds.length === 0) {
+      depths.set(containerId, 1)
+      continue
+    }
+
+    const childBlocks: Record<string, BlockState> = {}
+    const layoutChildIds = filterLayoutEligibleBlockIds(childIds, blocks)
+    for (const childId of layoutChildIds) {
+      childBlocks[childId] = blocks[childId]
+    }
+
+    const childEdges = edges.filter(
+      (edge) => layoutChildIds.includes(edge.source) && layoutChildIds.includes(edge.target)
+    )
+
+    if (Object.keys(childBlocks).length === 0) {
+      depths.set(containerId, 1)
+      continue
+    }
+
+    const childNodes = assignLayersFn(childBlocks, childEdges)
+    let maxLayer = 0
+    for (const node of childNodes.values()) {
+      maxLayer = Math.max(maxLayer, node.layer)
+    }
+
+    depths.set(containerId, Math.max(maxLayer + 1, 1))
+  }
+
+  return depths
 }
