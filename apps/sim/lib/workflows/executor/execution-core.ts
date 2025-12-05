@@ -152,7 +152,13 @@ export async function executeWorkflowCore(
     const mergedStates = mergeSubblockState(blocks)
 
     const personalEnvUserId =
-      metadata.isClientSession && metadata.sessionUserId ? metadata.sessionUserId : workflow.userId
+      metadata.isClientSession && metadata.sessionUserId
+        ? metadata.sessionUserId
+        : metadata.workflowUserId
+
+    if (!personalEnvUserId) {
+      throw new Error('Missing workflowUserId in execution metadata')
+    }
 
     const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } =
       await getPersonalAndWorkspaceEnv(personalEnvUserId, providedWorkspaceId)
@@ -302,6 +308,7 @@ export async function executeWorkflowCore(
       remainingEdges: snapshot.state?.remainingEdges,
       dagIncomingEdges: snapshot.state?.dagIncomingEdges,
       snapshotState: snapshot.state,
+      metadata,
     }
 
     const executorInstance = new Executor({

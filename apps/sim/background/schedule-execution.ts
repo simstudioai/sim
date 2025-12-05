@@ -241,6 +241,8 @@ async function runWorkflowExecution({
       workflowId: payload.workflowId,
       workspaceId: workflowRecord.workspaceId || '',
       userId: actorUserId,
+      sessionUserId: undefined,
+      workflowUserId: workflowRecord.userId,
       triggerType: 'schedule',
       triggerBlockId: payload.blockId || undefined,
       useDraftState: false,

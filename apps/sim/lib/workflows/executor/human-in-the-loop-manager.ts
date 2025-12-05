@@ -640,6 +640,7 @@ export class PauseResumeManager {
       startTime: new Date().toISOString(),
       userId,
       sessionUserId: baseSnapshot.metadata.sessionUserId,
+      workflowUserId: baseSnapshot.metadata.workflowUserId,
       useDraftState: baseSnapshot.metadata.useDraftState,
       isClientSession: baseSnapshot.metadata.isClientSession,
       resumeFromSnapshot: true,
