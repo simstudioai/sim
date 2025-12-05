@@ -209,10 +209,8 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       folderIds,
       triggers,
       searchQuery,
-      _isInitializing: false, // Clear the flag after initialization
+      _isInitializing: false,
     })
-
-    get().syncWithURL()
   },
 
   syncWithURL: () => {

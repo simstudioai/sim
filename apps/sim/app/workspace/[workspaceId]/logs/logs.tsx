@@ -8,10 +8,12 @@ import { cn } from '@/lib/core/utils/cn'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
+import { NotificationSettings } from '@/app/workspace/[workspaceId]/logs/components/notification-settings/notification-settings'
 import { AutocompleteSearch } from '@/app/workspace/[workspaceId]/logs/components/search/search'
 import { Sidebar } from '@/app/workspace/[workspaceId]/logs/components/sidebar/sidebar'
 import Dashboard from '@/app/workspace/[workspaceId]/logs/dashboard'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogDetail, useLogsList } from '@/hooks/queries/logs'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -58,7 +60,6 @@ export default function Logs() {
     level,
     workflowIds,
     folderIds,
-    searchQuery: storeSearchQuery,
     setSearchQuery: setStoreSearchQuery,
     triggers,
     viewMode,
@@ -77,14 +78,24 @@ export default function Logs() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isInitialized = useRef<boolean>(false)
 
-  const [searchQuery, setSearchQuery] = useState(storeSearchQuery)
+  const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
+  // Sync search query from URL on mount (client-side only)
+  useEffect(() => {
+    const urlSearch = new URLSearchParams(window.location.search).get('search') || ''
+    if (urlSearch && urlSearch !== searchQuery) {
+      setSearchQuery(urlSearch)
+    }
+  }, [])
 
   const [, setAvailableWorkflows] = useState<string[]>([])
   const [, setAvailableFolders] = useState<string[]>([])
 
   const [isLive, setIsLive] = useState(false)
   const isSearchOpenRef = useRef<boolean>(false)
+  const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
+  const userPermissions = useUserPermissionsContext()
 
   const logFilters = useMemo(
     () => ({
@@ -110,10 +121,6 @@ export default function Logs() {
     if (!logsQuery.data?.pages) return []
     return logsQuery.data.pages.flatMap((page) => page.logs)
   }, [logsQuery.data?.pages])
-
-  useEffect(() => {
-    setSearchQuery(storeSearchQuery)
-  }, [storeSearchQuery])
 
   const foldersQuery = useFolders(workspaceId)
   const { getFolderTree } = useFolderStore()
@@ -166,10 +173,10 @@ export default function Logs() {
   }, [workspaceId, getFolderTree, foldersQuery.data])
 
   useEffect(() => {
-    if (isInitialized.current && debouncedSearchQuery !== storeSearchQuery) {
+    if (isInitialized.current) {
       setStoreSearchQuery(debouncedSearchQuery)
     }
-  }, [debouncedSearchQuery, storeSearchQuery])
+  }, [debouncedSearchQuery, setStoreSearchQuery])
 
   const handleLogClick = (log: WorkflowLog) => {
     setSelectedLog(log)
@@ -249,6 +256,8 @@ export default function Logs() {
   useEffect(() => {
     const handlePopState = () => {
       initializeFromURL()
+      const params = new URLSearchParams(window.location.search)
+      setSearchQuery(params.get('search') || '')
     }
 
     window.addEventListener('popstate', handlePopState)
@@ -381,6 +390,8 @@ export default function Logs() {
             }
             showExport={true}
             onExport={handleExport}
+            canConfigureNotifications={userPermissions.canEdit}
+            onConfigureNotifications={() => setIsNotificationSettingsOpen(true)}
           />
 
           {/* Table container */}
@@ -598,6 +609,12 @@ export default function Logs() {
         onNavigatePrev={handleNavigatePrev}
         hasNext={selectedLogIndex < logs.length - 1}
         hasPrev={selectedLogIndex > 0}
+      />
+
+      <NotificationSettings
+        workspaceId={workspaceId}
+        open={isNotificationSettingsOpen}
+        onOpenChange={setIsNotificationSettingsOpen}
       />
     </div>
   )
