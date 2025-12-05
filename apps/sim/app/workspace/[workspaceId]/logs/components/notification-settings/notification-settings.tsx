@@ -1201,7 +1201,7 @@ export function NotificationSettings({
       </Modal>
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent>
           <ModalHeader>
             <ModalTitle>Delete notification?</ModalTitle>
             <ModalDescription>
@@ -1211,17 +1211,17 @@ export function NotificationSettings({
           </ModalHeader>
           <ModalFooter>
             <Button
-              variant='default'
+              variant='outline'
+              className='h-[32px] px-[12px]'
               disabled={deleteNotification.isPending}
               onClick={() => setShowDeleteDialog(false)}
             >
               Cancel
             </Button>
             <Button
-              variant='primary'
               onClick={handleDelete}
               disabled={deleteNotification.isPending}
-              className='bg-[var(--text-error)] hover:bg-[var(--text-error)]'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
             >
               {deleteNotification.isPending ? 'Deleting...' : 'Delete'}
             </Button>
