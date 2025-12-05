@@ -116,7 +116,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
 
   const canPurchase = await canPurchaseCredits(userId)
   if (!canPurchase) {
-    return { success: false, error: 'Only Pro, Team, and Enterprise users can purchase credits' }
+    return { success: false, error: 'Only Pro and Team users can purchase credits' }
   }
 
   const subscription = await getHighestPrioritySubscription(userId)
@@ -124,10 +124,15 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
     return { success: false, error: 'No active subscription found' }
   }
 
+  // Enterprise users must contact support
+  if (subscription.plan === 'enterprise') {
+    return { success: false, error: 'Enterprise users must contact support to purchase credits' }
+  }
+
   let entityType: 'user' | 'organization' = 'user'
   let entityId = userId
 
-  if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
+  if (subscription.plan === 'team') {
     const isAdmin = await isOrgAdmin(userId, subscription.referenceId)
     if (!isAdmin) {
       return { success: false, error: 'Only organization owners and admins can purchase credits' }

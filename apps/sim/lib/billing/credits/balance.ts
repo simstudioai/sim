@@ -178,11 +178,8 @@ export async function canPurchaseCredits(userId: string): Promise<boolean> {
   if (!subscription || subscription.status !== 'active') {
     return false
   }
-  return (
-    subscription.plan === 'pro' ||
-    subscription.plan === 'team' ||
-    subscription.plan === 'enterprise'
-  )
+  // Enterprise users must contact support to purchase credits
+  return subscription.plan === 'pro' || subscription.plan === 'team'
 }
 
 export async function isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {
