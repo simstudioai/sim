@@ -37,7 +37,13 @@ export function MermaidDiagram({ diagramText }: MermaidDiagramProps) {
         securityLevel: 'loose',
         fontFamily: 'system-ui, -apple-system, sans-serif',
         fontSize: 14,
-        flowchart: { useMaxWidth: false, htmlLabels: true, padding: 20, nodeSpacing: 50, rankSpacing: 60 },
+        flowchart: {
+          useMaxWidth: false,
+          htmlLabels: true,
+          padding: 20,
+          nodeSpacing: 50,
+          rankSpacing: 60,
+        },
         themeVariables: {
           primaryColor: '#dbeafe',
           primaryTextColor: '#1e3a5f',
@@ -84,19 +90,25 @@ export function MermaidDiagram({ diagramText }: MermaidDiagramProps) {
     setZoom((z) => Math.min(Math.max(z * delta, 0.1), 3))
   }, [])
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-    dragStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y }
-  }, [pan])
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      setIsDragging(true)
+      dragStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y }
+    },
+    [pan]
+  )
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return
-    setPan({
-      x: dragStart.current.panX + (e.clientX - dragStart.current.x),
-      y: dragStart.current.panY + (e.clientY - dragStart.current.y),
-    })
-  }, [isDragging])
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isDragging) return
+      setPan({
+        x: dragStart.current.panX + (e.clientX - dragStart.current.x),
+        y: dragStart.current.panY + (e.clientY - dragStart.current.y),
+      })
+    },
+    [isDragging]
+  )
 
   const handleMouseUp = useCallback(() => setIsDragging(false), [])
 
@@ -137,7 +149,12 @@ export function MermaidDiagram({ diagramText }: MermaidDiagramProps) {
       <div
         ref={containerRef}
         className='select-none overflow-hidden rounded-md border border-[var(--border-strong)] bg-white'
-        style={{ height: 500, minHeight: 150, resize: 'vertical', cursor: isDragging ? 'grabbing' : 'grab' }}
+        style={{
+          height: 500,
+          minHeight: 150,
+          resize: 'vertical',
+          cursor: isDragging ? 'grabbing' : 'grab',
+        }}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}

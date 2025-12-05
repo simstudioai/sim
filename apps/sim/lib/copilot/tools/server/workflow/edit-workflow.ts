@@ -9,7 +9,7 @@ import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import type { SubBlockConfig } from '@/blocks/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/consts'
 
@@ -980,7 +980,10 @@ function applyOperationsToWorkflowState(
                 block.data.count = params.inputs.count
               }
               // collection only valid for 'collection' parallelType
-              if (params.inputs.collection !== undefined && effectiveParallelType === 'collection') {
+              if (
+                params.inputs.collection !== undefined &&
+                effectiveParallelType === 'collection'
+              ) {
                 block.data.collection = params.inputs.collection
               }
             }
@@ -1196,7 +1199,8 @@ function applyOperationsToWorkflowState(
             } else if (params.type === 'parallel') {
               const validParallelTypes = ['count', 'collection']
               const parallelType =
-                params.inputs?.parallelType && validParallelTypes.includes(params.inputs.parallelType)
+                params.inputs?.parallelType &&
+                validParallelTypes.includes(params.inputs.parallelType)
                   ? params.inputs.parallelType
                   : 'count'
               newBlock.data = {
@@ -1574,9 +1578,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
     // Format validation errors for LLM feedback
     const inputErrors =
       validationErrors.length > 0
-        ? validationErrors.map(
-            (e) => `Block "${e.blockId}" (${e.blockType}): ${e.error}`
-          )
+        ? validationErrors.map((e) => `Block "${e.blockId}" (${e.blockType}): ${e.error}`)
         : undefined
 
     // Return the modified workflow state for the client to convert to YAML if needed

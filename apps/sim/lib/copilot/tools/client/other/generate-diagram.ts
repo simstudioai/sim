@@ -23,13 +23,13 @@ export class GenerateDiagramClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Generating diagram', icon: Loader2 },
-      [ClientToolCallState.pending]: { text: 'Generating diagram', icon: Loader2 },
-      [ClientToolCallState.executing]: { text: 'Rendering diagram', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Generated diagram', icon: GitBranch },
-      [ClientToolCallState.error]: { text: 'Failed to generate diagram', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Aborted generating diagram', icon: MinusCircle },
-      [ClientToolCallState.rejected]: { text: 'Skipped generating diagram', icon: MinusCircle },
+      [ClientToolCallState.generating]: { text: 'Designing workflow', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Designing workflow', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Designing workflow', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Designed workflow', icon: GitBranch },
+      [ClientToolCallState.error]: { text: 'Failed to design workflow', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted designing workflow', icon: MinusCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped designing workflow', icon: MinusCircle },
     },
     interrupt: undefined,
   }
@@ -62,4 +62,3 @@ export class GenerateDiagramClientTool extends BaseClientTool {
     }
   }
 }
-
