@@ -22,14 +22,16 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the spreadsheet to read from',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the spreadsheet (found in the URL: docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit).',
     },
     range: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The range of cells to read from',
+      description:
+        'The A1 notation range to read (e.g. "Sheet1!A1:D10", "A1:B5"). Defaults to first sheet A1:Z1000 if not specified.',
     },
   },
 

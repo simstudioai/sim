@@ -66,16 +66,16 @@ To reference environment variables in your workflows, use the `{{}}` notation. W
   height={350}
 />
 
-## Variable Precedence
+## How Variables are Resolved
 
-When you have both personal and workspace variables with the same name:
+**Workspace variables always take precedence** over personal variables, regardless of who runs the workflow.
 
-1. **Workspace variables take precedence** over personal variables
-2. This prevents naming conflicts and ensures consistent behavior across team workflows
-3. If a workspace variable exists, the personal variable with the same name is ignored
+When no workspace variable exists for a key, personal variables are used:
+- **Manual runs (UI)**: Your personal variables
+- **Automated runs (API, webhook, schedule, deployed chat)**: Workflow owner's personal variables
 
-<Callout type="warning">
-Choose variable names carefully to avoid unintended overrides. Consider prefixing personal variables with your initials or workspace variables with the project name.
+<Callout type="info">
+Personal variables are best for testing. Use workspace variables for production workflows.
 </Callout>
 
 ## Security Best Practices

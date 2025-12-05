@@ -2,15 +2,7 @@
 
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import {
-  Button,
-  Modal,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTitle,
-} from '@/components/emcn'
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ChunkData } from '@/stores/knowledge/store'
@@ -76,29 +68,23 @@ export function DeleteChunkModal({
 
   return (
     <Modal open={isOpen} onOpenChange={onClose}>
-      <ModalContent>
-        <ModalHeader>
-          <ModalTitle>Delete Chunk</ModalTitle>
-          <ModalDescription>
+      <ModalContent className='w-[400px]'>
+        <ModalHeader>Delete Chunk</ModalHeader>
+        <ModalBody>
+          <p className='text-[12px] text-[var(--text-tertiary)]'>
             Are you sure you want to delete this chunk?{' '}
-            <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-              This action cannot be undone.
-            </span>
-          </ModalDescription>
-        </ModalHeader>
+            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+          </p>
+        </ModalBody>
         <ModalFooter>
-          <Button
-            variant='outline'
-            disabled={isDeleting}
-            onClick={onClose}
-            className='h-[32px] px-[12px]'
-          >
+          <Button variant='active' disabled={isDeleting} onClick={onClose}>
             Cancel
           </Button>
           <Button
+            variant='primary'
             onClick={handleDeleteChunk}
             disabled={isDeleting}
-            className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+            className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
           >
             {isDeleting ? (
               <>

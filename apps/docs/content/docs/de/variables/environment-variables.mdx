@@ -66,16 +66,16 @@ Um Umgebungsvariablen in Ihren Workflows zu referenzieren, verwenden Sie die `{{
   height={350}
 />
 
-## Variablen-Präzedenz
+## Wie Variablen aufgelöst werden
 
-Wenn Sie sowohl persönliche als auch Workspace-Variablen mit demselben Namen haben:
+**Workspace-Variablen haben immer Vorrang** vor persönlichen Variablen, unabhängig davon, wer den Workflow ausführt.
 
-1. **Workspace-Variablen haben Vorrang** vor persönlichen Variablen
-2. Dies verhindert Namenskonflikte und gewährleistet ein konsistentes Verhalten in Team-Workflows
-3. Wenn eine Workspace-Variable existiert, wird die persönliche Variable mit demselben Namen ignoriert
+Wenn keine Workspace-Variable für einen Schlüssel existiert, werden persönliche Variablen verwendet:
+- **Manuelle Ausführungen (UI)**: Ihre persönlichen Variablen
+- **Automatisierte Ausführungen (API, Webhook, Zeitplan, bereitgestellter Chat)**: Persönliche Variablen des Workflow-Besitzers
 
-<Callout type="warning">
-Wählen Sie Variablennamen sorgfältig, um unbeabsichtigte Überschreibungen zu vermeiden. Erwägen Sie, persönliche Variablen mit Ihren Initialen oder Workspace-Variablen mit dem Projektnamen zu versehen.
+<Callout type="info">
+Persönliche Variablen eignen sich am besten zum Testen. Verwenden Sie Workspace-Variablen für Produktions-Workflows.
 </Callout>
 
 ## Sicherheits-Best-Practices

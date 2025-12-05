@@ -19,11 +19,10 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
   Modal,
+  ModalBody,
   ModalContent,
-  ModalDescription,
   ModalFooter,
   ModalHeader,
-  ModalTitle,
   Tooltip,
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
@@ -1143,31 +1142,29 @@ export function KnowledgeBase({
 
       {/* Delete Confirmation Dialog */}
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>Delete Knowledge Base</ModalTitle>
-            <ModalDescription>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete Knowledge Base</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               Are you sure you want to delete "{knowledgeBaseName}"? This will permanently delete
               the knowledge base and all {totalItems} document
               {totalItems === 1 ? '' : 's'} within it.{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
-            </ModalDescription>
-          </ModalHeader>
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
           <ModalFooter>
             <Button
-              className='h-[32px] px-[12px]'
-              variant='outline'
+              variant='active'
               onClick={() => setShowDeleteDialog(false)}
               disabled={isDeleting}
             >
               Cancel
             </Button>
             <Button
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              variant='primary'
               onClick={handleDeleteKnowledgeBase}
               disabled={isDeleting}
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {isDeleting ? 'Deleting...' : 'Delete Knowledge Base'}
             </Button>

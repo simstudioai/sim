@@ -107,6 +107,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     setPlanTodos,
     clearPlanArtifact,
     savePlanArtifact,
+    setSelectedModel,
+    loadAutoAllowedTools,
   } = useCopilotStore()
 
   // Initialize copilot
@@ -117,6 +119,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     setCopilotWorkflowId,
     loadChats,
     fetchContextUsage,
+    loadAutoAllowedTools,
     currentChat,
     isSendingMessage,
   })

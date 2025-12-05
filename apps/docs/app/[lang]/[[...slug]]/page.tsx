@@ -1,4 +1,4 @@
-import { findNeighbour } from 'fumadocs-core/server'
+import { findNeighbour } from 'fumadocs-core/page-tree'
 import defaultMdxComponents from 'fumadocs-ui/mdx'
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/page'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -185,9 +185,6 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
           header: <div className='mb-2 font-medium text-sm'>On this page</div>,
           footer: <TOCFooter />,
           single: false,
-        }}
-        article={{
-          className: 'scroll-smooth max-sm:pb-16',
         }}
         tableOfContentPopover={{
           style: 'clerk',

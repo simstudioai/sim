@@ -10,11 +10,10 @@ export async function GET(
   {
     params,
   }: {
-    params: { id: string; executionId: string }
+    params: Promise<{ id: string; executionId: string }>
   }
 ) {
-  const workflowId = params.id
-  const executionId = params.executionId
+  const { id: workflowId, executionId } = await params
 
   const access = await validateWorkflowAccess(request, workflowId, false)
   if (access.error) {

@@ -9,6 +9,7 @@ import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import { isDependency } from '@/blocks/utils'
 import { resolveSelectorForSubBlock, type SelectorResolution } from '@/hooks/selectors/resolution'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -92,7 +93,7 @@ export function FileSelectorInput({
     !selectorResolution.context.domain
   const missingProject =
     selectorResolution?.key === 'jira.issues' &&
-    subBlock.dependsOn?.includes('projectId') &&
+    isDependency(subBlock.dependsOn, 'projectId') &&
     !selectorResolution.context.projectId
   const missingPlan =
     selectorResolution?.key === 'microsoft.planner' && !selectorResolution.context.planId

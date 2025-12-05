@@ -61,6 +61,7 @@ export interface ExecuteStreamOptions {
   startBlockId?: string
   triggerType?: string
   useDraftState?: boolean
+  isClientSession?: boolean
   workflowStateOverride?: {
     blocks: Record<string, any>
     edges: any[]

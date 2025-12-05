@@ -2,13 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import useDrivePicker from 'react-google-drive-picker'
-import { Button } from '@/components/emcn'
-import { GoogleDriveIcon } from '@/components/icons'
+import { Button, Code } from '@/components/emcn'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
-import { getEnv } from '@/lib/core/config/env'
 import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/store'
 import type { CopilotToolCall } from '@/stores/panel/copilot/types'
 
@@ -100,6 +97,10 @@ const ACTION_VERBS = [
   'Create',
   'Creating',
   'Created',
+  'Generating',
+  'Generated',
+  'Rendering',
+  'Rendered',
 ] as const
 
 /**
@@ -295,7 +296,43 @@ function getDisplayName(toolCall: CopilotToolCall): string {
     const byState = def?.metadata?.displayNames?.[toolCall.state]
     if (byState?.text) return byState.text
   } catch {}
-  return toolCall.name
+
+  // For integration tools, format the tool name nicely
+  // e.g., "google_calendar_list_events" -> "Running Google Calendar List Events"
+  const stateVerb = getStateVerb(toolCall.state)
+  const formattedName = formatToolName(toolCall.name)
+  return `${stateVerb} ${formattedName}`
+}
+
+/**
+ * Get verb prefix based on tool state
+ */
+function getStateVerb(state: string): string {
+  switch (state) {
+    case 'pending':
+    case 'executing':
+      return 'Running'
+    case 'success':
+      return 'Ran'
+    case 'error':
+      return 'Failed'
+    case 'rejected':
+    case 'aborted':
+      return 'Skipped'
+    default:
+      return 'Running'
+  }
+}
+
+/**
+ * Format tool name for display
+ * e.g., "google_calendar_list_events" -> "Google Calendar List Events"
+ */
+function formatToolName(name: string): string {
+  return name
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 }
 
 function RunSkipButtons({
@@ -310,7 +347,6 @@ function RunSkipButtons({
   const [isProcessing, setIsProcessing] = useState(false)
   const [buttonsHidden, setButtonsHidden] = useState(false)
   const { setToolCallState } = useCopilotStore()
-  const [openPicker] = useDrivePicker()
 
   const instance = getClientTool(toolCall.id)
   const interruptDisplays = instance?.getInterruptDisplays?.()
@@ -327,106 +363,7 @@ function RunSkipButtons({
     }
   }
 
-  // const handleOpenDriveAccess = async () => {
-  //   try {
-  //     const providerId = 'google-drive'
-  //     const credsRes = await fetch(`/api/auth/oauth/credentials?provider=${providerId}`)
-  //     if (!credsRes.ok) return
-  //     const credsData = await credsRes.json()
-  //     const creds = Array.isArray(credsData.credentials) ? credsData.credentials : []
-  //     if (creds.length === 0) return
-  //     const defaultCred = creds.find((c: any) => c.isDefault) || creds[0]
-
-  //     const tokenRes = await fetch('/api/auth/oauth/token', {
-  //       method: 'POST',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify({ credentialId: defaultCred.id }),
-  //     })
-  //     if (!tokenRes.ok) return
-  //     const { accessToken } = await tokenRes.json()
-  //     if (!accessToken) return
-
-  //     const clientId = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID') || ''
-  //     const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_API_KEY') || ''
-  //     const projectNumber = getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER') || ''
-
-  //     openPicker({
-  //       clientId,
-  //       developerKey: apiKey,
-  //       viewId: 'DOCS',
-  //       token: accessToken,
-  //       showUploadView: true,
-  //       showUploadFolders: true,
-  //       supportDrives: true,
-  //       multiselect: false,
-  //       appId: projectNumber,
-  //       setSelectFolderEnabled: false,
-  //       callbackFunction: async (data) => {
-  //         if (data.action === 'picked') {
-  //           await onRun()
-  //         }
-  //       },
-  //     })
-  //   } catch {}
-  // }
-
   if (buttonsHidden) return null
-
-  if (toolCall.name === 'gdrive_request_access' && toolCall.state === 'pending') {
-    return (
-      <div className='mt-[10px] flex gap-[6px]'>
-        <Button
-          onClick={async () => {
-            const instance = getClientTool(toolCall.id)
-            if (!instance) return
-            await instance.handleAccept?.({
-              openDrivePicker: async (accessToken: string) => {
-                try {
-                  const clientId = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID') || ''
-                  const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_API_KEY') || ''
-                  const projectNumber = getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER') || ''
-                  return await new Promise<boolean>((resolve) => {
-                    openPicker({
-                      clientId,
-                      developerKey: apiKey,
-                      viewId: 'DOCS',
-                      token: accessToken,
-                      showUploadView: true,
-                      showUploadFolders: true,
-                      supportDrives: true,
-                      multiselect: false,
-                      appId: projectNumber,
-                      setSelectFolderEnabled: false,
-                      callbackFunction: async (data) => {
-                        if (data.action === 'picked') resolve(true)
-                        else if (data.action === 'cancel') resolve(false)
-                      },
-                    })
-                  })
-                } catch {
-                  return false
-                }
-              },
-            })
-          }}
-          variant='primary'
-          title='Grant Google Drive access'
-        >
-          <GoogleDriveIcon className='mr-0.5 h-4 w-4' />
-          Select
-        </Button>
-        <Button
-          onClick={async () => {
-            setButtonsHidden(true)
-            await handleSkip(toolCall, setToolCallState, onStateChange)
-          }}
-          variant='default'
-        >
-          Skip
-        </Button>
-      </div>
-    )
-  }
 
   return (
     <div className='mt-[12px] flex gap-[6px]'>
@@ -479,12 +416,19 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     }
   }, [params])
 
-  // Skip rendering tools that are not in the registry or are explicitly omitted
-  try {
-    if (toolCall.name === 'checkoff_todo' || toolCall.name === 'mark_todo_in_progress') return null
-    // Allow if tool id exists in CLASS_TOOL_METADATA (client tools)
-    if (!CLASS_TOOL_METADATA[toolCall.name]) return null
-  } catch {
+  // Skip rendering some internal tools
+  if (toolCall.name === 'checkoff_todo' || toolCall.name === 'mark_todo_in_progress') return null
+
+  // Get current mode from store to determine if we should render integration tools
+  const mode = useCopilotStore.getState().mode
+
+  // Allow rendering if:
+  // 1. Tool is in CLASS_TOOL_METADATA (client tools), OR
+  // 2. We're in build mode (integration tools are executed server-side)
+  const isClientTool = !!CLASS_TOOL_METADATA[toolCall.name]
+  const isIntegrationToolInBuildMode = mode === 'build' && !isClientTool
+
+  if (!isClientTool && !isIntegrationToolInBuildMode) {
     return null
   }
   const isExpandableTool =
@@ -863,6 +807,34 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           className='font-[470] font-season text-[#3a3d41] text-sm dark:text-[#939393]'
         />
         <div className='mt-[8px]'>{renderPendingDetails()}</div>
+        {showButtons && (
+          <RunSkipButtons
+            toolCall={toolCall}
+            onStateChange={handleStateChange}
+            editedParams={editedParams}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Special rendering for function_execute - show code block
+  if (toolCall.name === 'function_execute') {
+    const code = params.code || ''
+
+    return (
+      <div className='w-full'>
+        <ShimmerOverlayText
+          text={displayName}
+          active={isLoadingState}
+          isSpecial={false}
+          className='font-[470] font-season text-[#939393] text-sm dark:text-[#939393]'
+        />
+        {code && (
+          <div className='mt-2'>
+            <Code.Viewer code={code} language='javascript' showGutter />
+          </div>
+        )}
         {showButtons && (
           <RunSkipButtons
             toolCall={toolCall}

@@ -321,13 +321,37 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
     let inputs: Record<string, string | number | string[][] | object>
 
     if (block.type === 'loop' || block.type === 'parallel') {
-      // Extract configuration from block.data
+      // Extract configuration from block.data (only include type-appropriate fields)
       const loopInputs: Record<string, string | number | string[][] | object> = {}
-      if (block.data?.loopType) loopInputs.loopType = block.data.loopType
-      if (block.data?.count !== undefined) loopInputs.iterations = block.data.count
-      if (block.data?.collection !== undefined) loopInputs.collection = block.data.collection
-      if (block.data?.whileCondition !== undefined) loopInputs.condition = block.data.whileCondition
-      if (block.data?.parallelType) loopInputs.parallelType = block.data.parallelType
+
+      if (block.type === 'loop') {
+        const loopType = block.data?.loopType || 'for'
+        loopInputs.loopType = loopType
+        // Only export fields relevant to the current loopType
+        if (loopType === 'for' && block.data?.count !== undefined) {
+          loopInputs.iterations = block.data.count
+        }
+        if (loopType === 'forEach' && block.data?.collection !== undefined) {
+          loopInputs.collection = block.data.collection
+        }
+        if (loopType === 'while' && block.data?.whileCondition !== undefined) {
+          loopInputs.condition = block.data.whileCondition
+        }
+        if (loopType === 'doWhile' && block.data?.doWhileCondition !== undefined) {
+          loopInputs.condition = block.data.doWhileCondition
+        }
+      } else if (block.type === 'parallel') {
+        const parallelType = block.data?.parallelType || 'count'
+        loopInputs.parallelType = parallelType
+        // Only export fields relevant to the current parallelType
+        if (parallelType === 'count' && block.data?.count !== undefined) {
+          loopInputs.iterations = block.data.count
+        }
+        if (parallelType === 'collection' && block.data?.collection !== undefined) {
+          loopInputs.collection = block.data.collection
+        }
+      }
+
       inputs = loopInputs
     } else {
       // For regular blocks, sanitize subBlocks

@@ -12,6 +12,7 @@ export interface LoopScope {
   item?: any
   items?: any[]
   condition?: string
+  loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
   skipFirstConditionCheck?: boolean
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Popover, PopoverAnchor, PopoverContent } from '@/components/emcn'
@@ -120,6 +120,17 @@ export function AutocompleteSearch({
     getSuggestions: (input) => suggestionEngine.getSuggestions(input),
   })
 
+  const lastExternalValue = useRef(value)
+  useEffect(() => {
+    // Only re-initialize if value changed externally (not from user typing)
+    if (value !== lastExternalValue.current) {
+      lastExternalValue.current = value
+      const parsed = parseQuery(value)
+      initializeFromQuery(parsed.textSearch, parsed.filters)
+    }
+  }, [value, initializeFromQuery])
+
+  // Initial sync on mount
   useEffect(() => {
     if (value) {
       const parsed = parseQuery(value)

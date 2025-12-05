@@ -246,9 +246,15 @@ export interface SubBlockConfig {
     placeholder?: string // Custom placeholder for the prompt input
     maintainHistory?: boolean // Whether to maintain conversation history
   }
-  // Declarative dependency hints for cross-field clearing or invalidation
-  // Example: dependsOn: ['credential'] means this field should be cleared when credential changes
-  dependsOn?: string[]
+  /**
+   * Declarative dependency hints for cross-field clearing or invalidation.
+   * Supports two formats:
+   * - Simple array: `['credential']` - all fields must have values (AND logic)
+   * - Object with all/any: `{ all: ['authMethod'], any: ['credential', 'botToken'] }`
+   *   - `all`: all listed fields must have values (AND logic)
+   *   - `any`: at least one field must have a value (OR logic)
+   */
+  dependsOn?: string[] | { all?: string[]; any?: string[] }
   // Copyable-text specific: Use webhook URL from webhook management hook
   useWebhookUrl?: boolean
   // Trigger-save specific: The trigger ID for validation and saving

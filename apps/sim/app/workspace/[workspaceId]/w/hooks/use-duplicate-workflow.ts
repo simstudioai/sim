@@ -1,8 +1,10 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { getNextWorkflowColor } from '@/stores/workflows/registry/utils'
 
 const logger = createLogger('useDuplicateWorkflow')
 
@@ -23,11 +25,12 @@ interface UseDuplicateWorkflowProps {
 }
 
 /**
- * Hook for managing workflow duplication.
+ * Hook for managing workflow duplication with optimistic updates.
  *
  * Handles:
  * - Single or bulk workflow duplication
- * - Calling duplicate API for each workflow
+ * - Optimistic UI updates (shows new workflow immediately)
+ * - Automatic rollback on failure
  * - Loading state management
  * - Error handling and logging
  * - Clearing selection after duplication
@@ -42,38 +45,49 @@ export function useDuplicateWorkflow({
   onSuccess,
 }: UseDuplicateWorkflowProps) {
   const router = useRouter()
-  const { duplicateWorkflow } = useWorkflowRegistry()
-  const [isDuplicating, setIsDuplicating] = useState(false)
+  const { workflows } = useWorkflowRegistry()
+  const duplicateMutation = useDuplicateWorkflowMutation()
 
   /**
    * Duplicate the workflow(s)
    */
   const handleDuplicateWorkflow = useCallback(async () => {
-    if (isDuplicating) {
+    if (duplicateMutation.isPending) {
       return
     }
 
-    setIsDuplicating(true)
+    // Get fresh workflow IDs at duplication time
+    const workflowIdsOrId = getWorkflowIds()
+    if (!workflowIdsOrId) {
+      return
+    }
+
+    // Normalize to array for consistent handling
+    const workflowIdsToDuplicate = Array.isArray(workflowIdsOrId)
+      ? workflowIdsOrId
+      : [workflowIdsOrId]
+
+    const duplicatedIds: string[] = []
+
     try {
-      // Get fresh workflow IDs at duplication time
-      const workflowIdsOrId = getWorkflowIds()
-      if (!workflowIdsOrId) {
-        return
-      }
-
-      // Normalize to array for consistent handling
-      const workflowIdsToDuplicate = Array.isArray(workflowIdsOrId)
-        ? workflowIdsOrId
-        : [workflowIdsOrId]
-
-      const duplicatedIds: string[] = []
-
       // Duplicate each workflow sequentially
-      for (const workflowId of workflowIdsToDuplicate) {
-        const newWorkflowId = await duplicateWorkflow(workflowId)
-        if (newWorkflowId) {
-          duplicatedIds.push(newWorkflowId)
+      for (const sourceId of workflowIdsToDuplicate) {
+        const sourceWorkflow = workflows[sourceId]
+        if (!sourceWorkflow) {
+          logger.warn(`Workflow ${sourceId} not found, skipping`)
+          continue
         }
+
+        const result = await duplicateMutation.mutateAsync({
+          workspaceId,
+          sourceId,
+          name: `${sourceWorkflow.name} (Copy)`,
+          description: sourceWorkflow.description,
+          color: getNextWorkflowColor(),
+          folderId: sourceWorkflow.folderId,
+        })
+
+        duplicatedIds.push(result.id)
       }
 
       // Clear selection after successful duplication
@@ -94,13 +108,11 @@ export function useDuplicateWorkflow({
     } catch (error) {
       logger.error('Error duplicating workflow(s):', { error })
       throw error
-    } finally {
-      setIsDuplicating(false)
     }
-  }, [getWorkflowIds, isDuplicating, duplicateWorkflow, workspaceId, router, onSuccess])
+  }, [getWorkflowIds, duplicateMutation, workflows, workspaceId, router, onSuccess])
 
   return {
-    isDuplicating,
+    isDuplicating: duplicateMutation.isPending,
     handleDuplicateWorkflow,
   }
 }

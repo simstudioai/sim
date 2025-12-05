@@ -251,32 +251,78 @@ curl -H "x-api-key: YOUR_API_KEY" \
   </Tab>
 </Tabs>
 
-## Webhook 订阅
+## 通知
 
-在工作流执行完成时获取实时通知。Webhook 可通过 Sim UI 的工作流编辑器进行配置。
+通过 webhook、电子邮件或 Slack 获取工作流执行完成的实时通知。通知在工作区级别从日志页面进行配置。
 
 ### 配置
 
-可以通过工作流编辑器 UI 为每个工作流配置 Webhook。点击控制栏中的 Webhook 图标以设置 Webhook 订阅。
+通过点击菜单按钮并选择“配置通知”从日志页面配置通知。
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="configure-webhook.mp4" width={700} height={450} />
-</div>
+**通知渠道：**
+- **Webhook**：向您的端点发送 HTTP POST 请求
+- **电子邮件**：接收包含执行详情的电子邮件通知
+- **Slack**：向 Slack 频道发送消息
 
-**可用配置选项：**
-- `url`：您的 Webhook 端点 URL
-- `secret`：用于 HMAC 签名验证的可选密钥
-- `includeFinalOutput`：在负载中包含工作流的最终输出
+**工作流选择：**
+- 选择特定的工作流进行监控
+- 或选择“所有工作流”以包含当前和未来的工作流
+
+**过滤选项：**
+- `levelFilter`：接收的日志级别（`info`，`error`）
+- `triggerFilter`：接收的触发类型（`api`，`webhook`，`schedule`，`manual`，`chat`）
+
+**可选数据：**
+- `includeFinalOutput`：包含工作流的最终输出
 - `includeTraceSpans`：包含详细的执行跟踪跨度
-- `includeRateLimits`：包含工作流所有者的速率限制信息
-- `includeUsageData`：包含工作流所有者的使用和计费数据
-- `levelFilter`：接收的日志级别数组（`info`, `error`）
-- `triggerFilter`：接收的触发类型数组（`api`, `webhook`, `schedule`, `manual`, `chat`）
-- `active`：启用/禁用 Webhook 订阅
+- `includeRateLimits`：包含速率限制信息（同步/异步限制和剩余）
+- `includeUsageData`：包含计费周期的使用情况和限制
 
-### Webhook 负载
+### 警报规则
 
-当工作流执行完成时，Sim 会向您的 Webhook URL 发送一个 POST 请求：
+与其为每次执行接收通知，不如配置警报规则，仅在检测到问题时收到通知：
+
+**连续失败**
+- 在 X 次连续失败执行后发出警报（例如，连续 3 次失败）
+- 当执行成功时重置
+
+**失败率**
+- 当失败率在过去 Y 小时内超过 X% 时发出警报
+- 需要窗口内至少 5 次执行
+- 仅在整个时间窗口结束后触发
+
+**延迟阈值**
+- 当任何执行时间超过 X 秒时发出警报
+- 用于捕捉缓慢或挂起的工作流
+
+**延迟峰值**
+- 当执行时间比平均值慢 X% 时发出警报
+- 与配置时间窗口内的平均持续时间进行比较
+- 需要至少 5 次执行以建立基线
+
+**成本阈值**
+- 当单次执行成本超过 $X 时发出警报
+- 用于捕捉高成本的 LLM 调用
+
+**无活动**
+- 当 X 小时内没有执行发生时发出警报
+- 用于监控应定期运行的计划工作流
+
+**错误计数**
+- 当错误计数在某个时间窗口内超过 X 时发出警报
+- 跟踪总错误数，而非连续错误
+
+所有警报类型都包括 1 小时的冷却时间，以防止通知过多。
+
+### Webhook 配置
+
+对于 webhooks，可用以下附加选项：
+- `url`：您的 webhook 端点 URL
+- `secret`：用于 HMAC 签名验证的可选密钥
+
+### 负载结构
+
+当工作流执行完成时，Sim 会发送以下负载（通过 webhook POST、电子邮件或 Slack）：
 
 ```json
 {
@@ -325,9 +371,9 @@ curl -H "x-api-key: YOUR_API_KEY" \
 }
 ```
 
-### Webhook 请求头
+### Webhook 头信息
 
-每个 webhook 请求都包含以下请求头：
+每个 webhook 请求都包含以下头信息（仅限 webhook 渠道）：
 
 - `sim-event`：事件类型（始终为 `workflow.execution.completed`）
 - `sim-timestamp`：以毫秒为单位的 Unix 时间戳
@@ -410,7 +456,7 @@ curl -H "x-api-key: YOUR_API_KEY" \
 
 ### 重试策略
 
-失败的 webhook 交付会使用指数退避和抖动进行重试：
+失败的 webhook 交付将使用指数退避和抖动进行重试：
 
 - 最大尝试次数：5
 - 重试延迟：5 秒、15 秒、1 分钟、3 分钟、10 分钟
@@ -424,15 +470,15 @@ curl -H "x-api-key: YOUR_API_KEY" \
 
 ## 最佳实践
 
-1. **轮询策略**：在轮询日志时，使用基于游标的分页与 `order=asc` 和 `startDate` 高效获取新日志。
+1. **轮询策略**：在轮询日志时，使用基于游标的分页与 `order=asc` 和 `startDate` 来高效获取新日志。
 
-2. **Webhook 安全性**：始终配置 webhook 密钥并验证签名以确保请求来自 Sim。
+2. **Webhook 安全性**：始终配置一个 webhook 密钥并验证签名，以确保请求来自 Sim。
 
-3. **幂等性**：使用 `Idempotency-Key` 请求头检测并处理重复的 webhook 交付。
+3. **幂等性**：使用 `Idempotency-Key` 标头检测并处理重复的 webhook 交付。
 
-4. **隐私**：默认情况下，`finalOutput` 和 `traceSpans` 不包含在响应中。仅在需要这些数据并了解隐私影响时启用它们。
+4. **隐私**：默认情况下，`finalOutput` 和 `traceSpans` 会从响应中排除。仅在需要这些数据并了解隐私影响时启用它们。
 
-5. **速率限制**：当收到 429 响应时，实施指数退避。检查 `Retry-After` 请求头以获取推荐的等待时间。
+5. **速率限制**：当收到 429 响应时，实施指数退避。检查 `Retry-After` 标头以获取推荐的等待时间。
 
 ## 速率限制
 
@@ -443,7 +489,7 @@ API 实现了速率限制以确保公平使用：
 - **团队计划**：每分钟 60 次请求
 - **企业计划**：自定义限制
 
-速率限制信息包含在响应头中：
+速率限制信息包含在响应标头中：
 - `X-RateLimit-Limit`：每个窗口的最大请求数
 - `X-RateLimit-Remaining`：当前窗口中剩余的请求数
 - `X-RateLimit-Reset`：窗口重置时的 ISO 时间戳
@@ -495,7 +541,7 @@ async function pollLogs() {
 setInterval(pollLogs, 30000);
 ```
 
-## 示例：处理 Webhooks
+## 示例：处理 Webhook
 
 ```javascript
 import express from 'express';

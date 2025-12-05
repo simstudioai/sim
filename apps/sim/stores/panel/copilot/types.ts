@@ -80,6 +80,7 @@ export interface CopilotState {
     | 'claude-4.5-sonnet'
     | 'claude-4.5-opus'
     | 'claude-4.1-opus'
+    | 'gemini-3-pro'
   agentPrefetch: boolean
   enabledModels: string[] | null // Null means not loaded yet, array of model IDs when loaded
   isCollapsed: boolean
@@ -138,6 +139,9 @@ export interface CopilotState {
     when: 'start' | 'end'
     estimatedTokens?: number
   } | null
+
+  // Auto-allowed integration tools (tools that can run without confirmation)
+  autoAllowedTools: string[]
 }
 
 export interface CopilotActions {
@@ -213,6 +217,12 @@ export interface CopilotActions {
   handleNewChatCreation: (newChatId: string) => Promise<void>
   updateDiffStore: (yamlContent: string, toolName?: string) => Promise<void>
   updateDiffStoreWithWorkflowState: (workflowState: any, toolName?: string) => Promise<void>
+  executeIntegrationTool: (toolCallId: string) => Promise<void>
+  skipIntegrationTool: (toolCallId: string) => void
+  loadAutoAllowedTools: () => Promise<void>
+  addAutoAllowedTool: (toolId: string) => Promise<void>
+  removeAutoAllowedTool: (toolId: string) => Promise<void>
+  isToolAutoAllowed: (toolId: string) => boolean
 }
 
 export type CopilotStore = CopilotState & CopilotActions

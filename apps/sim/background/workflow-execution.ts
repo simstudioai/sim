@@ -74,16 +74,18 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       workflowId,
       workspaceId,
       userId: actorUserId,
+      sessionUserId: undefined,
+      workflowUserId: workflow.userId,
       triggerType: payload.triggerType || 'api',
       useDraftState: false,
       startTime: new Date().toISOString(),
+      isClientSession: false,
     }
 
     const snapshot = new ExecutionSnapshot(
       metadata,
       workflow,
       payload.input,
-      {},
       workflow.variables || {},
       []
     )

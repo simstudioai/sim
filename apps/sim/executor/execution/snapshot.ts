@@ -7,10 +7,13 @@ export interface ExecutionMetadata {
   workflowId: string
   workspaceId?: string
   userId: string
+  sessionUserId?: string
+  workflowUserId?: string
   triggerType: string
   triggerBlockId?: string
   useDraftState: boolean
   startTime: string
+  isClientSession?: boolean
   pendingBlocks?: string[]
   resumeFromSnapshot?: boolean
   workflowStateOverride?: {
@@ -57,7 +60,6 @@ export class ExecutionSnapshot {
     public readonly metadata: ExecutionMetadata,
     public readonly workflow: any,
     public readonly input: any,
-    public readonly environmentVariables: Record<string, string>,
     public readonly workflowVariables: Record<string, any>,
     public readonly selectedOutputs: string[] = [],
     public readonly state?: SerializableExecutionState
@@ -68,7 +70,6 @@ export class ExecutionSnapshot {
       metadata: this.metadata,
       workflow: this.workflow,
       input: this.input,
-      environmentVariables: this.environmentVariables,
       workflowVariables: this.workflowVariables,
       selectedOutputs: this.selectedOutputs,
       state: this.state,
@@ -81,7 +82,6 @@ export class ExecutionSnapshot {
       data.metadata,
       data.workflow,
       data.input,
-      data.environmentVariables,
       data.workflowVariables,
       data.selectedOutputs,
       data.state

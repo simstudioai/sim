@@ -15,9 +15,7 @@ import { GetExamplesRagClientTool } from '@/lib/copilot/tools/client/examples/ge
 import { GetOperationsExamplesClientTool } from '@/lib/copilot/tools/client/examples/get-operations-examples'
 import { GetTriggerExamplesClientTool } from '@/lib/copilot/tools/client/examples/get-trigger-examples'
 import { SummarizeClientTool } from '@/lib/copilot/tools/client/examples/summarize'
-import { ListGDriveFilesClientTool } from '@/lib/copilot/tools/client/gdrive/list-files'
-import { ReadGDriveFileClientTool } from '@/lib/copilot/tools/client/gdrive/read-file'
-import { GDriveRequestAccessClientTool } from '@/lib/copilot/tools/client/google/gdrive-request-access'
+import { KnowledgeBaseClientTool } from '@/lib/copilot/tools/client/knowledge/knowledge-base'
 import {
   getClientTool,
   registerClientTool,
@@ -40,9 +38,9 @@ import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/us
 import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
 import { DeployWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/deploy-workflow'
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
-import { GetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/get-global-workflow-variables'
 import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
 import { GetWorkflowConsoleClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-console'
+import { GetWorkflowDataClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-data'
 import { GetWorkflowFromNameClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-from-name'
 import { ListUserWorkflowsClientTool } from '@/lib/copilot/tools/client/workflow/list-user-workflows'
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
@@ -82,20 +80,18 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   search_errors: (id) => new SearchErrorsClientTool(id),
   remember_debug: (id) => new RememberDebugClientTool(id),
   set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
-  list_gdrive_files: (id) => new ListGDriveFilesClientTool(id),
-  read_gdrive_file: (id) => new ReadGDriveFileClientTool(id),
   get_credentials: (id) => new GetCredentialsClientTool(id),
+  knowledge_base: (id) => new KnowledgeBaseClientTool(id),
   make_api_request: (id) => new MakeApiRequestClientTool(id),
   plan: (id) => new PlanClientTool(id),
   checkoff_todo: (id) => new CheckoffTodoClientTool(id),
   mark_todo_in_progress: (id) => new MarkTodoInProgressClientTool(id),
-  gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
   oauth_request_access: (id) => new OAuthRequestAccessClientTool(id),
   edit_workflow: (id) => new EditWorkflowClientTool(id),
   get_user_workflow: (id) => new GetUserWorkflowClientTool(id),
   list_user_workflows: (id) => new ListUserWorkflowsClientTool(id),
   get_workflow_from_name: (id) => new GetWorkflowFromNameClientTool(id),
-  get_global_workflow_variables: (id) => new GetGlobalWorkflowVariablesClientTool(id),
+  get_workflow_data: (id) => new GetWorkflowDataClientTool(id),
   set_global_workflow_variables: (id) => new SetGlobalWorkflowVariablesClientTool(id),
   get_trigger_examples: (id) => new GetTriggerExamplesClientTool(id),
   get_examples_rag: (id) => new GetExamplesRagClientTool(id),
@@ -119,19 +115,17 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   search_errors: (SearchErrorsClientTool as any)?.metadata,
   remember_debug: (RememberDebugClientTool as any)?.metadata,
   set_environment_variables: (SetEnvironmentVariablesClientTool as any)?.metadata,
-  list_gdrive_files: (ListGDriveFilesClientTool as any)?.metadata,
-  read_gdrive_file: (ReadGDriveFileClientTool as any)?.metadata,
   get_credentials: (GetCredentialsClientTool as any)?.metadata,
+  knowledge_base: (KnowledgeBaseClientTool as any)?.metadata,
   make_api_request: (MakeApiRequestClientTool as any)?.metadata,
   plan: (PlanClientTool as any)?.metadata,
   checkoff_todo: (CheckoffTodoClientTool as any)?.metadata,
   mark_todo_in_progress: (MarkTodoInProgressClientTool as any)?.metadata,
-  gdrive_request_access: (GDriveRequestAccessClientTool as any)?.metadata,
   edit_workflow: (EditWorkflowClientTool as any)?.metadata,
   get_user_workflow: (GetUserWorkflowClientTool as any)?.metadata,
   list_user_workflows: (ListUserWorkflowsClientTool as any)?.metadata,
   get_workflow_from_name: (GetWorkflowFromNameClientTool as any)?.metadata,
-  get_global_workflow_variables: (GetGlobalWorkflowVariablesClientTool as any)?.metadata,
+  get_workflow_data: (GetWorkflowDataClientTool as any)?.metadata,
   set_global_workflow_variables: (SetGlobalWorkflowVariablesClientTool as any)?.metadata,
   get_trigger_examples: (GetTriggerExamplesClientTool as any)?.metadata,
   get_examples_rag: (GetExamplesRagClientTool as any)?.metadata,
@@ -1019,8 +1013,36 @@ const sseHandlers: Record<string, SSEHandler> = {
               set({ toolCallsById: errorMap })
             })
         }, 0)
+        return
       }
     } catch {}
+
+    // Integration tools: Check if auto-allowed, otherwise wait for user confirmation
+    // This handles tools like google_calendar_*, exa_*, etc. that aren't in the client registry
+    // Only relevant if mode is 'build' (agent)
+    const { mode, workflowId, autoAllowedTools } = get()
+    if (mode === 'build' && workflowId) {
+      // Check if tool was NOT found in client registry (def is undefined from above)
+      const def = name ? getTool(name) : undefined
+      const inst = getClientTool(id) as any
+      if (!def && !inst && name) {
+        // Check if this tool is auto-allowed
+        if (autoAllowedTools.includes(name)) {
+          logger.info('[build mode] Integration tool auto-allowed, executing', { id, name })
+
+          // Auto-execute the tool
+          setTimeout(() => {
+            get().executeIntegrationTool(id)
+          }, 0)
+        } else {
+          // Integration tools stay in pending state until user confirms
+          logger.info('[build mode] Integration tool awaiting user confirmation', {
+            id,
+            name,
+          })
+        }
+      }
+    }
   },
   reasoning: (data, context, _get, set) => {
     const phase = (data && (data.phase || data?.data?.phase)) as string | undefined
@@ -1504,7 +1526,7 @@ async function* parseSSEStream(
 // Initial state (subset required for UI/streaming)
 const initialState = {
   mode: 'build' as const,
-  selectedModel: 'claude-4.5-sonnet' as CopilotStore['selectedModel'],
+  selectedModel: 'claude-4.5-opus' as CopilotStore['selectedModel'],
   agentPrefetch: false,
   enabledModels: null as string[] | null, // Null means not loaded yet, empty array means all disabled
   isCollapsed: false,
@@ -1535,6 +1557,7 @@ const initialState = {
   toolCallsById: {} as Record<string, CopilotToolCall>,
   suppressAutoSelect: false,
   contextUsage: null,
+  autoAllowedTools: [] as string[],
 }
 
 export const useCopilotStore = create<CopilotStore>()(
@@ -1766,6 +1789,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
     loadChats: async (_forceRefresh = false) => {
       const { workflowId } = get()
+
       if (!workflowId) {
         set({ chats: [], isLoadingChats: false })
         return
@@ -1774,7 +1798,8 @@ export const useCopilotStore = create<CopilotStore>()(
       // For now always fetch fresh
       set({ isLoadingChats: true })
       try {
-        const response = await fetch(`/api/copilot/chat?workflowId=${workflowId}`)
+        const url = `/api/copilot/chat?workflowId=${workflowId}`
+        const response = await fetch(url)
         if (!response.ok) {
           throw new Error(`Failed to fetch chats: ${response.status}`)
         }
@@ -1902,6 +1927,7 @@ export const useCopilotStore = create<CopilotStore>()(
         contexts?: ChatContext[]
         messageId?: string
       }
+
       if (!workflowId) return
 
       const abortController = new AbortController()
@@ -1972,13 +1998,14 @@ export const useCopilotStore = create<CopilotStore>()(
           })
         }
 
+        // Call copilot API
         const apiMode: 'ask' | 'agent' | 'plan' =
           mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
         const result = await sendStreamingMessage({
           message: messageToSend,
           userMessageId: userMessage.id,
           chatId: currentChat?.id,
-          workflowId,
+          workflowId: workflowId || undefined,
           mode: apiMode,
           model: get().selectedModel,
           prefetch: get().agentPrefetch,
@@ -2811,6 +2838,190 @@ export const useCopilotStore = create<CopilotStore>()(
       } catch (err) {
         logger.error('[Context Usage] Error fetching:', err)
       }
+    },
+
+    executeIntegrationTool: async (toolCallId: string) => {
+      const { toolCallsById, workflowId } = get()
+      const toolCall = toolCallsById[toolCallId]
+      if (!toolCall || !workflowId) return
+
+      const { id, name, params } = toolCall
+
+      // Set to executing state
+      const executingMap = { ...get().toolCallsById }
+      executingMap[id] = {
+        ...executingMap[id],
+        state: ClientToolCallState.executing,
+        display: resolveToolDisplay(name, ClientToolCallState.executing, id, params),
+      }
+      set({ toolCallsById: executingMap })
+      logger.info('[toolCallsById] pending → executing (integration tool)', { id, name })
+
+      try {
+        const res = await fetch('/api/copilot/execute-tool', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toolCallId: id,
+            toolName: name,
+            arguments: params || {},
+            workflowId,
+          }),
+        })
+
+        const result = await res.json()
+        const success = result.success && result.result?.success
+        const completeMap = { ...get().toolCallsById }
+
+        // Do not override terminal review/rejected
+        if (
+          isRejectedState(completeMap[id]?.state) ||
+          isReviewState(completeMap[id]?.state) ||
+          isBackgroundState(completeMap[id]?.state)
+        ) {
+          return
+        }
+
+        completeMap[id] = {
+          ...completeMap[id],
+          state: success ? ClientToolCallState.success : ClientToolCallState.error,
+          display: resolveToolDisplay(
+            name,
+            success ? ClientToolCallState.success : ClientToolCallState.error,
+            id,
+            params
+          ),
+        }
+        set({ toolCallsById: completeMap })
+        logger.info(`[toolCallsById] executing → ${success ? 'success' : 'error'} (integration)`, {
+          id,
+          name,
+          result,
+        })
+
+        // Notify backend tool mark-complete endpoint
+        try {
+          await fetch('/api/copilot/tools/mark-complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id,
+              name: name || 'unknown_tool',
+              status: success ? 200 : 500,
+              message: success
+                ? result.result?.output?.content
+                : result.result?.error || result.error || 'Tool execution failed',
+              data: success
+                ? result.result?.output
+                : {
+                    error: result.result?.error || result.error,
+                    output: result.result?.output,
+                  },
+            }),
+          })
+        } catch {}
+      } catch (e) {
+        const errorMap = { ...get().toolCallsById }
+        // Do not override terminal review/rejected
+        if (
+          isRejectedState(errorMap[id]?.state) ||
+          isReviewState(errorMap[id]?.state) ||
+          isBackgroundState(errorMap[id]?.state)
+        ) {
+          return
+        }
+        errorMap[id] = {
+          ...errorMap[id],
+          state: ClientToolCallState.error,
+          display: resolveToolDisplay(name, ClientToolCallState.error, id, params),
+        }
+        set({ toolCallsById: errorMap })
+        logger.error('Integration tool execution failed', { id, name, error: e })
+      }
+    },
+
+    skipIntegrationTool: (toolCallId: string) => {
+      const { toolCallsById } = get()
+      const toolCall = toolCallsById[toolCallId]
+      if (!toolCall) return
+
+      const { id, name, params } = toolCall
+
+      // Set to rejected state
+      const rejectedMap = { ...get().toolCallsById }
+      rejectedMap[id] = {
+        ...rejectedMap[id],
+        state: ClientToolCallState.rejected,
+        display: resolveToolDisplay(name, ClientToolCallState.rejected, id, params),
+      }
+      set({ toolCallsById: rejectedMap })
+      logger.info('[toolCallsById] pending → rejected (integration tool skipped)', { id, name })
+
+      // Notify backend tool mark-complete endpoint with skip status
+      fetch('/api/copilot/tools/mark-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          name: name || 'unknown_tool',
+          status: 200,
+          message: 'Tool execution skipped by user',
+          data: { skipped: true },
+        }),
+      }).catch(() => {})
+    },
+
+    loadAutoAllowedTools: async () => {
+      try {
+        const res = await fetch('/api/copilot/auto-allowed-tools')
+        if (res.ok) {
+          const data = await res.json()
+          set({ autoAllowedTools: data.autoAllowedTools || [] })
+          logger.info('[AutoAllowedTools] Loaded', { tools: data.autoAllowedTools })
+        }
+      } catch (err) {
+        logger.error('[AutoAllowedTools] Failed to load', { error: err })
+      }
+    },
+
+    addAutoAllowedTool: async (toolId: string) => {
+      try {
+        const res = await fetch('/api/copilot/auto-allowed-tools', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ toolId }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          set({ autoAllowedTools: data.autoAllowedTools || [] })
+          logger.info('[AutoAllowedTools] Added tool', { toolId })
+        }
+      } catch (err) {
+        logger.error('[AutoAllowedTools] Failed to add tool', { toolId, error: err })
+      }
+    },
+
+    removeAutoAllowedTool: async (toolId: string) => {
+      try {
+        const res = await fetch(
+          `/api/copilot/auto-allowed-tools?toolId=${encodeURIComponent(toolId)}`,
+          {
+            method: 'DELETE',
+          }
+        )
+        if (res.ok) {
+          const data = await res.json()
+          set({ autoAllowedTools: data.autoAllowedTools || [] })
+          logger.info('[AutoAllowedTools] Removed tool', { toolId })
+        }
+      } catch (err) {
+        logger.error('[AutoAllowedTools] Failed to remove tool', { toolId, error: err })
+      }
+    },
+
+    isToolAutoAllowed: (toolId: string) => {
+      const { autoAllowedTools } = get()
+      return autoAllowedTools.includes(toolId)
     },
   }))
 )

@@ -13,7 +13,6 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
-import { env } from '@/lib/core/config/env'
 
 interface TeamSeatsProps {
   open: boolean
@@ -52,7 +51,7 @@ export function TeamSeats({
     }
   }, [open, initialSeats])
 
-  const costPerSeat = env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT
+  const costPerSeat = DEFAULT_TEAM_TIER_COST_LIMIT
   const totalMonthlyCost = selectedSeats * costPerSeat
   const costChange = currentSeats ? (selectedSeats - currentSeats) * costPerSeat : 0
 

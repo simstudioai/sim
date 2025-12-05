@@ -2,15 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Download, LogOut, Pencil, Plus, Send, Trash2 } from 'lucide-react'
-import {
-  Button,
-  Modal,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTitle,
-} from '@/components/emcn'
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Button as UIButton } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -632,14 +624,12 @@ export function WorkspaceSelector({
 
       {/* Centralized Delete Workspace Dialog */}
       <Modal open={isDeleteDialogOpen} onOpenChange={handleDialogClose}>
-        <ModalContent>
+        <ModalContent className='w-[400px]'>
           <ModalHeader>
-            <ModalTitle>
-              {showTemplateChoice
-                ? 'Delete workspace with published templates?'
-                : 'Delete workspace?'}
-            </ModalTitle>
-            <ModalDescription>
+            {showTemplateChoice ? 'Delete Workspace with Published Templates' : 'Delete Workspace'}
+          </ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               {showTemplateChoice ? (
                 <>
                   This workspace contains {templatesInfo?.count} published template
@@ -658,52 +648,49 @@ export function WorkspaceSelector({
                 <>
                   Deleting this workspace will permanently remove all associated workflows, logs,
                   and knowledge bases.{' '}
-                  <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                    This action cannot be undone.
-                  </span>
+                  <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
                 </>
               )}
-            </ModalDescription>
-          </ModalHeader>
+            </p>
 
-          {showTemplateChoice ? (
-            <div className='flex gap-2 py-2'>
-              <Button
-                onClick={() => handleTemplateAction('keep')}
-                className='h-[32px] flex-1 px-[12px]'
-                variant='outline'
-                disabled={isDeleting}
-              >
-                {isDeleting ? 'Deleting...' : 'Keep Templates'}
-              </Button>
-              <Button
-                onClick={() => handleTemplateAction('delete')}
-                className='h-[32px] flex-1 bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
-                disabled={isDeleting}
-              >
-                {isDeleting ? 'Deleting...' : 'Delete Templates'}
-              </Button>
-            </div>
-          ) : (
-            <div className='py-2'>
-              <p className='mb-2 font-[360] text-sm'>
-                Enter the workspace name{' '}
-                <span className='font-semibold'>{workspaceToDelete?.name}</span> to confirm.
-              </p>
-              <Input
-                value={deleteConfirmationName}
-                onChange={(e) => setDeleteConfirmationName(e.target.value)}
-                placeholder={workspaceToDelete?.name}
-                className='h-9 rounded-[8px]'
-              />
-            </div>
-          )}
-
+            {showTemplateChoice ? (
+              <div className='mt-3 flex gap-2'>
+                <Button
+                  onClick={() => handleTemplateAction('keep')}
+                  className='flex-1'
+                  variant='active'
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Deleting...' : 'Keep Templates'}
+                </Button>
+                <Button
+                  onClick={() => handleTemplateAction('delete')}
+                  variant='primary'
+                  className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90 flex-1'
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete Templates'}
+                </Button>
+              </div>
+            ) : (
+              <div className='mt-3'>
+                <p className='mb-2 font-[360] text-sm'>
+                  Enter the workspace name{' '}
+                  <span className='font-semibold'>{workspaceToDelete?.name}</span> to confirm.
+                </p>
+                <Input
+                  value={deleteConfirmationName}
+                  onChange={(e) => setDeleteConfirmationName(e.target.value)}
+                  placeholder={workspaceToDelete?.name}
+                  className='h-9 rounded-[8px]'
+                />
+              </div>
+            )}
+          </ModalBody>
           {!showTemplateChoice && (
             <ModalFooter>
               <Button
-                variant='outline'
-                className='h-[32px] px-[12px]'
+                variant='active'
                 onClick={() => {
                   resetDeleteState()
                   setIsDeleteDialogOpen(false)
@@ -712,11 +699,12 @@ export function WorkspaceSelector({
                 Cancel
               </Button>
               <Button
+                variant='primary'
                 onClick={(e) => {
                   e.preventDefault()
                   handleDeleteClick()
                 }}
-                className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+                className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
                 disabled={
                   isDeleting ||
                   deleteConfirmationName !== workspaceToDelete?.name ||
@@ -741,34 +729,30 @@ export function WorkspaceSelector({
           }
         }}
       >
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>Leave workspace?</ModalTitle>
-            <ModalDescription>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Leave Workspace</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               Leaving this workspace will remove your access to all associated workflows, logs, and
               knowledge bases.{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
-            </ModalDescription>
-          </ModalHeader>
-
-          <div className='py-2'>
-            <p className='mb-2 font-[360] text-sm'>
-              Enter the workspace name <strong>{workspaceToLeave?.name}</strong> to confirm.
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
-            <Input
-              value={leaveConfirmationName}
-              onChange={(e) => setLeaveConfirmationName(e.target.value)}
-              placeholder={workspaceToLeave?.name}
-              className='h-9'
-            />
-          </div>
 
+            <div className='mt-3'>
+              <p className='mb-2 font-[360] text-sm'>
+                Enter the workspace name <strong>{workspaceToLeave?.name}</strong> to confirm.
+              </p>
+              <Input
+                value={leaveConfirmationName}
+                onChange={(e) => setLeaveConfirmationName(e.target.value)}
+                placeholder={workspaceToLeave?.name}
+                className='h-9'
+              />
+            </div>
+          </ModalBody>
           <ModalFooter>
             <Button
-              variant='outline'
-              className='h-[32px] px-[12px]'
+              variant='active'
               onClick={() => {
                 setIsLeaveDialogOpen(false)
                 setLeaveConfirmationName('')
@@ -778,6 +762,7 @@ export function WorkspaceSelector({
               Cancel
             </Button>
             <Button
+              variant='primary'
               onClick={() => {
                 if (workspaceToLeave) {
                   confirmLeaveWorkspace(workspaceToLeave)
@@ -786,7 +771,7 @@ export function WorkspaceSelector({
                   setWorkspaceToLeave(null)
                 }
               }}
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
               disabled={isLeaving || leaveConfirmationName !== workspaceToLeave?.name}
             >
               {isLeaving ? 'Leaving...' : 'Leave'}

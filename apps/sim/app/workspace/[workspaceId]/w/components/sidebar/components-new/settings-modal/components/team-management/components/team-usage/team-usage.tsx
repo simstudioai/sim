@@ -63,10 +63,10 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
     return null
   }
 
-  const currentUsage = billingData.totalCurrentUsage || 0
-  const currentCap = billingData.totalUsageLimit || billingData.minimumBillingAmount || 0
-  const minimumBilling = billingData.minimumBillingAmount || 0
-  const seatsCount = billingData.seatsCount || 1
+  const currentUsage = billingData.totalCurrentUsage ?? 0
+  const currentCap = billingData.totalUsageLimit ?? billingData.minimumBillingAmount ?? 0
+  const minimumBilling = billingData.minimumBillingAmount ?? 0
+  const seatsCount = billingData.seatsCount ?? 0
   const percentUsed =
     currentCap > 0 ? Math.round(Math.min((currentUsage / currentCap) * 100, 100)) : 0
   const status: 'ok' | 'warning' | 'exceeded' =

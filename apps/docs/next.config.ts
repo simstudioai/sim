@@ -16,10 +16,13 @@ const config = {
         destination: '/introduction',
         permanent: true,
       },
+    ]
+  },
+  async rewrites() {
+    return [
       {
-        source: '/docs/:path*.mdx',
+        source: '/:path*.mdx',
         destination: '/llms.mdx/:path*',
-        permanent: true,
       },
     ]
   },

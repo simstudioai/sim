@@ -118,11 +118,7 @@ export function SidebarNew() {
     workflowsLoading,
     isCreatingWorkflow,
     handleCreateWorkflow: createWorkflow,
-  } = useWorkflowOperations({
-    workspaceId,
-    isWorkspaceValid,
-    onWorkspaceInvalid: fetchWorkspaces,
-  })
+  } = useWorkflowOperations({ workspaceId })
 
   // Folder operations hook
   const { isCreatingFolder, handleCreateFolder: createFolder } = useFolderOperations({

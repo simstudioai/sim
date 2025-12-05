@@ -169,6 +169,8 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       }
     }
 
+    const inputWidthCh = Math.max(3, inputValue.length + 1)
+
     return (
       <div className='flex items-center'>
         {isEditing ? (
@@ -200,7 +202,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
               autoCorrect='off'
               autoCapitalize='off'
               spellCheck='false'
-              style={{ width: `${Math.max(3, inputValue.length)}ch` }}
+              style={{ width: `${inputWidthCh}ch` }}
             />
           </>
         ) : (

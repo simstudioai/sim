@@ -291,6 +291,7 @@ export function General({ onOpenChange }: GeneralProps) {
                     alt={profile?.name || 'User'}
                     width={36}
                     height={36}
+                    unoptimized
                     className={`h-full w-full object-cover transition-opacity duration-300 ${
                       isUploadingProfilePicture ? 'opacity-50' : 'opacity-100'
                     }`}

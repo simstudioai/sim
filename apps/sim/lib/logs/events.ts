@@ -1,28 +1,83 @@
 import { db } from '@sim/db'
-import { workflowLogWebhook, workflowLogWebhookDelivery } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import {
+  workflow,
+  workspaceNotificationDelivery,
+  workspaceNotificationSubscription,
+} from '@sim/db/schema'
+import { and, eq, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { env, isTruthy } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
-import { logsWebhookDelivery } from '@/background/logs-webhook-delivery'
+import {
+  type AlertCheckContext,
+  type AlertConfig,
+  shouldTriggerAlert,
+} from '@/lib/notifications/alert-rules'
+import {
+  executeNotificationDelivery,
+  workspaceNotificationDeliveryTask,
+} from '@/background/workspace-notification-delivery'
 
 const logger = createLogger('LogsEventEmitter')
 
-export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog): Promise<void> {
-  try {
-    const subscriptions = await db
-      .select()
-      .from(workflowLogWebhook)
-      .where(
-        and(eq(workflowLogWebhook.workflowId, log.workflowId), eq(workflowLogWebhook.active, true))
-      )
+function prepareLogData(
+  log: WorkflowExecutionLog,
+  subscription: {
+    includeFinalOutput: boolean
+    includeTraceSpans: boolean
+  }
+) {
+  const preparedLog = { ...log, executionData: {} as Record<string, unknown> }
 
-    if (subscriptions.length === 0) {
-      return
+  if (log.executionData) {
+    const data = log.executionData as Record<string, unknown>
+    const webhookData: Record<string, unknown> = {}
+
+    if (subscription.includeFinalOutput && data.finalOutput) {
+      webhookData.finalOutput = data.finalOutput
     }
 
+    if (subscription.includeTraceSpans && data.traceSpans) {
+      webhookData.traceSpans = data.traceSpans
+    }
+
+    preparedLog.executionData = webhookData
+  }
+
+  return preparedLog
+}
+
+export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog): Promise<void> {
+  try {
+    const workflowData = await db
+      .select({ workspaceId: workflow.workspaceId })
+      .from(workflow)
+      .where(eq(workflow.id, log.workflowId))
+      .limit(1)
+
+    if (workflowData.length === 0 || !workflowData[0].workspaceId) return
+
+    const workspaceId = workflowData[0].workspaceId
+
+    const subscriptions = await db
+      .select()
+      .from(workspaceNotificationSubscription)
+      .where(
+        and(
+          eq(workspaceNotificationSubscription.workspaceId, workspaceId),
+          eq(workspaceNotificationSubscription.active, true),
+          or(
+            eq(workspaceNotificationSubscription.allWorkflows, true),
+            sql`${log.workflowId} = ANY(${workspaceNotificationSubscription.workflowIds})`
+          )
+        )
+      )
+
+    if (subscriptions.length === 0) return
+
     logger.debug(
-      `Found ${subscriptions.length} active webhook subscriptions for workflow ${log.workflowId}`
+      `Found ${subscriptions.length} active notification subscriptions for workspace ${workspaceId}`
     )
 
     for (const subscription of subscriptions) {
@@ -30,18 +85,42 @@ export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog):
       const triggerMatches = subscription.triggerFilter?.includes(log.trigger) ?? true
 
       if (!levelMatches || !triggerMatches) {
-        logger.debug(`Skipping subscription ${subscription.id} due to filter mismatch`, {
-          level: log.level,
-          trigger: log.trigger,
-          levelFilter: subscription.levelFilter,
-          triggerFilter: subscription.triggerFilter,
-        })
+        logger.debug(`Skipping subscription ${subscription.id} due to filter mismatch`)
         continue
+      }
+
+      const alertConfig = subscription.alertConfig as AlertConfig | null
+
+      if (alertConfig) {
+        const context: AlertCheckContext = {
+          workflowId: log.workflowId,
+          executionId: log.executionId,
+          status: log.level === 'error' ? 'error' : 'success',
+          durationMs: log.totalDurationMs || 0,
+          cost: (log.cost as { total?: number })?.total || 0,
+        }
+
+        const shouldAlert = await shouldTriggerAlert(alertConfig, context, subscription.lastAlertAt)
+
+        if (!shouldAlert) {
+          logger.debug(`Alert condition not met for subscription ${subscription.id}`)
+          continue
+        }
+
+        await db
+          .update(workspaceNotificationSubscription)
+          .set({ lastAlertAt: new Date() })
+          .where(eq(workspaceNotificationSubscription.id, subscription.id))
+
+        logger.info(`Alert triggered for subscription ${subscription.id}`, {
+          workflowId: log.workflowId,
+          alertConfig,
+        })
       }
 
       const deliveryId = uuidv4()
 
-      await db.insert(workflowLogWebhookDelivery).values({
+      await db.insert(workspaceNotificationDelivery).values({
         id: deliveryId,
         subscriptionId: subscription.id,
         workflowId: log.workflowId,
@@ -51,45 +130,29 @@ export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog):
         nextAttemptAt: new Date(),
       })
 
-      // Prepare the log data based on subscription settings
-      const webhookLog = {
-        ...log,
-        executionData: {},
-      }
+      const notificationLog = prepareLogData(log, subscription)
 
-      // Only include executionData fields that are requested
-      if (log.executionData) {
-        const data = log.executionData as any
-        const webhookData: any = {}
-
-        if (subscription.includeFinalOutput && data.finalOutput) {
-          webhookData.finalOutput = data.finalOutput
-        }
-
-        if (subscription.includeTraceSpans && data.traceSpans) {
-          webhookData.traceSpans = data.traceSpans
-        }
-
-        // For rate limits and usage, we'll need to fetch them in the webhook delivery
-        // since they're user-specific and may change
-        if (subscription.includeRateLimits) {
-          webhookData.includeRateLimits = true
-        }
-
-        if (subscription.includeUsageData) {
-          webhookData.includeUsageData = true
-        }
-
-        webhookLog.executionData = webhookData
-      }
-
-      await logsWebhookDelivery.trigger({
+      const payload = {
         deliveryId,
         subscriptionId: subscription.id,
-        log: webhookLog,
-      })
+        notificationType: subscription.notificationType,
+        log: notificationLog,
+        alertConfig: alertConfig || undefined,
+      }
 
-      logger.info(`Enqueued webhook delivery ${deliveryId} for subscription ${subscription.id}`)
+      const useTrigger = isTruthy(env.TRIGGER_DEV_ENABLED)
+
+      if (useTrigger) {
+        await workspaceNotificationDeliveryTask.trigger(payload)
+        logger.info(
+          `Enqueued ${subscription.notificationType} notification ${deliveryId} via Trigger.dev`
+        )
+      } else {
+        void executeNotificationDelivery(payload).catch((error) => {
+          logger.error(`Direct notification delivery failed for ${deliveryId}`, { error })
+        })
+        logger.info(`Enqueued ${subscription.notificationType} notification ${deliveryId} directly`)
+      }
     }
   } catch (error) {
     logger.error('Failed to emit workflow execution completed event', {

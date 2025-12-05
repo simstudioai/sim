@@ -96,9 +96,6 @@ export function isAtLeastTeam(subscriptionData: SubscriptionData | null | undefi
   return status.isTeam || status.isEnterprise
 }
 
-/**
- * Check if user can upgrade
- */
 export function canUpgrade(subscriptionData: SubscriptionData | null | undefined): boolean {
   const status = getSubscriptionStatus(subscriptionData)
   return status.plan === 'free' || status.plan === 'pro'

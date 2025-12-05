@@ -251,32 +251,78 @@ Recupera detalles de ejecución incluyendo la instantánea del estado del flujo 
   </Tab>
 </Tabs>
 
-## Suscripciones a webhooks
+## Notificaciones
 
-Recibe notificaciones en tiempo real cuando se completan las ejecuciones de flujos de trabajo. Los webhooks se configuran a través de la interfaz de usuario de Sim en el editor de flujos de trabajo.
+Recibe notificaciones en tiempo real cuando se completan las ejecuciones de flujos de trabajo a través de webhook, correo electrónico o Slack. Las notificaciones se configuran a nivel de espacio de trabajo desde la página de Registros.
 
 ### Configuración
 
-Los webhooks pueden configurarse para cada flujo de trabajo a través de la interfaz de usuario del editor de flujos de trabajo. Haz clic en el icono de webhook en la barra de control para configurar tus suscripciones a webhooks.
+Configura las notificaciones desde la página de Registros haciendo clic en el botón de menú y seleccionando "Configurar notificaciones".
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="configure-webhook.mp4" width={700} height={450} />
-</div>
+**Canales de notificación:**
+- **Webhook**: Envía solicitudes HTTP POST a tu punto de conexión
+- **Correo electrónico**: Recibe notificaciones por correo con detalles de la ejecución
+- **Slack**: Publica mensajes en un canal de Slack
 
-**Opciones de configuración disponibles:**
-- `url`: URL del punto final de tu webhook
+**Selección de flujos de trabajo:**
+- Selecciona flujos de trabajo específicos para monitorear
+- O elige "Todos los flujos de trabajo" para incluir los flujos actuales y futuros
+
+**Opciones de filtrado:**
+- `levelFilter`: Niveles de registro a recibir (`info`, `error`)
+- `triggerFilter`: Tipos de disparadores a recibir (`api`, `webhook`, `schedule`, `manual`, `chat`)
+
+**Datos opcionales:**
+- `includeFinalOutput`: Incluir la salida final del flujo de trabajo
+- `includeTraceSpans`: Incluir trazas detalladas de la ejecución
+- `includeRateLimits`: Incluir información de límites de tasa (límites sincrónicos/asincrónicos y restantes)
+- `includeUsageData`: Incluir uso y límites del período de facturación
+
+### Reglas de alerta
+
+En lugar de recibir notificaciones por cada ejecución, configura reglas de alerta para ser notificado solo cuando se detecten problemas:
+
+**Fallos consecutivos**
+- Alerta después de X ejecuciones fallidas consecutivas (por ejemplo, 3 fallos seguidos)
+- Se reinicia cuando una ejecución tiene éxito
+
+**Tasa de fallos**
+- Alerta cuando la tasa de fallos supera el X% durante las últimas Y horas
+- Requiere un mínimo de 5 ejecuciones en la ventana de tiempo
+- Solo se activa después de que haya transcurrido la ventana de tiempo completa
+
+**Umbral de latencia**
+- Alerta cuando cualquier ejecución tarda más de X segundos
+- Útil para detectar flujos de trabajo lentos o bloqueados
+
+**Pico de latencia**
+- Alerta cuando la ejecución es X% más lenta que el promedio
+- Compara con la duración promedio durante la ventana de tiempo configurada
+- Requiere un mínimo de 5 ejecuciones para establecer una línea base
+
+**Umbral de costo**
+- Alerta cuando una sola ejecución cuesta más de $X
+- Útil para detectar llamadas costosas a LLM
+
+**Sin actividad**
+- Alerta cuando no ocurren ejecuciones dentro de X horas
+- Útil para monitorear flujos de trabajo programados que deberían ejecutarse regularmente
+
+**Recuento de errores**
+- Alerta cuando el recuento de errores excede X dentro de una ventana de tiempo
+- Rastrea errores totales, no consecutivos
+
+Todos los tipos de alertas incluyen un período de enfriamiento de 1 hora para evitar el spam de notificaciones.
+
+### Configuración de webhook
+
+Para webhooks, hay opciones adicionales disponibles:
+- `url`: La URL de tu endpoint webhook
 - `secret`: Secreto opcional para verificación de firma HMAC
-- `includeFinalOutput`: Incluir la salida final del flujo de trabajo en la carga útil
-- `includeTraceSpans`: Incluir intervalos de seguimiento de ejecución detallados
-- `includeRateLimits`: Incluir información del límite de tasa del propietario del flujo de trabajo
-- `includeUsageData`: Incluir datos de uso y facturación del propietario del flujo de trabajo
-- `levelFilter`: Array de niveles de registro a recibir (`info`, `error`)
-- `triggerFilter`: Array de tipos de disparadores a recibir (`api`, `webhook`, `schedule`, `manual`, `chat`)
-- `active`: Habilitar/deshabilitar la suscripción al webhook
 
-### Carga útil del webhook
+### Estructura de carga útil
 
-Cuando se completa la ejecución de un flujo de trabajo, Sim envía una solicitud POST a tu URL de webhook:
+Cuando se completa la ejecución de un flujo de trabajo, Sim envía la siguiente carga útil (vía webhook POST, correo electrónico o Slack):
 
 ```json
 {
@@ -325,9 +371,9 @@ Cuando se completa la ejecución de un flujo de trabajo, Sim envía una solicitu
 }
 ```
 
-### Cabeceras de webhook
+### Encabezados de webhook
 
-Cada solicitud de webhook incluye estas cabeceras:
+Cada solicitud de webhook incluye estos encabezados (solo canal webhook):
 
 - `sim-event`: Tipo de evento (siempre `workflow.execution.completed`)
 - `sim-timestamp`: Marca de tiempo Unix en milisegundos
@@ -416,15 +462,15 @@ Las entregas de webhook fallidas se reintentan con retroceso exponencial y fluct
 - Retrasos de reintento: 5 segundos, 15 segundos, 1 minuto, 3 minutos, 10 minutos
 - Fluctuación: Hasta un 10% de retraso adicional para prevenir el efecto de manada
 - Solo las respuestas HTTP 5xx y 429 activan reintentos
-- Las entregas agotan el tiempo de espera después de 30 segundos
+- Las entregas agotan el tiempo después de 30 segundos
 
 <Callout type="info">
-  Las entregas de webhook se procesan de forma asíncrona y no afectan al rendimiento de ejecución del flujo de trabajo.
+  Las entregas de webhook se procesan de forma asíncrona y no afectan el rendimiento de ejecución del flujo de trabajo.
 </Callout>
 
 ## Mejores prácticas
 
-1. **Estrategia de sondeo**: Al sondear registros, utiliza paginación basada en cursor con `order=asc` y `startDate` para obtener nuevos registros de manera eficiente.
+1. **Estrategia de sondeo**: Cuando consultes registros, utiliza paginación basada en cursores con `order=asc` y `startDate` para obtener nuevos registros de manera eficiente.
 
 2. **Seguridad de webhook**: Siempre configura un secreto de webhook y verifica las firmas para asegurar que las solicitudes provienen de Sim.
 
@@ -432,23 +478,23 @@ Las entregas de webhook fallidas se reintentan con retroceso exponencial y fluct
 
 4. **Privacidad**: Por defecto, `finalOutput` y `traceSpans` están excluidos de las respuestas. Habilítalos solo si necesitas los datos y comprendes las implicaciones de privacidad.
 
-5. **Limitación de tasa**: Implementa retroceso exponencial cuando recibas respuestas 429. Consulta la cabecera `Retry-After` para conocer el tiempo de espera recomendado.
+5. **Limitación de tasa**: Implementa retroceso exponencial cuando recibas respuestas 429. Verifica la cabecera `Retry-After` para conocer el tiempo de espera recomendado.
 
 ## Limitación de tasa
 
-La API implementa limitación de tasa para garantizar un uso justo:
+La API implementa limitación de tasa para asegurar un uso justo:
 
 - **Plan gratuito**: 10 solicitudes por minuto
 - **Plan Pro**: 30 solicitudes por minuto
 - **Plan Team**: 60 solicitudes por minuto
 - **Plan Enterprise**: Límites personalizados
 
-La información del límite de tasa se incluye en los encabezados de respuesta:
-- `X-RateLimit-Limit`: Máximo de solicitudes por ventana
+La información de límite de tasa se incluye en las cabeceras de respuesta:
+- `X-RateLimit-Limit`: Solicitudes máximas por ventana
 - `X-RateLimit-Remaining`: Solicitudes restantes en la ventana actual
-- `X-RateLimit-Reset`: Marca de tiempo ISO cuando se reinicia la ventana
+- `X-RateLimit-Reset`: Marca de tiempo ISO cuando la ventana se reinicia
 
-## Ejemplo: Sondeo para nuevos registros
+## Ejemplo: Sondeo de nuevos registros
 
 ```javascript
 let cursor = null;

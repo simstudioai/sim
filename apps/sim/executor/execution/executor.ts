@@ -121,6 +121,7 @@ export class DAGExecutor {
       blockStates: state.getBlockStates(),
       blockLogs: snapshotState?.blockLogs ?? [],
       metadata: {
+        ...this.contextExtensions.metadata,
         startTime: new Date().toISOString(),
         duration: 0,
         useDraftState: this.contextExtensions.isDeployedContext !== true,
