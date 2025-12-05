@@ -959,6 +959,9 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
     - Use forEach for collection processing, for loops for fixed iterations.
     - Cannot have loops/parallels inside a loop block.
     - For yaml it needs to connect blocks inside to the start field of the block.
+    - IMPORTANT for while/doWhile: The condition is evaluated BEFORE each iteration starts, so blocks INSIDE the loop cannot be referenced in the condition (their outputs don't exist yet when the condition runs).
+    - For while/doWhile conditions, use: <loop.index> for iteration count, workflow variables (set by blocks OUTSIDE the loop), or references to blocks OUTSIDE the loop.
+    - To break a while/doWhile loop based on internal block results, use a variables block OUTSIDE the loop and update it from inside, then reference that variable in the condition.
     `,
     inputs: {
       loopType: {
@@ -985,7 +988,8 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
       condition: {
         type: 'string',
         required: false,
-        description: "Condition to evaluate (for 'while' and 'doWhile' loopType)",
+        description:
+          "Condition to evaluate (for 'while' and 'doWhile' loopType). IMPORTANT: Cannot reference blocks INSIDE the loop - use <loop.index>, workflow variables, or blocks OUTSIDE the loop instead.",
         example: '<loop.index> < 10',
       },
       maxConcurrency: {
@@ -1038,7 +1042,9 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
         title: 'Condition',
         type: 'code',
         language: 'javascript',
-        placeholder: '<counter.value> < 10',
+        placeholder: '<loop.index> < 10 or <variable.variablename>',
+        description:
+          'Cannot reference blocks inside the loop. Use <loop.index>, workflow variables, or blocks outside the loop.',
         condition: { field: 'loopType', value: ['while', 'doWhile'] },
       },
       {
