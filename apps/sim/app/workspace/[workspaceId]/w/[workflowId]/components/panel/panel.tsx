@@ -9,11 +9,10 @@ import {
   Copy,
   Layout,
   Modal,
+  ModalBody,
   ModalContent,
-  ModalDescription,
   ModalFooter,
   ModalHeader,
-  ModalTitle,
   MoreHorizontal,
   Play,
   Popover,
@@ -532,28 +531,28 @@ export function Panel() {
 
       {/* Delete Confirmation Modal */}
       <Modal open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>Delete workflow?</ModalTitle>
-            <ModalDescription>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete Workflow</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               Deleting this workflow will permanently remove all associated blocks, executions, and
               configuration.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </ModalDescription>
-          </ModalHeader>
+            </p>
+          </ModalBody>
           <ModalFooter>
             <Button
-              className='h-[32px] px-[12px]'
-              variant='outline'
+              variant='active'
               onClick={() => setIsDeleteModalOpen(false)}
               disabled={isDeleting}
             >
               Cancel
             </Button>
             <Button
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
+              variant='primary'
               onClick={handleDeleteWorkflow}
               disabled={isDeleting}
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>

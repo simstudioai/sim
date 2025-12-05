@@ -496,19 +496,25 @@ export const webhook = pgTable(
   }
 )
 
-export const workflowLogWebhook = pgTable(
-  'workflow_log_webhook',
+export const notificationTypeEnum = pgEnum('notification_type', ['webhook', 'email', 'slack'])
+
+export const notificationDeliveryStatusEnum = pgEnum('notification_delivery_status', [
+  'pending',
+  'in_progress',
+  'success',
+  'failed',
+])
+
+export const workspaceNotificationSubscription = pgTable(
+  'workspace_notification_subscription',
   {
     id: text('id').primaryKey(),
-    workflowId: text('workflow_id')
+    workspaceId: text('workspace_id')
       .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
-    url: text('url').notNull(),
-    secret: text('secret'),
-    includeFinalOutput: boolean('include_final_output').notNull().default(false),
-    includeTraceSpans: boolean('include_trace_spans').notNull().default(false),
-    includeRateLimits: boolean('include_rate_limits').notNull().default(false),
-    includeUsageData: boolean('include_usage_data').notNull().default(false),
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    notificationType: notificationTypeEnum('notification_type').notNull(),
+    workflowIds: text('workflow_ids').array().notNull().default(sql`'{}'::text[]`),
+    allWorkflows: boolean('all_workflows').notNull().default(false),
     levelFilter: text('level_filter')
       .array()
       .notNull()
@@ -517,35 +523,46 @@ export const workflowLogWebhook = pgTable(
       .array()
       .notNull()
       .default(sql`ARRAY['api', 'webhook', 'schedule', 'manual', 'chat']::text[]`),
+    includeFinalOutput: boolean('include_final_output').notNull().default(false),
+    includeTraceSpans: boolean('include_trace_spans').notNull().default(false),
+    includeRateLimits: boolean('include_rate_limits').notNull().default(false),
+    includeUsageData: boolean('include_usage_data').notNull().default(false),
+
+    // Channel-specific configuration
+    webhookConfig: jsonb('webhook_config'),
+    emailRecipients: text('email_recipients').array(),
+    slackConfig: jsonb('slack_config'),
+
+    // Alert rule configuration (if null, sends on every execution)
+    alertConfig: jsonb('alert_config'),
+    lastAlertAt: timestamp('last_alert_at'),
+
     active: boolean('active').notNull().default(true),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    workflowIdIdx: index('workflow_log_webhook_workflow_id_idx').on(table.workflowId),
-    activeIdx: index('workflow_log_webhook_active_idx').on(table.active),
+    workspaceIdIdx: index('workspace_notification_workspace_id_idx').on(table.workspaceId),
+    activeIdx: index('workspace_notification_active_idx').on(table.active),
+    typeIdx: index('workspace_notification_type_idx').on(table.notificationType),
   })
 )
 
-export const webhookDeliveryStatusEnum = pgEnum('webhook_delivery_status', [
-  'pending',
-  'in_progress',
-  'success',
-  'failed',
-])
-
-export const workflowLogWebhookDelivery = pgTable(
-  'workflow_log_webhook_delivery',
+export const workspaceNotificationDelivery = pgTable(
+  'workspace_notification_delivery',
   {
     id: text('id').primaryKey(),
     subscriptionId: text('subscription_id')
       .notNull()
-      .references(() => workflowLogWebhook.id, { onDelete: 'cascade' }),
+      .references(() => workspaceNotificationSubscription.id, { onDelete: 'cascade' }),
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
     executionId: text('execution_id').notNull(),
-    status: webhookDeliveryStatusEnum('status').notNull().default('pending'),
+    status: notificationDeliveryStatusEnum('status').notNull().default('pending'),
     attempts: integer('attempts').notNull().default(0),
     lastAttemptAt: timestamp('last_attempt_at'),
     nextAttemptAt: timestamp('next_attempt_at'),
@@ -556,12 +573,14 @@ export const workflowLogWebhookDelivery = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    subscriptionIdIdx: index('workflow_log_webhook_delivery_subscription_id_idx').on(
+    subscriptionIdIdx: index('workspace_notification_delivery_subscription_id_idx').on(
       table.subscriptionId
     ),
-    executionIdIdx: index('workflow_log_webhook_delivery_execution_id_idx').on(table.executionId),
-    statusIdx: index('workflow_log_webhook_delivery_status_idx').on(table.status),
-    nextAttemptIdx: index('workflow_log_webhook_delivery_next_attempt_idx').on(table.nextAttemptAt),
+    executionIdIdx: index('workspace_notification_delivery_execution_id_idx').on(table.executionId),
+    statusIdx: index('workspace_notification_delivery_status_idx').on(table.status),
+    nextAttemptIdx: index('workspace_notification_delivery_next_attempt_idx').on(
+      table.nextAttemptAt
+    ),
   })
 )
 
@@ -573,17 +592,16 @@ export const apiKey = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }), // Only set for workspace keys
-    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }), // Who created the workspace key
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     key: text('key').notNull().unique(),
-    type: text('type').notNull().default('personal'), // 'personal' or 'workspace'
+    type: text('type').notNull().default('personal'),
     lastUsed: timestamp('last_used'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     expiresAt: timestamp('expires_at'),
   },
   (table) => ({
-    // Ensure workspace keys have a workspace_id and personal keys don't
     workspaceTypeCheck: check(
       'workspace_type_check',
       sql`(type = 'workspace' AND workspace_id IS NOT NULL) OR (type = 'personal' AND workspace_id IS NULL)`
