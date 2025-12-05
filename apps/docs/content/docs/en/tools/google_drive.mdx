@@ -113,8 +113,8 @@ List files and folders in Google Drive
 | --------- | ---- | -------- | ----------- |
 | `folderSelector` | string | No | Select the folder to list files from |
 | `folderId` | string | No | The ID of the folder to list files from \(internal use\) |
-| `query` | string | No | A query to filter the files |
-| `pageSize` | number | No | The number of files to return |
+| `query` | string | No | Search term to filter files by name \(e.g. "budget" finds files with "budget" in the name\). Do NOT use Google Drive query syntax here - just provide a plain search term. |
+| `pageSize` | number | No | The maximum number of files to return \(default: 100\) |
 | `pageToken` | string | No | The page token to use for pagination |
 
 #### Output
