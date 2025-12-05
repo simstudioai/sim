@@ -30,6 +30,7 @@ import {
   SalesforceIcon,
   ShopifyIcon,
   SlackIcon,
+  // SupabaseIcon,
   TrelloIcon,
   WealthboxIcon,
   WebflowIcon,
@@ -1539,6 +1540,7 @@ export async function refreshOAuthToken(
     // Get the provider from the providerId (e.g., 'google-drive' -> 'google')
     const provider = providerId.split('-')[0]
 
+    // Get provider configuration
     const config = getProviderAuthConfig(provider)
 
     // Build authentication request
