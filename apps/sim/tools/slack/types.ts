@@ -49,6 +49,26 @@ export interface SlackAddReactionParams extends SlackBaseParams {
   name: string
 }
 
+export interface SlackListChannelsParams extends SlackBaseParams {
+  includePrivate?: boolean
+  excludeArchived?: boolean
+  limit?: number
+}
+
+export interface SlackListMembersParams extends SlackBaseParams {
+  channel: string
+  limit?: number
+}
+
+export interface SlackListUsersParams extends SlackBaseParams {
+  includeDeleted?: boolean
+  limit?: number
+}
+
+export interface SlackGetUserParams extends SlackBaseParams {
+  userId: string
+}
+
 export interface SlackMessageResponse extends ToolResponse {
   output: {
     // Legacy properties for backward compatibility
@@ -207,6 +227,78 @@ export interface SlackAddReactionResponse extends ToolResponse {
   }
 }
 
+export interface SlackChannel {
+  id: string
+  name: string
+  is_private: boolean
+  is_archived: boolean
+  is_member: boolean
+  num_members?: number
+  topic?: string
+  purpose?: string
+  created?: number
+  creator?: string
+}
+
+export interface SlackListChannelsResponse extends ToolResponse {
+  output: {
+    channels: SlackChannel[]
+    count: number
+  }
+}
+
+export interface SlackListMembersResponse extends ToolResponse {
+  output: {
+    members: string[]
+    count: number
+  }
+}
+
+export interface SlackUser {
+  id: string
+  name: string
+  real_name: string
+  display_name: string
+  first_name?: string
+  last_name?: string
+  title?: string
+  phone?: string
+  skype?: string
+  is_bot: boolean
+  is_admin: boolean
+  is_owner: boolean
+  is_primary_owner?: boolean
+  is_restricted?: boolean
+  is_ultra_restricted?: boolean
+  deleted: boolean
+  timezone?: string
+  timezone_label?: string
+  timezone_offset?: number
+  avatar?: string
+  avatar_24?: string
+  avatar_48?: string
+  avatar_72?: string
+  avatar_192?: string
+  avatar_512?: string
+  status_text?: string
+  status_emoji?: string
+  status_expiration?: number
+  updated?: number
+}
+
+export interface SlackListUsersResponse extends ToolResponse {
+  output: {
+    users: SlackUser[]
+    count: number
+  }
+}
+
+export interface SlackGetUserResponse extends ToolResponse {
+  output: {
+    user: SlackUser
+  }
+}
+
 export type SlackResponse =
   | SlackCanvasResponse
   | SlackMessageReaderResponse
@@ -215,3 +307,7 @@ export type SlackResponse =
   | SlackUpdateMessageResponse
   | SlackDeleteMessageResponse
   | SlackAddReactionResponse
+  | SlackListChannelsResponse
+  | SlackListMembersResponse
+  | SlackListUsersResponse
+  | SlackGetUserResponse
