@@ -11,6 +11,7 @@ import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
 import { getEnv } from '@/lib/core/config/env'
 import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/store'
 import type { CopilotToolCall } from '@/stores/panel/copilot/types'
+import { MermaidDiagram } from '../mermaid-diagram/mermaid-diagram'
 
 interface ToolCallProps {
   toolCall?: CopilotToolCall
@@ -100,6 +101,10 @@ const ACTION_VERBS = [
   'Create',
   'Creating',
   'Created',
+  'Generating',
+  'Generated',
+  'Rendering',
+  'Rendered',
 ] as const
 
 /**
@@ -932,6 +937,35 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         {code && (
           <div className='mt-2'>
             <Code.Viewer code={code} language='javascript' showGutter />
+          </div>
+        )}
+        {showButtons && (
+          <RunSkipButtons
+            toolCall={toolCall}
+            onStateChange={handleStateChange}
+            editedParams={editedParams}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Special rendering for generate_diagram - show mermaid diagram
+  if (toolCall.name === 'generate_diagram') {
+    const diagramText = params.diagramText || ''
+    const language = params.language || 'mermaid'
+
+    return (
+      <div className='w-full'>
+        <ShimmerOverlayText
+          text={displayName}
+          active={isLoadingState}
+          isSpecial={false}
+          className='font-[470] font-season text-[#939393] text-sm dark:text-[#939393]'
+        />
+        {diagramText && language === 'mermaid' && (
+          <div className='mt-2'>
+            <MermaidDiagram diagramText={diagramText} />
           </div>
         )}
         {showButtons && (

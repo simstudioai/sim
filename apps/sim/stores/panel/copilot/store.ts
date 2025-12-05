@@ -34,6 +34,7 @@ import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/rememb
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
+import { GenerateDiagramClientTool } from '@/lib/copilot/tools/client/other/generate-diagram'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
@@ -106,6 +107,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   deploy_workflow: (id) => new DeployWorkflowClientTool(id),
   check_deployment_status: (id) => new CheckDeploymentStatusClientTool(id),
   navigate_ui: (id) => new NavigateUIClientTool(id),
+  generate_diagram: (id) => new GenerateDiagramClientTool(id),
 }
 
 // Read-only static metadata for class-based tools (no instances)
@@ -144,6 +146,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   deploy_workflow: (DeployWorkflowClientTool as any)?.metadata,
   check_deployment_status: (CheckDeploymentStatusClientTool as any)?.metadata,
   navigate_ui: (NavigateUIClientTool as any)?.metadata,
+  generate_diagram: (GenerateDiagramClientTool as any)?.metadata,
 }
 
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {
