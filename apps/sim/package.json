@@ -8,11 +8,11 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "next dev --turbo --port 3000",
-    "dev:classic": "next dev",
+    "dev": "next dev --port 3000",
+    "dev:webpack": "next dev --webpack",
     "dev:sockets": "bun run socket-server/index.ts",
     "dev:full": "concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"bun run dev\" \"bun run dev:sockets\"",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "next start",
     "prepare": "cd ../.. && bun husky",
     "test": "vitest run",
@@ -98,7 +98,7 @@
     "mammoth": "^1.9.0",
     "mysql2": "3.14.3",
     "nanoid": "^3.3.7",
-    "next": "15.4.8",
+    "next": "16.0.7",
     "next-mdx-remote": "^5.0.0",
     "next-runtime-env": "3.3.0",
     "next-themes": "^0.4.6",
@@ -108,9 +108,9 @@
     "posthog-js": "1.268.9",
     "posthog-node": "5.9.2",
     "prismjs": "^1.30.0",
-    "react": "19.1.0",
+    "react": "19.2.1",
     "react-colorful": "5.6.1",
-    "react-dom": "19.1.0",
+    "react-dom": "19.2.1",
     "react-google-drive-picker": "^1.2.2",
     "react-hook-form": "^7.54.2",
     "react-markdown": "^10.1.0",
@@ -166,8 +166,8 @@
     "sharp"
   ],
   "overrides": {
-    "next": "15.4.8",
-    "@next/env": "15.4.8",
+    "next": "16.0.7",
+    "@next/env": "16.0.7",
     "drizzle-orm": "^0.44.5",
     "postgres": "^3.4.5"
   }

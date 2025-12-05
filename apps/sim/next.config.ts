@@ -68,17 +68,22 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: isTruthy(env.DOCKER_BUILD),
   },
-  eslint: {
-    ignoreDuringBuilds: isTruthy(env.DOCKER_BUILD),
-  },
   output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
   turbopack: {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },
-  serverExternalPackages: ['unpdf', 'ffmpeg-static', 'fluent-ffmpeg'],
+  serverExternalPackages: [
+    'unpdf',
+    'ffmpeg-static',
+    'fluent-ffmpeg',
+    'pino',
+    'pino-pretty',
+    'thread-stream',
+  ],
   experimental: {
     optimizeCss: true,
     turbopackSourceMaps: false,
+    turbopackFileSystemCacheForDev: true,
   },
   ...(isDev && {
     allowedDevOrigins: [

@@ -4,7 +4,7 @@ import { isHosted } from './lib/core/config/environment'
 import { generateRuntimeCSP } from './lib/core/security/csp'
 import { createLogger } from './lib/logs/console/logger'
 
-const logger = createLogger('Middleware')
+const logger = createLogger('Proxy')
 
 const SUSPICIOUS_UA_PATTERNS = [
   /^\s*$/, // Empty user agents
@@ -131,7 +131,7 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   return null
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const url = request.nextUrl
 
   const sessionCookie = getSessionCookie(request)
