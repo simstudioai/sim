@@ -251,32 +251,78 @@ Rufen Sie Ausführungsdetails einschließlich des Workflow-Zustandsschnappschuss
   </Tab>
 </Tabs>
 
-## Webhook-Abonnements
+## Benachrichtigungen
 
-Erhalten Sie Echtzeitbenachrichtigungen, wenn Workflow-Ausführungen abgeschlossen werden. Webhooks werden über die Sim-Benutzeroberfläche im Workflow-Editor konfiguriert.
+Erhalten Sie Echtzeit-Benachrichtigungen, wenn Workflow-Ausführungen abgeschlossen sind, per Webhook, E-Mail oder Slack. Benachrichtigungen werden auf Workspace-Ebene von der Protokollseite aus konfiguriert.
 
 ### Konfiguration
 
-Webhooks können für jeden Workflow über die Benutzeroberfläche des Workflow-Editors konfiguriert werden. Klicken Sie auf das Webhook-Symbol in der Kontrollleiste, um Ihre Webhook-Abonnements einzurichten.
+Konfigurieren Sie Benachrichtigungen von der Protokollseite aus, indem Sie auf die Menütaste klicken und "Benachrichtigungen konfigurieren" auswählen.
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="configure-webhook.mp4" width={700} height={450} />
-</div>
+**Benachrichtigungskanäle:**
+- **Webhook**: Senden Sie HTTP POST-Anfragen an Ihren Endpunkt
+- **E-Mail**: Erhalten Sie E-Mail-Benachrichtigungen mit Ausführungsdetails
+- **Slack**: Posten Sie Nachrichten in einen Slack-Kanal
 
-**Verfügbare Konfigurationsoptionen:**
+**Workflow-Auswahl:**
+- Wählen Sie bestimmte Workflows zur Überwachung aus
+- Oder wählen Sie "Alle Workflows", um aktuelle und zukünftige Workflows einzubeziehen
+
+**Filteroptionen:**
+- `levelFilter`: Zu empfangende Protokollebenen (`info`, `error`)
+- `triggerFilter`: Zu empfangende Auslösertypen (`api`, `webhook`, `schedule`, `manual`, `chat`)
+
+**Optionale Daten:**
+- `includeFinalOutput`: Schließt die endgültige Ausgabe des Workflows ein
+- `includeTraceSpans`: Schließt detaillierte Ausführungs-Trace-Spans ein
+- `includeRateLimits`: Schließt Informationen zum Ratenlimit ein (Sync/Async-Limits und verbleibende)
+- `includeUsageData`: Schließt Abrechnungszeitraum-Nutzung und -Limits ein
+
+### Alarmregeln
+
+Anstatt Benachrichtigungen für jede Ausführung zu erhalten, konfigurieren Sie Alarmregeln, um nur bei erkannten Problemen benachrichtigt zu werden:
+
+**Aufeinanderfolgende Fehler**
+- Alarm nach X aufeinanderfolgenden fehlgeschlagenen Ausführungen (z.B. 3 Fehler in Folge)
+- Wird zurückgesetzt, wenn eine Ausführung erfolgreich ist
+
+**Fehlerrate**
+- Alarm, wenn die Fehlerrate X% in den letzten Y Stunden überschreitet
+- Erfordert mindestens 5 Ausführungen im Zeitfenster
+- Wird erst nach Ablauf des vollständigen Zeitfensters ausgelöst
+
+**Latenz-Schwellenwert**
+- Alarm, wenn eine Ausführung länger als X Sekunden dauert
+- Nützlich zum Erkennen langsamer oder hängender Workflows
+
+**Latenz-Spitze**
+- Alarm, wenn die Ausführung X% langsamer als der Durchschnitt ist
+- Vergleicht mit der durchschnittlichen Dauer über das konfigurierte Zeitfenster
+- Erfordert mindestens 5 Ausführungen, um eine Baseline zu etablieren
+
+**Kostenschwelle**
+- Alarmierung, wenn eine einzelne Ausführung mehr als $X kostet
+- Nützlich, um teure LLM-Aufrufe zu erkennen
+
+**Keine Aktivität**
+- Alarmierung, wenn innerhalb von X Stunden keine Ausführungen stattfinden
+- Nützlich zur Überwachung geplanter Workflows, die regelmäßig ausgeführt werden sollten
+
+**Fehlerzählung**
+- Alarmierung, wenn die Fehleranzahl X innerhalb eines Zeitfensters überschreitet
+- Erfasst die Gesamtfehler, nicht aufeinanderfolgende
+
+Alle Alarmtypen beinhalten eine Abklingzeit von 1 Stunde, um Benachrichtigungsspam zu vermeiden.
+
+### Webhook-Konfiguration
+
+Für Webhooks stehen zusätzliche Optionen zur Verfügung:
 - `url`: Ihre Webhook-Endpunkt-URL
-- `secret`: Optionales Geheimnis für die HMAC-Signaturverifizierung
-- `includeFinalOutput`: Die endgültige Ausgabe des Workflows in die Nutzlast einschließen
-- `includeTraceSpans`: Detaillierte Ausführungs-Trace-Spans einschließen
-- `includeRateLimits`: Informationen zum Ratelimit des Workflow-Besitzers einschließen
-- `includeUsageData`: Nutzungs- und Abrechnungsdaten des Workflow-Besitzers einschließen
-- `levelFilter`: Array von Log-Ebenen, die empfangen werden sollen (`info`, `error`)
-- `triggerFilter`: Array von Auslösertypen, die empfangen werden sollen (`api`, `webhook`, `schedule`, `manual`, `chat`)
-- `active`: Webhook-Abonnement aktivieren/deaktivieren
+- `secret`: Optionales Geheimnis für HMAC-Signaturverifizierung
 
-### Webhook-Nutzlast
+### Payload-Struktur
 
-Wenn eine Workflow-Ausführung abgeschlossen ist, sendet Sim eine POST-Anfrage an Ihre Webhook-URL:
+Wenn eine Workflow-Ausführung abgeschlossen ist, sendet Sim die folgende Payload (über Webhook POST, E-Mail oder Slack):
 
 ```json
 {
@@ -327,17 +373,17 @@ Wenn eine Workflow-Ausführung abgeschlossen ist, sendet Sim eine POST-Anfrage a
 
 ### Webhook-Header
 
-Jede Webhook-Anfrage enthält diese Header:
+Jede Webhook-Anfrage enthält diese Header (nur Webhook-Kanal):
 
 - `sim-event`: Ereignistyp (immer `workflow.execution.completed`)
 - `sim-timestamp`: Unix-Zeitstempel in Millisekunden
-- `sim-delivery-id`: Eindeutige Lieferungs-ID für Idempotenz
-- `sim-signature`: HMAC-SHA256-Signatur zur Verifizierung (falls Secret konfiguriert)
-- `Idempotency-Key`: Identisch mit der Lieferungs-ID zur Erkennung von Duplikaten
+- `sim-delivery-id`: Eindeutige Zustell-ID für Idempotenz
+- `sim-signature`: HMAC-SHA256-Signatur zur Verifizierung (falls Geheimnis konfiguriert)
+- `Idempotency-Key`: Gleich wie Zustell-ID zur Erkennung von Duplikaten
 
 ### Signaturverifizierung
 
-Wenn Sie ein Webhook-Secret konfigurieren, überprüfen Sie die Signatur, um sicherzustellen, dass der Webhook von Sim stammt:
+Wenn Sie ein Webhook-Geheimnis konfigurieren, überprüfen Sie die Signatur, um sicherzustellen, dass der Webhook von Sim stammt:
 
 <Tabs items={['Node.js', 'Python']}>
   <Tab value="Node.js">
@@ -414,7 +460,7 @@ Fehlgeschlagene Webhook-Zustellungen werden mit exponentiellem Backoff und Jitte
 
 - Maximale Versuche: 5
 - Wiederholungsverzögerungen: 5 Sekunden, 15 Sekunden, 1 Minute, 3 Minuten, 10 Minuten
-- Jitter: Bis zu 10% zusätzliche Verzögerung, um Überlastungen zu vermeiden
+- Jitter: Bis zu 10% zusätzliche Verzögerung, um Überlastung zu vermeiden
 - Nur HTTP 5xx und 429 Antworten lösen Wiederholungen aus
 - Zustellungen haben ein Timeout nach 30 Sekunden
 
@@ -424,15 +470,15 @@ Fehlgeschlagene Webhook-Zustellungen werden mit exponentiellem Backoff und Jitte
 
 ## Best Practices
 
-1. **Polling-Strategie**: Verwenden Sie beim Abfragen von Logs die cursorbasierte Paginierung mit `order=asc` und `startDate`, um neue Logs effizient abzurufen.
+1. **Polling-Strategie**: Verwende bei der Abfrage von Logs eine cursor-basierte Paginierung mit `order=asc` und `startDate`, um neue Logs effizient abzurufen.
 
-2. **Webhook-Sicherheit**: Konfigurieren Sie immer ein Webhook-Secret und überprüfen Sie Signaturen, um sicherzustellen, dass Anfragen von Sim stammen.
+2. **Webhook-Sicherheit**: Konfiguriere immer ein Webhook-Secret und überprüfe Signaturen, um sicherzustellen, dass Anfragen von Sim stammen.
 
-3. **Idempotenz**: Verwenden Sie den `Idempotency-Key`Header, um doppelte Webhook-Zustellungen zu erkennen und zu behandeln.
+3. **Idempotenz**: Verwende den `Idempotency-Key`Header, um doppelte Webhook-Zustellungen zu erkennen und zu behandeln.
 
-4. **Datenschutz**: Standardmäßig werden `finalOutput` und `traceSpans` von den Antworten ausgeschlossen. Aktivieren Sie diese nur, wenn Sie die Daten benötigen und die Datenschutzauswirkungen verstehen.
+4. **Datenschutz**: Standardmäßig werden `finalOutput` und `traceSpans` aus den Antworten ausgeschlossen. Aktiviere diese nur, wenn du die Daten benötigst und die Datenschutzauswirkungen verstehst.
 
-5. **Rate-Limiting**: Implementieren Sie exponentielles Backoff, wenn Sie 429-Antworten erhalten. Überprüfen Sie den `Retry-After`Header für die empfohlene Wartezeit.
+5. **Rate-Limiting**: Implementiere exponentielles Backoff, wenn du 429-Antworten erhältst. Überprüfe den `Retry-After`Header für die empfohlene Wartezeit.
 
 ## Rate-Limiting
 
@@ -443,7 +489,7 @@ Die API implementiert Rate-Limiting, um eine faire Nutzung zu gewährleisten:
 - **Team-Plan**: 60 Anfragen pro Minute
 - **Enterprise-Plan**: Individuelle Limits
 
-Informationen zum Rate-Limit sind in den Antwort-Headern enthalten:
+Rate-Limit-Informationen sind in den Antwort-Headern enthalten:
 - `X-RateLimit-Limit`: Maximale Anfragen pro Zeitfenster
 - `X-RateLimit-Remaining`: Verbleibende Anfragen im aktuellen Zeitfenster
 - `X-RateLimit-Reset`: ISO-Zeitstempel, wann das Zeitfenster zurückgesetzt wird
@@ -495,7 +541,7 @@ async function pollLogs() {
 setInterval(pollLogs, 30000);
 ```
 
-## Beispiel: Verarbeitung von Webhooks
+## Beispiel: Verarbeiten von Webhooks
 
 ```javascript
 import express from 'express';
