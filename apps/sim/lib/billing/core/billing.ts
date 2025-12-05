@@ -4,11 +4,10 @@ import { and, eq } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
-import {
-  getFreeTierLimit,
-  getProTierLimit,
-  getTeamTierLimitPerSeat,
-} from '@/lib/billing/subscriptions/utils'
+import { getFreeTierLimit, getPlanPricing } from '@/lib/billing/subscriptions/utils'
+
+export { getPlanPricing }
+
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('Billing')
@@ -38,24 +37,6 @@ export async function getOrganizationSubscription(organizationId: string) {
  * 3. User uses $35 during the month → Gets charged $15 overage at month end
  * 4. Usage resets, next month they pay $20 again + any overages
  */
-
-/**
- * Get plan pricing information
- */
-export function getPlanPricing(plan: string): {
-  basePrice: number // What they pay upfront via Stripe subscription
-} {
-  switch (plan) {
-    case 'free':
-      return { basePrice: 0 } // Free plan has no charges
-    case 'pro':
-      return { basePrice: getProTierLimit() }
-    case 'team':
-      return { basePrice: getTeamTierLimitPerSeat() } // Per-seat pricing
-    default:
-      return { basePrice: 0 }
-  }
-}
 
 /**
  * Calculate overage billing for a user

@@ -7,10 +7,8 @@ import {
   Modal,
   ModalClose,
   ModalContent,
-  ModalDescription,
   ModalFooter,
   ModalHeader,
-  ModalTitle,
   ModalTrigger,
 } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -115,12 +113,12 @@ export function CreditBalance({
             <Button variant='outline'>Add Credits</Button>
           </ModalTrigger>
           <ModalContent>
-            <ModalHeader>
-              <ModalTitle>Add Credits</ModalTitle>
-              <ModalDescription>
+            <ModalHeader>Add Credits</ModalHeader>
+            <div className='px-4'>
+              <p className='text-[13px] text-[var(--text-secondary)]'>
                 Credits are used before overage charges. Min $10, max $1,000.
-              </ModalDescription>
-            </ModalHeader>
+              </p>
+            </div>
 
             {success ? (
               <div className='py-4 text-center'>
