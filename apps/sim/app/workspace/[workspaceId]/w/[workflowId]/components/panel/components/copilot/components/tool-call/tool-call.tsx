@@ -2,13 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import useDrivePicker from 'react-google-drive-picker'
 import { Button, Code } from '@/components/emcn'
-import { GoogleDriveIcon } from '@/components/icons'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
-import { getEnv } from '@/lib/core/config/env'
 import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/store'
 import type { CopilotToolCall } from '@/stores/panel/copilot/types'
 
@@ -350,7 +347,6 @@ function RunSkipButtons({
   const [isProcessing, setIsProcessing] = useState(false)
   const [buttonsHidden, setButtonsHidden] = useState(false)
   const { setToolCallState } = useCopilotStore()
-  const [openPicker] = useDrivePicker()
 
   const instance = getClientTool(toolCall.id)
   const interruptDisplays = instance?.getInterruptDisplays?.()
@@ -367,106 +363,7 @@ function RunSkipButtons({
     }
   }
 
-  // const handleOpenDriveAccess = async () => {
-  //   try {
-  //     const providerId = 'google-drive'
-  //     const credsRes = await fetch(`/api/auth/oauth/credentials?provider=${providerId}`)
-  //     if (!credsRes.ok) return
-  //     const credsData = await credsRes.json()
-  //     const creds = Array.isArray(credsData.credentials) ? credsData.credentials : []
-  //     if (creds.length === 0) return
-  //     const defaultCred = creds.find((c: any) => c.isDefault) || creds[0]
-
-  //     const tokenRes = await fetch('/api/auth/oauth/token', {
-  //       method: 'POST',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify({ credentialId: defaultCred.id }),
-  //     })
-  //     if (!tokenRes.ok) return
-  //     const { accessToken } = await tokenRes.json()
-  //     if (!accessToken) return
-
-  //     const clientId = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID') || ''
-  //     const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_API_KEY') || ''
-  //     const projectNumber = getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER') || ''
-
-  //     openPicker({
-  //       clientId,
-  //       developerKey: apiKey,
-  //       viewId: 'DOCS',
-  //       token: accessToken,
-  //       showUploadView: true,
-  //       showUploadFolders: true,
-  //       supportDrives: true,
-  //       multiselect: false,
-  //       appId: projectNumber,
-  //       setSelectFolderEnabled: false,
-  //       callbackFunction: async (data) => {
-  //         if (data.action === 'picked') {
-  //           await onRun()
-  //         }
-  //       },
-  //     })
-  //   } catch {}
-  // }
-
   if (buttonsHidden) return null
-
-  if (toolCall.name === 'gdrive_request_access' && toolCall.state === 'pending') {
-    return (
-      <div className='mt-[10px] flex gap-[6px]'>
-        <Button
-          onClick={async () => {
-            const instance = getClientTool(toolCall.id)
-            if (!instance) return
-            await instance.handleAccept?.({
-              openDrivePicker: async (accessToken: string) => {
-                try {
-                  const clientId = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID') || ''
-                  const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_API_KEY') || ''
-                  const projectNumber = getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER') || ''
-                  return await new Promise<boolean>((resolve) => {
-                    openPicker({
-                      clientId,
-                      developerKey: apiKey,
-                      viewId: 'DOCS',
-                      token: accessToken,
-                      showUploadView: true,
-                      showUploadFolders: true,
-                      supportDrives: true,
-                      multiselect: false,
-                      appId: projectNumber,
-                      setSelectFolderEnabled: false,
-                      callbackFunction: async (data) => {
-                        if (data.action === 'picked') resolve(true)
-                        else if (data.action === 'cancel') resolve(false)
-                      },
-                    })
-                  })
-                } catch {
-                  return false
-                }
-              },
-            })
-          }}
-          variant='primary'
-          title='Grant Google Drive access'
-        >
-          <GoogleDriveIcon className='mr-0.5 h-4 w-4' />
-          Select
-        </Button>
-        <Button
-          onClick={async () => {
-            setButtonsHidden(true)
-            await handleSkip(toolCall, setToolCallState, onStateChange)
-          }}
-          variant='default'
-        >
-          Skip
-        </Button>
-      </div>
-    )
-  }
 
   return (
     <div className='mt-[12px] flex gap-[6px]'>

@@ -15,9 +15,6 @@ import { GetExamplesRagClientTool } from '@/lib/copilot/tools/client/examples/ge
 import { GetOperationsExamplesClientTool } from '@/lib/copilot/tools/client/examples/get-operations-examples'
 import { GetTriggerExamplesClientTool } from '@/lib/copilot/tools/client/examples/get-trigger-examples'
 import { SummarizeClientTool } from '@/lib/copilot/tools/client/examples/summarize'
-import { ListGDriveFilesClientTool } from '@/lib/copilot/tools/client/gdrive/list-files'
-import { ReadGDriveFileClientTool } from '@/lib/copilot/tools/client/gdrive/read-file'
-import { GDriveRequestAccessClientTool } from '@/lib/copilot/tools/client/google/gdrive-request-access'
 import { KnowledgeBaseClientTool } from '@/lib/copilot/tools/client/knowledge/knowledge-base'
 import {
   getClientTool,
@@ -83,15 +80,12 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   search_errors: (id) => new SearchErrorsClientTool(id),
   remember_debug: (id) => new RememberDebugClientTool(id),
   set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
-  list_gdrive_files: (id) => new ListGDriveFilesClientTool(id),
-  read_gdrive_file: (id) => new ReadGDriveFileClientTool(id),
   get_credentials: (id) => new GetCredentialsClientTool(id),
   knowledge_base: (id) => new KnowledgeBaseClientTool(id),
   make_api_request: (id) => new MakeApiRequestClientTool(id),
   plan: (id) => new PlanClientTool(id),
   checkoff_todo: (id) => new CheckoffTodoClientTool(id),
   mark_todo_in_progress: (id) => new MarkTodoInProgressClientTool(id),
-  gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
   oauth_request_access: (id) => new OAuthRequestAccessClientTool(id),
   edit_workflow: (id) => new EditWorkflowClientTool(id),
   get_user_workflow: (id) => new GetUserWorkflowClientTool(id),
@@ -121,15 +115,12 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   search_errors: (SearchErrorsClientTool as any)?.metadata,
   remember_debug: (RememberDebugClientTool as any)?.metadata,
   set_environment_variables: (SetEnvironmentVariablesClientTool as any)?.metadata,
-  list_gdrive_files: (ListGDriveFilesClientTool as any)?.metadata,
-  read_gdrive_file: (ReadGDriveFileClientTool as any)?.metadata,
   get_credentials: (GetCredentialsClientTool as any)?.metadata,
   knowledge_base: (KnowledgeBaseClientTool as any)?.metadata,
   make_api_request: (MakeApiRequestClientTool as any)?.metadata,
   plan: (PlanClientTool as any)?.metadata,
   checkoff_todo: (CheckoffTodoClientTool as any)?.metadata,
   mark_todo_in_progress: (MarkTodoInProgressClientTool as any)?.metadata,
-  gdrive_request_access: (GDriveRequestAccessClientTool as any)?.metadata,
   edit_workflow: (EditWorkflowClientTool as any)?.metadata,
   get_user_workflow: (GetUserWorkflowClientTool as any)?.metadata,
   list_user_workflows: (ListUserWorkflowsClientTool as any)?.metadata,

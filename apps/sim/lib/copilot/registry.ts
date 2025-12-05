@@ -20,9 +20,6 @@ export const ToolIds = z.enum([
   'make_api_request',
   'set_environment_variables',
   'get_credentials',
-  'gdrive_request_access',
-  'list_gdrive_files',
-  'read_gdrive_file',
   'reason',
   'list_user_workflows',
   'get_workflow_from_name',
@@ -183,19 +180,6 @@ export const ToolArgSchemas = {
 
   get_credentials: z.object({}),
 
-  gdrive_request_access: z.object({}),
-
-  list_gdrive_files: z.object({
-    search_query: z.string().optional(),
-    num_results: z.number().optional().default(50),
-  }),
-
-  read_gdrive_file: z.object({
-    fileId: z.string(),
-    type: z.enum(['doc', 'sheet']),
-    range: z.string().optional(),
-  }),
-
   reason: z.object({
     reasoning: z.string(),
   }),
@@ -258,12 +242,6 @@ export const ToolSSESchemas = {
     ToolArgSchemas.set_environment_variables
   ),
   get_credentials: toolCallSSEFor('get_credentials', ToolArgSchemas.get_credentials),
-  gdrive_request_access: toolCallSSEFor(
-    'gdrive_request_access',
-    ToolArgSchemas.gdrive_request_access as any
-  ),
-  list_gdrive_files: toolCallSSEFor('list_gdrive_files', ToolArgSchemas.list_gdrive_files),
-  read_gdrive_file: toolCallSSEFor('read_gdrive_file', ToolArgSchemas.read_gdrive_file),
   reason: toolCallSSEFor('reason', ToolArgSchemas.reason),
   // New
   oauth_request_access: toolCallSSEFor('oauth_request_access', ToolArgSchemas.oauth_request_access),
@@ -431,21 +409,6 @@ export const ToolResultSchemas = {
       count: z.number(),
     }),
   }),
-  gdrive_request_access: z.object({
-    granted: z.boolean().optional(),
-    message: z.string().optional(),
-  }),
-  list_gdrive_files: z.object({
-    files: z.array(
-      z.object({
-        id: z.string(),
-        name: z.string().optional(),
-        mimeType: z.string().optional(),
-        size: z.number().optional(),
-      })
-    ),
-  }),
-  read_gdrive_file: z.object({ content: z.string().optional(), data: z.any().optional() }),
   reason: z.object({ reasoning: z.string() }),
   deploy_workflow: z.object({
     action: z.enum(['deploy', 'undeploy']).optional(),
