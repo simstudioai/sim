@@ -50,16 +50,7 @@ const CONSTANTS = {
   INITIAL_TEAM_SEATS: 1,
 } as const
 
-const STYLES = {
-  GRADIENT_BADGE:
-    'gradient-text h-[1.125rem] rounded-[6px] border-gradient-primary/20 bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary px-2 py-0 font-medium text-xs cursor-pointer',
-} as const
-
 type TargetPlan = 'pro' | 'team'
-
-interface SubscriptionProps {
-  onOpenChange: (open: boolean) => void
-}
 
 /**
  * Skeleton component for subscription loading state.
@@ -160,7 +151,7 @@ const formatPlanName = (plan: string): string => plan.charAt(0).toUpperCase() + 
  * Subscription management component
  * Handles plan display, upgrades, and billing management
  */
-export function Subscription({ onOpenChange }: SubscriptionProps) {
+export function Subscription() {
   const { data: session } = useSession()
   const { handleUpgrade } = useSubscriptionUpgrade()
   const params = useParams()
