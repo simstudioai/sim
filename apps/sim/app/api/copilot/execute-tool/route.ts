@@ -30,10 +30,7 @@ const ExecuteToolSchema = z.object({
  * Resolves all {{ENV_VAR}} references in a value recursively
  * Works with strings, arrays, and objects
  */
-function resolveEnvVarReferences(
-  value: any,
-  envVars: Record<string, string>
-): any {
+function resolveEnvVarReferences(value: any, envVars: Record<string, string>): any {
   if (typeof value === 'string') {
     // Check for exact match: entire string is "{{VAR_NAME}}"
     const exactMatch = /^\{\{([^}]+)\}\}$/.exec(value)
@@ -279,20 +276,20 @@ export async function POST(req: NextRequest) {
 
     if (needsApiKey && !executionParams.apiKey) {
       // API key not provided or not resolved from env var reference - try tool prefix convention
-          const apiKeyParams = mapEnvVarsToToolParams(toolName, toolConfig, decryptedEnvVars)
+      const apiKeyParams = mapEnvVarsToToolParams(toolName, toolConfig, decryptedEnvVars)
 
-          if (apiKeyParams.apiKey) {
-            executionParams.apiKey = apiKeyParams.apiKey
-            logger.info(`[${tracker.requestId}] API key resolved from tool prefix`, { toolName })
-          } else {
-            logger.warn(`[${tracker.requestId}] No API key found for tool`, { toolName })
-            return NextResponse.json(
-              {
-                success: false,
-                error: `API key not configured for ${toolName}. Please add the required API key in settings.`,
-                toolCallId,
-              },
-              { status: 400 }
+      if (apiKeyParams.apiKey) {
+        executionParams.apiKey = apiKeyParams.apiKey
+        logger.info(`[${tracker.requestId}] API key resolved from tool prefix`, { toolName })
+      } else {
+        logger.warn(`[${tracker.requestId}] No API key found for tool`, { toolName })
+        return NextResponse.json(
+          {
+            success: false,
+            error: `API key not configured for ${toolName}. Please add the required API key in settings.`,
+            toolCallId,
+          },
+          { status: 400 }
         )
       }
     }
@@ -305,16 +302,16 @@ export async function POST(req: NextRequest) {
 
     // Special handling for function_execute - inject environment variables
     if (toolName === 'function_execute') {
-        executionParams.envVars = decryptedEnvVars
-        executionParams.workflowVariables = {} // No workflow variables in copilot context
-        executionParams.blockData = {} // No block data in copilot context
-        executionParams.blockNameMapping = {} // No block mapping in copilot context
-        executionParams.language = executionParams.language || 'javascript'
-        executionParams.timeout = executionParams.timeout || 30000
+      executionParams.envVars = decryptedEnvVars
+      executionParams.workflowVariables = {} // No workflow variables in copilot context
+      executionParams.blockData = {} // No block data in copilot context
+      executionParams.blockNameMapping = {} // No block mapping in copilot context
+      executionParams.language = executionParams.language || 'javascript'
+      executionParams.timeout = executionParams.timeout || 30000
 
-        logger.info(`[${tracker.requestId}] Injected env vars for function_execute`, {
-          envVarCount: Object.keys(decryptedEnvVars).length,
-        })
+      logger.info(`[${tracker.requestId}] Injected env vars for function_execute`, {
+        envVarCount: Object.keys(decryptedEnvVars).length,
+      })
     }
 
     // Execute the tool

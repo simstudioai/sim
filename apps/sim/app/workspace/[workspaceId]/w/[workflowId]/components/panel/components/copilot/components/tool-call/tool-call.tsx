@@ -931,7 +931,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         {code && (
           <div className='mt-[8px] overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1A1A1A]'>
             <div className='flex items-center justify-between border-[var(--border-strong)] border-b bg-[#242424] px-[10px] py-[4px]'>
-              <span className='font-mono text-[11px] text-[#888]'>javascript</span>
+              <span className='font-mono text-[#888] text-[11px]'>javascript</span>
               {toolCall.state === 'success' && (
                 <span className='text-[11px] text-green-500'>✓ Executed</span>
               )}
@@ -940,7 +940,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
               )}
             </div>
             <pre className='max-h-[200px] overflow-auto p-[10px]'>
-              <code className='font-mono text-[12px] text-[#E0E0E0] leading-[1.5]'>{code}</code>
+              <code className='font-mono text-[#E0E0E0] text-[12px] leading-[1.5]'>{code}</code>
             </pre>
           </div>
         )}
