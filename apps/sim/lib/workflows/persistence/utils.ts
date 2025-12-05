@@ -326,19 +326,19 @@ export async function saveWorkflowToNormalizedTables(
     const canonicalLoops = generateLoopBlocks(blockRecords)
     const canonicalParallels = generateParallelBlocks(blockRecords)
 
-    // Load existing webhooks BEFORE transaction to avoid transaction failures
-    let existingWebhooks: any[] = []
-    try {
-      existingWebhooks = await db.select().from(webhook).where(eq(webhook.workflowId, workflowId))
-    } catch (webhookError) {
-      // Webhook table might not exist or query might fail for new workflows - skip preservation
-      logger.debug('Could not load webhooks before save, skipping preservation', {
-        error: webhookError instanceof Error ? webhookError.message : String(webhookError),
-      })
-    }
-
     // Start a transaction
     await db.transaction(async (tx) => {
+      // Snapshot existing webhooks before deletion to preserve them through the cycle
+      let existingWebhooks: any[] = []
+      try {
+        existingWebhooks = await tx.select().from(webhook).where(eq(webhook.workflowId, workflowId))
+      } catch (webhookError) {
+        // Webhook table might not be available in test environments
+        logger.debug('Could not load webhooks before save, skipping preservation', {
+          error: webhookError instanceof Error ? webhookError.message : String(webhookError),
+        })
+      }
+
       // Clear existing data for this workflow
       await Promise.all([
         tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
