@@ -65,7 +65,6 @@ interface UserInputProps {
   selectedModelOverride?: string
   /** Override setSelectedModel from store (for use outside copilot context) */
   onModelChangeOverride?: (model: string) => void
-  /** Hide mode selector (for simpler interfaces like Superagent) */
   hideModeSelector?: boolean
   /** Disable @mention functionality */
   disableMentions?: boolean
@@ -113,7 +112,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const params = useParams()
     const workspaceId = params.workspaceId as string
 
-    // Store hooks - use overrides when provided (for Superagent and other contexts)
     const copilotStore = useCopilotStore()
     const workflowId =
       workflowIdOverride !== undefined ? workflowIdOverride : copilotStore.workflowId

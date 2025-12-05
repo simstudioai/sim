@@ -1279,37 +1279,6 @@ export const copilotChats = pgTable(
   })
 )
 
-export const superagentChats = pgTable(
-  'superagent_chats',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    title: text('title'),
-    messages: jsonb('messages').notNull().default('[]'),
-    model: text('model').notNull().default('claude-sonnet-4-5'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    // Primary access patterns
-    userIdIdx: index('superagent_chats_user_id_idx').on(table.userId),
-    workspaceIdIdx: index('superagent_chats_workspace_id_idx').on(table.workspaceId),
-    userWorkspaceIdx: index('superagent_chats_user_workspace_idx').on(
-      table.userId,
-      table.workspaceId
-    ),
-
-    // Ordering indexes
-    createdAtIdx: index('superagent_chats_created_at_idx').on(table.createdAt),
-    updatedAtIdx: index('superagent_chats_updated_at_idx').on(table.updatedAt),
-  })
-)
-
 export const workflowCheckpoints = pgTable(
   'workflow_checkpoints',
   {
