@@ -34,7 +34,6 @@ export const ToolIds = z.enum([
   'check_deployment_status',
   'navigate_ui',
   'knowledge_base',
-  'generate_diagram',
 ])
 export type ToolId = z.infer<typeof ToolIds>
 
@@ -202,11 +201,6 @@ export const ToolArgSchemas = {
   }),
 
   knowledge_base: KnowledgeBaseArgsSchema,
-
-  generate_diagram: z.object({
-    diagramText: z.string().describe('The raw diagram text content (e.g., mermaid syntax)'),
-    language: z.enum(['mermaid']).default('mermaid').describe('The diagram language/format'),
-  }),
 } as const
 export type ToolArgSchemaMap = typeof ToolArgSchemas
 
@@ -280,7 +274,6 @@ export const ToolSSESchemas = {
   ),
   navigate_ui: toolCallSSEFor('navigate_ui', ToolArgSchemas.navigate_ui),
   knowledge_base: toolCallSSEFor('knowledge_base', ToolArgSchemas.knowledge_base),
-  generate_diagram: toolCallSSEFor('generate_diagram', ToolArgSchemas.generate_diagram),
 } as const
 export type ToolSSESchemaMap = typeof ToolSSESchemas
 
@@ -479,11 +472,6 @@ export const ToolResultSchemas = {
     navigated: z.boolean(),
   }),
   knowledge_base: KnowledgeBaseResultSchema,
-  generate_diagram: z.object({
-    diagramText: z.string(),
-    language: z.enum(['mermaid']),
-    rendered: z.boolean().optional(),
-  }),
 } as const
 export type ToolResultSchemaMap = typeof ToolResultSchemas
 

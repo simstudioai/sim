@@ -5,6 +5,26 @@ import type { WorkflowState } from '../workflow/types'
 const logger = createLogger('WorkflowJsonImporter')
 
 /**
+ * Subblock types that should NOT have empty string as a value.
+ * For these types, empty strings should be normalized to null during import.
+ * This provides backwards compatibility for workflows exported before type-aware sanitization.
+ */
+const NON_STRING_SUBBLOCK_TYPES = new Set([
+  // Array types
+  'file-upload',
+  'table',
+  'tool-input',
+  'input-format',
+  'checkbox-list',
+  'messages-input',
+  // Boolean types
+  'switch',
+  'checkbox',
+  // Object types
+  'response-format',
+])
+
+/**
  * Generate new IDs for all blocks and edges to avoid conflicts
  */
 function regenerateIds(workflowState: WorkflowState): WorkflowState {
@@ -105,6 +125,49 @@ function regenerateIds(workflowState: WorkflowState): WorkflowState {
   }
 }
 
+/**
+ * Normalize subblock values by converting empty strings to null for non-string types.
+ * This provides backwards compatibility for workflows exported before type-aware sanitization,
+ * preventing Zod validation errors like "Expected array, received string".
+ */
+function normalizeSubblockValues(
+  blocks: Record<string, any>
+): Record<string, any> {
+  const normalizedBlocks: Record<string, any> = {}
+
+  Object.entries(blocks).forEach(([blockId, block]) => {
+    const normalizedBlock = { ...block }
+
+    if (block.subBlocks) {
+      const normalizedSubBlocks: Record<string, any> = {}
+
+      Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
+        const normalizedSubBlock = { ...subBlock }
+
+        // For non-string types, convert empty string to null
+        if (
+          NON_STRING_SUBBLOCK_TYPES.has(subBlock.type) &&
+          normalizedSubBlock.value === ''
+        ) {
+          normalizedSubBlock.value = null
+          logger.info(`Normalized empty string to null for ${subBlock.type} field`, {
+            blockId,
+            subBlockId,
+          })
+        }
+
+        normalizedSubBlocks[subBlockId] = normalizedSubBlock
+      })
+
+      normalizedBlock.subBlocks = normalizedSubBlocks
+    }
+
+    normalizedBlocks[blockId] = normalizedBlock
+  })
+
+  return normalizedBlocks
+}
+
 export function parseWorkflowJson(
   jsonContent: string,
   regenerateIdsFlag = true
@@ -203,9 +266,13 @@ export function parseWorkflowJson(
       return { data: null, errors }
     }
 
+    // Normalize non-string subblock values (convert empty strings to null)
+    // This handles exported workflows that may have empty strings for non-string types
+    const normalizedBlocks = normalizeSubblockValues(workflowData.blocks || {})
+
     // Construct the workflow state with defaults
     let workflowState: WorkflowState = {
-      blocks: workflowData.blocks || {},
+      blocks: normalizedBlocks,
       edges: workflowData.edges || [],
       loops: workflowData.loops || {},
       parallels: workflowData.parallels || {},

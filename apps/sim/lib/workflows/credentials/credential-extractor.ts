@@ -32,6 +32,35 @@ const WORKSPACE_SPECIFIC_TYPES = new Set([
   'mcp-server-selector', // User-specific MCP servers
 ])
 
+/**
+ * Get the appropriate "cleared" value for a subblock type.
+ * Uses null for non-string types to avoid Zod validation errors.
+ */
+function getClearedValueForType(subBlockType: string): null | '' {
+  // Types that expect arrays - must use null
+  const arrayTypes = new Set([
+    'file-upload',
+    'table',
+    'tool-input',
+    'input-format',
+    'checkbox-list',
+    'messages-input',
+  ])
+
+  // Types that expect booleans - must use null
+  const booleanTypes = new Set(['switch', 'checkbox'])
+
+  // Types that expect objects - must use null
+  const objectTypes = new Set(['response-format'])
+
+  if (arrayTypes.has(subBlockType) || booleanTypes.has(subBlockType) || objectTypes.has(subBlockType)) {
+    return null
+  }
+
+  // String/selector types can use empty string
+  return ''
+}
+
 // Field IDs that are workspace-specific
 const WORKSPACE_SPECIFIC_FIELDS = new Set([
   'knowledgeBaseId',
@@ -190,10 +219,11 @@ export function sanitizeWorkflowForSharing(
       blockConfig.subBlocks?.forEach((subBlockConfig: SubBlockConfig) => {
         if (block.subBlocks?.[subBlockConfig.id]) {
           const subBlock = block.subBlocks[subBlockConfig.id]
+          const clearedValue = getClearedValueForType(subBlockConfig.type)
 
           // Clear OAuth credentials (type: 'oauth-input')
           if (subBlockConfig.type === 'oauth-input') {
-            block.subBlocks[subBlockConfig.id].value = ''
+            block.subBlocks[subBlockConfig.id].value = clearedValue
           }
 
           // Clear secret fields (password: true)
@@ -207,18 +237,18 @@ export function sanitizeWorkflowForSharing(
             ) {
               // Keep the env var reference
             } else {
-              block.subBlocks[subBlockConfig.id].value = ''
+              block.subBlocks[subBlockConfig.id].value = clearedValue
             }
           }
 
           // Clear workspace-specific selectors
           else if (WORKSPACE_SPECIFIC_TYPES.has(subBlockConfig.type)) {
-            block.subBlocks[subBlockConfig.id].value = ''
+            block.subBlocks[subBlockConfig.id].value = clearedValue
           }
 
           // Clear workspace-specific fields by ID
           else if (WORKSPACE_SPECIFIC_FIELDS.has(subBlockConfig.id)) {
-            block.subBlocks[subBlockConfig.id].value = ''
+            block.subBlocks[subBlockConfig.id].value = clearedValue
           }
         }
       })
@@ -229,7 +259,9 @@ export function sanitizeWorkflowForSharing(
       Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
         // Clear workspace-specific fields by key name
         if (WORKSPACE_SPECIFIC_FIELDS.has(key)) {
-          subBlock.value = ''
+          // Use type-aware clearing if type info is available
+          const clearedValue = subBlock.type ? getClearedValueForType(subBlock.type) : null
+          subBlock.value = clearedValue
         }
       })
     }
@@ -239,11 +271,11 @@ export function sanitizeWorkflowForSharing(
       Object.entries(block.data).forEach(([key, value]: [string, any]) => {
         // Clear anything that looks like credentials
         if (/credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key)) {
-          block.data[key] = ''
+          block.data[key] = null
         }
         // Clear workspace-specific data
         if (WORKSPACE_SPECIFIC_FIELDS.has(key)) {
-          block.data[key] = ''
+          block.data[key] = null
         }
       })
     }
