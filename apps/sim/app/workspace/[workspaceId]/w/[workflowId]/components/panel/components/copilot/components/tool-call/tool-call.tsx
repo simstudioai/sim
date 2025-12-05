@@ -293,11 +293,33 @@ async function handleRun(
 
   // Handle integration tools (server-side execution)
   if (!instance && isIntegrationTool(toolCall.name)) {
+    // Set executing state immediately for UI feedback
+    setToolCallState(toolCall, 'executing')
+    onStateChange?.('executing')
     try {
-      onStateChange?.('executing')
       await useCopilotStore.getState().executeIntegrationTool(toolCall.id)
+      // Note: executeIntegrationTool handles success/error state updates internally
     } catch (e) {
-      setToolCallState(toolCall, 'errored', { error: e instanceof Error ? e.message : String(e) })
+      // If executeIntegrationTool throws, ensure we update state to error
+      setToolCallState(toolCall, 'error', { error: e instanceof Error ? e.message : String(e) })
+      onStateChange?.('error')
+      // Notify backend about the error so agent doesn't hang
+      try {
+        await fetch('/api/copilot/tools/mark-complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: toolCall.id,
+            name: toolCall.name,
+            status: 500,
+            message: e instanceof Error ? e.message : 'Tool execution failed',
+            data: { error: e instanceof Error ? e.message : String(e) },
+          }),
+        })
+      } catch {
+        // Last resort: log error if we can't notify backend
+        console.error('[handleRun] Failed to notify backend of tool error:', toolCall.id)
+      }
     }
     return
   }
@@ -313,7 +335,7 @@ async function handleRun(
     await instance.handleAccept?.(mergedParams)
     onStateChange?.('executing')
   } catch (e) {
-    setToolCallState(toolCall, 'errored', { error: e instanceof Error ? e.message : String(e) })
+    setToolCallState(toolCall, 'error', { error: e instanceof Error ? e.message : String(e) })
   }
 }
 
@@ -324,19 +346,37 @@ async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onSt
   if (!instance && isIntegrationTool(toolCall.name)) {
     setToolCallState(toolCall, 'rejected')
     onStateChange?.('rejected')
-    // Notify backend that tool was skipped
-    try {
-      await fetch('/api/copilot/tools/mark-complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: toolCall.id,
-          name: toolCall.name,
-          status: 400,
-          message: 'Tool execution skipped by user',
-        }),
-      })
-    } catch {}
+
+    // Notify backend that tool was skipped - this is CRITICAL for the agent to continue
+    // Retry up to 3 times if the notification fails
+    let notified = false
+    for (let attempt = 0; attempt < 3 && !notified; attempt++) {
+      try {
+        const res = await fetch('/api/copilot/tools/mark-complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: toolCall.id,
+            name: toolCall.name,
+            status: 400,
+            message: 'Tool execution skipped by user',
+            data: { skipped: true, reason: 'user_skipped' },
+          }),
+        })
+        if (res.ok) {
+          notified = true
+        }
+      } catch (e) {
+        // Wait briefly before retry
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 500))
+        }
+      }
+    }
+
+    if (!notified) {
+      console.error('[handleSkip] Failed to notify backend after 3 attempts:', toolCall.id)
+    }
     return
   }
 
@@ -408,6 +448,7 @@ function RunSkipButtons({
 }) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [buttonsHidden, setButtonsHidden] = useState(false)
+  const actionInProgressRef = useRef(false)
   const { setToolCallState, addAutoAllowedTool } = useCopilotStore()
 
   const instance = getClientTool(toolCall.id)
@@ -420,25 +461,47 @@ function RunSkipButtons({
   const rejectLabel = interruptDisplays?.reject?.text || 'Skip'
 
   const onRun = async () => {
+    // Prevent race condition - check ref synchronously
+    if (actionInProgressRef.current) return
+    actionInProgressRef.current = true
     setIsProcessing(true)
     setButtonsHidden(true)
     try {
       await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
     } finally {
       setIsProcessing(false)
+      actionInProgressRef.current = false
     }
   }
 
   const onAlwaysAllow = async () => {
+    // Prevent race condition - check ref synchronously
+    if (actionInProgressRef.current) return
+    actionInProgressRef.current = true
     setIsProcessing(true)
     setButtonsHidden(true)
     try {
-      // Add to auto-allowed list
+      // Add to auto-allowed list first
       await addAutoAllowedTool(toolCall.name)
       // Then execute
       await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
     } finally {
       setIsProcessing(false)
+      actionInProgressRef.current = false
+    }
+  }
+
+  const onSkip = async () => {
+    // Prevent race condition - check ref synchronously
+    if (actionInProgressRef.current) return
+    actionInProgressRef.current = true
+    setIsProcessing(true)
+    setButtonsHidden(true)
+    try {
+      await handleSkip(toolCall, setToolCallState, onStateChange)
+    } finally {
+      setIsProcessing(false)
+      actionInProgressRef.current = false
     }
   }
 
@@ -456,14 +519,7 @@ function RunSkipButtons({
           Always Allow
         </Button>
       )}
-      <Button
-        onClick={async () => {
-          setButtonsHidden(true)
-          await handleSkip(toolCall, setToolCallState, onStateChange)
-        }}
-        disabled={isProcessing}
-        variant='default'
-      >
+      <Button onClick={onSkip} disabled={isProcessing} variant='default'>
         {rejectLabel}
       </Button>
     </div>
@@ -495,8 +551,10 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   const paramsRef = useRef(params)
 
   // Check if this integration tool is auto-allowed
-  const { isToolAutoAllowed, removeAutoAllowedTool } = useCopilotStore()
-  const isAutoAllowed = isIntegrationTool(toolCall.name) && isToolAutoAllowed(toolCall.name)
+  // Subscribe to autoAllowedTools so we re-render when it changes
+  const autoAllowedTools = useCopilotStore((s) => s.autoAllowedTools)
+  const { removeAutoAllowedTool } = useCopilotStore()
+  const isAutoAllowed = isIntegrationTool(toolCall.name) && autoAllowedTools.includes(toolCall.name)
 
   // Update edited params when toolCall params change (deep comparison to avoid resetting user edits on ref change)
   useEffect(() => {
@@ -888,15 +946,40 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
 
   // Special handling for set_environment_variables - always stacked, always expanded
   if (toolCall.name === 'set_environment_variables' && toolCall.state === 'pending') {
+    const isEnvVarsClickable = isAutoAllowed
+
+    const handleEnvVarsClick = () => {
+      if (isAutoAllowed) {
+        setShowRemoveAutoAllow((prev) => !prev)
+      }
+    }
+
     return (
       <div className='w-full'>
-        <ShimmerOverlayText
-          text={displayName}
-          active={isLoadingState}
-          isSpecial={isSpecial}
-          className='font-[470] font-season text-[#3a3d41] text-sm dark:text-[#939393]'
-        />
+        <div className={isEnvVarsClickable ? 'cursor-pointer' : ''} onClick={handleEnvVarsClick}>
+          <ShimmerOverlayText
+            text={displayName}
+            active={isLoadingState}
+            isSpecial={isSpecial}
+            className='font-[470] font-season text-[#3a3d41] text-sm dark:text-[#939393]'
+          />
+        </div>
         <div className='mt-[8px]'>{renderPendingDetails()}</div>
+        {showRemoveAutoAllow && isAutoAllowed && (
+          <div className='mt-[8px]'>
+            <Button
+              onClick={async () => {
+                await removeAutoAllowedTool(toolCall.name)
+                setShowRemoveAutoAllow(false)
+                forceUpdate({})
+              }}
+              variant='default'
+              className='text-xs'
+            >
+              Remove from Always Allowed
+            </Button>
+          </div>
+        )}
         {showButtons && (
           <RunSkipButtons
             toolCall={toolCall}
@@ -911,18 +994,45 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   // Special rendering for function_execute - show code block
   if (toolCall.name === 'function_execute') {
     const code = params.code || ''
+    const isFunctionExecuteClickable = isAutoAllowed
+
+    const handleFunctionExecuteClick = () => {
+      if (isAutoAllowed) {
+        setShowRemoveAutoAllow((prev) => !prev)
+      }
+    }
 
     return (
       <div className='w-full'>
-        <ShimmerOverlayText
-          text={displayName}
-          active={isLoadingState}
-          isSpecial={false}
-          className='font-[470] font-season text-[#939393] text-sm dark:text-[#939393]'
-        />
+        <div
+          className={isFunctionExecuteClickable ? 'cursor-pointer' : ''}
+          onClick={handleFunctionExecuteClick}
+        >
+          <ShimmerOverlayText
+            text={displayName}
+            active={isLoadingState}
+            isSpecial={false}
+            className='font-[470] font-season text-[#939393] text-sm dark:text-[#939393]'
+          />
+        </div>
         {code && (
           <div className='mt-2'>
             <Code.Viewer code={code} language='javascript' showGutter />
+          </div>
+        )}
+        {showRemoveAutoAllow && isAutoAllowed && (
+          <div className='mt-[8px]'>
+            <Button
+              onClick={async () => {
+                await removeAutoAllowedTool(toolCall.name)
+                setShowRemoveAutoAllow(false)
+                forceUpdate({})
+              }}
+              variant='default'
+              className='text-xs'
+            >
+              Remove from Always Allowed
+            </Button>
           </div>
         )}
         {showButtons && (
