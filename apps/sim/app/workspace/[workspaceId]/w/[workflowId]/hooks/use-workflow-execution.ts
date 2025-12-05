@@ -879,7 +879,7 @@ export function useWorkflowExecution() {
           selectedOutputs,
           triggerType: overrideTriggerType || 'manual',
           useDraftState: true,
-          // Pass diff workflow state if available for execution
+          isClientSession: true,
           workflowStateOverride: executionWorkflowState
             ? {
                 blocks: executionWorkflowState.blocks,

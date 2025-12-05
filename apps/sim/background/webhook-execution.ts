@@ -222,17 +222,19 @@ async function executeWebhookJobInternal(
           workflowId: payload.workflowId,
           workspaceId,
           userId: payload.userId,
+          sessionUserId: undefined,
+          workflowUserId: workflow.userId,
           triggerType: payload.provider || 'webhook',
           triggerBlockId: payload.blockId,
           useDraftState: false,
           startTime: new Date().toISOString(),
+          isClientSession: false,
         }
 
         const snapshot = new ExecutionSnapshot(
           metadata,
           workflow,
           airtableInput,
-          {},
           workflowVariables,
           []
         )
@@ -435,20 +437,16 @@ async function executeWebhookJobInternal(
       workflowId: payload.workflowId,
       workspaceId,
       userId: payload.userId,
+      sessionUserId: undefined,
+      workflowUserId: workflow.userId,
       triggerType: payload.provider || 'webhook',
       triggerBlockId: payload.blockId,
       useDraftState: false,
       startTime: new Date().toISOString(),
+      isClientSession: false,
     }
 
-    const snapshot = new ExecutionSnapshot(
-      metadata,
-      workflow,
-      input || {},
-      {},
-      workflowVariables,
-      []
-    )
+    const snapshot = new ExecutionSnapshot(metadata, workflow, input || {}, workflowVariables, [])
 
     const executionResult = await executeWorkflowCore({
       snapshot,
