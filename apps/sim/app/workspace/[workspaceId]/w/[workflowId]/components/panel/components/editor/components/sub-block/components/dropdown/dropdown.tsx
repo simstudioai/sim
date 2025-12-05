@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import type { SubBlockConfig } from '@/blocks/types'
+import { getDependsOnFields } from '@/blocks/utils'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -43,7 +45,7 @@ interface DropdownProps {
     subBlockId: string
   ) => Promise<Array<{ label: string; id: string }>>
   /** Field dependencies that trigger option refetch when changed */
-  dependsOn?: string[]
+  dependsOn?: SubBlockConfig['dependsOn']
 }
 
 /**
@@ -67,23 +69,25 @@ export function Dropdown({
   placeholder = 'Select an option...',
   multiSelect = false,
   fetchOptions,
-  dependsOn = [],
+  dependsOn,
 }: DropdownProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
     (value: string | string[]) => void,
   ]
 
+  const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
+
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   const dependencyValues = useSubBlockStore(
     useCallback(
       (state) => {
-        if (dependsOn.length === 0 || !activeWorkflowId) return []
+        if (dependsOnFields.length === 0 || !activeWorkflowId) return []
         const workflowValues = state.workflowValues[activeWorkflowId] || {}
         const blockValues = workflowValues[blockId] || {}
-        return dependsOn.map((depKey) => blockValues[depKey] ?? null)
+        return dependsOnFields.map((depKey) => blockValues[depKey] ?? null)
       },
-      [dependsOn, activeWorkflowId, blockId]
+      [dependsOnFields, activeWorkflowId, blockId]
     )
   )
 
@@ -301,7 +305,7 @@ export function Dropdown({
    * This ensures options are refetched with new dependency values (e.g., new credentials)
    */
   useEffect(() => {
-    if (fetchOptions && dependsOn.length > 0) {
+    if (fetchOptions && dependsOnFields.length > 0) {
       const currentDependencyValuesStr = JSON.stringify(dependencyValues)
       const previousDependencyValuesStr = previousDependencyValuesRef.current
 
@@ -314,7 +318,7 @@ export function Dropdown({
 
       previousDependencyValuesRef.current = currentDependencyValuesStr
     }
-  }, [dependencyValues, fetchOptions, dependsOn.length])
+  }, [dependencyValues, fetchOptions, dependsOnFields.length])
 
   /**
    * Effect to fetch options when needed (on mount, when enabled, or when dependencies change)

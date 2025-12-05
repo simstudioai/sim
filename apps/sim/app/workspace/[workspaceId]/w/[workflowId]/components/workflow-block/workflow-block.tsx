@@ -30,6 +30,7 @@ import {
   useBlockDimensions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
+import { getDependsOnFields } from '@/blocks/utils'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth-credentials'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -261,8 +262,9 @@ const SubBlockRow = ({
   )
 
   const dependencyValues = useMemo(() => {
-    if (!subBlock?.dependsOn?.length) return {}
-    return subBlock.dependsOn.reduce<Record<string, string>>((accumulator, dependency) => {
+    const fields = getDependsOnFields(subBlock?.dependsOn)
+    if (!fields.length) return {}
+    return fields.reduce<Record<string, string>>((accumulator, dependency) => {
       const dependencyValue = getStringValue(dependency)
       if (dependencyValue) {
         accumulator[dependency] = dependencyValue
