@@ -489,11 +489,11 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
             }}
           >
             {searchable && (
-              <div className='flex items-center border-[var(--surface-11)] border-b px-[8px] py-[6px]'>
-                <Search className='mr-2 h-[12px] w-[12px] shrink-0 text-[var(--text-muted)]' />
+              <div className='flex items-center px-[8px] py-[6px]'>
+                <Search className='mr-2 h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
                 <input
                   ref={searchInputRef}
-                  className='w-full bg-transparent font-medium text-[var(--text-primary)] text-sm placeholder:text-[var(--text-muted)] focus:outline-none'
+                  className='w-full bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none'
                   placeholder={searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
