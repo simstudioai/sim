@@ -36,6 +36,7 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { GenerationType } from '@/blocks/types'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
+import { useCodeEditorHistory } from '@/hooks/use-code-editor-history'
 import { useTagSelection } from '@/hooks/use-tag-selection'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 
@@ -219,6 +220,7 @@ export function Code({
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const emitTagSelection = useTagSelection(blockId, subBlockId)
   const [languageValue] = useSubBlockValue<string>(blockId, 'language')
+  const codeHistory = useCodeEditorHistory({ maxHistory: 100, debounceMs: 300 })
 
   // Derived state
   const effectiveLanguage = (languageValue as 'javascript' | 'python' | 'json') || language
@@ -355,8 +357,10 @@ export function Code({
       if (!isPreview && !disabled) {
         setStoreValue(generatedCode)
       }
+      // Reset history after AI generation with the new code as the starting point
+      codeHistory.reset(generatedCode)
     }
-  }, [isPreview, disabled, setStoreValue])
+  }, [isPreview, disabled, setStoreValue, codeHistory])
 
   // Effects: Set read only state for textarea
   useEffect(() => {
@@ -393,8 +397,10 @@ export function Code({
     const valueString = value?.toString() ?? ''
     if (valueString !== code) {
       setCode(valueString)
+      // Reset history when external value changes (e.g., initial load, AI generation)
+      codeHistory.reset(valueString)
     }
-  }, [value, code, isAiStreaming])
+  }, [value, code, isAiStreaming, codeHistory])
 
   // Effects: Track active line number for cursor position
   useEffect(() => {
@@ -741,12 +747,16 @@ export function Code({
             value={code}
             onValueChange={(newCode) => {
               if (!isAiStreaming && !isPreview && !disabled && !readOnly) {
+                const textarea = editorRef.current?.querySelector('textarea')
+                const pos = textarea?.selectionStart ?? newCode.length
+
+                // Push to history for undo/redo support
+                codeHistory.pushHistory(code, pos)
+
                 setCode(newCode)
                 setStoreValue(newCode)
 
-                const textarea = editorRef.current?.querySelector('textarea')
                 if (textarea) {
-                  const pos = textarea.selectionStart
                   setCursorPosition(pos)
 
                   const tagTrigger = checkTagTrigger(newCode, pos)
@@ -768,6 +778,25 @@ export function Code({
               }
               if (isAiStreaming) {
                 e.preventDefault()
+                return
+              }
+
+              // Handle undo/redo
+              if (!isPreview && !disabled && !readOnly) {
+                const historyResult = codeHistory.handleKeyDown(e, code)
+                if (historyResult) {
+                  setCode(historyResult.value)
+                  setStoreValue(historyResult.value)
+
+                  // Restore cursor position after state update
+                  setTimeout(() => {
+                    const textarea = editorRef.current?.querySelector('textarea')
+                    if (textarea) {
+                      textarea.selectionStart = historyResult.cursorPosition
+                      textarea.selectionEnd = historyResult.cursorPosition
+                    }
+                  }, 0)
+                }
               }
             }}
             highlight={createHighlightFunction(effectiveLanguage, shouldHighlightReference)}
