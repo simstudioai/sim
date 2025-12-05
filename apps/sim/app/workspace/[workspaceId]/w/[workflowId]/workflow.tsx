@@ -12,7 +12,9 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { Loader2 } from 'lucide-react'
+import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { OAuthProvider } from '@/lib/oauth'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -28,6 +30,7 @@ import { Chat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/ch
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
+import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import {
@@ -95,6 +98,13 @@ const WorkflowContent = React.memo(() => {
 
   // Track whether the active connection drag started from an error handle
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
+  const [oauthModal, setOauthModal] = useState<{
+    provider: OAuthProvider
+    serviceId: string
+    providerName: string
+    requiredScopes: string[]
+    newScopes?: string[]
+  } | null>(null)
 
   // Hooks
   const params = useParams()
@@ -163,6 +173,25 @@ const WorkflowContent = React.memo(() => {
   const isWorkflowEmpty = useMemo(() => {
     return Object.keys(blocks).length === 0
   }, [blocks])
+
+  // Listen for global OAuth connect events (from Copilot tool)
+  useEffect(() => {
+    const handleOpenOAuthConnect = (event: Event) => {
+      const detail = (event as CustomEvent<OAuthConnectEventDetail>).detail
+      if (!detail) return
+      setOauthModal({
+        provider: detail.providerId as OAuthProvider,
+        serviceId: detail.serviceId,
+        providerName: detail.providerName,
+        requiredScopes: detail.requiredScopes || [],
+        newScopes: detail.newScopes || [],
+      })
+    }
+
+    window.addEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
+    return () =>
+      window.removeEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
+  }, [])
 
   // Get diff analysis for edge reconstruction
   const { diffAnalysis, isShowingDiff, isDiffReady, reapplyDiffMarkers, hasActiveDiff } =
@@ -2282,6 +2311,18 @@ const WorkflowContent = React.memo(() => {
       </div>
 
       <Terminal />
+
+      {oauthModal && (
+        <OAuthRequiredModal
+          isOpen={true}
+          onClose={() => setOauthModal(null)}
+          provider={oauthModal.provider}
+          toolName={oauthModal.providerName}
+          serviceId={oauthModal.serviceId}
+          requiredScopes={oauthModal.requiredScopes}
+          newScopes={oauthModal.newScopes}
+        />
+      )}
     </div>
   )
 })

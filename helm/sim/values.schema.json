@@ -238,15 +238,18 @@
             },
             "NEXT_PUBLIC_BRAND_LOGO_URL": {
               "type": "string",
-              "description": "Custom logo URL"
+              "format": "uri",
+              "description": "Custom logo URL (must be a full URL, e.g., https://example.com/logo.png)"
             },
             "NEXT_PUBLIC_BRAND_FAVICON_URL": {
               "type": "string",
-              "description": "Custom favicon URL"
+              "format": "uri",
+              "description": "Custom favicon URL (must be a full URL, e.g., https://example.com/favicon.ico)"
             },
             "NEXT_PUBLIC_CUSTOM_CSS_URL": {
               "type": "string",
-              "description": "Custom stylesheet URL"
+              "format": "uri",
+              "description": "Custom stylesheet URL (must be a full URL)"
             },
             "NEXT_PUBLIC_SUPPORT_EMAIL": {
               "type": "string",

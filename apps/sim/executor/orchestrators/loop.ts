@@ -48,11 +48,13 @@ export class LoopOrchestrator {
 
     switch (loopType) {
       case 'for':
+        scope.loopType = 'for'
         scope.maxIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
         scope.condition = buildLoopIndexCondition(scope.maxIterations)
         break
 
       case 'forEach': {
+        scope.loopType = 'forEach'
         const items = this.resolveForEachItems(ctx, loopConfig.forEachItems)
         scope.items = items
         scope.maxIterations = items.length
@@ -62,17 +64,18 @@ export class LoopOrchestrator {
       }
 
       case 'while':
+        scope.loopType = 'while'
         scope.condition = loopConfig.whileCondition
         break
 
       case 'doWhile':
+        scope.loopType = 'doWhile'
         if (loopConfig.doWhileCondition) {
           scope.condition = loopConfig.doWhileCondition
         } else {
           scope.maxIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
           scope.condition = buildLoopIndexCondition(scope.maxIterations)
         }
-        scope.skipFirstConditionCheck = true
         break
 
       default:
@@ -130,12 +133,8 @@ export class LoopOrchestrator {
 
     scope.currentIterationOutputs.clear()
 
-    const isFirstIteration = scope.iteration === 0
-    const shouldSkipFirstCheck = scope.skipFirstConditionCheck && isFirstIteration
-    if (!shouldSkipFirstCheck) {
-      if (!this.evaluateCondition(ctx, scope, scope.iteration + 1)) {
-        return this.createExitResult(ctx, loopId, scope)
-      }
+    if (!this.evaluateCondition(ctx, scope, scope.iteration + 1)) {
+      return this.createExitResult(ctx, loopId, scope)
     }
 
     scope.iteration++
@@ -243,6 +242,43 @@ export class LoopOrchestrator {
 
   getLoopScope(ctx: ExecutionContext, loopId: string): LoopScope | undefined {
     return ctx.loopExecutions?.get(loopId)
+  }
+
+  /**
+   * Evaluates the initial condition for while loops at the sentinel start.
+   * For while loops, the condition must be checked BEFORE the first iteration.
+   * If the condition is false, the loop body should be skipped entirely.
+   *
+   * @returns true if the loop should execute, false if it should be skipped
+   */
+  evaluateInitialCondition(ctx: ExecutionContext, loopId: string): boolean {
+    const scope = ctx.loopExecutions?.get(loopId)
+    if (!scope) {
+      logger.warn('Loop scope not found for initial condition evaluation', { loopId })
+      return true
+    }
+
+    // Only while loops need an initial condition check
+    // - for/forEach: always execute based on iteration count/items
+    // - doWhile: always execute at least once, check condition after
+    // - while: check condition before first iteration
+    if (scope.loopType !== 'while') {
+      return true
+    }
+
+    if (!scope.condition) {
+      logger.warn('No condition defined for while loop', { loopId })
+      return false
+    }
+
+    const result = this.evaluateWhileCondition(ctx, scope.condition, scope)
+    logger.info('While loop initial condition evaluation', {
+      loopId,
+      condition: scope.condition,
+      result,
+    })
+
+    return result
   }
 
   shouldExecuteLoopNode(_ctx: ExecutionContext, _nodeId: string, _loopId: string): boolean {

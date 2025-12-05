@@ -5,6 +5,10 @@ import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/ge
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
 import { listGDriveFilesServerTool } from '@/lib/copilot/tools/server/gdrive/list-files'
 import { readGDriveFileServerTool } from '@/lib/copilot/tools/server/gdrive/read-file'
+import {
+  KnowledgeBaseInput,
+  knowledgeBaseServerTool,
+} from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { makeApiRequestServerTool } from '@/lib/copilot/tools/server/other/make-api-request'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
@@ -43,6 +47,7 @@ serverToolRegistry[listGDriveFilesServerTool.name] = listGDriveFilesServerTool
 serverToolRegistry[readGDriveFileServerTool.name] = readGDriveFileServerTool
 serverToolRegistry[getCredentialsServerTool.name] = getCredentialsServerTool
 serverToolRegistry[makeApiRequestServerTool.name] = makeApiRequestServerTool
+serverToolRegistry[knowledgeBaseServerTool.name] = knowledgeBaseServerTool
 
 export async function routeExecution(
   toolName: string,
@@ -73,6 +78,9 @@ export async function routeExecution(
   }
   if (toolName === 'get_trigger_blocks') {
     args = GetTriggerBlocksInput.parse(args)
+  }
+  if (toolName === 'knowledge_base') {
+    args = KnowledgeBaseInput.parse(args)
   }
 
   const result = await tool.execute(args, context)

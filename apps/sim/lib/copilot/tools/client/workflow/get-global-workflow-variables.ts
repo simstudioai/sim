@@ -51,8 +51,9 @@ export class GetGlobalWorkflowVariablesClientTool extends BaseClientTool {
       }
       const json = await res.json()
       const varsRecord = (json?.data as Record<string, any>) || {}
-      // Convert to name/value pairs for clarity
+      // Convert to id/name/value for clarity
       const variables = Object.values(varsRecord).map((v: any) => ({
+        id: String(v?.id || ''),
         name: String(v?.name || ''),
         value: (v as any)?.value,
       }))

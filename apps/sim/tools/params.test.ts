@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createExecutionToolSchema,
   createLLMToolSchema,
+  createUserToolSchema,
   filterSchemaForLLM,
   formatParameterLabel,
   getToolParametersConfig,
@@ -107,6 +108,38 @@ describe('Tool Parameters Utils', () => {
       expect(schema.properties).not.toHaveProperty('timeout') // user-only, never shown to LLM
       expect(schema.required).not.toContain('apiKey') // user-only, never required for LLM
       expect(schema.required).toContain('message') // user-or-llm + required: true
+    })
+  })
+
+  describe('createUserToolSchema', () => {
+    it.concurrent('should include user-only parameters and omit hidden ones', () => {
+      const toolWithHiddenParam = {
+        ...mockToolConfig,
+        id: 'user_schema_tool',
+        params: {
+          ...mockToolConfig.params,
+          spreadsheetId: {
+            type: 'string',
+            required: true,
+            visibility: 'user-only' as ParameterVisibility,
+            description: 'Spreadsheet ID to operate on',
+          },
+          accessToken: {
+            type: 'string',
+            required: true,
+            visibility: 'hidden' as ParameterVisibility,
+            description: 'OAuth access token',
+          },
+        },
+      }
+
+      const schema = createUserToolSchema(toolWithHiddenParam)
+
+      expect(schema.properties).toHaveProperty('spreadsheetId')
+      expect(schema.required).toContain('spreadsheetId')
+      expect(schema.properties).not.toHaveProperty('accessToken')
+      expect(schema.required).not.toContain('accessToken')
+      expect(schema.properties).toHaveProperty('message')
     })
   })
 

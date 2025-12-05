@@ -251,32 +251,78 @@ Récupérer les détails d'exécution, y compris l'instantané de l'état du wor
   </Tab>
 </Tabs>
 
-## Abonnements aux webhooks
+## Notifications
 
-Recevez des notifications en temps réel lorsque les exécutions de workflow sont terminées. Les webhooks sont configurés via l'interface utilisateur Sim dans l'éditeur de workflow.
+Recevez des notifications en temps réel lorsque les exécutions de flux de travail sont terminées via webhook, e-mail ou Slack. Les notifications sont configurées au niveau de l'espace de travail depuis la page Logs.
 
 ### Configuration
 
-Les webhooks peuvent être configurés pour chaque workflow via l'interface utilisateur de l'éditeur de workflow. Cliquez sur l'icône webhook dans la barre de contrôle pour configurer vos abonnements aux webhooks.
+Configurez les notifications depuis la page Logs en cliquant sur le bouton menu et en sélectionnant "Configurer les notifications".
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="configure-webhook.mp4" width={700} height={450} />
-</div>
+**Canaux de notification :**
+- **Webhook** : envoi de requêtes HTTP POST à votre point de terminaison
+- **E-mail** : réception de notifications par e-mail avec les détails d'exécution
+- **Slack** : publication de messages dans un canal Slack
 
-**Options de configuration disponibles :**
-- `url` : URL de votre endpoint webhook
-- `secret` : Secret optionnel pour la vérification de signature HMAC
-- `includeFinalOutput` : Inclure la sortie finale du workflow dans la charge utile
-- `includeTraceSpans` : Inclure les intervalles de trace d'exécution détaillés
-- `includeRateLimits` : Inclure les informations de limite de débit du propriétaire du workflow
-- `includeUsageData` : Inclure les données d'utilisation et de facturation du propriétaire du workflow
-- `levelFilter` : Tableau des niveaux de journal à recevoir (`info`, `error`)
-- `triggerFilter` : Tableau des types de déclencheurs à recevoir (`api`, `webhook`, `schedule`, `manual`, `chat`)
-- `active` : Activer/désactiver l'abonnement webhook
+**Sélection de flux de travail :**
+- Sélectionnez des flux de travail spécifiques à surveiller
+- Ou choisissez "Tous les flux de travail" pour inclure les flux actuels et futurs
 
-### Charge utile du webhook
+**Options de filtrage :**
+- `levelFilter` : niveaux de journalisation à recevoir (`info`, `error`)
+- `triggerFilter` : types de déclencheurs à recevoir (`api`, `webhook`, `schedule`, `manual`, `chat`)
 
-Lorsqu'une exécution de workflow est terminée, Sim envoie une requête POST à votre URL webhook :
+**Données optionnelles :**
+- `includeFinalOutput` : inclure le résultat final du flux de travail
+- `includeTraceSpans` : inclure les traces détaillées d'exécution
+- `includeRateLimits` : inclure les informations de limite de débit (limites synchrones/asynchrones et restantes)
+- `includeUsageData` : inclure l'utilisation et les limites de la période de facturation
+
+### Règles d'alerte
+
+Au lieu de recevoir des notifications pour chaque exécution, configurez des règles d'alerte pour être notifié uniquement lorsque des problèmes sont détectés :
+
+**Échecs consécutifs**
+- Alerte après X exécutions échouées consécutives (par exemple, 3 échecs d'affilée)
+- Réinitialisation lorsqu'une exécution réussit
+
+**Taux d'échec**
+- Alerte lorsque le taux d'échec dépasse X % au cours des Y dernières heures
+- Nécessite un minimum de 5 exécutions dans la fenêtre
+- Ne se déclenche qu'après l'écoulement complet de la fenêtre temporelle
+
+**Seuil de latence**
+- Alerte lorsqu'une exécution prend plus de X secondes
+- Utile pour détecter les flux de travail lents ou bloqués
+
+**Pic de latence**
+- Alerte lorsque l'exécution est X % plus lente que la moyenne
+- Compare à la durée moyenne sur la fenêtre temporelle configurée
+- Nécessite un minimum de 5 exécutions pour établir une référence
+
+**Seuil de coût**
+- Alerte lorsqu'une seule exécution coûte plus de X €
+- Utile pour détecter les appels LLM coûteux
+
+**Aucune activité**
+- Alerte lorsqu'aucune exécution ne se produit pendant X heures
+- Utile pour surveiller les workflows programmés qui devraient s'exécuter régulièrement
+
+**Nombre d'erreurs**
+- Alerte lorsque le nombre d'erreurs dépasse X dans une fenêtre temporelle
+- Suit le total des erreurs, pas les erreurs consécutives
+
+Tous les types d'alertes incluent un temps de récupération d'une heure pour éviter le spam de notifications.
+
+### Configuration du webhook
+
+Pour les webhooks, des options supplémentaires sont disponibles :
+- `url` : l'URL de votre point de terminaison webhook
+- `secret` : secret optionnel pour la vérification de signature HMAC
+
+### Structure de la charge utile
+
+Lorsqu'une exécution de workflow se termine, Sim envoie la charge utile suivante (via webhook POST, e-mail ou Slack) :
 
 ```json
 {
@@ -325,15 +371,15 @@ Lorsqu'une exécution de workflow est terminée, Sim envoie une requête POST à
 }
 ```
 
-### En-têtes de webhook
+### En-têtes webhook
 
-Chaque requête webhook inclut ces en-têtes :
+Chaque requête webhook inclut ces en-têtes (canal webhook uniquement) :
 
-- `sim-event` : Type d'événement (toujours `workflow.execution.completed`)
-- `sim-timestamp` : Horodatage Unix en millisecondes
+- `sim-event` : type d'événement (toujours `workflow.execution.completed`)
+- `sim-timestamp` : horodatage Unix en millisecondes
 - `sim-delivery-id` : ID de livraison unique pour l'idempotence
-- `sim-signature` : Signature HMAC-SHA256 pour vérification (si un secret est configuré)
-- `Idempotency-Key` : Identique à l'ID de livraison pour la détection des doublons
+- `sim-signature` : signature HMAC-SHA256 pour vérification (si un secret est configuré)
+- `Idempotency-Key` : identique à l'ID de livraison pour la détection des doublons
 
 ### Vérification de signature
 
@@ -408,14 +454,14 @@ Si vous configurez un secret webhook, vérifiez la signature pour vous assurer q
   </Tab>
 </Tabs>
 
-### Politique de réessai
+### Politique de nouvelle tentative
 
 Les livraisons de webhook échouées sont réessayées avec un backoff exponentiel et du jitter :
 
 - Nombre maximum de tentatives : 5
-- Délais de réessai : 5 secondes, 15 secondes, 1 minute, 3 minutes, 10 minutes
+- Délais de nouvelle tentative : 5 secondes, 15 secondes, 1 minute, 3 minutes, 10 minutes
 - Jitter : jusqu'à 10 % de délai supplémentaire pour éviter l'effet de horde
-- Seules les réponses HTTP 5xx et 429 déclenchent des réessais
+- Seules les réponses HTTP 5xx et 429 déclenchent de nouvelles tentatives
 - Les livraisons expirent après 30 secondes
 
 <Callout type="info">
@@ -424,15 +470,15 @@ Les livraisons de webhook échouées sont réessayées avec un backoff exponenti
 
 ## Bonnes pratiques
 
-1. **Stratégie de polling** : lors de l'interrogation des logs, utilisez la pagination basée sur curseur avec `order=asc` et `startDate` pour récupérer efficacement les nouveaux logs.
+1. **Stratégie de polling** : Lors du polling des logs, utilisez la pagination basée sur curseur avec `order=asc` et `startDate` pour récupérer efficacement les nouveaux logs.
 
-2. **Sécurité des webhooks** : configurez toujours un secret webhook et vérifiez les signatures pour vous assurer que les requêtes proviennent de Sim.
+2. **Sécurité des webhooks** : Configurez toujours un secret de webhook et vérifiez les signatures pour vous assurer que les requêtes proviennent de Sim.
 
-3. **Idempotence** : utilisez l'en-tête `Idempotency-Key` pour détecter et gérer les livraisons de webhook en double.
+3. **Idempotence** : Utilisez l'en-tête `Idempotency-Key` pour détecter et gérer les livraisons de webhook en double.
 
-4. **Confidentialité** : par défaut, `finalOutput` et `traceSpans` sont exclus des réponses. Activez-les uniquement si vous avez besoin des données et comprenez les implications en matière de confidentialité.
+4. **Confidentialité** : Par défaut, `finalOutput` et `traceSpans` sont exclus des réponses. Activez-les uniquement si vous avez besoin des données et comprenez les implications en matière de confidentialité.
 
-5. **Limitation de débit** : implémentez un backoff exponentiel lorsque vous recevez des réponses 429. Vérifiez l'en-tête `Retry-After` pour connaître le temps d'attente recommandé.
+5. **Limitation de débit** : Implémentez un backoff exponentiel lorsque vous recevez des réponses 429. Vérifiez l'en-tête `Retry-After` pour connaître le temps d'attente recommandé.
 
 ## Limitation de débit
 
@@ -443,12 +489,12 @@ L'API implémente une limitation de débit pour garantir une utilisation équita
 - **Plan Équipe** : 60 requêtes par minute
 - **Plan Entreprise** : Limites personnalisées
 
-Les informations de limite de débit sont incluses dans les en-têtes de réponse :
+Les informations de limitation de débit sont incluses dans les en-têtes de réponse :
 - `X-RateLimit-Limit` : Nombre maximum de requêtes par fenêtre
 - `X-RateLimit-Remaining` : Requêtes restantes dans la fenêtre actuelle
 - `X-RateLimit-Reset` : Horodatage ISO indiquant quand la fenêtre se réinitialise
 
-## Exemple : Interrogation pour nouveaux journaux
+## Exemple : Polling pour nouveaux logs
 
 ```javascript
 let cursor = null;
