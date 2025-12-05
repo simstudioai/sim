@@ -3,8 +3,6 @@ import { getBlocksAndToolsServerTool } from '@/lib/copilot/tools/server/blocks/g
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
-import { listGDriveFilesServerTool } from '@/lib/copilot/tools/server/gdrive/list-files'
-import { readGDriveFileServerTool } from '@/lib/copilot/tools/server/gdrive/read-file'
 import {
   KnowledgeBaseInput,
   knowledgeBaseServerTool,
@@ -43,8 +41,6 @@ serverToolRegistry[getWorkflowConsoleServerTool.name] = getWorkflowConsoleServer
 serverToolRegistry[searchDocumentationServerTool.name] = searchDocumentationServerTool
 serverToolRegistry[searchOnlineServerTool.name] = searchOnlineServerTool
 serverToolRegistry[setEnvironmentVariablesServerTool.name] = setEnvironmentVariablesServerTool
-serverToolRegistry[listGDriveFilesServerTool.name] = listGDriveFilesServerTool
-serverToolRegistry[readGDriveFileServerTool.name] = readGDriveFileServerTool
 serverToolRegistry[getCredentialsServerTool.name] = getCredentialsServerTool
 serverToolRegistry[makeApiRequestServerTool.name] = makeApiRequestServerTool
 serverToolRegistry[knowledgeBaseServerTool.name] = knowledgeBaseServerTool

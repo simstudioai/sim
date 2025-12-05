@@ -105,6 +105,40 @@ function regenerateIds(workflowState: WorkflowState): WorkflowState {
   }
 }
 
+/**
+ * Normalize subblock values by converting empty strings to null.
+ * This provides backwards compatibility for workflows exported before the null sanitization fix,
+ * preventing Zod validation errors like "Expected array, received string".
+ */
+function normalizeSubblockValues(blocks: Record<string, any>): Record<string, any> {
+  const normalizedBlocks: Record<string, any> = {}
+
+  Object.entries(blocks).forEach(([blockId, block]) => {
+    const normalizedBlock = { ...block }
+
+    if (block.subBlocks) {
+      const normalizedSubBlocks: Record<string, any> = {}
+
+      Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
+        const normalizedSubBlock = { ...subBlock }
+
+        // Convert empty strings to null for consistency
+        if (normalizedSubBlock.value === '') {
+          normalizedSubBlock.value = null
+        }
+
+        normalizedSubBlocks[subBlockId] = normalizedSubBlock
+      })
+
+      normalizedBlock.subBlocks = normalizedSubBlocks
+    }
+
+    normalizedBlocks[blockId] = normalizedBlock
+  })
+
+  return normalizedBlocks
+}
+
 export function parseWorkflowJson(
   jsonContent: string,
   regenerateIdsFlag = true
@@ -203,9 +237,13 @@ export function parseWorkflowJson(
       return { data: null, errors }
     }
 
+    // Normalize non-string subblock values (convert empty strings to null)
+    // This handles exported workflows that may have empty strings for non-string types
+    const normalizedBlocks = normalizeSubblockValues(workflowData.blocks || {})
+
     // Construct the workflow state with defaults
     let workflowState: WorkflowState = {
-      blocks: workflowData.blocks || {},
+      blocks: normalizedBlocks,
       edges: workflowData.edges || [],
       loops: workflowData.loops || {},
       parallels: workflowData.parallels || {},

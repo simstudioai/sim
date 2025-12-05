@@ -96,7 +96,6 @@
     "lodash": "4.17.21",
     "lucide-react": "^0.479.0",
     "mammoth": "^1.9.0",
-    "mermaid": "^11.4.1",
     "mysql2": "3.14.3",
     "nanoid": "^3.3.7",
     "next": "16.0.7",

@@ -193,7 +193,7 @@ export function sanitizeWorkflowForSharing(
 
           // Clear OAuth credentials (type: 'oauth-input')
           if (subBlockConfig.type === 'oauth-input') {
-            block.subBlocks[subBlockConfig.id].value = ''
+            block.subBlocks[subBlockConfig.id].value = null
           }
 
           // Clear secret fields (password: true)
@@ -207,18 +207,18 @@ export function sanitizeWorkflowForSharing(
             ) {
               // Keep the env var reference
             } else {
-              block.subBlocks[subBlockConfig.id].value = ''
+              block.subBlocks[subBlockConfig.id].value = null
             }
           }
 
           // Clear workspace-specific selectors
           else if (WORKSPACE_SPECIFIC_TYPES.has(subBlockConfig.type)) {
-            block.subBlocks[subBlockConfig.id].value = ''
+            block.subBlocks[subBlockConfig.id].value = null
           }
 
           // Clear workspace-specific fields by ID
           else if (WORKSPACE_SPECIFIC_FIELDS.has(subBlockConfig.id)) {
-            block.subBlocks[subBlockConfig.id].value = ''
+            block.subBlocks[subBlockConfig.id].value = null
           }
         }
       })
@@ -229,7 +229,7 @@ export function sanitizeWorkflowForSharing(
       Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
         // Clear workspace-specific fields by key name
         if (WORKSPACE_SPECIFIC_FIELDS.has(key)) {
-          subBlock.value = ''
+          subBlock.value = null
         }
       })
     }
@@ -239,11 +239,11 @@ export function sanitizeWorkflowForSharing(
       Object.entries(block.data).forEach(([key, value]: [string, any]) => {
         // Clear anything that looks like credentials
         if (/credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key)) {
-          block.data[key] = ''
+          block.data[key] = null
         }
         // Clear workspace-specific data
         if (WORKSPACE_SPECIFIC_FIELDS.has(key)) {
-          block.data[key] = ''
+          block.data[key] = null
         }
       })
     }
