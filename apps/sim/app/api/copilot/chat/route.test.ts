@@ -135,21 +135,21 @@ describe('Copilot Chat API Route', () => {
   })
 
   describe('POST', () => {
-    it('should return 400 for invalid request body', async () => {
+    it('should return 401 when user is not authenticated', async () => {
       const authMocks = mockAuth()
-      authMocks.setAuthenticated()
+      authMocks.setUnauthenticated()
 
       const req = createMockRequest('POST', {
-        // Missing required fields
+        message: 'Hello',
+        workflowId: 'workflow-123',
       })
 
       const { POST } = await import('@/app/api/copilot/chat/route')
       const response = await POST(req)
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(401)
       const responseData = await response.json()
-      expect(responseData.error).toBe('Invalid request data')
-      expect(responseData.details).toBeDefined()
+      expect(responseData).toEqual({ error: 'Unauthorized' })
     })
 
     it('should handle new chat creation and forward to sim agent', async () => {
