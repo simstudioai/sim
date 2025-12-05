@@ -1113,9 +1113,12 @@ function applyOperationsToWorkflowState(
 
         // Update basic properties
         if (params?.type !== undefined) {
-          // Validate type before setting
+          // Special container types (loop, parallel) are not in the block registry but are valid
+          const isContainerType = params.type === 'loop' || params.type === 'parallel'
+
+          // Validate type before setting (skip validation for container types)
           const blockConfig = getBlock(params.type)
-          if (!blockConfig) {
+          if (!blockConfig && !isContainerType) {
             skippedItems.push({
               type: 'invalid_block_type',
               operationType: 'edit',
@@ -1329,9 +1332,12 @@ function applyOperationsToWorkflowState(
           break
         }
 
-        // Validate block type before adding
+        // Special container types (loop, parallel) are not in the block registry but are valid
+        const isContainerType = params.type === 'loop' || params.type === 'parallel'
+
+        // Validate block type before adding (skip validation for container types)
         const addBlockConfig = getBlock(params.type)
-        if (!addBlockConfig) {
+        if (!addBlockConfig && !isContainerType) {
           skippedItems.push({
             type: 'invalid_block_type',
             operationType: 'add',
@@ -1525,9 +1531,12 @@ function applyOperationsToWorkflowState(
             })
           }
         } else {
-          // Validate block type before creating
+          // Special container types (loop, parallel) are not in the block registry but are valid
+          const isContainerType = params.type === 'loop' || params.type === 'parallel'
+
+          // Validate block type before creating (skip validation for container types)
           const insertBlockConfig = getBlock(params.type)
-          if (!insertBlockConfig) {
+          if (!insertBlockConfig && !isContainerType) {
             skippedItems.push({
               type: 'invalid_block_type',
               operationType: 'insert_into_subflow',
