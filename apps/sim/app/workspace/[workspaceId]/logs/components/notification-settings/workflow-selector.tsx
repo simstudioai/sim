@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Layers, X } from 'lucide-react'
-import { Combobox, type ComboboxOption } from '@/components/emcn'
+import { Button, Combobox, type ComboboxOption } from '@/components/emcn'
 import { Label, Skeleton } from '@/components/ui'
 
 interface WorkflowSelectorProps {
@@ -113,17 +113,15 @@ export function WorkflowSelector({
     if (allWorkflows) {
       return (
         <div className='flex items-center gap-1'>
-          <span className='flex items-center gap-1 rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs'>
+          <Button
+            variant='outline'
+            className='pointer-events-auto h-6 gap-1 rounded-[6px] px-2 text-[11px]'
+            onMouseDown={(e) => handleRemove(e, ALL_WORKFLOWS_VALUE)}
+          >
             <Layers className='h-3 w-3' />
             All Workflows
-            <button
-              type='button'
-              onMouseDown={(e) => handleRemove(e, ALL_WORKFLOWS_VALUE)}
-              className='pointer-events-auto ml-0.5 opacity-60 hover:opacity-100'
-            >
-              <X className='h-3 w-3' />
-            </button>
-          </span>
+            <X className='h-3 w-3' />
+          </Button>
         </div>
       )
     }
@@ -135,22 +133,18 @@ export function WorkflowSelector({
     return (
       <div className='flex items-center gap-1 overflow-hidden'>
         {selectedWorkflows.slice(0, 2).map((w) => (
-          <span
+          <Button
             key={w.id}
-            className='flex items-center gap-1 rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs'
+            variant='outline'
+            className='pointer-events-auto h-6 gap-1 rounded-[6px] px-2 text-[11px]'
+            onMouseDown={(e) => handleRemove(e, w.id)}
           >
             {w.name}
-            <button
-              type='button'
-              onMouseDown={(e) => handleRemove(e, w.id)}
-              className='pointer-events-auto ml-0.5 opacity-60 hover:opacity-100'
-            >
-              <X className='h-3 w-3' />
-            </button>
-          </span>
+            <X className='h-3 w-3' />
+          </Button>
         ))}
         {selectedWorkflows.length > 2 && (
-          <span className='rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs'>
+          <span className='flex h-6 items-center rounded-[6px] border px-2 text-[11px]'>
             +{selectedWorkflows.length - 2}
           </span>
         )}

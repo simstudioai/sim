@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { AlertCircle, Check, Pencil, Play, Trash2 } from 'lucide-react'
+import { AlertCircle, Check, Pencil, Play, Trash2, X } from 'lucide-react'
 import {
   Button,
   Combobox,
@@ -1025,12 +1025,22 @@ export function NotificationSettings({
               formData.levelFilter.length > 0 ? (
                 <div className='flex items-center gap-1'>
                   {formData.levelFilter.map((level) => (
-                    <span
+                    <Button
                       key={level}
-                      className='rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs capitalize'
+                      variant='outline'
+                      className='pointer-events-auto h-6 gap-1 rounded-[6px] px-2 text-[11px] capitalize'
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setFormData({
+                          ...formData,
+                          levelFilter: formData.levelFilter.filter((l) => l !== level),
+                        })
+                      }}
                     >
                       {level}
-                    </span>
+                      <X className='h-3 w-3' />
+                    </Button>
                   ))}
                 </div>
               ) : null
@@ -1064,15 +1074,25 @@ export function NotificationSettings({
               formData.triggerFilter.length > 0 ? (
                 <div className='flex items-center gap-1 overflow-hidden'>
                   {formData.triggerFilter.slice(0, 3).map((trigger) => (
-                    <span
+                    <Button
                       key={trigger}
-                      className='rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs capitalize'
+                      variant='outline'
+                      className='pointer-events-auto h-6 gap-1 rounded-[6px] px-2 text-[11px] capitalize'
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setFormData({
+                          ...formData,
+                          triggerFilter: formData.triggerFilter.filter((t) => t !== trigger),
+                        })
+                      }}
                     >
                       {trigger}
-                    </span>
+                      <X className='h-3 w-3' />
+                    </Button>
                   ))}
                   {formData.triggerFilter.length > 3 && (
-                    <span className='rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs'>
+                    <span className='flex h-6 items-center rounded-[6px] border px-2 text-[11px]'>
                       +{formData.triggerFilter.length - 3}
                     </span>
                   )}
@@ -1137,15 +1157,22 @@ export function NotificationSettings({
               return (
                 <div className='flex items-center gap-1 overflow-hidden'>
                   {selected.slice(0, 2).map((key) => (
-                    <span
+                    <Button
                       key={key}
-                      className='rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs'
+                      variant='outline'
+                      className='pointer-events-auto h-6 gap-1 rounded-[6px] px-2 text-[11px]'
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setFormData({ ...formData, [key]: false })
+                      }}
                     >
                       {labels[key]}
-                    </span>
+                      <X className='h-3 w-3' />
+                    </Button>
                   ))}
                   {selected.length > 2 && (
-                    <span className='rounded-[4px] bg-[var(--surface-11)] px-2 py-0.5 text-xs'>
+                    <span className='flex h-6 items-center rounded-[6px] border px-2 text-[11px]'>
                       +{selected.length - 2}
                     </span>
                   )}
