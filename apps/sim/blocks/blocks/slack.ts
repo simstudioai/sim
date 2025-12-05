@@ -67,6 +67,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         'reactions:write',
       ],
       placeholder: 'Select Slack workspace',
+      dependsOn: ['authMethod'],
       condition: {
         field: 'authMethod',
         value: 'oauth',
@@ -78,6 +79,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       type: 'short-input',
       placeholder: 'Enter your Slack bot token (xoxb-...)',
       password: true,
+      dependsOn: ['authMethod'],
       condition: {
         field: 'authMethod',
         value: 'bot_token',
