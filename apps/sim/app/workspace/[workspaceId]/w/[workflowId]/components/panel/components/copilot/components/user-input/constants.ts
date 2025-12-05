@@ -36,7 +36,7 @@ export const MODEL_OPTIONS = [
   // { value: 'gpt-5-high', label: 'GPT 5 High' },
   // { value: 'gpt-4o', label: 'GPT 4o' },
   // { value: 'gpt-4.1', label: 'GPT 4.1' },
-  { value: 'o3', label: 'o3' },
+  // { value: 'o3', label: 'o3' },
   { value: 'gemini-3-pro', label: 'Gemini 3 Pro' },
 ] as const
 
