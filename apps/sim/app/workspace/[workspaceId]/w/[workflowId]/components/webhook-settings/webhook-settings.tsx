@@ -17,11 +17,10 @@ import {
 import {
   Button as EmcnButton,
   Modal,
+  ModalBody,
   ModalContent,
-  ModalDescription,
   ModalFooter,
   ModalHeader,
-  ModalTitle,
   Tooltip,
 } from '@/components/emcn'
 import {
@@ -1165,27 +1164,23 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
 
       {/* Delete Confirmation Dialog */}
       <Modal open={showDeleteDialog} onOpenChange={handleDeleteDialogClose}>
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>Delete webhook?</ModalTitle>
-            <ModalDescription>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete Webhook</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               This will permanently remove the webhook configuration and stop all notifications.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </ModalDescription>
-          </ModalHeader>
+            </p>
+          </ModalBody>
           <ModalFooter>
-            <EmcnButton
-              variant='outline'
-              className='h-[32px] px-[12px]'
-              disabled={isDeleting}
-              onClick={handleDeleteDialogClose}
-            >
+            <EmcnButton variant='active' disabled={isDeleting} onClick={handleDeleteDialogClose}>
               Cancel
             </EmcnButton>
             <EmcnButton
+              variant='primary'
               onClick={confirmDeleteWebhook}
               disabled={isDeleting}
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {isDeleting ? 'Deleting...' : 'Delete'}
             </EmcnButton>

@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   Modal,
+  ModalBody,
   ModalContent,
-  ModalDescription,
   ModalFooter,
-  ModalTitle,
+  ModalHeader,
 } from '@/components/emcn/components'
 import { Trash } from '@/components/emcn/icons/trash'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -452,24 +452,23 @@ export function TriggerSave({
       )}
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent>
-          <ModalTitle>Delete trigger?</ModalTitle>
-          <ModalDescription>
-            Are you sure you want to delete this trigger configuration? This will remove the webhook
-            and stop all incoming triggers.{' '}
-            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-          </ModalDescription>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete Trigger</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              Are you sure you want to delete this trigger configuration? This will remove the
+              webhook and stop all incoming triggers.{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
           <ModalFooter>
-            <Button
-              variant='outline'
-              onClick={() => setShowDeleteDialog(false)}
-              className='h-[32px] px-[12px]'
-            >
+            <Button variant='active' onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </Button>
             <Button
+              variant='primary'
               onClick={handleDeleteConfirm}
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               Delete
             </Button>
