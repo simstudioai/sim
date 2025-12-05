@@ -97,8 +97,7 @@ export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
   const { snapshot, callbacks, loggingSession, skipLogCreation } = options
-  const { metadata, workflow, input, environmentVariables, workflowVariables, selectedOutputs } =
-    snapshot
+  const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
     metadata
   const { onBlockStart, onBlockComplete, onStream, onExecutorCreated } = callbacks
@@ -152,8 +151,17 @@ export async function executeWorkflowCore(
     // Merge block states
     const mergedStates = mergeSubblockState(blocks)
 
+    const personalEnvUserId =
+      metadata.isClientSession && metadata.sessionUserId
+        ? metadata.sessionUserId
+        : metadata.workflowUserId
+
+    if (!personalEnvUserId) {
+      throw new Error('Missing workflowUserId in execution metadata')
+    }
+
     const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } =
-      await getPersonalAndWorkspaceEnv(userId, providedWorkspaceId)
+      await getPersonalAndWorkspaceEnv(personalEnvUserId, providedWorkspaceId)
 
     // Use encrypted values for logging (don't log decrypted secrets)
     const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
@@ -300,6 +308,7 @@ export async function executeWorkflowCore(
       remainingEdges: snapshot.state?.remainingEdges,
       dagIncomingEdges: snapshot.state?.dagIncomingEdges,
       snapshotState: snapshot.state,
+      metadata,
     }
 
     const executorInstance = new Executor({
