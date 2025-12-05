@@ -93,6 +93,7 @@ async function setUsageLimitForCredits(
 export interface PurchaseCreditsParams {
   userId: string
   amountDollars: number
+  requestId: string
 }
 
 export interface PurchaseResult {
@@ -107,7 +108,7 @@ function getPaymentMethodId(
 }
 
 export async function purchaseCredits(params: PurchaseCreditsParams): Promise<PurchaseResult> {
-  const { userId, amountDollars } = params
+  const { userId, amountDollars, requestId } = params
 
   if (amountDollars < 10 || amountDollars > 1000) {
     return { success: false, error: 'Amount must be between $10 and $1000' }
@@ -163,7 +164,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
     }
 
     const amountCents = Math.round(amountDollars * 100)
-    const idempotencyKey = `credit-purchase:${customerId}:${Date.now()}:${amountCents}`
+    const idempotencyKey = `credit-purchase:${requestId}`
 
     const creditMetadata = {
       type: 'credit_purchase',

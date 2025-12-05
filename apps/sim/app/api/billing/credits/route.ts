@@ -9,6 +9,7 @@ const logger = createLogger('CreditsAPI')
 
 const PurchaseSchema = z.object({
   amount: z.number().min(10).max(1000),
+  requestId: z.string().uuid(),
 })
 
 export async function GET() {
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
     const result = await purchaseCredits({
       userId: session.user.id,
       amountDollars: validation.data.amount,
+      requestId: validation.data.requestId,
     })
 
     if (!result.success) {

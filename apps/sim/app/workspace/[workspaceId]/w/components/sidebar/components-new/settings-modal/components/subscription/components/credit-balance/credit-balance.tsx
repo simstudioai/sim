@@ -37,6 +37,7 @@ export function CreditBalance({
   const [isPurchasing, setIsPurchasing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [requestId, setRequestId] = useState<string | null>(null)
 
   const handleAmountChange = (value: string) => {
     const numericValue = value.replace(/[^0-9]/g, '')
@@ -45,6 +46,8 @@ export function CreditBalance({
   }
 
   const handlePurchase = async () => {
+    if (!requestId || isPurchasing) return
+
     const numAmount = Number.parseInt(amount, 10)
 
     if (Number.isNaN(numAmount) || numAmount < 10) {
@@ -64,7 +67,7 @@ export function CreditBalance({
       const response = await fetch('/api/billing/credits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: numAmount }),
+        body: JSON.stringify({ amount: numAmount, requestId }),
       })
 
       const data = await response.json()
@@ -88,10 +91,14 @@ export function CreditBalance({
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open)
-    if (!open) {
+    if (open) {
+      // Generate new requestId when modal opens - same ID used for entire session
+      setRequestId(crypto.randomUUID())
+    } else {
       setAmount('')
       setError(null)
       setSuccess(false)
+      setRequestId(null)
     }
   }
 
