@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChevronDown, LibraryBig, Plus } from 'lucide-react'
+import { ChevronDown, Database, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -11,16 +11,13 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
+import { Input } from '@/components/ui/input'
 import {
   BaseOverview,
   CreateModal,
-  EmptyStateCard,
   KnowledgeBaseCardSkeletonGrid,
-  KnowledgeHeader,
-  SearchInput,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
-  filterButtonClass,
   SORT_OPTIONS,
   type SortOption,
   type SortOrder,
@@ -30,13 +27,21 @@ import {
   sortKnowledgeBases,
 } from '@/app/workspace/[workspaceId]/knowledge/utils/sort'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 
+/**
+ * Extended knowledge base data with document count
+ */
 interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
   docCount?: number
 }
 
+/**
+ * Knowledge base list component displaying all knowledge bases in a workspace
+ * Supports filtering by search query and sorting options
+ */
 export function Knowledge() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -46,6 +51,7 @@ export function Knowledge() {
   const userPermissions = useUserPermissionsContext()
 
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isSortPopoverOpen, setIsSortPopoverOpen] = useState(false)
   const [sortBy, setSortBy] = useState<SortOption>('updatedAt')
@@ -55,6 +61,9 @@ export function Knowledge() {
   const currentSortLabel =
     SORT_OPTIONS.find((opt) => opt.value === currentSortValue)?.label || 'Last Updated'
 
+  /**
+   * Handles sort option change from dropdown
+   */
   const handleSortChange = (value: string) => {
     const [field, order] = value.split('-') as [SortOption, SortOrder]
     setSortBy(field)
@@ -62,19 +71,32 @@ export function Knowledge() {
     setIsSortPopoverOpen(false)
   }
 
+  /**
+   * Callback when a new knowledge base is created
+   */
   const handleKnowledgeBaseCreated = (newKnowledgeBase: KnowledgeBaseData) => {
     addKnowledgeBase(newKnowledgeBase)
   }
 
+  /**
+   * Retry loading knowledge bases after an error
+   */
   const handleRetry = () => {
     refreshList()
   }
 
+  /**
+   * Filter and sort knowledge bases based on search query and sort options
+   * Memoized to prevent unnecessary recalculations on render
+   */
   const filteredAndSortedKnowledgeBases = useMemo(() => {
-    const filtered = filterKnowledgeBases(knowledgeBases, searchQuery)
+    const filtered = filterKnowledgeBases(knowledgeBases, debouncedSearchQuery)
     return sortKnowledgeBases(filtered, sortBy, sortOrder)
-  }, [knowledgeBases, searchQuery, sortBy, sortOrder])
+  }, [knowledgeBases, debouncedSearchQuery, sortBy, sortOrder])
 
+  /**
+   * Format knowledge base data for display in the card
+   */
   const formatKnowledgeBaseForDisplay = (kb: KnowledgeBaseWithDocCount) => ({
     id: kb.id,
     title: kb.name,
@@ -84,145 +106,146 @@ export function Knowledge() {
     updatedAt: kb.updatedAt,
   })
 
-  const breadcrumbs = [{ id: 'knowledge', label: 'Knowledge' }]
+  /**
+   * Get empty state content based on current filters
+   * Memoized to prevent unnecessary recalculations on render
+   */
+  const emptyState = useMemo(() => {
+    if (debouncedSearchQuery) {
+      return {
+        title: 'No knowledge bases found',
+        description: 'Try a different search term',
+      }
+    }
+
+    return {
+      title: 'No knowledge bases yet',
+      description:
+        userPermissions.canEdit === true
+          ? 'Create a knowledge base to get started'
+          : 'Knowledge bases will appear here once created',
+    }
+  }, [debouncedSearchQuery, userPermissions.canEdit])
 
   return (
     <>
-      <div className='flex h-screen flex-col pl-64'>
-        {/* Header */}
-        <KnowledgeHeader breadcrumbs={breadcrumbs} />
-
+      <div className='flex h-[100vh] flex-col pl-64'>
         <div className='flex flex-1 overflow-hidden'>
-          <div className='flex flex-1 flex-col overflow-hidden'>
-            {/* Main Content */}
-            <div className='flex-1 overflow-auto'>
-              <div className='px-6 pb-6'>
-                {/* Search and Create Section */}
-                <div className='mb-4 flex items-center justify-between pt-1'>
-                  <SearchInput
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    placeholder='Search knowledge bases...'
-                  />
+          <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+            <div>
+              <div className='flex items-start gap-[12px]'>
+                <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#1E5A3E] bg-[#0F3D2C]'>
+                  <Database className='h-[14px] w-[14px] text-[#34D399]' />
+                </div>
+                <h1 className='font-medium text-[18px]'>Knowledge Base</h1>
+              </div>
+              <p className='mt-[10px] font-base text-[#888888] text-[14px]'>
+                Create and manage knowledge bases with custom files.
+              </p>
+            </div>
 
-                  <div className='flex items-center gap-2'>
-                    {/* Sort Dropdown */}
-                    <Popover open={isSortPopoverOpen} onOpenChange={setIsSortPopoverOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant='outline' className={filterButtonClass}>
-                          {currentSortLabel}
-                          <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent align='end' side='bottom' sideOffset={4}>
+            <div className='mt-[14px] flex items-center justify-between'>
+              <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+                <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+                <Input
+                  placeholder='Search'
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                />
+              </div>
+              <div className='flex items-center gap-[8px]'>
+                {knowledgeBases.length > 0 && (
+                  <Popover open={isSortPopoverOpen} onOpenChange={setIsSortPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant='default' className='h-[32px] rounded-[6px]'>
+                        {currentSortLabel}
+                        <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align='end' side='bottom' sideOffset={4}>
+                      <div className='flex flex-col gap-[2px]'>
                         {SORT_OPTIONS.map((option) => (
                           <PopoverItem
                             key={option.value}
                             active={currentSortValue === option.value}
-                            showCheck
                             onClick={() => handleSortChange(option.value)}
                           >
                             {option.label}
                           </PopoverItem>
                         ))}
-                      </PopoverContent>
-                    </Popover>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
 
-                    {/* Create Button */}
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          onClick={() => setIsCreateModalOpen(true)}
-                          disabled={userPermissions.canEdit !== true}
-                          variant='primary'
-                          className='flex items-center gap-1'
-                        >
-                          <Plus className='h-3.5 w-3.5' />
-                          <span>Create</span>
-                        </Button>
-                      </Tooltip.Trigger>
-                      {userPermissions.canEdit !== true && (
-                        <Tooltip.Content>
-                          Write permission required to create knowledge bases
-                        </Tooltip.Content>
-                      )}
-                    </Tooltip.Root>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      onClick={() => setIsCreateModalOpen(true)}
+                      disabled={userPermissions.canEdit !== true}
+                      variant='primary'
+                      className='h-[32px] rounded-[6px]'
+                    >
+                      Create
+                    </Button>
+                  </Tooltip.Trigger>
+                  {userPermissions.canEdit !== true && (
+                    <Tooltip.Content>
+                      Write permission required to create knowledge bases
+                    </Tooltip.Content>
+                  )}
+                </Tooltip.Root>
+              </div>
+            </div>
+
+            <div className='mt-[24px] h-[1px] w-full border-[var(--border)] border-t' />
+
+            {error && (
+              <div className='mt-[24px] rounded-md border border-red-200 bg-red-50 p-4'>
+                <p className='text-red-800 text-sm'>Error loading knowledge bases: {error}</p>
+                <button
+                  onClick={handleRetry}
+                  className='mt-2 text-red-600 text-sm underline hover:text-red-800'
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+
+            <div className='mt-[24px] grid grid-cols-1 gap-x-[20px] gap-y-[40px] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+              {isLoading ? (
+                <KnowledgeBaseCardSkeletonGrid count={8} />
+              ) : filteredAndSortedKnowledgeBases.length === 0 ? (
+                <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+                  <div className='text-center'>
+                    <p className='font-medium text-muted-foreground text-sm'>{emptyState.title}</p>
+                    <p className='mt-1 text-muted-foreground/70 text-xs'>
+                      {emptyState.description}
+                    </p>
                   </div>
                 </div>
-
-                {/* Error State */}
-                {error && (
-                  <div className='mb-4 rounded-md border border-red-200 bg-red-50 p-4'>
-                    <p className='text-red-800 text-sm'>Error loading knowledge bases: {error}</p>
-                    <button
-                      onClick={handleRetry}
-                      className='mt-2 text-red-600 text-sm underline hover:text-red-800'
-                    >
-                      Try again
-                    </button>
-                  </div>
-                )}
-
-                {/* Content Area */}
-                {isLoading ? (
-                  <KnowledgeBaseCardSkeletonGrid count={8} />
-                ) : (
-                  <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
-                    {filteredAndSortedKnowledgeBases.length === 0 ? (
-                      knowledgeBases.length === 0 ? (
-                        <EmptyStateCard
-                          title='Create your first knowledge base'
-                          description={
-                            userPermissions.canEdit === true
-                              ? 'Upload your documents to create a knowledge base for your agents.'
-                              : 'Knowledge bases will appear here. Contact an admin to create knowledge bases.'
-                          }
-                          buttonText={
-                            userPermissions.canEdit === true
-                              ? 'Create Knowledge Base'
-                              : 'Contact Admin'
-                          }
-                          onClick={
-                            userPermissions.canEdit === true
-                              ? () => setIsCreateModalOpen(true)
-                              : () => {}
-                          }
-                          icon={<LibraryBig className='h-4 w-4 text-muted-foreground' />}
-                        />
-                      ) : (
-                        <div className='col-span-full py-12 text-center'>
-                          <p className='text-muted-foreground'>
-                            No knowledge bases match your search.
-                          </p>
-                        </div>
-                      )
-                    ) : (
-                      filteredAndSortedKnowledgeBases.map((kb) => {
-                        const displayData = formatKnowledgeBaseForDisplay(
-                          kb as KnowledgeBaseWithDocCount
-                        )
-                        return (
-                          <BaseOverview
-                            key={kb.id}
-                            id={displayData.id}
-                            title={displayData.title}
-                            docCount={displayData.docCount}
-                            description={displayData.description}
-                            createdAt={displayData.createdAt}
-                            updatedAt={displayData.updatedAt}
-                          />
-                        )
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
+              ) : (
+                filteredAndSortedKnowledgeBases.map((kb) => {
+                  const displayData = formatKnowledgeBaseForDisplay(kb as KnowledgeBaseWithDocCount)
+                  return (
+                    <BaseOverview
+                      key={kb.id}
+                      id={displayData.id}
+                      title={displayData.title}
+                      docCount={displayData.docCount}
+                      description={displayData.description}
+                      createdAt={displayData.createdAt}
+                      updatedAt={displayData.updatedAt}
+                    />
+                  )
+                })
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Create Modal */}
       <CreateModal
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}

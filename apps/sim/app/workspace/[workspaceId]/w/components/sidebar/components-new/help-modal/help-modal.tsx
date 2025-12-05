@@ -7,7 +7,7 @@ import { X } from 'lucide-react'
 import Image from 'next/image'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { Button, Combobox, Input, Textarea } from '@/components/emcn'
+import { Button, Combobox, Input, Label, Textarea } from '@/components/emcn'
 import {
   Modal,
   ModalBody,
@@ -15,7 +15,6 @@ import {
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn/components/modal/modal'
-import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -422,13 +421,8 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
           <ModalBody className='!pb-[16px]'>
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
               <div className='space-y-[12px]'>
-                <div>
-                  <Label
-                    htmlFor='type'
-                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
-                  >
-                    Request
-                  </Label>
+                <div className='flex flex-col gap-[8px]'>
+                  <Label htmlFor='type'>Request</Label>
                   <Combobox
                     id='type'
                     options={REQUEST_TYPE_OPTIONS}
@@ -442,13 +436,8 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                   />
                 </div>
 
-                <div>
-                  <Label
-                    htmlFor='subject'
-                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
-                  >
-                    Subject
-                  </Label>
+                <div className='flex flex-col gap-[8px]'>
+                  <Label htmlFor='subject'>Subject</Label>
                   <Input
                     id='subject'
                     placeholder='Brief description of your request'
@@ -457,13 +446,8 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                   />
                 </div>
 
-                <div>
-                  <Label
-                    htmlFor='message'
-                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
-                  >
-                    Message
-                  </Label>
+                <div className='flex flex-col gap-[8px]'>
+                  <Label htmlFor='message'>Message</Label>
                   <Textarea
                     id='message'
                     placeholder='Please provide details about your request...'
@@ -473,10 +457,8 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                   />
                 </div>
 
-                <div>
-                  <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-                    Attach Images (Optional)
-                  </Label>
+                <div className='flex flex-col gap-[8px]'>
+                  <Label>Attach Images (Optional)</Label>
                   <Button
                     type='button'
                     variant='default'
@@ -486,7 +468,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     className={cn(
-                      'w-full justify-center border border-[var(--c-575757)] border-dashed',
+                      '!bg-[var(--surface-1)] hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--c-575757)] border-dashed py-[10px]',
                       {
                         'border-[var(--brand-primary-hex)]': isDragging,
                       }
@@ -500,11 +482,13 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                       className='hidden'
                       multiple
                     />
-                    <div className='flex flex-col text-center'>
+                    <div className='flex flex-col gap-[2px] text-center'>
                       <span className='text-[var(--text-primary)]'>
                         {isDragging ? 'Drop images here' : 'Drop images here or click to browse'}
                       </span>
-                      <span className='text-[11px]'>PNG, JPEG, WebP, GIF (max 20MB each)</span>
+                      <span className='text-[11px] text-[var(--text-tertiary)]'>
+                        PNG, JPEG, WebP, GIF (max 20MB each)
+                      </span>
                     </div>
                   </Button>
                 </div>
