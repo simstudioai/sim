@@ -3,7 +3,6 @@ import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
-import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   generateSlug,
@@ -242,7 +241,7 @@ export function TeamManagement() {
   }, [session?.user?.id, activeOrganization?.id, subscriptionData, usedSeats, updateSeatsMutation])
 
   const handleAddSeatDialog = useCallback(() => {
-    if (subscriptionData) {
+    if (subscriptionData && !checkEnterprisePlan(subscriptionData)) {
       setNewSeatCount(totalSeats + 1)
       setIsAddSeatDialogOpen(true)
     }
@@ -486,9 +485,8 @@ export function TeamManagement() {
               <ul className='ml-4 list-disc space-y-[8px] text-[var(--text-muted)] text-xs'>
                 <li>
                   Your team is billed a minimum of $
-                  {(subscriptionData?.seats || 0) *
-                    (env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT)}
-                  /month for {subscriptionData?.seats || 0} licensed seats
+                  {(subscriptionData?.seats ?? 0) * DEFAULT_TEAM_TIER_COST_LIMIT}
+                  /month for {subscriptionData?.seats ?? 0} licensed seats
                 </li>
                 <li>All team member usage is pooled together from a shared limit</li>
                 <li>
@@ -533,23 +531,25 @@ export function TeamManagement() {
         }
       />
 
-      <TeamSeats
-        open={isAddSeatDialogOpen}
-        onOpenChange={setIsAddSeatDialogOpen}
-        title='Add Team Seats'
-        description={`Each seat costs $${env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT}/month and provides $${env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT} in monthly inference credits. Adjust the number of licensed seats for your team.`}
-        currentSeats={totalSeats}
-        initialSeats={newSeatCount}
-        isLoading={isUpdatingSeats}
-        error={updateSeatsMutation.error}
-        onConfirm={async (selectedSeats: number) => {
-          setNewSeatCount(selectedSeats)
-          await confirmAddSeats(selectedSeats)
-        }}
-        confirmButtonText='Update Seats'
-        showCostBreakdown={true}
-        isCancelledAtPeriodEnd={subscriptionData?.cancelAtPeriodEnd}
-      />
+      {subscriptionData && !checkEnterprisePlan(subscriptionData) && (
+        <TeamSeats
+          open={isAddSeatDialogOpen}
+          onOpenChange={setIsAddSeatDialogOpen}
+          title='Add Team Seats'
+          description={`Each seat costs $${DEFAULT_TEAM_TIER_COST_LIMIT}/month and provides $${DEFAULT_TEAM_TIER_COST_LIMIT} in monthly inference credits. Adjust the number of licensed seats for your team.`}
+          currentSeats={totalSeats}
+          initialSeats={newSeatCount}
+          isLoading={isUpdatingSeats}
+          error={updateSeatsMutation.error}
+          onConfirm={async (selectedSeats: number) => {
+            setNewSeatCount(selectedSeats)
+            await confirmAddSeats(selectedSeats)
+          }}
+          confirmButtonText='Update Seats'
+          showCostBreakdown={true}
+          isCancelledAtPeriodEnd={subscriptionData?.cancelAtPeriodEnd}
+        />
+      )}
     </div>
   )
 }
