@@ -108,6 +108,9 @@ export const env = createEnv({
     BROWSERBASE_PROJECT_ID:                z.string().min(1).optional(),           // Browserbase project ID
     GITHUB_TOKEN:                          z.string().optional(),                  // GitHub personal access token for API access
 
+    // Admin API
+    ADMIN_API_KEY:                         z.string().min(32).optional(),          // Admin API key for self-hosted GitOps access (generate with: openssl rand -hex 32)
+
     // Infrastructure & Deployment
     NEXT_RUNTIME:                          z.string().optional(),                  // Next.js runtime environment
     DOCKER_BUILD:                          z.boolean().optional(),                 // Flag indicating Docker build environment
