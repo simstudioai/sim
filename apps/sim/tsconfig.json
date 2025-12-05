@@ -3,31 +3,71 @@
     "target": "es2022",
     "module": "esnext",
     "moduleResolution": "bundler",
-    "lib": ["es2022", "dom", "dom.iterable"],
+    "lib": [
+      "es2022",
+      "dom",
+      "dom.iterable"
+    ],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "@/components/*": ["components/*"],
-      "@/lib/*": ["./lib/*"],
-      "@/stores": ["./stores"],
-      "@/stores/*": ["./stores/*"],
-      "@/hooks/*": ["./hooks/*"],
-      "@/blocks": ["./blocks"],
-      "@/blocks/*": ["./blocks/*"],
-      "@/providers/*": ["./providers/*"],
-      "@/providers": ["./providers"],
-      "@/tools": ["./tools"],
-      "@/tools/*": ["./tools/*"],
-      "@/serializer": ["./serializer"],
-      "@/serializer/*": ["./serializer/*"],
-      "@sim/db": ["../../packages/db"],
-      "@sim/db/*": ["../../packages/db/*"],
-      "@/executor": ["./executor"],
-      "@/executor/*": ["./executor/*"]
+      "@/*": [
+        "./*"
+      ],
+      "@/components/*": [
+        "components/*"
+      ],
+      "@/lib/*": [
+        "./lib/*"
+      ],
+      "@/stores": [
+        "./stores"
+      ],
+      "@/stores/*": [
+        "./stores/*"
+      ],
+      "@/hooks/*": [
+        "./hooks/*"
+      ],
+      "@/blocks": [
+        "./blocks"
+      ],
+      "@/blocks/*": [
+        "./blocks/*"
+      ],
+      "@/providers/*": [
+        "./providers/*"
+      ],
+      "@/providers": [
+        "./providers"
+      ],
+      "@/tools": [
+        "./tools"
+      ],
+      "@/tools/*": [
+        "./tools/*"
+      ],
+      "@/serializer": [
+        "./serializer"
+      ],
+      "@/serializer/*": [
+        "./serializer/*"
+      ],
+      "@sim/db": [
+        "../../packages/db"
+      ],
+      "@sim/db/*": [
+        "../../packages/db/*"
+      ],
+      "@/executor": [
+        "./executor"
+      ],
+      "@/executor/*": [
+        "./executor/*"
+      ]
     },
     "allowJs": true,
     "noEmit": true,
@@ -35,7 +75,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "plugins": [
       {
         "name": "next"
@@ -51,5 +91,7 @@
     "trigger.config.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }
