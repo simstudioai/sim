@@ -1,4 +1,3 @@
-export { FooterNavigation } from './footer-navigation'
 export { HelpModal } from './help-modal/help-modal'
 export { SearchModal } from './search-modal/search-modal'
 export { SettingsModal } from './settings-modal/settings-modal'

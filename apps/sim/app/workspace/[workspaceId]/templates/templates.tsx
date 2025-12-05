@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react'
 import { Layout, Search } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 import {
   TemplateCard,
@@ -13,20 +12,24 @@ import {
 import { useDebounce } from '@/hooks/use-debounce'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const logger = createLogger('TemplatesPage')
-
 /**
  * Template data structure with support for both new and legacy fields
  */
 export interface Template {
+  /** Unique identifier for the template */
   id: string
+  /** Associated workflow ID if linked to a workflow */
   workflowId: string | null
+  /** Display name of the template */
   name: string
+  /** Additional template details */
   details?: {
     tagline?: string
     about?: string
   } | null
+  /** ID of the template creator profile */
   creatorId: string | null
+  /** Creator profile information */
   creator?: {
     id: string
     name: string
@@ -36,35 +39,60 @@ export interface Template {
     referenceId: string
     verified?: boolean
   } | null
+  /** Number of views */
   views: number
+  /** Number of stars */
   stars: number
+  /** Approval status */
   status: 'pending' | 'approved' | 'rejected'
+  /** Categorization tags */
   tags: string[]
+  /** Required credential types */
   requiredCredentials: unknown
+  /** Workflow state data */
   state: WorkflowState
+  /** Creation timestamp */
   createdAt: Date | string
+  /** Last update timestamp */
   updatedAt: Date | string
+  /** Whether the current user has starred this template */
   isStarred: boolean
+  /** Whether the current user is a super user */
   isSuperUser?: boolean
-  // Legacy fields for backward compatibility with existing UI
+  /** @deprecated Legacy field - use creator.referenceId instead */
   userId?: string
+  /** @deprecated Legacy field - use details.tagline instead */
   description?: string | null
+  /** @deprecated Legacy field - use creator.name instead */
   author?: string
+  /** @deprecated Legacy field - use creator.referenceType instead */
   authorType?: 'user' | 'organization'
+  /** @deprecated Legacy field - use creator.referenceId when referenceType is 'organization' */
   organizationId?: string | null
+  /** Display color for the template card */
   color?: string
+  /** Display icon for the template card */
   icon?: string
 }
 
+/**
+ * Props for the Templates component
+ */
 interface TemplatesProps {
+  /** Initial list of templates to display */
   initialTemplates: Template[]
+  /** Current authenticated user ID */
   currentUserId: string
+  /** Whether current user has super user privileges */
   isSuperUser: boolean
 }
 
 /**
  * Templates list component displaying workflow templates
  * Supports filtering by tab (gallery/your/pending) and search
+ *
+ * @param props - Component props
+ * @returns Templates page component
  */
 export default function Templates({
   initialTemplates,
@@ -74,8 +102,8 @@ export default function Templates({
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const [activeTab, setActiveTab] = useState('gallery')
-  const [templates, setTemplates] = useState<Template[]>(initialTemplates)
-  const [loading, setLoading] = useState(false)
+  const [templates] = useState<Template[]>(initialTemplates)
+  const [loading] = useState(false)
 
   /**
    * Filter templates based on active tab and search query

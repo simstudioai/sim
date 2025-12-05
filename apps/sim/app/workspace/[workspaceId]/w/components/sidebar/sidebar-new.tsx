@@ -1,17 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, Plus, Search } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
-import { Button, FolderPlus, Tooltip } from '@/components/emcn'
+import { ArrowDown, Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
+import Link from 'next/link'
+import { useParams, usePathname, useRouter } from 'next/navigation'
+import { Button, FolderPlus, Library, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
-  FooterNavigation,
+  HelpModal,
   SearchModal,
+  SettingsModal,
   UsageIndicator,
   WorkflowList,
   WorkspaceHeader,
@@ -52,6 +54,7 @@ export function SidebarNew() {
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
   const router = useRouter()
+  const pathname = usePathname()
 
   const sidebarRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -88,6 +91,17 @@ export function SidebarNew() {
 
   // Workspace popover state
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
+
+  // Footer navigation modal state
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
+
+  // Listen for external events to open help modal
+  useEffect(() => {
+    const handleOpenHelpModal = () => setIsHelpModalOpen(true)
+    window.addEventListener('open-help-modal', handleOpenHelpModal)
+    return () => window.removeEventListener('open-help-modal', handleOpenHelpModal)
+  }, [])
 
   // Global search modal state
   const {
@@ -156,6 +170,43 @@ export function SidebarNew() {
         isCurrent: workspace.id === workspaceId,
       })),
     [workspaces, workspaceId]
+  )
+
+  // Footer navigation items
+  const footerNavigationItems = useMemo(
+    () => [
+      {
+        id: 'logs',
+        label: 'Logs',
+        icon: Library,
+        href: `/workspace/${workspaceId}/logs`,
+      },
+      {
+        id: 'templates',
+        label: 'Templates',
+        icon: Layout,
+        href: `/workspace/${workspaceId}/templates`,
+      },
+      {
+        id: 'knowledge-base',
+        label: 'Knowledge Base',
+        icon: Database,
+        href: `/workspace/${workspaceId}/knowledge`,
+      },
+      {
+        id: 'help',
+        label: 'Help',
+        icon: HelpCircle,
+        onClick: () => setIsHelpModalOpen(true),
+      },
+      {
+        id: 'settings',
+        label: 'Settings',
+        icon: Settings,
+        onClick: () => setIsSettingsModalOpen(true),
+      },
+    ],
+    [workspaceId]
   )
 
   // Combined loading state
@@ -608,7 +659,52 @@ export function SidebarNew() {
               {isBillingEnabled && <UsageIndicator />}
 
               {/* Footer Navigation */}
-              <FooterNavigation />
+              <div className='flex flex-shrink-0 flex-col gap-[2px] border-[var(--border)] border-t px-[7.75px] pt-[8px] pb-[8px]'>
+                {footerNavigationItems.map((item) => {
+                  const Icon = item.icon
+                  const active = item.href ? pathname?.startsWith(item.href) : false
+                  const baseClasses =
+                    'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px] hover:bg-[var(--surface-9)]'
+                  const activeClasses = active ? 'bg-[var(--surface-9)]' : ''
+                  const textClasses = active
+                    ? 'text-[var(--text-primary)]'
+                    : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+
+                  const content = (
+                    <>
+                      <Icon className={`h-[14px] w-[14px] flex-shrink-0 ${textClasses}`} />
+                      <span className={`truncate font-medium text-[13px] ${textClasses}`}>
+                        {item.label}
+                      </span>
+                    </>
+                  )
+
+                  if (item.onClick) {
+                    return (
+                      <button
+                        key={item.id}
+                        type='button'
+                        data-item-id={item.id}
+                        className={`${baseClasses} ${activeClasses}`}
+                        onClick={item.onClick}
+                      >
+                        {content}
+                      </button>
+                    )
+                  }
+
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href!}
+                      data-item-id={item.id}
+                      className={`${baseClasses} ${activeClasses}`}
+                    >
+                      {content}
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
           </aside>
 
@@ -633,6 +729,10 @@ export function SidebarNew() {
         workspaces={searchModalWorkspaces}
         isOnWorkflowPage={!!workflowId}
       />
+
+      {/* Footer Navigation Modals */}
+      <HelpModal open={isHelpModalOpen} onOpenChange={setIsHelpModalOpen} />
+      <SettingsModal open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
 
       {/* Hidden file input for workspace import */}
       <input

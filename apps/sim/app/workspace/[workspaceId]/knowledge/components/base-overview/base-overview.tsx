@@ -1,12 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { Check, Copy, LibraryBig } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { createLogger } from '@/lib/logs/console/logger'
-
-const logger = createLogger('BaseOverviewComponent')
+import { Badge, DocumentAttachment, Tooltip } from '@/components/emcn'
 
 interface BaseOverviewProps {
   id?: string
@@ -17,6 +13,9 @@ interface BaseOverviewProps {
   updatedAt?: string
 }
 
+/**
+ * Formats a date string to relative time (e.g., "2h ago", "3d ago")
+ */
 function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString)
   const now = new Date()
@@ -49,6 +48,9 @@ function formatRelativeTime(dateString: string): string {
   return `${years}y ago`
 }
 
+/**
+ * Formats a date string to absolute format for tooltip display
+ */
 function formatAbsoluteDate(dateString: string): string {
   const date = new Date(dateString)
   return date.toLocaleDateString('en-US', {
@@ -60,15 +62,10 @@ function formatAbsoluteDate(dateString: string): string {
   })
 }
 
-export function BaseOverview({
-  id,
-  title,
-  docCount,
-  description,
-  createdAt,
-  updatedAt,
-}: BaseOverviewProps) {
-  const [isCopied, setIsCopied] = useState(false)
+/**
+ * Knowledge base card component displaying overview information
+ */
+export function BaseOverview({ id, title, docCount, description, updatedAt }: BaseOverviewProps) {
   const params = useParams()
   const workspaceId = params?.workspaceId as string
 
@@ -77,64 +74,39 @@ export function BaseOverview({
   })
   const href = `/workspace/${workspaceId}/knowledge/${id || title.toLowerCase().replace(/\s+/g, '-')}?${searchParams.toString()}`
 
-  const handleCopy = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    if (id) {
-      try {
-        await navigator.clipboard.writeText(id)
-        setIsCopied(true)
-        setTimeout(() => setIsCopied(false), 2000)
-      } catch (err) {
-        logger.error('Failed to copy ID:', err)
-      }
-    }
-  }
+  const shortId = id ? `kb-${id.slice(0, 8)}` : ''
 
   return (
-    <Link href={href} prefetch={true}>
-      <div className='group flex cursor-pointer flex-col gap-3 rounded-md border bg-background p-4 transition-colors hover:bg-accent/50'>
-        <div className='flex items-center gap-2'>
-          <LibraryBig className='h-4 w-4 flex-shrink-0 text-muted-foreground' />
-          <h3 className='truncate font-medium text-sm leading-tight'>{title}</h3>
+    <Link href={href} prefetch={true} className='h-full'>
+      <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-elevated)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-5)]'>
+        <div className='flex items-center justify-between gap-[8px]'>
+          <h3 className='min-w-0 flex-1 truncate text-[14px] text-[var(--text-primary)]'>
+            {title}
+          </h3>
+          {shortId && <Badge className='flex-shrink-0 rounded-[4px] text-[12px]'>{shortId}</Badge>}
         </div>
 
-        <div className='flex flex-col gap-2'>
-          <div className='flex items-center gap-2 text-muted-foreground text-xs'>
-            <span>
+        <div className='flex flex-1 flex-col gap-[8px]'>
+          <div className='flex items-center justify-between'>
+            <span className='flex items-center gap-[6px] text-[12px] text-[var(--text-tertiary)]'>
+              <DocumentAttachment className='h-[12px] w-[12px]' />
               {docCount} {docCount === 1 ? 'doc' : 'docs'}
             </span>
-            <span>•</span>
-            <div className='flex items-center gap-2'>
-              <span className='truncate font-mono'>{id?.slice(0, 8)}</span>
-              <button
-                onClick={handleCopy}
-                className='flex h-4 w-4 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-              >
-                {isCopied ? <Check className='h-3 w-3' /> : <Copy className='h-3 w-3' />}
-              </button>
-            </div>
+            {updatedAt && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <span className='cursor-default text-[12px] text-[var(--text-muted)]'>
+                    last updated: {formatRelativeTime(updatedAt)}
+                  </span>
+                </Tooltip.Trigger>
+                <Tooltip.Content>{formatAbsoluteDate(updatedAt)}</Tooltip.Content>
+              </Tooltip.Root>
+            )}
           </div>
 
-          {/* Timestamps */}
-          {(createdAt || updatedAt) && (
-            <div className='flex items-center gap-2 text-muted-foreground text-xs'>
-              {updatedAt && (
-                <span title={`Last updated: ${formatAbsoluteDate(updatedAt)}`}>
-                  Updated {formatRelativeTime(updatedAt)}
-                </span>
-              )}
-              {updatedAt && createdAt && <span>•</span>}
-              {createdAt && (
-                <span title={`Created: ${formatAbsoluteDate(createdAt)}`}>
-                  Created {formatRelativeTime(createdAt)}
-                </span>
-              )}
-            </div>
-          )}
+          <div className='h-0 w-full border-[var(--divider)] border-t' />
 
-          <p className='line-clamp-2 overflow-hidden text-muted-foreground text-xs'>
+          <p className='line-clamp-2 h-[36px] text-[12px] text-[var(--text-tertiary)] leading-[18px]'>
             {description}
           </p>
         </div>
