@@ -35,7 +35,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "plugins": [
       {
         "name": "next"
@@ -48,7 +48,8 @@
     ".next/types/**/*.ts",
     "../next-env.d.ts",
     "telemetry.config.js",
-    "trigger.config.ts"
+    "trigger.config.ts",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }

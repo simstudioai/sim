@@ -272,11 +272,11 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
             ) : (
               <>
                 <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
-                  ${usage.current}
+                  ${usage.current.toFixed(2)}
                 </span>
                 <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>/</span>
                 <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
-                  ${usage.limit}
+                  ${usage.limit.toFixed(2)}
                 </span>
               </>
             )}
