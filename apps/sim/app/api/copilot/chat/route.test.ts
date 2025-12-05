@@ -134,6 +134,7 @@ describe('Copilot Chat API Route', () => {
     vi.restoreAllMocks()
   })
 
+  describe('POST', () => {
     it('should handle new chat creation and forward to sim agent', async () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
