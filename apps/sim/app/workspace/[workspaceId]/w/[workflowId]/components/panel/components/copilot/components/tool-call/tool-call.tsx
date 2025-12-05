@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import useDrivePicker from 'react-google-drive-picker'
-import { Button } from '@/components/emcn'
+import { Button, Code } from '@/components/emcn'
 import { GoogleDriveIcon } from '@/components/icons'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
@@ -920,6 +920,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   // Special rendering for function_execute - show code block
   if (toolCall.name === 'function_execute') {
     const code = params.code || ''
+
     return (
       <div className='w-full'>
         <ShimmerOverlayText
@@ -929,19 +930,8 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           className='font-[470] font-season text-[#939393] text-sm dark:text-[#939393]'
         />
         {code && (
-          <div className='mt-[8px] overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1A1A1A]'>
-            <div className='flex items-center justify-between border-[var(--border-strong)] border-b bg-[#242424] px-[10px] py-[4px]'>
-              <span className='font-mono text-[#888] text-[11px]'>javascript</span>
-              {toolCall.state === 'success' && (
-                <span className='text-[11px] text-green-500'>✓ Executed</span>
-              )}
-              {toolCall.state === 'error' && (
-                <span className='text-[11px] text-red-500'>✗ Failed</span>
-              )}
-            </div>
-            <pre className='max-h-[200px] overflow-auto p-[10px]'>
-              <code className='font-mono text-[#E0E0E0] text-[12px] leading-[1.5]'>{code}</code>
-            </pre>
+          <div className='mt-2'>
+            <Code.Viewer code={code} language='javascript' showGutter />
           </div>
         )}
         {showButtons && (

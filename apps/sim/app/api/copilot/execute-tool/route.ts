@@ -61,73 +61,6 @@ function resolveEnvVarReferences(value: any, envVars: Record<string, string>): a
   return value
 }
 
-/**
- * Maps environment variable names to tool API key parameters
- * Convention: {PROVIDER}_API_KEY -> apiKey for tools starting with {provider}_
- */
-function mapEnvVarsToToolParams(
-  toolId: string,
-  toolConfig: any,
-  envVars: Record<string, string>
-): Record<string, string> {
-  const params: Record<string, string> = {}
-
-  // Check if tool has an apiKey parameter that needs to be filled
-  const hasApiKeyParam =
-    toolConfig.params?.apiKey &&
-    toolConfig.params.apiKey.visibility === 'user-only' &&
-    toolConfig.params.apiKey.required
-
-  if (!hasApiKeyParam) return params
-
-  // Extract provider prefix from tool ID (e.g., 'exa' from 'exa_search')
-  const toolPrefix = toolId.split('_')[0]?.toUpperCase()
-
-  // Common API key environment variable patterns to check
-  const envKeyPatterns = [`${toolPrefix}_API_KEY`, `${toolPrefix}AI_API_KEY`, `${toolPrefix}_KEY`]
-
-  // Special mappings for tools with non-standard naming
-  const specialMappings: Record<string, string[]> = {
-    FIRECRAWL: ['FIRECRAWL_API_KEY', 'FIRECRAWL_KEY'],
-    TAVILY: ['TAVILY_API_KEY', 'TAVILY_KEY'],
-    EXA: ['EXA_API_KEY', 'EXAAI_API_KEY', 'EXA_KEY'],
-    LINKUP: ['LINKUP_API_KEY', 'LINKUP_KEY'],
-    GOOGLE: ['GOOGLE_API_KEY', 'GOOGLE_SEARCH_API_KEY'],
-    SERPER: ['SERPER_API_KEY', 'SERPER_KEY'],
-    SERPAPI: ['SERPAPI_API_KEY', 'SERPAPI_KEY'],
-    BING: ['BING_API_KEY', 'BING_SEARCH_API_KEY'],
-    BRAVE: ['BRAVE_API_KEY', 'BRAVE_SEARCH_API_KEY'],
-    PERPLEXITY: ['PERPLEXITY_API_KEY', 'PPLX_API_KEY'],
-    JINA: ['JINA_API_KEY', 'JINA_KEY'],
-  }
-
-  // Combine standard patterns with special mappings
-  const keysToCheck = [...envKeyPatterns]
-  if (specialMappings[toolPrefix]) {
-    keysToCheck.push(...specialMappings[toolPrefix])
-  }
-
-  // Find the first matching environment variable
-  for (const envKey of keysToCheck) {
-    if (envVars[envKey]) {
-      params.apiKey = envVars[envKey]
-      logger.info('Mapped environment variable to tool apiKey', {
-        toolId,
-        envKey,
-        hasValue: true,
-      })
-      break
-    }
-  }
-
-  return params
-}
-
-/**
- * POST /api/copilot/execute-tool
- * Execute an integration tool with resolved credentials
- * Called by the sim-agent service when it needs to execute a tool
- */
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
 
@@ -271,27 +204,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Resolve API key if tool requires one and not already resolved from {{ENV_VAR}} reference
+    // Check if tool requires an API key that wasn't resolved via {{ENV_VAR}} reference
     const needsApiKey = toolConfig.params?.apiKey?.required
 
     if (needsApiKey && !executionParams.apiKey) {
-      // API key not provided or not resolved from env var reference - try tool prefix convention
-      const apiKeyParams = mapEnvVarsToToolParams(toolName, toolConfig, decryptedEnvVars)
-
-      if (apiKeyParams.apiKey) {
-        executionParams.apiKey = apiKeyParams.apiKey
-        logger.info(`[${tracker.requestId}] API key resolved from tool prefix`, { toolName })
-      } else {
-        logger.warn(`[${tracker.requestId}] No API key found for tool`, { toolName })
-        return NextResponse.json(
-          {
-            success: false,
-            error: `API key not configured for ${toolName}. Please add the required API key in settings.`,
-            toolCallId,
-          },
-          { status: 400 }
-        )
-      }
+      logger.warn(`[${tracker.requestId}] No API key found for tool`, { toolName })
+      return NextResponse.json(
+        {
+          success: false,
+          error: `API key not provided for ${toolName}. Use {{YOUR_API_KEY_ENV_VAR}} to reference your environment variable.`,
+          toolCallId,
+        },
+        { status: 400 }
+      )
     }
 
     // Add execution context
