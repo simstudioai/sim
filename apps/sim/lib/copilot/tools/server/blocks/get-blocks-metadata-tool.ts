@@ -1096,12 +1096,12 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
     },
     outputs: {
       results: { type: 'array', description: 'Array of results from all parallel branches' },
-      branchId: { type: 'number', description: 'Current branch ID (0-based)' },
-      branchItem: {
+      index: { type: 'number', description: 'Current branch index (0-based)' },
+      currentItem: {
         type: 'any',
         description: 'Current item for this branch (for collection type)',
       },
-      totalBranches: { type: 'number', description: 'Total number of parallel branches' },
+      items: { type: 'array', description: 'All distribution items' },
     },
     subBlocks: [
       {
