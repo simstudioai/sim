@@ -5,26 +5,6 @@ import type { WorkflowState } from '../workflow/types'
 const logger = createLogger('WorkflowJsonImporter')
 
 /**
- * Subblock types that should NOT have empty string as a value.
- * For these types, empty strings should be normalized to null during import.
- * This provides backwards compatibility for workflows exported before type-aware sanitization.
- */
-const NON_STRING_SUBBLOCK_TYPES = new Set([
-  // Array types
-  'file-upload',
-  'table',
-  'tool-input',
-  'input-format',
-  'checkbox-list',
-  'messages-input',
-  // Boolean types
-  'switch',
-  'checkbox',
-  // Object types
-  'response-format',
-])
-
-/**
  * Generate new IDs for all blocks and edges to avoid conflicts
  */
 function regenerateIds(workflowState: WorkflowState): WorkflowState {
@@ -126,8 +106,8 @@ function regenerateIds(workflowState: WorkflowState): WorkflowState {
 }
 
 /**
- * Normalize subblock values by converting empty strings to null for non-string types.
- * This provides backwards compatibility for workflows exported before type-aware sanitization,
+ * Normalize subblock values by converting empty strings to null.
+ * This provides backwards compatibility for workflows exported before the null sanitization fix,
  * preventing Zod validation errors like "Expected array, received string".
  */
 function normalizeSubblockValues(
@@ -144,16 +124,9 @@ function normalizeSubblockValues(
       Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
         const normalizedSubBlock = { ...subBlock }
 
-        // For non-string types, convert empty string to null
-        if (
-          NON_STRING_SUBBLOCK_TYPES.has(subBlock.type) &&
-          normalizedSubBlock.value === ''
-        ) {
+        // Convert empty strings to null for consistency
+        if (normalizedSubBlock.value === '') {
           normalizedSubBlock.value = null
-          logger.info(`Normalized empty string to null for ${subBlock.type} field`, {
-            blockId,
-            subBlockId,
-          })
         }
 
         normalizedSubBlocks[subBlockId] = normalizedSubBlock
