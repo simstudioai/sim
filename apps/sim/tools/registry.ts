@@ -290,6 +290,17 @@ import {
 } from '@/tools/google_drive'
 import { googleFormsGetResponsesTool } from '@/tools/google_form'
 import {
+  addMemberTool as googleGroupsAddMemberTool,
+  createGroupTool as googleGroupsCreateGroupTool,
+  deleteGroupTool as googleGroupsDeleteGroupTool,
+  getGroupTool as googleGroupsGetGroupTool,
+  getMemberTool as googleGroupsGetMemberTool,
+  listGroupsTool as googleGroupsListGroupsTool,
+  listMembersTool as googleGroupsListMembersTool,
+  removeMemberTool as googleGroupsRemoveMemberTool,
+  updateGroupTool as googleGroupsUpdateGroupTool,
+} from '@/tools/google_groups'
+import {
   googleSheetsAppendTool,
   googleSheetsReadTool,
   googleSheetsUpdateTool,
@@ -2091,6 +2102,15 @@ export const tools: Record<string, ToolConfig> = {
   google_vault_create_matters: createMattersTool,
   google_vault_list_matters: listMattersTool,
   google_vault_download_export_file: downloadExportFileTool,
+  google_groups_list: googleGroupsListGroupsTool,
+  google_groups_get: googleGroupsGetGroupTool,
+  google_groups_create: googleGroupsCreateGroupTool,
+  google_groups_update: googleGroupsUpdateGroupTool,
+  google_groups_delete: googleGroupsDeleteGroupTool,
+  google_groups_list_members: googleGroupsListMembersTool,
+  google_groups_get_member: googleGroupsGetMemberTool,
+  google_groups_add_member: googleGroupsAddMemberTool,
+  google_groups_remove_member: googleGroupsRemoveMemberTool,
   qdrant_fetch_points: qdrantFetchTool,
   qdrant_search_vector: qdrantSearchTool,
   qdrant_upsert_points: qdrantUpsertTool,

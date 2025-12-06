@@ -11,6 +11,7 @@ import {
   GoogleDocsIcon,
   GoogleDriveIcon,
   GoogleFormsIcon,
+  GoogleGroupsIcon,
   GoogleIcon,
   GoogleSheetsIcon,
   HubspotIcon,
@@ -80,6 +81,7 @@ export type OAuthService =
   | 'google-calendar'
   | 'google-vault'
   | 'google-forms'
+  | 'google-groups'
   | 'github'
   | 'x'
   // | 'supabase'
@@ -223,6 +225,19 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/devstorage.read_only',
         ],
         scopeHints: ['ediscovery', 'devstorage'],
+      },
+      'google-groups': {
+        id: 'google-groups',
+        name: 'Google Groups',
+        description: 'Manage Google Workspace Groups and their members.',
+        providerId: 'google-groups',
+        icon: (props) => GoogleGroupsIcon(props),
+        baseProviderIcon: (props) => GoogleIcon(props),
+        scopes: [
+          'https://www.googleapis.com/auth/admin.directory.group',
+          'https://www.googleapis.com/auth/admin.directory.group.member',
+        ],
+        scopeHints: ['admin.directory.group'],
       },
     },
     defaultService: 'gmail',
