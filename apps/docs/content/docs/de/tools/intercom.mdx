@@ -167,7 +167,7 @@ Ein Unternehmen in Intercom erstellen oder aktualisieren
 | `plan` | string | Nein | Der Unternehmensplan |
 | `size` | number | Nein | Die Anzahl der Mitarbeiter im Unternehmen |
 | `industry` | string | Nein | Die Branche, in der das Unternehmen tätig ist |
-| `monthly_spend` | number | Nein | Wie viel Umsatz das Unternehmen für Ihr Geschäft generiert |
+| `monthly_spend` | number | Nein | Wie viel Umsatz das Unternehmen für Ihr Geschäft generiert. Hinweis: Dieses Feld kürzt Dezimalzahlen auf ganze Zahlen \(z.B. wird aus 155,98 die Zahl 155\) |
 | `custom_attributes` | string | Nein | Benutzerdefinierte Attribute als JSON-Objekt |
 
 #### Ausgabe
@@ -196,7 +196,7 @@ Ein einzelnes Unternehmen anhand der ID von Intercom abrufen
 
 ### `intercom_list_companies`
 
-Alle Unternehmen von Intercom mit Paginierungsunterstützung auflisten
+Listet alle Unternehmen von Intercom mit Paginierungsunterstützung auf. Hinweis: Dieser Endpunkt hat ein Limit von 10.000 Unternehmen, die über Paginierung zurückgegeben werden können. Für Datensätze mit mehr als 10.000 Unternehmen verwenden Sie stattdessen die Scroll-API.
 
 #### Eingabe
 
@@ -259,8 +259,8 @@ Als Administrator auf eine Konversation in Intercom antworten
 | `conversationId` | string | Ja | Konversations-ID, auf die geantwortet werden soll |
 | `message_type` | string | Ja | Nachrichtentyp: "comment" oder "note" |
 | `body` | string | Ja | Der Textinhalt der Antwort |
-| `admin_id` | string | Ja | Die ID des Administrators, der die Antwort verfasst |
-| `attachment_urls` | string | Nein | Kommagetrennte Liste von Bild-URLs (max. 10) |
+| `admin_id` | string | Nein | Die ID des Administrators, der die Antwort verfasst. Wenn nicht angegeben, wird ein Standard-Administrator \(Operator/Fin\) verwendet. |
+| `attachment_urls` | string | Nein | Kommagetrennte Liste von Bild-URLs \(max. 10\) |
 
 #### Ausgabe
 

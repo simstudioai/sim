@@ -38,15 +38,15 @@ Googleカレンダーに新しいイベントを作成する
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `calendarId` | string | いいえ | カレンダーID（デフォルトはprimary） |
+| `calendarId` | string | いいえ | カレンダーID（デフォルトはプライマリ） |
 | `summary` | string | はい | イベントのタイトル/概要 |
 | `description` | string | いいえ | イベントの説明 |
 | `location` | string | いいえ | イベントの場所 |
-| `startDateTime` | string | はい | 開始日時（RFC3339形式、例：2025-06-03T10:00:00-08:00） |
-| `endDateTime` | string | はい | 終了日時（RFC3339形式、例：2025-06-03T11:00:00-08:00） |
-| `timeZone` | string | いいえ | タイムゾーン（例：America/Los_Angeles） |
+| `startDateTime` | string | はい | 開始日時。タイムゾーンオフセットを含める必要があります（例：2025-06-03T10:00:00-08:00）または、timeZoneパラメータを提供する |
+| `endDateTime` | string | はい | 終了日時。タイムゾーンオフセットを含める必要があります（例：2025-06-03T11:00:00-08:00）または、timeZoneパラメータを提供する |
+| `timeZone` | string | いいえ | タイムゾーン（例：America/Los_Angeles）。日時にオフセットが含まれていない場合は必須。提供されない場合はAmerica/Los_Angelesがデフォルト。 |
 | `attendees` | array | いいえ | 参加者のメールアドレスの配列 |
-| `sendUpdates` | string | いいえ | 参加者への更新通知方法：all、externalOnly、またはnone |
+| `sendUpdates` | string | いいえ | 参加者への更新通知方法：all（全員）、externalOnly（外部のみ）、またはnone（なし） |
 
 #### 出力
 

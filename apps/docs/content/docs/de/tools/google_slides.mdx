@@ -1,0 +1,180 @@
+---
+title: Google Slides
+description: Präsentationen lesen, schreiben und erstellen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_slides"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Slides](https://slides.google.com) ist eine dynamische cloudbasierte Präsentationsanwendung, mit der Benutzer in Echtzeit Präsentationen erstellen, bearbeiten, gemeinsam daran arbeiten und präsentieren können. Als Teil der Google-Produktivitätssuite bietet Google Slides eine flexible Plattform zum Gestalten ansprechender Präsentationen, zur Zusammenarbeit mit anderen und zum nahtlosen Teilen von Inhalten über die Cloud.
+
+Erfahren Sie, wie Sie die Google Slides-Tools in Sim integrieren können, um Präsentationen mühelos als Teil Ihrer automatisierten Workflows zu verwalten. Mit Sim können Sie Google Slides-Präsentationen direkt über Ihre Agenten und automatisierten Prozesse lesen, schreiben, erstellen und aktualisieren, wodurch es einfach wird, aktuelle Informationen zu liefern, benutzerdefinierte Berichte zu generieren oder Marken-Präsentationen programmatisch zu erstellen.
+
+Mit Google Slides können Sie:
+
+- **Präsentationen erstellen und bearbeiten**: Gestalten Sie visuell ansprechende Folien mit Designs, Layouts und Multimedia-Inhalten
+- **In Echtzeit zusammenarbeiten**: Arbeiten Sie gleichzeitig mit Teammitgliedern, kommentieren Sie, weisen Sie Aufgaben zu und erhalten Sie Live-Feedback zu Präsentationen
+- **Überall präsentieren**: Zeigen Sie Präsentationen online oder offline an, teilen Sie Links oder veröffentlichen Sie im Web
+- **Bilder und umfangreiche Inhalte hinzufügen**: Fügen Sie Bilder, Grafiken, Diagramme und Videos ein, um Ihre Präsentationen ansprechend zu gestalten
+- **Mit anderen Diensten integrieren**: Verbinden Sie sich nahtlos mit Google Drive, Docs, Sheets und anderen Drittanbieter-Tools
+- **Von jedem Gerät aus zugreifen**: Nutzen Sie Google Slides auf Desktop-Computern, Laptops, Tablets und mobilen Geräten für maximale Flexibilität
+
+In Sim ermöglicht die Google Slides-Integration Ihren Agenten, direkt programmatisch mit Präsentationsdateien zu interagieren. Automatisieren Sie Aufgaben wie das Lesen von Folieninhalten, das Einfügen neuer Folien oder Bilder, das Ersetzen von Text in einer gesamten Präsentation, das Erstellen neuer Präsentationen und das Abrufen von Folien-Miniaturansichten. Dies ermöglicht Ihnen, die Inhaltserstellung zu skalieren, Präsentationen aktuell zu halten und sie in automatisierte Dokumenten-Workflows einzubetten. Durch die Verbindung von Sim mit Google Slides ermöglichen Sie KI-gestütztes Präsentationsmanagement – so wird es einfach, Präsentationen ohne manuellen Aufwand zu generieren, zu aktualisieren oder Informationen daraus zu extrahieren.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie Google Slides in den Workflow. Kann Präsentationen lesen, schreiben, erstellen, Text ersetzen, Folien hinzufügen, Bilder einfügen und Vorschaubilder abrufen.
+
+## Tools
+
+### `google_slides_read`
+
+Inhalte aus einer Google Slides-Präsentation lesen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Die ID der zu lesenden Präsentation |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `slides` | json | Array von Folien mit ihren Inhalten |
+| `metadata` | json | Präsentationsmetadaten einschließlich ID, Titel und URL |
+
+### `google_slides_write`
+
+Inhalte in einer Google Slides-Präsentation schreiben oder aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Die ID der Präsentation, in die geschrieben werden soll |
+| `content` | string | Ja | Der Inhalt, der in die Folie geschrieben werden soll |
+| `slideIndex` | number | Nein | Der Index der Folie, in die geschrieben werden soll \(standardmäßig die erste Folie\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | Gibt an, ob der Präsentationsinhalt erfolgreich aktualisiert wurde |
+| `metadata` | json | Aktualisierte Präsentationsmetadaten einschließlich ID, Titel und URL |
+
+### `google_slides_create`
+
+Eine neue Google Slides-Präsentation erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Ja | Der Titel der zu erstellenden Präsentation |
+| `content` | string | Nein | Der Inhalt, der zur ersten Folie hinzugefügt werden soll |
+| `folderSelector` | string | Nein | Wählen Sie den Ordner aus, in dem die Präsentation erstellt werden soll |
+| `folderId` | string | Nein | Die ID des Ordners, in dem die Präsentation erstellt werden soll \(interne Verwendung\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `metadata` | json | Metadaten der erstellten Präsentation einschließlich ID, Titel und URL |
+
+### `google_slides_replace_all_text`
+
+Suchen und ersetzen aller Textvorkommen in einer Google Slides-Präsentation
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Die ID der Präsentation |
+| `findText` | string | Ja | Der zu suchende Text (z.B. \{\{placeholder\}\}) |
+| `replaceText` | string | Ja | Der Text, durch den ersetzt werden soll |
+| `matchCase` | boolean | Nein | Ob die Suche Groß-/Kleinschreibung berücksichtigen soll (Standard: true) |
+| `pageObjectIds` | string | Nein | Kommagetrennte Liste von Folienobjekt-IDs, um Ersetzungen auf bestimmte Folien zu beschränken (leer lassen für alle Folien) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `occurrencesChanged` | number | Anzahl der Textvorkommen, die ersetzt wurden |
+| `metadata` | json | Operationsmetadaten einschließlich Präsentations-ID und URL |
+
+### `google_slides_add_slide`
+
+Eine neue Folie mit einem bestimmten Layout zu einer Google Slides-Präsentation hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Die ID der Präsentation |
+| `layout` | string | Nein | Das vordefinierte Layout für die Folie (BLANK, TITLE, TITLE_AND_BODY, TITLE_ONLY, SECTION_HEADER, usw.). Standard ist BLANK. |
+| `insertionIndex` | number | Nein | Der optionale nullbasierte Index, der angibt, wo die Folie eingefügt werden soll. Wenn nicht angegeben, wird die Folie am Ende hinzugefügt. |
+| `placeholderIdMappings` | string | Nein | JSON-Array von Platzhalter-Zuordnungen, um Platzhaltern benutzerdefinierte Objekt-IDs zuzuweisen. Format: \[\{"layoutPlaceholder":\{"type":"TITLE"\},"objectId":"custom_title_id"\}\] |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `slideId` | string | Die Objekt-ID der neu erstellten Folie |
+| `metadata` | json | Operationsmetadaten einschließlich Präsentations-ID, Layout und URL |
+
+### `google_slides_add_image`
+
+Ein Bild in eine bestimmte Folie einer Google Slides-Präsentation einfügen
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Die ID der Präsentation |
+| `pageObjectId` | string | Ja | Die Objekt-ID der Folie/Seite, zu der das Bild hinzugefügt werden soll |
+| `imageUrl` | string | Ja | Die öffentlich zugängliche URL des Bildes \(muss PNG, JPEG oder GIF sein, max. 50MB\) |
+| `width` | number | Nein | Breite des Bildes in Punkten \(Standard: 300\) |
+| `height` | number | Nein | Höhe des Bildes in Punkten \(Standard: 200\) |
+| `positionX` | number | Nein | X-Position vom linken Rand in Punkten \(Standard: 100\) |
+| `positionY` | number | Nein | Y-Position vom oberen Rand in Punkten \(Standard: 100\) |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `imageId` | string | Die Objekt-ID des neu erstellten Bildes |
+| `metadata` | json | Operationsmetadaten einschließlich Präsentations-ID und Bild-URL |
+
+### `google_slides_get_thumbnail`
+
+Ein Vorschaubild einer bestimmten Folie in einer Google Slides-Präsentation generieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Die ID der Präsentation |
+| `pageObjectId` | string | Ja | Die Objekt-ID der Folie/Seite, für die ein Thumbnail erstellt werden soll |
+| `thumbnailSize` | string | Nein | Die Größe des Thumbnails: SMALL \(200px\), MEDIUM \(800px\) oder LARGE \(1600px\). Standardmäßig MEDIUM. |
+| `mimeType` | string | Nein | Der MIME-Typ des Thumbnail-Bildes: PNG oder GIF. Standardmäßig PNG. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `contentUrl` | string | URL zum Thumbnail-Bild \(gültig für 30 Minuten\) |
+| `width` | number | Breite des Thumbnails in Pixeln |
+| `height` | number | Höhe des Thumbnails in Pixeln |
+| `metadata` | json | Operationsmetadaten einschließlich Präsentations-ID und Seitenobjekt-ID |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `google_slides`

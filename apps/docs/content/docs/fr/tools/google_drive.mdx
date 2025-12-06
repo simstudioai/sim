@@ -107,11 +107,11 @@ Lister les fichiers et dossiers dans Google Drive
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `folderSelector` | string | Non | Sélectionner le dossier à partir duquel lister les fichiers |
-| `folderId` | string | Non | L'ID du dossier à partir duquel lister les fichiers \(usage interne\) |
-| `query` | string | Non | Une requête pour filtrer les fichiers |
-| `pageSize` | number | Non | Le nombre de fichiers à retourner |
+| `folderId` | string | Non | L'ID du dossier à partir duquel lister les fichiers (usage interne) |
+| `query` | string | Non | Terme de recherche pour filtrer les fichiers par nom (ex. "budget" trouve les fichiers avec "budget" dans le nom). N'utilisez PAS la syntaxe de requête Google Drive ici - fournissez simplement un terme de recherche ordinaire. |
+| `pageSize` | number | Non | Le nombre maximum de fichiers à retourner (par défaut : 100) |
 | `pageToken` | string | Non | Le jeton de page à utiliser pour la pagination |
 
 #### Sortie

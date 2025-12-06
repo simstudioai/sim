@@ -167,7 +167,7 @@ Intercomで企業を作成または更新する
 | `plan` | string | いいえ | 企業のプラン名 |
 | `size` | number | いいえ | 企業の従業員数 |
 | `industry` | string | いいえ | 企業が事業を展開している業界 |
-| `monthly_spend` | number | いいえ | 企業があなたのビジネスにもたらす収益額 |
+| `monthly_spend` | number | いいえ | 企業があなたのビジネスにもたらす収益額。注：このフィールドは小数点以下を切り捨てて整数にします（例：155.98は155になります） |
 | `custom_attributes` | string | いいえ | JSONオブジェクトとしてのカスタム属性 |
 
 #### 出力
@@ -196,7 +196,7 @@ IDによってIntercomから単一の企業を取得する
 
 ### `intercom_list_companies`
 
-ページネーションサポート付きでIntercomからすべての企業を一覧表示
+ページネーションをサポートしてIntercomからすべての企業を一覧表示します。注：このエンドポイントはページネーションを使用して返すことができる企業数が10,000社に制限されています。10,000社を超えるデータセットの場合は、代わりにスクロールAPIを使用してください。
 
 #### 入力
 
@@ -259,8 +259,8 @@ IDによりIntercomから単一の会話を取得
 | `conversationId` | string | はい | 返信する会話ID |
 | `message_type` | string | はい | メッセージタイプ：「comment」または「note」 |
 | `body` | string | はい | 返信の本文テキスト |
-| `admin_id` | string | はい | 返信を作成する管理者のID |
-| `attachment_urls` | string | いいえ | カンマ区切りの画像URL一覧（最大10件） |
+| `admin_id` | string | いいえ | 返信を作成する管理者のID。提供されない場合、デフォルトの管理者（オペレーター/Fin）が使用されます。 |
+| `attachment_urls` | string | いいえ | 画像URLのカンマ区切りリスト（最大10件） |
 
 #### 出力
 

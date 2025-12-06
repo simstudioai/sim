@@ -360,7 +360,9 @@ incident.io 赋能现代组织更快响应、协调团队并捕获经验教训�
 | `apiKey` | string | 是 | incident.io API 密钥 |
 | `id` | string | 是 | 要更新的日程 ID |
 | `name` | string | 否 | 日程的新名称 |
-| `timezone` | string | 否 | 日程的新时区 \(例如，America/New_York\) |
+| `timezone` | string | 否 | 日程的新时区 \(例如: America/New_York\) |
+| `config` | string | 否 | 以 JSON 字符串形式表示的日程配置，包括轮换。例如: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
+| `Example` | string | 否 | 无描述 |
 
 #### 输出
 

@@ -1,6 +1,6 @@
 ---
 title: Kalshi
-description: Accédez aux données des marchés prédictifs de Kalshi
+description: Accédez aux marchés prédictifs et tradez sur Kalshi
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -27,7 +27,7 @@ En utilisant ces outils et points d'accès unifiés, vous pouvez intégrer de ma
 
 ## Instructions d'utilisation
 
-Intégrez les marchés prédictifs de Kalshi dans le flux de travail. Peut obtenir les marchés, le marché, les événements, l'événement, le solde, les positions, les ordres, le carnet d'ordres, les transactions, les chandeliers, les exécutions, les séries et le statut de la bourse.
+Intégrez les marchés prédictifs Kalshi dans votre flux de travail. Permet d'obtenir les marchés, un marché spécifique, les événements, un événement spécifique, le solde, les positions, les ordres, le carnet d'ordres, les transactions, les chandeliers, les exécutions, les séries, l'état de l'échange, et de placer/annuler/modifier des transactions.
 
 ## Outils
 
@@ -172,36 +172,51 @@ Récupérez vos ordres depuis Kalshi avec filtrage optionnel
 | `success` | boolean | Statut de réussite de l'opération |
 | `output` | object | Données des ordres et métadonnées |
 
-### `kalshi_get_orderbook`
+### `kalshi_get_order`
 
-Récupérez le carnet d'ordres (offres d'achat et de vente) pour un marché spécifique
+Récupérer les détails d'un ordre spécifique par ID depuis Kalshi
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | -------- | ----------- |
-| `ticker` | string | Oui | Ticker du marché \(ex. : KXBTC-24DEC31\) |
-| `depth` | number | Non | Nombre de niveaux de prix à retourner par côté |
+| `keyId` | string | Oui | Votre ID de clé API Kalshi |
+| `privateKey` | string | Oui | Votre clé privée RSA \(format PEM\) |
+| `orderId` | string | Oui | L'ID de l'ordre à récupérer |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données et métadonnées du carnet d'ordres |
+| `output` | object | Données de l'ordre |
 
-### `kalshi_get_trades`
+### `kalshi_get_orderbook`
 
-Récupérer les transactions récentes sur tous les marchés ou pour un marché spécifique
+Récupérer le carnet d'ordres (offres oui et non) pour un marché spécifique
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `ticker` | string | Non | Filtrer par symbole de marché |
-| `minTs` | number | Non | Horodatage minimum (millisecondes Unix) |
-| `maxTs` | number | Non | Horodatage maximum (millisecondes Unix) |
-| `limit` | string | Non | Nombre de résultats (1-1000, par défaut : 100) |
+| --------- | ---- | -------- | ----------- |
+| `ticker` | string | Oui | Ticker du marché \(ex. : KXBTC-24DEC31\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données du carnet d'ordres et métadonnées |
+
+### `kalshi_get_trades`
+
+Récupérer les transactions récentes sur tous les marchés
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | Non | Nombre de résultats \(1-1000, par défaut : 100\) |
 | `cursor` | string | Non | Curseur de pagination pour la page suivante |
 
 #### Sortie
@@ -209,7 +224,7 @@ Récupérer les transactions récentes sur tous les marchés ou pour un marché 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données et métadonnées des transactions |
+| `output` | object | Données des transactions et métadonnées |
 
 ### `kalshi_get_candlesticks`
 
@@ -218,19 +233,19 @@ Récupérer les données de chandeliers OHLC pour un marché spécifique
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `seriesTicker` | string | Oui | Symbole de la série |
-| `ticker` | string | Oui | Symbole du marché (ex. : KXBTC-24DEC31) |
-| `startTs` | number | Non | Horodatage de début (millisecondes Unix) |
-| `endTs` | number | Non | Horodatage de fin (millisecondes Unix) |
-| `periodInterval` | number | Non | Intervalle de période : 1 (1min), 60 (1heure), ou 1440 (1jour) |
+| --------- | ---- | -------- | ----------- |
+| `seriesTicker` | string | Oui | Ticker de série |
+| `ticker` | string | Oui | Ticker du marché \(ex. : KXBTC-24DEC31\) |
+| `startTs` | number | Oui | Horodatage de début \(secondes Unix\) |
+| `endTs` | number | Oui | Horodatage de fin \(secondes Unix\) |
+| `periodInterval` | number | Oui | Intervalle de période : 1 \(1min\), 60 \(1heure\), ou 1440 \(1jour\) |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données et métadonnées du chandelier |
+| `output` | object | Données de chandeliers et métadonnées |
 
 ### `kalshi_get_fills`
 
@@ -243,7 +258,7 @@ Récupérer votre portefeuille
 | `keyId` | string | Oui | Votre ID de clé API Kalshi |
 | `privateKey` | string | Oui | Votre clé privée RSA \(format PEM\) |
 | `ticker` | string | Non | Filtrer par ticker de marché |
-| `orderId` | string | Non | Filtrer par ID de commande |
+| `orderId` | string | Non | Filtrer par ID d'ordre |
 | `minTs` | number | Non | Horodatage minimum \(millisecondes Unix\) |
 | `maxTs` | number | Non | Horodatage maximum \(millisecondes Unix\) |
 | `limit` | string | Non | Nombre de résultats \(1-1000, par défaut : 100\) |
@@ -275,19 +290,102 @@ Récupérer les détails d'une série de marché spécifique par ticker
 
 ### `kalshi_get_exchange_status`
 
-Récupérer l'état actuel de l'échange Kalshi (activité de trading et d'échange)
+Récupérer le statut actuel de la plateforme d'échange Kalshi (activité de trading et d'échange)
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données d'état de l'échange et métadonnées |
+| `output` | object | Données et métadonnées du statut de l'échange |
+
+### `kalshi_create_order`
+
+Créer un nouvel ordre sur un marché de prédiction Kalshi
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Oui | Votre ID de clé API Kalshi |
+| `privateKey` | string | Oui | Votre clé privée RSA \(format PEM\) |
+| `ticker` | string | Oui | Ticker du marché \(ex., KXBTC-24DEC31\) |
+| `side` | string | Oui | Côté de l'ordre : 'yes' ou 'no' |
+| `action` | string | Oui | Type d'action : 'buy' ou 'sell' |
+| `count` | string | Oui | Nombre de contrats \(minimum 1\) |
+| `type` | string | Non | Type d'ordre : 'limit' ou 'market' \(par défaut : limit\) |
+| `yesPrice` | string | Non | Prix du 'yes' en centimes \(1-99\) |
+| `noPrice` | string | Non | Prix du 'no' en centimes \(1-99\) |
+| `yesPriceDollars` | string | Non | Prix du 'yes' en dollars \(ex., "0.56"\) |
+| `noPriceDollars` | string | Non | Prix du 'no' en dollars \(ex., "0.56"\) |
+| `clientOrderId` | string | Non | Identifiant personnalisé de l'ordre |
+| `expirationTs` | string | Non | Horodatage Unix pour l'expiration de l'ordre |
+| `timeInForce` | string | Non | Durée de validité : 'fill_or_kill', 'good_till_canceled', 'immediate_or_cancel' |
+| `buyMaxCost` | string | Non | Coût maximum en centimes \(active automatiquement fill_or_kill\) |
+| `postOnly` | string | Non | Définir à 'true' pour les ordres maker uniquement |
+| `reduceOnly` | string | Non | Définir à 'true' pour la réduction de position uniquement |
+| `selfTradePreventionType` | string | Non | Prévention d'auto-négociation : 'taker_at_cross' ou 'maker' |
+| `orderGroupId` | string | Non | ID de groupe d'ordres associé |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données de l'ordre créé |
+
+### `kalshi_cancel_order`
+
+Annuler un ordre existant sur Kalshi
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Oui | Votre ID de clé API Kalshi |
+| `privateKey` | string | Oui | Votre clé privée RSA \(format PEM\) |
+| `orderId` | string | Oui | L'ID de l'ordre à annuler |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données de l'ordre annulé |
+
+### `kalshi_amend_order`
+
+Modifier le prix ou la quantité d'un ordre existant sur Kalshi
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Oui | Votre ID de clé API Kalshi |
+| `privateKey` | string | Oui | Votre clé privée RSA \(format PEM\) |
+| `orderId` | string | Oui | L'ID de l'ordre à modifier |
+| `ticker` | string | Oui | Ticker du marché |
+| `side` | string | Oui | Côté de l'ordre : 'yes' ou 'no' |
+| `action` | string | Oui | Type d'action : 'buy' ou 'sell' |
+| `clientOrderId` | string | Oui | L'ID d'ordre original spécifié par le client |
+| `updatedClientOrderId` | string | Oui | Le nouvel ID d'ordre spécifié par le client après modification |
+| `count` | string | Non | Quantité mise à jour pour l'ordre |
+| `yesPrice` | string | Non | Prix 'yes' mis à jour en centimes \(1-99\) |
+| `noPrice` | string | Non | Prix 'no' mis à jour en centimes \(1-99\) |
+| `yesPriceDollars` | string | Non | Prix 'yes' mis à jour en dollars \(ex. : "0.56"\) |
+| `noPriceDollars` | string | Non | Prix 'no' mis à jour en dollars \(ex. : "0.56"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données de l'ordre modifié |
 
 ## Notes
 
