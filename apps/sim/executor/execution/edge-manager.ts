@@ -89,6 +89,14 @@ export class EdgeManager {
   private shouldActivateEdge(edge: DAGEdge, output: NormalizedBlockOutput): boolean {
     const handle = edge.sourceHandle
 
+    if (output.selectedRoute === EDGE.LOOP_EXIT) {
+      return handle === EDGE.LOOP_EXIT
+    }
+
+    if (output.selectedRoute === EDGE.LOOP_CONTINUE) {
+      return handle === EDGE.LOOP_CONTINUE || handle === EDGE.LOOP_CONTINUE_ALT
+    }
+
     if (!handle) {
       return true
     }
@@ -104,13 +112,6 @@ export class EdgeManager {
     }
 
     switch (handle) {
-      case EDGE.LOOP_CONTINUE:
-      case EDGE.LOOP_CONTINUE_ALT:
-        return output.selectedRoute === EDGE.LOOP_CONTINUE
-
-      case EDGE.LOOP_EXIT:
-        return output.selectedRoute === EDGE.LOOP_EXIT
-
       case EDGE.ERROR:
         return !!output.error
 

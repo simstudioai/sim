@@ -39,11 +39,13 @@ export const kalshiGetPositionsTool: ToolConfig<
     keyId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Your Kalshi API Key ID',
     },
     privateKey: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Your RSA Private Key (PEM format)',
     },
     ticker: {

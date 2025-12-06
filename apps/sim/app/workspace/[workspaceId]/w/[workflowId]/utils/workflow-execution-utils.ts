@@ -27,12 +27,12 @@ export async function executeWorkflowWithFullLogging(
   const executionId = options.executionId || uuidv4()
   const { addConsole } = useTerminalConsoleStore.getState()
 
-  // Build request payload
   const payload: any = {
     input: options.workflowInput,
     stream: true,
     triggerType: options.overrideTriggerType || 'manual',
     useDraftState: true,
+    isClientSession: true,
   }
 
   const response = await fetch(`/api/workflows/${activeWorkflowId}/execute`, {

@@ -9,6 +9,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { registry as blockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { tools as toolsRegistry } from '@/tools/registry'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/consts'
@@ -381,14 +382,6 @@ function extractInputs(metadata: CopilotBlockMetadata): {
       continue
     }
 
-    if (
-      schema.type === 'oauth-credential' ||
-      schema.type === 'credential-input' ||
-      schema.type === 'oauth-input'
-    ) {
-      continue
-    }
-
     if (schema.id === 'triggerConfig' || schema.type === 'trigger-config') {
       continue
     }
@@ -466,15 +459,6 @@ function extractOperationInputs(
 
   for (const [key, inputDef] of Object.entries(inputs)) {
     if (blockLevelInputs.has(key)) {
-      continue
-    }
-
-    const lowerKey = key.toLowerCase()
-    if (
-      lowerKey.includes('token') ||
-      lowerKey.includes('credential') ||
-      lowerKey.includes('apikey')
-    ) {
       continue
     }
 
@@ -556,6 +540,7 @@ function mapSchemaTypeToSimpleType(schemaType: string, schema: CopilotSubblockMe
     'multi-select': 'array',
     'credential-input': 'credential',
     'oauth-credential': 'credential',
+    'oauth-input': 'credential',
   }
 
   const mappedType = typeMap[schemaType] || schemaType
@@ -681,40 +666,131 @@ function resolveAuthType(
   return undefined
 }
 
+/**
+ * Gets all available models from PROVIDER_DEFINITIONS as static options.
+ * This provides fallback data when store state is not available server-side.
+ * Excludes dynamic providers (ollama, vllm, openrouter) which require runtime fetching.
+ */
+function getStaticModelOptions(): { id: string; label?: string }[] {
+  const models: { id: string; label?: string }[] = []
+
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    // Skip providers with dynamic/fetched models
+    if (provider.id === 'ollama' || provider.id === 'vllm' || provider.id === 'openrouter') {
+      continue
+    }
+    if (provider?.models) {
+      for (const model of provider.models) {
+        models.push({ id: model.id, label: model.id })
+      }
+    }
+  }
+
+  return models
+}
+
+/**
+ * Attempts to call a dynamic options function with fallback data injected.
+ * When the function accesses store state that's unavailable server-side,
+ * this provides static fallback data from known sources.
+ *
+ * @param optionsFn - The options function to call
+ * @returns Options array or undefined if options cannot be resolved
+ */
+function callOptionsWithFallback(
+  optionsFn: () => any[]
+): { id: string; label?: string; hasIcon?: boolean }[] | undefined {
+  // Get static model data to use as fallback
+  const staticModels = getStaticModelOptions()
+
+  // Create a mock providers state with static data
+  const mockProvidersState = {
+    providers: {
+      base: { models: staticModels.map((m) => m.id) },
+      ollama: { models: [] },
+      vllm: { models: [] },
+      openrouter: { models: [] },
+    },
+  }
+
+  // Store original getState if it exists
+  let originalGetState: (() => any) | undefined
+  let store: any
+
+  try {
+    // Try to get the providers store module
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    store = require('@/stores/providers/store')
+    if (store?.useProvidersStore?.getState) {
+      originalGetState = store.useProvidersStore.getState
+      // Temporarily replace getState with our mock
+      store.useProvidersStore.getState = () => mockProvidersState
+    }
+  } catch {
+    // Store module not available, continue with mock
+  }
+
+  try {
+    const result = optionsFn()
+    return result
+  } finally {
+    // Restore original getState
+    if (store?.useProvidersStore && originalGetState) {
+      store.useProvidersStore.getState = originalGetState
+    }
+  }
+}
+
 function resolveSubblockOptions(
   sb: any
 ): { id: string; label?: string; hasIcon?: boolean }[] | undefined {
-  try {
-    const rawOptions = typeof sb.options === 'function' ? sb.options() : sb.options
-    if (!Array.isArray(rawOptions)) return undefined
-
-    const normalized = rawOptions
-      .map((opt: any) => {
-        if (!opt) return undefined
-
-        const id = typeof opt === 'object' ? opt.id : opt
-        if (id === undefined || id === null) return undefined
-
-        const result: { id: string; label?: string; hasIcon?: boolean } = {
-          id: String(id),
-        }
-
-        if (typeof opt === 'object' && typeof opt.label === 'string') {
-          result.label = opt.label
-        }
-
-        if (typeof opt === 'object' && opt.icon) {
-          result.hasIcon = true
-        }
-
-        return result
-      })
-      .filter((o): o is { id: string; label?: string; hasIcon?: boolean } => o !== undefined)
-
-    return normalized.length > 0 ? normalized : undefined
-  } catch {
+  // Skip if subblock uses fetchOptions (async network calls)
+  if (sb.fetchOptions) {
     return undefined
   }
+
+  let rawOptions: any[] | undefined
+
+  try {
+    if (typeof sb.options === 'function') {
+      // Try calling with fallback data injection for store-dependent options
+      rawOptions = callOptionsWithFallback(sb.options)
+    } else {
+      rawOptions = sb.options
+    }
+  } catch {
+    // Options function failed even with fallback, skip
+    return undefined
+  }
+
+  if (!Array.isArray(rawOptions) || rawOptions.length === 0) {
+    return undefined
+  }
+
+  const normalized = rawOptions
+    .map((opt: any) => {
+      if (!opt) return undefined
+
+      const id = typeof opt === 'object' ? opt.id : opt
+      if (id === undefined || id === null) return undefined
+
+      const result: { id: string; label?: string; hasIcon?: boolean } = {
+        id: String(id),
+      }
+
+      if (typeof opt === 'object' && typeof opt.label === 'string') {
+        result.label = opt.label
+      }
+
+      if (typeof opt === 'object' && opt.icon) {
+        result.hasIcon = true
+      }
+
+      return result
+    })
+    .filter((o): o is { id: string; label?: string; hasIcon?: boolean } => o !== undefined)
+
+  return normalized.length > 0 ? normalized : undefined
 }
 
 function removeNullish(obj: any): any {
@@ -883,6 +959,9 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
     - Use forEach for collection processing, for loops for fixed iterations.
     - Cannot have loops/parallels inside a loop block.
     - For yaml it needs to connect blocks inside to the start field of the block.
+    - IMPORTANT for while/doWhile: The condition is evaluated BEFORE each iteration starts, so blocks INSIDE the loop cannot be referenced in the condition (their outputs don't exist yet when the condition runs).
+    - For while/doWhile conditions, use: <loop.index> for iteration count, workflow variables (set by blocks OUTSIDE the loop), or references to blocks OUTSIDE the loop.
+    - To break a while/doWhile loop based on internal block results, use a variables block OUTSIDE the loop and update it from inside, then reference that variable in the condition.
     `,
     inputs: {
       loopType: {
@@ -909,7 +988,8 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
       condition: {
         type: 'string',
         required: false,
-        description: "Condition to evaluate (for 'while' and 'doWhile' loopType)",
+        description:
+          "Condition to evaluate (for 'while' and 'doWhile' loopType). IMPORTANT: Cannot reference blocks INSIDE the loop - use <loop.index>, workflow variables, or blocks OUTSIDE the loop instead.",
         example: '<loop.index> < 10',
       },
       maxConcurrency: {
@@ -962,7 +1042,9 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
         title: 'Condition',
         type: 'code',
         language: 'javascript',
-        placeholder: '<counter.value> < 10',
+        placeholder: '<loop.index> < 10 or <variable.variablename>',
+        description:
+          'Cannot reference blocks inside the loop. Use <loop.index>, workflow variables, or blocks outside the loop.',
         condition: { field: 'loopType', value: ['while', 'doWhile'] },
       },
       {
@@ -1020,12 +1102,12 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
     },
     outputs: {
       results: { type: 'array', description: 'Array of results from all parallel branches' },
-      branchId: { type: 'number', description: 'Current branch ID (0-based)' },
-      branchItem: {
+      index: { type: 'number', description: 'Current branch index (0-based)' },
+      currentItem: {
         type: 'any',
         description: 'Current item for this branch (for collection type)',
       },
-      totalBranches: { type: 'number', description: 'Total number of parallel branches' },
+      items: { type: 'array', description: 'All distribution items' },
     },
     subBlocks: [
       {

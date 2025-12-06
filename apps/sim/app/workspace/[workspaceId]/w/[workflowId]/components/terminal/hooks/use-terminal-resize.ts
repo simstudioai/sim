@@ -1,38 +1,22 @@
 import { useCallback, useEffect } from 'react'
 import { useTerminalStore } from '@/stores/terminal'
 
-/**
- * Constants for terminal sizing
- */
 const MIN_HEIGHT = 30
-const MAX_HEIGHT_PERCENTAGE = 0.7 // 70% of viewport height
+const MAX_HEIGHT_PERCENTAGE = 0.7
 
-/**
- * Custom hook to handle terminal resize functionality.
- * Manages mouse events for resizing and enforces min/max height constraints.
- * Maximum height is capped at 70% of the viewport height for optimal layout.
- *
- * @returns Resize state and handlers
- */
 export function useTerminalResize() {
-  const { setTerminalHeight, isResizing, setIsResizing } = useTerminalStore()
+  const setTerminalHeight = useTerminalStore((state) => state.setTerminalHeight)
+  const isResizing = useTerminalStore((state) => state.isResizing)
+  const setIsResizing = useTerminalStore((state) => state.setIsResizing)
 
-  /**
-   * Handles mouse down on resize handle
-   */
   const handleMouseDown = useCallback(() => {
     setIsResizing(true)
   }, [setIsResizing])
 
-  /**
-   * Setup resize event listeners and body styles when resizing
-   * Cleanup is handled automatically by the effect's return function
-   */
   useEffect(() => {
     if (!isResizing) return
 
     const handleMouseMove = (e: MouseEvent) => {
-      // Calculate height from the bottom edge of the viewport
       const newHeight = window.innerHeight - e.clientY
       const maxHeight = window.innerHeight * MAX_HEIGHT_PERCENTAGE
 

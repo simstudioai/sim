@@ -126,6 +126,7 @@ export interface AhrefsTopPagesParams extends AhrefsBaseParams {
   mode?: AhrefsTargetMode
   limit?: number
   offset?: number
+  select?: string // Comma-separated list of fields to return (e.g., "url,traffic,keywords,top_keyword,value")
 }
 
 export interface AhrefsTopPage {

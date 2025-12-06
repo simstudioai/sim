@@ -45,9 +45,9 @@ Create a new event in Google Calendar
 | `summary` | string | Yes | Event title/summary |
 | `description` | string | No | Event description |
 | `location` | string | No | Event location |
-| `startDateTime` | string | Yes | Start date and time \(RFC3339 format, e.g., 2025-06-03T10:00:00-08:00\) |
-| `endDateTime` | string | Yes | End date and time \(RFC3339 format, e.g., 2025-06-03T11:00:00-08:00\) |
-| `timeZone` | string | No | Time zone \(e.g., America/Los_Angeles\) |
+| `startDateTime` | string | Yes | Start date and time. MUST include timezone offset \(e.g., 2025-06-03T10:00:00-08:00\) OR provide timeZone parameter |
+| `endDateTime` | string | Yes | End date and time. MUST include timezone offset \(e.g., 2025-06-03T11:00:00-08:00\) OR provide timeZone parameter |
+| `timeZone` | string | No | Time zone \(e.g., America/Los_Angeles\). Required if datetime does not include offset. Defaults to America/Los_Angeles if not provided. |
 | `attendees` | array | No | Array of attendee email addresses |
 | `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
 

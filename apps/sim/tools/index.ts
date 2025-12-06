@@ -223,6 +223,41 @@ export async function executeTool(
       }
     }
 
+    // Check for direct execution (no HTTP request needed)
+    if (tool.directExecution) {
+      logger.info(`[${requestId}] Using directExecution for ${toolId}`)
+      const result = await tool.directExecution(contextParams)
+
+      // Apply post-processing if available and not skipped
+      let finalResult = result
+      if (tool.postProcess && result.success && !skipPostProcess) {
+        try {
+          finalResult = await tool.postProcess(result, contextParams, executeTool)
+        } catch (error) {
+          logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
+            error: error instanceof Error ? error.message : String(error),
+          })
+          finalResult = result
+        }
+      }
+
+      // Process file outputs if execution context is available
+      finalResult = await processFileOutputs(finalResult, tool, executionContext)
+
+      // Add timing data to the result
+      const endTime = new Date()
+      const endTimeISO = endTime.toISOString()
+      const duration = endTime.getTime() - startTime.getTime()
+      return {
+        ...finalResult,
+        timing: {
+          startTime: startTimeISO,
+          endTime: endTimeISO,
+          duration,
+        },
+      }
+    }
+
     // For internal routes or when skipProxy is true, call the API directly
     // Internal routes are automatically detected by checking if URL starts with /api/
     const endpointUrl =

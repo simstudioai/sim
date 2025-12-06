@@ -44,7 +44,7 @@ Retrieve a list of prediction markets from Polymarket with optional filtering
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `closed` | string | No | Filter by closed status \(true/false\). Use false for active markets only. |
-| `order` | string | No | Sort field \(e.g., id, volume, liquidity\) |
+| `order` | string | No | Sort field \(e.g., volumeNum, liquidityNum, startDate, endDate, createdAt\) |
 | `ascending` | string | No | Sort direction \(true for ascending, false for descending\) |
 | `tagId` | string | No | Filter by tag ID |
 | `limit` | string | No | Number of results per page \(recommended: 25-50\) |
@@ -84,7 +84,7 @@ Retrieve a list of events from Polymarket with optional filtering
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `closed` | string | No | Filter by closed status \(true/false\). Use false for active events only. |
-| `order` | string | No | Sort field \(e.g., id, volume\) |
+| `order` | string | No | Sort field \(e.g., volume, liquidity, startDate, endDate, createdAt\) |
 | `ascending` | string | No | Sort direction \(true for ascending, false for descending\) |
 | `tagId` | string | No | Filter by tag ID |
 | `limit` | string | No | Number of results per page \(recommended: 25-50\) |
