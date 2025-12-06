@@ -2,7 +2,11 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { layoutContainers } from '@/lib/workflows/autolayout/containers'
 import { assignLayers, layoutBlocksCore } from '@/lib/workflows/autolayout/core'
 import type { Edge, LayoutOptions, LayoutResult } from '@/lib/workflows/autolayout/types'
-import { calculateSubflowDepths, getBlocksByParent } from '@/lib/workflows/autolayout/utils'
+import {
+  calculateSubflowDepths,
+  filterLayoutEligibleBlockIds,
+  getBlocksByParent,
+} from '@/lib/workflows/autolayout/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('AutoLayout')
