@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { member, organization, userStats } from '@sim/db/schema'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
 import { isBillingEnabled } from '@/lib/core/config/environment'
@@ -255,24 +255,72 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
 
     logger.info('Server-side checking usage limits for user', { userId })
 
+    // Check user's own blocked status
     const stats = await db
       .select({
         blocked: userStats.billingBlocked,
+        blockedReason: userStats.billingBlockedReason,
         current: userStats.currentPeriodCost,
         total: userStats.totalCost,
       })
       .from(userStats)
       .where(eq(userStats.userId, userId))
       .limit(1)
+
+    const currentUsage =
+      stats.length > 0
+        ? Number.parseFloat(stats[0].current?.toString() || stats[0].total.toString())
+        : 0
+
     if (stats.length > 0 && stats[0].blocked) {
-      const currentUsage = Number.parseFloat(
-        stats[0].current?.toString() || stats[0].total.toString()
-      )
+      const message =
+        stats[0].blockedReason === 'dispute'
+          ? 'Account frozen. Please contact support to resolve this issue.'
+          : 'Billing issue detected. Please update your payment method to continue.'
       return {
         isExceeded: true,
         currentUsage,
         limit: 0,
-        message: 'Billing issue detected. Please update your payment method to continue.',
+        message,
+      }
+    }
+
+    // Check if user is in an org where the owner is blocked
+    const memberships = await db
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, userId))
+
+    for (const m of memberships) {
+      // Find the owner of this org
+      const owners = await db
+        .select({ userId: member.userId })
+        .from(member)
+        .where(and(eq(member.organizationId, m.organizationId), eq(member.role, 'owner')))
+        .limit(1)
+
+      if (owners.length > 0) {
+        const ownerStats = await db
+          .select({
+            blocked: userStats.billingBlocked,
+            blockedReason: userStats.billingBlockedReason,
+          })
+          .from(userStats)
+          .where(eq(userStats.userId, owners[0].userId))
+          .limit(1)
+
+        if (ownerStats.length > 0 && ownerStats[0].blocked) {
+          const message =
+            ownerStats[0].blockedReason === 'dispute'
+              ? 'Organization account frozen. Please contact support to resolve this issue.'
+              : 'Organization billing issue. Please contact your organization owner.'
+          return {
+            isExceeded: true,
+            currentUsage,
+            limit: 0,
+            message,
+          }
+        }
       }
     }
 

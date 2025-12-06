@@ -121,3 +121,21 @@ export function canEditUsageLimit(subscription: any): boolean {
   // Enterprise has fixed limits that match their monthly cost
   return subscription.plan === 'pro' || subscription.plan === 'team'
 }
+
+/**
+ * Get pricing info for a plan
+ */
+export function getPlanPricing(plan: string): { basePrice: number } {
+  switch (plan) {
+    case 'free':
+      return { basePrice: 0 }
+    case 'pro':
+      return { basePrice: getProTierLimit() }
+    case 'team':
+      return { basePrice: getTeamTierLimitPerSeat() }
+    case 'enterprise':
+      return { basePrice: getEnterpriseTierLimitPerSeat() }
+    default:
+      return { basePrice: 0 }
+  }
+}

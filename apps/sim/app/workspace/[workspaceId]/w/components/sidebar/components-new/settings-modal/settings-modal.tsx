@@ -434,9 +434,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             )}
             {activeSection === 'apikeys' && <ApiKeys onOpenChange={onOpenChange} />}
             {activeSection === 'files' && <FileUploads />}
-            {isBillingEnabled && activeSection === 'subscription' && (
-              <Subscription onOpenChange={onOpenChange} />
-            )}
+            {isBillingEnabled && activeSection === 'subscription' && <Subscription />}
             {isBillingEnabled && activeSection === 'team' && <TeamManagement />}
             {activeSection === 'sso' && <SSO />}
             {activeSection === 'copilot' && <Copilot />}
