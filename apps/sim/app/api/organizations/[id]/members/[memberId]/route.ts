@@ -6,7 +6,6 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
-import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationMemberAPI')
@@ -296,39 +295,6 @@ export async function DELETE(
         return NextResponse.json({ error: result.error }, { status: 404 })
       }
       return NextResponse.json({ error: result.error }, { status: 500 })
-    }
-
-    if (result.billingActions.proRestored) {
-      try {
-        const { subscription: subscriptionTable } = await import('@sim/db/schema')
-        const [personalPro] = await db
-          .select({ stripeSubscriptionId: subscriptionTable.stripeSubscriptionId })
-          .from(subscriptionTable)
-          .where(
-            and(
-              eq(subscriptionTable.referenceId, targetUserId),
-              eq(subscriptionTable.status, 'active'),
-              eq(subscriptionTable.plan, 'pro')
-            )
-          )
-          .limit(1)
-
-        if (personalPro?.stripeSubscriptionId) {
-          const stripe = requireStripeClient()
-          await stripe.subscriptions.update(personalPro.stripeSubscriptionId, {
-            cancel_at_period_end: false,
-          })
-          logger.info('Restored Stripe subscription cancel_at_period_end', {
-            userId: targetUserId,
-            stripeSubscriptionId: personalPro.stripeSubscriptionId,
-          })
-        }
-      } catch (stripeError) {
-        logger.error('Failed to restore Stripe subscription', {
-          userId: targetUserId,
-          error: stripeError,
-        })
-      }
     }
 
     logger.info('Organization member removed', {
