@@ -8,6 +8,7 @@ import { assignLayers, layoutBlocksCore } from '@/lib/workflows/autolayout/core'
 import type { Edge, LayoutOptions } from '@/lib/workflows/autolayout/types'
 import {
   calculateSubflowDepths,
+  filterLayoutEligibleBlockIds,
   getBlockMetrics,
   getBlocksByParent,
   isContainerType,
