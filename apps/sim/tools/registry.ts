@@ -295,10 +295,12 @@ import {
   deleteGroupTool as googleGroupsDeleteGroupTool,
   getGroupTool as googleGroupsGetGroupTool,
   getMemberTool as googleGroupsGetMemberTool,
+  hasMemberTool as googleGroupsHasMemberTool,
   listGroupsTool as googleGroupsListGroupsTool,
   listMembersTool as googleGroupsListMembersTool,
   removeMemberTool as googleGroupsRemoveMemberTool,
   updateGroupTool as googleGroupsUpdateGroupTool,
+  updateMemberTool as googleGroupsUpdateMemberTool,
 } from '@/tools/google_groups'
 import {
   googleSheetsAppendTool,
@@ -2111,6 +2113,8 @@ export const tools: Record<string, ToolConfig> = {
   google_groups_get_member: googleGroupsGetMemberTool,
   google_groups_add_member: googleGroupsAddMemberTool,
   google_groups_remove_member: googleGroupsRemoveMemberTool,
+  google_groups_update_member: googleGroupsUpdateMemberTool,
+  google_groups_has_member: googleGroupsHasMemberTool,
   qdrant_fetch_points: qdrantFetchTool,
   qdrant_search_vector: qdrantSearchTool,
   qdrant_upsert_points: qdrantUpsertTool,

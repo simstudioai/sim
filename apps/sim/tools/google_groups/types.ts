@@ -87,6 +87,23 @@ export interface GoogleGroupsRemoveMemberParams extends GoogleGroupsCommonParams
 }
 
 /**
+ * Parameters for updating a member's role in a group
+ */
+export interface GoogleGroupsUpdateMemberParams extends GoogleGroupsCommonParams {
+  groupKey: string
+  memberKey: string
+  role: 'MEMBER' | 'MANAGER' | 'OWNER'
+}
+
+/**
+ * Parameters for checking if a user is a member of a group
+ */
+export interface GoogleGroupsHasMemberParams extends GoogleGroupsCommonParams {
+  groupKey: string
+  memberKey: string
+}
+
+/**
  * Standard response for Google Groups operations
  */
 export interface GoogleGroupsResponse extends ToolResponse {

@@ -27,7 +27,9 @@ export const GoogleGroupsBlock: BlockConfig = {
         { label: 'List Members', id: 'list_members' },
         { label: 'Get Member', id: 'get_member' },
         { label: 'Add Member', id: 'add_member' },
+        { label: 'Update Member Role', id: 'update_member' },
         { label: 'Remove Member', id: 'remove_member' },
+        { label: 'Check Membership', id: 'has_member' },
       ],
       value: () => 'list_groups',
     },
@@ -93,7 +95,9 @@ export const GoogleGroupsBlock: BlockConfig = {
           'list_members',
           'get_member',
           'add_member',
+          'update_member',
           'remove_member',
+          'has_member',
         ],
       },
     },
@@ -146,7 +150,10 @@ export const GoogleGroupsBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'user@example.com or member ID',
       required: true,
-      condition: { field: 'operation', value: ['get_member', 'remove_member'] },
+      condition: {
+        field: 'operation',
+        value: ['get_member', 'update_member', 'remove_member', 'has_member'],
+      },
     },
     {
       id: 'memberEmail',
@@ -165,7 +172,7 @@ export const GoogleGroupsBlock: BlockConfig = {
         { id: 'MANAGER', label: 'Manager' },
         { id: 'OWNER', label: 'Owner' },
       ],
-      condition: { field: 'operation', value: 'add_member' },
+      condition: { field: 'operation', value: ['add_member', 'update_member'] },
     },
     {
       id: 'roles',
@@ -185,7 +192,9 @@ export const GoogleGroupsBlock: BlockConfig = {
       'google_groups_list_members',
       'google_groups_get_member',
       'google_groups_add_member',
+      'google_groups_update_member',
       'google_groups_remove_member',
+      'google_groups_has_member',
     ],
     config: {
       tool: (params) => {
@@ -206,8 +215,12 @@ export const GoogleGroupsBlock: BlockConfig = {
             return 'google_groups_get_member'
           case 'add_member':
             return 'google_groups_add_member'
+          case 'update_member':
+            return 'google_groups_update_member'
           case 'remove_member':
             return 'google_groups_remove_member'
+          case 'has_member':
+            return 'google_groups_has_member'
           default:
             throw new Error(`Invalid Google Groups operation: ${params.operation}`)
         }
@@ -266,6 +279,19 @@ export const GoogleGroupsBlock: BlockConfig = {
               groupKey: rest.groupKey,
               email: rest.memberEmail,
               role: rest.role,
+            }
+          case 'update_member':
+            return {
+              credential,
+              groupKey: rest.groupKey,
+              memberKey: rest.memberKey,
+              role: rest.role,
+            }
+          case 'has_member':
+            return {
+              credential,
+              groupKey: rest.groupKey,
+              memberKey: rest.memberKey,
             }
           default:
             return { credential, ...rest }
