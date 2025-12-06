@@ -1017,7 +1017,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         </div>
         {code && (
           <div className='mt-2'>
-            <Code.Viewer code={code} language='javascript' showGutter />
+            <Code.Viewer code={code} language='javascript' showGutter className='min-h-0' />
           </div>
         )}
         {showRemoveAutoAllow && isAutoAllowed && (
