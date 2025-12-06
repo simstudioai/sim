@@ -88,8 +88,8 @@ Daten aus einer Google Sheets-Tabelle lesen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Ja | Die ID der Tabelle, aus der gelesen werden soll |
-| `range` | string | Nein | Der Zellbereich, aus dem gelesen werden soll |
+| `spreadsheetId` | string | Ja | Die ID der Tabelle \(zu finden in der URL: docs.google.com/spreadsheets/d/\{SPREADSHEET_ID\}/edit\). |
+| `range` | string | Nein | Der A1-Notationsbereich zum Lesen \(z.B. "Sheet1!A1:D10", "A1:B5"\). Standardmäßig wird das erste Tabellenblatt A1:Z1000 verwendet, wenn nicht angegeben. |
 
 #### Ausgabe
 
@@ -106,9 +106,9 @@ Daten in eine Google Sheets-Tabelle schreiben
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Ja | Die ID der Tabelle, in die geschrieben werden soll |
-| `range` | string | Nein | Der Zellbereich, in den geschrieben werden soll |
-| `values` | array | Ja | Die Daten, die in die Tabelle geschrieben werden sollen |
+| `spreadsheetId` | string | Ja | Die ID der Tabelle |
+| `range` | string | Nein | Der A1-Notationsbereich, in den geschrieben werden soll \(z.B. "Sheet1!A1:D10", "A1:B5"\) |
+| `values` | array | Ja | Die zu schreibenden Daten als 2D-Array \(z.B. \[\["Name", "Alter"\], \["Alice", 30\], \["Bob", 25\]\]\) oder Array von Objekten. |
 | `valueInputOption` | string | Nein | Das Format der zu schreibenden Daten |
 | `includeValuesInResponse` | boolean | Nein | Ob die geschriebenen Werte in der Antwort enthalten sein sollen |
 
@@ -131,8 +131,8 @@ Daten in einer Google Sheets-Tabelle aktualisieren
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Ja | Die ID der zu aktualisierenden Tabelle |
-| `range` | string | Nein | Der Bereich der zu aktualisierenden Zellen |
-| `values` | array | Ja | Die Daten, die in der Tabelle aktualisiert werden sollen |
+| `range` | string | Nein | Der A1-Notationsbereich, der aktualisiert werden soll \(z.B. "Sheet1!A1:D10", "A1:B5"\) |
+| `values` | array | Ja | Die zu aktualisierenden Daten als 2D-Array \(z.B. \[\["Name", "Alter"\], \["Alice", 30\]\]\) oder Array von Objekten. |
 | `valueInputOption` | string | Nein | Das Format der zu aktualisierenden Daten |
 | `includeValuesInResponse` | boolean | Nein | Ob die aktualisierten Werte in der Antwort enthalten sein sollen |
 
@@ -155,10 +155,10 @@ Daten am Ende einer Google Sheets-Tabelle anhängen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Ja | Die ID der Tabelle, an die angehängt werden soll |
-| `range` | string | Nein | Der Bereich der Zellen, nach dem angehängt werden soll |
-| `values` | array | Ja | Die Daten, die an die Tabelle angehängt werden sollen |
+| `range` | string | Nein | Der A1-Notationsbereich, an den angehängt werden soll (z.B. "Sheet1", "Sheet1!A:D") |
+| `values` | array | Ja | Die anzuhängenden Daten als 2D-Array (z.B. [["Alice", 30], ["Bob", 25]]) oder Array von Objekten |
 | `valueInputOption` | string | Nein | Das Format der anzuhängenden Daten |
-| `insertDataOption` | string | Nein | Wie die Daten eingefügt werden sollen \(OVERWRITE oder INSERT_ROWS\) |
+| `insertDataOption` | string | Nein | Wie die Daten eingefügt werden sollen (OVERWRITE oder INSERT_ROWS) |
 | `includeValuesInResponse` | boolean | Nein | Ob die angehängten Werte in der Antwort enthalten sein sollen |
 
 #### Ausgabe

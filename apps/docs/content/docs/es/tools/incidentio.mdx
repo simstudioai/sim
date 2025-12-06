@@ -357,10 +357,12 @@ Actualizar un horario existente en incident.io
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | cadena | Sí | Clave API de incident.io |
-| `id` | cadena | Sí | El ID del horario a actualizar |
-| `name` | cadena | No | Nuevo nombre para el horario |
-| `timezone` | cadena | No | Nueva zona horaria para el horario \(p. ej., America/New_York\) |
+| `apiKey` | string | Sí | Clave API de incident.io |
+| `id` | string | Sí | El ID del horario a actualizar |
+| `name` | string | No | Nuevo nombre para el horario |
+| `timezone` | string | No | Nueva zona horaria para el horario \(p. ej., America/New_York\) |
+| `config` | string | No | Configuración del horario como cadena JSON con rotaciones. Ejemplo: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
+| `Example` | string | No | Sin descripción |
 
 #### Salida
 

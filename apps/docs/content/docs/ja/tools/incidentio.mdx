@@ -361,6 +361,8 @@ incident.io内の既存のスケジュールを更新する
 | `id` | string | はい | 更新するスケジュールのID |
 | `name` | string | いいえ | スケジュールの新しい名前 |
 | `timezone` | string | いいえ | スケジュールの新しいタイムゾーン（例：America/New_York） |
+| `config` | string | いいえ | ローテーションを含むJSONフォーマットのスケジュール設定。例：\{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
+| `Example` | string | いいえ | 説明なし |
 
 #### 出力
 

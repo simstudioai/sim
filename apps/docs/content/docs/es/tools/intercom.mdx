@@ -167,7 +167,7 @@ Crear o actualizar una empresa en Intercom
 | `plan` | string | No | El nombre del plan de la empresa |
 | `size` | number | No | El número de empleados en la empresa |
 | `industry` | string | No | El sector en el que opera la empresa |
-| `monthly_spend` | number | No | Cuántos ingresos genera la empresa para tu negocio |
+| `monthly_spend` | number | No | Cuántos ingresos genera la empresa para tu negocio. Nota: Este campo trunca los decimales a números enteros \(por ejemplo, 155.98 se convierte en 155\) |
 | `custom_attributes` | string | No | Atributos personalizados como objeto JSON |
 
 #### Salida
@@ -196,7 +196,7 @@ Recuperar una única empresa por ID desde Intercom
 
 ### `intercom_list_companies`
 
-Listar todas las empresas de Intercom con soporte de paginación
+Lista todas las empresas de Intercom con soporte de paginación. Nota: Este endpoint tiene un límite de 10,000 empresas que pueden ser devueltas usando paginación. Para conjuntos de datos mayores a 10,000 empresas, usa la API Scroll en su lugar.
 
 #### Entrada
 
@@ -259,8 +259,8 @@ Responder a una conversación como administrador en Intercom
 | `conversationId` | string | Sí | ID de la conversación a la que responder |
 | `message_type` | string | Sí | Tipo de mensaje: "comment" o "note" |
 | `body` | string | Sí | El texto del cuerpo de la respuesta |
-| `admin_id` | string | Sí | El ID del administrador que escribe la respuesta |
-| `attachment_urls` | string | No | Lista separada por comas de URLs de imágenes (máx. 10) |
+| `admin_id` | string | No | El ID del administrador que escribe la respuesta. Si no se proporciona, se utilizará un administrador predeterminado \(Operator/Fin\). |
+| `attachment_urls` | string | No | Lista separada por comas de URLs de imágenes \(máximo 10\) |
 
 #### Salida
 

@@ -140,12 +140,13 @@ Obtén las páginas principales de un dominio objetivo ordenadas por tráfico or
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ---------- | ----------- |
-| `target` | string | Sí | El dominio objetivo para analizar |
+| `target` | string | Sí | El dominio objetivo a analizar |
 | `country` | string | No | Código de país para datos de tráfico \(p. ej., us, gb, de\). Predeterminado: us |
 | `mode` | string | No | Modo de análisis: domain \(dominio completo\), prefix \(prefijo URL\), subdomains \(incluir todos los subdominios\) |
-| `date` | string | No | Fecha para datos históricos en formato AAAA-MM-DD \(predeterminado: hoy\) |
+| `date` | string | No | Fecha para datos históricos en formato AAAA-MM-DD \(por defecto es hoy\) |
 | `limit` | number | No | Número máximo de resultados a devolver \(predeterminado: 100\) |
 | `offset` | number | No | Número de resultados a omitir para paginación |
+| `select` | string | No | Lista separada por comas de campos a devolver \(p. ej., url,traffic,keywords,top_keyword,value\). Predeterminado: url,traffic,keywords,top_keyword,value |
 | `apiKey` | string | Sí | Clave API de Ahrefs |
 
 #### Salida

@@ -41,11 +41,11 @@ Rufen Sie eine Liste von Prognosemärkten von Polymarket mit optionaler Filterun
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `closed` | string | Nein | Nach geschlossenem Status filtern \(true/false\). Verwenden Sie false für nur aktive Märkte. |
-| `order` | string | Nein | Sortierfeld \(z.B. id, volume, liquidity\) |
+| `order` | string | Nein | Sortierfeld \(z.B. volumeNum, liquidityNum, startDate, endDate, createdAt\) |
 | `ascending` | string | Nein | Sortierrichtung \(true für aufsteigend, false für absteigend\) |
 | `tagId` | string | Nein | Nach Tag-ID filtern |
 | `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(empfohlen: 25-50\) |
-| `offset` | string | Nein | Paginierungsoffset \(überspringe so viele Ergebnisse\) |
+| `offset` | string | Nein | Paginierungsoffset \(überspringe diese Anzahl an Ergebnissen\) |
 
 #### Ausgabe
 
@@ -80,12 +80,12 @@ Ruft eine Liste von Events von Polymarket mit optionaler Filterung ab
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `closed` | string | Nein | Filtern nach geschlossenem Status \(true/false\). Verwenden Sie false für nur aktive Events. |
-| `order` | string | Nein | Sortierfeld \(z.B. id, volume\) |
+| `closed` | string | Nein | Nach geschlossenem Status filtern \(true/false\). Verwenden Sie false für nur aktive Events. |
+| `order` | string | Nein | Sortierfeld \(z.B. volume, liquidity, startDate, endDate, createdAt\) |
 | `ascending` | string | Nein | Sortierrichtung \(true für aufsteigend, false für absteigend\) |
-| `tagId` | string | Nein | Filtern nach Tag-ID |
+| `tagId` | string | Nein | Nach Tag-ID filtern |
 | `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(empfohlen: 25-50\) |
-| `offset` | string | Nein | Paginierungsoffset \(überspringe so viele Ergebnisse\) |
+| `offset` | string | Nein | Paginierungsoffset \(überspringe diese Anzahl an Ergebnissen\) |
 
 #### Ausgabe
 

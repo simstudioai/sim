@@ -1,0 +1,180 @@
+---
+title: Google Slides
+description: Lire, écrire et créer des présentations
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_slides"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Slides](https://slides.google.com) est une application de présentation dynamique basée sur le cloud qui permet aux utilisateurs de créer, modifier, collaborer et présenter des diaporamas en temps réel. En tant que partie de la suite de productivité de Google, Google Slides offre une plateforme flexible pour concevoir des présentations attrayantes, collaborer avec d'autres et partager du contenu de manière transparente via le cloud.
+
+Découvrez comment intégrer les outils Google Slides dans Sim pour gérer sans effort les présentations dans le cadre de vos flux de travail automatisés. Avec Sim, vous pouvez lire, écrire, créer et mettre à jour des présentations Google Slides directement via vos agents et processus automatisés, ce qui facilite la diffusion d'informations actualisées, la génération de rapports personnalisés ou la production programmatique de présentations à l'image de votre marque.
+
+Avec Google Slides, vous pouvez :
+
+- **Créer et modifier des présentations** : concevoir des diapositives visuellement attrayantes avec des thèmes, des mises en page et du contenu multimédia
+- **Collaborer en temps réel** : travailler simultanément avec des coéquipiers, commenter, attribuer des tâches et recevoir des commentaires en direct sur les présentations
+- **Présenter n'importe où** : afficher des présentations en ligne ou hors ligne, partager des liens ou publier sur le web
+- **Ajouter des images et du contenu enrichi** : insérer des images, des graphiques, des diagrammes et des vidéos pour rendre vos présentations attrayantes
+- **S'intégrer à d'autres services** : se connecter de manière transparente avec Google Drive, Docs, Sheets et d'autres outils tiers
+- **Accéder depuis n'importe quel appareil** : utiliser Google Slides sur ordinateurs de bureau, portables, tablettes et appareils mobiles pour une flexibilité maximale
+
+Dans Sim, l'intégration de Google Slides permet à vos agents d'interagir directement avec les fichiers de présentation de manière programmatique. Automatisez des tâches comme la lecture du contenu des diapositives, l'insertion de nouvelles diapositives ou images, le remplacement de texte dans toute une présentation, la génération de nouvelles présentations et la récupération de miniatures de diapositives. Cela vous permet de développer la création de contenu, de maintenir les présentations à jour et de les intégrer dans des flux de travail de documents automatisés. En connectant Sim avec Google Slides, vous facilitez la gestion des présentations pilotée par l'IA, ce qui permet de générer, mettre à jour ou extraire facilement des informations des présentations sans effort manuel.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Google Slides dans le flux de travail. Peut lire, écrire, créer des présentations, remplacer du texte, ajouter des diapositives, ajouter des images et obtenir des miniatures.
+
+## Outils
+
+### `google_slides_read`
+
+Lire le contenu d'une présentation Google Slides
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Oui | L'ID de la présentation à lire |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `slides` | json | Tableau des diapositives avec leur contenu |
+| `metadata` | json | Métadonnées de la présentation incluant ID, titre et URL |
+
+### `google_slides_write`
+
+Écrire ou mettre à jour le contenu dans une présentation Google Slides
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Oui | L'ID de la présentation dans laquelle écrire |
+| `content` | string | Oui | Le contenu à écrire dans la diapositive |
+| `slideIndex` | number | Non | L'index de la diapositive dans laquelle écrire \(par défaut, première diapositive\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | Indique si le contenu de la présentation a été mis à jour avec succès |
+| `metadata` | json | Métadonnées de la présentation mise à jour incluant ID, titre et URL |
+
+### `google_slides_create`
+
+Créer une nouvelle présentation Google Slides
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Oui | Le titre de la présentation à créer |
+| `content` | string | Non | Le contenu à ajouter à la première diapositive |
+| `folderSelector` | string | Non | Sélectionner le dossier dans lequel créer la présentation |
+| `folderId` | string | Non | L'ID du dossier dans lequel créer la présentation \(usage interne\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | json | Métadonnées de la présentation créée, y compris l'ID, le titre et l'URL |
+
+### `google_slides_replace_all_text`
+
+Rechercher et remplacer toutes les occurrences de texte dans une présentation Google Slides
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Oui | L'ID de la présentation |
+| `findText` | string | Oui | Le texte à rechercher \(par exemple, \{\{placeholder\}\}\) |
+| `replaceText` | string | Oui | Le texte de remplacement |
+| `matchCase` | boolean | Non | Si la recherche doit être sensible à la casse \(par défaut : true\) |
+| `pageObjectIds` | string | Non | Liste séparée par des virgules des ID d'objets de diapositive pour limiter les remplacements à des diapositives spécifiques \(laisser vide pour toutes les diapositives\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `occurrencesChanged` | number | Nombre d'occurrences de texte qui ont été remplacées |
+| `metadata` | json | Métadonnées de l'opération, y compris l'ID et l'URL de la présentation |
+
+### `google_slides_add_slide`
+
+Ajouter une nouvelle diapositive à une présentation Google Slides avec une mise en page spécifiée
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Oui | L'ID de la présentation |
+| `layout` | string | Non | La mise en page prédéfinie pour la diapositive \(BLANK, TITLE, TITLE_AND_BODY, TITLE_ONLY, SECTION_HEADER, etc.\). Par défaut : BLANK. |
+| `insertionIndex` | number | Non | L'index facultatif basé sur zéro indiquant où insérer la diapositive. Si non spécifié, la diapositive est ajoutée à la fin. |
+| `placeholderIdMappings` | string | Non | Tableau JSON de mappages d'espaces réservés pour attribuer des ID d'objets personnalisés aux espaces réservés. Format : \[\{"layoutPlaceholder":\{"type":"TITLE"\},"objectId":"custom_title_id"\}\] |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `slideId` | string | L'ID d'objet de la diapositive nouvellement créée |
+| `metadata` | json | Métadonnées de l'opération incluant l'ID de la présentation, la mise en page et l'URL |
+
+### `google_slides_add_image`
+
+Insérer une image dans une diapositive spécifique d'une présentation Google Slides
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `presentationId` | string | Oui | L'ID de la présentation |
+| `pageObjectId` | string | Oui | L'ID d'objet de la diapositive/page où ajouter l'image |
+| `imageUrl` | string | Oui | L'URL accessible publiquement de l'image \(doit être PNG, JPEG ou GIF, max 50 Mo\) |
+| `width` | number | Non | Largeur de l'image en points \(par défaut : 300\) |
+| `height` | number | Non | Hauteur de l'image en points \(par défaut : 200\) |
+| `positionX` | number | Non | Position X depuis le bord gauche en points \(par défaut : 100\) |
+| `positionY` | number | Non | Position Y depuis le bord supérieur en points \(par défaut : 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `imageId` | string | L'ID d'objet de l'image nouvellement créée |
+| `metadata` | json | Métadonnées de l'opération incluant l'ID de la présentation et l'URL de l'image |
+
+### `google_slides_get_thumbnail`
+
+Générer une image miniature d'une diapositive spécifique dans une présentation Google Slides
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `presentationId` | chaîne | Oui | L'identifiant de la présentation |
+| `pageObjectId` | chaîne | Oui | L'identifiant d'objet de la diapositive/page pour laquelle obtenir une vignette |
+| `thumbnailSize` | chaîne | Non | La taille de la vignette : SMALL \(200px\), MEDIUM \(800px\), ou LARGE \(1600px\). Par défaut MEDIUM. |
+| `mimeType` | chaîne | Non | Le type MIME de l'image vignette : PNG ou GIF. Par défaut PNG. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `contentUrl` | chaîne | URL vers l'image vignette \(valide pendant 30 minutes\) |
+| `width` | nombre | Largeur de la vignette en pixels |
+| `height` | nombre | Hauteur de la vignette en pixels |
+| `metadata` | json | Métadonnées de l'opération incluant l'identifiant de la présentation et l'identifiant d'objet de la page |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `google_slides`

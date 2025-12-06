@@ -42,9 +42,9 @@ Crear un nuevo evento en Google Calendar
 | `summary` | string | Sí | Título/resumen del evento |
 | `description` | string | No | Descripción del evento |
 | `location` | string | No | Ubicación del evento |
-| `startDateTime` | string | Sí | Fecha y hora de inicio \(formato RFC3339, p. ej., 2025-06-03T10:00:00-08:00\) |
-| `endDateTime` | string | Sí | Fecha y hora de finalización \(formato RFC3339, p. ej., 2025-06-03T11:00:00-08:00\) |
-| `timeZone` | string | No | Zona horaria \(p. ej., America/Los_Angeles\) |
+| `startDateTime` | string | Sí | Fecha y hora de inicio. DEBE incluir el desplazamiento de zona horaria \(p. ej., 2025-06-03T10:00:00-08:00\) O proporcionar el parámetro timeZone |
+| `endDateTime` | string | Sí | Fecha y hora de finalización. DEBE incluir el desplazamiento de zona horaria \(p. ej., 2025-06-03T11:00:00-08:00\) O proporcionar el parámetro timeZone |
+| `timeZone` | string | No | Zona horaria \(p. ej., America/Los_Angeles\). Obligatorio si la fecha y hora no incluye desplazamiento. Por defecto es America/Los_Angeles si no se proporciona. |
 | `attendees` | array | No | Array de direcciones de correo electrónico de los asistentes |
 | `sendUpdates` | string | No | Cómo enviar actualizaciones a los asistentes: all, externalOnly o none |
 

@@ -162,14 +162,14 @@ Créer ou mettre à jour une entreprise dans Intercom
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
-| `company_id` | chaîne | Oui | Votre identifiant unique pour l'entreprise |
-| `name` | chaîne | Non | Le nom de l'entreprise |
-| `website` | chaîne | Non | Le site web de l'entreprise |
-| `plan` | chaîne | Non | Le nom du forfait de l'entreprise |
-| `size` | nombre | Non | Le nombre d'employés dans l'entreprise |
-| `industry` | chaîne | Non | Le secteur d'activité de l'entreprise |
-| `monthly_spend` | nombre | Non | Le montant des revenus que l'entreprise génère pour votre activité |
-| `custom_attributes` | chaîne | Non | Attributs personnalisés sous forme d'objet JSON |
+| `company_id` | string | Oui | Votre identifiant unique pour l'entreprise |
+| `name` | string | Non | Le nom de l'entreprise |
+| `website` | string | Non | Le site web de l'entreprise |
+| `plan` | string | Non | Le nom du forfait de l'entreprise |
+| `size` | number | Non | Le nombre d'employés dans l'entreprise |
+| `industry` | string | Non | Le secteur d'activité de l'entreprise |
+| `monthly_spend` | number | Non | Le montant des revenus que l'entreprise génère pour votre activité. Remarque : ce champ tronque les décimales en nombres entiers (par exemple, 155,98 devient 155) |
+| `custom_attributes` | string | Non | Attributs personnalisés sous forme d'objet JSON |
 
 #### Sortie
 
@@ -197,7 +197,7 @@ Récupérer une seule entreprise par ID depuis Intercom
 
 ### `intercom_list_companies`
 
-Lister toutes les entreprises depuis Intercom avec prise en charge de la pagination
+Liste toutes les entreprises d'Intercom avec prise en charge de la pagination. Remarque : cet endpoint a une limite de 10 000 entreprises qui peuvent être renvoyées en utilisant la pagination. Pour les ensembles de données de plus de 10 000 entreprises, utilisez plutôt l'API Scroll.
 
 #### Entrée
 
@@ -256,11 +256,11 @@ Répondre à une conversation en tant qu'administrateur dans Intercom
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `conversationId` | string | Oui | ID de la conversation à laquelle répondre |
 | `message_type` | string | Oui | Type de message : "comment" ou "note" |
 | `body` | string | Oui | Le corps du texte de la réponse |
-| `admin_id` | string | Oui | L'ID de l'administrateur qui rédige la réponse |
+| `admin_id` | string | Non | L'ID de l'administrateur qui rédige la réponse. Si non fourni, un administrateur par défaut (Operator/Fin) sera utilisé. |
 | `attachment_urls` | string | Non | Liste d'URLs d'images séparées par des virgules (max 10) |
 
 #### Sortie

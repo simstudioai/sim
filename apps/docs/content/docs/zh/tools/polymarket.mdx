@@ -38,14 +38,14 @@ Polymarket 集成的主要功能包括：
 
 #### 输入
 
-| 参数 | 类型 | 是否必需 | 描述 |
+| 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `closed` | 字符串 | 否 | 按关闭状态筛选 \(true/false\)。使用 false 仅显示活跃市场。 |
-| `order` | 字符串 | 否 | 排序字段 \(例如，id、volume、liquidity\) |
-| `ascending` | 字符串 | 否 | 排序方向 \(true 表示升序，false 表示降序\) |
-| `tagId` | 字符串 | 否 | 按标签 ID 筛选 |
-| `limit` | 字符串 | 否 | 每页结果数量 \(建议：25-50\) |
-| `offset` | 字符串 | 否 | 分页偏移量 \(跳过此数量的结果\) |
+| `closed` | string | 否 | 按关闭状态筛选 \(true/false\)。使用 false 仅显示活跃市场。 |
+| `order` | string | 否 | 排序字段 \(例如：volumeNum, liquidityNum, startDate, endDate, createdAt\) |
+| `ascending` | string | 否 | 排序方向 \(true 表示升序，false 表示降序\) |
+| `tagId` | string | 否 | 按标签 ID 筛选 |
+| `limit` | string | 否 | 每页结果数量 \(推荐：25-50\) |
+| `offset` | string | 否 | 分页偏移量 \(跳过此数量的结果\) |
 
 #### 输出
 
@@ -80,10 +80,10 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `closed` | string | 否 | 按关闭状态过滤 \(true/false\)。使用 false 仅显示活跃事件。 |
-| `order` | string | 否 | 排序字段 \(例如，id, volume\) |
-| `ascending` | string | 否 | 排序方向 \(true 为升序，false 为降序\) |
-| `tagId` | string | 否 | 按标签 ID 过滤 |
+| `closed` | string | 否 | 按关闭状态筛选 \(true/false\)。使用 false 仅显示活跃事件。 |
+| `order` | string | 否 | 排序字段 \(例如：volume, liquidity, startDate, endDate, createdAt\) |
+| `ascending` | string | 否 | 排序方向 \(true 表示升序，false 表示降序\) |
+| `tagId` | string | 否 | 按标签 ID 筛选 |
 | `limit` | string | 否 | 每页结果数量 \(推荐：25-50\) |
 | `offset` | string | 否 | 分页偏移量 \(跳过此数量的结果\) |
 

@@ -1,0 +1,180 @@
+---
+title: Google Slides
+description: 阅读、编写和创建演示文稿
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_slides"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Slides](https://slides.google.com) 是一个动态的基于云的演示文稿应用程序，允许用户实时创建、编辑、协作和展示幻灯片。作为 Google 生产力套件的一部分，Google Slides 提供了一个灵活的平台，用于设计引人入胜的演示文稿，与他人协作，并通过云无缝共享内容。
+
+了解如何在 Sim 中集成 Google Slides 工具，以轻松管理作为自动化工作流程一部分的演示文稿。通过 Sim，您可以直接通过代理和自动化流程读取、编写、创建和更新 Google Slides 演示文稿，从而轻松传递最新信息、生成自定义报告或以编程方式制作品牌幻灯片。
+
+使用 Google Slides，您可以：
+
+- **创建和编辑演示文稿**：使用主题、布局和多媒体内容设计视觉吸引力的幻灯片
+- **实时协作**：与团队成员同时工作，评论、分配任务并实时接收演示文稿的反馈
+- **随时随地展示**：在线或离线展示演示文稿，分享链接或发布到网络
+- **添加图片和丰富内容**：插入图片、图形、图表和视频，使您的演示文稿更具吸引力
+- **与其他服务集成**：与 Google Drive、Docs、Sheets 和其他第三方工具无缝连接
+- **从任何设备访问**：在台式机、笔记本电脑、平板电脑和移动设备上使用 Google Slides，最大限度地提高灵活性
+
+在 Sim 中，Google Slides 集成使您的代理能够以编程方式直接与演示文稿文件交互。自动化任务如读取幻灯片内容、插入新幻灯片或图片、替换整个幻灯片中的文本、生成新演示文稿以及检索幻灯片缩略图。这使您能够扩展内容创建，保持演示文稿的最新状态，并将其嵌入到自动化文档工作流程中。通过将 Sim 与 Google Slides 连接，您可以实现 AI 驱动的演示文稿管理——轻松生成、更新或从演示文稿中提取信息，而无需手动操作。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Google 幻灯片集成到工作流程中。可以读取、写入、创建演示文稿，替换文本，添加幻灯片，添加图片，以及获取缩略图。
+
+## 工具
+
+### `google_slides_read`
+
+从 Google 幻灯片演示文稿中读取内容
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | 要读取的演示文稿的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `slides` | json | 包含内容的幻灯片数组 |
+| `metadata` | json | 包括 ID、标题和 URL 的演示文稿元数据 |
+
+### `google_slides_write`
+
+在 Google 幻灯片演示文稿中写入或更新内容
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | 要写入的演示文稿的 ID |
+| `content` | string | 是 | 要写入幻灯片的内容 |
+| `slideIndex` | number | 否 | 要写入的幻灯片索引 \(默认为第一张幻灯片\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | 表示演示文稿内容是否成功更新 |
+| `metadata` | json | 更新后的演示文稿元数据，包括 ID、标题和 URL |
+
+### `google_slides_create`
+
+创建一个新的 Google 幻灯片演示文稿
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | 是 | 要创建的演示文稿的标题 |
+| `content` | string | 否 | 要添加到第一张幻灯片的内容 |
+| `folderSelector` | string | 否 | 选择创建演示文稿的文件夹 |
+| `folderId` | string | 否 | 用于创建演示文稿的文件夹 ID \(内部使用\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `metadata` | json | 创建的演示文稿元数据，包括 ID、标题和 URL |
+
+### `google_slides_replace_all_text`
+
+在 Google 幻灯片演示文稿中查找并替换所有文本
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | 演示文稿的 ID |
+| `findText` | string | 是 | 要查找的文本 \(例如，\{\{placeholder\}\}\) |
+| `replaceText` | string | 是 | 要替换的文本 |
+| `matchCase` | boolean | 否 | 是否区分大小写 \(默认值：true\) |
+| `pageObjectIds` | string | 否 | 用逗号分隔的幻灯片对象 ID 列表，用于限制替换到特定幻灯片 \(留空表示所有幻灯片\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `occurrencesChanged` | number | 替换的文本出现次数 |
+| `metadata` | json | 操作元数据，包括演示文稿 ID 和 URL |
+
+### `google_slides_add_slide`
+
+向 Google 幻灯片演示文稿添加具有指定布局的新幻灯片
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | 演示文稿的 ID |
+| `layout` | string | 否 | 幻灯片的预定义布局 \(BLANK, TITLE, TITLE_AND_BODY, TITLE_ONLY, SECTION_HEADER 等\)。默认为 BLANK。 |
+| `insertionIndex` | number | 否 | 可选的从零开始的索引，指示插入幻灯片的位置。如果未指定，则幻灯片添加到末尾。 |
+| `placeholderIdMappings` | string | 否 | JSON 数组的占位符映射，用于为占位符分配自定义对象 ID。格式：\[\{"layoutPlaceholder":\{"type":"TITLE"\},"objectId":"custom_title_id"\}\] |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `slideId` | string | 新创建幻灯片的对象 ID |
+| `metadata` | json | 操作元数据，包括演示文稿 ID、布局和 URL |
+
+### `google_slides_add_image`
+
+在 Google 幻灯片演示文稿中的特定幻灯片中插入图片
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | 演示文稿的 ID |
+| `pageObjectId` | string | 是 | 要添加图片的幻灯片/页面的对象 ID |
+| `imageUrl` | string | 是 | 图片的公开可访问 URL（必须是 PNG、JPEG 或 GIF，最大 50MB） |
+| `width` | number | 否 | 图片的宽度（单位：点，默认值：300） |
+| `height` | number | 否 | 图片的高度（单位：点，默认值：200） |
+| `positionX` | number | 否 | 距离左边缘的 X 位置（单位：点，默认值：100） |
+| `positionY` | number | 否 | 距离顶部边缘的 Y 位置（单位：点，默认值：100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `imageId` | string | 新创建图片的对象 ID |
+| `metadata` | json | 操作元数据，包括演示文稿 ID 和图片 URL |
+
+### `google_slides_get_thumbnail`
+
+生成 Google 幻灯片演示文稿中特定幻灯片的缩略图
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | 演示文稿的 ID |
+| `pageObjectId` | string | 是 | 要获取缩略图的幻灯片/页面的对象 ID |
+| `thumbnailSize` | string | 否 | 缩略图的大小：SMALL（200px）、MEDIUM（800px）或 LARGE（1600px）。默认为 MEDIUM。 |
+| `mimeType` | string | 否 | 缩略图图像的 MIME 类型：PNG 或 GIF。默认为 PNG。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contentUrl` | string | 缩略图图像的 URL（有效期为 30 分钟） |
+| `width` | number | 缩略图的宽度（以像素为单位） |
+| `height` | number | 缩略图的高度（以像素为单位） |
+| `metadata` | json | 操作元数据，包括演示文稿 ID 和页面对象 ID |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`google_slides`

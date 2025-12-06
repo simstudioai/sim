@@ -37,16 +37,16 @@ Créer un nouvel événement dans Google Agenda
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ----------- | ----------- |
 | `calendarId` | chaîne | Non | ID du calendrier (par défaut : primaire) |
 | `summary` | chaîne | Oui | Titre/résumé de l'événement |
 | `description` | chaîne | Non | Description de l'événement |
 | `location` | chaîne | Non | Lieu de l'événement |
-| `startDateTime` | chaîne | Oui | Date et heure de début (format RFC3339, ex. : 2025-06-03T10:00:00-08:00) |
-| `endDateTime` | chaîne | Oui | Date et heure de fin (format RFC3339, ex. : 2025-06-03T11:00:00-08:00) |
-| `timeZone` | chaîne | Non | Fuseau horaire (ex. : America/Los_Angeles) |
-| `attendees` | tableau | Non | Tableau des adresses e-mail des participants |
-| `sendUpdates` | chaîne | Non | Comment envoyer les mises à jour aux participants : all, externalOnly ou none |
+| `startDateTime` | chaîne | Oui | Date et heure de début. DOIT inclure le décalage horaire (ex. : 2025-06-03T10:00:00-08:00) OU fournir le paramètre timeZone |
+| `endDateTime` | chaîne | Oui | Date et heure de fin. DOIT inclure le décalage horaire (ex. : 2025-06-03T11:00:00-08:00) OU fournir le paramètre timeZone |
+| `timeZone` | chaîne | Non | Fuseau horaire (ex. : America/Los_Angeles). Obligatoire si la date/heure n'inclut pas de décalage. Par défaut : America/Los_Angeles si non fourni. |
+| `attendees` | tableau | Non | Tableau d'adresses e-mail des participants |
+| `sendUpdates` | chaîne | Non | Comment envoyer les mises à jour aux participants : all, externalOnly, ou none |
 
 #### Sortie
 

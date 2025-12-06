@@ -1,6 +1,6 @@
 ---
 title: Kalshi
-description: Kalshiの予測市場データにアクセス
+description: Kalshiの予測市場にアクセスして取引する
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -27,7 +27,7 @@ SimにおけるKalshiの統合により、以下のことが可能になりま�
 
 ## 使用方法
 
-Kalshi予測市場をワークフローに統合します。市場一覧、特定の市場、イベント一覧、特定のイベント、残高、ポジション、注文、注文板、取引、ローソク足チャート、約定、シリーズ、取引所のステータスを取得できます。
+Kalshiの予測市場をワークフローに統合します。市場一覧、個別市場、イベント一覧、個別イベント、残高、ポジション、注文、注文板、取引履歴、ローソク足チャート、約定履歴、シリーズ、取引所ステータスの取得、および取引の発注/キャンセル/変更が可能です。
 
 ## ツール
 
@@ -172,37 +172,52 @@ Kalshiからオープンポジションを取得
 | `success` | boolean | 操作成功ステータス |
 | `output` | object | 注文データとメタデータ |
 
-### `kalshi_get_orderbook`
+### `kalshi_get_order`
 
-特定のマーケットの注文板（買い注文と売り注文）を取得する
+IDを指定してKalshiから特定の注文の詳細を取得する
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `ticker` | string | はい | マーケットティッカー（例：KXBTC-24DEC31） |
-| `depth` | number | いいえ | 各サイドで返す価格レベルの数 |
+| `keyId` | string | はい | あなたのKalshi APIキーID |
+| `privateKey` | string | はい | あなたのRSA秘密鍵（PEM形式） |
+| `orderId` | string | はい | 取得する注文ID |
 
 #### 出力
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | オーダーブックデータとメタデータ |
+| `output` | object | 注文データ |
 
-### `kalshi_get_trades`
+### `kalshi_get_orderbook`
 
-すべての市場または特定の市場における最近の取引を取得する
+特定の市場の注文板（yesとnoの注文）を取得する
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `ticker` | string | いいえ | 市場ティッカーでフィルタリング |
-| `minTs` | number | いいえ | 最小タイムスタンプ（Unixミリ秒） |
-| `maxTs` | number | いいえ | 最大タイムスタンプ（Unixミリ秒） |
-| `limit` | string | いいえ | 結果数（1-1000、デフォルト：100） |
-| `cursor` | string | いいえ | 次ページのページネーションカーソル |
+| `ticker` | string | はい | 市場ティッカー（例：KXBTC-24DEC31） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 注文板データとメタデータ |
+
+### `kalshi_get_trades`
+
+すべての市場の最近の取引を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | いいえ | 結果の数（1-1000、デフォルト：100） |
+| `cursor` | string | いいえ | 次のページのページネーションカーソル |
 
 #### 出力
 
@@ -221,9 +236,9 @@ Kalshiからオープンポジションを取得
 | --------- | ---- | -------- | ----------- |
 | `seriesTicker` | string | はい | シリーズティッカー |
 | `ticker` | string | はい | 市場ティッカー（例：KXBTC-24DEC31） |
-| `startTs` | number | いいえ | 開始タイムスタンプ（Unixミリ秒） |
-| `endTs` | number | いいえ | 終了タイムスタンプ（Unixミリ秒） |
-| `periodInterval` | number | いいえ | 期間間隔：1（1分）、60（1時間）、または1440（1日） |
+| `startTs` | number | はい | 開始タイムスタンプ（Unix秒） |
+| `endTs` | number | はい | 終了タイムスタンプ（Unix秒） |
+| `periodInterval` | number | はい | 期間間隔：1（1分）、60（1時間）、または1440（1日） |
 
 #### 出力
 
@@ -234,19 +249,19 @@ Kalshiからオープンポジションを取得
 
 ### `kalshi_get_fills`
 
-ポートフォリオを取得する
+あなたのポートフォリオを取得する
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `keyId` | string | はい | Kalshi API キーID |
-| `privateKey` | string | はい | RSA秘密鍵（PEM形式） |
-| `ticker` | string | いいえ | マーケットティッカーでフィルタリング |
+| `keyId` | string | はい | あなたのKalshi APIキーID |
+| `privateKey` | string | はい | あなたのRSA秘密鍵（PEM形式） |
+| `ticker` | string | いいえ | 市場ティッカーでフィルタリング |
 | `orderId` | string | いいえ | 注文IDでフィルタリング |
 | `minTs` | number | いいえ | 最小タイムスタンプ（Unixミリ秒） |
 | `maxTs` | number | いいえ | 最大タイムスタンプ（Unixミリ秒） |
-| `limit` | string | いいえ | 結果数（1-1000、デフォルト：100） |
+| `limit` | string | いいえ | 結果の数（1-1000、デフォルト：100） |
 | `cursor` | string | いいえ | 次ページのページネーションカーソル |
 
 #### 出力
@@ -258,7 +273,7 @@ Kalshiからオープンポジションを取得
 
 ### `kalshi_get_series_by_ticker`
 
-ティッカーで特定のマーケットシリーズの詳細を取得する
+ティッカーで特定の市場シリーズの詳細を取得する
 
 #### 入力
 
@@ -288,6 +303,89 @@ Kalshi取引所の現在のステータス（取引と取引所のアクティ�
 | --------- | ---- | ----------- |
 | `success` | boolean | 操作成功ステータス |
 | `output` | object | 取引所ステータスデータとメタデータ |
+
+### `kalshi_create_order`
+
+Kalshi予測市場に新しい注文を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | はい | あなたのKalshi APIキーID |
+| `privateKey` | string | はい | あなたのRSA秘密鍵（PEM形式） |
+| `ticker` | string | はい | 市場ティッカー（例：KXBTC-24DEC31） |
+| `side` | string | はい | 注文のサイド：'yes'または'no' |
+| `action` | string | はい | アクションタイプ：'buy'または'sell' |
+| `count` | string | はい | 契約数（最小1） |
+| `type` | string | いいえ | 注文タイプ：'limit'または'market'（デフォルト：limit） |
+| `yesPrice` | string | いいえ | Yesの価格（セント単位、1-99） |
+| `noPrice` | string | いいえ | Noの価格（セント単位、1-99） |
+| `yesPriceDollars` | string | いいえ | Yesの価格（ドル単位、例："0.56"） |
+| `noPriceDollars` | string | いいえ | Noの価格（ドル単位、例："0.56"） |
+| `clientOrderId` | string | いいえ | カスタム注文識別子 |
+| `expirationTs` | string | いいえ | 注文有効期限のUnixタイムスタンプ |
+| `timeInForce` | string | いいえ | 有効期間：'fill_or_kill'、'good_till_canceled'、'immediate_or_cancel' |
+| `buyMaxCost` | string | いいえ | 最大コスト（セント単位、自動的にfill_or_killを有効にする） |
+| `postOnly` | string | いいえ | メーカーオンリー注文の場合は'true'に設定 |
+| `reduceOnly` | string | いいえ | ポジション削減のみの場合は'true'に設定 |
+| `selfTradePreventionType` | string | いいえ | 自己取引防止：'taker_at_cross'または'maker' |
+| `orderGroupId` | string | いいえ | 関連する注文グループID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 作成された注文データ |
+
+### `kalshi_cancel_order`
+
+Kalshiで既存の注文をキャンセルする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | はい | あなたのKalshi APIキーID |
+| `privateKey` | string | はい | あなたのRSA秘密鍵（PEM形式） |
+| `orderId` | string | はい | キャンセルする注文ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | キャンセルされた注文データ |
+
+### `kalshi_amend_order`
+
+Kalshiで既存の注文の価格または数量を変更する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | はい | あなたのKalshi APIキーID |
+| `privateKey` | string | はい | あなたのRSA秘密鍵（PEM形式） |
+| `orderId` | string | はい | 変更する注文ID |
+| `ticker` | string | はい | マーケットティッカー |
+| `side` | string | はい | 注文のサイド：'yes'または'no' |
+| `action` | string | はい | アクションタイプ：'buy'または'sell' |
+| `clientOrderId` | string | はい | クライアントが指定した元の注文ID |
+| `updatedClientOrderId` | string | はい | 変更後のクライアントが指定した新しい注文ID |
+| `count` | string | いいえ | 注文の更新された数量 |
+| `yesPrice` | string | いいえ | 更新されたyes価格（セント単位、1-99） |
+| `noPrice` | string | いいえ | 更新されたno価格（セント単位、1-99） |
+| `yesPriceDollars` | string | いいえ | 更新されたyes価格（ドル単位、例："0.56"） |
+| `noPriceDollars` | string | いいえ | 更新されたno価格（ドル単位、例："0.56"） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功ステータス |
+| `output` | object | 変更された注文データ |
 
 ## 注意事項
 

@@ -38,10 +38,10 @@ Obtener una lista de mercados de predicción de Polymarket con filtrado opcional
 
 #### Entrada
 
-| Parámetro | Tipo | Requerido | Descripción |
+| Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `closed` | string | No | Filtrar por estado cerrado \(true/false\). Usa false para mercados activos solamente. |
-| `order` | string | No | Campo de ordenación \(p. ej., id, volume, liquidity\) |
+| `closed` | string | No | Filtrar por estado cerrado \(true/false\). Use false para mostrar solo mercados activos. |
+| `order` | string | No | Campo de ordenación \(p. ej., volumeNum, liquidityNum, startDate, endDate, createdAt\) |
 | `ascending` | string | No | Dirección de ordenación \(true para ascendente, false para descendente\) |
 | `tagId` | string | No | Filtrar por ID de etiqueta |
 | `limit` | string | No | Número de resultados por página \(recomendado: 25-50\) |
@@ -78,14 +78,14 @@ Obtener una lista de eventos de Polymarket con filtrado opcional
 
 #### Entrada
 
-| Parámetro | Tipo | Requerido | Descripción |
+| Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `closed` | string | No | Filtrar por estado cerrado (true/false). Usar false para eventos activos solamente. |
-| `order` | string | No | Campo de ordenación (ej., id, volume) |
-| `ascending` | string | No | Dirección de ordenación (true para ascendente, false para descendente) |
+| `closed` | string | No | Filtrar por estado cerrado \(true/false\). Use false para mostrar solo eventos activos. |
+| `order` | string | No | Campo de ordenación \(p. ej., volume, liquidity, startDate, endDate, createdAt\) |
+| `ascending` | string | No | Dirección de ordenación \(true para ascendente, false para descendente\) |
 | `tagId` | string | No | Filtrar por ID de etiqueta |
-| `limit` | string | No | Número de resultados por página (recomendado: 25-50) |
-| `offset` | string | No | Desplazamiento de paginación (omitir esta cantidad de resultados) |
+| `limit` | string | No | Número de resultados por página \(recomendado: 25-50\) |
+| `offset` | string | No | Desplazamiento de paginación \(omitir esta cantidad de resultados\) |
 
 #### Salida
 

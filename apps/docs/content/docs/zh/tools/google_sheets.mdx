@@ -88,8 +88,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | 是 | 要读取的电子表格的 ID |
-| `range` | string | 否 | 要读取的单元格范围 |
+| `spreadsheetId` | string | 是 | 电子表格的 ID \(可在 URL 中找到：docs.google.com/spreadsheets/d/\{SPREADSHEET_ID\}/edit\)。 |
+| `range` | string | 否 | 要读取的 A1 表示法范围 \(例如 "Sheet1!A1:D10", "A1:B5"\)。如果未指定，默认为第一个工作表 A1:Z1000。 |
 
 #### 输出
 
@@ -106,9 +106,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | 是 | 要写入的电子表格的 ID |
-| `range` | string | 否 | 要写入的单元格范围 |
-| `values` | array | 是 | 要写入电子表格的数据 |
+| `spreadsheetId` | string | 是 | 电子表格的 ID |
+| `range` | string | 否 | 要写入的 A1 表示法范围 \(例如 "Sheet1!A1:D10", "A1:B5"\) |
+| `values` | array | 是 | 要写入的数据，格式为二维数组 \(例如 \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]\) 或对象数组。 |
 | `valueInputOption` | string | 否 | 要写入数据的格式 |
 | `includeValuesInResponse` | boolean | 否 | 是否在响应中包含写入的值 |
 
@@ -131,10 +131,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | 是 | 要更新的电子表格的 ID |
-| `range` | string | 否 | 要更新的单元格范围 |
-| `values` | array | 是 | 要更新到电子表格中的数据 |
+| `range` | string | 否 | 要更新的 A1 表示法范围 \(例如 "Sheet1!A1:D10", "A1:B5"\) |
+| `values` | array | 是 | 要更新的数据，格式为二维数组 \(例如 \[\["Name", "Age"\], \["Alice", 30\]\]\) 或对象数组。 |
 | `valueInputOption` | string | 否 | 要更新数据的格式 |
-| `includeValuesInResponse` | boolean | 否 | 是否在响应中包含更新后的值 |
+| `includeValuesInResponse` | boolean | 否 | 是否在响应中包含更新的值 |
 
 #### 输出
 
@@ -154,12 +154,12 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | 是 | 要追加的电子表格的 ID |
-| `range` | string | 否 | 要在其后追加的单元格范围 |
-| `values` | array | 是 | 要追加到电子表格的数据 |
+| `spreadsheetId` | string | 是 | 要追加数据的电子表格的 ID |
+| `range` | string | 否 | 要追加数据的单元格范围 \(例如："Sheet1", "Sheet1!A:D"\) |
+| `values` | array | 是 | 要追加的数据，格式为二维数组 \(例如：\[\["Alice", 30\], \["Bob", 25\]\]\) 或对象数组。 |
 | `valueInputOption` | string | 否 | 要追加数据的格式 |
-| `insertDataOption` | string | 否 | 如何插入数据 \(OVERWRITE 或 INSERT_ROWS\) |
-| `includeValuesInResponse` | boolean | 否 | 是否在响应中包含追加的值 |
+| `insertDataOption` | string | 否 | 数据插入方式 \(OVERWRITE 或 INSERT_ROWS\) |
+| `includeValuesInResponse` | boolean | 否 | 是否在响应中包含追加后的值 |
 
 #### 输出
 

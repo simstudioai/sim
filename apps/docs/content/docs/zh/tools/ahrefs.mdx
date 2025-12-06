@@ -140,13 +140,14 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `target` | string | 是 | 要分析的目标域名 |
-| `country` | string | 否 | 流量数据的国家代码 \(例如：us, gb, de\)。默认值：us |
-| `mode` | string | 否 | 分析模式：domain \(整个域名\), prefix \(URL 前缀\), subdomains \(包含所有子域名\) |
-| `date` | string | 否 | 历史数据的日期，格式为 YYYY-MM-DD \(默认为今天\) |
-| `limit` | number | 否 | 返回结果的最大数量 \(默认值：100\) |
-| `offset` | number | 否 | 分页时跳过的结果数量 |
-| `apiKey` | string | 是 | Ahrefs API 密钥 |
+| `target` | 字符串 | 是 | 要分析的目标域名 |
+| `country` | 字符串 | 否 | 流量数据的国家代码 \(例如：us, gb, de\)。默认值：us |
+| `mode` | 字符串 | 否 | 分析模式：domain \(整个域名\), prefix \(URL 前缀\), subdomains \(包含所有子域名\) |
+| `date` | 字符串 | 否 | 历史数据的日期，格式为 YYYY-MM-DD \(默认为今天\) |
+| `limit` | 数字 | 否 | 返回结果的最大数量 \(默认值：100\) |
+| `offset` | 数字 | 否 | 分页时跳过的结果数量 |
+| `select` | 字符串 | 否 | 要返回的字段的逗号分隔列表 \(例如：url,traffic,keywords,top_keyword,value\)。默认值：url,traffic,keywords,top_keyword,value |
+| `apiKey` | 字符串 | 是 | Ahrefs API 密钥 |
 
 #### 输出
 
