@@ -1,7 +1,6 @@
 'use client'
 
 import { Check } from 'lucide-react'
-import { useState } from 'react'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -12,7 +11,6 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-
 
 const logger = createLogger('OAuthRequiredModal')
 
@@ -226,6 +224,9 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'webhooks:read': 'Read your Pipedrive webhooks',
   'webhooks:full': 'Full access to manage your Pipedrive webhooks',
   w_member_social: 'Access your LinkedIn profile',
+  // Box scopes
+  root_readwrite: 'Read and write all files and folders in your Box account',
+  root_readonly: 'Read all files and folders in your Box account',
   // Shopify scopes (write_* implicitly includes read access)
   write_products: 'Read and manage your Shopify products',
   write_orders: 'Read and manage your Shopify orders',

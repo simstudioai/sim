@@ -36,18 +36,6 @@ export const SnowflakeBlock: BlockConfig<SnowflakeResponse> = {
       value: () => 'execute_query',
     },
     {
-<<<<<<< HEAD
-      id: 'credential',
-      title: 'Snowflake Account',
-      type: 'oauth-input',
-      serviceId: 'snowflake',
-      requiredScopes: [],
-      placeholder: 'Select Snowflake account',
-      required: true,
-    },
-    {
-=======
->>>>>>> 8de761181 (reformatted to PAT from oauth)
       id: 'accountUrl',
       title: 'Account URL',
       type: 'short-input',
