@@ -1,40 +1,45 @@
+/**
+ * Skeleton placeholder for a knowledge base card
+ * Matches the structure of BaseOverview component
+ */
 export function KnowledgeBaseCardSkeleton() {
   return (
-    <div className='rounded-lg border bg-background p-4'>
-      <div className='flex items-start justify-between'>
-        <div className='flex-1 space-y-3'>
-          {/* Title skeleton */}
-          <div className='h-4 w-3/4 animate-pulse rounded bg-muted' />
+    <div className='flex h-full flex-col gap-[12px] rounded-[4px] bg-[var(--surface-elevated)] px-[8px] py-[6px]'>
+      <div className='flex items-center justify-between gap-[8px]'>
+        <div className='h-[17px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-9)]' />
+        <div className='h-[22px] w-[90px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+      </div>
 
-          {/* Description skeleton */}
-          <div className='space-y-2'>
-            <div className='h-3 w-full animate-pulse rounded bg-muted' />
-            <div className='h-3 w-2/3 animate-pulse rounded bg-muted' />
+      <div className='flex flex-1 flex-col gap-[8px]'>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-[6px]'>
+            <div className='h-[14px] w-[14px] animate-pulse rounded-[2px] bg-[var(--surface-9)]' />
+            <div className='h-[14px] w-[45px] animate-pulse rounded-[4px] bg-[var(--surface-9)]' />
           </div>
+          <div className='h-[14px] w-[50px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+        </div>
 
-          {/* Stats skeleton */}
-          <div className='flex items-center gap-4 pt-2'>
-            <div className='flex items-center gap-1'>
-              <div className='h-3 w-3 animate-pulse rounded bg-muted' />
-              <div className='h-3 w-8 animate-pulse rounded bg-muted' />
-            </div>
-            <div className='flex items-center gap-1'>
-              <div className='h-3 w-3 animate-pulse rounded bg-muted' />
-              <div className='h-3 w-12 animate-pulse rounded bg-muted' />
-            </div>
-          </div>
+        <div className='h-0 w-full border-[var(--divider)] border-t' />
+
+        <div className='flex h-[36px] flex-col gap-[6px]'>
+          <div className='h-[14px] w-full animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+          <div className='h-[14px] w-[75%] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
         </div>
       </div>
     </div>
   )
 }
 
+/**
+ * Renders multiple knowledge base card skeletons as a fragment
+ * To be used inside an existing grid container
+ */
 export function KnowledgeBaseCardSkeletonGrid({ count = 8 }: { count?: number }) {
   return (
-    <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+    <>
       {Array.from({ length: count }).map((_, i) => (
         <KnowledgeBaseCardSkeleton key={i} />
       ))}
-    </div>
+    </>
   )
 }

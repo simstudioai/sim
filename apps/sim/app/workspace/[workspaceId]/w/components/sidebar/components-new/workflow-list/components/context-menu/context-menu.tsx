@@ -1,8 +1,6 @@
 'use client'
 
-import { ArrowUp, Pencil, Plus } from 'lucide-react'
 import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
-import { Copy, Trash } from '@/components/emcn/icons'
 
 interface ContextMenuProps {
   /**
@@ -21,6 +19,10 @@ interface ContextMenuProps {
    * Callback when menu should close
    */
   onClose: () => void
+  /**
+   * Callback when open in new tab is clicked
+   */
+  onOpenInNewTab?: () => void
   /**
    * Callback when rename is clicked
    */
@@ -41,6 +43,11 @@ interface ContextMenuProps {
    * Callback when delete is clicked
    */
   onDelete: () => void
+  /**
+   * Whether to show the open in new tab option (default: false)
+   * Set to true for items that can be opened in a new tab
+   */
+  showOpenInNewTab?: boolean
   /**
    * Whether to show the rename option (default: true)
    * Set to false when multiple items are selected
@@ -100,11 +107,13 @@ export function ContextMenu({
   position,
   menuRef,
   onClose,
+  onOpenInNewTab,
   onRename,
   onCreate,
   onDuplicate,
   onExport,
   onDelete,
+  showOpenInNewTab = false,
   showRename = true,
   showCreate = false,
   showDuplicate = true,
@@ -116,7 +125,7 @@ export function ContextMenu({
   disableCreate = false,
 }: ContextMenuProps) {
   return (
-    <Popover open={isOpen} onOpenChange={onClose}>
+    <Popover open={isOpen} onOpenChange={onClose} variant='primary'>
       <PopoverAnchor
         style={{
           position: 'fixed',
@@ -127,6 +136,16 @@ export function ContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
+        {showOpenInNewTab && onOpenInNewTab && (
+          <PopoverItem
+            onClick={() => {
+              onOpenInNewTab()
+              onClose()
+            }}
+          >
+            Open in new tab
+          </PopoverItem>
+        )}
         {showRename && onRename && (
           <PopoverItem
             disabled={disableRename}
@@ -135,8 +154,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            <Pencil className='h-3 w-3' />
-            <span>Rename</span>
+            Rename
           </PopoverItem>
         )}
         {showCreate && onCreate && (
@@ -147,8 +165,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            <Plus className='h-3 w-3' />
-            <span>Create workflow</span>
+            Create workflow
           </PopoverItem>
         )}
         {showDuplicate && onDuplicate && (
@@ -159,8 +176,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            <Copy className='h-3 w-3' />
-            <span>Duplicate</span>
+            Duplicate
           </PopoverItem>
         )}
         {showExport && onExport && (
@@ -171,8 +187,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            <ArrowUp className='h-3 w-3' />
-            <span>Export</span>
+            Export
           </PopoverItem>
         )}
         <PopoverItem
@@ -182,8 +197,7 @@ export function ContextMenu({
             onClose()
           }}
         >
-          <Trash className='h-3 w-3' />
-          <span>Delete</span>
+          Delete
         </PopoverItem>
       </PopoverContent>
     </Popover>

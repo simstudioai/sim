@@ -97,6 +97,13 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
   })
 
   /**
+   * Opens the workflow in a new browser tab
+   */
+  const handleOpenInNewTab = useCallback(() => {
+    window.open(`/workspace/${workspaceId}/w/${workflow.id}`, '_blank')
+  }, [workspaceId, workflow.id])
+
+  /**
    * Drag start handler - handles workflow dragging with multi-selection support
    *
    * @param e - React drag event
@@ -300,10 +307,12 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
         position={position}
         menuRef={menuRef}
         onClose={closeMenu}
+        onOpenInNewTab={handleOpenInNewTab}
         onRename={handleStartEdit}
         onDuplicate={handleDuplicateWorkflow}
         onExport={handleExportWorkflow}
         onDelete={handleOpenDeleteModal}
+        showOpenInNewTab={selectedWorkflows.size <= 1}
         showRename={selectedWorkflows.size <= 1}
         showDuplicate={true}
         showExport={true}
