@@ -40,7 +40,7 @@ export const getThumbnailTool: ToolConfig<GetThumbnailParams, GetThumbnailRespon
 
   oauth: {
     required: true,
-    provider: 'google-slides',
+    provider: 'google-drive',
   },
 
   params: {

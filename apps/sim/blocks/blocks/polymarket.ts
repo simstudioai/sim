@@ -193,17 +193,40 @@ export const PolymarketBlock: BlockConfig = {
     {
       id: 'order',
       title: 'Sort By',
-      type: 'short-input',
-      placeholder: 'Sort field (e.g., id, volume, liquidity)',
-      condition: { field: 'operation', value: ['get_markets', 'get_events'] },
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Volume', id: 'volumeNum' },
+        { label: 'Liquidity', id: 'liquidityNum' },
+        { label: 'Start Date', id: 'startDate' },
+        { label: 'End Date', id: 'endDate' },
+        { label: 'Created At', id: 'createdAt' },
+        { label: 'Updated At', id: 'updatedAt' },
+      ],
+      condition: { field: 'operation', value: ['get_markets'] },
+    },
+    {
+      id: 'orderEvents',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Volume', id: 'volume' },
+        { label: 'Liquidity', id: 'liquidity' },
+        { label: 'Start Date', id: 'startDate' },
+        { label: 'End Date', id: 'endDate' },
+        { label: 'Created At', id: 'createdAt' },
+        { label: 'Updated At', id: 'updatedAt' },
+      ],
+      condition: { field: 'operation', value: ['get_events'] },
     },
     {
       id: 'ascending',
       title: 'Sort Order',
       type: 'dropdown',
       options: [
-        { label: 'Descending (newest first)', id: 'false' },
-        { label: 'Ascending (oldest first)', id: 'true' },
+        { label: 'Descending', id: 'false' },
+        { label: 'Ascending', id: 'true' },
       ],
       condition: { field: 'operation', value: ['get_markets', 'get_events'] },
     },
@@ -298,7 +321,7 @@ export const PolymarketBlock: BlockConfig = {
         }
       },
       params: (params) => {
-        const { operation, marketSlug, eventSlug, ...rest } = params
+        const { operation, marketSlug, eventSlug, orderEvents, order, ...rest } = params
         const cleanParams: Record<string, any> = {}
 
         // Map marketSlug to slug for get_market
@@ -309,6 +332,13 @@ export const PolymarketBlock: BlockConfig = {
         // Map eventSlug to slug for get_event
         if (operation === 'get_event' && eventSlug) {
           cleanParams.slug = eventSlug
+        }
+
+        // Map order field based on operation (markets use volumeNum/liquidityNum, events use volume/liquidity)
+        if (operation === 'get_markets' && order) {
+          cleanParams.order = order
+        } else if (operation === 'get_events' && orderEvents) {
+          cleanParams.order = orderEvents
         }
 
         // Convert numeric fields from string to number for get_price_history

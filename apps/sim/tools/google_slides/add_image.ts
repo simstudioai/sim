@@ -38,7 +38,7 @@ export const addImageTool: ToolConfig<AddImageParams, AddImageResponse> = {
 
   oauth: {
     required: true,
-    provider: 'google-slides',
+    provider: 'google-drive',
   },
 
   params: {

@@ -47,7 +47,7 @@ export const addSlideTool: ToolConfig<AddSlideParams, AddSlideResponse> = {
 
   oauth: {
     required: true,
-    provider: 'google-slides',
+    provider: 'google-drive',
   },
 
   params: {

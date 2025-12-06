@@ -11,7 +11,7 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
   version: '1.0',
   oauth: {
     required: true,
-    provider: 'google-slides',
+    provider: 'google-drive',
   },
   params: {
     accessToken: {

@@ -1,6 +1,6 @@
 ---
 title: Kalshi
-description: Access prediction markets data from Kalshi
+description: Access prediction markets and trade on Kalshi
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -28,7 +28,7 @@ By using these unified tools and endpoints, you can seamlessly incorporate Kalsh
 
 ## Usage Instructions
 
-Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, and exchange status.
+Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.
 
 
 
@@ -175,16 +175,34 @@ Retrieve your orders from Kalshi with optional filtering
 | `success` | boolean | Operation success status |
 | `output` | object | Orders data and metadata |
 
+### `kalshi_get_order`
+
+Retrieve details of a specific order by ID from Kalshi
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `orderId` | string | Yes | The order ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Order data |
+
 ### `kalshi_get_orderbook`
 
-Retrieve the orderbook (bids and asks) for a specific market
+Retrieve the orderbook (yes and no bids) for a specific market
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `ticker` | string | Yes | Market ticker \(e.g., KXBTC-24DEC31\) |
-| `depth` | number | No | Number of price levels to return per side |
 
 #### Output
 
@@ -195,15 +213,12 @@ Retrieve the orderbook (bids and asks) for a specific market
 
 ### `kalshi_get_trades`
 
-Retrieve recent trades across all markets or for a specific market
+Retrieve recent trades across all markets
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `ticker` | string | No | Filter by market ticker |
-| `minTs` | number | No | Minimum timestamp \(Unix milliseconds\) |
-| `maxTs` | number | No | Maximum timestamp \(Unix milliseconds\) |
 | `limit` | string | No | Number of results \(1-1000, default: 100\) |
 | `cursor` | string | No | Pagination cursor for next page |
 
@@ -224,9 +239,9 @@ Retrieve OHLC candlestick data for a specific market
 | --------- | ---- | -------- | ----------- |
 | `seriesTicker` | string | Yes | Series ticker |
 | `ticker` | string | Yes | Market ticker \(e.g., KXBTC-24DEC31\) |
-| `startTs` | number | No | Start timestamp \(Unix milliseconds\) |
-| `endTs` | number | No | End timestamp \(Unix milliseconds\) |
-| `periodInterval` | number | No | Period interval: 1 \(1min\), 60 \(1hour\), or 1440 \(1day\) |
+| `startTs` | number | Yes | Start timestamp \(Unix seconds\) |
+| `endTs` | number | Yes | End timestamp \(Unix seconds\) |
+| `periodInterval` | number | Yes | Period interval: 1 \(1min\), 60 \(1hour\), or 1440 \(1day\) |
 
 #### Output
 
@@ -291,6 +306,89 @@ Retrieve the current status of the Kalshi exchange (trading and exchange activit
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Exchange status data and metadata |
+
+### `kalshi_create_order`
+
+Create a new order on a Kalshi prediction market
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `ticker` | string | Yes | Market ticker \(e.g., KXBTC-24DEC31\) |
+| `side` | string | Yes | Side of the order: 'yes' or 'no' |
+| `action` | string | Yes | Action type: 'buy' or 'sell' |
+| `count` | string | Yes | Number of contracts \(minimum 1\) |
+| `type` | string | No | Order type: 'limit' or 'market' \(default: limit\) |
+| `yesPrice` | string | No | Yes price in cents \(1-99\) |
+| `noPrice` | string | No | No price in cents \(1-99\) |
+| `yesPriceDollars` | string | No | Yes price in dollars \(e.g., "0.56"\) |
+| `noPriceDollars` | string | No | No price in dollars \(e.g., "0.56"\) |
+| `clientOrderId` | string | No | Custom order identifier |
+| `expirationTs` | string | No | Unix timestamp for order expiration |
+| `timeInForce` | string | No | Time in force: 'fill_or_kill', 'good_till_canceled', 'immediate_or_cancel' |
+| `buyMaxCost` | string | No | Maximum cost in cents \(auto-enables fill_or_kill\) |
+| `postOnly` | string | No | Set to 'true' for maker-only orders |
+| `reduceOnly` | string | No | Set to 'true' for position reduction only |
+| `selfTradePreventionType` | string | No | Self-trade prevention: 'taker_at_cross' or 'maker' |
+| `orderGroupId` | string | No | Associated order group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created order data |
+
+### `kalshi_cancel_order`
+
+Cancel an existing order on Kalshi
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `orderId` | string | Yes | The order ID to cancel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Canceled order data |
+
+### `kalshi_amend_order`
+
+Modify the price or quantity of an existing order on Kalshi
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `orderId` | string | Yes | The order ID to amend |
+| `ticker` | string | Yes | Market ticker |
+| `side` | string | Yes | Side of the order: 'yes' or 'no' |
+| `action` | string | Yes | Action type: 'buy' or 'sell' |
+| `clientOrderId` | string | Yes | The original client-specified order ID |
+| `updatedClientOrderId` | string | Yes | The new client-specified order ID after amendment |
+| `count` | string | No | Updated quantity for the order |
+| `yesPrice` | string | No | Updated yes price in cents \(1-99\) |
+| `noPrice` | string | No | Updated no price in cents \(1-99\) |
+| `yesPriceDollars` | string | No | Updated yes price in dollars \(e.g., "0.56"\) |
+| `noPriceDollars` | string | No | Updated no price in dollars \(e.g., "0.56"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Amended order data |
 
 
 

@@ -15,7 +15,7 @@ export const createTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesCreateRe
 
   oauth: {
     required: true,
-    provider: 'google-slides',
+    provider: 'google-drive',
   },
 
   params: {

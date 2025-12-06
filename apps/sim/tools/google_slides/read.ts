@@ -9,7 +9,7 @@ export const readTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesReadRespon
 
   oauth: {
     required: true,
-    provider: 'google-slides',
+    provider: 'google-drive',
   },
 
   params: {

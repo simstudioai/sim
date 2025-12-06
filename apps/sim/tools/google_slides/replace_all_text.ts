@@ -33,7 +33,7 @@ export const replaceAllTextTool: ToolConfig<ReplaceAllTextParams, ReplaceAllText
 
   oauth: {
     required: true,
-    provider: 'google-slides',
+    provider: 'google-drive',
   },
 
   params: {

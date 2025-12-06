@@ -262,6 +262,16 @@ export interface WorkflowsCreateParams extends IncidentioBaseParams {
   name: string
   folder?: string
   state?: 'active' | 'draft' | 'disabled'
+  trigger?: string
+  steps?: string
+  condition_groups?: string
+  runs_on_incidents?: 'newly_created' | 'newly_created_and_active' | 'active' | 'all'
+  runs_on_incident_modes?: string
+  include_private_incidents?: boolean
+  continue_on_step_error?: boolean
+  once_for?: string
+  expressions?: string
+  delay?: string
 }
 
 export interface WorkflowsCreateResponse extends ToolResponse {
@@ -597,6 +607,7 @@ export interface IncidentioSchedulesUpdateParams extends IncidentioBaseParams {
   id: string
   name?: string
   timezone?: string
+  config?: string
 }
 
 export interface IncidentioSchedulesUpdateResponse extends ToolResponse {
