@@ -46,7 +46,6 @@ export const GoogleGroupsBlock: BlockConfig = {
       placeholder: 'Select Google Workspace account',
     },
 
-    // List Groups inputs
     {
       id: 'customer',
       title: 'Customer ID',
@@ -79,7 +78,6 @@ export const GoogleGroupsBlock: BlockConfig = {
       },
     },
 
-    // Get/Update/Delete Group inputs
     {
       id: 'groupKey',
       title: 'Group Email or ID',
@@ -102,7 +100,6 @@ export const GoogleGroupsBlock: BlockConfig = {
       },
     },
 
-    // Create Group inputs
     {
       id: 'email',
       title: 'Group Email',
@@ -127,7 +124,6 @@ export const GoogleGroupsBlock: BlockConfig = {
       condition: { field: 'operation', value: ['create_group', 'update_group'] },
     },
 
-    // Update Group inputs
     {
       id: 'newName',
       title: 'New Name',
@@ -143,7 +139,6 @@ export const GoogleGroupsBlock: BlockConfig = {
       condition: { field: 'operation', value: 'update_group' },
     },
 
-    // Member operations inputs
     {
       id: 'memberKey',
       title: 'Member Email or ID',
@@ -228,7 +223,6 @@ export const GoogleGroupsBlock: BlockConfig = {
       params: (params) => {
         const { credential, operation, ...rest } = params
 
-        // Map block params to tool params based on operation
         switch (operation) {
           case 'list_groups':
             return {
