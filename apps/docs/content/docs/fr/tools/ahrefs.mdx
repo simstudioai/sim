@@ -139,13 +139,14 @@ Obtenez les meilleures pages d'un domaine cible triées par trafic organique. Re
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `target` | string | Oui | Le domaine cible à analyser |
-| `country` | string | Non | Code pays pour les données de trafic \(ex., us, gb, de\). Par défaut : us |
+| `country` | string | Non | Code pays pour les données de trafic \(ex. : us, gb, de\). Par défaut : us |
 | `mode` | string | Non | Mode d'analyse : domain \(domaine entier\), prefix \(préfixe d'URL\), subdomains \(inclure tous les sous-domaines\) |
 | `date` | string | Non | Date pour les données historiques au format AAAA-MM-JJ \(par défaut : aujourd'hui\) |
-| `limit` | number | Non | Nombre maximum de résultats à retourner \(par défaut : 100\) |
+| `limit` | number | Non | Nombre maximum de résultats à renvoyer \(par défaut : 100\) |
 | `offset` | number | Non | Nombre de résultats à ignorer pour la pagination |
+| `select` | string | Non | Liste de champs à renvoyer, séparés par des virgules \(ex. : url,traffic,keywords,top_keyword,value\). Par défaut : url,traffic,keywords,top_keyword,value |
 | `apiKey` | string | Oui | Clé API Ahrefs |
 
 #### Sortie

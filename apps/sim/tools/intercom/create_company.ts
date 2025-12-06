@@ -84,7 +84,8 @@ export const intercomCreateCompanyTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'How much revenue the company generates for your business',
+      description:
+        'How much revenue the company generates for your business. Note: This field truncates floats to whole integers (e.g., 155.98 becomes 155)',
     },
     custom_attributes: {
       type: 'string',

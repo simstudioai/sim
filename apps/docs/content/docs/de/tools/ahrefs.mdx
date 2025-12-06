@@ -142,10 +142,11 @@ Erhalte die Top-Seiten einer Zieldomain, sortiert nach organischem Traffic. Lief
 | --------- | ---- | -------- | ----------- |
 | `target` | string | Ja | Die zu analysierende Zieldomäne |
 | `country` | string | Nein | Ländercode für Verkehrsdaten \(z.B. us, gb, de\). Standard: us |
-| `mode` | string | Nein | Analysemodus: domain \(gesamte Domain\), prefix \(URL-Präfix\), subdomains \(alle Subdomains einschließen\) |
+| `mode` | string | Nein | Analysemodus: domain \(gesamte Domäne\), prefix \(URL-Präfix\), subdomains \(alle Subdomänen einschließen\) |
 | `date` | string | Nein | Datum für historische Daten im Format JJJJ-MM-TT \(standardmäßig heute\) |
 | `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 100\) |
 | `offset` | number | Nein | Anzahl der zu überspringenden Ergebnisse für Paginierung |
+| `select` | string | Nein | Kommagetrennte Liste der zurückzugebenden Felder \(z.B. url,traffic,keywords,top_keyword,value\). Standard: url,traffic,keywords,top_keyword,value |
 | `apiKey` | string | Ja | Ahrefs API-Schlüssel |
 
 #### Ausgabe

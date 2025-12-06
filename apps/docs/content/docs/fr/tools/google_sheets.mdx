@@ -88,8 +88,8 @@ Lire des données d'une feuille de calcul Google Sheets
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `spreadsheetId` | chaîne | Oui | L'identifiant de la feuille de calcul à lire |
-| `range` | chaîne | Non | La plage de cellules à lire |
+| `spreadsheetId` | chaîne | Oui | L'identifiant de la feuille de calcul \(trouvé dans l'URL : docs.google.com/spreadsheets/d/\{SPREADSHEET_ID\}/edit\). |
+| `range` | chaîne | Non | La plage en notation A1 à lire \(par exemple "Sheet1!A1:D10", "A1:B5"\). Par défaut, première feuille A1:Z1000 si non spécifié. |
 
 #### Sortie
 
@@ -106,9 +106,9 @@ Lire des données d'une feuille de calcul Google Sheets
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `spreadsheetId` | chaîne | Oui | L'identifiant de la feuille de calcul dans laquelle écrire |
-| `range` | chaîne | Non | La plage de cellules dans laquelle écrire |
-| `values` | tableau | Oui | Les données à écrire dans la feuille de calcul |
+| `spreadsheetId` | chaîne | Oui | L'identifiant de la feuille de calcul |
+| `range` | chaîne | Non | La plage en notation A1 où écrire \(par exemple "Sheet1!A1:D10", "A1:B5"\) |
+| `values` | tableau | Oui | Les données à écrire sous forme de tableau 2D \(par exemple \[\["Nom", "Âge"\], \["Alice", 30\], \["Bob", 25\]\]\) ou tableau d'objets. |
 | `valueInputOption` | chaîne | Non | Le format des données à écrire |
 | `includeValuesInResponse` | booléen | Non | Indique si les valeurs écrites doivent être incluses dans la réponse |
 
@@ -129,12 +129,12 @@ Mettre à jour des données dans une feuille de calcul Google Sheets
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
-| `spreadsheetId` | string | Oui | L'ID de la feuille de calcul à mettre à jour |
-| `range` | string | Non | La plage de cellules à mettre à jour |
-| `values` | array | Oui | Les données à mettre à jour dans la feuille de calcul |
-| `valueInputOption` | string | Non | Le format des données à mettre à jour |
-| `includeValuesInResponse` | boolean | Non | Indique s'il faut inclure les valeurs mises à jour dans la réponse |
+| --------- | ---- | ----------- | ----------- |
+| `spreadsheetId` | chaîne | Oui | L'identifiant de la feuille de calcul à mettre à jour |
+| `range` | chaîne | Non | La plage en notation A1 à mettre à jour \(par exemple "Sheet1!A1:D10", "A1:B5"\) |
+| `values` | tableau | Oui | Les données à mettre à jour sous forme de tableau 2D \(par exemple \[\["Nom", "Âge"\], \["Alice", 30\]\]\) ou tableau d'objets. |
+| `valueInputOption` | chaîne | Non | Le format des données à mettre à jour |
+| `includeValuesInResponse` | booléen | Non | Indique si les valeurs mises à jour doivent être incluses dans la réponse |
 
 #### Sortie
 
@@ -155,11 +155,11 @@ Ajouter des données à la fin d'une feuille de calcul Google Sheets
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
 | `spreadsheetId` | chaîne | Oui | L'identifiant de la feuille de calcul à laquelle ajouter des données |
-| `range` | chaîne | Non | La plage de cellules après laquelle ajouter des données |
-| `values` | tableau | Oui | Les données à ajouter à la feuille de calcul |
+| `range` | chaîne | Non | La plage de notation A1 après laquelle ajouter des données \(ex. "Feuille1", "Feuille1!A:D"\) |
+| `values` | tableau | Oui | Les données à ajouter sous forme de tableau 2D \(ex. \[\["Alice", 30\], \["Bob", 25\]\]\) ou tableau d'objets. |
 | `valueInputOption` | chaîne | Non | Le format des données à ajouter |
 | `insertDataOption` | chaîne | Non | Comment insérer les données \(OVERWRITE ou INSERT_ROWS\) |
-| `includeValuesInResponse` | booléen | Non | Indique si les valeurs ajoutées doivent être incluses dans la réponse |
+| `includeValuesInResponse` | booléen | Non | Indique s'il faut inclure les valeurs ajoutées dans la réponse |
 
 #### Sortie
 

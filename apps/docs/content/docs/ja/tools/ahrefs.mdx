@@ -142,10 +142,11 @@ AhrefsのSEOツールをワークフローに統合します。ドメインレ�
 | --------- | ---- | -------- | ----------- |
 | `target` | string | はい | 分析対象のドメイン |
 | `country` | string | いいえ | トラフィックデータの国コード（例：us、gb、de）。デフォルト：us |
-| `mode` | string | いいえ | 分析モード：domain（ドメイン全体）、prefix（URL接頭辞）、subdomains（すべてのサブドメインを含む） |
-| `date` | string | いいえ | 過去データの日付（YYYY-MM-DD形式）（デフォルト：今日） |
+| `mode` | string | いいえ | 分析モード：domain（ドメイン全体）、prefix（URLプレフィックス）、subdomains（すべてのサブドメインを含む） |
+| `date` | string | いいえ | 履歴データの日付（YYYY-MM-DD形式、デフォルトは今日） |
 | `limit` | number | いいえ | 返す結果の最大数（デフォルト：100） |
 | `offset` | number | いいえ | ページネーション用にスキップする結果の数 |
+| `select` | string | いいえ | 返すフィールドのカンマ区切りリスト（例：url,traffic,keywords,top_keyword,value）。デフォルト：url,traffic,keywords,top_keyword,value |
 | `apiKey` | string | はい | Ahrefs APIキー |
 
 #### 出力

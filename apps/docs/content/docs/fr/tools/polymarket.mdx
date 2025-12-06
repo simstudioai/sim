@@ -39,13 +39,13 @@ Récupérer une liste des marchés prédictifs de Polymarket avec filtrage optio
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
-| `closed` | chaîne | Non | Filtrer par statut fermé \(true/false\). Utilisez false pour les marchés actifs uniquement. |
-| `order` | chaîne | Non | Champ de tri \(ex. id, volume, liquidity\) |
-| `ascending` | chaîne | Non | Direction de tri \(true pour ascendant, false pour descendant\) |
-| `tagId` | chaîne | Non | Filtrer par ID de tag |
-| `limit` | chaîne | Non | Nombre de résultats par page \(recommandé : 25-50\) |
-| `offset` | chaîne | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
+| --------- | ---- | ---------- | ----------- |
+| `closed` | string | Non | Filtrer par statut fermé \(true/false\). Utilisez false pour les marchés actifs uniquement. |
+| `order` | string | Non | Champ de tri \(par exemple, volumeNum, liquidityNum, startDate, endDate, createdAt\) |
+| `ascending` | string | Non | Direction de tri \(true pour ascendant, false pour descendant\) |
+| `tagId` | string | Non | Filtrer par ID de tag |
+| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
+| `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
 
 #### Sortie
 
@@ -79,9 +79,9 @@ Récupérer une liste d'événements de Polymarket avec filtrage optionnel
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `closed` | string | Non | Filtrer par statut fermé \(true/false\). Utilisez false pour les événements actifs uniquement. |
-| `order` | string | Non | Champ de tri \(ex. : id, volume\) |
+| `order` | string | Non | Champ de tri \(par exemple, volume, liquidity, startDate, endDate, createdAt\) |
 | `ascending` | string | Non | Direction de tri \(true pour ascendant, false pour descendant\) |
 | `tagId` | string | Non | Filtrer par ID de tag |
 | `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |

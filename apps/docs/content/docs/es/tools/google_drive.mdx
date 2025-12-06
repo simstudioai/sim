@@ -108,10 +108,10 @@ Listar archivos y carpetas en Google Drive
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `folderSelector` | string | No | Seleccionar la carpeta desde la que listar archivos |
+| `folderSelector` | string | No | Selecciona la carpeta desde la que listar archivos |
 | `folderId` | string | No | El ID de la carpeta desde la que listar archivos \(uso interno\) |
-| `query` | string | No | Una consulta para filtrar los archivos |
-| `pageSize` | number | No | El número de archivos a devolver |
+| `query` | string | No | Término de búsqueda para filtrar archivos por nombre \(p. ej. "presupuesto" encuentra archivos con "presupuesto" en el nombre\). NO uses la sintaxis de consulta de Google Drive aquí - solo proporciona un término de búsqueda simple. |
+| `pageSize` | number | No | El número máximo de archivos a devolver \(predeterminado: 100\) |
 | `pageToken` | string | No | El token de página para usar en la paginación |
 
 #### Salida

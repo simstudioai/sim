@@ -110,8 +110,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `folderSelector` | string | 否 | 选择要列出文件的文件夹 |
 | `folderId` | string | 否 | 要列出文件的文件夹 ID（内部使用） |
-| `query` | string | 否 | 用于过滤文件的查询 |
-| `pageSize` | number | 否 | 要返回的文件数量 |
+| `query` | string | 否 | 用于按名称过滤文件的搜索词（例如，"budget" 会找到名称中包含 "budget" 的文件）。不要在此处使用 Google Drive 查询语法 - 只需提供一个普通的搜索词即可。 |
+| `pageSize` | number | 否 | 要返回的最大文件数（默认值：100） |
 | `pageToken` | string | 否 | 用于分页的页面令牌 |
 
 #### 输出

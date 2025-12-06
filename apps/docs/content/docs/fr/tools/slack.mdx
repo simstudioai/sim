@@ -120,6 +120,82 @@ Lisez les derniers messages des canaux Slack. Récupérez l'historique des conve
 | --------- | ---- | ----------- |
 | `messages` | tableau | Tableau d'objets de messages du canal |
 
+### `slack_list_channels`
+
+Liste tous les canaux dans un espace de travail Slack. Renvoie les canaux publics et privés auxquels le bot a accès.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `includePrivate` | booléen | Non | Inclure les canaux privés dont le bot est membre \(par défaut : true\) |
+| `excludeArchived` | booléen | Non | Exclure les canaux archivés \(par défaut : true\) |
+| `limit` | nombre | Non | Nombre maximum de canaux à renvoyer \(par défaut : 100, max : 200\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `channels` | tableau | Tableau d'objets de canaux de l'espace de travail |
+
+### `slack_list_members`
+
+Liste tous les membres (identifiants d'utilisateurs) dans un canal Slack. À utiliser avec Get User Info pour convertir les identifiants en noms.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal dont il faut lister les membres |
+| `limit` | nombre | Non | Nombre maximum de membres à renvoyer \(par défaut : 100, max : 200\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | tableau | Tableau d'identifiants d'utilisateurs qui sont membres du canal \(par ex., U1234567890\) |
+
+### `slack_list_users`
+
+Liste tous les utilisateurs dans un espace de travail Slack. Renvoie les profils d'utilisateurs avec noms et avatars.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `includeDeleted` | booléen | Non | Inclure les utilisateurs désactivés/supprimés \(par défaut : false\) |
+| `limit` | nombre | Non | Nombre maximum d'utilisateurs à renvoyer \(par défaut : 100, max : 200\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | tableau | Tableau d'objets utilisateur de l'espace de travail |
+
+### `slack_get_user`
+
+Obtenir des informations détaillées sur un utilisateur Slack spécifique à partir de son ID utilisateur.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `userId` | chaîne | Oui | ID utilisateur à rechercher \(par ex., U1234567890\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | objet | Informations détaillées sur l'utilisateur |
+
 ### `slack_download`
 
 Télécharger un fichier depuis Slack

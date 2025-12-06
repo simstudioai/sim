@@ -360,7 +360,9 @@ Mettre à jour un planning existant dans incident.io
 | `apiKey` | chaîne | Oui | Clé API incident.io |
 | `id` | chaîne | Oui | L'ID du planning à mettre à jour |
 | `name` | chaîne | Non | Nouveau nom pour le planning |
-| `timezone` | chaîne | Non | Nouveau fuseau horaire pour le planning \(ex., America/New_York\) |
+| `timezone` | chaîne | Non | Nouveau fuseau horaire pour le planning \(ex. : America/New_York\) |
+| `config` | chaîne | Non | Configuration du planning au format JSON avec rotations. Exemple : \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
+| `Example` | chaîne | Non | Pas de description |
 
 #### Sortie
 

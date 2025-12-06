@@ -364,6 +364,8 @@ Update an existing schedule in incident.io
 | `id` | string | Yes | The ID of the schedule to update |
 | `name` | string | No | New name for the schedule |
 | `timezone` | string | No | New timezone for the schedule \(e.g., America/New_York\) |
+| `config` | string | No | Schedule configuration as JSON string with rotations. Example: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
+| `Example` | string | No | No description |
 
 #### Output
 

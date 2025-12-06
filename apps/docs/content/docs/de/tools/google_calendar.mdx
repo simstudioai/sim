@@ -38,14 +38,14 @@ Erstellt ein neues Ereignis in Google Kalender
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `calendarId` | string | Nein | Kalender-ID \(standardmäßig primary\) |
+| `calendarId` | string | Nein | Kalender-ID (standardmäßig primary) |
 | `summary` | string | Ja | Ereignistitel/Zusammenfassung |
 | `description` | string | Nein | Ereignisbeschreibung |
 | `location` | string | Nein | Ereignisort |
-| `startDateTime` | string | Ja | Startdatum und -uhrzeit \(RFC3339-Format, z.B. 2025-06-03T10:00:00-08:00\) |
-| `endDateTime` | string | Ja | Enddatum und -uhrzeit \(RFC3339-Format, z.B. 2025-06-03T11:00:00-08:00\) |
-| `timeZone` | string | Nein | Zeitzone \(z.B. America/Los_Angeles\) |
-| `attendees` | array | Nein | Array mit E-Mail-Adressen der Teilnehmer |
+| `startDateTime` | string | Ja | Startdatum und -uhrzeit. MUSS Zeitzonen-Offset enthalten (z.B. 2025-06-03T10:00:00-08:00) ODER timeZone-Parameter bereitstellen |
+| `endDateTime` | string | Ja | Enddatum und -uhrzeit. MUSS Zeitzonen-Offset enthalten (z.B. 2025-06-03T11:00:00-08:00) ODER timeZone-Parameter bereitstellen |
+| `timeZone` | string | Nein | Zeitzone (z.B. America/Los_Angeles). Erforderlich, wenn datetime keinen Offset enthält. Standardmäßig America/Los_Angeles, wenn nicht angegeben. |
+| `attendees` | array | Nein | Array von E-Mail-Adressen der Teilnehmer |
 | `sendUpdates` | string | Nein | Wie Updates an Teilnehmer gesendet werden: all, externalOnly oder none |
 
 #### Ausgabe

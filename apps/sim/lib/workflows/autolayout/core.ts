@@ -17,13 +17,29 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('AutoLayout:Core')
 
+/** Handle names that indicate edges from subflow end */
+const SUBFLOW_END_HANDLES = new Set(['loop-end-source', 'parallel-end-source'])
+
+/**
+ * Checks if an edge comes from a subflow end handle
+ */
+function isSubflowEndEdge(edge: Edge): boolean {
+  return edge.sourceHandle != null && SUBFLOW_END_HANDLES.has(edge.sourceHandle)
+}
+
 /**
  * Assigns layers (columns) to blocks using topological sort.
  * Blocks with no incoming edges are placed in layer 0.
+ * When edges come from subflow end handles, the subflow's internal depth is added.
+ *
+ * @param blocks - The blocks to assign layers to
+ * @param edges - The edges connecting blocks
+ * @param subflowDepths - Optional map of container block IDs to their internal depth (max layers inside)
  */
 export function assignLayers(
   blocks: Record<string, BlockState>,
-  edges: Edge[]
+  edges: Edge[],
+  subflowDepths?: Map<string, number>
 ): Map<string, GraphNode> {
   const nodes = new Map<string, GraphNode>()
 
@@ -38,6 +54,15 @@ export function assignLayers(
       layer: 0,
       position: { ...block.position },
     })
+  }
+
+  // Build a map of target node -> edges coming into it (to check sourceHandle later)
+  const incomingEdgesMap = new Map<string, Edge[]>()
+  for (const edge of edges) {
+    if (!incomingEdgesMap.has(edge.target)) {
+      incomingEdgesMap.set(edge.target, [])
+    }
+    incomingEdgesMap.get(edge.target)!.push(edge)
   }
 
   // Build adjacency from edges
@@ -79,15 +104,33 @@ export function assignLayers(
     processed.add(nodeId)
 
     // Calculate layer based on max incoming layer + 1
+    // For edges from subflow ends, add the subflow's internal depth (minus 1 to avoid double-counting)
     if (node.incoming.size > 0) {
-      let maxIncomingLayer = -1
+      let maxEffectiveLayer = -1
+      const incomingEdges = incomingEdgesMap.get(nodeId) || []
+
       for (const incomingId of node.incoming) {
         const incomingNode = nodes.get(incomingId)
         if (incomingNode) {
-          maxIncomingLayer = Math.max(maxIncomingLayer, incomingNode.layer)
+          // Find edges from this incoming node to check if it's a subflow end edge
+          const edgesFromSource = incomingEdges.filter((e) => e.source === incomingId)
+          let additionalDepth = 0
+
+          // Check if any edge from this source is a subflow end edge
+          const hasSubflowEndEdge = edgesFromSource.some(isSubflowEndEdge)
+          if (hasSubflowEndEdge && subflowDepths) {
+            // Get the internal depth of the subflow
+            // Subtract 1 because the +1 at the end of layer calculation already accounts for one layer
+            // E.g., if subflow has 2 internal layers (depth=2), we add 1 extra so total offset is 2
+            const depth = subflowDepths.get(incomingId) ?? 1
+            additionalDepth = Math.max(0, depth - 1)
+          }
+
+          const effectiveLayer = incomingNode.layer + additionalDepth
+          maxEffectiveLayer = Math.max(maxEffectiveLayer, effectiveLayer)
         }
       }
-      node.layer = maxIncomingLayer + 1
+      node.layer = maxEffectiveLayer + 1
     }
 
     // Add outgoing nodes when all dependencies processed
@@ -254,12 +297,19 @@ export function calculatePositions(
  * 4. Calculate positions
  * 5. Normalize positions to start from padding
  *
+ * @param blocks - The blocks to lay out
+ * @param edges - The edges connecting blocks
+ * @param options - Layout options including container flag and subflow depths
  * @returns The laid-out nodes with updated positions, and bounding dimensions
  */
 export function layoutBlocksCore(
   blocks: Record<string, BlockState>,
   edges: Edge[],
-  options: { isContainer: boolean; layoutOptions?: LayoutOptions }
+  options: {
+    isContainer: boolean
+    layoutOptions?: LayoutOptions
+    subflowDepths?: Map<string, number>
+  }
 ): { nodes: Map<string, GraphNode>; dimensions: { width: number; height: number } } {
   if (Object.keys(blocks).length === 0) {
     return { nodes: new Map(), dimensions: { width: 0, height: 0 } }
@@ -269,8 +319,8 @@ export function layoutBlocksCore(
     options.layoutOptions ??
     (options.isContainer ? CONTAINER_LAYOUT_OPTIONS : DEFAULT_LAYOUT_OPTIONS)
 
-  // 1. Assign layers
-  const nodes = assignLayers(blocks, edges)
+  // 1. Assign layers (with subflow depth adjustment for subflow end edges)
+  const nodes = assignLayers(blocks, edges, options.subflowDepths)
 
   // 2. Prepare metrics
   prepareBlockMetrics(nodes)

@@ -4,7 +4,7 @@ import { buildGammaUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetEventsParams extends PolymarketPaginationParams {
   closed?: string // 'true' or 'false' - filter for closed/active events
-  order?: string // sort field
+  order?: string // sort field (e.g., 'volume', 'liquidity', 'startDate', 'endDate')
   ascending?: string // 'true' or 'false' - sort direction
   tagId?: string // filter by tag ID
 }
@@ -39,7 +39,7 @@ export const polymarketGetEventsTool: ToolConfig<
     order: {
       type: 'string',
       required: false,
-      description: 'Sort field (e.g., id, volume)',
+      description: 'Sort field (e.g., volume, liquidity, startDate, endDate, createdAt)',
     },
     ascending: {
       type: 'string',

@@ -167,7 +167,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `plan` | string | 否 | 公司计划名称 |
 | `size` | number | 否 | 公司员工数量 |
 | `industry` | string | 否 | 公司所属行业 |
-| `monthly_spend` | number | 否 | 公司为您的业务创造的收入 |
+| `monthly_spend` | number | 否 | 公司为您的业务创造的收入。注意：此字段会将浮点数截断为整数（例如，155.98 会变为 155） |
 | `custom_attributes` | string | 否 | 作为 JSON 对象的自定义属性 |
 
 #### 输出
@@ -196,7 +196,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ### `intercom_list_companies`
 
-列出 Intercom 中的所有公司，并支持分页
+列出来自 Intercom 的所有公司，支持分页。注意：此端点限制为通过分页返回最多 10,000 家公司。对于超过 10,000 家公司的数据集，请改用 Scroll API。
 
 #### 输入
 
@@ -254,12 +254,12 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 必填 | 描述 |
+| 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | 是 | 要回复的对话 ID |
+| `conversationId` | string | 是 | 要回复的会话 ID |
 | `message_type` | string | 是 | 消息类型："comment" 或 "note" |
-| `body` | string | 是 | 回复的文本内容 |
-| `admin_id` | string | 是 | 撰写回复的管理员 ID |
+| `body` | string | 是 | 回复的正文文本 |
+| `admin_id` | string | 否 | 撰写回复的管理员 ID。如果未提供，将使用默认管理员（Operator/Fin）。 |
 | `attachment_urls` | string | 否 | 逗号分隔的图片 URL 列表（最多 10 个） |
 
 #### 输出

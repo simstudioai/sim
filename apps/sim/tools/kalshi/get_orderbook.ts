@@ -4,7 +4,6 @@ import { buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiGetOrderbookParams {
   ticker: string
-  depth?: number
 }
 
 export interface KalshiGetOrderbookResponse {
@@ -25,7 +24,7 @@ export const kalshiGetOrderbookTool: ToolConfig<
 > = {
   id: 'kalshi_get_orderbook',
   name: 'Get Market Orderbook from Kalshi',
-  description: 'Retrieve the orderbook (bids and asks) for a specific market',
+  description: 'Retrieve the orderbook (yes and no bids) for a specific market',
   version: '1.0.0',
 
   params: {
@@ -34,22 +33,10 @@ export const kalshiGetOrderbookTool: ToolConfig<
       required: true,
       description: 'Market ticker (e.g., KXBTC-24DEC31)',
     },
-    depth: {
-      type: 'number',
-      required: false,
-      description: 'Number of price levels to return per side',
-    },
   },
 
   request: {
-    url: (params) => {
-      const queryParams = new URLSearchParams()
-      if (params.depth !== undefined) queryParams.append('depth', params.depth.toString())
-
-      const query = queryParams.toString()
-      const url = buildKalshiUrl(`/markets/${params.ticker}/orderbook`)
-      return query ? `${url}?${query}` : url
-    },
+    url: (params) => buildKalshiUrl(`/markets/${params.ticker}/orderbook`),
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',
