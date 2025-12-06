@@ -36,6 +36,12 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/forms.responses.readonly': 'View responses to your Google Forms',
   'https://www.googleapis.com/auth/ediscovery': 'Access Google Vault for eDiscovery',
   'https://www.googleapis.com/auth/devstorage.read_only': 'Read files from Google Cloud Storage',
+  'https://www.googleapis.com/auth/admin.directory.group': 'Manage Google Workspace groups',
+  'https://www.googleapis.com/auth/admin.directory.group.member':
+    'Manage Google Workspace group memberships',
+  'https://www.googleapis.com/auth/admin.directory.group.readonly': 'View Google Workspace groups',
+  'https://www.googleapis.com/auth/admin.directory.group.member.readonly':
+    'View Google Workspace group memberships',
   'read:confluence-content.all': 'Read all Confluence content',
   'read:confluence-space.summary': 'Read Confluence space information',
   'read:space:confluence': 'View Confluence spaces',

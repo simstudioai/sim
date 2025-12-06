@@ -34,6 +34,7 @@ import { GoogleCalendarBlock } from '@/blocks/blocks/google_calendar'
 import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
 import { GoogleFormsBlock } from '@/blocks/blocks/google_form'
+import { GoogleGroupsBlock } from '@/blocks/blocks/google_groups'
 import { GoogleSheetsBlock } from '@/blocks/blocks/google_sheets'
 import { GoogleSlidesBlock } from '@/blocks/blocks/google_slides'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
@@ -175,6 +176,7 @@ export const registry: Record<string, BlockConfig> = {
   google_sheets: GoogleSheetsBlock,
   google_slides: GoogleSlidesBlock,
   google_vault: GoogleVaultBlock,
+  google_groups: GoogleGroupsBlock,
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
   human_in_the_loop: HumanInTheLoopBlock,
