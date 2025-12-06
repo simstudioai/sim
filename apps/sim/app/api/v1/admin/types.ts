@@ -5,7 +5,16 @@
  * All responses follow a consistent structure for predictability.
  */
 
-import type { user, workflow, workflowFolder, workspace } from '@sim/db/schema'
+import type {
+  member,
+  organization,
+  subscription,
+  user,
+  userStats,
+  workflow,
+  workflowFolder,
+  workspace,
+} from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
@@ -18,6 +27,10 @@ export type DbUser = InferSelectModel<typeof user>
 export type DbWorkspace = InferSelectModel<typeof workspace>
 export type DbWorkflow = InferSelectModel<typeof workflow>
 export type DbWorkflowFolder = InferSelectModel<typeof workflowFolder>
+export type DbOrganization = InferSelectModel<typeof organization>
+export type DbSubscription = InferSelectModel<typeof subscription>
+export type DbMember = InferSelectModel<typeof member>
+export type DbUserStats = InferSelectModel<typeof userStats>
 
 // =============================================================================
 // Pagination
@@ -399,4 +412,190 @@ function getNestedString(obj: Record<string, unknown>, path: string): string | u
   }
 
   return typeof current === 'string' ? current : undefined
+}
+
+// =============================================================================
+// Organization Types
+// =============================================================================
+
+export interface AdminOrganization {
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+  orgUsageLimit: string | null
+  storageUsedBytes: number
+  departedMemberUsage: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminOrganizationDetail extends AdminOrganization {
+  memberCount: number
+  subscription: AdminSubscription | null
+}
+
+export function toAdminOrganization(dbOrg: DbOrganization): AdminOrganization {
+  return {
+    id: dbOrg.id,
+    name: dbOrg.name,
+    slug: dbOrg.slug,
+    logo: dbOrg.logo,
+    orgUsageLimit: dbOrg.orgUsageLimit,
+    storageUsedBytes: dbOrg.storageUsedBytes,
+    departedMemberUsage: dbOrg.departedMemberUsage,
+    createdAt: dbOrg.createdAt.toISOString(),
+    updatedAt: dbOrg.updatedAt.toISOString(),
+  }
+}
+
+// =============================================================================
+// Subscription Types
+// =============================================================================
+
+export interface AdminSubscription {
+  id: string
+  plan: string
+  referenceId: string
+  stripeCustomerId: string | null
+  stripeSubscriptionId: string | null
+  status: string | null
+  periodStart: string | null
+  periodEnd: string | null
+  cancelAtPeriodEnd: boolean | null
+  seats: number | null
+  trialStart: string | null
+  trialEnd: string | null
+  metadata: unknown
+}
+
+export function toAdminSubscription(dbSub: DbSubscription): AdminSubscription {
+  return {
+    id: dbSub.id,
+    plan: dbSub.plan,
+    referenceId: dbSub.referenceId,
+    stripeCustomerId: dbSub.stripeCustomerId,
+    stripeSubscriptionId: dbSub.stripeSubscriptionId,
+    status: dbSub.status,
+    periodStart: dbSub.periodStart?.toISOString() ?? null,
+    periodEnd: dbSub.periodEnd?.toISOString() ?? null,
+    cancelAtPeriodEnd: dbSub.cancelAtPeriodEnd,
+    seats: dbSub.seats,
+    trialStart: dbSub.trialStart?.toISOString() ?? null,
+    trialEnd: dbSub.trialEnd?.toISOString() ?? null,
+    metadata: dbSub.metadata,
+  }
+}
+
+// =============================================================================
+// Member Types
+// =============================================================================
+
+export interface AdminMember {
+  id: string
+  userId: string
+  organizationId: string
+  role: string
+  createdAt: string
+  // Joined user info
+  userName: string
+  userEmail: string
+}
+
+export interface AdminMemberDetail extends AdminMember {
+  // Billing/usage info from userStats
+  currentPeriodCost: string
+  currentUsageLimit: string | null
+  lastActive: string | null
+  billingBlocked: boolean
+}
+
+// =============================================================================
+// User Billing Types
+// =============================================================================
+
+export interface AdminUserBilling {
+  userId: string
+  // User info
+  userName: string
+  userEmail: string
+  stripeCustomerId: string | null
+  // Usage stats
+  totalManualExecutions: number
+  totalApiCalls: number
+  totalWebhookTriggers: number
+  totalScheduledExecutions: number
+  totalChatExecutions: number
+  totalTokensUsed: number
+  totalCost: string
+  currentUsageLimit: string | null
+  currentPeriodCost: string
+  lastPeriodCost: string | null
+  billedOverageThisPeriod: string
+  storageUsedBytes: number
+  lastActive: string | null
+  billingBlocked: boolean
+  // Copilot usage
+  totalCopilotCost: string
+  currentPeriodCopilotCost: string
+  lastPeriodCopilotCost: string | null
+  totalCopilotTokens: number
+  totalCopilotCalls: number
+}
+
+export interface AdminUserBillingWithSubscription extends AdminUserBilling {
+  subscriptions: AdminSubscription[]
+  organizationMemberships: Array<{
+    organizationId: string
+    organizationName: string
+    role: string
+  }>
+}
+
+// =============================================================================
+// Organization Billing Summary Types
+// =============================================================================
+
+export interface AdminOrganizationBillingSummary {
+  organizationId: string
+  organizationName: string
+  subscriptionPlan: string
+  subscriptionStatus: string
+  // Seats
+  totalSeats: number
+  usedSeats: number
+  availableSeats: number
+  // Usage
+  totalCurrentUsage: number
+  totalUsageLimit: number
+  minimumBillingAmount: number
+  averageUsagePerMember: number
+  usagePercentage: number
+  // Billing period
+  billingPeriodStart: string | null
+  billingPeriodEnd: string | null
+  // Alerts
+  membersOverLimit: number
+  membersNearLimit: number
+}
+
+export interface AdminSeatAnalytics {
+  organizationId: string
+  organizationName: string
+  currentSeats: number
+  maxSeats: number
+  availableSeats: number
+  subscriptionPlan: string
+  canAddSeats: boolean
+  utilizationRate: number
+  activeMembers: number
+  inactiveMembers: number
+  memberActivity: Array<{
+    userId: string
+    userName: string
+    userEmail: string
+    role: string
+    joinedAt: string
+    lastActive: string | null
+  }>
 }
