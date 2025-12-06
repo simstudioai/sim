@@ -31,6 +31,7 @@ export const ToolIds = z.enum([
   'check_deployment_status',
   'navigate_ui',
   'knowledge_base',
+  'manage_custom_tool',
 ])
 export type ToolId = z.infer<typeof ToolIds>
 
@@ -187,6 +188,45 @@ export const ToolArgSchemas = {
   }),
 
   knowledge_base: KnowledgeBaseArgsSchema,
+
+  manage_custom_tool: z.object({
+    operation: z
+      .enum(['add', 'edit', 'delete'])
+      .describe('The operation to perform: add (create new), edit (update existing), or delete'),
+    toolId: z
+      .string()
+      .optional()
+      .describe(
+        'Required for edit and delete operations. The database ID of the custom tool (e.g., "0robnW7_JUVwZrDkq1mqj"). Use get_workflow_data with data_type "custom_tools" to get the list of tools and their IDs. Do NOT use the function name - use the actual "id" field from the tool.'
+      ),
+    title: z
+      .string()
+      .optional()
+      .describe(
+        'The display title of the custom tool. Required for add. Should always be provided for edit/delete so the user knows which tool is being modified.'
+      ),
+    schema: z
+      .object({
+        type: z.literal('function'),
+        function: z.object({
+          name: z.string().describe('The function name (camelCase, e.g. getWeather)'),
+          description: z.string().optional().describe('What the function does'),
+          parameters: z.object({
+            type: z.string(),
+            properties: z.record(z.any()),
+            required: z.array(z.string()).optional(),
+          }),
+        }),
+      })
+      .optional()
+      .describe('Required for add. The OpenAI function calling format schema.'),
+    code: z
+      .string()
+      .optional()
+      .describe(
+        'Required for add. The JavaScript function body code. Use {{ENV_VAR}} for environment variables and reference parameters directly by name.'
+      ),
+  }),
 } as const
 export type ToolArgSchemaMap = typeof ToolArgSchemas
 
@@ -251,6 +291,7 @@ export const ToolSSESchemas = {
   ),
   navigate_ui: toolCallSSEFor('navigate_ui', ToolArgSchemas.navigate_ui),
   knowledge_base: toolCallSSEFor('knowledge_base', ToolArgSchemas.knowledge_base),
+  manage_custom_tool: toolCallSSEFor('manage_custom_tool', ToolArgSchemas.manage_custom_tool),
 } as const
 export type ToolSSESchemaMap = typeof ToolSSESchemas
 
@@ -471,6 +512,13 @@ export const ToolResultSchemas = {
     navigated: z.boolean(),
   }),
   knowledge_base: KnowledgeBaseResultSchema,
+  manage_custom_tool: z.object({
+    success: z.boolean(),
+    operation: z.enum(['add', 'edit', 'delete']),
+    toolId: z.string().optional(),
+    title: z.string().optional(),
+    message: z.string().optional(),
+  }),
 } as const
 export type ToolResultSchemaMap = typeof ToolResultSchemas
 

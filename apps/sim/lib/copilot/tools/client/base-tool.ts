@@ -4,6 +4,12 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const baseToolLogger = createLogger('BaseClientTool')
 
+/** Default timeout for tool execution (5 minutes) */
+const DEFAULT_TOOL_TIMEOUT_MS = 2 * 60 * 1000
+
+/** Timeout for tools that run workflows (10 minutes) */
+export const WORKFLOW_EXECUTION_TIMEOUT_MS = 10 * 60 * 1000
+
 // Client tool call states used by the new runtime
 export enum ClientToolCallState {
   generating = 'generating',
@@ -52,6 +58,8 @@ export class BaseClientTool {
   readonly name: string
   protected state: ClientToolCallState
   protected metadata: BaseClientToolMetadata
+  protected isMarkedComplete = false
+  protected timeoutMs: number = DEFAULT_TOOL_TIMEOUT_MS
 
   constructor(toolCallId: string, name: string, metadata: BaseClientToolMetadata) {
     this.toolCallId = toolCallId
@@ -60,14 +68,99 @@ export class BaseClientTool {
     this.state = ClientToolCallState.generating
   }
 
+  /**
+   * Set a custom timeout for this tool (in milliseconds)
+   */
+  setTimeoutMs(ms: number): void {
+    this.timeoutMs = ms
+  }
+
+  /**
+   * Check if this tool has been marked complete
+   */
+  hasBeenMarkedComplete(): boolean {
+    return this.isMarkedComplete
+  }
+
+  /**
+   * Ensure the tool is marked complete. If not already marked, marks it with error.
+   * This should be called in finally blocks to prevent leaked tool calls.
+   */
+  async ensureMarkedComplete(fallbackMessage = 'Tool execution did not complete properly'): Promise<void> {
+    if (!this.isMarkedComplete) {
+      baseToolLogger.warn('Tool was not marked complete, marking with error', {
+        toolCallId: this.toolCallId,
+        toolName: this.name,
+        state: this.state,
+      })
+      await this.markToolComplete(500, fallbackMessage)
+      this.setState(ClientToolCallState.error)
+    }
+  }
+
+  /**
+   * Execute with timeout protection. Wraps the execution in a timeout and ensures
+   * markToolComplete is always called.
+   */
+  async executeWithTimeout(
+    executeFn: () => Promise<void>,
+    timeoutMs?: number
+  ): Promise<void> {
+    const timeout = timeoutMs ?? this.timeoutMs
+    let timeoutId: NodeJS.Timeout | null = null
+
+    try {
+      await Promise.race([
+        executeFn(),
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error(`Tool execution timed out after ${timeout / 1000} seconds`))
+          }, timeout)
+        }),
+      ])
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      baseToolLogger.error('Tool execution failed or timed out', {
+        toolCallId: this.toolCallId,
+        toolName: this.name,
+        error: message,
+      })
+      // Only mark complete if not already marked
+      if (!this.isMarkedComplete) {
+        await this.markToolComplete(500, message)
+        this.setState(ClientToolCallState.error)
+      }
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId)
+      // Ensure tool is always marked complete
+      await this.ensureMarkedComplete()
+    }
+  }
+
   // Intentionally left empty - specific tools can override
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async execute(_args?: Record<string, any>): Promise<void> {
     return
   }
 
-  // Mark a tool as complete on the server (proxies to server-side route)
+  /**
+   * Mark a tool as complete on the server (proxies to server-side route).
+   * Once called, the tool is considered complete and won't be marked again.
+   */
   async markToolComplete(status: number, message?: any, data?: any): Promise<boolean> {
+    // Prevent double-marking
+    if (this.isMarkedComplete) {
+      baseToolLogger.warn('markToolComplete called but tool already marked complete', {
+        toolCallId: this.toolCallId,
+        toolName: this.name,
+        existingState: this.state,
+        attemptedStatus: status,
+      })
+      return true
+    }
+
+    this.isMarkedComplete = true
+
     try {
       baseToolLogger.info('markToolComplete called', {
         toolCallId: this.toolCallId,
@@ -78,6 +171,7 @@ export class BaseClientTool {
         hasData: data !== undefined,
       })
     } catch {}
+
     try {
       const res = await fetch('/api/copilot/tools/mark-complete', {
         method: 'POST',
@@ -104,7 +198,11 @@ export class BaseClientTool {
       const json = (await res.json()) as { success?: boolean }
       return json?.success === true
     } catch (e) {
-      // Default failure path
+      // Default failure path - but tool is still marked complete locally
+      baseToolLogger.error('Failed to mark tool complete on server', {
+        toolCallId: this.toolCallId,
+        error: e instanceof Error ? e.message : String(e),
+      })
       return false
     }
   }

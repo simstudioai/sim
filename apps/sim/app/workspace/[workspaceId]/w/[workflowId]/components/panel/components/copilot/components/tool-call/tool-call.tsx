@@ -451,15 +451,6 @@ function RunSkipButtons({
   const actionInProgressRef = useRef(false)
   const { setToolCallState, addAutoAllowedTool } = useCopilotStore()
 
-  const instance = getClientTool(toolCall.id)
-  const interruptDisplays = instance?.getInterruptDisplays?.()
-  const isIntegration = isIntegrationTool(toolCall.name)
-
-  // For integration tools: Allow, Always Allow, Skip
-  // For client tools with interrupts: Run, Skip (or custom labels)
-  const acceptLabel = isIntegration ? 'Allow' : interruptDisplays?.accept?.text || 'Run'
-  const rejectLabel = interruptDisplays?.reject?.text || 'Skip'
-
   const onRun = async () => {
     // Prevent race condition - check ref synchronously
     if (actionInProgressRef.current) return
@@ -507,20 +498,19 @@ function RunSkipButtons({
 
   if (buttonsHidden) return null
 
+  // Standardized buttons for all interrupt tools: Allow, Always Allow, Skip
   return (
     <div className='mt-[12px] flex gap-[6px]'>
       <Button onClick={onRun} disabled={isProcessing} variant='primary'>
         {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
-        {acceptLabel}
+        Allow
       </Button>
-      {isIntegration && (
         <Button onClick={onAlwaysAllow} disabled={isProcessing} variant='default'>
           {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
           Always Allow
         </Button>
-      )}
       <Button onClick={onSkip} disabled={isProcessing} variant='default'>
-        {rejectLabel}
+        Skip
       </Button>
     </div>
   )
