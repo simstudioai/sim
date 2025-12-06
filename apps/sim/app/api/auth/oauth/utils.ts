@@ -67,8 +67,6 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       accessToken: account.accessToken,
       refreshToken: account.refreshToken,
       accessTokenExpiresAt: account.accessTokenExpiresAt,
-      accountId: account.accountId,
-      providerId: account.providerId,
     })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, providerId)))

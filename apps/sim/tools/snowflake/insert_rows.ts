@@ -32,7 +32,6 @@ function buildInsertSQL(
           return 'NULL'
         }
         if (typeof val === 'string') {
-          // Escape single quotes by doubling them
           return `'${val.replace(/'/g, "''")}'`
         }
         if (typeof val === 'boolean') {
@@ -153,7 +152,6 @@ export const snowflakeInsertRowsTool: ToolConfig<
         }
       }
 
-      // Build INSERT SQL
       const insertSQL = buildInsertSQL(
         params.database,
         params.schema,
@@ -202,7 +200,6 @@ export const snowflakeInsertRowsTool: ToolConfig<
 
     const data = await response.json()
 
-    // Get number of rows inserted from response
     const rowsInserted = data.statementStatusUrl ? params?.values.length || 0 : 0
 
     return {
