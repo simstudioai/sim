@@ -353,10 +353,10 @@ export async function POST(req: NextRequest) {
           executeLocally: true,
         },
       ]
-      // Fetch user credentials (OAuth + API keys)
+      // Fetch user credentials (OAuth + API keys) - pass workflowId to get workspace env vars
       try {
         const rawCredentials = await getCredentialsServerTool.execute(
-          {},
+          { workflowId },
           { userId: authenticatedUserId }
         )
 
