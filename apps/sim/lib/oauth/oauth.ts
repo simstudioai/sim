@@ -30,6 +30,7 @@ import {
   SalesforceIcon,
   ShopifyIcon,
   SlackIcon,
+  SnowflakeIcon,
   // SupabaseIcon,
   TrelloIcon,
   WealthboxIcon,
@@ -69,6 +70,7 @@ export type OAuthProvider =
   | 'shopify'
   | 'zoom'
   | 'wordpress'
+  | 'snowflake'
   | string
 
 export type OAuthService =
@@ -109,6 +111,8 @@ export type OAuthService =
   | 'shopify'
   | 'zoom'
   | 'wordpress'
+  | 'snowflake'
+
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -830,6 +834,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'salesforce',
   },
+  snowflake: {
+    id: 'snowflake',
+    name: 'Snowflake',
+    icon: (props) => SnowflakeIcon(props),
+    services: {
+      snowflake: {
+        id: 'snowflake',
+        name: 'Snowflake',
+        description: 'Execute queries and manage data in your Snowflake data warehouse.',
+        providerId: 'snowflake',
+        icon: (props) => SnowflakeIcon(props),
+        baseProviderIcon: (props) => SnowflakeIcon(props),
+        scopes: [],
+      },
+    },
+    defaultService: 'snowflake',
+  },
   zoom: {
     id: 'zoom',
     name: 'Zoom',
@@ -1413,6 +1434,21 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'snowflake': {
+      const { clientId, clientSecret } = getCredentials(
+        env.SNOWFLAKE_CLIENT_ID,
+        env.SNOWFLAKE_CLIENT_SECRET
+      )
+      // Note: For Snowflake, the tokenEndpoint is account-specific
+      // The actual URL will be constructed dynamically in refreshOAuthToken
+      return {
+        tokenEndpoint: 'https://placeholder.snowflakecomputing.com/oauth/token-request',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'shopify': {
