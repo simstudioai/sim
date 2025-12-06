@@ -483,22 +483,6 @@ export const auth = betterAuth({
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-forms`,
         },
         {
-          providerId: 'google-slides',
-          clientId: env.GOOGLE_CLIENT_ID as string,
-          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
-          accessType: 'offline',
-          scopes: [
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile',
-            'https://www.googleapis.com/auth/drive.file',
-            'https://www.googleapis.com/auth/drive',
-          ],
-          prompt: 'consent',
-          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-slides`,
-        },
-
-        {
           providerId: 'google-vault',
           clientId: env.GOOGLE_CLIENT_ID as string,
           clientSecret: env.GOOGLE_CLIENT_SECRET as string,

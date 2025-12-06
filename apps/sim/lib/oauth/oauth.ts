@@ -13,7 +13,6 @@ import {
   GoogleFormsIcon,
   GoogleIcon,
   GoogleSheetsIcon,
-  GoogleSlidesIcon,
   HubspotIcon,
   JiraIcon,
   LinearIcon,
@@ -78,7 +77,6 @@ export type OAuthService =
   | 'google-drive'
   | 'google-docs'
   | 'google-sheets'
-  | 'google-slides'
   | 'google-calendar'
   | 'google-vault'
   | 'google-forms'
@@ -188,19 +186,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/drive',
         ],
         scopeHints: ['sheets'],
-      },
-      'google-slides': {
-        id: 'google-slides',
-        name: 'Google Slides',
-        description: 'Create, read, and edit Google Slides presentations.',
-        providerId: 'google-slides',
-        icon: (props) => GoogleSlidesIcon(props),
-        baseProviderIcon: (props) => GoogleIcon(props),
-        scopes: [
-          'https://www.googleapis.com/auth/drive.file',
-          'https://www.googleapis.com/auth/drive',
-        ],
-        scopeHints: ['slides', 'presentations'],
       },
       'google-forms': {
         id: 'google-forms',
