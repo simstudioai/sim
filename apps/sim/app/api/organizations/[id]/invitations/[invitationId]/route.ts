@@ -5,7 +5,9 @@ import {
   member,
   organization,
   permissions,
+  subscription as subscriptionTable,
   user,
+  userStats,
   type WorkspaceInvitationStatus,
   workspaceInvitation,
 } from '@sim/db/schema'
@@ -13,7 +15,6 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { addUserToOrganization, getUserOrganization } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -25,6 +26,7 @@ const updateInvitationSchema = z.object({
   }),
 })
 
+// Get invitation details
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; invitationId: string }> }
@@ -149,20 +151,34 @@ export async function PUT(
       }
     }
 
+    // Enforce: user can only be part of a single organization
     if (status === 'accepted') {
-      const existingOrg = await getUserOrganization(session.user.id)
+      // Check if user is already a member of ANY organization
+      const existingOrgMemberships = await db
+        .select({ organizationId: member.organizationId })
+        .from(member)
+        .where(eq(member.userId, session.user.id))
 
-      if (existingOrg) {
-        if (existingOrg.organizationId === organizationId) {
+      if (existingOrgMemberships.length > 0) {
+        // Check if already a member of THIS specific organization
+        const alreadyMemberOfThisOrg = existingOrgMemberships.some(
+          (m) => m.organizationId === organizationId
+        )
+
+        if (alreadyMemberOfThisOrg) {
           return NextResponse.json(
             { error: 'You are already a member of this organization' },
             { status: 400 }
           )
         }
 
+        // Member of a different organization
+        // Mark the invitation as rejected since they can't accept it
         await db
           .update(invitation)
-          .set({ status: 'rejected' })
+          .set({
+            status: 'rejected',
+          })
           .where(eq(invitation.id, invitationId))
 
         return NextResponse.json(
@@ -175,81 +191,171 @@ export async function PUT(
       }
     }
 
-    let membershipResult: Awaited<ReturnType<typeof addUserToOrganization>> | null = null
+    let personalProToCancel: any = null
 
-    if (status === 'accepted') {
-      membershipResult = await addUserToOrganization({
-        userId: session.user.id,
-        organizationId,
-        role: orgInvitation.role as 'admin' | 'member' | 'owner',
-        skipSeatValidation: true,
-      })
+    await db.transaction(async (tx) => {
+      await tx.update(invitation).set({ status }).where(eq(invitation.id, invitationId))
 
-      if (!membershipResult.success) {
-        return NextResponse.json({ error: membershipResult.error }, { status: 400 })
-      }
+      if (status === 'accepted') {
+        await tx.insert(member).values({
+          id: randomUUID(),
+          userId: session.user.id,
+          organizationId,
+          role: orgInvitation.role,
+          createdAt: new Date(),
+        })
 
-      await db.update(invitation).set({ status }).where(eq(invitation.id, invitationId))
+        // Snapshot Pro usage and cancel Pro subscription when joining a paid team
+        try {
+          const orgSubs = await tx
+            .select()
+            .from(subscriptionTable)
+            .where(
+              and(
+                eq(subscriptionTable.referenceId, organizationId),
+                eq(subscriptionTable.status, 'active')
+              )
+            )
+            .limit(1)
 
-      const linkedWorkspaceInvitations = await db
-        .select()
-        .from(workspaceInvitation)
-        .where(
-          and(
-            eq(workspaceInvitation.orgInvitationId, invitationId),
-            eq(workspaceInvitation.status, 'pending' as WorkspaceInvitationStatus)
+          const orgSub = orgSubs[0]
+          const orgIsPaid = orgSub && (orgSub.plan === 'team' || orgSub.plan === 'enterprise')
+
+          if (orgIsPaid) {
+            const userId = session.user.id
+
+            // Find user's active personal Pro subscription
+            const personalSubs = await tx
+              .select()
+              .from(subscriptionTable)
+              .where(
+                and(
+                  eq(subscriptionTable.referenceId, userId),
+                  eq(subscriptionTable.status, 'active'),
+                  eq(subscriptionTable.plan, 'pro')
+                )
+              )
+              .limit(1)
+
+            const personalPro = personalSubs[0]
+            if (personalPro) {
+              // Snapshot the current Pro usage before resetting
+              const userStatsRows = await tx
+                .select({
+                  currentPeriodCost: userStats.currentPeriodCost,
+                })
+                .from(userStats)
+                .where(eq(userStats.userId, userId))
+                .limit(1)
+
+              if (userStatsRows.length > 0) {
+                const currentProUsage = userStatsRows[0].currentPeriodCost || '0'
+
+                // Snapshot Pro usage and reset currentPeriodCost so new usage goes to team
+                await tx
+                  .update(userStats)
+                  .set({
+                    proPeriodCostSnapshot: currentProUsage,
+                    currentPeriodCost: '0', // Reset so new usage is attributed to team
+                    currentPeriodCopilotCost: '0', // Reset copilot cost for new period
+                  })
+                  .where(eq(userStats.userId, userId))
+
+                logger.info('Snapshotted Pro usage when joining team', {
+                  userId,
+                  proUsageSnapshot: currentProUsage,
+                  organizationId,
+                })
+              }
+
+              // Mark for cancellation after transaction
+              if (personalPro.cancelAtPeriodEnd !== true) {
+                personalProToCancel = personalPro
+              }
+            }
+          }
+        } catch (error) {
+          logger.error('Failed to handle Pro user joining team', {
+            userId: session.user.id,
+            organizationId,
+            error,
+          })
+          // Don't fail the whole invitation acceptance due to this
+        }
+
+        const linkedWorkspaceInvitations = await tx
+          .select()
+          .from(workspaceInvitation)
+          .where(
+            and(
+              eq(workspaceInvitation.orgInvitationId, invitationId),
+              eq(workspaceInvitation.status, 'pending' as WorkspaceInvitationStatus)
+            )
           )
-        )
 
-      for (const wsInvitation of linkedWorkspaceInvitations) {
-        await db
-          .update(workspaceInvitation)
-          .set({
-            status: 'accepted' as WorkspaceInvitationStatus,
+        for (const wsInvitation of linkedWorkspaceInvitations) {
+          await tx
+            .update(workspaceInvitation)
+            .set({
+              status: 'accepted' as WorkspaceInvitationStatus,
+              updatedAt: new Date(),
+            })
+            .where(eq(workspaceInvitation.id, wsInvitation.id))
+
+          await tx.insert(permissions).values({
+            id: randomUUID(),
+            entityType: 'workspace',
+            entityId: wsInvitation.workspaceId,
+            userId: session.user.id,
+            permissionType: wsInvitation.permissions || 'read',
+            createdAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(workspaceInvitation.id, wsInvitation.id))
+        }
+      } else if (status === 'cancelled') {
+        await tx
+          .update(workspaceInvitation)
+          .set({ status: 'cancelled' as WorkspaceInvitationStatus })
+          .where(eq(workspaceInvitation.orgInvitationId, invitationId))
+      }
+    })
 
-        await db.insert(permissions).values({
-          id: randomUUID(),
-          entityType: 'workspace',
-          entityId: wsInvitation.workspaceId,
+    // Handle Pro subscription cancellation after transaction commits
+    if (personalProToCancel) {
+      try {
+        const stripe = requireStripeClient()
+        if (personalProToCancel.stripeSubscriptionId) {
+          try {
+            await stripe.subscriptions.update(personalProToCancel.stripeSubscriptionId, {
+              cancel_at_period_end: true,
+            })
+          } catch (stripeError) {
+            logger.error('Failed to set cancel_at_period_end on Stripe for personal Pro', {
+              userId: session.user.id,
+              subscriptionId: personalProToCancel.id,
+              stripeSubscriptionId: personalProToCancel.stripeSubscriptionId,
+              error: stripeError,
+            })
+          }
+        }
+
+        await db
+          .update(subscriptionTable)
+          .set({ cancelAtPeriodEnd: true })
+          .where(eq(subscriptionTable.id, personalProToCancel.id))
+
+        logger.info('Auto-cancelled personal Pro at period end after joining paid team', {
           userId: session.user.id,
-          permissionType: wsInvitation.permissions || 'read',
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          personalSubscriptionId: personalProToCancel.id,
+          organizationId,
+        })
+      } catch (dbError) {
+        logger.error('Failed to update DB cancelAtPeriodEnd for personal Pro', {
+          userId: session.user.id,
+          subscriptionId: personalProToCancel.id,
+          error: dbError,
         })
       }
-
-      const proToCancel = membershipResult.billingActions.proSubscriptionToCancel
-      if (proToCancel?.stripeSubscriptionId) {
-        try {
-          const stripe = requireStripeClient()
-          await stripe.subscriptions.update(proToCancel.stripeSubscriptionId, {
-            cancel_at_period_end: true,
-          })
-          logger.info('Updated Stripe to cancel personal Pro at period end', {
-            userId: session.user.id,
-            stripeSubscriptionId: proToCancel.stripeSubscriptionId,
-            organizationId,
-          })
-        } catch (stripeError) {
-          logger.error('Failed to set cancel_at_period_end on Stripe for personal Pro', {
-            userId: session.user.id,
-            subscriptionId: proToCancel.subscriptionId,
-            stripeSubscriptionId: proToCancel.stripeSubscriptionId,
-            error: stripeError,
-          })
-        }
-      }
-    } else if (status === 'cancelled') {
-      await db.update(invitation).set({ status }).where(eq(invitation.id, invitationId))
-      await db
-        .update(workspaceInvitation)
-        .set({ status: 'cancelled' as WorkspaceInvitationStatus })
-        .where(eq(workspaceInvitation.orgInvitationId, invitationId))
-    } else {
-      await db.update(invitation).set({ status }).where(eq(invitation.id, invitationId))
     }
 
     logger.info(`Organization invitation ${status}`, {

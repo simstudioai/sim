@@ -5,6 +5,7 @@
  * Used by both regular routes and admin routes to ensure consistent business logic.
  */
 
+import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import {
   member,
@@ -14,8 +15,6 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
-import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -220,7 +219,7 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
     let memberId = ''
 
     await db.transaction(async (tx) => {
-      memberId = nanoid()
+      memberId = randomUUID()
       await tx.insert(member).values({
         id: memberId,
         userId,
@@ -296,20 +295,6 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
         }
       }
     })
-
-    // Sync usage limits (clears individual limit for team members)
-    if (!skipBillingLogic) {
-      try {
-        await syncUsageLimitsFromSubscription(userId)
-        logger.debug('Synced usage limits after adding to org', { userId, organizationId })
-      } catch (syncError) {
-        logger.error('Failed to sync usage limits after adding to org', {
-          userId,
-          organizationId,
-          error: syncError,
-        })
-      }
-    }
 
     logger.info('Added user to organization', {
       userId,
