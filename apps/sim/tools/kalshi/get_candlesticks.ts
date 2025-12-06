@@ -5,9 +5,9 @@ import { buildKalshiUrl, handleKalshiError } from './types'
 export interface KalshiGetCandlesticksParams {
   seriesTicker: string
   ticker: string
-  startTs?: number
-  endTs?: number
-  periodInterval?: number // 1, 60, or 1440 (1min, 1hour, 1day)
+  startTs: number
+  endTs: number
+  periodInterval: number // 1, 60, or 1440 (1min, 1hour, 1day)
 }
 
 export interface KalshiGetCandlesticksResponse {
@@ -46,17 +46,17 @@ export const kalshiGetCandlesticksTool: ToolConfig<
     },
     startTs: {
       type: 'number',
-      required: false,
-      description: 'Start timestamp (Unix milliseconds)',
+      required: true,
+      description: 'Start timestamp (Unix seconds)',
     },
     endTs: {
       type: 'number',
-      required: false,
-      description: 'End timestamp (Unix milliseconds)',
+      required: true,
+      description: 'End timestamp (Unix seconds)',
     },
     periodInterval: {
       type: 'number',
-      required: false,
+      required: true,
       description: 'Period interval: 1 (1min), 60 (1hour), or 1440 (1day)',
     },
   },
@@ -64,16 +64,15 @@ export const kalshiGetCandlesticksTool: ToolConfig<
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams()
-      if (params.startTs !== undefined) queryParams.append('start_ts', params.startTs.toString())
-      if (params.endTs !== undefined) queryParams.append('end_ts', params.endTs.toString())
-      if (params.periodInterval !== undefined)
-        queryParams.append('period_interval', params.periodInterval.toString())
+      queryParams.append('start_ts', params.startTs.toString())
+      queryParams.append('end_ts', params.endTs.toString())
+      queryParams.append('period_interval', params.periodInterval.toString())
 
       const query = queryParams.toString()
       const url = buildKalshiUrl(
         `/series/${params.seriesTicker}/markets/${params.ticker}/candlesticks`
       )
-      return query ? `${url}?${query}` : url
+      return `${url}?${query}`
     },
     method: 'GET',
     headers: () => ({

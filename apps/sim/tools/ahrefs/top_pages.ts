@@ -46,6 +46,13 @@ export const topPagesTool: ToolConfig<AhrefsTopPagesParams, AhrefsTopPagesRespon
       visibility: 'user-only',
       description: 'Number of results to skip for pagination',
     },
+    select: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Comma-separated list of fields to return (e.g., url,traffic,keywords,top_keyword,value). Default: url,traffic,keywords,top_keyword,value',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -62,6 +69,9 @@ export const topPagesTool: ToolConfig<AhrefsTopPagesParams, AhrefsTopPagesRespon
       // Date is required - default to today if not provided
       const date = params.date || new Date().toISOString().split('T')[0]
       url.searchParams.set('date', date)
+      // Select is required by API v3 - default to common fields if not provided
+      const select = params.select || 'url,traffic,keywords,top_keyword,value'
+      url.searchParams.set('select', select)
       if (params.mode) url.searchParams.set('mode', params.mode)
       if (params.limit) url.searchParams.set('limit', String(params.limit))
       if (params.offset) url.searchParams.set('offset', String(params.offset))

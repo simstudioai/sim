@@ -4,7 +4,7 @@ import { buildGammaUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetMarketsParams extends PolymarketPaginationParams {
   closed?: string // 'true' or 'false' - filter for closed/active markets
-  order?: string // sort field (e.g., 'id', 'volume', 'liquidity')
+  order?: string // sort field - use camelCase (e.g., 'volumeNum', 'liquidityNum', 'startDate', 'endDate')
   ascending?: string // 'true' or 'false' - sort direction
   tagId?: string // filter by tag ID
 }
@@ -39,7 +39,7 @@ export const polymarketGetMarketsTool: ToolConfig<
     order: {
       type: 'string',
       required: false,
-      description: 'Sort field (e.g., id, volume, liquidity)',
+      description: 'Sort field (e.g., volumeNum, liquidityNum, startDate, endDate, createdAt)',
     },
     ascending: {
       type: 'string',

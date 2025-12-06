@@ -170,7 +170,7 @@ Create or update a company in Intercom
 | `plan` | string | No | The company plan name |
 | `size` | number | No | The number of employees in the company |
 | `industry` | string | No | The industry the company operates in |
-| `monthly_spend` | number | No | How much revenue the company generates for your business |
+| `monthly_spend` | number | No | How much revenue the company generates for your business. Note: This field truncates floats to whole integers \(e.g., 155.98 becomes 155\) |
 | `custom_attributes` | string | No | Custom attributes as JSON object |
 
 #### Output
@@ -199,7 +199,7 @@ Retrieve a single company by ID from Intercom
 
 ### `intercom_list_companies`
 
-List all companies from Intercom with pagination support
+List all companies from Intercom with pagination support. Note: This endpoint has a limit of 10,000 companies that can be returned using pagination. For datasets larger than 10,000 companies, use the Scroll API instead.
 
 #### Input
 
@@ -262,7 +262,7 @@ Reply to a conversation as an admin in Intercom
 | `conversationId` | string | Yes | Conversation ID to reply to |
 | `message_type` | string | Yes | Message type: "comment" or "note" |
 | `body` | string | Yes | The text body of the reply |
-| `admin_id` | string | Yes | The ID of the admin authoring the reply |
+| `admin_id` | string | No | The ID of the admin authoring the reply. If not provided, a default admin \(Operator/Fin\) will be used. |
 | `attachment_urls` | string | No | Comma-separated list of image URLs \(max 10\) |
 
 #### Output

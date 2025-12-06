@@ -61,9 +61,10 @@ export const intercomReplyConversationTool: ToolConfig<
     },
     admin_id: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: 'The ID of the admin authoring the reply',
+      description:
+        'The ID of the admin authoring the reply. If not provided, a default admin (Operator/Fin) will be used.',
     },
     attachment_urls: {
       type: 'string',

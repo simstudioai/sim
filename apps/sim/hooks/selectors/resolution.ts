@@ -98,6 +98,8 @@ function resolveFileSelector(
       return { key: 'google.drive', context, allowSearch: true }
     case 'google-docs':
       return { key: 'google.drive', context, allowSearch: true }
+    case 'google-slides':
+      return { key: 'google.drive', context, allowSearch: true }
     case 'onedrive': {
       const key: SelectorKey = subBlock.mimeType === 'file' ? 'onedrive.files' : 'onedrive.folders'
       return { key, context, allowSearch: true }
