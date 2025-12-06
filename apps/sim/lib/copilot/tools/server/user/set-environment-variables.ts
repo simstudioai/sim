@@ -61,14 +61,14 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVar
         workflowId
       )
 
-      if (!hasAccess) {
-        const errorMessage = createPermissionError('modify environment variables in')
-        logger.error('Unauthorized attempt to set environment variables', {
-          workflowId,
-          authenticatedUserId,
-        })
-        throw new Error(errorMessage)
-      }
+        if (!hasAccess) {
+          const errorMessage = createPermissionError('modify environment variables in')
+          logger.error('Unauthorized attempt to set environment variables', {
+            workflowId,
+            authenticatedUserId,
+          })
+          throw new Error(errorMessage)
+        }
 
       if (!workspaceId) {
         throw new Error('Could not determine workspace for this workflow')
@@ -137,7 +137,7 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVar
         addedCount: added.length,
         updatedCount: updated.length,
         totalCount: Object.keys(finalEncrypted).length,
-      })
+        })
 
       return {
         message: `Successfully processed ${Object.keys(validatedVariables).length} workspace environment variable(s): ${added.length} added, ${updated.length} updated`,
