@@ -21,10 +21,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationMembership')
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface AddMemberParams {
   userId: string
   organizationId: string
@@ -79,10 +75,6 @@ export interface MembershipValidationResult {
   }
 }
 
-// =============================================================================
-// Validation
-// =============================================================================
-
 /**
  * Validate if a user can be added to an organization.
  * Checks single-org constraint and seat availability.
@@ -91,14 +83,12 @@ export async function validateMembershipAddition(
   userId: string,
   organizationId: string
 ): Promise<MembershipValidationResult> {
-  // Check if user exists
   const [userData] = await db.select({ id: user.id }).from(user).where(eq(user.id, userId)).limit(1)
 
   if (!userData) {
     return { canAdd: false, reason: 'User not found' }
   }
 
-  // Check if organization exists
   const [orgData] = await db
     .select({ id: organization.id })
     .from(organization)
@@ -109,7 +99,6 @@ export async function validateMembershipAddition(
     return { canAdd: false, reason: 'Organization not found' }
   }
 
-  // Check single-org constraint: user can only be in one organization
   const existingMemberships = await db
     .select({ organizationId: member.organizationId })
     .from(member)
@@ -132,7 +121,6 @@ export async function validateMembershipAddition(
     }
   }
 
-  // Check seat availability
   const seatValidation = await validateSeatAvailability(organizationId, 1)
   if (!seatValidation.canInvite) {
     return {
@@ -155,10 +143,6 @@ export async function validateMembershipAddition(
     },
   }
 }
-
-// =============================================================================
-// Add Member
-// =============================================================================
 
 /**
  * Add a user to an organization with full billing logic.
@@ -186,14 +170,12 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
   }
 
   try {
-    // Validate membership addition (unless skipping seat validation)
     if (!skipSeatValidation) {
       const validation = await validateMembershipAddition(userId, organizationId)
       if (!validation.canAdd) {
         return { success: false, error: validation.reason, billingActions }
       }
     } else {
-      // Still check single-org constraint even when skipping seat validation
       const existingMemberships = await db
         .select({ organizationId: member.organizationId })
         .from(member)
@@ -221,7 +203,6 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
       }
     }
 
-    // Check if org has a paid subscription (for Pro handling)
     const [orgSub] = await db
       .select()
       .from(subscriptionTable)
@@ -235,11 +216,9 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
 
     const orgIsPaid = orgSub && (orgSub.plan === 'team' || orgSub.plan === 'enterprise')
 
-    // Create membership in transaction with Pro handling
     let memberId = ''
 
     await db.transaction(async (tx) => {
-      // Create member record
       memberId = nanoid()
       await tx.insert(member).values({
         id: memberId,
@@ -345,10 +324,6 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
     return { success: false, error: 'Failed to add user to organization', billingActions }
   }
 }
-
-// =============================================================================
-// Remove Member
-// =============================================================================
 
 /**
  * Remove a user from an organization with full billing logic.
@@ -549,10 +524,6 @@ export async function removeUserFromOrganization(
     return { success: false, error: 'Failed to remove user from organization', billingActions }
   }
 }
-
-// =============================================================================
-// Utility Functions
-// =============================================================================
 
 /**
  * Check if a user is a member of a specific organization.

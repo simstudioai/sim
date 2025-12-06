@@ -22,8 +22,8 @@
 import { db } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
+import { addUserToOrganization } from '@/lib/billing/organizations/membership'
 import { createLogger } from '@/lib/logs/console/logger'
-import { addUserToOrganization } from '@/lib/organizations/membership'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -44,7 +44,6 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
   try {
     const body = await request.json()
 
-    // Validate required fields
     if (!body.organizationId || typeof body.organizationId !== 'string') {
       return badRequestResponse('organizationId is required')
     }
@@ -56,7 +55,6 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
 
     const skipBillingLogic = body.skipBillingLogic === true
 
-    // Check user exists
     const [userData] = await db
       .select({ id: user.id })
       .from(user)
@@ -67,7 +65,6 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       return notFoundResponse('User')
     }
 
-    // Check organization exists
     const [orgData] = await db
       .select({ id: organization.id, name: organization.name })
       .from(organization)
@@ -78,13 +75,11 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       return notFoundResponse('Organization')
     }
 
-    // Check if user is already a member of this organization (for role update)
     const existingMemberships = await db
       .select({ id: member.id, organizationId: member.organizationId, role: member.role })
       .from(member)
       .where(eq(member.userId, userId))
 
-    // If already in this org, just update role if different
     const existingInThisOrg = existingMemberships.find(
       (m) => m.organizationId === body.organizationId
     )
@@ -128,7 +123,6 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       })
     }
 
-    // Use shared helper for member addition with full billing logic
     const result = await addUserToOrganization({
       userId,
       organizationId: body.organizationId,

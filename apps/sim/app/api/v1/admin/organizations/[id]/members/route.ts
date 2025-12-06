@@ -25,8 +25,8 @@
 import { db } from '@sim/db'
 import { member, organization, user, userStats } from '@sim/db/schema'
 import { count, eq } from 'drizzle-orm'
+import { addUserToOrganization } from '@/lib/billing/organizations/membership'
 import { createLogger } from '@/lib/logs/console/logger'
-import { addUserToOrganization } from '@/lib/organizations/membership'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,

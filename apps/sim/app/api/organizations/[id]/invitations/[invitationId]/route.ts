@@ -13,9 +13,9 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { addUserToOrganization, getUserOrganization } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
-import { addUserToOrganization, getUserOrganization } from '@/lib/organizations/membership'
 
 const logger = createLogger('OrganizationInvitation')
 
@@ -25,7 +25,6 @@ const updateInvitationSchema = z.object({
   }),
 })
 
-// Get invitation details
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; invitationId: string }> }
@@ -150,7 +149,6 @@ export async function PUT(
       }
     }
 
-    // Enforce: user can only be part of a single organization
     if (status === 'accepted') {
       const existingOrg = await getUserOrganization(session.user.id)
 
@@ -162,7 +160,6 @@ export async function PUT(
           )
         }
 
-        // Member of a different organization - reject the invitation
         await db
           .update(invitation)
           .set({ status: 'rejected' })
@@ -181,22 +178,19 @@ export async function PUT(
     let membershipResult: Awaited<ReturnType<typeof addUserToOrganization>> | null = null
 
     if (status === 'accepted') {
-      // Use shared helper for member creation with billing logic
       membershipResult = await addUserToOrganization({
         userId: session.user.id,
         organizationId,
         role: orgInvitation.role as 'admin' | 'member' | 'owner',
-        skipSeatValidation: true, // Already validated via invitation flow
+        skipSeatValidation: true,
       })
 
       if (!membershipResult.success) {
         return NextResponse.json({ error: membershipResult.error }, { status: 400 })
       }
 
-      // Update invitation status
       await db.update(invitation).set({ status }).where(eq(invitation.id, invitationId))
 
-      // Handle linked workspace invitations
       const linkedWorkspaceInvitations = await db
         .select()
         .from(workspaceInvitation)
@@ -227,7 +221,6 @@ export async function PUT(
         })
       }
 
-      // Handle Stripe Pro subscription cancellation if needed
       const proToCancel = membershipResult.billingActions.proSubscriptionToCancel
       if (proToCancel?.stripeSubscriptionId) {
         try {
@@ -256,7 +249,6 @@ export async function PUT(
         .set({ status: 'cancelled' as WorkspaceInvitationStatus })
         .where(eq(workspaceInvitation.orgInvitationId, invitationId))
     } else {
-      // rejected
       await db.update(invitation).set({ status }).where(eq(invitation.id, invitationId))
     }
 

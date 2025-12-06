@@ -72,7 +72,6 @@ export type {
   AdminListResponse,
   AdminMember,
   AdminMemberDetail,
-  // Billing types
   AdminOrganization,
   AdminOrganizationBillingSummary,
   AdminOrganizationDetail,
@@ -115,7 +114,6 @@ export {
   parsePaginationParams,
   parseWorkflowVariables,
   toAdminFolder,
-  // Billing conversions
   toAdminOrganization,
   toAdminSubscription,
   toAdminUser,

@@ -28,8 +28,8 @@
 import { db } from '@sim/db'
 import { member, organization, user, userStats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { createLogger } from '@/lib/logs/console/logger'
-import { removeUserFromOrganization } from '@/lib/organizations/membership'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,

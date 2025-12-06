@@ -84,7 +84,6 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // Build filter conditions
     const filters = {
       workspaceId: params.workspaceId,
       workflowIds: params.workflowIds?.split(',').filter(Boolean),

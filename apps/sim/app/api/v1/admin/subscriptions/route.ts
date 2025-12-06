@@ -34,7 +34,6 @@ export const GET = withAdminAuth(async (request) => {
   const statusFilter = url.searchParams.get('status')
 
   try {
-    // Build filter conditions
     const conditions: SQL<unknown>[] = []
     if (planFilter) {
       conditions.push(eq(subscription.plan, planFilter))

@@ -5,9 +5,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getUserUsageData } from '@/lib/billing/core/usage'
+import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
-import { removeUserFromOrganization } from '@/lib/organizations/membership'
 
 const logger = createLogger('OrganizationMemberAPI')
 
@@ -36,7 +36,6 @@ export async function GET(
     const url = new URL(request.url)
     const includeUsage = url.searchParams.get('include') === 'usage'
 
-    // Verify user has access to this organization
     const userMember = await db
       .select()
       .from(member)
@@ -53,7 +52,6 @@ export async function GET(
     const userRole = userMember[0].role
     const hasAdminAccess = ['owner', 'admin'].includes(userRole)
 
-    // Get target member details
     const memberQuery = db
       .select({
         id: member.id,
@@ -75,7 +73,6 @@ export async function GET(
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    // Check if user can view this member's details
     const canViewDetails = hasAdminAccess || session.user.id === memberId
 
     if (!canViewDetails) {
@@ -84,7 +81,6 @@ export async function GET(
 
     let memberData = memberEntry[0]
 
-    // Include usage data if requested and user has permission
     if (includeUsage && hasAdminAccess) {
       const usageData = await db
         .select({
@@ -176,7 +172,6 @@ export async function PUT(
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Check if target member exists
     const targetMember = await db
       .select()
       .from(member)
@@ -187,12 +182,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    // Prevent changing owner role
     if (targetMember[0].role === 'owner') {
       return NextResponse.json({ error: 'Cannot change owner role' }, { status: 400 })
     }
 
-    // Prevent non-owners from promoting to admin
     if (role === 'admin' && userMember[0].role !== 'owner') {
       return NextResponse.json(
         { error: 'Only owners can promote members to admin' },
@@ -200,12 +193,10 @@ export async function PUT(
       )
     }
 
-    // Prevent admins from changing other admins' roles - only owners can modify admin roles
     if (targetMember[0].role === 'admin' && userMember[0].role !== 'owner') {
       return NextResponse.json({ error: 'Only owners can change admin roles' }, { status: 403 })
     }
 
-    // Update member role
     const updatedMember = await db
       .update(member)
       .set({ role })
@@ -261,7 +252,6 @@ export async function DELETE(
 
     const { id: organizationId, memberId: targetUserId } = await params
 
-    // Verify user has admin access
     const userMember = await db
       .select()
       .from(member)
@@ -282,7 +272,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden - Insufficient permissions' }, { status: 403 })
     }
 
-    // Check if target member exists and get member ID
     const targetMember = await db
       .select({ id: member.id, role: member.role })
       .from(member)
@@ -293,7 +282,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    // Use shared helper for member removal with full billing logic
     const result = await removeUserFromOrganization({
       userId: targetUserId,
       organizationId,
@@ -301,7 +289,6 @@ export async function DELETE(
     })
 
     if (!result.success) {
-      // Handle specific error cases
       if (result.error === 'Cannot remove organization owner') {
         return NextResponse.json({ error: result.error }, { status: 400 })
       }
@@ -311,10 +298,8 @@ export async function DELETE(
       return NextResponse.json({ error: result.error }, { status: 500 })
     }
 
-    // If Pro was restored and has a Stripe subscription, update Stripe
     if (result.billingActions.proRestored) {
       try {
-        // Get the user's Pro subscription to update Stripe
         const { subscription: subscriptionTable } = await import('@sim/db/schema')
         const [personalPro] = await db
           .select({ stripeSubscriptionId: subscriptionTable.stripeSubscriptionId })
