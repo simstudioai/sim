@@ -421,9 +421,11 @@ export async function removeUserFromOrganization(
           const orgPaidSubs = await db
             .select()
             .from(subscriptionTable)
-            .where(and(eq(subscriptionTable.status, 'active'), eq(subscriptionTable.plan, 'team')))
+            .where(eq(subscriptionTable.status, 'active'))
 
-          hasAnyPaidTeam = orgPaidSubs.some((s) => orgIds.includes(s.referenceId))
+          hasAnyPaidTeam = orgPaidSubs.some(
+            (s) => orgIds.includes(s.referenceId) && ['team', 'enterprise'].includes(s.plan ?? '')
+          )
         }
 
         // If no remaining paid teams, try to restore personal Pro
