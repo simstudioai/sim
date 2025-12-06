@@ -30,6 +30,7 @@ import {
   SalesforceIcon,
   ShopifyIcon,
   SlackIcon,
+  SnowflakeIcon,
   // SupabaseIcon,
   TrelloIcon,
   WealthboxIcon,
