@@ -1,8 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { layoutContainers } from '@/lib/workflows/autolayout/containers'
-import { layoutBlocksCore } from '@/lib/workflows/autolayout/core'
+import { assignLayers, layoutBlocksCore } from '@/lib/workflows/autolayout/core'
 import type { Edge, LayoutOptions, LayoutResult } from '@/lib/workflows/autolayout/types'
-import { filterLayoutEligibleBlockIds, getBlocksByParent } from '@/lib/workflows/autolayout/utils'
+import {
+  calculateSubflowDepths,
+  filterLayoutEligibleBlockIds,
+  getBlocksByParent,
+} from '@/lib/workflows/autolayout/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('AutoLayout')
@@ -36,10 +40,15 @@ export function applyAutoLayout(
       (edge) => layoutRootIds.includes(edge.source) && layoutRootIds.includes(edge.target)
     )
 
+    // Calculate subflow depths before laying out root blocks
+    // This ensures blocks connected to subflow ends are positioned correctly
+    const subflowDepths = calculateSubflowDepths(blocksCopy, edges, assignLayers)
+
     if (Object.keys(rootBlocks).length > 0) {
       const { nodes } = layoutBlocksCore(rootBlocks, rootEdges, {
         isContainer: false,
         layoutOptions: options,
+        subflowDepths,
       })
 
       for (const node of nodes.values()) {
