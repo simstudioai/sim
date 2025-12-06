@@ -135,15 +135,24 @@ function sanitizeTools(tools: any[]): any[] {
         usageControl: tool.usageControl,
       }
 
+      // Include customToolId for reference-only format (new format)
+      if (tool.customToolId) {
+        sanitized.customToolId = tool.customToolId
+      }
+
+      // Include schema for inline format (legacy format)
       if (tool.schema?.function) {
         sanitized.schema = {
+          type: tool.schema.type || 'function',
           function: {
+            name: tool.schema.function.name,
             description: tool.schema.function.description,
             parameters: tool.schema.function.parameters,
           },
         }
       }
 
+      // Include code for inline format (legacy format)
       if (tool.code) {
         sanitized.code = tool.code
       }

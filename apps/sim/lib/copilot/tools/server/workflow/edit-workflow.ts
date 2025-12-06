@@ -652,12 +652,17 @@ function normalizeTools(tools: any[]): any[] {
         isExpanded: tool.isExpanded ?? true,
       }
 
-      // Ensure schema has proper structure
+      // Preserve customToolId for reference-only format (new format)
+      if (tool.customToolId) {
+        normalized.customToolId = tool.customToolId
+      }
+
+      // Ensure schema has proper structure (for inline format)
       if (normalized.schema?.function) {
         normalized.schema = {
           type: 'function',
           function: {
-            name: tool.title, // Derive name from title
+            name: normalized.schema.function.name || tool.title, // Preserve name or derive from title
             description: normalized.schema.function.description,
             parameters: normalized.schema.function.parameters,
           },
