@@ -645,16 +645,21 @@ function createBlockFromParams(
 function normalizeTools(tools: any[]): any[] {
   return tools.map((tool) => {
     if (tool.type === 'custom-tool') {
-      // Reconstruct sanitized custom tool fields
+      // New reference format: minimal fields only
+      if (tool.customToolId && !tool.schema && !tool.code) {
+        return {
+          type: tool.type,
+          customToolId: tool.customToolId,
+          usageControl: tool.usageControl || 'auto',
+          isExpanded: tool.isExpanded ?? true,
+        }
+      }
+
+      // Legacy inline format: include all fields
       const normalized: any = {
         ...tool,
         params: tool.params || {},
         isExpanded: tool.isExpanded ?? true,
-      }
-
-      // Preserve customToolId for reference-only format (new format)
-      if (tool.customToolId) {
-        normalized.customToolId = tool.customToolId
       }
 
       // Ensure schema has proper structure (for inline format)
