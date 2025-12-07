@@ -50,14 +50,18 @@
 }
 
 .workflow-container,
+.workflow-container .react-flow,
 .workflow-container .react-flow__pane,
-.workflow-container .react-flow__renderer {
+.workflow-container .react-flow__renderer,
+.workflow-container .react-flow__container {
   background-color: var(--bg) !important;
 }
 
 .dark .workflow-container,
+.dark .workflow-container .react-flow,
 .dark .workflow-container .react-flow__pane,
-.dark .workflow-container .react-flow__renderer {
+.dark .workflow-container .react-flow__renderer,
+.dark .workflow-container .react-flow__container {
   background-color: var(--bg) !important;
 }
 

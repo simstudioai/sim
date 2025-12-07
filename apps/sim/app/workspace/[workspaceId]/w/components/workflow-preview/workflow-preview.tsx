@@ -93,6 +93,7 @@ function FitViewOnChange({ nodes, fitPadding }: FitViewOnChangeProps) {
 export function WorkflowPreview({
   workflowState,
   showSubBlocks = true,
+  className,
   height = '100%',
   width = '100%',
   isPannable = false,
@@ -355,7 +356,10 @@ export function WorkflowPreview({
 
   return (
     <ReactFlowProvider>
-      <div style={{ height, width, backgroundColor: 'var(--bg)' }} className={cn('preview-mode')}>
+      <div
+        style={{ height, width, backgroundColor: 'var(--bg)' }}
+        className={cn('preview-mode', className)}
+      >
         <ReactFlow
           nodes={nodes}
           edges={edges}

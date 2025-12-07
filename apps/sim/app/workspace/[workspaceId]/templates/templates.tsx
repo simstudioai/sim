@@ -170,7 +170,7 @@ export default function Templates({
   }, [debouncedSearchQuery, activeTab])
 
   return (
-    <div className='flex h-[100vh] flex-col pl-64'>
+    <div className='flex h-full flex-1 flex-col'>
       <div className='flex flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
           <div>

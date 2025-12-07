@@ -642,7 +642,7 @@ export function Document({
     ]
 
     return (
-      <div className='flex h-[100vh] flex-col pl-64'>
+      <div className='flex h-full flex-1 flex-col'>
         <KnowledgeHeader breadcrumbs={errorBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center'>
           <div className='text-center'>
@@ -660,7 +660,7 @@ export function Document({
   }
 
   return (
-    <div className='flex h-[100vh] flex-col pl-64'>
+    <div className='flex h-full flex-1 flex-col'>
       {/* Fixed Header with Breadcrumbs */}
       <KnowledgeHeader breadcrumbs={breadcrumbs} />
 

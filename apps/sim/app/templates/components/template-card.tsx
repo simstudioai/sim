@@ -199,7 +199,7 @@ function TemplateCardInner({
     >
       <div
         ref={previewRef}
-        className='pointer-events-none h-[180px] w-full overflow-hidden rounded-[6px]'
+        className='pointer-events-none h-[180px] w-full cursor-pointer overflow-hidden rounded-[6px]'
       >
         {normalizedState && isInView ? (
           <WorkflowPreview

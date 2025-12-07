@@ -19,7 +19,6 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   Breadcrumb,
   Button,
-  DocumentAttachment,
   Modal,
   ModalBody,
   ModalContent,
@@ -187,22 +186,26 @@ function DocumentTableRowSkeleton() {
       <TableCell className='px-[12px] py-[8px]'>
         <div className='flex items-center gap-[8px]'>
           <Skeleton className='h-[20px] w-[16px] rounded-[2px]' />
-          <Skeleton className='h-[14px] w-[140px]' />
+          <Skeleton className='h-[17px] w-[140px]' />
         </div>
       </TableCell>
       <TableCell className='px-[12px] py-[8px]'>
-        <Skeleton className='h-[12px] w-[48px]' />
+        <Skeleton className='h-[15px] w-[48px]' />
       </TableCell>
       <TableCell className='px-[12px] py-[8px]'>
-        <Skeleton className='h-[12px] w-[32px]' />
+        <Skeleton className='h-[15px] w-[32px]' />
       </TableCell>
       <TableCell className='hidden px-[12px] py-[8px] lg:table-cell'>
-        <Skeleton className='h-[12px] w-[24px]' />
+        <Skeleton className='h-[15px] w-[24px]' />
       </TableCell>
       <TableCell className='px-[12px] py-[8px]'>
-        <div className='flex flex-col gap-[4px]'>
-          <Skeleton className='h-[12px] w-[64px]' />
-          <Skeleton className='h-[12px] w-[48px] lg:hidden' />
+        <div className='flex flex-col justify-center'>
+          <div className='flex items-center'>
+            <Skeleton className='h-[15px] w-[50px]' />
+            <span className='mx-[6px] hidden text-[var(--text-muted)] xl:inline'>•</span>
+            <Skeleton className='hidden h-[15px] w-[70px] xl:block' />
+          </div>
+          <Skeleton className='mt-[2px] h-[15px] w-[40px] lg:hidden' />
         </div>
       </TableCell>
       <TableCell className='px-[12px] py-[8px]'>
@@ -210,7 +213,6 @@ function DocumentTableRowSkeleton() {
       </TableCell>
       <TableCell className='px-[12px] py-[8px]'>
         <div className='flex items-center gap-[4px]'>
-          <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
           <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
           <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
         </div>
@@ -221,43 +223,41 @@ function DocumentTableRowSkeleton() {
 
 function DocumentTableSkeleton({ rowCount = 5 }: { rowCount?: number }) {
   return (
-    <div className='flex flex-1 flex-col overflow-hidden'>
-      <Table className='min-w-[700px] table-auto text-[13px]'>
-        <TableHeader>
-          <TableRow className='hover:bg-transparent'>
-            <TableHead className='w-[4%] px-[12px] py-[8px]'>
-              <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
-            </TableHead>
-            <TableHead className='w-[24%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-              Name
-            </TableHead>
-            <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-              Size
-            </TableHead>
-            <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-              Tokens
-            </TableHead>
-            <TableHead className='hidden w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)] lg:table-cell'>
-              Chunks
-            </TableHead>
-            <TableHead className='w-[16%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-              Uploaded
-            </TableHead>
-            <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-              Status
-            </TableHead>
-            <TableHead className='w-[14%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-              Actions
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {Array.from({ length: rowCount }).map((_, i) => (
-            <DocumentTableRowSkeleton key={i} />
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+    <Table className='min-w-[700px] table-auto text-[13px]'>
+      <TableHeader>
+        <TableRow className='hover:bg-transparent'>
+          <TableHead className='w-[4%] px-[12px] py-[8px]'>
+            <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+          </TableHead>
+          <TableHead className='w-[24%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+            Name
+          </TableHead>
+          <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+            Size
+          </TableHead>
+          <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+            Tokens
+          </TableHead>
+          <TableHead className='hidden w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)] lg:table-cell'>
+            Chunks
+          </TableHead>
+          <TableHead className='w-[16%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+            Uploaded
+          </TableHead>
+          <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+            Status
+          </TableHead>
+          <TableHead className='w-[14%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+            Actions
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {Array.from({ length: rowCount }).map((_, i) => (
+          <DocumentTableRowSkeleton key={i} />
+        ))}
+      </TableBody>
+    </Table>
   )
 }
 
@@ -278,7 +278,7 @@ export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoading
   ]
 
   return (
-    <div className='flex h-[100vh] flex-col pl-64'>
+    <div className='flex h-full flex-1 flex-col'>
       <div className='flex flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
           {/* Breadcrumb */}
@@ -286,19 +286,20 @@ export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoading
 
           {/* Name and actions row skeleton */}
           <div className='mt-[14px] flex items-center justify-between'>
-            <div className='h-[22px] w-[200px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
-            <div className='h-[32px] w-[32px] animate-pulse rounded-[6px] bg-[var(--surface-5)]' />
-          </div>
-
-          {/* Metadata row skeleton */}
-          <div className='mt-[10px] flex items-center gap-[16px]'>
-            <div className='h-[14px] w-[80px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
-            <div className='h-[14px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+            <Skeleton className='h-[27px] w-[200px] rounded-[4px]' />
+            <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
           </div>
 
           {/* Description skeleton */}
-          <div className='mt-[10px]'>
-            <div className='h-[14px] w-[400px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+          <div className='mt-[4px]'>
+            <Skeleton className='h-[21px] w-[300px] rounded-[4px]' />
+          </div>
+
+          {/* Metadata row skeleton */}
+          <div className='mt-[16px] flex items-center gap-[8px]'>
+            <Skeleton className='h-[21px] w-[80px] rounded-[4px]' />
+            <div className='mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[#3A3A3A]' />
+            <Skeleton className='h-[21px] w-[140px] rounded-[4px]' />
           </div>
 
           {/* Search and Add Documents Section */}
@@ -317,7 +318,7 @@ export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoading
           </div>
 
           {/* Table skeleton */}
-          <div className='mt-[24px]'>
+          <div className='mt-[20px] flex flex-1 flex-col overflow-hidden'>
             <DocumentTableSkeleton rowCount={8} />
           </div>
         </div>
@@ -844,7 +845,7 @@ export function KnowledgeBase({
   // Show error state for knowledge base fetch
   if (error && !knowledgeBase) {
     return (
-      <div className='flex h-[100vh] flex-col pl-64'>
+      <div className='flex h-full flex-1 flex-col'>
         <div className='flex flex-1 overflow-hidden'>
           <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
             {/* Breadcrumb */}
@@ -868,7 +869,7 @@ export function KnowledgeBase({
   }
 
   return (
-    <div className='flex h-[100vh] flex-col pl-64'>
+    <div className='flex h-full flex-1 flex-col'>
       <div className='flex flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
           {/* Breadcrumb */}
@@ -876,36 +877,40 @@ export function KnowledgeBase({
 
           {/* Name and actions row */}
           <div className='mt-[14px] flex items-center justify-between'>
-            <h1 className='font-medium text-[18px]'>{knowledgeBaseName}</h1>
+            <h1 className='font-medium text-[18px] text-[var(--text-primary)]'>
+              {knowledgeBaseName}
+            </h1>
             <Button onClick={() => setShowDeleteDialog(true)} className='h-[32px] rounded-[6px]'>
               <Trash className='h-[14px] w-[14px]' />
             </Button>
           </div>
 
-          {/* Metadata row */}
-          <div className='mt-[10px] flex items-center gap-[16px]'>
-            <span className='flex items-center gap-[6px] text-[14px] text-[var(--text-tertiary)]'>
-              <DocumentAttachment className='h-[14px] w-[14px]' />
-              {documents.length} {documents.length === 1 ? 'document' : 'documents'}
-            </span>
-            {knowledgeBase?.updatedAt && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <span className='cursor-default text-[14px] text-[var(--text-muted)]'>
-                    last updated: {formatRelativeTime(knowledgeBase.updatedAt)}
-                  </span>
-                </Tooltip.Trigger>
-                <Tooltip.Content>{formatAbsoluteDate(knowledgeBase.updatedAt)}</Tooltip.Content>
-              </Tooltip.Root>
-            )}
-          </div>
-
           {/* Description */}
           {knowledgeBase?.description && (
-            <p className='mt-[10px] font-base text-[#888888] text-[14px]'>
+            <p className='mt-[4px] font-medium text-[14px] text-[var(--text-tertiary)]'>
               {knowledgeBase.description}
             </p>
           )}
+
+          {/* Metadata row */}
+          <div className='mt-[16px] flex items-center gap-[8px]'>
+            <span className='text-[14px] text-[var(--text-muted)]'>
+              {documents.length} {documents.length === 1 ? 'document' : 'documents'}
+            </span>
+            {knowledgeBase?.updatedAt && (
+              <>
+                <div className='mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[#3A3A3A]' />
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span className='cursor-default text-[14px] text-[var(--text-muted)]'>
+                      last updated: {formatRelativeTime(knowledgeBase.updatedAt)}
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>{formatAbsoluteDate(knowledgeBase.updatedAt)}</Tooltip.Content>
+                </Tooltip.Root>
+              </>
+            )}
+          </div>
 
           {/* Search and Add Documents Section */}
           <div className='mt-[14px] flex items-center justify-between'>
@@ -917,18 +922,17 @@ export function KnowledgeBase({
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
               />
-              {isLoadingDocuments ? (
-                <div className='h-[14px] w-[14px] animate-spin rounded-full border-2 border-gray-300 border-t-[var(--brand-primary-hex)]' />
-              ) : (
-                searchQuery && (
+              {searchQuery &&
+                (isLoadingDocuments ? (
+                  <Loader2 className='h-[14px] w-[14px] animate-spin text-[var(--text-subtle)]' />
+                ) : (
                   <button
                     onClick={() => handleSearchChange('')}
                     className='text-[var(--text-subtle)] transition-colors hover:text-[var(--text-secondary)]'
                   >
                     <X className='h-[14px] w-[14px]' />
                   </button>
-                )
-              )}
+                ))}
             </div>
 
             <Tooltip.Root>

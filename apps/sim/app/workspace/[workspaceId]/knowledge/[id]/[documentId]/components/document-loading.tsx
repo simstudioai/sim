@@ -133,7 +133,7 @@ export function DocumentLoading({
   ]
 
   return (
-    <div className='flex h-[100vh] flex-col pl-64'>
+    <div className='flex h-full flex-1 flex-col'>
       {/* Header with Breadcrumbs */}
       <KnowledgeHeader breadcrumbs={breadcrumbs} />
 
