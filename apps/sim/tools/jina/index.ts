@@ -1,4 +1,5 @@
-import { readUrlTool } from '@/tools/jina/read_url'
-import { searchTool } from '@/tools/jina/search'
+import { readUrlTool } from './read_url'
+import { searchTool } from './search'
 
-export { readUrlTool, searchTool }
+export const jinaReadUrlTool = readUrlTool
+export const jinaSearchTool = searchTool

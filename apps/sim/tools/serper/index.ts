@@ -1,3 +1,3 @@
-import { searchTool } from '@/tools/serper/search'
+import { searchTool } from './search'
 
-export { searchTool }
+export const serperSearchTool = searchTool
