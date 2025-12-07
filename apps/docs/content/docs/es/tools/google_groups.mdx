@@ -1,0 +1,217 @@
+---
+title: Google Groups
+description: Administra los Grupos de Google Workspace y sus miembros
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_groups"
+  color="#E8F0FE"
+/>
+
+## Instrucciones de uso
+
+Conéctate a Google Workspace para crear, actualizar y administrar grupos y sus miembros utilizando la API de directorio de Admin SDK.
+
+## Herramientas
+
+### `google_groups_list_groups`
+
+Listar todos los grupos en un dominio de Google Workspace
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `customer` | string | No | ID del cliente o "my_customer" para el dominio del usuario autenticado |
+| `domain` | string | No | Nombre de dominio para filtrar grupos |
+| `maxResults` | number | No | Número máximo de resultados a devolver (1-200) |
+| `pageToken` | string | No | Token para paginación |
+| `query` | string | No | Consulta de búsqueda para filtrar grupos (p. ej., "email:admin*") |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Google Groups |
+
+### `google_groups_get_group`
+
+Obtener detalles de un Grupo de Google específico por correo electrónico o ID de grupo
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Sí | Dirección de correo electrónico del grupo o ID único del grupo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Google Groups |
+
+### `google_groups_create_group`
+
+Crear un nuevo Grupo de Google en el dominio
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Sí | Dirección de correo electrónico para el nuevo grupo (p. ej., equipo@tudominio.com) |
+| `name` | string | Sí | Nombre visible para el grupo |
+| `description` | string | No | Descripción del grupo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Google Groups |
+
+### `google_groups_update_group`
+
+Actualizar un grupo de Google existente
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Sí | Dirección de correo electrónico del grupo o ID único del grupo |
+| `name` | string | No | Nuevo nombre visible para el grupo |
+| `description` | string | No | Nueva descripción para el grupo |
+| `email` | string | No | Nueva dirección de correo electrónico para el grupo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Google Groups |
+
+### `google_groups_delete_group`
+
+Eliminar un grupo de Google
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Sí | Dirección de correo electrónico del grupo o ID único del grupo a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Google Groups |
+
+### `google_groups_list_members`
+
+Listar todos los miembros de un Grupo de Google
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Sí | Dirección de correo electrónico del grupo o ID único del grupo |
+| `maxResults` | number | No | Número máximo de resultados a devolver \(1-200\) |
+| `pageToken` | string | No | Token para paginación |
+| `roles` | string | No | Filtrar por roles \(separados por comas: OWNER, MANAGER, MEMBER\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Grupos de Google |
+
+### `google_groups_get_member`
+
+Obtener detalles de un miembro específico en un Grupo de Google
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Sí | Dirección de correo electrónico del grupo o ID único del grupo |
+| `memberKey` | string | Sí | Dirección de correo electrónico del miembro o ID único del miembro |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Grupos de Google |
+
+### `google_groups_add_member`
+
+Añadir un nuevo miembro a un Grupo de Google
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Sí | Dirección de correo electrónico del grupo o ID único del grupo |
+| `email` | string | Sí | Dirección de correo electrónico del miembro a añadir |
+| `role` | string | No | Rol para el miembro \(MEMBER, MANAGER, o OWNER\). Por defecto es MEMBER. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Google Groups |
+
+### `google_groups_remove_member`
+
+Eliminar un miembro de un grupo de Google
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Sí | Dirección de correo electrónico del grupo o ID único del grupo |
+| `memberKey` | string | Sí | Dirección de correo electrónico o ID único del miembro a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Google Groups |
+
+### `google_groups_update_member`
+
+Actualizar un miembro
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Sí | Dirección de correo electrónico del grupo o ID único del grupo |
+| `memberKey` | string | Sí | Dirección de correo electrónico del miembro o ID único del miembro |
+| `role` | string | Sí | Nuevo rol para el miembro \(MEMBER, MANAGER, o OWNER\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Google Groups |
+
+### `google_groups_has_member`
+
+Comprobar si un usuario es miembro de un grupo de Google
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Sí | Dirección de correo electrónico del grupo o ID único del grupo |
+| `memberKey` | string | Sí | Dirección de correo electrónico del miembro o ID único del miembro a comprobar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Google Groups |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `google_groups`
