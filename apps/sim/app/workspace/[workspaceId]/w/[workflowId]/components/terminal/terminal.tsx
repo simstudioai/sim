@@ -21,6 +21,7 @@ import {
 import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
+  Code,
   Input,
   Popover,
   PopoverContent,
@@ -28,7 +29,6 @@ import {
   PopoverScrollArea,
   PopoverTrigger,
   Tooltip,
-  VirtualizedCodeViewer,
 } from '@/components/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -258,7 +258,7 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
   contentRef,
 }: OutputCodeContentProps) {
   return (
-    <VirtualizedCodeViewer
+    <Code.Viewer
       code={code}
       showGutter
       language={language}
@@ -270,6 +270,7 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
       currentMatchIndex={currentMatchIndex}
       onMatchCountChange={onMatchCountChange}
       contentRef={contentRef}
+      virtualized
     />
   )
 })
@@ -578,7 +579,7 @@ export function Terminal() {
   }, [matchCount])
 
   /**
-   * Handles match count change from VirtualizedCodeViewer.
+   * Handles match count change from Code.Viewer.
    */
   const handleMatchCountChange = useCallback((count: number) => {
     setMatchCount(count)
