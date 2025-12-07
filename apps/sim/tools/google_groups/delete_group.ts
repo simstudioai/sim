@@ -2,8 +2,8 @@ import type { ToolConfig } from '@/tools/types'
 import type { GoogleGroupsDeleteParams, GoogleGroupsResponse } from './types'
 
 export const deleteGroupTool: ToolConfig<GoogleGroupsDeleteParams, GoogleGroupsResponse> = {
-  id: 'google_groups_delete',
-  name: 'Google Groups Delete',
+  id: 'google_groups_delete_group',
+  name: 'Google Groups Delete Group',
   description: 'Delete a Google Group',
   version: '1.0.0',
 

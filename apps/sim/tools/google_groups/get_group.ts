@@ -2,8 +2,8 @@ import type { ToolConfig } from '@/tools/types'
 import type { GoogleGroupsGetParams, GoogleGroupsResponse } from './types'
 
 export const getGroupTool: ToolConfig<GoogleGroupsGetParams, GoogleGroupsResponse> = {
-  id: 'google_groups_get',
-  name: 'Google Groups Get',
+  id: 'google_groups_get_group',
+  name: 'Google Groups Get Group',
   description: 'Get details of a specific Google Group by email or group ID',
   version: '1.0.0',
 

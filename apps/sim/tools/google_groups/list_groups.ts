@@ -2,8 +2,8 @@ import type { ToolConfig } from '@/tools/types'
 import type { GoogleGroupsListParams, GoogleGroupsResponse } from './types'
 
 export const listGroupsTool: ToolConfig<GoogleGroupsListParams, GoogleGroupsResponse> = {
-  id: 'google_groups_list',
-  name: 'Google Groups List',
+  id: 'google_groups_list_groups',
+  name: 'Google Groups List Groups',
   description: 'List all groups in a Google Workspace domain',
   version: '1.0.0',
 

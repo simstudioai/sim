@@ -2,8 +2,8 @@ import type { ToolConfig } from '@/tools/types'
 import type { GoogleGroupsCreateParams, GoogleGroupsResponse } from './types'
 
 export const createGroupTool: ToolConfig<GoogleGroupsCreateParams, GoogleGroupsResponse> = {
-  id: 'google_groups_create',
-  name: 'Google Groups Create',
+  id: 'google_groups_create_group',
+  name: 'Google Groups Create Group',
   description: 'Create a new Google Group in the domain',
   version: '1.0.0',
 

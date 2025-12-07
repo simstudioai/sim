@@ -18,12 +18,19 @@ Connect to Google Workspace to create, update, and manage groups and their membe
 
 ## Tools
 
-### `google_groups_list`
+### `google_groups_list_groups`
+
+List all groups in a Google Workspace domain
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `customer` | string | No | Customer ID or "my_customer" for the authenticated user\'s domain |
+| `domain` | string | No | Domain name to filter groups by |
+| `maxResults` | number | No | Maximum number of results to return \(1-200\) |
+| `pageToken` | string | No | Token for pagination |
+| `query` | string | No | Search query to filter groups \(e.g., "email:admin*"\) |
 
 #### Output
 
@@ -31,12 +38,15 @@ Connect to Google Workspace to create, update, and manage groups and their membe
 | --------- | ---- | ----------- |
 | `output` | json | Google Groups API response data |
 
-### `google_groups_get`
+### `google_groups_get_group`
+
+Get details of a specific Google Group by email or group ID
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group email address or unique group ID |
 
 #### Output
 
@@ -44,12 +54,17 @@ Connect to Google Workspace to create, update, and manage groups and their membe
 | --------- | ---- | ----------- |
 | `output` | json | Google Groups API response data |
 
-### `google_groups_create`
+### `google_groups_create_group`
+
+Create a new Google Group in the domain
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | Email address for the new group \(e.g., team@yourdomain.com\) |
+| `name` | string | Yes | Display name for the group |
+| `description` | string | No | Description of the group |
 
 #### Output
 
@@ -57,12 +72,18 @@ Connect to Google Workspace to create, update, and manage groups and their membe
 | --------- | ---- | ----------- |
 | `output` | json | Google Groups API response data |
 
-### `google_groups_update`
+### `google_groups_update_group`
+
+Update an existing Google Group
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group email address or unique group ID |
+| `name` | string | No | New display name for the group |
+| `description` | string | No | New description for the group |
+| `email` | string | No | New email address for the group |
 
 #### Output
 
@@ -70,12 +91,15 @@ Connect to Google Workspace to create, update, and manage groups and their membe
 | --------- | ---- | ----------- |
 | `output` | json | Google Groups API response data |
 
-### `google_groups_delete`
+### `google_groups_delete_group`
+
+Delete a Google Group
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group email address or unique group ID to delete |
 
 #### Output
 
@@ -137,6 +161,23 @@ Add a new member to a Google Group
 | --------- | ---- | ----------- |
 | `output` | json | Google Groups API response data |
 
+### `google_groups_remove_member`
+
+Remove a member from a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group email address or unique group ID |
+| `memberKey` | string | Yes | Email address or unique ID of the member to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups API response data |
+
 ### `google_groups_update_member`
 
 Update a member
@@ -148,23 +189,6 @@ Update a member
 | `groupKey` | string | Yes | Group email address or unique group ID |
 | `memberKey` | string | Yes | Member email address or unique member ID |
 | `role` | string | Yes | New role for the member \(MEMBER, MANAGER, or OWNER\) |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `output` | json | Google Groups API response data |
-
-### `google_groups_remove_member`
-
-Remove a member from a Google Group
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Yes | Group email address or unique group ID |
-| `memberKey` | string | Yes | Email address or unique ID of the member to remove |
 
 #### Output
 

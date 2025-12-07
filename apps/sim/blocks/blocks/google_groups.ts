@@ -179,31 +179,31 @@ export const GoogleGroupsBlock: BlockConfig = {
   ],
   tools: {
     access: [
-      'google_groups_list',
-      'google_groups_get',
-      'google_groups_create',
-      'google_groups_update',
-      'google_groups_delete',
+      'google_groups_list_groups',
+      'google_groups_get_group',
+      'google_groups_create_group',
+      'google_groups_update_group',
+      'google_groups_delete_group',
       'google_groups_list_members',
       'google_groups_get_member',
       'google_groups_add_member',
-      'google_groups_update_member',
       'google_groups_remove_member',
+      'google_groups_update_member',
       'google_groups_has_member',
     ],
     config: {
       tool: (params) => {
         switch (params.operation) {
           case 'list_groups':
-            return 'google_groups_list'
+            return 'google_groups_list_groups'
           case 'get_group':
-            return 'google_groups_get'
+            return 'google_groups_get_group'
           case 'create_group':
-            return 'google_groups_create'
+            return 'google_groups_create_group'
           case 'update_group':
-            return 'google_groups_update'
+            return 'google_groups_update_group'
           case 'delete_group':
-            return 'google_groups_delete'
+            return 'google_groups_delete_group'
           case 'list_members':
             return 'google_groups_list_members'
           case 'get_member':

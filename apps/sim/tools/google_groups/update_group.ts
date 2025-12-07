@@ -2,8 +2,8 @@ import type { ToolConfig } from '@/tools/types'
 import type { GoogleGroupsResponse, GoogleGroupsUpdateParams } from './types'
 
 export const updateGroupTool: ToolConfig<GoogleGroupsUpdateParams, GoogleGroupsResponse> = {
-  id: 'google_groups_update',
-  name: 'Google Groups Update',
+  id: 'google_groups_update_group',
+  name: 'Google Groups Update Group',
   description: 'Update an existing Google Group',
   version: '1.0.0',
 
