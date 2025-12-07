@@ -156,8 +156,6 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // When listing root-level folders (no folderId specified) and looking for folders,
-    // also include shared drives so users can navigate into them
     const isRootFolderListing =
       !folderId && mimeType === 'application/vnd.google-apps.folder' && !query
     if (isRootFolderListing) {

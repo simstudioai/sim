@@ -57,7 +57,6 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    // If file not found, check if it's a shared drive ID
     if (!response.ok && response.status === 404) {
       logger.info(`[${requestId}] File not found, checking if it's a shared drive`)
       const driveResponse = await fetch(
