@@ -1,4 +1,5 @@
 export { Badge } from './badge/badge'
+export { Breadcrumb, type BreadcrumbItem, type BreadcrumbProps } from './breadcrumb/breadcrumb'
 export { Button, buttonVariants } from './button/button'
 export {
   CODE_LINE_HEIGHT_PX,

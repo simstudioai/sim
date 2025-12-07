@@ -1,5 +1,5 @@
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
-import type { SortOption, SortOrder } from '../components/shared'
+import type { SortOption, SortOrder } from '../components/constants'
 
 interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
   docCount?: number

@@ -1,7 +1,16 @@
 'use client'
 
 import { Suspense, startTransition, useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, Circle, CircleOff, FileText, Plus } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  CircleOff,
+  FileText,
+  Plus,
+  Search,
+  X,
+} from 'lucide-react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Button, Tooltip } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
@@ -14,7 +23,7 @@ import {
   EditChunkModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
-import { KnowledgeHeader, SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components'
+import { KnowledgeHeader } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
@@ -662,17 +671,38 @@ export function Document({
             <div className='px-6 pb-6'>
               {/* Search Section */}
               <div className='mb-4 flex items-center justify-between pt-1'>
-                <SearchInput
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                  placeholder={
-                    documentData?.processingStatus === 'completed'
-                      ? 'Search chunks...'
-                      : 'Document processing...'
-                  }
-                  disabled={documentData?.processingStatus !== 'completed'}
-                  isLoading={isLoadingSearch}
-                />
+                <div className='relative max-w-md flex-1'>
+                  <div className='relative flex items-center'>
+                    <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-[18px] w-[18px] transform text-muted-foreground' />
+                    <input
+                      type='text'
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={
+                        documentData?.processingStatus === 'completed'
+                          ? 'Search chunks...'
+                          : 'Document processing...'
+                      }
+                      disabled={documentData?.processingStatus !== 'completed'}
+                      className='h-10 w-full rounded-md border bg-background px-9 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:font-medium file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
+                    />
+                    {isLoadingSearch ? (
+                      <div className='-translate-y-1/2 absolute top-1/2 right-3'>
+                        <div className='h-[18px] w-[18px] animate-spin rounded-full border-2 border-gray-300 border-t-[var(--brand-primary-hex)]' />
+                      </div>
+                    ) : (
+                      searchQuery &&
+                      documentData?.processingStatus === 'completed' && (
+                        <button
+                          onClick={() => setSearchQuery('')}
+                          className='-translate-y-1/2 absolute top-1/2 right-3 transform text-muted-foreground hover:text-foreground'
+                        >
+                          <X className='h-[18px] w-[18px]' />
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
 
                 <Button
                   onClick={() => setIsCreateChunkModalOpen(true)}

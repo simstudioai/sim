@@ -13,15 +13,15 @@ import {
 } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
 import {
-  BaseOverview,
-  CreateModal,
-  KnowledgeBaseCardSkeletonGrid,
+  BaseCard,
+  BaseCardSkeletonGrid,
+  CreateBaseModal,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
   SORT_OPTIONS,
   type SortOption,
   type SortOrder,
-} from '@/app/workspace/[workspaceId]/knowledge/components/shared'
+} from '@/app/workspace/[workspaceId]/knowledge/components/constants'
 import {
   filterKnowledgeBases,
   sortKnowledgeBases,
@@ -201,35 +201,34 @@ export function Knowledge() {
 
             <div className='mt-[24px] h-[1px] w-full border-[var(--border)] border-t' />
 
-            {error && (
-              <div className='mt-[24px] rounded-md border border-red-200 bg-red-50 p-4'>
-                <p className='text-red-800 text-sm'>Error loading knowledge bases: {error}</p>
-                <button
-                  onClick={handleRetry}
-                  className='mt-2 text-red-600 text-sm underline hover:text-red-800'
-                >
-                  Try again
-                </button>
-              </div>
-            )}
-
             <div className='mt-[24px] grid grid-cols-1 gap-x-[20px] gap-y-[40px] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
               {isLoading ? (
-                <KnowledgeBaseCardSkeletonGrid count={8} />
+                <BaseCardSkeletonGrid count={8} />
               ) : filteredAndSortedKnowledgeBases.length === 0 ? (
                 <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
                   <div className='text-center'>
-                    <p className='font-medium text-muted-foreground text-sm'>{emptyState.title}</p>
-                    <p className='mt-1 text-muted-foreground/70 text-xs'>
+                    <p className='font-medium text-sm [var(--text-secondary)]'>
+                      {emptyState.title}
+                    </p>
+                    <p className='mt-1 text-[var(--text-muted)] text-xs'>
                       {emptyState.description}
                     </p>
+                  </div>
+                </div>
+              ) : error ? (
+                <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+                  <div className='text-center'>
+                    <p className='font-medium text-sm [var(--text-secondary)]'>
+                      Error fetching knowledge bases
+                    </p>
+                    <p className='0 mt-1 text-xs [var(--text-muted)]'>{error}</p>
                   </div>
                 </div>
               ) : (
                 filteredAndSortedKnowledgeBases.map((kb) => {
                   const displayData = formatKnowledgeBaseForDisplay(kb as KnowledgeBaseWithDocCount)
                   return (
-                    <BaseOverview
+                    <BaseCard
                       key={kb.id}
                       id={displayData.id}
                       title={displayData.title}
@@ -246,7 +245,7 @@ export function Knowledge() {
         </div>
       </div>
 
-      <CreateModal
+      <CreateBaseModal
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
         onKnowledgeBaseCreated={handleKnowledgeBaseCreated}

@@ -3,15 +3,108 @@
 import { Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
-import {
-  ChunkTableSkeleton,
-  KnowledgeHeader,
-} from '@/app/workspace/[workspaceId]/knowledge/components'
+import { KnowledgeHeader } from '@/app/workspace/[workspaceId]/knowledge/components'
 
 interface DocumentLoadingProps {
   knowledgeBaseId: string
   knowledgeBaseName: string
   documentName: string
+}
+
+function ChunkTableRowSkeleton() {
+  return (
+    <tr className='border-b'>
+      <td className='px-4 py-3'>
+        <div className='h-3.5 w-3.5 animate-pulse rounded bg-muted' />
+      </td>
+      <td className='px-4 py-3'>
+        <div className='h-4 w-6 animate-pulse rounded bg-muted' />
+      </td>
+      <td className='px-4 py-3'>
+        <div className='space-y-2'>
+          <div className='h-4 w-full animate-pulse rounded bg-muted' />
+          <div className='h-4 w-3/4 animate-pulse rounded bg-muted' />
+          <div className='h-4 w-1/2 animate-pulse rounded bg-muted' />
+        </div>
+      </td>
+      <td className='px-4 py-3'>
+        <div className='h-3 w-8 animate-pulse rounded bg-muted' />
+      </td>
+      <td className='px-4 py-3'>
+        <div className='h-6 w-16 animate-pulse rounded-md bg-muted' />
+      </td>
+      <td className='px-4 py-3'>
+        <div className='flex items-center gap-1'>
+          <div className='h-8 w-8 animate-pulse rounded bg-muted' />
+          <div className='h-8 w-8 animate-pulse rounded bg-muted' />
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function ChunkTableSkeleton({
+  isSidebarCollapsed,
+  rowCount = 5,
+}: {
+  isSidebarCollapsed: boolean
+  rowCount?: number
+}) {
+  return (
+    <div className='flex flex-1 flex-col overflow-hidden'>
+      <div className='sticky top-0 z-10 border-b bg-background'>
+        <table className='w-full table-fixed'>
+          <colgroup>
+            <col className='w-[5%]' />
+            <col className='w-[8%]' />
+            <col className={`${isSidebarCollapsed ? 'w-[57%]' : 'w-[55%]'}`} />
+            <col className='w-[10%]' />
+            <col className='w-[10%]' />
+            <col className='w-[12%]' />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                <div className='h-3.5 w-3.5 animate-pulse rounded bg-muted' />
+              </th>
+              <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                <span className='text-muted-foreground text-xs leading-none'>Index</span>
+              </th>
+              <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                <span className='text-muted-foreground text-xs leading-none'>Content</span>
+              </th>
+              <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                <span className='text-muted-foreground text-xs leading-none'>Tokens</span>
+              </th>
+              <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                <span className='text-muted-foreground text-xs leading-none'>Status</span>
+              </th>
+              <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                <span className='text-muted-foreground text-xs leading-none'>Actions</span>
+              </th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+      <div className='flex-1 overflow-auto'>
+        <table className='w-full table-fixed'>
+          <colgroup>
+            <col className='w-[5%]' />
+            <col className='w-[8%]' />
+            <col className={`${isSidebarCollapsed ? 'w-[57%]' : 'w-[55%]'}`} />
+            <col className='w-[10%]' />
+            <col className='w-[10%]' />
+            <col className='w-[12%]' />
+          </colgroup>
+          <tbody>
+            {Array.from({ length: rowCount }).map((_, i) => (
+              <ChunkTableRowSkeleton key={i} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
 
 export function DocumentLoading({

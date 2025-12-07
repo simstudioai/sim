@@ -10,36 +10,43 @@ import {
   ChevronUp,
   Circle,
   CircleOff,
-  FileText,
   Loader2,
-  Plus,
   RotateCcw,
+  Search,
+  X,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
+  Breadcrumb,
   Button,
+  DocumentAttachment,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
   Tooltip,
+  Trash,
 } from '@/components/emcn'
-import { Trash } from '@/components/emcn/icons/trash'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { SearchHighlight } from '@/components/ui/search-highlight'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   ActionBar,
-  KnowledgeBaseLoading,
-  UploadModal,
+  AddDocumentsModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
-import {
-  getDocumentIcon,
-  KnowledgeHeader,
-  SearchInput,
-} from '@/app/workspace/[workspaceId]/knowledge/components'
+import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   useKnowledgeBase,
@@ -51,6 +58,55 @@ import type { DocumentData } from '@/stores/knowledge/store'
 const logger = createLogger('KnowledgeBase')
 
 const DOCUMENTS_PER_PAGE = 50
+
+/**
+ * Formats a date string to relative time (e.g., "2h ago", "3d ago")
+ */
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (diffInSeconds < 60) {
+    return 'just now'
+  }
+  if (diffInSeconds < 3600) {
+    const minutes = Math.floor(diffInSeconds / 60)
+    return `${minutes}m ago`
+  }
+  if (diffInSeconds < 86400) {
+    const hours = Math.floor(diffInSeconds / 3600)
+    return `${hours}h ago`
+  }
+  if (diffInSeconds < 604800) {
+    const days = Math.floor(diffInSeconds / 86400)
+    return `${days}d ago`
+  }
+  if (diffInSeconds < 2592000) {
+    const weeks = Math.floor(diffInSeconds / 604800)
+    return `${weeks}w ago`
+  }
+  if (diffInSeconds < 31536000) {
+    const months = Math.floor(diffInSeconds / 2592000)
+    return `${months}mo ago`
+  }
+  const years = Math.floor(diffInSeconds / 31536000)
+  return `${years}y ago`
+}
+
+/**
+ * Formats a date string to absolute format for tooltip display
+ */
+function formatAbsoluteDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 interface KnowledgeBaseProps {
   id: string
@@ -122,6 +178,154 @@ const getStatusDisplay = (doc: DocumentData) => {
   }
 }
 
+function DocumentTableRowSkeleton() {
+  return (
+    <TableRow className='hover:bg-transparent'>
+      <TableCell className='px-[12px] py-[8px]'>
+        <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+      </TableCell>
+      <TableCell className='px-[12px] py-[8px]'>
+        <div className='flex items-center gap-[8px]'>
+          <Skeleton className='h-[20px] w-[16px] rounded-[2px]' />
+          <Skeleton className='h-[14px] w-[140px]' />
+        </div>
+      </TableCell>
+      <TableCell className='px-[12px] py-[8px]'>
+        <Skeleton className='h-[12px] w-[48px]' />
+      </TableCell>
+      <TableCell className='px-[12px] py-[8px]'>
+        <Skeleton className='h-[12px] w-[32px]' />
+      </TableCell>
+      <TableCell className='hidden px-[12px] py-[8px] lg:table-cell'>
+        <Skeleton className='h-[12px] w-[24px]' />
+      </TableCell>
+      <TableCell className='px-[12px] py-[8px]'>
+        <div className='flex flex-col gap-[4px]'>
+          <Skeleton className='h-[12px] w-[64px]' />
+          <Skeleton className='h-[12px] w-[48px] lg:hidden' />
+        </div>
+      </TableCell>
+      <TableCell className='px-[12px] py-[8px]'>
+        <Skeleton className='h-[24px] w-[64px] rounded-[4px]' />
+      </TableCell>
+      <TableCell className='px-[12px] py-[8px]'>
+        <div className='flex items-center gap-[4px]'>
+          <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
+          <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
+          <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
+        </div>
+      </TableCell>
+    </TableRow>
+  )
+}
+
+function DocumentTableSkeleton({ rowCount = 5 }: { rowCount?: number }) {
+  return (
+    <div className='flex flex-1 flex-col overflow-hidden'>
+      <Table className='min-w-[700px] table-auto text-[13px]'>
+        <TableHeader>
+          <TableRow className='hover:bg-transparent'>
+            <TableHead className='w-[4%] px-[12px] py-[8px]'>
+              <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+            </TableHead>
+            <TableHead className='w-[24%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+              Name
+            </TableHead>
+            <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+              Size
+            </TableHead>
+            <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+              Tokens
+            </TableHead>
+            <TableHead className='hidden w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)] lg:table-cell'>
+              Chunks
+            </TableHead>
+            <TableHead className='w-[16%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+              Uploaded
+            </TableHead>
+            <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+              Status
+            </TableHead>
+            <TableHead className='w-[14%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+              Actions
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Array.from({ length: rowCount }).map((_, i) => (
+            <DocumentTableRowSkeleton key={i} />
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+interface KnowledgeBaseLoadingProps {
+  knowledgeBaseName: string
+}
+
+/**
+ * Loading skeleton for the KnowledgeBase component
+ */
+export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) {
+  const params = useParams()
+  const workspaceId = params?.workspaceId as string
+
+  const breadcrumbItems = [
+    { label: 'Knowledge Base', href: `/workspace/${workspaceId}/knowledge` },
+    { label: knowledgeBaseName },
+  ]
+
+  return (
+    <div className='flex h-[100vh] flex-col pl-64'>
+      <div className='flex flex-1 overflow-hidden'>
+        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+          {/* Breadcrumb */}
+          <Breadcrumb items={breadcrumbItems} />
+
+          {/* Name and actions row skeleton */}
+          <div className='mt-[14px] flex items-center justify-between'>
+            <div className='h-[22px] w-[200px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+            <div className='h-[32px] w-[32px] animate-pulse rounded-[6px] bg-[var(--surface-5)]' />
+          </div>
+
+          {/* Metadata row skeleton */}
+          <div className='mt-[10px] flex items-center gap-[16px]'>
+            <div className='h-[14px] w-[80px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+            <div className='h-[14px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+          </div>
+
+          {/* Description skeleton */}
+          <div className='mt-[10px]'>
+            <div className='h-[14px] w-[400px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+          </div>
+
+          {/* Search and Add Documents Section */}
+          <div className='mt-[14px] flex items-center justify-between'>
+            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+              <Input
+                placeholder='Search'
+                disabled
+                className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
+            </div>
+            <Button disabled variant='primary' className='h-[32px] rounded-[6px]'>
+              Add Documents
+            </Button>
+          </div>
+
+          {/* Table skeleton */}
+          <div className='mt-[24px]'>
+            <DocumentTableSkeleton rowCount={8} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function KnowledgeBase({
   id,
   knowledgeBaseName: passedKnowledgeBaseName,
@@ -141,7 +345,7 @@ export function KnowledgeBase({
 
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [showAddDocumentsModal, setShowAddDocumentsModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isBulkOperating, setIsBulkOperating] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -213,21 +417,21 @@ export function KnowledgeBase({
   )
 
   const renderSortableHeader = (field: DocumentSortField, label: string, className = '') => (
-    <th className={`px-4 pt-2 pb-3 text-left font-medium ${className}`}>
+    <TableHead className={`px-[12px] py-[8px] ${className}`}>
       <button
         type='button'
         onClick={() => handleSort(field)}
-        className='flex items-center gap-1 text-muted-foreground text-xs leading-none transition-colors hover:text-foreground'
+        className='flex items-center gap-[4px] text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]'
       >
         <span>{label}</span>
         {sortBy === field &&
           (sortOrder === 'asc' ? (
-            <ChevronUp className='h-3 w-3' />
+            <ChevronUp className='h-[12px] w-[12px]' />
           ) : (
-            <ChevronDown className='h-3 w-3' />
+            <ChevronDown className='h-[12px] w-[12px]' />
           ))}
       </button>
-    </th>
+    </TableHead>
   )
 
   useEffect(() => {
@@ -297,8 +501,6 @@ export function KnowledgeBase({
 
     await Promise.allSettled(markFailedPromises)
   }
-
-  const totalItems = pagination?.total || 0
 
   const handleToggleEnabled = async (docId: string) => {
     const document = documents.find((doc) => doc.id === docId)
@@ -489,7 +691,7 @@ export function KnowledgeBase({
   }
 
   const handleAddDocuments = () => {
-    setShowUploadModal(true)
+    setShowAddDocumentsModal(true)
   }
 
   const handleBulkEnable = async () => {
@@ -628,50 +830,37 @@ export function KnowledgeBase({
   const enabledCount = selectedDocumentsList.filter((doc) => doc.enabled).length
   const disabledCount = selectedDocumentsList.filter((doc) => !doc.enabled).length
 
-  // Breadcrumbs for the knowledge base page
-  const breadcrumbs = [
-    {
-      id: 'knowledge-root',
-      label: 'Knowledge',
-      href: `/workspace/${workspaceId}/knowledge`,
-    },
-    {
-      id: `knowledge-base-${id}`,
-      label: knowledgeBaseName,
-    },
-  ]
-
   // Show loading component while data is being fetched initially
   if ((isLoadingKnowledgeBase || isLoadingDocuments) && !knowledgeBase && documents.length === 0) {
     return <KnowledgeBaseLoading knowledgeBaseName={knowledgeBaseName} />
   }
 
+  // Breadcrumb items for navigation
+  const breadcrumbItems = [
+    { label: 'Knowledge Base', href: `/workspace/${workspaceId}/knowledge` },
+    { label: knowledgeBaseName },
+  ]
+
   // Show error state for knowledge base fetch
   if (error && !knowledgeBase) {
-    const errorBreadcrumbs = [
-      {
-        id: 'knowledge-root',
-        label: 'Knowledge',
-        href: `/workspace/${workspaceId}/knowledge`,
-      },
-      {
-        id: 'error',
-        label: 'Error',
-      },
-    ]
-
     return (
       <div className='flex h-[100vh] flex-col pl-64'>
-        <KnowledgeHeader breadcrumbs={errorBreadcrumbs} />
-        <div className='flex flex-1 items-center justify-center'>
-          <div className='text-center'>
-            <p className='mb-2 text-red-600 text-sm'>Error: {error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className='text-blue-600 text-sm underline hover:text-blue-800'
-            >
-              Try again
-            </button>
+        <div className='flex flex-1 overflow-hidden'>
+          <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+            {/* Breadcrumb */}
+            <Breadcrumb items={breadcrumbItems} />
+
+            <div className='mt-[24px] flex flex-1 items-center justify-center'>
+              <div className='text-center'>
+                <p className='mb-2 text-red-600 text-sm'>Error: {error}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className='text-blue-600 text-sm underline hover:text-blue-800'
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -680,462 +869,392 @@ export function KnowledgeBase({
 
   return (
     <div className='flex h-[100vh] flex-col pl-64'>
-      {/* Fixed Header with Breadcrumbs */}
-      <KnowledgeHeader
-        breadcrumbs={breadcrumbs}
-        options={{
-          knowledgeBaseId: id,
-          currentWorkspaceId: knowledgeBase?.workspaceId || null,
-          onWorkspaceChange: refreshKnowledgeBase,
-          onDeleteKnowledgeBase: () => setShowDeleteDialog(true),
-        }}
-      />
-
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-hidden'>
-          {/* Main Content */}
-          <div className='flex-1 overflow-auto'>
-            <div className='px-6 pb-6'>
-              {/* Search and Filters Section */}
-              <div className='mb-4 flex items-center justify-between pt-1'>
-                <SearchInput
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  placeholder='Search documents...'
-                  isLoading={isLoadingDocuments}
-                />
+        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+          {/* Breadcrumb */}
+          <Breadcrumb items={breadcrumbItems} />
 
-                <div className='flex items-center gap-2'>
-                  {/* Add Documents Button */}
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        onClick={handleAddDocuments}
-                        disabled={userPermissions.canEdit !== true}
-                        variant='primary'
-                        className='flex items-center gap-1'
-                      >
-                        <Plus className='h-3.5 w-3.5' />
-                        Add Documents
-                      </Button>
-                    </Tooltip.Trigger>
-                    {userPermissions.canEdit !== true && (
-                      <Tooltip.Content>Write permission required to add documents</Tooltip.Content>
-                    )}
-                  </Tooltip.Root>
-                </div>
-              </div>
+          {/* Name and actions row */}
+          <div className='mt-[14px] flex items-center justify-between'>
+            <h1 className='font-medium text-[18px]'>{knowledgeBaseName}</h1>
+            <Button onClick={() => setShowDeleteDialog(true)} className='h-[32px] rounded-[6px]'>
+              <Trash className='h-[14px] w-[14px]' />
+            </Button>
+          </div>
 
-              {/* Error State for documents */}
-              {error && !isLoadingKnowledgeBase && (
-                <div className='mb-4 rounded-md border border-red-200 bg-red-50 p-4'>
-                  <p className='text-red-800 text-sm'>Error loading documents: {error}</p>
-                </div>
+          {/* Metadata row */}
+          <div className='mt-[10px] flex items-center gap-[16px]'>
+            <span className='flex items-center gap-[6px] text-[14px] text-[var(--text-tertiary)]'>
+              <DocumentAttachment className='h-[14px] w-[14px]' />
+              {documents.length} {documents.length === 1 ? 'document' : 'documents'}
+            </span>
+            {knowledgeBase?.updatedAt && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <span className='cursor-default text-[14px] text-[var(--text-muted)]'>
+                    last updated: {formatRelativeTime(knowledgeBase.updatedAt)}
+                  </span>
+                </Tooltip.Trigger>
+                <Tooltip.Content>{formatAbsoluteDate(knowledgeBase.updatedAt)}</Tooltip.Content>
+              </Tooltip.Root>
+            )}
+          </div>
+
+          {/* Description */}
+          {knowledgeBase?.description && (
+            <p className='mt-[10px] font-base text-[#888888] text-[14px]'>
+              {knowledgeBase.description}
+            </p>
+          )}
+
+          {/* Search and Add Documents Section */}
+          <div className='mt-[14px] flex items-center justify-between'>
+            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+              <Input
+                placeholder='Search'
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
+              {isLoadingDocuments ? (
+                <div className='h-[14px] w-[14px] animate-spin rounded-full border-2 border-gray-300 border-t-[var(--brand-primary-hex)]' />
+              ) : (
+                searchQuery && (
+                  <button
+                    onClick={() => handleSearchChange('')}
+                    className='text-[var(--text-subtle)] transition-colors hover:text-[var(--text-secondary)]'
+                  >
+                    <X className='h-[14px] w-[14px]' />
+                  </button>
+                )
               )}
+            </div>
 
-              {/* Table container */}
-              <div className='flex flex-1 flex-col overflow-hidden'>
-                {/* Table header - fixed */}
-                <div className='sticky top-0 z-10 overflow-x-auto border-b bg-background'>
-                  <table className='w-full min-w-[700px] table-fixed'>
-                    <colgroup>
-                      <col className='w-[4%]' />
-                      <col className='w-[24%]' />
-                      <col className='w-[8%]' />
-                      <col className='w-[8%]' />
-                      <col className='hidden w-[8%] lg:table-column' />
-                      <col className='w-[16%]' />
-                      <col className='w-[12%]' />
-                      <col className='w-[14%]' />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  onClick={handleAddDocuments}
+                  disabled={userPermissions.canEdit !== true}
+                  variant='primary'
+                  className='h-[32px] rounded-[6px]'
+                >
+                  Add Documents
+                </Button>
+              </Tooltip.Trigger>
+              {userPermissions.canEdit !== true && (
+                <Tooltip.Content>Write permission required to add documents</Tooltip.Content>
+              )}
+            </Tooltip.Root>
+          </div>
+
+          {/* Error State for documents */}
+          {error && !isLoadingKnowledgeBase && (
+            <div className='mt-[24px] rounded-md border border-red-200 bg-red-50 p-4'>
+              <p className='text-red-800 text-sm'>Error loading documents: {error}</p>
+            </div>
+          )}
+
+          {/* Table container */}
+          <div className='mt-[20px] flex flex-1 flex-col overflow-hidden'>
+            <Table className='min-w-[700px] table-auto text-[13px]'>
+              <TableHeader>
+                <TableRow className='hover:bg-transparent'>
+                  <TableHead className='w-[4%] px-[12px] py-[8px]'>
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={handleSelectAll}
+                      disabled={!userPermissions.canEdit}
+                      aria-label='Select all documents'
+                      className='h-[14px] w-[14px] border-[var(--border-2)] focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-[12px] [&>*]:w-[12px]'
+                    />
+                  </TableHead>
+                  {renderSortableHeader('filename', 'Name', 'w-[24%]')}
+                  {renderSortableHeader('fileSize', 'Size', 'w-[8%]')}
+                  {renderSortableHeader('tokenCount', 'Tokens', 'w-[8%]')}
+                  {renderSortableHeader('chunkCount', 'Chunks', 'hidden w-[8%] lg:table-cell')}
+                  {renderSortableHeader('uploadedAt', 'Uploaded', 'w-[16%]')}
+                  {renderSortableHeader('processingStatus', 'Status', 'w-[12%]')}
+                  <TableHead className='w-[14%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+                    Actions
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {documents.length === 0 && !isLoadingDocuments ? (
+                  <TableRow className='hover:bg-transparent'>
+                    <TableCell className='px-[12px] py-[8px]'>
+                      <div className='h-[14px] w-[14px]' />
+                    </TableCell>
+                    <TableCell className='px-[12px] py-[8px]'>
+                      <div className='flex items-center gap-[8px]'>
+                        <span className='text-[13px] text-[var(--text-muted)]'>
+                          {documents.length === 0
+                            ? 'No documents yet'
+                            : 'No documents match your search'}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
+                      —
+                    </TableCell>
+                    <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
+                      —
+                    </TableCell>
+                    <TableCell className='hidden px-[12px] py-[8px] text-[12px] text-[var(--text-muted)] lg:table-cell'>
+                      —
+                    </TableCell>
+                    <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
+                      —
+                    </TableCell>
+                    <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
+                      —
+                    </TableCell>
+                    <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
+                      —
+                    </TableCell>
+                  </TableRow>
+                ) : isLoadingDocuments && documents.length === 0 ? (
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <DocumentTableRowSkeleton key={`loading-${index}`} />
+                  ))
+                ) : (
+                  documents.map((doc) => {
+                    const isSelected = selectedDocuments.has(doc.id)
+                    const statusDisplay = getStatusDisplay(doc)
+
+                    return (
+                      <TableRow
+                        key={doc.id}
+                        className={`${
+                          isSelected ? 'bg-[var(--surface-2)]' : 'hover:bg-[var(--surface-2)]'
+                        } ${doc.processingStatus === 'completed' ? 'cursor-pointer' : 'cursor-default'}`}
+                        onClick={() => {
+                          if (doc.processingStatus === 'completed') {
+                            handleDocumentClick(doc.id)
+                          }
+                        }}
+                      >
+                        <TableCell className='px-[12px] py-[8px]'>
                           <Checkbox
-                            checked={isAllSelected}
-                            onCheckedChange={handleSelectAll}
+                            checked={isSelected}
+                            onCheckedChange={(checked) =>
+                              handleSelectDocument(doc.id, checked as boolean)
+                            }
                             disabled={!userPermissions.canEdit}
-                            aria-label='Select all documents'
-                            className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-3 [&>*]:w-3'
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label={`Select ${doc.filename}`}
+                            className='h-[14px] w-[14px] border-[var(--border-2)] focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-[12px] [&>*]:w-[12px]'
                           />
-                        </th>
-                        {renderSortableHeader('filename', 'Name')}
-                        {renderSortableHeader('fileSize', 'Size')}
-                        {renderSortableHeader('tokenCount', 'Tokens')}
-                        {renderSortableHeader('chunkCount', 'Chunks', 'hidden lg:table-cell')}
-                        {renderSortableHeader('uploadedAt', 'Uploaded')}
-                        {renderSortableHeader('processingStatus', 'Status')}
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                          <span className='text-muted-foreground text-xs leading-none'>
-                            Actions
-                          </span>
-                        </th>
-                      </tr>
-                    </thead>
-                  </table>
-                </div>
-
-                {/* Table body - scrollable */}
-                <div className='flex-1 overflow-auto'>
-                  <table className='w-full min-w-[700px] table-fixed'>
-                    <colgroup>
-                      <col className='w-[4%]' />
-                      <col className='w-[24%]' />
-                      <col className='w-[8%]' />
-                      <col className='w-[8%]' />
-                      <col className='hidden w-[8%] lg:table-column' />
-                      <col className='w-[16%]' />
-                      <col className='w-[12%]' />
-                      <col className='w-[14%]' />
-                    </colgroup>
-                    <tbody>
-                      {documents.length === 0 && !isLoadingDocuments ? (
-                        <tr className='border-b transition-colors hover:bg-accent/30'>
-                          {/* Select column */}
-                          <td className='px-4 py-3'>
-                            <div className='h-3.5 w-3.5' />
-                          </td>
-
-                          {/* Name column */}
-                          <td className='px-4 py-3'>
-                            <div className='flex items-center gap-2'>
-                              <FileText className='h-6 w-5 text-muted-foreground' />
-                              <span className='text-muted-foreground text-sm italic'>
-                                {totalItems === 0
-                                  ? 'No documents yet'
-                                  : 'No documents match your search'}
+                        </TableCell>
+                        <TableCell className='px-[12px] py-[8px]'>
+                          <div className='flex items-center gap-[8px]'>
+                            {getFileIcon(doc.mimeType, doc.filename)}
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <span
+                                  className='block truncate text-[14px] text-[var(--text-primary)]'
+                                  title={doc.filename}
+                                >
+                                  <SearchHighlight text={doc.filename} searchQuery={searchQuery} />
+                                </span>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content side='top'>{doc.filename}</Tooltip.Content>
+                            </Tooltip.Root>
+                          </div>
+                        </TableCell>
+                        <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
+                          {formatFileSize(doc.fileSize)}
+                        </TableCell>
+                        <TableCell className='px-[12px] py-[8px] text-[12px]'>
+                          {doc.processingStatus === 'completed' ? (
+                            doc.tokenCount > 1000 ? (
+                              `${(doc.tokenCount / 1000).toFixed(1)}k`
+                            ) : (
+                              doc.tokenCount.toLocaleString()
+                            )
+                          ) : (
+                            <span className='text-[var(--text-muted)]'>—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className='hidden px-[12px] py-[8px] text-[12px] text-[var(--text-muted)] lg:table-cell'>
+                          {doc.processingStatus === 'completed'
+                            ? doc.chunkCount.toLocaleString()
+                            : '—'}
+                        </TableCell>
+                        <TableCell className='px-[12px] py-[8px]'>
+                          <div className='flex flex-col justify-center'>
+                            <div className='flex items-center font-medium text-[12px]'>
+                              <span>{format(new Date(doc.uploadedAt), 'h:mm a')}</span>
+                              <span className='mx-[6px] hidden text-[var(--text-muted)] xl:inline'>
+                                •
+                              </span>
+                              <span className='hidden text-[var(--text-muted)] xl:inline'>
+                                {format(new Date(doc.uploadedAt), 'MMM d, yyyy')}
                               </span>
                             </div>
-                          </td>
-
-                          {/* Size column */}
-                          <td className='px-4 py-3'>
-                            <div className='text-muted-foreground text-xs'>—</div>
-                          </td>
-
-                          {/* Tokens column */}
-                          <td className='px-4 py-3'>
-                            <div className='text-muted-foreground text-xs'>—</div>
-                          </td>
-
-                          {/* Chunks column - hidden on small screens */}
-                          <td className='hidden px-4 py-3 lg:table-cell'>
-                            <div className='text-muted-foreground text-xs'>—</div>
-                          </td>
-
-                          {/* Upload Time column */}
-                          <td className='px-4 py-3'>
-                            <div className='text-muted-foreground text-xs'>—</div>
-                          </td>
-
-                          {/* Status column */}
-                          <td className='px-4 py-3'>
-                            <div className='text-muted-foreground text-xs'>—</div>
-                          </td>
-
-                          {/* Actions column */}
-                          <td className='px-4 py-3'>
-                            <div className='text-muted-foreground text-xs'>—</div>
-                          </td>
-                        </tr>
-                      ) : isLoadingDocuments && documents.length === 0 ? (
-                        Array.from({ length: 5 }).map((_, index) => (
-                          <tr key={`loading-${index}`} className='border-b transition-colors'>
-                            <td className='px-4 py-3'>
-                              <div className='h-3.5 w-3.5 animate-pulse rounded bg-muted' />
-                            </td>
-                            <td className='px-4 py-3'>
-                              <div className='h-4 w-32 animate-pulse rounded bg-muted' />
-                            </td>
-                            <td className='px-4 py-3'>
-                              <div className='h-4 w-16 animate-pulse rounded bg-muted' />
-                            </td>
-                            <td className='px-4 py-3'>
-                              <div className='h-4 w-12 animate-pulse rounded bg-muted' />
-                            </td>
-                            <td className='hidden px-4 py-3 lg:table-cell'>
-                              <div className='h-4 w-12 animate-pulse rounded bg-muted' />
-                            </td>
-                            <td className='px-4 py-3'>
-                              <div className='h-4 w-20 animate-pulse rounded bg-muted' />
-                            </td>
-                            <td className='px-4 py-3'>
-                              <div className='h-4 w-16 animate-pulse rounded bg-muted' />
-                            </td>
-                            <td className='px-4 py-3'>
-                              <div className='h-4 w-20 animate-pulse rounded bg-muted' />
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        documents.map((doc) => {
-                          const isSelected = selectedDocuments.has(doc.id)
-                          const statusDisplay = getStatusDisplay(doc)
-                          // const processingTime = getProcessingTime(doc)
-
-                          return (
-                            <tr
-                              key={doc.id}
-                              className={`border-b transition-colors hover:bg-accent/30 ${
-                                isSelected ? 'bg-accent/30' : ''
-                              } ${doc.processingStatus === 'completed' ? 'cursor-pointer' : 'cursor-default'}`}
-                              onClick={() => {
-                                if (doc.processingStatus === 'completed') {
-                                  handleDocumentClick(doc.id)
-                                }
-                              }}
-                            >
-                              {/* Select column */}
-                              <td className='px-4 py-3'>
-                                <Checkbox
-                                  checked={isSelected}
-                                  onCheckedChange={(checked) =>
-                                    handleSelectDocument(doc.id, checked as boolean)
+                            <div className='mt-[2px] text-[12px] text-[var(--text-muted)] lg:hidden'>
+                              {format(new Date(doc.uploadedAt), 'MMM d')}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className='px-[12px] py-[8px]'>
+                          {doc.processingStatus === 'failed' && doc.processingError ? (
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <div className={statusDisplay.className} style={{ cursor: 'help' }}>
+                                  {statusDisplay.text}
+                                </div>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content side='top' className='max-w-xs'>
+                                {doc.processingError}
+                              </Tooltip.Content>
+                            </Tooltip.Root>
+                          ) : (
+                            <div className={statusDisplay.className}>{statusDisplay.text}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className='px-[12px] py-[8px]'>
+                          <div className='flex items-center gap-[4px]'>
+                            {doc.processingStatus === 'failed' && (
+                              <Tooltip.Root>
+                                <Tooltip.Trigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleRetryDocument(doc.id)
+                                    }}
+                                    className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                  >
+                                    <RotateCcw className='h-[14px] w-[14px]' />
+                                  </Button>
+                                </Tooltip.Trigger>
+                                <Tooltip.Content side='top'>Retry processing</Tooltip.Content>
+                              </Tooltip.Root>
+                            )}
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleToggleEnabled(doc.id)
+                                  }}
+                                  disabled={
+                                    doc.processingStatus === 'processing' ||
+                                    doc.processingStatus === 'pending' ||
+                                    !userPermissions.canEdit
                                   }
-                                  disabled={!userPermissions.canEdit}
-                                  onClick={(e) => e.stopPropagation()}
-                                  aria-label={`Select ${doc.filename}`}
-                                  className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-3 [&>*]:w-3'
-                                />
-                              </td>
-
-                              {/* Name column */}
-                              <td className='px-4 py-3'>
-                                <div className='flex items-center gap-2'>
-                                  {getFileIcon(doc.mimeType, doc.filename)}
-                                  <Tooltip.Root>
-                                    <Tooltip.Trigger asChild>
-                                      <span className='block truncate text-sm' title={doc.filename}>
-                                        <SearchHighlight
-                                          text={doc.filename}
-                                          searchQuery={searchQuery}
-                                        />
-                                      </span>
-                                    </Tooltip.Trigger>
-                                    <Tooltip.Content side='top'>{doc.filename}</Tooltip.Content>
-                                  </Tooltip.Root>
-                                </div>
-                              </td>
-
-                              {/* Size column */}
-                              <td className='px-4 py-3'>
-                                <div className='text-muted-foreground text-xs'>
-                                  {formatFileSize(doc.fileSize)}
-                                </div>
-                              </td>
-
-                              {/* Tokens column */}
-                              <td className='px-4 py-3'>
-                                <div className='text-xs'>
-                                  {doc.processingStatus === 'completed' ? (
-                                    doc.tokenCount > 1000 ? (
-                                      `${(doc.tokenCount / 1000).toFixed(1)}k`
-                                    ) : (
-                                      doc.tokenCount.toLocaleString()
-                                    )
+                                  className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50'
+                                >
+                                  {doc.enabled ? (
+                                    <Circle className='h-[14px] w-[14px]' />
                                   ) : (
-                                    <div className='text-muted-foreground'>—</div>
+                                    <CircleOff className='h-[14px] w-[14px]' />
                                   )}
-                                </div>
-                              </td>
-
-                              {/* Chunks column - hidden on small screens */}
-                              <td className='hidden px-4 py-3 lg:table-cell'>
-                                <div className='text-muted-foreground text-xs'>
-                                  {doc.processingStatus === 'completed'
-                                    ? doc.chunkCount.toLocaleString()
-                                    : '—'}
-                                </div>
-                              </td>
-
-                              {/* Upload Time column */}
-                              <td className='px-4 py-3'>
-                                <div className='flex flex-col justify-center'>
-                                  <div className='flex items-center font-medium text-xs'>
-                                    <span>{format(new Date(doc.uploadedAt), 'h:mm a')}</span>
-                                    <span className='mx-1.5 hidden text-muted-foreground xl:inline'>
-                                      •
-                                    </span>
-                                    <span className='hidden text-muted-foreground xl:inline'>
-                                      {format(new Date(doc.uploadedAt), 'MMM d, yyyy')}
-                                    </span>
-                                  </div>
-                                  <div className='mt-0.5 text-muted-foreground text-xs lg:hidden'>
-                                    {format(new Date(doc.uploadedAt), 'MMM d')}
-                                  </div>
-                                </div>
-                              </td>
-
-                              {/* Status column */}
-                              <td className='px-4 py-3'>
-                                {doc.processingStatus === 'failed' && doc.processingError ? (
-                                  <Tooltip.Root>
-                                    <Tooltip.Trigger asChild>
-                                      <div
-                                        className={statusDisplay.className}
-                                        style={{ cursor: 'help' }}
-                                      >
-                                        {statusDisplay.text}
-                                      </div>
-                                    </Tooltip.Trigger>
-                                    <Tooltip.Content side='top' className='max-w-xs'>
-                                      {doc.processingError}
-                                    </Tooltip.Content>
-                                  </Tooltip.Root>
-                                ) : (
-                                  <div className={statusDisplay.className}>
-                                    {statusDisplay.text}
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* Actions column */}
-                              <td className='px-4 py-3'>
-                                <div className='flex items-center gap-1'>
-                                  {doc.processingStatus === 'failed' && (
-                                    <Tooltip.Root>
-                                      <Tooltip.Trigger asChild>
-                                        <Button
-                                          variant='ghost'
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleRetryDocument(doc.id)
-                                          }}
-                                          className='h-8 w-8 p-0 text-gray-500 hover:text-gray-700'
-                                        >
-                                          <RotateCcw className='h-4 w-4' />
-                                        </Button>
-                                      </Tooltip.Trigger>
-                                      <Tooltip.Content side='top'>Retry processing</Tooltip.Content>
-                                    </Tooltip.Root>
-                                  )}
-
-                                  <Tooltip.Root>
-                                    <Tooltip.Trigger asChild>
-                                      <Button
-                                        variant='ghost'
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          handleToggleEnabled(doc.id)
-                                        }}
-                                        disabled={
-                                          doc.processingStatus === 'processing' ||
-                                          doc.processingStatus === 'pending' ||
-                                          !userPermissions.canEdit
-                                        }
-                                        className='h-8 w-8 p-0 text-gray-500 hover:text-gray-700 disabled:opacity-50'
-                                      >
-                                        {doc.enabled ? (
-                                          <Circle className='h-4 w-4' />
-                                        ) : (
-                                          <CircleOff className='h-4 w-4' />
-                                        )}
-                                      </Button>
-                                    </Tooltip.Trigger>
-                                    <Tooltip.Content side='top'>
-                                      {doc.processingStatus === 'processing' ||
-                                      doc.processingStatus === 'pending'
-                                        ? 'Cannot modify while processing'
-                                        : !userPermissions.canEdit
-                                          ? 'Write permission required to modify documents'
-                                          : doc.enabled
-                                            ? 'Disable Document'
-                                            : 'Enable Document'}
-                                    </Tooltip.Content>
-                                  </Tooltip.Root>
-
-                                  <Tooltip.Root>
-                                    <Tooltip.Trigger asChild>
-                                      <Button
-                                        variant='ghost'
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          handleDeleteDocument(doc.id)
-                                        }}
-                                        disabled={
-                                          doc.processingStatus === 'processing' ||
-                                          !userPermissions.canEdit
-                                        }
-                                        className='h-8 w-8 p-0 text-gray-500 hover:text-red-600 disabled:opacity-50'
-                                      >
-                                        <Trash className='h-[14px] w-[14px]' />
-                                      </Button>
-                                    </Tooltip.Trigger>
-                                    <Tooltip.Content side='top'>
-                                      {doc.processingStatus === 'processing'
-                                        ? 'Cannot delete while processing'
-                                        : !userPermissions.canEdit
-                                          ? 'Write permission required to delete documents'
-                                          : 'Delete Document'}
-                                    </Tooltip.Content>
-                                  </Tooltip.Root>
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination Controls */}
-                {totalPages > 1 && (
-                  <div className='flex items-center justify-center border-t bg-background px-6 py-4'>
-                    <div className='flex items-center gap-1'>
-                      <Button
-                        variant='ghost'
-                        onClick={prevPage}
-                        disabled={!hasPrevPage || isLoadingDocuments}
-                        className='h-8 w-8 p-0'
-                      >
-                        <ChevronLeft className='h-4 w-4' />
-                      </Button>
-
-                      {/* Page numbers - show a few around current page */}
-                      <div className='mx-4 flex items-center gap-6'>
-                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                          let page: number
-                          if (totalPages <= 5) {
-                            page = i + 1
-                          } else if (currentPage <= 3) {
-                            page = i + 1
-                          } else if (currentPage >= totalPages - 2) {
-                            page = totalPages - 4 + i
-                          } else {
-                            page = currentPage - 2 + i
-                          }
-
-                          if (page < 1 || page > totalPages) return null
-
-                          return (
-                            <button
-                              key={page}
-                              onClick={() => goToPage(page)}
-                              disabled={isLoadingDocuments}
-                              className={`font-medium text-sm transition-colors hover:text-foreground disabled:opacity-50 ${
-                                page === currentPage ? 'text-foreground' : 'text-muted-foreground'
-                              }`}
-                            >
-                              {page}
-                            </button>
-                          )
-                        })}
-                      </div>
-
-                      <Button
-                        variant='ghost'
-                        onClick={nextPage}
-                        disabled={!hasNextPage || isLoadingDocuments}
-                        className='h-8 w-8 p-0'
-                      >
-                        <ChevronRight className='h-4 w-4' />
-                      </Button>
-                    </div>
-                  </div>
+                                </Button>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content side='top'>
+                                {doc.processingStatus === 'processing' ||
+                                doc.processingStatus === 'pending'
+                                  ? 'Cannot modify while processing'
+                                  : !userPermissions.canEdit
+                                    ? 'Write permission required to modify documents'
+                                    : doc.enabled
+                                      ? 'Disable Document'
+                                      : 'Enable Document'}
+                              </Tooltip.Content>
+                            </Tooltip.Root>
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDeleteDocument(doc.id)
+                                  }}
+                                  disabled={
+                                    doc.processingStatus === 'processing' ||
+                                    !userPermissions.canEdit
+                                  }
+                                  className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-error)] disabled:opacity-50'
+                                >
+                                  <Trash className='h-[14px] w-[14px]' />
+                                </Button>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content side='top'>
+                                {doc.processingStatus === 'processing'
+                                  ? 'Cannot delete while processing'
+                                  : !userPermissions.canEdit
+                                    ? 'Write permission required to delete documents'
+                                    : 'Delete Document'}
+                              </Tooltip.Content>
+                            </Tooltip.Root>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
                 )}
+              </TableBody>
+            </Table>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className='flex items-center justify-center border-t bg-background px-6 py-4'>
+                <div className='flex items-center gap-1'>
+                  <Button
+                    variant='ghost'
+                    onClick={prevPage}
+                    disabled={!hasPrevPage || isLoadingDocuments}
+                    className='h-8 w-8 p-0'
+                  >
+                    <ChevronLeft className='h-4 w-4' />
+                  </Button>
+
+                  {/* Page numbers - show a few around current page */}
+                  <div className='mx-4 flex items-center gap-6'>
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      let page: number
+                      if (totalPages <= 5) {
+                        page = i + 1
+                      } else if (currentPage <= 3) {
+                        page = i + 1
+                      } else if (currentPage >= totalPages - 2) {
+                        page = totalPages - 4 + i
+                      } else {
+                        page = currentPage - 2 + i
+                      }
+
+                      if (page < 1 || page > totalPages) return null
+
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => goToPage(page)}
+                          disabled={isLoadingDocuments}
+                          className={`font-medium text-sm transition-colors hover:text-foreground disabled:opacity-50 ${
+                            page === currentPage ? 'text-foreground' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <Button
+                    variant='ghost'
+                    onClick={nextPage}
+                    disabled={!hasNextPage || isLoadingDocuments}
+                    className='h-8 w-8 p-0'
+                  >
+                    <ChevronRight className='h-4 w-4' />
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -1147,8 +1266,8 @@ export function KnowledgeBase({
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
               Are you sure you want to delete "{knowledgeBaseName}"? This will permanently delete
-              the knowledge base and all {totalItems} document
-              {totalItems === 1 ? '' : 's'} within it.{' '}
+              the knowledge base and all {documents.length} document
+              {documents.length === 1 ? '' : 's'} within it.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
@@ -1172,10 +1291,10 @@ export function KnowledgeBase({
         </ModalContent>
       </Modal>
 
-      {/* Upload Modal */}
-      <UploadModal
-        open={showUploadModal}
-        onOpenChange={setShowUploadModal}
+      {/* Add Documents Modal */}
+      <AddDocumentsModal
+        open={showAddDocumentsModal}
+        onOpenChange={setShowAddDocumentsModal}
         knowledgeBaseId={id}
         chunkingConfig={knowledgeBase?.chunkingConfig}
         onUploadComplete={refreshDocuments}

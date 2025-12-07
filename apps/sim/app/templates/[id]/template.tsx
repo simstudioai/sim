@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import {
-  ArrowLeft,
   ChartNoAxesColumn,
   ChevronDown,
   Globe,
@@ -16,6 +15,7 @@ import {
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import {
+  Breadcrumb,
   Button,
   Copy,
   Popover,
@@ -267,13 +267,13 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     }
   }
 
-  const handleBack = () => {
-    if (isWorkspaceContext) {
-      router.back()
-    } else {
-      router.push('/templates')
-    }
-  }
+  const breadcrumbItems = [
+    {
+      label: 'Templates',
+      href: isWorkspaceContext ? `/workspace/${workspaceId}/templates` : '/templates',
+    },
+    { label: template?.name || 'Template' },
+  ]
   /**
    * Intercepts wheel events over the workflow preview so that the page handles scrolling
    * instead of the underlying canvas. We stop propagation in the capture phase to prevent
@@ -545,20 +545,11 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     <div className={cn('flex min-h-screen flex-col', isWorkspaceContext && 'pl-64')}>
       <div className='flex flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
-          {/* Top bar with back button */}
-          <div className='flex items-center justify-between'>
-            {/* Back button */}
-            <button
-              onClick={handleBack}
-              className='flex items-center gap-[6px] font-medium text-[#ADADAD] text-[14px] transition-colors hover:text-white'
-            >
-              <ArrowLeft className='h-[14px] w-[14px]' />
-              <span>More Templates</span>
-            </button>
-          </div>
+          {/* Breadcrumb navigation */}
+          <Breadcrumb items={breadcrumbItems} />
 
           {/* Template name and action buttons */}
-          <div className='mt-[24px] flex items-center justify-between'>
+          <div className='mt-[14px] flex items-center justify-between'>
             <h1 className='font-medium text-[18px]'>{template.name}</h1>
 
             {/* Action buttons */}

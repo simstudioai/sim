@@ -792,6 +792,7 @@ export function ToolInput({
   const [searchQuery, setSearchQuery] = useState('')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [usageControlPopoverIndex, setUsageControlPopoverIndex] = useState<number | null>(null)
   const { data: customTools = [] } = useCustomTools(workspaceId)
 
   const {
@@ -2026,7 +2027,12 @@ export function ToolInput({
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-[8px]'>
                     {supportsToolControl && (
-                      <Popover>
+                      <Popover
+                        open={usageControlPopoverIndex === toolIndex}
+                        onOpenChange={(open) =>
+                          setUsageControlPopoverIndex(open ? toolIndex : null)
+                        }
+                      >
                         <PopoverTrigger asChild>
                           <button
                             className='flex items-center justify-center font-medium text-[12px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
@@ -2048,20 +2054,29 @@ export function ToolInput({
                         >
                           <PopoverItem
                             active={(tool.usageControl || 'auto') === 'auto'}
-                            onClick={() => handleUsageControlChange(toolIndex, 'auto')}
+                            onClick={() => {
+                              handleUsageControlChange(toolIndex, 'auto')
+                              setUsageControlPopoverIndex(null)
+                            }}
                           >
                             Auto{' '}
                             <span className='text-[var(--text-tertiary)]'>(model decides)</span>
                           </PopoverItem>
                           <PopoverItem
                             active={tool.usageControl === 'force'}
-                            onClick={() => handleUsageControlChange(toolIndex, 'force')}
+                            onClick={() => {
+                              handleUsageControlChange(toolIndex, 'force')
+                              setUsageControlPopoverIndex(null)
+                            }}
                           >
                             Force <span className='text-[var(--text-tertiary)]'>(always use)</span>
                           </PopoverItem>
                           <PopoverItem
                             active={tool.usageControl === 'none'}
-                            onClick={() => handleUsageControlChange(toolIndex, 'none')}
+                            onClick={() => {
+                              handleUsageControlChange(toolIndex, 'none')
+                              setUsageControlPopoverIndex(null)
+                            }}
                           >
                             None
                           </PopoverItem>

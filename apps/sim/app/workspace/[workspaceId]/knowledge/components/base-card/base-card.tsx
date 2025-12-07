@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { Badge, DocumentAttachment, Tooltip } from '@/components/emcn'
 
-interface BaseOverviewProps {
+interface BaseCardProps {
   id?: string
   title: string
   docCount: number
@@ -63,9 +63,53 @@ function formatAbsoluteDate(dateString: string): string {
 }
 
 /**
+ * Skeleton placeholder for a knowledge base card
+ */
+export function BaseCardSkeleton() {
+  return (
+    <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-elevated)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-5)]'>
+      <div className='flex items-center justify-between gap-[8px]'>
+        <div className='h-[14px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-9)]' />
+        <div className='h-[22px] w-[90px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+      </div>
+
+      <div className='flex flex-1 flex-col gap-[8px]'>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-[6px]'>
+            <div className='h-[12px] w-[12px] animate-pulse rounded-[2px] bg-[var(--surface-9)]' />
+            <div className='h-[12px] w-[45px] animate-pulse rounded-[4px] bg-[var(--surface-9)]' />
+          </div>
+          <div className='h-[12px] w-[100px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+        </div>
+
+        <div className='h-0 w-full border-[var(--divider)] border-t' />
+
+        <div className='flex h-[36px] flex-col gap-[6px]'>
+          <div className='h-[12px] w-full animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+          <div className='h-[12px] w-[75%] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Renders multiple knowledge base card skeletons as a fragment
+ */
+export function BaseCardSkeletonGrid({ count = 8 }: { count?: number }) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <BaseCardSkeleton key={i} />
+      ))}
+    </>
+  )
+}
+
+/**
  * Knowledge base card component displaying overview information
  */
-export function BaseOverview({ id, title, docCount, description, updatedAt }: BaseOverviewProps) {
+export function BaseCard({ id, title, docCount, description, updatedAt }: BaseCardProps) {
   const params = useParams()
   const workspaceId = params?.workspaceId as string
 

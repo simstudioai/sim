@@ -23,13 +23,13 @@ import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 
-const logger = createLogger('CreateModal')
+const logger = createLogger('CreateBaseModal')
 
 interface FileWithPreview extends File {
   preview: string
 }
 
-interface CreateModalProps {
+interface CreateBaseModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onKnowledgeBaseCreated?: (knowledgeBase: KnowledgeBaseData) => void
@@ -68,7 +68,11 @@ interface SubmitStatus {
   message: string
 }
 
-export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: CreateModalProps) {
+export function CreateBaseModal({
+  open,
+  onOpenChange,
+  onKnowledgeBaseCreated,
+}: CreateBaseModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 

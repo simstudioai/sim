@@ -1,3 +1,3 @@
+export { KnowledgeBaseLoading } from '../base'
 export { ActionBar } from './action-bar/action-bar'
-export { KnowledgeBaseLoading } from './knowledge-base-loading/knowledge-base-loading'
-export { UploadModal } from './upload-modal/upload-modal'
+export { AddDocumentsModal } from './add-documents-modal/add-doucments-modal'
