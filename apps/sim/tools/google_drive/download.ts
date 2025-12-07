@@ -45,7 +45,7 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
 
   request: {
     url: (params) =>
-      `https://www.googleapis.com/drive/v3/files/${params.fileId}?fields=id,name,mimeType`,
+      `https://www.googleapis.com/drive/v3/files/${params.fileId}?fields=id,name,mimeType&supportsAllDrives=true`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -83,7 +83,7 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
         })
 
         const exportResponse = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportFormat)}`,
+          `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportFormat)}&supportsAllDrives=true`,
           {
             headers: {
               Authorization: authHeader,
@@ -110,7 +110,7 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
         })
 
         const downloadResponse = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
           {
             headers: {
               Authorization: authHeader,
