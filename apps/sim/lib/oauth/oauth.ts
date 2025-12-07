@@ -840,7 +840,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'salesforce',
         icon: (props) => SalesforceIcon(props),
         baseProviderIcon: (props) => SalesforceIcon(props),
-        scopes: ['api', 'refresh_token', 'openid'],
+        scopes: ['api', 'refresh_token', 'openid', 'offline_access'],
       },
     },
     defaultService: 'salesforce',
@@ -1427,7 +1427,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
-        supportsRefreshTokenRotation: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'shopify': {
@@ -1546,9 +1546,15 @@ export async function refreshOAuthToken(
 
       logger.error('Token refresh failed:', {
         status: response.status,
+        statusText: response.statusText,
         error: errorText,
         parsedError: errorData,
         providerId,
+        tokenEndpoint: config.tokenEndpoint,
+        hasClientId: !!config.clientId,
+        hasClientSecret: !!config.clientSecret,
+        hasRefreshToken: !!refreshToken,
+        refreshTokenPrefix: refreshToken ? `${refreshToken.substring(0, 10)}...` : 'none',
       })
       throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
     }
