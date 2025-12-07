@@ -451,22 +451,38 @@ function countSearchMatches(code: string, searchQuery: string): number {
 }
 
 /**
+ * Props for inner viewer components (with defaults already applied).
+ */
+type ViewerInnerProps = {
+  code: string
+  showGutter: boolean
+  language: 'javascript' | 'json' | 'python'
+  className?: string
+  paddingLeft: number
+  gutterStyle?: React.CSSProperties
+  wrapText: boolean
+  searchQuery?: string
+  currentMatchIndex: number
+  onMatchCountChange?: (count: number) => void
+  contentRef?: React.RefObject<HTMLDivElement | null>
+}
+
+/**
  * Virtualized code viewer implementation using react-window.
- * Only rendered when virtualized={true} is passed to Code.Viewer.
  */
 const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
   code,
-  showGutter = true,
-  language = 'json',
+  showGutter,
+  language,
   className,
-  paddingLeft = 0,
+  paddingLeft,
   gutterStyle,
-  wrapText = false,
+  wrapText,
   searchQuery,
-  currentMatchIndex = 0,
+  currentMatchIndex,
   onMatchCountChange,
   contentRef,
-}: Omit<CodeViewerProps, 'virtualized'>) {
+}: ViewerInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const listRef = useListRef(null)
   const [containerHeight, setContainerHeight] = useState(400)
@@ -640,39 +656,22 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
  * />
  * ```
  */
-function Viewer({
+/**
+ * Non-virtualized code viewer implementation.
+ */
+function ViewerInner({
   code,
-  showGutter = false,
-  language = 'json',
+  showGutter,
+  language,
   className,
-  paddingLeft = 0,
+  paddingLeft,
   gutterStyle,
-  wrapText = false,
+  wrapText,
   searchQuery,
-  currentMatchIndex = 0,
+  currentMatchIndex,
   onMatchCountChange,
   contentRef,
-  virtualized = false,
-}: CodeViewerProps) {
-  // Use virtualized rendering for large outputs
-  if (virtualized) {
-    return (
-      <VirtualizedViewerInner
-        code={code}
-        showGutter={showGutter}
-        language={language}
-        className={className}
-        paddingLeft={paddingLeft}
-        gutterStyle={gutterStyle}
-        wrapText={wrapText}
-        searchQuery={searchQuery}
-        currentMatchIndex={currentMatchIndex}
-        onMatchCountChange={onMatchCountChange}
-        contentRef={contentRef}
-      />
-    )
-  }
-
+}: ViewerInnerProps) {
   // Compute match count and notify parent
   const matchCount = useMemo(() => countSearchMatches(code, searchQuery || ''), [code, searchQuery])
 
@@ -684,7 +683,6 @@ function Viewer({
   const whitespaceClass = wrapText ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
 
   // Special rendering path: when wrapping with gutter, render per-line rows so gutter stays aligned.
-  // This mimics editors that show a single line number for a logical line and "empty" gutter area for wrapped lines.
   if (showGutter && wrapText) {
     const lines = code.split('\n')
     const gutterWidth = calculateGutterWidth(lines.length)
@@ -808,6 +806,41 @@ function Viewer({
       </Content>
     </Container>
   )
+}
+
+/**
+ * Readonly code viewer with optional gutter and syntax highlighting.
+ * Routes to either standard or virtualized implementation based on the `virtualized` prop.
+ */
+function Viewer({
+  code,
+  showGutter = false,
+  language = 'json',
+  className,
+  paddingLeft = 0,
+  gutterStyle,
+  wrapText = false,
+  searchQuery,
+  currentMatchIndex = 0,
+  onMatchCountChange,
+  contentRef,
+  virtualized = false,
+}: CodeViewerProps) {
+  const innerProps: ViewerInnerProps = {
+    code,
+    showGutter,
+    language,
+    className,
+    paddingLeft,
+    gutterStyle,
+    wrapText,
+    searchQuery,
+    currentMatchIndex,
+    onMatchCountChange,
+    contentRef,
+  }
+
+  return virtualized ? <VirtualizedViewerInner {...innerProps} /> : <ViewerInner {...innerProps} />
 }
 
 export const Code = {
