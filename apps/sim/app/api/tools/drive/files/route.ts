@@ -12,6 +12,62 @@ function escapeForDriveQuery(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
 
+interface SharedDrive {
+  id: string
+  name: string
+  kind: string
+}
+
+interface DriveFile {
+  id: string
+  name: string
+  mimeType: string
+  iconLink?: string
+  webViewLink?: string
+  thumbnailLink?: string
+  createdTime?: string
+  modifiedTime?: string
+  size?: string
+  owners?: any[]
+  parents?: string[]
+}
+
+/**
+ * Fetches shared drives the user has access to
+ */
+async function fetchSharedDrives(accessToken: string, requestId: string): Promise<DriveFile[]> {
+  try {
+    const response = await fetch(
+      'https://www.googleapis.com/drive/v3/drives?pageSize=100&fields=drives(id,name)',
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      logger.warn(`[${requestId}] Failed to fetch shared drives`, {
+        status: response.status,
+      })
+      return []
+    }
+
+    const data = await response.json()
+    const drives: SharedDrive[] = data.drives || []
+
+    return drives.map((drive) => ({
+      id: drive.id,
+      name: drive.name,
+      mimeType: 'application/vnd.google-apps.folder',
+      iconLink: 'https://ssl.gstatic.com/docs/doclist/images/icon_11_shared_collection_list_1.png',
+    }))
+  } catch (error) {
+    logger.error(`[${requestId}] Error fetching shared drives`, error)
+    return []
+  }
+}
+
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Google Drive files request received`)
@@ -65,7 +121,7 @@ export async function GET(request: NextRequest) {
     const q = encodeURIComponent(qParts.join(' and '))
 
     const response = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=${q}&supportsAllDrives=true&includeItemsFromAllDrives=true&spaces=drive&fields=files(id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners,parents)`,
+      `https://www.googleapis.com/drive/v3/files?q=${q}&corpora=allDrives&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners,parents)`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -88,14 +144,28 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json()
-    let files = data.files || []
+    let files: DriveFile[] = data.files || []
 
     if (mimeType === 'application/vnd.google-apps.spreadsheet') {
       files = files.filter(
-        (file: any) => file.mimeType === 'application/vnd.google-apps.spreadsheet'
+        (file: DriveFile) => file.mimeType === 'application/vnd.google-apps.spreadsheet'
       )
     } else if (mimeType === 'application/vnd.google-apps.document') {
-      files = files.filter((file: any) => file.mimeType === 'application/vnd.google-apps.document')
+      files = files.filter(
+        (file: DriveFile) => file.mimeType === 'application/vnd.google-apps.document'
+      )
+    }
+
+    // When listing root-level folders (no folderId specified) and looking for folders,
+    // also include shared drives so users can navigate into them
+    const isRootFolderListing =
+      !folderId && mimeType === 'application/vnd.google-apps.folder' && !query
+    if (isRootFolderListing) {
+      const sharedDrives = await fetchSharedDrives(accessToken, requestId)
+      if (sharedDrives.length > 0) {
+        logger.info(`[${requestId}] Found ${sharedDrives.length} shared drives`)
+        files = [...sharedDrives, ...files]
+      }
     }
 
     return NextResponse.json({ files }, { status: 200 })

@@ -57,6 +57,36 @@ export async function GET(request: NextRequest) {
       }
     )
 
+    // If file not found, check if it's a shared drive ID
+    if (!response.ok && response.status === 404) {
+      logger.info(`[${requestId}] File not found, checking if it's a shared drive`)
+      const driveResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/drives/${fileId}?fields=id,name`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      )
+
+      if (driveResponse.ok) {
+        const driveData = await driveResponse.json()
+        logger.info(`[${requestId}] Found shared drive: ${driveData.name}`)
+        return NextResponse.json(
+          {
+            file: {
+              id: driveData.id,
+              name: driveData.name,
+              mimeType: 'application/vnd.google-apps.folder',
+              iconLink:
+                'https://ssl.gstatic.com/docs/doclist/images/icon_11_shared_collection_list_1.png',
+            },
+          },
+          { status: 200 }
+        )
+      }
+    }
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
       logger.error(`[${requestId}] Google Drive API error`, {
@@ -112,12 +142,12 @@ export async function GET(request: NextRequest) {
       if (!file.exportLinks) {
         file.downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=${encodeURIComponent(
           format
-        )}`
+        )}&supportsAllDrives=true`
       } else {
         file.downloadUrl = file.exportLinks[format]
       }
     } else {
-      file.downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`
+      file.downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&supportsAllDrives=true`
     }
 
     return NextResponse.json({ file }, { status: 200 })
