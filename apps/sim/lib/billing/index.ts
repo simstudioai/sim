@@ -23,6 +23,8 @@ export {
   getUserUsageLimit as getUsageLimit,
   updateUserUsageLimit as updateUsageLimit,
 } from '@/lib/billing/core/usage'
+export * from '@/lib/billing/credits/balance'
+export * from '@/lib/billing/credits/purchase'
 export * from '@/lib/billing/subscriptions/utils'
 export { canEditUsageLimit as canEditLimit } from '@/lib/billing/subscriptions/utils'
 export * from '@/lib/billing/types'

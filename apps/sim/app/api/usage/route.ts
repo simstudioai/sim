@@ -111,7 +111,10 @@ export async function PUT(request: NextRequest) {
     const userId = session.user.id
 
     if (context === 'user') {
-      await updateUserUsageLimit(userId, limit)
+      const result = await updateUserUsageLimit(userId, limit)
+      if (!result.success) {
+        return NextResponse.json({ error: result.error }, { status: 400 })
+      }
     } else if (context === 'organization') {
       // organizationId is guaranteed to exist by Zod refinement
       const hasPermission = await isOrganizationOwnerOrAdmin(session.user.id, organizationId!)
