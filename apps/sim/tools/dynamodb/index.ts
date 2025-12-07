@@ -5,4 +5,9 @@ import { queryTool } from './query'
 import { scanTool } from './scan'
 import { updateTool } from './update'
 
-export { deleteTool, getTool, putTool, queryTool, scanTool, updateTool }
+export const dynamodbDeleteTool = deleteTool
+export const dynamodbGetTool = getTool
+export const dynamodbPutTool = putTool
+export const dynamodbQueryTool = queryTool
+export const dynamodbScanTool = scanTool
+export const dynamodbUpdateTool = updateTool

@@ -40,7 +40,7 @@ export const listMembersTool: ToolConfig<GoogleGroupsListMembersParams, GoogleGr
     roles: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Filter by roles (comma-separated: OWNER, MANAGER, MEMBER)',
     },
   },

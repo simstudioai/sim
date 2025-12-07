@@ -34,7 +34,7 @@ export const addMemberTool: ToolConfig<GoogleGroupsAddMemberParams, GoogleGroups
     role: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Role for the member (MEMBER, MANAGER, or OWNER). Defaults to MEMBER.',
     },
   },

@@ -145,12 +145,12 @@ import {
   dropboxUploadTool,
 } from '@/tools/dropbox'
 import {
-  deleteTool as dynamodbDeleteTool,
-  getTool as dynamodbGetTool,
-  putTool as dynamodbPutTool,
-  queryTool as dynamodbQueryTool,
-  scanTool as dynamodbScanTool,
-  updateTool as dynamodbUpdateTool,
+  dynamodbDeleteTool,
+  dynamodbGetTool,
+  dynamodbPutTool,
+  dynamodbQueryTool,
+  dynamodbScanTool,
+  dynamodbUpdateTool,
 } from '@/tools/dynamodb'
 import {
   elasticsearchBulkTool,
@@ -176,11 +176,11 @@ import {
 } from '@/tools/exa'
 import { fileParseTool } from '@/tools/file'
 import {
-  crawlTool,
-  extractTool,
-  searchTool as firecrawlSearchTool,
-  mapTool,
-  scrapeTool,
+  firecrawlCrawlTool,
+  firecrawlExtractTool,
+  firecrawlMapTool,
+  firecrawlScrapeTool,
+  firecrawlSearchTool,
 } from '@/tools/firecrawl'
 import { functionExecuteTool } from '@/tools/function'
 import {
@@ -272,7 +272,7 @@ import {
   gmailSendTool,
   gmailUnarchiveTool,
 } from '@/tools/gmail'
-import { searchTool as googleSearchTool } from '@/tools/google'
+import { googleSearchTool } from '@/tools/google'
 import {
   googleCalendarCreateTool,
   googleCalendarGetTool,
@@ -290,17 +290,17 @@ import {
 } from '@/tools/google_drive'
 import { googleFormsGetResponsesTool } from '@/tools/google_form'
 import {
-  addMemberTool as googleGroupsAddMemberTool,
-  createGroupTool as googleGroupsCreateGroupTool,
-  deleteGroupTool as googleGroupsDeleteGroupTool,
-  getGroupTool as googleGroupsGetGroupTool,
-  getMemberTool as googleGroupsGetMemberTool,
-  hasMemberTool as googleGroupsHasMemberTool,
-  listGroupsTool as googleGroupsListGroupsTool,
-  listMembersTool as googleGroupsListMembersTool,
-  removeMemberTool as googleGroupsRemoveMemberTool,
-  updateGroupTool as googleGroupsUpdateGroupTool,
-  updateMemberTool as googleGroupsUpdateMemberTool,
+  googleGroupsAddMemberTool,
+  googleGroupsCreateGroupTool,
+  googleGroupsDeleteGroupTool,
+  googleGroupsGetGroupTool,
+  googleGroupsGetMemberTool,
+  googleGroupsHasMemberTool,
+  googleGroupsListGroupsTool,
+  googleGroupsListMembersTool,
+  googleGroupsRemoveMemberTool,
+  googleGroupsUpdateGroupTool,
+  googleGroupsUpdateMemberTool,
 } from '@/tools/google_groups'
 import {
   googleSheetsAppendTool,
@@ -339,7 +339,7 @@ import {
   grafanaUpdateDashboardTool,
 } from '@/tools/grafana'
 import { guardrailsValidateTool } from '@/tools/guardrails'
-import { requestTool as httpRequest } from '@/tools/http'
+import { httpRequestTool } from '@/tools/http'
 import {
   hubspotCreateCompanyTool,
   hubspotCreateContactTool,
@@ -428,7 +428,7 @@ import {
   intercomSearchConversationsTool,
   intercomUpdateContactTool,
 } from '@/tools/intercom'
-import { searchTool as jinaSearchTool, readUrlTool } from '@/tools/jina'
+import { jinaReadUrlTool, jinaSearchTool } from '@/tools/jina'
 import {
   jiraAddCommentTool,
   jiraAddWatcherTool,
@@ -682,26 +682,26 @@ import {
 } from '@/tools/microsoft_teams'
 import { mistralParserTool } from '@/tools/mistral'
 import {
-  deleteTool as mongodbDeleteTool,
-  executeTool as mongodbExecuteTool,
-  insertTool as mongodbInsertTool,
-  queryTool as mongodbQueryTool,
-  updateTool as mongodbUpdateTool,
+  mongodbDeleteTool,
+  mongodbExecuteTool,
+  mongodbInsertTool,
+  mongodbQueryTool,
+  mongodbUpdateTool,
 } from '@/tools/mongodb'
 import {
-  deleteTool as mysqlDeleteTool,
-  executeTool as mysqlExecuteTool,
-  insertTool as mysqlInsertTool,
-  queryTool as mysqlQueryTool,
-  updateTool as mysqlUpdateTool,
+  mysqlDeleteTool,
+  mysqlExecuteTool,
+  mysqlInsertTool,
+  mysqlQueryTool,
+  mysqlUpdateTool,
 } from '@/tools/mysql'
 import {
-  createTool as neo4jCreateTool,
-  deleteTool as neo4jDeleteTool,
-  executeTool as neo4jExecuteTool,
-  mergeTool as neo4jMergeTool,
-  queryTool as neo4jQueryTool,
-  updateTool as neo4jUpdateTool,
+  neo4jCreateTool,
+  neo4jDeleteTool,
+  neo4jExecuteTool,
+  neo4jMergeTool,
+  neo4jQueryTool,
+  neo4jUpdateTool,
 } from '@/tools/neo4j'
 import {
   notionCreateDatabaseTool,
@@ -719,7 +719,7 @@ import {
   onedriveListTool,
   onedriveUploadTool,
 } from '@/tools/onedrive'
-import { imageTool, embeddingsTool as openAIEmbeddings } from '@/tools/openai'
+import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
   outlookCopyTool,
   outlookDeleteTool,
@@ -780,11 +780,11 @@ import {
   polymarketSearchTool,
 } from '@/tools/polymarket'
 import {
-  deleteTool as postgresDeleteTool,
-  executeTool as postgresExecuteTool,
-  insertTool as postgresInsertTool,
-  queryTool as postgresQueryTool,
-  updateTool as postgresUpdateTool,
+  postgresDeleteTool,
+  postgresExecuteTool,
+  postgresInsertTool,
+  postgresQueryTool,
+  postgresUpdateTool,
 } from '@/tools/postgresql'
 import {
   posthogBatchEventsTool,
@@ -873,11 +873,11 @@ import {
 } from '@/tools/pylon'
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
 import {
-  deleteTool as rdsDeleteTool,
-  executeTool as rdsExecuteTool,
-  insertTool as rdsInsertTool,
-  queryTool as rdsQueryTool,
-  updateTool as rdsUpdateTool,
+  rdsDeleteTool,
+  rdsExecuteTool,
+  rdsInsertTool,
+  rdsQueryTool,
+  rdsUpdateTool,
 } from '@/tools/rds'
 import {
   redditDeleteTool,
@@ -961,7 +961,7 @@ import {
   updateIssueTool,
   updateProjectTool,
 } from '@/tools/sentry'
-import { searchTool as serperSearch } from '@/tools/serper'
+import { serperSearchTool } from '@/tools/serper'
 import {
   sharepointAddListItemTool,
   sharepointCreateListTool,
@@ -1011,19 +1011,19 @@ import {
 import { smsSendTool } from '@/tools/sms'
 import { smtpSendMailTool } from '@/tools/smtp'
 import {
-  checkCommandExistsTool as sshCheckCommandExistsTool,
-  checkFileExistsTool as sshCheckFileExistsTool,
-  createDirectoryTool as sshCreateDirectoryTool,
-  deleteFileTool as sshDeleteFileTool,
-  downloadFileTool as sshDownloadFileTool,
-  executeCommandTool as sshExecuteCommandTool,
-  executeScriptTool as sshExecuteScriptTool,
-  getSystemInfoTool as sshGetSystemInfoTool,
-  listDirectoryTool as sshListDirectoryTool,
-  moveRenameTool as sshMoveRenameTool,
-  readFileContentTool as sshReadFileContentTool,
-  uploadFileTool as sshUploadFileTool,
-  writeFileContentTool as sshWriteFileContentTool,
+  sshCheckCommandExistsTool,
+  sshCheckFileExistsTool,
+  sshCreateDirectoryTool,
+  sshDeleteFileTool,
+  sshDownloadFileTool,
+  sshExecuteCommandTool,
+  sshExecuteScriptTool,
+  sshGetSystemInfoTool,
+  sshListDirectoryTool,
+  sshMoveRenameTool,
+  sshReadFileContentTool,
+  sshUploadFileTool,
+  sshWriteFileContentTool,
 } from '@/tools/ssh'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
 import {
@@ -1283,17 +1283,17 @@ export const tools: Record<string, ToolConfig> = {
   asana_search_tasks: asanaSearchTasksTool,
   asana_add_comment: asanaAddCommentTool,
   browser_use_run_task: browserUseRunTaskTool,
-  openai_embeddings: openAIEmbeddings,
-  http_request: httpRequest,
+  openai_embeddings: openAIEmbeddingsTool,
+  http_request: httpRequestTool,
   huggingface_chat: huggingfaceChatTool,
   function_execute: functionExecuteTool,
   vision_tool: visionTool,
   file_parser: fileParseTool,
-  firecrawl_scrape: scrapeTool,
+  firecrawl_scrape: firecrawlScrapeTool,
   firecrawl_search: firecrawlSearchTool,
-  firecrawl_crawl: crawlTool,
-  firecrawl_map: mapTool,
-  firecrawl_extract: extractTool,
+  firecrawl_crawl: firecrawlCrawlTool,
+  firecrawl_map: firecrawlMapTool,
+  firecrawl_extract: firecrawlExtractTool,
   grafana_get_dashboard: grafanaGetDashboardTool,
   grafana_list_dashboards: grafanaListDashboardsTool,
   grafana_create_dashboard: grafanaCreateDashboardTool,
@@ -1315,7 +1315,7 @@ export const tools: Record<string, ToolConfig> = {
   grafana_create_folder: grafanaCreateFolderTool,
   google_search: googleSearchTool,
   guardrails_validate: guardrailsValidateTool,
-  jina_read_url: readUrlTool,
+  jina_read_url: jinaReadUrlTool,
   jina_search: jinaSearchTool,
   linkup_search: linkupSearchTool,
   linkedin_share_post: linkedInSharePostTool,
@@ -1425,7 +1425,7 @@ export const tools: Record<string, ToolConfig> = {
   slack_add_reaction: slackAddReactionTool,
   github_repo_info: githubRepoInfoTool,
   github_latest_commit: githubLatestCommitTool,
-  serper_search: serperSearch,
+  serper_search: serperSearchTool,
   tavily_search: tavilySearchTool,
   tavily_extract: tavilyExtractTool,
   tavily_crawl: tavilyCrawlTool,
@@ -1903,7 +1903,7 @@ export const tools: Record<string, ToolConfig> = {
   datadog_create_downtime: datadogCreateDowntimeTool,
   datadog_list_downtimes: datadogListDowntimesTool,
   datadog_cancel_downtime: datadogCancelDowntimeTool,
-  openai_image: imageTool,
+  openai_image: openAIImageTool,
   microsoft_teams_read_chat: microsoftTeamsReadChatTool,
   microsoft_teams_write_chat: microsoftTeamsWriteChatTool,
   microsoft_teams_read_channel: microsoftTeamsReadChannelTool,
