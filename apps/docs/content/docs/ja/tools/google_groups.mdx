@@ -1,0 +1,217 @@
+---
+title: Google グループ
+description: Google Workspace グループとそのメンバーを管理する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_groups"
+  color="#E8F0FE"
+/>
+
+## 使用方法
+
+Google Workspaceに接続して、Admin SDK Directory APIを使用してグループとそのメンバーを作成、更新、管理します。
+
+## ツール
+
+### `google_groups_list_groups`
+
+Google Workspaceドメイン内のすべてのグループを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `customer` | string | いいえ | 顧客IDまたは認証済みユーザーのドメインの場合は「my_customer」 |
+| `domain` | string | いいえ | グループをフィルタリングするドメイン名 |
+| `maxResults` | number | いいえ | 返す結果の最大数（1-200） |
+| `pageToken` | string | いいえ | ページネーション用のトークン |
+| `query` | string | いいえ | グループをフィルタリングする検索クエリ（例：「email:admin*」） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Google グループ API レスポンスデータ |
+
+### `google_groups_get_group`
+
+メールアドレスまたはグループIDで特定のGoogle グループの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | グループのメールアドレスまたは一意のグループID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Google グループ API レスポンスデータ |
+
+### `google_groups_create_group`
+
+ドメイン内に新しいGoogle グループを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | 新しいグループのメールアドレス（例：team@yourdomain.com） |
+| `name` | string | はい | グループの表示名 |
+| `description` | string | いいえ | グループの説明 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups APIのレスポンスデータ |
+
+### `google_groups_update_group`
+
+既存のGoogleグループを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | グループのメールアドレスまたは一意のグループID |
+| `name` | string | いいえ | グループの新しい表示名 |
+| `description` | string | いいえ | グループの新しい説明 |
+| `email` | string | いいえ | グループの新しいメールアドレス |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups APIのレスポンスデータ |
+
+### `google_groups_delete_group`
+
+Googleグループを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | 削除するグループのメールアドレスまたは一意のグループID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups APIのレスポンスデータ |
+
+### `google_groups_list_members`
+
+Google グループのすべてのメンバーを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | グループのメールアドレスまたは一意のグループID |
+| `maxResults` | number | いいえ | 返す結果の最大数（1-200） |
+| `pageToken` | string | いいえ | ページネーション用のトークン |
+| `roles` | string | いいえ | ロールによるフィルタリング（カンマ区切り: OWNER, MANAGER, MEMBER） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups APIのレスポンスデータ |
+
+### `google_groups_get_member`
+
+Google グループ内の特定のメンバーの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | グループのメールアドレスまたは一意のグループID |
+| `memberKey` | string | はい | メンバーのメールアドレスまたは一意のメンバーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups APIのレスポンスデータ |
+
+### `google_groups_add_member`
+
+Google グループに新しいメンバーを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | グループのメールアドレスまたは一意のグループID |
+| `email` | string | はい | 追加するメンバーのメールアドレス |
+| `role` | string | いいえ | メンバーのロール（MEMBER、MANAGER、またはOWNER）。デフォルトはMEMBER。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups APIレスポンスデータ |
+
+### `google_groups_remove_member`
+
+Google Groupからメンバーを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | グループのメールアドレスまたは一意のグループID |
+| `memberKey` | string | はい | 削除するメンバーのメールアドレスまたは一意のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups APIレスポンスデータ |
+
+### `google_groups_update_member`
+
+メンバーを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | グループのメールアドレスまたは一意のグループID |
+| `memberKey` | string | はい | メンバーのメールアドレスまたは一意のメンバーID |
+| `role` | string | はい | メンバーの新しい役割 \(MEMBER、MANAGER、またはOWNER\) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups APIレスポンスデータ |
+
+### `google_groups_has_member`
+
+ユーザーがGoogle Groupのメンバーかどうかを確認する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | グループのメールアドレスまたは一意のグループID |
+| `memberKey` | string | はい | 確認するメンバーのメールアドレスまたは一意のメンバーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Google グループ API レスポンスデータ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `google_groups`
