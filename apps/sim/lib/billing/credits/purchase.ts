@@ -4,12 +4,7 @@ import { eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import {
-  addCredits,
-  canPurchaseCredits,
-  getCreditBalance,
-  isOrgAdmin,
-} from '@/lib/billing/credits/balance'
+import { canPurchaseCredits, isOrgAdmin } from '@/lib/billing/credits/balance'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -19,7 +14,7 @@ const logger = createLogger('CreditPurchase')
  * Sets usage limit to planBase + creditBalance.
  * This ensures users can use their plan's included amount plus any prepaid credits.
  */
-async function setUsageLimitForCredits(
+export async function setUsageLimitForCredits(
   entityType: 'user' | 'organization',
   entityId: string,
   plan: string,
@@ -216,19 +211,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
       await stripe.invoices.pay(finalized.id, {
         payment_method: defaultPaymentMethod,
       })
-
-      // Add credits immediately after successful payment
-      await addCredits(entityType, entityId, amountDollars)
-
-      // Set usage limit to planBase + creditBalance
-      const { balance: newCreditBalance } = await getCreditBalance(entityId)
-      await setUsageLimitForCredits(
-        entityType,
-        entityId,
-        subscription.plan || 'pro',
-        subscription.seats,
-        newCreditBalance
-      )
+      // Credits are added via webhook (handleInvoicePaymentSucceeded) after payment confirmation
     }
 
     logger.info('Credit purchase invoice created and paid', {

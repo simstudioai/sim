@@ -12,7 +12,8 @@ import type Stripe from 'stripe'
 import PaymentFailedEmail from '@/components/emails/billing/payment-failed-email'
 import { getEmailSubject, renderCreditPurchaseEmail } from '@/components/emails/render-email'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
-import { getCreditBalance, removeCredits } from '@/lib/billing/credits/balance'
+import { addCredits, getCreditBalance, removeCredits } from '@/lib/billing/credits/balance'
+import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -360,8 +361,21 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
     return
   }
 
-  // Credits are added synchronously in purchaseCredits() - webhook just handles emails
-  logger.info('Credit purchase webhook received', {
+  await addCredits(entityType, entityId, amount)
+
+  const subscription = await db
+    .select()
+    .from(subscriptionTable)
+    .where(eq(subscriptionTable.referenceId, entityId))
+    .limit(1)
+
+  if (subscription.length > 0) {
+    const sub = subscription[0]
+    const { balance: newCreditBalance } = await getCreditBalance(entityId)
+    await setUsageLimitForCredits(entityType, entityId, sub.plan, sub.seats, newCreditBalance)
+  }
+
+  logger.info('Credit purchase completed via webhook', {
     invoiceId: invoice.id,
     entityType,
     entityId,
