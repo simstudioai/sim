@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -14,21 +14,12 @@ export default function WorkflowsPage() {
   const { workflows, setActiveWorkflow } = useWorkflowRegistry()
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const [isMounted, setIsMounted] = useState(false)
 
   // Fetch workflows using React Query
   const { isLoading, isError } = useWorkflows(workspaceId)
 
-  // Track when component is mounted to avoid hydration issues
+  // Handle redirection once workflows are loaded
   useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
-  // Handle redirection once workflows are loaded and component is mounted
-  useEffect(() => {
-    // Wait for component to be mounted to avoid hydration mismatches
-    if (!isMounted) return
-
     // Only proceed if workflows are done loading
     if (isLoading) return
 
@@ -50,7 +41,7 @@ export default function WorkflowsPage() {
       const firstWorkflowId = workspaceWorkflows[0]
       router.replace(`/workspace/${workspaceId}/w/${firstWorkflowId}`)
     }
-  }, [isMounted, isLoading, workflows, workspaceId, router, setActiveWorkflow, isError])
+  }, [isLoading, workflows, workspaceId, router, setActiveWorkflow, isError])
 
   // Always show loading state until redirect happens
   // There should always be a default workflow, so we never show "no workflows found"

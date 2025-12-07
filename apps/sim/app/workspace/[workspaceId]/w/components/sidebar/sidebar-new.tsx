@@ -60,10 +60,14 @@ export function SidebarNew() {
   // Session data
   const { data: sessionData, isPending: sessionLoading } = useSession()
 
-  // Sidebar state
-  const isCollapsed = useSidebarStore((state) => state.isCollapsed)
+  // Sidebar state - use store's hydration tracking to prevent SSR mismatch
+  const hasHydrated = useSidebarStore((state) => state._hasHydrated)
+  const isCollapsedStore = useSidebarStore((state) => state.isCollapsed)
   const setIsCollapsed = useSidebarStore((state) => state.setIsCollapsed)
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
+
+  // Use default (expanded) state until hydrated to prevent hydration mismatch
+  const isCollapsed = hasHydrated ? isCollapsedStore : false
 
   // Determine if we're on a workflow page (only workflow pages allow collapse and resize)
   const isOnWorkflowPage = !!workflowId
