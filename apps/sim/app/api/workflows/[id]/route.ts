@@ -152,7 +152,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       return NextResponse.json({ data: finalWorkflowData }, { status: 200 })
     }
-    return NextResponse.json({ error: 'Workflow has no normalized data' }, { status: 400 })
+
+    const emptyWorkflowData = {
+      ...workflowData,
+      state: {
+        deploymentStatuses: {},
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        lastSaved: Date.now(),
+        isDeployed: workflowData.isDeployed || false,
+        deployedAt: workflowData.deployedAt,
+      },
+      variables: workflowData.variables || {},
+    }
+
+    return NextResponse.json({ data: emptyWorkflowData }, { status: 200 })
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] Error fetching workflow ${workflowId} after ${elapsed}ms`, error)

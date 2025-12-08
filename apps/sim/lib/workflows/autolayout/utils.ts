@@ -315,3 +315,126 @@ export function calculateSubflowDepths(
 
   return depths
 }
+
+/**
+ * Layout function type for preparing container dimensions.
+ * Returns laid out nodes and bounding dimensions.
+ */
+export type LayoutFunction = (
+  blocks: Record<string, BlockState>,
+  edges: Edge[],
+  options: {
+    isContainer: boolean
+    layoutOptions?: {
+      horizontalSpacing?: number
+      verticalSpacing?: number
+      padding?: { x: number; y: number }
+      alignment?: 'start' | 'center' | 'end'
+    }
+    subflowDepths?: Map<string, number>
+  }
+) => { nodes: Map<string, GraphNode>; dimensions: { width: number; height: number } }
+
+/**
+ * Pre-calculates container dimensions by laying out their children.
+ * Processes containers bottom-up to handle nested subflows correctly.
+ * This ensures accurate width/height values before root-level layout.
+ *
+ * @param blocks - All blocks in the workflow (will be mutated with updated dimensions)
+ * @param edges - All edges in the workflow
+ * @param layoutFn - The layout function to use for calculating dimensions
+ * @param horizontalSpacing - Horizontal spacing between blocks
+ * @param verticalSpacing - Vertical spacing between blocks
+ */
+export function prepareContainerDimensions(
+  blocks: Record<string, BlockState>,
+  edges: Edge[],
+  layoutFn: LayoutFunction,
+  horizontalSpacing: number,
+  verticalSpacing: number
+): void {
+  const { children } = getBlocksByParent(blocks)
+
+  // Build dependency graph to process nested containers bottom-up
+  const containerIds = Array.from(children.keys())
+  const containerDepth = new Map<string, number>()
+
+  // Calculate nesting depth for each container
+  for (const containerId of containerIds) {
+    let depth = 0
+    let currentId: string | undefined = containerId
+    while (currentId) {
+      const block: BlockState | undefined = blocks[currentId]
+      const parentId: string | undefined = block?.data?.parentId
+      currentId = parentId
+      if (currentId) depth++
+    }
+    containerDepth.set(containerId, depth)
+  }
+
+  // Sort containers by depth (deepest first) for bottom-up processing
+  const sortedContainerIds = containerIds.sort((a, b) => {
+    const depthA = containerDepth.get(a) ?? 0
+    const depthB = containerDepth.get(b) ?? 0
+    return depthB - depthA
+  })
+
+  // Process each container, laying out its children to determine dimensions
+  for (const containerId of sortedContainerIds) {
+    const container = blocks[containerId]
+    if (!container) continue
+
+    const childIds = children.get(containerId) ?? []
+    const layoutChildIds = filterLayoutEligibleBlockIds(childIds, blocks)
+
+    if (layoutChildIds.length === 0) {
+      // Empty container - use default dimensions
+      container.data = {
+        ...container.data,
+        width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+        height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+      }
+      container.layout = {
+        ...container.layout,
+        measuredWidth: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+        measuredHeight: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+      }
+      continue
+    }
+
+    // Build subset of blocks and edges for this container's children
+    const childBlocks: Record<string, BlockState> = {}
+    for (const childId of layoutChildIds) {
+      childBlocks[childId] = blocks[childId]
+    }
+
+    const childEdges = edges.filter(
+      (edge) => layoutChildIds.includes(edge.source) && layoutChildIds.includes(edge.target)
+    )
+
+    // Layout children to get dimensions
+    const { dimensions } = layoutFn(childBlocks, childEdges, {
+      isContainer: true,
+      layoutOptions: {
+        horizontalSpacing: horizontalSpacing * 0.85,
+        verticalSpacing,
+        alignment: 'center',
+      },
+    })
+
+    // Update container with calculated dimensions
+    const calculatedWidth = Math.max(dimensions.width, CONTAINER_DIMENSIONS.DEFAULT_WIDTH)
+    const calculatedHeight = Math.max(dimensions.height, CONTAINER_DIMENSIONS.DEFAULT_HEIGHT)
+
+    container.data = {
+      ...container.data,
+      width: calculatedWidth,
+      height: calculatedHeight,
+    }
+    container.layout = {
+      ...container.layout,
+      measuredWidth: calculatedWidth,
+      measuredHeight: calculatedHeight,
+    }
+  }
+}
