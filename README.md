@@ -89,6 +89,36 @@ Wait for the model to download, then visit [http://localhost:3000](http://localh
 docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.1:8b
 ```
 
+#### Using an External Ollama Instance
+
+If you already have Ollama running on your host machine (outside Docker), you need to configure the `OLLAMA_URL` to use `host.docker.internal` instead of `localhost`:
+
+```bash
+# Docker Desktop (macOS/Windows)
+OLLAMA_URL=http://host.docker.internal:11434 docker compose -f docker-compose.prod.yml up -d
+
+# Linux (add extra_hosts or use host IP)
+docker compose -f docker-compose.prod.yml up -d  # Then set OLLAMA_URL to your host's IP
+```
+
+**Why?** When running inside Docker, `localhost` refers to the container itself, not your host machine. `host.docker.internal` is a special DNS name that resolves to the host.
+
+For Linux users, you can either:
+- Use your host machine's actual IP address (e.g., `http://192.168.1.100:11434`)
+- Add `extra_hosts: ["host.docker.internal:host-gateway"]` to the simstudio service in your compose file
+
+#### Using vLLM
+
+Sim also supports [vLLM](https://docs.vllm.ai/) for self-hosted models with OpenAI-compatible API:
+
+```bash
+# Set these environment variables
+VLLM_BASE_URL=http://your-vllm-server:8000
+VLLM_API_KEY=your_optional_api_key  # Only if your vLLM instance requires auth
+```
+
+When running with Docker, use `host.docker.internal` if vLLM is on your host machine (same as Ollama above).
+
 ### Self-hosted: Dev Containers
 
 1. Open VS Code with the [Remote - Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
@@ -189,6 +219,46 @@ Copilot is a Sim-managed service. To use Copilot on a self-hosted instance:
 
 - Go to https://sim.ai → Settings → Copilot and generate a Copilot API key
 - Set `COPILOT_API_KEY` environment variable in your self-hosted apps/sim/.env file to that value
+
+## Environment Variables
+
+Key environment variables for self-hosted deployments (see `apps/sim/.env.example` for full list):
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string with pgvector |
+| `BETTER_AUTH_SECRET` | Yes | Auth secret (`openssl rand -hex 32`) |
+| `BETTER_AUTH_URL` | Yes | Your app URL (e.g., `http://localhost:3000`) |
+| `NEXT_PUBLIC_APP_URL` | Yes | Public app URL (same as above) |
+| `ENCRYPTION_KEY` | Yes | Encryption key (`openssl rand -hex 32`) |
+| `OLLAMA_URL` | No | Ollama server URL (default: `http://localhost:11434`) |
+| `VLLM_BASE_URL` | No | vLLM server URL for self-hosted models |
+| `COPILOT_API_KEY` | No | API key from sim.ai for Copilot features |
+
+## Troubleshooting
+
+### Ollama models not showing in dropdown (Docker)
+
+If you're running Ollama on your host machine and Sim in Docker, change `OLLAMA_URL` from `localhost` to `host.docker.internal`:
+
+```bash
+OLLAMA_URL=http://host.docker.internal:11434 docker compose -f docker-compose.prod.yml up -d
+```
+
+See [Using an External Ollama Instance](#using-an-external-ollama-instance) for details.
+
+### Database connection issues
+
+Ensure PostgreSQL has the pgvector extension installed. When using Docker, wait for the database to be healthy before running migrations.
+
+### Port conflicts
+
+If ports 3000, 3002, or 5432 are in use, configure alternatives:
+
+```bash
+# Custom ports
+NEXT_PUBLIC_APP_URL=http://localhost:3100 POSTGRES_PORT=5433 docker compose up -d
+```
 
 ## Tech Stack
 
