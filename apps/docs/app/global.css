@@ -96,45 +96,48 @@ aside#nd-sidebar {
   border-right: none !important;
 }
 
-/* Responsive sidebar positioning */
-/* Mobile: Fumadocs handles drawer */
-@media (min-width: 768px) and (max-width: 1024px) {
-  aside[data-sidebar],
-  aside#nd-sidebar {
-    left: var(--sidebar-offset) !important;
+/* Fumadocs v16: Add sidebar placeholder styling for grid area */
+[data-sidebar-placeholder] {
+  background: transparent !important;
+}
+
+/* Fumadocs v16: Hide sidebar panel (floating collapse button) */
+[data-sidebar-panel] {
+  display: none !important;
+}
+
+/* Mobile only: Reduce gap between navbar and content */
+@media (max-width: 1023px) {
+  #nd-docs-layout {
+    margin-top: -25px;
   }
 }
 
-/* Desktop layout alignment */
-@media (min-width: 1025px) {
-  [data-sidebar-container] {
-    margin-left: var(--sidebar-offset) !important;
-  }
-  aside[data-sidebar],
-  aside#nd-sidebar {
-    left: var(--sidebar-offset) !important;
-  }
-  /* TOC positioning - target all possible selectors */
-  [data-toc],
-  aside[data-toc],
-  div[data-toc],
-  .fd-toc,
-  #nd-toc,
-  nav[data-toc],
-  aside:has([role="complementary"]) {
-    right: var(--toc-offset) !important;
+/* Desktop only: Apply custom navbar offset, sidebar width and margin offsets */
+/* On mobile, let fumadocs handle the layout natively */
+@media (min-width: 1024px) {
+  :root {
+    --fd-banner-height: 64px !important;
   }
 
-  /* Alternative TOC container targeting */
-  [data-docs-page] > aside:last-child,
-  main ~ aside {
-    right: var(--toc-offset) !important;
+  #nd-docs-layout {
+    --fd-docs-height: calc(100dvh - 64px) !important;
+    --fd-sidebar-width: 300px !important;
+    margin-left: var(--sidebar-offset) !important;
+    margin-right: var(--toc-offset) !important;
+  }
+
+  /* Hide fumadocs nav on desktop - we use custom navbar there */
+  #nd-docs-layout > header {
+    display: none !important;
   }
 }
 
 /* Sidebar spacing - compact like turborepo */
-[data-sidebar-viewport] {
-  padding: 0.5rem 20px 12px;
+/* Fumadocs v16: [data-sidebar-viewport] doesn't exist, target #nd-sidebar > div instead */
+[data-sidebar-viewport],
+#nd-sidebar > div {
+  padding: 0.5rem 12px 12px;
   background: transparent !important;
   background-color: transparent !important;
 }
@@ -142,8 +145,9 @@ aside#nd-sidebar {
 /* Override sidebar item styling to match Raindrop */
 /* Target Link and button elements in sidebar - override Fumadocs itemVariants */
 /* Exclude the small chevron-only toggle buttons */
-#nd-sidebar a,
-#nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
+/* Using html prefix for higher specificity over Tailwind v4 utilities */
+html #nd-sidebar a,
+html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
   font-size: 0.9375rem !important; /* 15px to match Raindrop */
   line-height: 1.4 !important;
   padding: 0.5rem 0.75rem !important; /* More compact like Raindrop */
@@ -154,14 +158,14 @@ aside#nd-sidebar {
 }
 
 /* Dark mode sidebar text */
-.dark #nd-sidebar a,
-.dark #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
+html.dark #nd-sidebar a,
+html.dark #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
   color: rgba(255, 255, 255, 0.6) !important;
 }
 
 /* Light mode sidebar text */
-:root:not(.dark) #nd-sidebar a,
-:root:not(.dark) #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
+html:not(.dark) #nd-sidebar a,
+html:not(.dark) #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
   color: rgba(0, 0, 0, 0.6) !important;
 }
 
@@ -194,7 +198,10 @@ aside#nd-sidebar {
 }
 
 /* Section headers should be slightly larger */
-[data-sidebar-viewport] [data-separator] {
+/* Fumadocs v16: Also target #nd-sidebar for compatibility */
+[data-sidebar-viewport] [data-separator],
+#nd-sidebar [data-separator],
+#nd-sidebar p {
   font-size: 0.75rem !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
@@ -218,61 +225,61 @@ aside#nd-sidebar {
 }
 
 /* Dark mode active state */
-.dark #nd-sidebar a[data-active="true"],
-.dark #nd-sidebar button[data-active="true"],
-.dark #nd-sidebar a.bg-fd-primary\/10,
-.dark #nd-sidebar a.text-fd-primary,
-.dark #nd-sidebar a[class*="bg-fd-primary"],
-.dark #nd-sidebar a[class*="text-fd-primary"],
-.dark #nd-sidebar a.bg-purple-50\/80,
-.dark #nd-sidebar a.text-purple-600,
-.dark #nd-sidebar a[class*="bg-purple"],
-.dark #nd-sidebar a[class*="text-purple"] {
+html.dark #nd-sidebar a[data-active="true"],
+html.dark #nd-sidebar button[data-active="true"],
+html.dark #nd-sidebar a.bg-fd-primary\/10,
+html.dark #nd-sidebar a.text-fd-primary,
+html.dark #nd-sidebar a[class*="bg-fd-primary"],
+html.dark #nd-sidebar a[class*="text-fd-primary"],
+html.dark #nd-sidebar a.bg-purple-50\/80,
+html.dark #nd-sidebar a.text-purple-600,
+html.dark #nd-sidebar a[class*="bg-purple"],
+html.dark #nd-sidebar a[class*="text-purple"] {
   background-color: rgba(255, 255, 255, 0.15) !important;
   color: rgba(255, 255, 255, 1) !important;
 }
 
 /* Light mode active state */
-:root:not(.dark) #nd-sidebar a[data-active="true"],
-:root:not(.dark) #nd-sidebar button[data-active="true"],
-:root:not(.dark) #nd-sidebar a.bg-fd-primary\/10,
-:root:not(.dark) #nd-sidebar a.text-fd-primary,
-:root:not(.dark) #nd-sidebar a[class*="bg-fd-primary"],
-:root:not(.dark) #nd-sidebar a[class*="text-fd-primary"],
-:root:not(.dark) #nd-sidebar a.bg-purple-50\/80,
-:root:not(.dark) #nd-sidebar a.text-purple-600,
-:root:not(.dark) #nd-sidebar a[class*="bg-purple"],
-:root:not(.dark) #nd-sidebar a[class*="text-purple"] {
+html:not(.dark) #nd-sidebar a[data-active="true"],
+html:not(.dark) #nd-sidebar button[data-active="true"],
+html:not(.dark) #nd-sidebar a.bg-fd-primary\/10,
+html:not(.dark) #nd-sidebar a.text-fd-primary,
+html:not(.dark) #nd-sidebar a[class*="bg-fd-primary"],
+html:not(.dark) #nd-sidebar a[class*="text-fd-primary"],
+html:not(.dark) #nd-sidebar a.bg-purple-50\/80,
+html:not(.dark) #nd-sidebar a.text-purple-600,
+html:not(.dark) #nd-sidebar a[class*="bg-purple"],
+html:not(.dark) #nd-sidebar a[class*="text-purple"] {
   background-color: rgba(0, 0, 0, 0.07) !important;
   color: rgba(0, 0, 0, 0.9) !important;
 }
 
 /* Dark mode hover state */
-.dark #nd-sidebar a:hover:not([data-active="true"]),
-.dark #nd-sidebar button:hover:not([data-active="true"]) {
+html.dark #nd-sidebar a:hover:not([data-active="true"]),
+html.dark #nd-sidebar button:hover:not([data-active="true"]) {
   background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 /* Light mode hover state */
-:root:not(.dark) #nd-sidebar a:hover:not([data-active="true"]),
-:root:not(.dark) #nd-sidebar button:hover:not([data-active="true"]) {
+html:not(.dark) #nd-sidebar a:hover:not([data-active="true"]),
+html:not(.dark) #nd-sidebar button:hover:not([data-active="true"]) {
   background-color: rgba(0, 0, 0, 0.03) !important;
 }
 
 /* Dark mode - ensure active/selected items don't change on hover */
-.dark #nd-sidebar a.bg-purple-50\/80:hover,
-.dark #nd-sidebar a[class*="bg-purple"]:hover,
-.dark #nd-sidebar a[data-active="true"]:hover,
-.dark #nd-sidebar button[data-active="true"]:hover {
+html.dark #nd-sidebar a.bg-purple-50\/80:hover,
+html.dark #nd-sidebar a[class*="bg-purple"]:hover,
+html.dark #nd-sidebar a[data-active="true"]:hover,
+html.dark #nd-sidebar button[data-active="true"]:hover {
   background-color: rgba(255, 255, 255, 0.15) !important;
   color: rgba(255, 255, 255, 1) !important;
 }
 
 /* Light mode - ensure active/selected items don't change on hover */
-:root:not(.dark) #nd-sidebar a.bg-purple-50\/80:hover,
-:root:not(.dark) #nd-sidebar a[class*="bg-purple"]:hover,
-:root:not(.dark) #nd-sidebar a[data-active="true"]:hover,
-:root:not(.dark) #nd-sidebar button[data-active="true"]:hover {
+html:not(.dark) #nd-sidebar a.bg-purple-50\/80:hover,
+html:not(.dark) #nd-sidebar a[class*="bg-purple"]:hover,
+html:not(.dark) #nd-sidebar a[data-active="true"]:hover,
+html:not(.dark) #nd-sidebar button[data-active="true"]:hover {
   background-color: rgba(0, 0, 0, 0.07) !important;
   color: rgba(0, 0, 0, 0.9) !important;
 }
@@ -351,7 +358,16 @@ aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   [data-sidebar] [data-title],
   #nd-sidebar > a:first-child,
   #nd-sidebar > div:first-child > a:first-child,
-  #nd-sidebar img[alt="Sim"] {
+  #nd-sidebar img[alt="Sim"],
+  /* Hide theme toggle at bottom of sidebar on desktop */
+    #nd-sidebar
+    > footer,
+  #nd-sidebar footer,
+  aside#nd-sidebar > *:last-child:not(div),
+  #nd-sidebar > button:last-child,
+  #nd-sidebar button[aria-label*="theme" i],
+  #nd-sidebar button[aria-label*="Theme"],
+  #nd-sidebar > div:last-child > button {
     display: none !important;
     visibility: hidden !important;
     height: 0 !important;
@@ -498,13 +514,14 @@ main article,
    ============================================ */
 
 /* Main content area - center and constrain like turborepo/raindrop */
+/* Note: --sidebar-offset and --toc-offset are now applied at #nd-docs-layout level */
 main[data-main] {
   max-width: var(--spacing-fd-container, 1400px);
   margin-left: auto;
   margin-right: auto;
   padding-top: 1rem;
-  padding-left: calc(var(--sidebar-offset) + var(--content-gap));
-  padding-right: calc(var(--toc-offset) + var(--content-gap));
+  padding-left: var(--content-gap);
+  padding-right: var(--content-gap);
   order: 1 !important;
 }
 

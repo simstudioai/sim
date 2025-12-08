@@ -101,9 +101,6 @@ export default async function Layout({ children, params }: LayoutProps) {
           <Navbar />
           <DocsLayout
             tree={source.pageTree[lang]}
-            themeSwitch={{
-              enabled: false,
-            }}
             nav={{
               title: (
                 <Image
@@ -128,7 +125,7 @@ export default async function Layout({ children, params }: LayoutProps) {
               },
             }}
             containerProps={{
-              className: '!pt-10',
+              className: '!pt-0',
             }}
           >
             {children}
