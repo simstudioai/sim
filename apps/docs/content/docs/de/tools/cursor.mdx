@@ -11,9 +11,31 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#1E1E1E"
 />
 
-## Nutzungsanleitung
+{/* MANUAL-CONTENT-START:intro */}
+[Cursor](https://www.cursor.so/) ist eine KI-IDE und cloudbasierte Plattform, mit der Sie leistungsstarke KI-Agenten starten und verwalten können, die direkt mit Ihren GitHub-Repositories arbeiten können. Cursor-Agenten können Entwicklungsaufgaben automatisieren, die Produktivität Ihres Teams steigern und mit Ihnen zusammenarbeiten, indem sie Codeänderungen vornehmen, auf natürlichsprachliche Anweisungen reagieren und einen Gesprächsverlauf über ihre Aktivitäten führen.
 
-Interagieren Sie mit der Cursor Cloud Agents API, um KI-Agenten zu starten, die an Ihren GitHub-Repositories arbeiten können. Unterstützt das Starten von Agenten, Hinzufügen von Folgeanweisungen, Überprüfen des Status, Anzeigen von Konversationen und Verwalten des Agenten-Lebenszyklus.
+Mit Cursor können Sie:
+
+- **Cloud-Agenten für Codebasen starten**: Erstellen Sie sofort neue KI-Agenten, die in der Cloud an Ihren Repositories arbeiten
+- **Codierungsaufgaben mit natürlicher Sprache delegieren**: Leiten Sie Agenten mit schriftlichen Anweisungen, Änderungen und Klarstellungen an
+- **Fortschritt und Ergebnisse überwachen**: Rufen Sie den Agentenstatus ab, sehen Sie detaillierte Ergebnisse und prüfen Sie aktuelle oder abgeschlossene Aufgaben
+- **Zugriff auf den vollständigen Gesprächsverlauf**: Überprüfen Sie alle Eingabeaufforderungen und KI-Antworten für Transparenz und Nachvollziehbarkeit
+- **Steuerung und Verwaltung des Agenten-Lebenszyklus**: Listen Sie aktive Agenten auf, beenden Sie Agenten und verwalten Sie API-basierte Agentenstarts und Nachverfolgungen
+
+In Sim ermöglicht die Cursor-Integration Ihren Agenten und Workflows, programmatisch mit Cursor-Cloud-Agenten zu interagieren. Das bedeutet, Sie können Sim verwenden, um:
+
+- Alle Cloud-Agenten auflisten und ihren aktuellen Status durchsuchen (`cursor_list_agents`)
+- Aktuellen Status und Ausgaben für jeden Agenten abrufen (`cursor_get_agent`)
+- Den vollständigen Gesprächsverlauf für jeden Codierungsagenten anzeigen (`cursor_get_conversation`)
+- Nachfolgende Anweisungen oder neue Eingabeaufforderungen zu einem laufenden Agenten hinzufügen
+- Agenten nach Bedarf verwalten und beenden
+
+Diese Integration hilft Ihnen, die flexible Intelligenz von Sim-Agenten mit den leistungsstarken Automatisierungsfunktionen von Cursor zu kombinieren, wodurch es möglich wird, KI-gesteuerte Entwicklung über Ihre Projekte hinweg zu skalieren.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Interagieren Sie mit der Cursor Cloud Agents API, um KI-Agenten zu starten, die an Ihren GitHub-Repositories arbeiten können. Unterstützt das Starten von Agenten, das Hinzufügen von Folgeanweisungen, die Statusprüfung, die Anzeige von Konversationen und die Verwaltung des Agenten-Lebenszyklus.
 
 ## Tools
 
@@ -27,13 +49,13 @@ Listet alle Cloud-Agenten für den authentifizierten Benutzer mit optionaler Pag
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Ja | Cursor API-Schlüssel |
 | `limit` | number | Nein | Anzahl der zurückzugebenden Agenten \(Standard: 20, max: 100\) |
-| `cursor` | string | Nein | Paginierungscursor aus vorheriger Antwort |
+| `cursor` | string | Nein | Paginierungscursor aus der vorherigen Antwort |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `content` | string | Menschenlesbare Liste von Agenten |
+| `content` | string | Menschenlesbare Liste der Agenten |
 | `metadata` | object | Metadaten der Agentenliste |
 
 ### `cursor_get_agent`
@@ -56,7 +78,7 @@ Ruft den aktuellen Status und die Ergebnisse eines Cloud-Agenten ab.
 
 ### `cursor_get_conversation`
 
-Rufe den Gesprächsverlauf eines Cloud-Agenten ab, einschließlich aller Benutzeranfragen und Antworten des Assistenten.
+Ruft den Konversationsverlauf eines Cloud-Agenten ab, einschließlich aller Benutzeraufforderungen und Assistentenantworten.
 
 #### Eingabe
 
@@ -65,18 +87,18 @@ Rufe den Gesprächsverlauf eines Cloud-Agenten ab, einschließlich aller Benutze
 | `apiKey` | string | Ja | Cursor API-Schlüssel |
 | `agentId` | string | Ja | Eindeutige Kennung für den Cloud-Agenten \(z.B. bc_abc123\) |
 
-#### Ausgabe
+#### Output
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `content` | string | Menschenlesbarer Gesprächsverlauf |
-| `metadata` | object | Gesprächsmetadaten |
+| `content` | string | Menschenlesbarer Konversationsverlauf |
+| `metadata` | object | Konversations-Metadaten |
 
 ### `cursor_launch_agent`
 
-Starte einen neuen Cloud-Agenten, um an einem GitHub-Repository mit den angegebenen Anweisungen zu arbeiten.
+Starten Sie einen neuen Cloud-Agenten, um an einem GitHub-Repository mit den angegebenen Anweisungen zu arbeiten.
 
-#### Eingabe
+#### Input
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
@@ -93,22 +115,22 @@ Starte einen neuen Cloud-Agenten, um an einem GitHub-Repository mit den angegebe
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `content` | string | Erfolgsmeldung mit Agenten-Details |
 | `metadata` | object | Metadaten zum Startergebnis |
 
 ### `cursor_add_followup`
 
-Füge eine Folgeanweisung zu einem bestehenden Cloud-Agenten hinzu.
+Fügen Sie einem bestehenden Cloud-Agenten eine Folgeanweisung hinzu.
 
 #### Input
 
-| Parameter | Type | Erforderlich | Beschreibung |
+| Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Ja | Cursor API-Schlüssel |
 | `agentId` | string | Ja | Eindeutige Kennung für den Cloud-Agenten \(z.B. bc_abc123\) |
-| `promptText` | string | Ja | Der Text der Folgeanweisung für den Agenten |
+| `followupPromptText` | string | Ja | Der Folgeanweisungstext für den Agenten |
 | `promptImages` | string | Nein | JSON-Array von Bildobjekten mit Base64-Daten und Abmessungen \(max. 5\) |
 
 #### Output
@@ -120,25 +142,25 @@ Füge eine Folgeanweisung zu einem bestehenden Cloud-Agenten hinzu.
 
 ### `cursor_stop_agent`
 
-Stoppe einen laufenden Cloud-Agenten. Dies pausiert den Agenten, ohne ihn zu löschen.
+Stoppt einen laufenden Cloud-Agenten. Dies pausiert den Agenten, ohne ihn zu löschen.
 
-#### Input
+#### Eingabe
 
-| Parameter | Type | Erforderlich | Beschreibung |
+| Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Ja | Cursor API-Schlüssel |
 | `agentId` | string | Ja | Eindeutige Kennung für den Cloud-Agenten \(z.B. bc_abc123\) |
 
-#### Output
+#### Ausgabe
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `content` | string | Erfolgsmeldung |
 | `metadata` | object | Ergebnis-Metadaten |
 
 ### `cursor_delete_agent`
 
-Löschen Sie einen Cloud-Agenten dauerhaft. Diese Aktion kann nicht rückgängig gemacht werden.
+Löscht einen Cloud-Agenten dauerhaft. Diese Aktion kann nicht rückgängig gemacht werden.
 
 #### Eingabe
 
