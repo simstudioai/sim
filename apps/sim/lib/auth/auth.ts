@@ -28,6 +28,7 @@ import { handleNewUser } from '@/lib/billing/core/usage'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { getPlans } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
+import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
 import {
   handleInvoiceFinalized,
@@ -94,6 +95,32 @@ export const auth = betterAuth({
               userId: user.id,
               error,
             })
+          }
+        },
+      },
+    },
+    account: {
+      create: {
+        after: async (account) => {
+          // Salesforce doesn't return expires_in in its token response (unlike other OAuth providers).
+          // We set a default 2-hour expiration so token refresh logic works correctly.
+          if (account.providerId === 'salesforce' && !account.accessTokenExpiresAt) {
+            const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000)
+            try {
+              await db
+                .update(schema.account)
+                .set({ accessTokenExpiresAt: twoHoursFromNow })
+                .where(eq(schema.account.id, account.id))
+              logger.info(
+                '[databaseHooks.account.create.after] Set default expiration for Salesforce token',
+                { accountId: account.id, expiresAt: twoHoursFromNow }
+              )
+            } catch (error) {
+              logger.error(
+                '[databaseHooks.account.create.after] Failed to set Salesforce token expiration',
+                { accountId: account.id, error }
+              )
+            }
           }
         },
       },
@@ -499,6 +526,22 @@ export const auth = betterAuth({
         },
 
         {
+          providerId: 'google-groups',
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          accessType: 'offline',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/admin.directory.group',
+            'https://www.googleapis.com/auth/admin.directory.group.member',
+          ],
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-groups`,
+        },
+
+        {
           providerId: 'microsoft-teams',
           clientId: env.MICROSOFT_CLIENT_ID as string,
           clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
@@ -825,9 +868,10 @@ export const auth = betterAuth({
           authorizationUrl: 'https://login.salesforce.com/services/oauth2/authorize',
           tokenUrl: 'https://login.salesforce.com/services/oauth2/token',
           userInfoUrl: 'https://login.salesforce.com/services/oauth2/userinfo',
-          scopes: ['api', 'refresh_token', 'openid'],
+          scopes: ['api', 'refresh_token', 'openid', 'offline_access'],
           pkce: true,
           prompt: 'consent',
+          accessType: 'offline',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/salesforce`,
           getUserInfo: async (tokens) => {
             try {
@@ -1980,7 +2024,14 @@ export const auth = betterAuth({
                     await handleManualEnterpriseSubscription(event)
                     break
                   }
-                  // Note: customer.subscription.deleted is handled by better-auth's onSubscriptionDeleted callback above
+                  case 'charge.dispute.created': {
+                    await handleChargeDispute(event)
+                    break
+                  }
+                  case 'charge.dispute.closed': {
+                    await handleDisputeClosed(event)
+                    break
+                  }
                   default:
                     logger.info('[onEvent] Ignoring unsupported webhook event', {
                       eventId: event.id,

@@ -661,7 +661,15 @@ cronjobs:
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
-      
+
+    inactivityAlertPoll:
+      enabled: true
+      name: inactivity-alert-poll
+      schedule: "*/15 * * * *"
+      path: "/api/notifications/poll"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
 
   # Global CronJob settings
   image:

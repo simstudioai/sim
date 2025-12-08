@@ -13,7 +13,8 @@
     "variables",
     "execution",
     "permissions",
-    "sdks"
+    "sdks",
+    "self-hosting"
   ],
   "defaultOpen": false
 }

@@ -11,6 +11,7 @@ import {
   GoogleDocsIcon,
   GoogleDriveIcon,
   GoogleFormsIcon,
+  GoogleGroupsIcon,
   GoogleIcon,
   GoogleSheetsIcon,
   HubspotIcon,
@@ -80,6 +81,7 @@ export type OAuthService =
   | 'google-calendar'
   | 'google-vault'
   | 'google-forms'
+  | 'google-groups'
   | 'github'
   | 'x'
   // | 'supabase'
@@ -223,6 +225,19 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/devstorage.read_only',
         ],
         scopeHints: ['ediscovery', 'devstorage'],
+      },
+      'google-groups': {
+        id: 'google-groups',
+        name: 'Google Groups',
+        description: 'Manage Google Workspace Groups and their members.',
+        providerId: 'google-groups',
+        icon: (props) => GoogleGroupsIcon(props),
+        baseProviderIcon: (props) => GoogleIcon(props),
+        scopes: [
+          'https://www.googleapis.com/auth/admin.directory.group',
+          'https://www.googleapis.com/auth/admin.directory.group.member',
+        ],
+        scopeHints: ['admin.directory.group'],
       },
     },
     defaultService: 'gmail',
@@ -825,7 +840,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'salesforce',
         icon: (props) => SalesforceIcon(props),
         baseProviderIcon: (props) => SalesforceIcon(props),
-        scopes: ['api', 'refresh_token', 'openid'],
+        scopes: ['api', 'refresh_token', 'openid', 'offline_access'],
       },
     },
     defaultService: 'salesforce',
@@ -1412,7 +1427,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
-        supportsRefreshTokenRotation: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'shopify': {
@@ -1531,9 +1546,15 @@ export async function refreshOAuthToken(
 
       logger.error('Token refresh failed:', {
         status: response.status,
+        statusText: response.statusText,
         error: errorText,
         parsedError: errorData,
         providerId,
+        tokenEndpoint: config.tokenEndpoint,
+        hasClientId: !!config.clientId,
+        hasClientSecret: !!config.clientSecret,
+        hasRefreshToken: !!refreshToken,
+        refreshTokenPrefix: refreshToken ? `${refreshToken.substring(0, 10)}...` : 'none',
       })
       throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
     }

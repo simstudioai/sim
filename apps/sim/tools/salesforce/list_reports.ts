@@ -1,0 +1,130 @@
+import { createLogger } from '@/lib/logs/console/logger'
+import type { ToolConfig } from '@/tools/types'
+import { extractErrorMessage, getInstanceUrl } from './utils'
+
+const logger = createLogger('SalesforceReports')
+
+export interface SalesforceListReportsParams {
+  accessToken: string
+  idToken?: string
+  instanceUrl?: string
+  folderName?: string
+  searchTerm?: string
+}
+
+export interface SalesforceListReportsResponse {
+  success: boolean
+  output: {
+    reports: any[]
+    metadata: {
+      operation: 'list_reports'
+      totalReturned: number
+    }
+    success: boolean
+  }
+}
+
+/**
+ * List all reports accessible by the current user
+ * @see https://developer.salesforce.com/docs/atlas.en-us.api_analytics.meta/api_analytics/sforce_analytics_rest_api_get_reportlist.htm
+ */
+export const salesforceListReportsTool: ToolConfig<
+  SalesforceListReportsParams,
+  SalesforceListReportsResponse
+> = {
+  id: 'salesforce_list_reports',
+  name: 'List Reports from Salesforce',
+  description: 'Get a list of reports accessible by the current user',
+  version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'salesforce',
+  },
+
+  params: {
+    accessToken: { type: 'string', required: true, visibility: 'hidden' },
+    idToken: { type: 'string', required: false, visibility: 'hidden' },
+    instanceUrl: { type: 'string', required: false, visibility: 'hidden' },
+    folderName: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Filter by folder name',
+    },
+    searchTerm: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Search term to filter reports by name',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
+      return `${instanceUrl}/services/data/v59.0/analytics/reports`
+    },
+    method: 'GET',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    }),
+  },
+
+  transformResponse: async (response, params?) => {
+    const data = await response.json()
+    if (!response.ok) {
+      const errorMessage = extractErrorMessage(
+        data,
+        response.status,
+        'Failed to list reports from Salesforce'
+      )
+      logger.error('Failed to list reports', { data, status: response.status })
+      throw new Error(errorMessage)
+    }
+
+    let reports = data || []
+
+    // Filter by folder name if provided
+    if (params?.folderName) {
+      reports = reports.filter((report: any) =>
+        report.folderName?.toLowerCase().includes(params.folderName!.toLowerCase())
+      )
+    }
+
+    // Filter by search term if provided
+    if (params?.searchTerm) {
+      reports = reports.filter(
+        (report: any) =>
+          report.name?.toLowerCase().includes(params.searchTerm!.toLowerCase()) ||
+          report.description?.toLowerCase().includes(params.searchTerm!.toLowerCase())
+      )
+    }
+
+    return {
+      success: true,
+      output: {
+        reports,
+        metadata: {
+          operation: 'list_reports',
+          totalReturned: reports.length,
+        },
+        success: true,
+      },
+    }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Success status' },
+    output: {
+      type: 'object',
+      description: 'Reports data',
+      properties: {
+        reports: { type: 'array', description: 'Array of report objects' },
+        metadata: { type: 'object', description: 'Operation metadata' },
+        success: { type: 'boolean', description: 'Operation success status' },
+      },
+    },
+  },
+}

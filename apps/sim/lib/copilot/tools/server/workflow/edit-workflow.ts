@@ -12,7 +12,7 @@ import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/consts'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 /** Selector subblock types that can be validated */
 const SELECTOR_TYPES = new Set([

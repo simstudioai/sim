@@ -22,6 +22,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/shared/usage-header'
 import {
   CancelSubscription,
+  CreditBalance,
   PlanCard,
   UsageLimit,
   type UsageLimitRef,
@@ -49,16 +50,7 @@ const CONSTANTS = {
   INITIAL_TEAM_SEATS: 1,
 } as const
 
-const STYLES = {
-  GRADIENT_BADGE:
-    'gradient-text h-[1.125rem] rounded-[6px] border-gradient-primary/20 bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary px-2 py-0 font-medium text-xs cursor-pointer',
-} as const
-
 type TargetPlan = 'pro' | 'team'
-
-interface SubscriptionProps {
-  onOpenChange: (open: boolean) => void
-}
 
 /**
  * Skeleton component for subscription loading state.
@@ -159,7 +151,7 @@ const formatPlanName = (plan: string): string => plan.charAt(0).toUpperCase() + 
  * Subscription management component
  * Handles plan display, upgrades, and billing management
  */
-export function Subscription({ onOpenChange }: SubscriptionProps) {
+export function Subscription() {
   const { data: session } = useSession()
   const { handleUpgrade } = useSubscriptionUpgrade()
   const params = useParams()
@@ -168,7 +160,11 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const logger = createLogger('Subscription')
 
-  const { data: subscriptionData, isLoading: isSubscriptionLoading } = useSubscriptionData()
+  const {
+    data: subscriptionData,
+    isLoading: isSubscriptionLoading,
+    refetch: refetchSubscription,
+  } = useSubscriptionData()
   const { data: usageLimitResponse, isLoading: isUsageLimitLoading } = useUsageLimitData()
   const { data: workspaceData, isLoading: isWorkspaceLoading } = useWorkspaceSettings(workspaceId)
   const updateWorkspaceMutation = useUpdateWorkspaceSettings()
@@ -392,6 +388,8 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                 : usage.limit
           }
           isBlocked={Boolean(subscriptionData?.data?.billingBlocked)}
+          blockedReason={subscriptionData?.data?.billingBlockedReason}
+          blockedByOrgOwner={Boolean(subscriptionData?.data?.blockedByOrgOwner)}
           status={billingStatus}
           percentUsed={
             subscription.isEnterprise || subscription.isTeam
@@ -404,6 +402,9 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                 : usage.percentUsed
               : usage.percentUsed
           }
+          onContactSupport={() => {
+            window.dispatchEvent(new CustomEvent('open-help-modal'))
+          }}
           onResolvePayment={async () => {
             try {
               const res = await fetch('/api/billing/portal', {
@@ -463,22 +464,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
         </div>
       )}
 
-      {/* Cost Breakdown */}
-      {/* TODO: Re-enable CostBreakdown component in the next billing period
-            once sufficient copilot cost data has been collected for accurate display.
-            Currently hidden to avoid confusion with initial zero values.
-        */}
-      {/*
-        {subscriptionData?.usage && typeof subscriptionData.usage.copilotCost === 'number' && (
-          <div className='mb-2'>
-            <CostBreakdown
-              copilotCost={subscriptionData.usage.copilotCost}
-              totalCost={subscriptionData.usage.current}
-            />
-          </div>
-        )}
-        */}
-
       {/* Team Member Notice */}
       {permissions.showTeamMemberView && (
         <div className='text-center'>
@@ -535,9 +520,20 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
         </div>
       )}
 
+      {/* Credit Balance */}
+      {subscription.isPaid && (
+        <CreditBalance
+          balance={subscriptionData?.data?.creditBalance ?? 0}
+          canPurchase={permissions.canEditUsageLimit}
+          entityType={subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'}
+          isLoading={isLoading}
+          onPurchaseComplete={() => refetchSubscription()}
+        />
+      )}
+
       {/* Next Billing Date */}
       {subscription.isPaid && subscriptionData?.data?.periodEnd && (
-        <div className='mt-[16px] flex items-center justify-between'>
+        <div className='flex items-center justify-between'>
           <span className='font-medium text-[13px]'>Next Billing Date</span>
           <span className='text-[13px] text-[var(--text-muted)]'>
             {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
@@ -617,7 +613,7 @@ function BillingUsageNotificationsToggle() {
   const isLoading = updateSetting.isPending
 
   return (
-    <div className='mt-[16px] flex items-center justify-between'>
+    <div className='flex items-center justify-between'>
       <div className='flex flex-col'>
         <span className='font-medium text-[13px]'>Usage notifications</span>
         <span className='text-[var(--text-muted)] text-xs'>Email me when I reach 80% usage</span>

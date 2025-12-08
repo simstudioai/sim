@@ -9,6 +9,7 @@ import {
   ResetPasswordEmail,
   UsageThresholdEmail,
 } from '@/components/emails'
+import CreditPurchaseEmail from '@/components/emails/billing/credit-purchase-email'
 import FreeTierUpgradeEmail from '@/components/emails/billing/free-tier-upgrade-email'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -158,6 +159,7 @@ export function getEmailSubject(
     | 'free-tier-upgrade'
     | 'plan-welcome-pro'
     | 'plan-welcome-team'
+    | 'credit-purchase'
 ): string {
   const brandName = getBrandConfig().name
 
@@ -186,6 +188,8 @@ export function getEmailSubject(
       return `Your Pro plan is now active on ${brandName}`
     case 'plan-welcome-team':
       return `Your Team plan is now active on ${brandName}`
+    case 'credit-purchase':
+      return `Credits added to your ${brandName} account`
     default:
       return brandName
   }
@@ -202,6 +206,21 @@ export async function renderPlanWelcomeEmail(params: {
       userName: params.userName,
       loginLink: params.loginLink,
       createdDate: new Date(),
+    })
+  )
+}
+
+export async function renderCreditPurchaseEmail(params: {
+  userName?: string
+  amount: number
+  newBalance: number
+}): Promise<string> {
+  return await render(
+    CreditPurchaseEmail({
+      userName: params.userName,
+      amount: params.amount,
+      newBalance: params.newBalance,
+      purchaseDate: new Date(),
     })
   )
 }

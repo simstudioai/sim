@@ -6,7 +6,7 @@ import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
-import { isAnnotationOnlyBlock } from '@/executor/consts'
+import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {

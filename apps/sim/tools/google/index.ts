@@ -1,3 +1,3 @@
-import { searchTool } from '@/tools/google/search'
+import { searchTool } from './search'
 
-export { searchTool }
+export const googleSearchTool = searchTool

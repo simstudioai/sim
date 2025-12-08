@@ -40,7 +40,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { isAnnotationOnlyBlock } from '@/executor/consts'
+import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
@@ -1295,14 +1295,18 @@ const WorkflowContent = React.memo(() => {
       return
     }
 
+    // Check if we encountered an error loading this specific workflow to prevent infinite retries
+    const hasLoadError = hydration.phase === 'error' && hydration.workflowId === currentId
+
     // Check if we need to load the workflow state:
     // 1. Different workflow than currently active
     // 2. Same workflow but hydration phase is not 'ready' (e.g., after a quick refresh)
     const needsWorkflowLoad =
-      activeWorkflowId !== currentId ||
-      (activeWorkflowId === currentId &&
-        hydration.phase !== 'ready' &&
-        hydration.phase !== 'state-loading')
+      !hasLoadError &&
+      (activeWorkflowId !== currentId ||
+        (activeWorkflowId === currentId &&
+          hydration.phase !== 'ready' &&
+          hydration.phase !== 'state-loading'))
 
     if (needsWorkflowLoad) {
       const { clearDiff } = useWorkflowDiffStore.getState()

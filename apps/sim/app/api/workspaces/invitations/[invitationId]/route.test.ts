@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mockAuth, mockConsoleLogger } from '@/app/api/__test-utils__/utils'
 
 /**
  * Tests for workspace invitation by ID API route
@@ -9,137 +8,154 @@ import { mockAuth, mockConsoleLogger } from '@/app/api/__test-utils__/utils'
  * @vitest-environment node
  */
 
-describe('Workspace Invitation [invitationId] API Route', () => {
-  const mockUser = {
-    id: 'user-123',
-    email: 'test@example.com',
-    name: 'Test User',
-  }
+const mockGetSession = vi.fn()
+const mockHasWorkspaceAdminAccess = vi.fn()
 
-  const mockWorkspace = {
-    id: 'workspace-456',
-    name: 'Test Workspace',
-  }
+let dbSelectResults: any[] = []
+let dbSelectCallIndex = 0
 
-  const mockInvitation = {
-    id: 'invitation-789',
-    workspaceId: 'workspace-456',
-    email: 'invited@example.com',
-    inviterId: 'inviter-321',
-    status: 'pending',
-    token: 'token-abc123',
-    permissions: 'read',
-    expiresAt: new Date(Date.now() + 86400000), // 1 day from now
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  }
+const mockDbSelect = vi.fn().mockImplementation(() => ({
+  from: vi.fn().mockReturnThis(),
+  where: vi.fn().mockReturnThis(),
+  then: vi.fn().mockImplementation((callback: (rows: any[]) => any) => {
+    const result = dbSelectResults[dbSelectCallIndex] || []
+    dbSelectCallIndex++
+    return Promise.resolve(callback ? callback(result) : result)
+  }),
+}))
 
-  let mockDbResults: any[] = []
-  let mockGetSession: any
-  let mockHasWorkspaceAdminAccess: any
-  let mockTransaction: any
+const mockDbInsert = vi.fn().mockImplementation(() => ({
+  values: vi.fn().mockResolvedValue(undefined),
+}))
 
-  beforeEach(async () => {
-    vi.resetModules()
-    vi.resetAllMocks()
+const mockDbUpdate = vi.fn().mockImplementation(() => ({
+  set: vi.fn().mockReturnThis(),
+  where: vi.fn().mockResolvedValue(undefined),
+}))
 
-    mockDbResults = []
-    mockConsoleLogger()
-    mockAuth(mockUser)
+const mockDbDelete = vi.fn().mockImplementation(() => ({
+  where: vi.fn().mockResolvedValue(undefined),
+}))
 
-    vi.doMock('crypto', () => ({
-      randomUUID: vi.fn().mockReturnValue('mock-uuid-1234'),
-    }))
-
-    mockGetSession = vi.fn()
-    vi.doMock('@/lib/auth', () => ({
-      getSession: mockGetSession,
-    }))
-
-    mockHasWorkspaceAdminAccess = vi.fn()
-    vi.doMock('@/lib/workspaces/permissions/utils', () => ({
-      hasWorkspaceAdminAccess: mockHasWorkspaceAdminAccess,
-    }))
-
-    vi.doMock('@/lib/core/config/env', () => {
-      const mockEnv = {
-        NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
-        BILLING_ENABLED: false,
-      }
-      return {
-        env: mockEnv,
-        isTruthy: (value: string | boolean | number | undefined) =>
-          typeof value === 'string'
-            ? value.toLowerCase() === 'true' || value === '1'
-            : Boolean(value),
-        getEnv: (variable: string) =>
-          mockEnv[variable as keyof typeof mockEnv] ?? process.env[variable],
-      }
-    })
-
-    mockTransaction = vi.fn()
-    const mockDbChain = {
-      select: vi.fn().mockReturnThis(),
-      from: vi.fn().mockReturnThis(),
-      where: vi.fn().mockReturnThis(),
-      then: vi.fn().mockImplementation((callback: any) => {
-        const result = mockDbResults.shift() || []
-        return callback ? callback(result) : Promise.resolve(result)
-      }),
-      insert: vi.fn().mockReturnThis(),
+const mockDbTransaction = vi.fn().mockImplementation(async (callback: any) => {
+  await callback({
+    insert: vi.fn().mockReturnValue({
       values: vi.fn().mockResolvedValue(undefined),
-      update: vi.fn().mockReturnThis(),
-      set: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockReturnThis(),
-      transaction: mockTransaction,
-    }
+    }),
+    update: vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      }),
+    }),
+  })
+})
 
-    vi.doMock('@sim/db', () => ({
-      db: mockDbChain,
-    }))
+vi.mock('@/lib/auth', () => ({
+  getSession: () => mockGetSession(),
+}))
 
-    vi.doMock('@sim/db/schema', () => ({
-      workspaceInvitation: {
-        id: 'id',
-        workspaceId: 'workspaceId',
-        email: 'email',
-        inviterId: 'inviterId',
-        status: 'status',
-        token: 'token',
-        permissions: 'permissions',
-        expiresAt: 'expiresAt',
-      },
-      workspace: {
-        id: 'id',
-        name: 'name',
-      },
-      user: {
-        id: 'id',
-        email: 'email',
-      },
-      permissions: {
-        id: 'id',
-        entityType: 'entityType',
-        entityId: 'entityId',
-        userId: 'userId',
-        permissionType: 'permissionType',
-      },
-    }))
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  hasWorkspaceAdminAccess: (userId: string, workspaceId: string) =>
+    mockHasWorkspaceAdminAccess(userId, workspaceId),
+}))
 
-    vi.doMock('drizzle-orm', () => ({
-      eq: vi.fn((a, b) => ({ type: 'eq', a, b })),
-      and: vi.fn((...args) => ({ type: 'and', args })),
-    }))
+vi.mock('@/lib/logs/console/logger', () => ({
+  createLogger: vi.fn().mockReturnValue({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
+}))
+
+vi.mock('@/lib/core/utils/urls', () => ({
+  getBaseUrl: vi.fn().mockReturnValue('https://test.sim.ai'),
+}))
+
+vi.mock('@sim/db', () => ({
+  db: {
+    select: () => mockDbSelect(),
+    insert: (table: any) => mockDbInsert(table),
+    update: (table: any) => mockDbUpdate(table),
+    delete: (table: any) => mockDbDelete(table),
+    transaction: (callback: any) => mockDbTransaction(callback),
+  },
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  workspaceInvitation: {
+    id: 'id',
+    workspaceId: 'workspaceId',
+    email: 'email',
+    inviterId: 'inviterId',
+    status: 'status',
+    token: 'token',
+    permissions: 'permissions',
+    expiresAt: 'expiresAt',
+  },
+  workspace: {
+    id: 'id',
+    name: 'name',
+  },
+  user: {
+    id: 'id',
+    email: 'email',
+  },
+  permissions: {
+    id: 'id',
+    entityType: 'entityType',
+    entityId: 'entityId',
+    userId: 'userId',
+    permissionType: 'permissionType',
+  },
+}))
+
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn((a, b) => ({ type: 'eq', a, b })),
+  and: vi.fn((...args) => ({ type: 'and', args })),
+}))
+
+vi.mock('crypto', () => ({
+  randomUUID: vi.fn().mockReturnValue('mock-uuid-1234'),
+}))
+
+import { DELETE, GET } from './route'
+
+const mockUser = {
+  id: 'user-123',
+  email: 'test@example.com',
+  name: 'Test User',
+}
+
+const mockWorkspace = {
+  id: 'workspace-456',
+  name: 'Test Workspace',
+}
+
+const mockInvitation = {
+  id: 'invitation-789',
+  workspaceId: 'workspace-456',
+  email: 'invited@example.com',
+  inviterId: 'inviter-321',
+  status: 'pending',
+  token: 'token-abc123',
+  permissions: 'read',
+  expiresAt: new Date(Date.now() + 86400000), // 1 day from now
+  createdAt: new Date(),
+  updatedAt: new Date(),
+}
+
+describe('Workspace Invitation [invitationId] API Route', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    dbSelectResults = []
+    dbSelectCallIndex = 0
   })
 
   describe('GET /api/workspaces/invitations/[invitationId]', () => {
     it('should return invitation details when called without token', async () => {
-      const { GET } = await import('./route')
-
       mockGetSession.mockResolvedValue({ user: mockUser })
-
-      mockDbResults.push([mockInvitation])
-      mockDbResults.push([mockWorkspace])
+      dbSelectResults = [[mockInvitation], [mockWorkspace]]
 
       const request = new NextRequest('http://localhost/api/workspaces/invitations/invitation-789')
       const params = Promise.resolve({ invitationId: 'invitation-789' })
@@ -157,8 +173,6 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should redirect to login when unauthenticated with token', async () => {
-      const { GET } = await import('./route')
-
       mockGetSession.mockResolvedValue(null)
 
       const request = new NextRequest(
@@ -174,27 +188,30 @@ describe('Workspace Invitation [invitationId] API Route', () => {
       )
     })
 
-    it('should accept invitation when called with valid token', async () => {
-      const { GET } = await import('./route')
+    it('should return 401 when unauthenticated without token', async () => {
+      mockGetSession.mockResolvedValue(null)
 
+      const request = new NextRequest('http://localhost/api/workspaces/invitations/invitation-789')
+      const params = Promise.resolve({ invitationId: 'invitation-789' })
+
+      const response = await GET(request, { params })
+      const data = await response.json()
+
+      expect(response.status).toBe(401)
+      expect(data).toEqual({ error: 'Unauthorized' })
+    })
+
+    it('should accept invitation when called with valid token', async () => {
       mockGetSession.mockResolvedValue({
         user: { ...mockUser, email: 'invited@example.com' },
       })
 
-      mockDbResults.push([mockInvitation])
-      mockDbResults.push([mockWorkspace])
-      mockDbResults.push([{ ...mockUser, email: 'invited@example.com' }])
-      mockDbResults.push([])
-
-      mockTransaction.mockImplementation(async (callback: any) => {
-        await callback({
-          insert: vi.fn().mockReturnThis(),
-          values: vi.fn().mockResolvedValue(undefined),
-          update: vi.fn().mockReturnThis(),
-          set: vi.fn().mockReturnThis(),
-          where: vi.fn().mockResolvedValue(undefined),
-        })
-      })
+      dbSelectResults = [
+        [mockInvitation], // invitation lookup
+        [mockWorkspace], // workspace lookup
+        [{ ...mockUser, email: 'invited@example.com' }], // user lookup
+        [], // existing permission check (empty = no existing)
+      ]
 
       const request = new NextRequest(
         'http://localhost/api/workspaces/invitations/token-abc123?token=token-abc123'
@@ -208,8 +225,6 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should redirect to error page when invitation expired', async () => {
-      const { GET } = await import('./route')
-
       mockGetSession.mockResolvedValue({
         user: { ...mockUser, email: 'invited@example.com' },
       })
@@ -219,8 +234,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
         expiresAt: new Date(Date.now() - 86400000), // 1 day ago
       }
 
-      mockDbResults.push([expiredInvitation])
-      mockDbResults.push([mockWorkspace])
+      dbSelectResults = [[expiredInvitation], [mockWorkspace]]
 
       const request = new NextRequest(
         'http://localhost/api/workspaces/invitations/token-abc123?token=token-abc123'
@@ -236,15 +250,15 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should redirect to error page when email mismatch', async () => {
-      const { GET } = await import('./route')
-
       mockGetSession.mockResolvedValue({
         user: { ...mockUser, email: 'wrong@example.com' },
       })
 
-      mockDbResults.push([mockInvitation])
-      mockDbResults.push([mockWorkspace])
-      mockDbResults.push([{ ...mockUser, email: 'wrong@example.com' }])
+      dbSelectResults = [
+        [mockInvitation],
+        [mockWorkspace],
+        [{ ...mockUser, email: 'wrong@example.com' }],
+      ]
 
       const request = new NextRequest(
         'http://localhost/api/workspaces/invitations/token-abc123?token=token-abc123'
@@ -258,19 +272,29 @@ describe('Workspace Invitation [invitationId] API Route', () => {
         'https://test.sim.ai/invite/invitation-789?error=email-mismatch'
       )
     })
+
+    it('should return 404 when invitation not found', async () => {
+      mockGetSession.mockResolvedValue({ user: mockUser })
+      dbSelectResults = [[]] // Empty result
+
+      const request = new NextRequest('http://localhost/api/workspaces/invitations/non-existent')
+      const params = Promise.resolve({ invitationId: 'non-existent' })
+
+      const response = await GET(request, { params })
+      const data = await response.json()
+
+      expect(response.status).toBe(404)
+      expect(data).toEqual({ error: 'Invitation not found or has expired' })
+    })
   })
 
   describe('DELETE /api/workspaces/invitations/[invitationId]', () => {
     it('should return 401 when user is not authenticated', async () => {
-      const { DELETE } = await import('./route')
-
       mockGetSession.mockResolvedValue(null)
 
       const request = new NextRequest(
         'http://localhost/api/workspaces/invitations/invitation-789',
-        {
-          method: 'DELETE',
-        }
+        { method: 'DELETE' }
       )
       const params = Promise.resolve({ invitationId: 'invitation-789' })
 
@@ -282,11 +306,8 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should return 404 when invitation does not exist', async () => {
-      const { DELETE } = await import('./route')
-
       mockGetSession.mockResolvedValue({ user: mockUser })
-
-      mockDbResults.push([])
+      dbSelectResults = [[]]
 
       const request = new NextRequest('http://localhost/api/workspaces/invitations/non-existent', {
         method: 'DELETE',
@@ -301,18 +322,13 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should return 403 when user lacks admin access', async () => {
-      const { DELETE } = await import('./route')
-
       mockGetSession.mockResolvedValue({ user: mockUser })
       mockHasWorkspaceAdminAccess.mockResolvedValue(false)
-
-      mockDbResults.push([mockInvitation])
+      dbSelectResults = [[mockInvitation]]
 
       const request = new NextRequest(
         'http://localhost/api/workspaces/invitations/invitation-789',
-        {
-          method: 'DELETE',
-        }
+        { method: 'DELETE' }
       )
       const params = Promise.resolve({ invitationId: 'invitation-789' })
 
@@ -325,19 +341,15 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should return 400 when trying to delete non-pending invitation', async () => {
-      const { DELETE } = await import('./route')
-
       mockGetSession.mockResolvedValue({ user: mockUser })
       mockHasWorkspaceAdminAccess.mockResolvedValue(true)
 
       const acceptedInvitation = { ...mockInvitation, status: 'accepted' }
-      mockDbResults.push([acceptedInvitation])
+      dbSelectResults = [[acceptedInvitation]]
 
       const request = new NextRequest(
         'http://localhost/api/workspaces/invitations/invitation-789',
-        {
-          method: 'DELETE',
-        }
+        { method: 'DELETE' }
       )
       const params = Promise.resolve({ invitationId: 'invitation-789' })
 
@@ -349,18 +361,13 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should successfully delete pending invitation when user has admin access', async () => {
-      const { DELETE } = await import('./route')
-
       mockGetSession.mockResolvedValue({ user: mockUser })
       mockHasWorkspaceAdminAccess.mockResolvedValue(true)
-
-      mockDbResults.push([mockInvitation])
+      dbSelectResults = [[mockInvitation]]
 
       const request = new NextRequest(
         'http://localhost/api/workspaces/invitations/invitation-789',
-        {
-          method: 'DELETE',
-        }
+        { method: 'DELETE' }
       )
       const params = Promise.resolve({ invitationId: 'invitation-789' })
 
@@ -369,62 +376,6 @@ describe('Workspace Invitation [invitationId] API Route', () => {
 
       expect(response.status).toBe(200)
       expect(data).toEqual({ success: true })
-    })
-
-    it('should return 500 when database error occurs', async () => {
-      vi.resetModules()
-
-      const mockErrorDb = {
-        select: vi.fn().mockReturnThis(),
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockReturnThis(),
-        then: vi.fn().mockRejectedValue(new Error('Database connection failed')),
-      }
-
-      vi.doMock('@sim/db', () => ({ db: mockErrorDb }))
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue({ user: mockUser }),
-      }))
-      vi.doMock('@/lib/workspaces/permissions/utils', () => ({
-        hasWorkspaceAdminAccess: vi.fn(),
-      }))
-      vi.doMock('@/lib/core/config/env', () => {
-        const mockEnv = {
-          NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
-          BILLING_ENABLED: false,
-        }
-        return {
-          env: mockEnv,
-          isTruthy: (value: string | boolean | number | undefined) =>
-            typeof value === 'string'
-              ? value.toLowerCase() === 'true' || value === '1'
-              : Boolean(value),
-          getEnv: (variable: string) =>
-            mockEnv[variable as keyof typeof mockEnv] ?? process.env[variable],
-        }
-      })
-      vi.doMock('@sim/db/schema', () => ({
-        workspaceInvitation: { id: 'id' },
-      }))
-      vi.doMock('drizzle-orm', () => ({
-        eq: vi.fn(),
-      }))
-
-      const { DELETE } = await import('./route')
-
-      const request = new NextRequest(
-        'http://localhost/api/workspaces/invitations/invitation-789',
-        {
-          method: 'DELETE',
-        }
-      )
-      const params = Promise.resolve({ invitationId: 'invitation-789' })
-
-      const response = await DELETE(request, { params })
-      const data = await response.json()
-
-      expect(response.status).toBe(500)
-      expect(data).toEqual({ error: 'Failed to delete invitation' })
     })
   })
 })

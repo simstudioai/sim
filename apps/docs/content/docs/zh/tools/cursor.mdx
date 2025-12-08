@@ -1,0 +1,181 @@
+---
+title: Cursor
+description: 启动并管理 Cursor 云代理以处理 GitHub 仓库
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="cursor"
+  color="#1E1E1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Cursor](https://www.cursor.so/) 是一个 AI 集成开发环境（IDE）和基于云的平台，允许您启动和管理能够直接在您的 GitHub 仓库上工作的强大 AI 代理。Cursor 代理可以自动化开发任务，提高团队的生产力，并通过进行代码更改、响应自然语言指令以及维护其活动的对话历史与您协作。
+
+使用 Cursor，您可以：
+
+- **为代码库启动云代理**：即时创建在云端处理您仓库的 AI 代理
+- **使用自然语言委派编码任务**：通过书面指令、修改和澄清来指导代理
+- **监控进度和输出**：获取代理状态，查看详细结果，并检查当前或已完成的任务
+- **访问完整的对话历史**：审查所有提示和 AI 响应，以确保透明性和可审计性
+- **控制和管理代理生命周期**：列出活动代理，终止代理，并管理基于 API 的代理启动和后续操作
+
+在 Sim 中，Cursor 集成使您的代理和工作流能够以编程方式与 Cursor 云代理交互。这意味着您可以使用 Sim 来：
+
+- 列出所有云代理并浏览其当前状态（`cursor_list_agents`）
+- 获取任何代理的最新状态和输出（`cursor_get_agent`）
+- 查看任何编码代理的完整对话历史（`cursor_get_conversation`）
+- 为正在运行的代理添加后续指令或新提示
+- 根据需要管理和终止代理
+
+此集成帮助您将 Sim 代理的灵活智能与 Cursor 的强大开发自动化功能相结合，使您能够在项目中扩展 AI 驱动的开发。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+与 Cursor 云代理 API 交互，启动可以在您的 GitHub 仓库上工作的 AI 代理。支持启动代理、添加后续指令、检查状态、查看对话以及管理代理生命周期。
+
+## 工具
+
+### `cursor_list_agents`
+
+列出经过身份验证的用户的所有云代理，并支持可选的分页功能。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Cursor API 密钥 |
+| `limit` | number | 否 | 要返回的代理数量 \(默认值：20，最大值：100\) |
+| `cursor` | string | 否 | 上一个响应的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 可读的代理列表 |
+| `metadata` | object | 代理列表元数据 |
+
+### `cursor_get_agent`
+
+检索云代理的当前状态和结果。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Cursor API 密钥 |
+| `agentId` | string | 是 | 云代理的唯一标识符 \(例如，bc_abc123\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 可读的代理详细信息 |
+| `metadata` | object | 代理元数据 |
+
+### `cursor_get_conversation`
+
+检索云代理的对话历史，包括所有用户提示和助手响应。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Cursor API 密钥 |
+| `agentId` | string | 是 | 云代理的唯一标识符 \(例如，bc_abc123\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 可读的对话历史 |
+| `metadata` | object | 对话元数据 |
+
+### `cursor_launch_agent`
+
+启动一个新的云代理，根据给定的指令处理 GitHub 仓库。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Cursor API 密钥 |
+| `repository` | string | 是 | GitHub 仓库 URL \(例如，https://github.com/your-org/your-repo\) |
+| `ref` | string | 否 | 要处理的分支、标签或提交 \(默认为默认分支\) |
+| `promptText` | string | 是 | 代理的指令文本 |
+| `promptImages` | string | 否 | 包含 base64 数据和尺寸的图像对象的 JSON 数组 |
+| `model` | string | 否 | 要使用的模型 \(留空以自动选择\) |
+| `branchName` | string | 否 | 代理使用的自定义分支名称 |
+| `autoCreatePr` | boolean | 否 | 当代理完成时自动创建 PR |
+| `openAsCursorGithubApp` | boolean | 否 | 以 Cursor GitHub App 的身份打开 PR |
+| `skipReviewerRequest` | boolean | 否 | 跳过在 PR 上请求审阅者 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 包含代理详细信息的成功消息 |
+| `metadata` | object | 启动结果的元数据 |
+
+### `cursor_add_followup`
+
+为现有的云代理添加后续指令。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Cursor API 密钥 |
+| `agentId` | string | 是 | 云代理的唯一标识符 \(例如，bc_abc123\) |
+| `followupPromptText` | string | 是 | 代理的后续指令文本 |
+| `promptImages` | string | 否 | 包含 base64 数据和尺寸的图像对象的 JSON 数组 \(最多 5 个\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 成功消息 |
+| `metadata` | object | 结果元数据 |
+
+### `cursor_stop_agent`
+
+停止运行中的云代理。这将暂停代理，但不会删除它。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Cursor API 密钥 |
+| `agentId` | string | 是 | 云代理的唯一标识符 \(例如：bc_abc123\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 成功消息 |
+| `metadata` | object | 结果元数据 |
+
+### `cursor_delete_agent`
+
+永久删除云代理。此操作无法撤销。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Cursor API 密钥 |
+| `agentId` | string | 是 | 云代理的唯一标识符 \(例如，bc_abc123\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 成功消息 |
+| `metadata` | object | 结果元数据 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`cursor`

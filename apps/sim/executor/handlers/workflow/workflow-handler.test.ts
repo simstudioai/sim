@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { BlockType } from '@/executor/consts'
+import { BlockType } from '@/executor/constants'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'

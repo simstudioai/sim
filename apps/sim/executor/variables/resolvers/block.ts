@@ -1,4 +1,4 @@
-import { isReference, parseReferencePath, SPECIAL_REFERENCE_PREFIXES } from '@/executor/consts'
+import { isReference, parseReferencePath, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
 import {
   navigatePath,
   type ResolutionContext,

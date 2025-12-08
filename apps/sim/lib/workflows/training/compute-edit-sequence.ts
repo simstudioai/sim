@@ -1,5 +1,5 @@
 import type { CopilotWorkflowState } from '@/lib/workflows/sanitization/json-sanitizer'
-import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/consts'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 export interface EditOperation {
   operation_type: 'add' | 'edit' | 'delete' | 'insert_into_subflow' | 'extract_from_subflow'

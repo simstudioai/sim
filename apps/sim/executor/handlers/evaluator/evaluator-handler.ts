@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/consts'
+import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'

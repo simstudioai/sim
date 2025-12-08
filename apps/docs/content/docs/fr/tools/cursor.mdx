@@ -1,0 +1,181 @@
+---
+title: Cursor
+description: Lancez et gérez des agents cloud Cursor pour travailler sur des dépôts GitHub
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="cursor"
+  color="#1E1E1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Cursor](https://www.cursor.so/) est un IDE IA et une plateforme cloud qui vous permet de lancer et de gérer de puissants agents IA capables de travailler directement sur vos dépôts GitHub. Les agents Cursor peuvent automatiser les tâches de développement, améliorer la productivité de votre équipe et collaborer avec vous en apportant des modifications au code, en répondant aux instructions en langage naturel et en conservant l'historique des conversations sur leurs activités.
+
+Avec Cursor, vous pouvez :
+
+- **Lancer des agents cloud pour les bases de code** : créer instantanément de nouveaux agents IA qui travaillent sur vos dépôts dans le cloud
+- **Déléguer des tâches de codage en langage naturel** : guider les agents avec des instructions écrites, des modifications et des clarifications
+- **Suivre les progrès et les résultats** : récupérer l'état des agents, consulter les résultats détaillés et inspecter les tâches en cours ou terminées
+- **Accéder à l'historique complet des conversations** : examiner toutes les requêtes et réponses de l'IA pour plus de transparence et de traçabilité
+- **Contrôler et gérer le cycle de vie des agents** : lister les agents actifs, terminer des agents et gérer les lancements d'agents et les suivis via API
+
+Dans Sim, l'intégration de Cursor permet à vos agents et flux de travail d'interagir par programmation avec les agents cloud de Cursor. Cela signifie que vous pouvez utiliser Sim pour :
+
+- Lister tous les agents cloud et parcourir leur état actuel (`cursor_list_agents`)
+- Récupérer l'état et les résultats à jour de n'importe quel agent (`cursor_get_agent`)
+- Consulter l'historique complet des conversations pour tout agent de codage (`cursor_get_conversation`)
+- Ajouter des instructions de suivi ou de nouvelles requêtes à un agent en cours d'exécution
+- Gérer et terminer des agents selon les besoins
+
+Cette intégration vous aide à combiner l'intelligence flexible des agents Sim avec les puissantes capacités d'automatisation du développement de Cursor, rendant possible l'extension du développement piloté par l'IA à travers vos projets.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Interagissez avec l'API Cursor Cloud Agents pour lancer des agents IA qui peuvent travailler sur vos dépôts GitHub. Prend en charge le lancement d'agents, l'ajout d'instructions complémentaires, la vérification du statut, la visualisation des conversations et la gestion du cycle de vie des agents.
+
+## Outils
+
+### `cursor_list_agents`
+
+Liste tous les agents cloud pour l'utilisateur authentifié avec pagination optionnelle.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Cursor |
+| `limit` | number | Non | Nombre d'agents à retourner \(par défaut : 20, max : 100\) |
+| `cursor` | string | Non | Curseur de pagination de la réponse précédente |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Liste lisible des agents |
+| `metadata` | object | Métadonnées de la liste d'agents |
+
+### `cursor_get_agent`
+
+Récupère le statut actuel et les résultats d'un agent cloud.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | chaîne | Oui | Clé API Cursor |
+| `agentId` | chaîne | Oui | Identifiant unique pour l'agent cloud \(ex. : bc_abc123\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Détails de l'agent en format lisible |
+| `metadata` | object | Métadonnées de l'agent |
+
+### `cursor_get_conversation`
+
+Récupère l'historique de conversation d'un agent cloud, y compris toutes les instructions de l'utilisateur et les réponses de l'assistant.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Cursor |
+| `agentId` | string | Oui | Identifiant unique pour l'agent cloud \(ex. : bc_abc123\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Historique de conversation en format lisible |
+| `metadata` | object | Métadonnées de la conversation |
+
+### `cursor_launch_agent`
+
+Démarrer un nouvel agent cloud pour travailler sur un dépôt GitHub avec les instructions données.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | chaîne | Oui | Clé API Cursor |
+| `repository` | chaîne | Oui | URL du dépôt GitHub \(ex. : https://github.com/your-org/your-repo\) |
+| `ref` | chaîne | Non | Branche, tag ou commit à partir duquel travailler \(par défaut : branche principale\) |
+| `promptText` | chaîne | Oui | Le texte d'instruction pour l'agent |
+| `promptImages` | chaîne | Non | Tableau JSON d'objets d'image avec données base64 et dimensions |
+| `model` | chaîne | Non | Modèle à utiliser \(laisser vide pour sélection automatique\) |
+| `branchName` | chaîne | Non | Nom de branche personnalisé pour l'agent |
+| `autoCreatePr` | booléen | Non | Créer automatiquement une PR lorsque l'agent termine |
+| `openAsCursorGithubApp` | booléen | Non | Ouvrir la PR en tant qu'application GitHub Cursor |
+| `skipReviewerRequest` | booléen | Non | Ignorer la demande de relecteurs sur la PR |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Message de succès avec les détails de l'agent |
+| `metadata` | objet | Métadonnées du résultat de lancement |
+
+### `cursor_add_followup`
+
+Ajouter une instruction complémentaire à un agent cloud existant.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | chaîne | Oui | Clé API Cursor |
+| `agentId` | chaîne | Oui | Identifiant unique pour l'agent cloud \(ex. : bc_abc123\) |
+| `followupPromptText` | chaîne | Oui | Le texte d'instruction complémentaire pour l'agent |
+| `promptImages` | chaîne | Non | Tableau JSON d'objets d'image avec données base64 et dimensions \(max 5\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message de succès |
+| `metadata` | object | Métadonnées du résultat |
+
+### `cursor_stop_agent`
+
+Arrêter un agent cloud en cours d'exécution. Cela met l'agent en pause sans le supprimer.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | chaîne | Oui | Clé API Cursor |
+| `agentId` | chaîne | Oui | Identifiant unique pour l'agent cloud \(ex., bc_abc123\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées du résultat |
+
+### `cursor_delete_agent`
+
+Supprimer définitivement un agent cloud. Cette action ne peut pas être annulée.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | string | Oui | Clé API Cursor |
+| `agentId` | string | Oui | Identifiant unique pour l'agent cloud \(ex., bc_abc123\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message de succès |
+| `metadata` | object | Métadonnées du résultat |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `cursor`

@@ -135,7 +135,7 @@ Function (Process) → Condition (account_type === 'enterprise') → Advanced or
 ## Best Practices
 
 - **Order conditions correctly**: Place more specific conditions before general ones to ensure specific logic takes precedence over fallbacks
-- **Include a default condition**: Add a catch-all condition (`true`) as the last condition to handle unmatched cases and prevent workflow execution from getting stuck
+- **Use the else branch when needed**: If no conditions match and the else branch is not connected, the workflow branch will end gracefully. Connect the else branch if you need a fallback path for unmatched cases
 - **Keep expressions simple**: Use clear, straightforward boolean expressions for better readability and easier debugging
 - **Document your conditions**: Add descriptions to explain the purpose of each condition for better team collaboration and maintenance
 - **Test edge cases**: Verify conditions handle boundary values correctly by testing with values at the edges of your condition ranges
