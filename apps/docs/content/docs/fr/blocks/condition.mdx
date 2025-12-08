@@ -142,8 +142,8 @@ Function (Process) → Condition (account_type === 'enterprise') → Advanced or
 
 ## Bonnes pratiques
 
-- **Ordonner correctement les conditions** : placer les conditions spécifiques avant les générales pour garantir que la logique spécifique prévaut sur les solutions de repli
-- **Inclure une condition par défaut** : ajouter une condition fourre-tout (`true`) comme dernière condition pour gérer les cas non correspondants et éviter que l'exécution du flux de travail ne se bloque
-- **Garder les expressions simples** : utiliser des expressions booléennes claires et directes pour une meilleure lisibilité et un débogage plus facile
-- **Documenter vos conditions** : ajouter des descriptions pour expliquer l'objectif de chaque condition pour une meilleure collaboration en équipe et une maintenance plus facile
-- **Tester les cas limites** : vérifier que les conditions gèrent correctement les valeurs limites en testant avec des valeurs aux extrémités de vos plages de conditions
+- **Ordonnez correctement les conditions** : placez les conditions plus spécifiques avant les générales pour garantir que la logique spécifique prévaut sur les solutions de repli
+- **Utilisez la branche else quand nécessaire** : si aucune condition ne correspond et que la branche else n'est pas connectée, la branche du workflow se terminera gracieusement. Connectez la branche else si vous avez besoin d'un chemin de repli pour les cas non correspondants
+- **Gardez les expressions simples** : utilisez des expressions booléennes claires et directes pour une meilleure lisibilité et un débogage plus facile
+- **Documentez vos conditions** : ajoutez des descriptions pour expliquer l'objectif de chaque condition pour une meilleure collaboration en équipe et une maintenance plus facile
+- **Testez les cas limites** : vérifiez que les conditions gèrent correctement les valeurs limites en testant avec des valeurs aux extrémités de vos plages de conditions

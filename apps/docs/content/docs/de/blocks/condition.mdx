@@ -143,7 +143,7 @@ Function (Process) → Condition (account_type === 'enterprise') → Advanced or
 ## Bewährte Praktiken
 
 - **Bedingungen korrekt anordnen**: Platzieren Sie spezifischere Bedingungen vor allgemeinen, um sicherzustellen, dass spezifische Logik Vorrang vor Fallbacks hat
-- **Eine Standardbedingung einfügen**: Fügen Sie eine Auffangbedingung (`true`) als letzte Bedingung hinzu, um nicht übereinstimmende Fälle zu behandeln und zu verhindern, dass die Workflow-Ausführung stecken bleibt
-- **Ausdrücke einfach halten**: Verwenden Sie klare, unkomplizierte boolesche Ausdrücke für bessere Lesbarkeit und einfachere Fehlersuche
+- **Verwenden Sie den Else-Zweig bei Bedarf**: Wenn keine Bedingungen übereinstimmen und der Else-Zweig nicht verbunden ist, endet der Workflow-Zweig ordnungsgemäß. Verbinden Sie den Else-Zweig, wenn Sie einen Fallback-Pfad für nicht übereinstimmende Fälle benötigen
+- **Halten Sie Ausdrücke einfach**: Verwenden Sie klare, unkomplizierte boolesche Ausdrücke für bessere Lesbarkeit und einfachere Fehlersuche
 - **Dokumentieren Sie Ihre Bedingungen**: Fügen Sie Beschreibungen hinzu, um den Zweck jeder Bedingung für bessere Teamzusammenarbeit und Wartung zu erklären
-- **Grenzfälle testen**: Überprüfen Sie, ob Bedingungen Grenzwerte korrekt behandeln, indem Sie mit Werten an den Grenzen Ihrer Bedingungsbereiche testen
+- **Testen Sie Grenzfälle**: Überprüfen Sie, ob Bedingungen Grenzwerte korrekt behandeln, indem Sie mit Werten an den Grenzen Ihrer Bedingungsbereiche testen
