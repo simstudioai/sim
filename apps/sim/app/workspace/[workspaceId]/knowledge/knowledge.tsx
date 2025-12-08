@@ -207,7 +207,7 @@ export function Knowledge() {
               ) : filteredAndSortedKnowledgeBases.length === 0 ? (
                 <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
                   <div className='text-center'>
-                    <p className='font-medium text-sm [var(--text-secondary)]'>
+                    <p className='font-medium text-[var(--text-secondary)] text-sm'>
                       {emptyState.title}
                     </p>
                     <p className='mt-1 text-[var(--text-muted)] text-xs'>
@@ -218,10 +218,10 @@ export function Knowledge() {
               ) : error ? (
                 <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
                   <div className='text-center'>
-                    <p className='font-medium text-sm [var(--text-secondary)]'>
-                      Error fetching knowledge bases
+                    <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                      Error loading knowledge bases
                     </p>
-                    <p className='0 mt-1 text-xs [var(--text-muted)]'>{error}</p>
+                    <p className='mt-1 text-[var(--text-muted)] text-xs'>{error}</p>
                   </div>
                 </div>
               ) : (

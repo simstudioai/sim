@@ -1,9 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
-import { Trash } from '@/components/emcn/icons/trash'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ChunkData } from '@/stores/knowledge/store'
 
@@ -86,17 +84,7 @@ export function DeleteChunkModal({
             disabled={isDeleting}
             className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
           >
-            {isDeleting ? (
-              <>
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                Deleting...
-              </>
-            ) : (
-              <>
-                <Trash className='mr-2 h-4 w-4' />
-                Delete
-              </>
-            )}
+            {isDeleting ? <>Deleting...</> : <>Delete</>}
           </Button>
         </ModalFooter>
       </ModalContent>

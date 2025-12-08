@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { AlertCircle, ChevronDown, ChevronUp, Loader2, X } from 'lucide-react'
 import {
   Button,
@@ -171,13 +172,15 @@ export function EditChunkModal({
   return (
     <>
       <Modal open={isOpen} onOpenChange={handleCloseAttempt}>
-        <ModalContent className='h-[74vh] sm:max-w-[600px]'>
+        <ModalContent className='sm:max-w-[600px]'>
           <div className='flex items-center justify-between px-[16px] py-[10px]'>
-            <div className='flex items-center gap-3'>
-              <span className='font-medium text-[16px] text-[var(--text-primary)]'>Edit Chunk</span>
+            <DialogPrimitive.Title className='font-medium text-[16px] text-[var(--text-primary)]'>
+              Edit Chunk #{chunk.chunkIndex}
+            </DialogPrimitive.Title>
 
+            <div className='flex flex-shrink-0 items-center gap-[8px]'>
               {/* Navigation Controls */}
-              <div className='flex items-center gap-1'>
+              <div className='flex items-center gap-[6px]'>
                 <Tooltip.Root>
                   <Tooltip.Trigger
                     asChild
@@ -188,9 +191,9 @@ export function EditChunkModal({
                       variant='ghost'
                       onClick={() => handleNavigate('prev')}
                       disabled={!canNavigatePrev || isNavigating || isSaving}
-                      className='h-8 w-8 p-0'
+                      className='h-[16px] w-[16px] p-0'
                     >
-                      <ChevronUp className='h-4 w-4' />
+                      <ChevronUp className='h-[16px] w-[16px]' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom'>
@@ -209,9 +212,9 @@ export function EditChunkModal({
                       variant='ghost'
                       onClick={() => handleNavigate('next')}
                       disabled={!canNavigateNext || isNavigating || isSaving}
-                      className='h-8 w-8 p-0'
+                      className='h-[16px] w-[16px] p-0'
                     >
-                      <ChevronDown className='h-4 w-4' />
+                      <ChevronDown className='h-[16px] w-[16px]' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom'>
@@ -222,29 +225,21 @@ export function EditChunkModal({
                   </Tooltip.Content>
                 </Tooltip.Root>
               </div>
-            </div>
 
-            <Button variant='ghost' className='h-[16px] w-[16px] p-0' onClick={handleCloseAttempt}>
-              <X className='h-[16px] w-[16px]' />
-              <span className='sr-only'>Close</span>
-            </Button>
+              <Button
+                variant='ghost'
+                className='h-[16px] w-[16px] p-0'
+                onClick={handleCloseAttempt}
+              >
+                <X className='h-[16px] w-[16px]' />
+                <span className='sr-only'>Close</span>
+              </Button>
+            </div>
           </div>
 
-          <form className='flex min-h-0 flex-1 flex-col'>
-            <ModalBody>
-              <div className='space-y-[12px]'>
-                {/* Document Info Section */}
-                <div className='flex items-center gap-3 rounded-lg border p-4'>
-                  <div className='min-w-0 flex-1'>
-                    <p className='font-medium text-[var(--text-primary)] text-sm'>
-                      {document?.filename || 'Unknown Document'}
-                    </p>
-                    <p className='text-[var(--text-tertiary)] text-xs'>
-                      Editing chunk #{chunk.chunkIndex} • Page {currentPage} of {totalPages}
-                    </p>
-                  </div>
-                </div>
-
+          <form>
+            <ModalBody className='!pb-[16px]'>
+              <div className='flex flex-col gap-[8px]'>
                 {/* Error Display */}
                 {error && (
                   <div className='flex items-center gap-2 rounded-md border border-[var(--text-error)]/50 bg-[var(--text-error)]/10 p-3'>
@@ -254,25 +249,18 @@ export function EditChunkModal({
                 )}
 
                 {/* Content Input Section */}
-                <div className='space-y-[8px]'>
-                  <Label
-                    htmlFor='content'
-                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
-                  >
-                    Chunk Content
-                  </Label>
-                  <Textarea
-                    id='content'
-                    value={editedContent}
-                    onChange={(e) => setEditedContent(e.target.value)}
-                    placeholder={
-                      userPermissions.canEdit ? 'Enter chunk content...' : 'Read-only view'
-                    }
-                    rows={10}
-                    disabled={isSaving || isNavigating || !userPermissions.canEdit}
-                    readOnly={!userPermissions.canEdit}
-                  />
-                </div>
+                <Label htmlFor='content'>Chunk</Label>
+                <Textarea
+                  id='content'
+                  value={editedContent}
+                  onChange={(e) => setEditedContent(e.target.value)}
+                  placeholder={
+                    userPermissions.canEdit ? 'Enter chunk content...' : 'Read-only view'
+                  }
+                  rows={20}
+                  disabled={isSaving || isNavigating || !userPermissions.canEdit}
+                  readOnly={!userPermissions.canEdit}
+                />
               </div>
             </ModalBody>
 
@@ -298,7 +286,7 @@ export function EditChunkModal({
                       Saving...
                     </>
                   ) : (
-                    'Save Changes'
+                    'Save'
                   )}
                 </Button>
               )}

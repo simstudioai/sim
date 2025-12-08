@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, Check, Loader2, RotateCcw, X } from 'lucide-react'
+import { AlertCircle, Loader2, RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -13,7 +13,6 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
@@ -54,7 +53,7 @@ export function AddDocumentsModal({
   const [dragCounter, setDragCounter] = useState(0)
   const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(new Set())
 
-  const { isUploading, uploadProgress, uploadError, uploadFiles, clearError } = useKnowledgeUpload({
+  const { isUploading, uploadProgress, uploadFiles, clearError } = useKnowledgeUpload({
     workspaceId,
     onUploadComplete: () => {
       logger.info(`Successfully uploaded ${files.length} files`)
@@ -234,15 +233,7 @@ export function AddDocumentsModal({
         <ModalBody className='!pb-[16px]'>
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='space-y-[12px]'>
-              {uploadError && (
-                <Alert variant='destructive'>
-                  <AlertCircle className='h-4 w-4' />
-                  <AlertTitle>Upload Error</AlertTitle>
-                  <AlertDescription>{uploadError.message}</AlertDescription>
-                </Alert>
-              )}
-
-              {fileError && !uploadError && (
+              {fileError && (
                 <Alert variant='destructive'>
                   <AlertCircle className='h-4 w-4' />
                   <AlertTitle>Error</AlertTitle>
@@ -290,45 +281,31 @@ export function AddDocumentsModal({
                   <div className='space-y-2'>
                     {files.map((file, index) => {
                       const fileStatus = uploadProgress.fileStatuses?.[index]
-                      const isCurrentlyUploading = fileStatus?.status === 'uploading'
-                      const isCompleted = fileStatus?.status === 'completed'
                       const isFailed = fileStatus?.status === 'failed'
                       const isRetrying = retryingIndexes.has(index)
+                      const isProcessing = fileStatus?.status === 'uploading' || isRetrying
 
                       return (
                         <div
                           key={index}
-                          className='flex items-center justify-between rounded-[4px] border p-[8px]'
+                          className='flex items-center gap-2 rounded-[4px] border p-[8px]'
                         >
-                          <div className='flex min-w-0 flex-1 items-center gap-2'>
-                            {(isCurrentlyUploading || isRetrying) && (
-                              <Loader2 className='h-4 w-4 flex-shrink-0 animate-spin text-[var(--brand-primary-hex)]' />
+                          {isFailed && !isRetrying && (
+                            <AlertCircle className='h-4 w-4 flex-shrink-0 text-[var(--text-error)]' />
+                          )}
+                          <span
+                            className={cn(
+                              'min-w-0 flex-1 truncate text-[12px]',
+                              isFailed && !isRetrying && 'text-[var(--text-error)]'
                             )}
-                            {isCompleted && (
-                              <Check className='h-4 w-4 flex-shrink-0 text-[var(--brand-tertiary)]' />
-                            )}
-                            {isFailed && !isRetrying && (
-                              <AlertCircle className='h-4 w-4 flex-shrink-0 text-[var(--text-error)]' />
-                            )}
-                            <span
-                              className={cn(
-                                'max-w-[200px] truncate text-[12px]',
-                                isFailed && !isRetrying && 'text-[var(--text-error)]'
-                              )}
-                              title={file.name}
-                            >
-                              {file.name}
-                            </span>
-                            <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
-                              {formatFileSize(file.size)}
-                            </span>
-                            {isCurrentlyUploading && (
-                              <div className='min-w-0 max-w-24 flex-1'>
-                                <Progress value={fileStatus?.progress || 0} className='h-1' />
-                              </div>
-                            )}
-                          </div>
-                          <div className='flex items-center gap-1'>
+                            title={file.name}
+                          >
+                            {file.name}
+                          </span>
+                          <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
+                            {formatFileSize(file.size)}
+                          </span>
+                          <div className='flex flex-shrink-0 items-center gap-1'>
                             {isFailed && !isRetrying && (
                               <Button
                                 type='button'
@@ -340,15 +317,19 @@ export function AddDocumentsModal({
                                 <RotateCcw className='h-3.5 w-3.5' />
                               </Button>
                             )}
-                            <Button
-                              type='button'
-                              variant='ghost'
-                              className='h-4 w-4 p-0'
-                              onClick={() => removeFile(index)}
-                              disabled={isUploading || isRetrying}
-                            >
-                              <X className='h-3.5 w-3.5' />
-                            </Button>
+                            {isProcessing ? (
+                              <Loader2 className='h-4 w-4 animate-spin text-[var(--text-muted)]' />
+                            ) : (
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                className='h-4 w-4 p-0'
+                                onClick={() => removeFile(index)}
+                                disabled={isUploading}
+                              >
+                                <X className='h-3.5 w-3.5' />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       )

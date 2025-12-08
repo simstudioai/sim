@@ -58,6 +58,151 @@ const logger = createLogger('KnowledgeBase')
 
 const DOCUMENTS_PER_PAGE = 50
 
+function DocumentTableRowSkeleton() {
+  return (
+    <TableRow className='hover:bg-transparent'>
+      <TableCell className='w-[28px] py-[8px] pr-0 pl-0'>
+        <div className='flex items-center justify-center'>
+          <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+        </div>
+      </TableCell>
+      <TableCell className='w-[180px] max-w-[180px] px-[12px] py-[8px]'>
+        <div className='flex min-w-0 items-center gap-[8px]'>
+          <Skeleton className='h-6 w-5 flex-shrink-0 rounded-[2px]' />
+          <Skeleton className='h-[17px] w-[120px]' />
+        </div>
+      </TableCell>
+      <TableCell className='px-[12px] py-[8px]'>
+        <Skeleton className='h-[15px] w-[48px]' />
+      </TableCell>
+      <TableCell className='px-[12px] py-[8px]'>
+        <Skeleton className='h-[15px] w-[32px]' />
+      </TableCell>
+      <TableCell className='hidden px-[12px] py-[8px] lg:table-cell'>
+        <Skeleton className='h-[15px] w-[24px]' />
+      </TableCell>
+      <TableCell className='px-[12px] py-[8px]'>
+        <div className='flex flex-col justify-center'>
+          <div className='flex items-center font-medium text-[12px]'>
+            <Skeleton className='h-[15px] w-[50px]' />
+            <span className='mx-[6px] hidden text-[var(--text-muted)] xl:inline'>|</span>
+            <Skeleton className='hidden h-[15px] w-[70px] xl:inline-block' />
+          </div>
+          <Skeleton className='mt-[2px] h-[15px] w-[40px] lg:hidden' />
+        </div>
+      </TableCell>
+      <TableCell className='px-[12px] py-[8px]'>
+        <Skeleton className='h-[24px] w-[64px] rounded-md' />
+      </TableCell>
+      <TableCell className='py-[8px] pr-[4px] pl-[12px]'>
+        <div className='flex items-center gap-[4px]'>
+          <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
+          <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
+        </div>
+      </TableCell>
+    </TableRow>
+  )
+}
+
+function DocumentTableSkeleton({ rowCount = 5 }: { rowCount?: number }) {
+  return (
+    <Table className='min-w-[700px] table-fixed text-[13px]'>
+      <TableHeader>
+        <TableRow className='hover:bg-transparent'>
+          <TableHead className='w-[28px] py-[8px] pr-0 pl-0'>
+            <div className='flex items-center justify-center'>
+              <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+            </div>
+          </TableHead>
+          <TableHead className='w-[180px] max-w-[180px] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+            Name
+          </TableHead>
+          <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+            Size
+          </TableHead>
+          <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+            Tokens
+          </TableHead>
+          <TableHead className='hidden w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)] lg:table-cell'>
+            Chunks
+          </TableHead>
+          <TableHead className='w-[16%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+            Uploaded
+          </TableHead>
+          <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+            Status
+          </TableHead>
+          <TableHead className='w-[14%] py-[8px] pr-[4px] pl-[12px] text-[12px] text-[var(--text-secondary)]'>
+            Actions
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {Array.from({ length: rowCount }).map((_, i) => (
+          <DocumentTableRowSkeleton key={i} />
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+
+interface KnowledgeBaseLoadingProps {
+  knowledgeBaseName: string
+}
+
+function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) {
+  const params = useParams()
+  const workspaceId = params?.workspaceId as string
+
+  const breadcrumbItems = [
+    { label: 'Knowledge Base', href: `/workspace/${workspaceId}/knowledge` },
+    { label: knowledgeBaseName },
+  ]
+
+  return (
+    <div className='flex h-full flex-1 flex-col'>
+      <div className='flex flex-1 overflow-hidden'>
+        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+          <Breadcrumb items={breadcrumbItems} />
+
+          <div className='mt-[14px] flex items-center justify-between'>
+            <Skeleton className='h-[27px] w-[200px] rounded-[4px]' />
+            <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
+          </div>
+
+          <div className='mt-[4px]'>
+            <Skeleton className='h-[21px] w-[300px] rounded-[4px]' />
+          </div>
+
+          <div className='mt-[16px] flex items-center gap-[8px]'>
+            <Skeleton className='h-[21px] w-[80px] rounded-[4px]' />
+            <div className='mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[#3A3A3A]' />
+            <Skeleton className='h-[21px] w-[140px] rounded-[4px]' />
+          </div>
+
+          <div className='mt-[14px] flex items-center justify-between'>
+            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+              <Input
+                placeholder='Search documents...'
+                disabled
+                className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
+            </div>
+            <Button disabled variant='primary' className='h-[32px] rounded-[6px]'>
+              Add Documents
+            </Button>
+          </div>
+
+          <div className='mt-[12px] flex flex-1 flex-col overflow-hidden'>
+            <DocumentTableSkeleton rowCount={8} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /**
  * Formats a date string to relative time (e.g., "2h ago", "3d ago")
  */
@@ -177,156 +322,6 @@ const getStatusDisplay = (doc: DocumentData) => {
   }
 }
 
-function DocumentTableRowSkeleton() {
-  return (
-    <TableRow className='hover:bg-transparent'>
-      <TableCell className='px-[12px] py-[8px]'>
-        <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
-      </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
-        <div className='flex items-center gap-[8px]'>
-          <Skeleton className='h-[20px] w-[16px] rounded-[2px]' />
-          <Skeleton className='h-[17px] w-[140px]' />
-        </div>
-      </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
-        <Skeleton className='h-[15px] w-[48px]' />
-      </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
-        <Skeleton className='h-[15px] w-[32px]' />
-      </TableCell>
-      <TableCell className='hidden px-[12px] py-[8px] lg:table-cell'>
-        <Skeleton className='h-[15px] w-[24px]' />
-      </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
-        <div className='flex flex-col justify-center'>
-          <div className='flex items-center'>
-            <Skeleton className='h-[15px] w-[50px]' />
-            <span className='mx-[6px] hidden text-[var(--text-muted)] xl:inline'>•</span>
-            <Skeleton className='hidden h-[15px] w-[70px] xl:block' />
-          </div>
-          <Skeleton className='mt-[2px] h-[15px] w-[40px] lg:hidden' />
-        </div>
-      </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
-        <Skeleton className='h-[24px] w-[64px] rounded-[4px]' />
-      </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
-        <div className='flex items-center gap-[4px]'>
-          <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
-          <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
-        </div>
-      </TableCell>
-    </TableRow>
-  )
-}
-
-function DocumentTableSkeleton({ rowCount = 5 }: { rowCount?: number }) {
-  return (
-    <Table className='min-w-[700px] table-auto text-[13px]'>
-      <TableHeader>
-        <TableRow className='hover:bg-transparent'>
-          <TableHead className='w-[4%] px-[12px] py-[8px]'>
-            <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
-          </TableHead>
-          <TableHead className='w-[24%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Name
-          </TableHead>
-          <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Size
-          </TableHead>
-          <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Tokens
-          </TableHead>
-          <TableHead className='hidden w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)] lg:table-cell'>
-            Chunks
-          </TableHead>
-          <TableHead className='w-[16%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Uploaded
-          </TableHead>
-          <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Status
-          </TableHead>
-          <TableHead className='w-[14%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Actions
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {Array.from({ length: rowCount }).map((_, i) => (
-          <DocumentTableRowSkeleton key={i} />
-        ))}
-      </TableBody>
-    </Table>
-  )
-}
-
-interface KnowledgeBaseLoadingProps {
-  knowledgeBaseName: string
-}
-
-/**
- * Loading skeleton for the KnowledgeBase component
- */
-export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) {
-  const params = useParams()
-  const workspaceId = params?.workspaceId as string
-
-  const breadcrumbItems = [
-    { label: 'Knowledge Base', href: `/workspace/${workspaceId}/knowledge` },
-    { label: knowledgeBaseName },
-  ]
-
-  return (
-    <div className='flex h-full flex-1 flex-col'>
-      <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
-          {/* Breadcrumb */}
-          <Breadcrumb items={breadcrumbItems} />
-
-          {/* Name and actions row skeleton */}
-          <div className='mt-[14px] flex items-center justify-between'>
-            <Skeleton className='h-[27px] w-[200px] rounded-[4px]' />
-            <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
-          </div>
-
-          {/* Description skeleton */}
-          <div className='mt-[4px]'>
-            <Skeleton className='h-[21px] w-[300px] rounded-[4px]' />
-          </div>
-
-          {/* Metadata row skeleton */}
-          <div className='mt-[16px] flex items-center gap-[8px]'>
-            <Skeleton className='h-[21px] w-[80px] rounded-[4px]' />
-            <div className='mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[#3A3A3A]' />
-            <Skeleton className='h-[21px] w-[140px] rounded-[4px]' />
-          </div>
-
-          {/* Search and Add Documents Section */}
-          <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
-              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-              <Input
-                placeholder='Search'
-                disabled
-                className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
-            <Button disabled variant='primary' className='h-[32px] rounded-[6px]'>
-              Add Documents
-            </Button>
-          </div>
-
-          {/* Table skeleton */}
-          <div className='mt-[20px] flex flex-1 flex-col overflow-hidden'>
-            <DocumentTableSkeleton rowCount={8} />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export function KnowledgeBase({
   id,
   knowledgeBaseName: passedKnowledgeBaseName,
@@ -336,12 +331,23 @@ export function KnowledgeBase({
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()
 
+  /**
+   * Track mount state to avoid hydration mismatch from React Query cache
+   */
+  const [hasMounted, setHasMounted] = useState(false)
+
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
+
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Memoize the search query setter to prevent unnecessary re-renders
+  /**
+   * Memoize the search query setter to prevent unnecessary re-renders
+   */
   const handleSearchChange = useCallback((newQuery: string) => {
     setSearchQuery(newQuery)
-    setCurrentPage(1) // Reset to page 1 when searching
+    setCurrentPage(1)
   }, [])
 
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
@@ -451,14 +457,17 @@ export function KnowledgeBase({
       } catch (error) {
         logger.error('Error refreshing documents:', error)
       }
-    }, 3000) // Refresh every 3 seconds
+    }, 3000)
 
     return () => clearInterval(refreshInterval)
   }, [documents, refreshDocuments, isDeleting])
 
+  /**
+   * Checks for documents with stale processing states and marks them as failed
+   */
   const checkForDeadProcesses = async () => {
     const now = new Date()
-    const DEAD_PROCESS_THRESHOLD_MS = 150 * 1000 // 150 seconds (2.5 minutes)
+    const DEAD_PROCESS_THRESHOLD_MS = 150 * 1000
 
     const staleDocuments = documents.filter((doc) => {
       if (doc.processingStatus !== 'processing' || !doc.processingStartedAt) {
@@ -525,7 +534,6 @@ export function KnowledgeBase({
       const result = await response.json()
 
       if (result.success) {
-        // Update the document in the store
         updateDocument(docId, { enabled: !document.enabled })
       }
     } catch (err) {
@@ -533,9 +541,11 @@ export function KnowledgeBase({
     }
   }
 
+  /**
+   * Handles retrying a failed document processing
+   */
   const handleRetryDocument = async (docId: string) => {
     try {
-      // Optimistically update the document status
       updateDocument(docId, {
         processingStatus: 'pending',
         processingError: null,
@@ -563,10 +573,8 @@ export function KnowledgeBase({
         throw new Error(result.error || 'Failed to retry document processing')
       }
 
-      // Immediately refresh to get the current DB state
       await refreshDocuments()
 
-      // Set up a single interval-based refresh to catch the status transition from pending -> processing
       let refreshAttempts = 0
       const maxRefreshAttempts = 3
       const refreshInterval = setInterval(async () => {
@@ -580,9 +588,8 @@ export function KnowledgeBase({
           logger.error('Error refreshing documents after retry:', error)
           clearInterval(refreshInterval)
         }
-      }, 1000) // Check every second for 3 seconds
+      }, 1000)
 
-      // Clear interval after maximum time to prevent memory leaks
       setTimeout(() => {
         clearInterval(refreshInterval)
       }, 4000)
@@ -590,7 +597,6 @@ export function KnowledgeBase({
       logger.info(`Document retry initiated successfully for: ${docId}`)
     } catch (err) {
       logger.error('Error retrying document:', err)
-      // Revert the status change on error - get the current document first to avoid overwriting other fields
       const currentDoc = documents.find((doc) => doc.id === docId)
       if (currentDoc) {
         updateDocument(docId, {
@@ -602,6 +608,9 @@ export function KnowledgeBase({
     }
   }
 
+  /**
+   * Handles deleting a single document
+   */
   const handleDeleteDocument = async (docId: string) => {
     try {
       const response = await fetch(`/api/knowledge/${id}/documents/${docId}`, {
@@ -615,10 +624,8 @@ export function KnowledgeBase({
       const result = await response.json()
 
       if (result.success) {
-        // Invalidate and refresh documents to update the list
         refreshDocuments()
 
-        // Clear selected documents
         setSelectedDocuments((prev) => {
           const newSet = new Set(prev)
           newSet.delete(docId)
@@ -630,6 +637,9 @@ export function KnowledgeBase({
     }
   }
 
+  /**
+   * Handles selecting/deselecting a document
+   */
   const handleSelectDocument = (docId: string, checked: boolean) => {
     setSelectedDocuments((prev) => {
       const newSet = new Set(prev)
@@ -642,6 +652,9 @@ export function KnowledgeBase({
     })
   }
 
+  /**
+   * Handles selecting/deselecting all documents
+   */
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedDocuments(new Set(documents.map((doc) => doc.id)))
@@ -652,16 +665,21 @@ export function KnowledgeBase({
 
   const isAllSelected = documents.length > 0 && selectedDocuments.size === documents.length
 
+  /**
+   * Handles clicking on a document row to navigate to detail view
+   */
   const handleDocumentClick = (docId: string) => {
-    // Find the document to get its filename
     const document = documents.find((doc) => doc.id === docId)
     const urlParams = new URLSearchParams({
-      kbName: knowledgeBaseName, // Use the instantly available name
+      kbName: knowledgeBaseName,
       docName: document?.filename || 'Document',
     })
     router.push(`/workspace/${workspaceId}/knowledge/${id}/${docId}?${urlParams.toString()}`)
   }
 
+  /**
+   * Handles deleting the entire knowledge base
+   */
   const handleDeleteKnowledgeBase = async () => {
     if (!knowledgeBase) return
 
@@ -679,7 +697,6 @@ export function KnowledgeBase({
       const result = await response.json()
 
       if (result.success) {
-        // Remove from store and redirect to knowledge bases list
         removeKnowledgeBase(id)
         router.push(`/workspace/${workspaceId}/knowledge`)
       } else {
@@ -691,10 +708,16 @@ export function KnowledgeBase({
     }
   }
 
+  /**
+   * Opens the add documents modal
+   */
   const handleAddDocuments = () => {
     setShowAddDocumentsModal(true)
   }
 
+  /**
+   * Handles bulk enabling of selected documents
+   */
   const handleBulkEnable = async () => {
     const documentsToEnable = documents.filter(
       (doc) => selectedDocuments.has(doc.id) && !doc.enabled
@@ -740,6 +763,9 @@ export function KnowledgeBase({
     }
   }
 
+  /**
+   * Handles bulk disabling of selected documents
+   */
   const handleBulkDisable = async () => {
     const documentsToDisable = documents.filter(
       (doc) => selectedDocuments.has(doc.id) && doc.enabled
@@ -768,7 +794,6 @@ export function KnowledgeBase({
       const result = await response.json()
 
       if (result.success) {
-        // Update successful documents in the store
         result.data.updatedDocuments.forEach((updatedDoc: { id: string; enabled: boolean }) => {
           updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
         })
@@ -776,7 +801,6 @@ export function KnowledgeBase({
         logger.info(`Successfully disabled ${result.data.successCount} documents`)
       }
 
-      // Clear selection after successful operation
       setSelectedDocuments(new Set())
     } catch (err) {
       logger.error('Error disabling documents:', err)
@@ -785,6 +809,9 @@ export function KnowledgeBase({
     }
   }
 
+  /**
+   * Handles bulk deletion of selected documents
+   */
   const handleBulkDelete = async () => {
     const documentsToDelete = documents.filter((doc) => selectedDocuments.has(doc.id))
 
@@ -814,10 +841,8 @@ export function KnowledgeBase({
         logger.info(`Successfully deleted ${result.data.successCount} documents`)
       }
 
-      // Refresh documents list to reflect deletions
       await refreshDocuments()
 
-      // Clear selection after successful operation
       setSelectedDocuments(new Set())
     } catch (err) {
       logger.error('Error deleting documents:', err)
@@ -826,40 +851,37 @@ export function KnowledgeBase({
     }
   }
 
-  // Calculate bulk operation counts
   const selectedDocumentsList = documents.filter((doc) => selectedDocuments.has(doc.id))
   const enabledCount = selectedDocumentsList.filter((doc) => doc.enabled).length
   const disabledCount = selectedDocumentsList.filter((doc) => !doc.enabled).length
 
-  // Show loading component while data is being fetched initially
-  if ((isLoadingKnowledgeBase || isLoadingDocuments) && !knowledgeBase && documents.length === 0) {
+  if (
+    !hasMounted ||
+    ((isLoadingKnowledgeBase || isLoadingDocuments) && !knowledgeBase && documents.length === 0)
+  ) {
     return <KnowledgeBaseLoading knowledgeBaseName={knowledgeBaseName} />
   }
 
-  // Breadcrumb items for navigation
   const breadcrumbItems = [
     { label: 'Knowledge Base', href: `/workspace/${workspaceId}/knowledge` },
     { label: knowledgeBaseName },
   ]
 
-  // Show error state for knowledge base fetch
   if (error && !knowledgeBase) {
     return (
       <div className='flex h-full flex-1 flex-col'>
         <div className='flex flex-1 overflow-hidden'>
           <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
-            {/* Breadcrumb */}
             <Breadcrumb items={breadcrumbItems} />
 
-            <div className='mt-[24px] flex flex-1 items-center justify-center'>
-              <div className='text-center'>
-                <p className='mb-2 text-red-600 text-sm'>Error: {error}</p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className='text-blue-600 text-sm underline hover:text-blue-800'
-                >
-                  Try again
-                </button>
+            <div className='mt-[24px]'>
+              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+                <div className='text-center'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                    Error loading knowledge base
+                  </p>
+                  <p className='mt-1 text-[var(--text-muted)] text-xs'>{error}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -872,10 +894,8 @@ export function KnowledgeBase({
     <div className='flex h-full flex-1 flex-col'>
       <div className='flex flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
-          {/* Breadcrumb */}
           <Breadcrumb items={breadcrumbItems} />
 
-          {/* Name and actions row */}
           <div className='mt-[14px] flex items-center justify-between'>
             <h1 className='font-medium text-[18px] text-[var(--text-primary)]'>
               {knowledgeBaseName}
@@ -885,14 +905,12 @@ export function KnowledgeBase({
             </Button>
           </div>
 
-          {/* Description */}
           {knowledgeBase?.description && (
             <p className='mt-[4px] font-medium text-[14px] text-[var(--text-tertiary)]'>
               {knowledgeBase.description}
             </p>
           )}
 
-          {/* Metadata row */}
           <div className='mt-[16px] flex items-center gap-[8px]'>
             <span className='text-[14px] text-[var(--text-muted)]'>
               {documents.length} {documents.length === 1 ? 'document' : 'documents'}
@@ -912,12 +930,11 @@ export function KnowledgeBase({
             )}
           </div>
 
-          {/* Search and Add Documents Section */}
           <div className='mt-[14px] flex items-center justify-between'>
             <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
               <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
               <Input
-                placeholder='Search'
+                placeholder='Search documents...'
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
@@ -952,78 +969,65 @@ export function KnowledgeBase({
             </Tooltip.Root>
           </div>
 
-          {/* Error State for documents */}
           {error && !isLoadingKnowledgeBase && (
-            <div className='mt-[24px] rounded-md border border-red-200 bg-red-50 p-4'>
-              <p className='text-red-800 text-sm'>Error loading documents: {error}</p>
+            <div className='mt-[24px]'>
+              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+                <div className='text-center'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                    Error loading documents
+                  </p>
+                  <p className='mt-1 text-[var(--text-muted)] text-xs'>{error}</p>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Table container */}
-          <div className='mt-[20px] flex flex-1 flex-col overflow-hidden'>
-            <Table className='min-w-[700px] table-auto text-[13px]'>
-              <TableHeader>
-                <TableRow className='hover:bg-transparent'>
-                  <TableHead className='w-[4%] px-[12px] py-[8px]'>
-                    <Checkbox
-                      checked={isAllSelected}
-                      onCheckedChange={handleSelectAll}
-                      disabled={!userPermissions.canEdit}
-                      aria-label='Select all documents'
-                      className='h-[14px] w-[14px] border-[var(--border-2)] focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-[12px] [&>*]:w-[12px]'
-                    />
-                  </TableHead>
-                  {renderSortableHeader('filename', 'Name', 'w-[24%]')}
-                  {renderSortableHeader('fileSize', 'Size', 'w-[8%]')}
-                  {renderSortableHeader('tokenCount', 'Tokens', 'w-[8%]')}
-                  {renderSortableHeader('chunkCount', 'Chunks', 'hidden w-[8%] lg:table-cell')}
-                  {renderSortableHeader('uploadedAt', 'Uploaded', 'w-[16%]')}
-                  {renderSortableHeader('processingStatus', 'Status', 'w-[12%]')}
-                  <TableHead className='w-[14%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-                    Actions
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {documents.length === 0 && !isLoadingDocuments ? (
+          <div className='mt-[12px] flex flex-1 flex-col overflow-hidden'>
+            {isLoadingDocuments && documents.length === 0 ? (
+              <DocumentTableSkeleton rowCount={5} />
+            ) : documents.length === 0 ? (
+              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+                <div className='text-center'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                    {searchQuery ? 'No documents found' : 'No documents yet'}
+                  </p>
+                  <p className='mt-1 text-[var(--text-muted)] text-xs'>
+                    {searchQuery
+                      ? 'Try a different search term'
+                      : userPermissions.canEdit === true
+                        ? 'Add documents to get started'
+                        : 'Documents will appear here once added'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <Table className='min-w-[700px] table-fixed text-[13px]'>
+                <TableHeader>
                   <TableRow className='hover:bg-transparent'>
-                    <TableCell className='px-[12px] py-[8px]'>
-                      <div className='h-[14px] w-[14px]' />
-                    </TableCell>
-                    <TableCell className='px-[12px] py-[8px]'>
-                      <div className='flex items-center gap-[8px]'>
-                        <span className='text-[13px] text-[var(--text-muted)]'>
-                          {documents.length === 0
-                            ? 'No documents yet'
-                            : 'No documents match your search'}
-                        </span>
+                    <TableHead className='w-[28px] py-[8px] pr-0 pl-0'>
+                      <div className='flex items-center justify-center'>
+                        <Checkbox
+                          checked={isAllSelected}
+                          onCheckedChange={handleSelectAll}
+                          disabled={!userPermissions.canEdit}
+                          aria-label='Select all documents'
+                          className='h-[14px] w-[14px] border-[var(--border-2)] focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-[12px] [&>*]:w-[12px]'
+                        />
                       </div>
-                    </TableCell>
-                    <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-                      —
-                    </TableCell>
-                    <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-                      —
-                    </TableCell>
-                    <TableCell className='hidden px-[12px] py-[8px] text-[12px] text-[var(--text-muted)] lg:table-cell'>
-                      —
-                    </TableCell>
-                    <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-                      —
-                    </TableCell>
-                    <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-                      —
-                    </TableCell>
-                    <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-                      —
-                    </TableCell>
+                    </TableHead>
+                    {renderSortableHeader('filename', 'Name', 'w-[180px] max-w-[180px]')}
+                    {renderSortableHeader('fileSize', 'Size', 'w-[8%]')}
+                    {renderSortableHeader('tokenCount', 'Tokens', 'w-[8%]')}
+                    {renderSortableHeader('chunkCount', 'Chunks', 'hidden w-[8%] lg:table-cell')}
+                    {renderSortableHeader('uploadedAt', 'Uploaded', 'w-[16%]')}
+                    {renderSortableHeader('processingStatus', 'Status', 'w-[12%]')}
+                    <TableHead className='w-[14%] py-[8px] pr-[4px] pl-[12px] text-[12px] text-[var(--text-secondary)]'>
+                      Actions
+                    </TableHead>
                   </TableRow>
-                ) : isLoadingDocuments && documents.length === 0 ? (
-                  Array.from({ length: 5 }).map((_, index) => (
-                    <DocumentTableRowSkeleton key={`loading-${index}`} />
-                  ))
-                ) : (
-                  documents.map((doc) => {
+                </TableHeader>
+                <TableBody>
+                  {documents.map((doc) => {
                     const isSelected = selectedDocuments.has(doc.id)
                     const statusDisplay = getStatusDisplay(doc)
 
@@ -1039,25 +1043,27 @@ export function KnowledgeBase({
                           }
                         }}
                       >
-                        <TableCell className='px-[12px] py-[8px]'>
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={(checked) =>
-                              handleSelectDocument(doc.id, checked as boolean)
-                            }
-                            disabled={!userPermissions.canEdit}
-                            onClick={(e) => e.stopPropagation()}
-                            aria-label={`Select ${doc.filename}`}
-                            className='h-[14px] w-[14px] border-[var(--border-2)] focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-[12px] [&>*]:w-[12px]'
-                          />
+                        <TableCell className='w-[28px] py-[8px] pr-0 pl-0'>
+                          <div className='flex items-center justify-center'>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) =>
+                                handleSelectDocument(doc.id, checked as boolean)
+                              }
+                              disabled={!userPermissions.canEdit}
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label={`Select ${doc.filename}`}
+                              className='h-[14px] w-[14px] border-[var(--border-2)] focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-[12px] [&>*]:w-[12px]'
+                            />
+                          </div>
                         </TableCell>
-                        <TableCell className='px-[12px] py-[8px]'>
-                          <div className='flex items-center gap-[8px]'>
+                        <TableCell className='w-[180px] max-w-[180px] px-[12px] py-[8px]'>
+                          <div className='flex min-w-0 items-center gap-[8px]'>
                             {getFileIcon(doc.mimeType, doc.filename)}
                             <Tooltip.Root>
                               <Tooltip.Trigger asChild>
                                 <span
-                                  className='block truncate text-[14px] text-[var(--text-primary)]'
+                                  className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'
                                   title={doc.filename}
                                 >
                                   <SearchHighlight text={doc.filename} searchQuery={searchQuery} />
@@ -1091,7 +1097,7 @@ export function KnowledgeBase({
                             <div className='flex items-center font-medium text-[12px]'>
                               <span>{format(new Date(doc.uploadedAt), 'h:mm a')}</span>
                               <span className='mx-[6px] hidden text-[var(--text-muted)] xl:inline'>
-                                •
+                                |
                               </span>
                               <span className='hidden text-[var(--text-muted)] xl:inline'>
                                 {format(new Date(doc.uploadedAt), 'MMM d, yyyy')}
@@ -1118,7 +1124,7 @@ export function KnowledgeBase({
                             <div className={statusDisplay.className}>{statusDisplay.text}</div>
                           )}
                         </TableCell>
-                        <TableCell className='px-[12px] py-[8px]'>
+                        <TableCell className='py-[8px] pr-[4px] pl-[12px]'>
                           <div className='flex items-center gap-[4px]'>
                             {doc.processingStatus === 'failed' && (
                               <Tooltip.Root>
@@ -1199,12 +1205,11 @@ export function KnowledgeBase({
                         </TableCell>
                       </TableRow>
                     )
-                  })
-                )}
-              </TableBody>
-            </Table>
+                  })}
+                </TableBody>
+              </Table>
+            )}
 
-            {/* Pagination Controls */}
             {totalPages > 1 && (
               <div className='flex items-center justify-center border-t bg-background px-6 py-4'>
                 <div className='flex items-center gap-1'>
@@ -1217,7 +1222,6 @@ export function KnowledgeBase({
                     <ChevronLeft className='h-4 w-4' />
                   </Button>
 
-                  {/* Page numbers - show a few around current page */}
                   <div className='mx-4 flex items-center gap-6'>
                     {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                       let page: number
@@ -1263,7 +1267,6 @@ export function KnowledgeBase({
         </div>
       </div>
 
-      {/* Delete Confirmation Dialog */}
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <ModalContent className='w-[400px]'>
           <ModalHeader>Delete Knowledge Base</ModalHeader>
@@ -1304,7 +1307,6 @@ export function KnowledgeBase({
         onUploadComplete={refreshDocuments}
       />
 
-      {/* Bulk Action Bar */}
       <ActionBar
         selectedCount={selectedDocuments.size}
         onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
