@@ -57,7 +57,6 @@ async function getOrgUsageLimit(
     return { limit: 0, minimum: 0 }
   }
 
-  // Team: Use orgUsageLimit (should always be set, but fallback to seats × basePrice for safety)
   const { basePrice } = getPlanPricing(plan)
   const minimum = (seats ?? 0) * basePrice
 
