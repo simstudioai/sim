@@ -8,6 +8,7 @@ export {
   highlight,
   languages,
 } from './code/code'
+export { VirtualizedCodeViewer } from './code/code-optimized'
 export { Combobox, type ComboboxOption } from './combobox/combobox'
 export { Input } from './input/input'
 export { Label } from './label/label'

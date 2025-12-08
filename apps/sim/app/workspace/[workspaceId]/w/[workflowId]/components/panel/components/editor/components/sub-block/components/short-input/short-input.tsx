@@ -79,33 +79,29 @@ export function ShortInput({
   wandControlRef,
   hideInternalWand = false,
 }: ShortInputProps) {
-  // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
   const [isFocused, setIsFocused] = useState(false)
   const [copied, setCopied] = useState(false)
   const persistSubBlockValueRef = useRef<(value: string) => void>(() => {})
 
-  // Always call the hook - hooks must be called unconditionally
+  const justPastedRef = useRef(false)
+
   const webhookManagement = useWebhookManagement({
     blockId,
     triggerId: undefined,
     isPreview,
   })
 
-  // Wand functionality - always call the hook unconditionally
   const wandHook = useWand({
     wandConfig: config.wandConfig,
     currentValue: localContent,
     onStreamStart: () => {
-      // Clear the content when streaming starts
       setLocalContent('')
     },
     onStreamChunk: (chunk) => {
-      // Update local content with each chunk as it arrives
       setLocalContent((current) => current + chunk)
     },
     onGeneratedContent: (content) => {
-      // Final content update
       setLocalContent(content)
       if (!isPreview && !disabled && !readOnly) {
         persistSubBlockValueRef.current(content)
@@ -123,23 +119,18 @@ export function ShortInput({
     }
   }, [setSubBlockValue])
 
-  // Check if wand is actually enabled
   const isWandEnabled = config.wandConfig?.enabled ?? false
 
-  const inputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
-  // Get ReactFlow instance for zoom control
   const reactFlowInstance = useReactFlow()
 
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
-  // Check if this input is API key related - memoized to prevent recalculation
   const isApiKeyField = useMemo(() => {
     const normalizedId = config?.id?.replace(/\s+/g, '').toLowerCase() || ''
     const normalizedTitle = config?.title?.replace(/\s+/g, '').toLowerCase() || ''
 
-    // Check for common API key naming patterns
     const apiKeyPatterns = [
       'apikey',
       'api_key',
@@ -173,11 +164,23 @@ export function ShortInput({
       event: 'change' | 'focus' | 'deleteAll'
     }) => {
       if (!isApiKeyField || isPreview || disabled || readOnly) return { show: false }
+
+      if (justPastedRef.current) {
+        return { show: false }
+      }
+
       if (event === 'focus') {
+        if (value.length > 20 && !value.includes('{{')) {
+          return { show: false }
+        }
         return { show: true, searchTerm: '' }
       }
       if (event === 'change') {
-        // For API key fields, show env vars while typing without requiring '{{'
+        const looksLikeRawApiKey =
+          value.length > 30 && !value.includes('{{') && !value.match(/^[A-Z_][A-Z0-9_]*$/i)
+        if (looksLikeRawApiKey) {
+          return { show: false }
+        }
         return { show: true, searchTerm: value }
       }
       if (event === 'deleteAll') {
@@ -188,17 +191,13 @@ export function ShortInput({
     [isApiKeyField, isPreview, disabled, readOnly]
   )
 
-  // Use preview value when in preview mode, otherwise use store value or prop value
   const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : undefined
 
-  // During streaming, use local content; otherwise use base value
-  // Only use webhook URL when useWebhookUrl flag is true
   const effectiveValue =
     useWebhookUrl && webhookManagement.webhookUrl ? webhookManagement.webhookUrl : baseValue
 
   const value = wandHook?.isStreaming ? localContent : effectiveValue
 
-  // Sync local content with base value when not streaming
   useEffect(() => {
     if (!wandHook.isStreaming) {
       const baseValueString = baseValue?.toString() ?? ''
@@ -208,108 +207,41 @@ export function ShortInput({
     }
   }, [baseValue, wandHook.isStreaming, localContent])
 
-  /**
-   * Scrolls the input to show the cursor position
-   * Uses canvas for efficient text width measurement instead of DOM manipulation
-   */
-  const scrollToCursor = useCallback(() => {
-    if (!inputRef.current) return
-
-    // Use requestAnimationFrame to ensure DOM has updated
-    requestAnimationFrame(() => {
-      if (!inputRef.current) return
-
-      const cursorPos = inputRef.current.selectionStart ?? 0
-      const inputWidth = inputRef.current.offsetWidth
-      const scrollWidth = inputRef.current.scrollWidth
-
-      // Get approximate cursor position in pixels using canvas (more efficient)
-      const textBeforeCursor = inputRef.current.value.substring(0, cursorPos)
-      const computedStyle = window.getComputedStyle(inputRef.current)
-
-      // Use canvas context for text measurement (more efficient than creating DOM elements)
-      const canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d')
-      if (context) {
-        context.font = computedStyle.font
-        const cursorPixelPos = context.measureText(textBeforeCursor).width
-
-        // Calculate optimal scroll position to center the cursor
-        const targetScroll = Math.max(0, cursorPixelPos - inputWidth / 2)
-
-        // Only scroll if cursor is not visible
-        if (
-          cursorPixelPos < inputRef.current.scrollLeft ||
-          cursorPixelPos > inputRef.current.scrollLeft + inputWidth
-        ) {
-          inputRef.current.scrollLeft = Math.min(targetScroll, scrollWidth - inputWidth)
-        }
-
-        // Sync overlay scroll
-        if (overlayRef.current) {
-          overlayRef.current.scrollLeft = inputRef.current.scrollLeft
-        }
-      }
-    })
-  }, [])
-
-  // Sync scroll position between input and overlay
   const handleScroll = useCallback((e: React.UIEvent<HTMLInputElement>) => {
     if (overlayRef.current) {
       overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
     }
   }, [])
 
-  // Remove the auto-scroll effect that forces cursor position and replace with natural scrolling
-  useEffect(() => {
-    if (inputRef.current && overlayRef.current) {
-      overlayRef.current.scrollLeft = inputRef.current.scrollLeft
-    }
-  }, [value])
-
-  // Handle paste events to ensure long values are handled correctly
   const handlePaste = useCallback((_e: React.ClipboardEvent<HTMLInputElement>) => {
-    // Let the paste happen normally
-    // Then ensure scroll positions are synced after the content is updated
+    justPastedRef.current = true
     setTimeout(() => {
-      if (inputRef.current && overlayRef.current) {
-        overlayRef.current.scrollLeft = inputRef.current.scrollLeft
-      }
-    }, 0)
+      justPastedRef.current = false
+    }, 100)
   }, [])
 
-  // Handle wheel events to control ReactFlow zoom
   const handleWheel = useCallback(
     (e: React.WheelEvent<HTMLInputElement>) => {
-      // Only handle zoom when Ctrl/Cmd key is pressed
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault()
         e.stopPropagation()
 
-        // Get current zoom level and viewport
         const currentZoom = reactFlowInstance.getZoom()
         const { x: viewportX, y: viewportY } = reactFlowInstance.getViewport()
 
-        // Calculate zoom factor based on wheel delta
-        // Use a smaller factor for smoother zooming that matches ReactFlow's native behavior
         const delta = e.deltaY > 0 ? 1 : -1
-        // Using 0.98 instead of 0.95 makes the zoom much slower and more gradual
         const zoomFactor = 0.96 ** delta
 
-        // Calculate new zoom level with min/max constraints
         const newZoom = Math.min(Math.max(currentZoom * zoomFactor, 0.1), 1)
 
-        // Get the position of the cursor in the page
         const { x: pointerX, y: pointerY } = reactFlowInstance.screenToFlowPosition({
           x: e.clientX,
           y: e.clientY,
         })
 
-        // Calculate the new viewport position to keep the cursor position fixed
         const newViewportX = viewportX + (pointerX * currentZoom - pointerX * newZoom)
         const newViewportY = viewportY + (pointerY * currentZoom - pointerY * newZoom)
 
-        // Set the new viewport with the calculated position and zoom
         reactFlowInstance.setViewport(
           {
             x: newViewportX,
@@ -322,8 +254,6 @@ export function ShortInput({
         return false
       }
 
-      // For regular scrolling (without Ctrl/Cmd), let the default behavior happen
-      // Don't interfere with normal scrolling
       return true
     },
     [reactFlowInstance]
@@ -341,33 +271,6 @@ export function ShortInput({
     }
   }, [useWebhookUrl, webhookManagement?.webhookUrl, value])
 
-  // Value display logic - memoize to avoid unnecessary string operations
-  const displayValue = useMemo(
-    () =>
-      password && !isFocused
-        ? '•'.repeat(value?.toString().length ?? 0)
-        : (value?.toString() ?? ''),
-    [password, isFocused, value]
-  )
-
-  // Memoize formatted text to avoid recalculation on every render
-  const formattedText = useMemo(() => {
-    const textValue = value?.toString() ?? ''
-    if (password && !isFocused) {
-      return '•'.repeat(textValue.length)
-    }
-    return formatDisplayText(textValue, {
-      accessiblePrefixes,
-      highlightAll: !accessiblePrefixes,
-    })
-  }, [value, password, isFocused, accessiblePrefixes])
-
-  // Memoize focus handler to prevent unnecessary re-renders
-  const handleFocus = useCallback(() => {
-    setIsFocused(true)
-  }, [])
-
-  // Memoize blur handler to prevent unnecessary re-renders
   const handleBlur = useCallback(() => {
     setIsFocused(false)
   }, [])
@@ -422,7 +325,6 @@ export function ShortInput({
             onDragOver,
             onFocus,
           }) => {
-            // Use controller's value for input, but apply local transformations
             const actualValue = wandHook.isStreaming
               ? localContent
               : useWebhookUrl && webhookManagement.webhookUrl

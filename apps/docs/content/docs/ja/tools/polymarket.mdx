@@ -40,8 +40,8 @@ Polymarketから予測市場のリストをオプションのフィルタリン�
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `closed` | string | いいえ | クローズ状態でフィルタリング（true/false）。アクティブな市場のみの場合はfalseを使用。 |
-| `order` | string | いいえ | ソートフィールド（例：id、volume、liquidity） |
+| `closed` | string | いいえ | クローズ状態でフィルタリング（true/false）。アクティブなマーケットのみの場合はfalseを使用。 |
+| `order` | string | いいえ | ソートフィールド（例：volumeNum、liquidityNum、startDate、endDate、createdAt） |
 | `ascending` | string | いいえ | ソート方向（昇順の場合はtrue、降順の場合はfalse） |
 | `tagId` | string | いいえ | タグIDでフィルタリング |
 | `limit` | string | いいえ | ページあたりの結果数（推奨：25-50） |
@@ -81,7 +81,7 @@ Polymarketからイベントのリストを取得し、オプションでフィ�
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `closed` | string | いいえ | クローズ状態でフィルタリング（true/false）。アクティブなイベントのみの場合はfalseを使用。 |
-| `order` | string | いいえ | ソートフィールド（例：id、volume） |
+| `order` | string | いいえ | ソートフィールド（例：volume、liquidity、startDate、endDate、createdAt） |
 | `ascending` | string | いいえ | ソート方向（昇順の場合はtrue、降順の場合はfalse） |
 | `tagId` | string | いいえ | タグIDでフィルタリング |
 | `limit` | string | いいえ | ページあたりの結果数（推奨：25-50） |

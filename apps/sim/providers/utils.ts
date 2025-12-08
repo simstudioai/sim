@@ -619,7 +619,7 @@ export function getHostedModels(): string[] {
  */
 export function shouldBillModelUsage(model: string): boolean {
   const hostedModels = getHostedModels()
-  return hostedModels.includes(model)
+  return hostedModels.some((hostedModel) => model.toLowerCase() === hostedModel.toLowerCase())
 }
 
 /**
@@ -643,19 +643,22 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const isGeminiModel = provider === 'google'
 
   if (isHosted && (isOpenAIModel || isClaudeModel || isGeminiModel)) {
-    try {
-      // Import the key rotation function
-      const { getRotatingApiKey } = require('@/lib/core/config/api-keys')
-      const serverKey = getRotatingApiKey(isGeminiModel ? 'gemini' : provider)
-      return serverKey
-    } catch (_error) {
-      // If server key fails and we have a user key, fallback to that
-      if (hasUserKey) {
-        return userProvidedKey!
-      }
+    // Only use server key if model is explicitly in our hosted list
+    const hostedModels = getHostedModels()
+    const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
 
-      // Otherwise, throw an error
-      throw new Error(`No API key available for ${provider} ${model}`)
+    if (isModelHosted) {
+      try {
+        const { getRotatingApiKey } = require('@/lib/core/config/api-keys')
+        const serverKey = getRotatingApiKey(isGeminiModel ? 'gemini' : provider)
+        return serverKey
+      } catch (_error) {
+        if (hasUserKey) {
+          return userProvidedKey!
+        }
+
+        throw new Error(`No API key available for ${provider} ${model}`)
+      }
     }
   }
 

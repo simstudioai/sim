@@ -11,7 +11,10 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { Loader2 } from 'lucide-react'
+import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { OAuthProvider } from '@/lib/oauth'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -27,6 +30,7 @@ import { Chat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/ch
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
+import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import {
@@ -94,6 +98,13 @@ const WorkflowContent = React.memo(() => {
 
   // Track whether the active connection drag started from an error handle
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
+  const [oauthModal, setOauthModal] = useState<{
+    provider: OAuthProvider
+    serviceId: string
+    providerName: string
+    requiredScopes: string[]
+    newScopes?: string[]
+  } | null>(null)
 
   // Hooks
   const params = useParams()
@@ -162,6 +173,25 @@ const WorkflowContent = React.memo(() => {
   const isWorkflowEmpty = useMemo(() => {
     return Object.keys(blocks).length === 0
   }, [blocks])
+
+  // Listen for global OAuth connect events (from Copilot tool)
+  useEffect(() => {
+    const handleOpenOAuthConnect = (event: Event) => {
+      const detail = (event as CustomEvent<OAuthConnectEventDetail>).detail
+      if (!detail) return
+      setOauthModal({
+        provider: detail.providerId as OAuthProvider,
+        serviceId: detail.serviceId,
+        providerName: detail.providerName,
+        requiredScopes: detail.requiredScopes || [],
+        newScopes: detail.newScopes || [],
+      })
+    }
+
+    window.addEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
+    return () =>
+      window.removeEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
+  }, [])
 
   // Get diff analysis for edge reconstruction
   const { diffAnalysis, isShowingDiff, isDiffReady, reapplyDiffMarkers, hasActiveDiff } =
@@ -1247,7 +1277,7 @@ const WorkflowContent = React.memo(() => {
     [screenToFlowPosition, isPointInLoopNode, getNodes]
   )
 
-  // Initialize workflow when it exists in registry and isn't active
+  // Initialize workflow when it exists in registry and isn't active or needs hydration
   useEffect(() => {
     let cancelled = false
     const currentId = params.workflowId as string
@@ -1265,8 +1295,16 @@ const WorkflowContent = React.memo(() => {
       return
     }
 
-    if (activeWorkflowId !== currentId) {
-      // Clear diff and set as active
+    // Check if we need to load the workflow state:
+    // 1. Different workflow than currently active
+    // 2. Same workflow but hydration phase is not 'ready' (e.g., after a quick refresh)
+    const needsWorkflowLoad =
+      activeWorkflowId !== currentId ||
+      (activeWorkflowId === currentId &&
+        hydration.phase !== 'ready' &&
+        hydration.phase !== 'state-loading')
+
+    if (needsWorkflowLoad) {
       const { clearDiff } = useWorkflowDiffStore.getState()
       clearDiff()
 
@@ -2187,7 +2225,11 @@ const WorkflowContent = React.memo(() => {
     return (
       <div className='flex h-screen w-full flex-col overflow-hidden'>
         <div className='relative h-full w-full flex-1 transition-all duration-200'>
-          <div className='workflow-container h-full' />
+          <div className='workflow-container flex h-full items-center justify-center'>
+            <div className='flex flex-col items-center gap-3'>
+              <Loader2 className='h-[24px] w-[24px] animate-spin text-muted-foreground' />
+            </div>
+          </div>
         </div>
         <Panel />
         <Terminal />
@@ -2277,6 +2319,18 @@ const WorkflowContent = React.memo(() => {
       </div>
 
       <Terminal />
+
+      {oauthModal && (
+        <OAuthRequiredModal
+          isOpen={true}
+          onClose={() => setOauthModal(null)}
+          provider={oauthModal.provider}
+          toolName={oauthModal.providerName}
+          serviceId={oauthModal.serviceId}
+          requiredScopes={oauthModal.requiredScopes}
+          newScopes={oauthModal.newScopes}
+        />
+      )}
     </div>
   )
 })

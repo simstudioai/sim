@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateFolderName } from '@/lib/workspaces/naming'
 import { useCreateFolder } from '@/hooks/queries/folders'
@@ -12,25 +12,20 @@ interface UseFolderOperationsProps {
 /**
  * Custom hook to manage folder operations including creating folders.
  * Handles folder name generation and state management.
+ * Uses React Query mutation's isPending state for immediate loading feedback.
  *
  * @param props - Configuration object containing workspaceId
  * @returns Folder operations state and handlers
  */
 export function useFolderOperations({ workspaceId }: UseFolderOperationsProps) {
   const createFolderMutation = useCreateFolder()
-  const [isCreatingFolder, setIsCreatingFolder] = useState(false)
 
-  /**
-   * Create folder handler - creates folder with auto-generated name
-   */
   const handleCreateFolder = useCallback(async (): Promise<string | null> => {
-    if (isCreatingFolder || !workspaceId) {
-      logger.info('Folder creation already in progress or no workspaceId available')
+    if (!workspaceId) {
       return null
     }
 
     try {
-      setIsCreatingFolder(true)
       const folderName = await generateFolderName(workspaceId)
       const folder = await createFolderMutation.mutateAsync({ name: folderName, workspaceId })
       logger.info(`Created folder: ${folderName}`)
@@ -38,14 +33,12 @@ export function useFolderOperations({ workspaceId }: UseFolderOperationsProps) {
     } catch (error) {
       logger.error('Failed to create folder:', { error })
       return null
-    } finally {
-      setIsCreatingFolder(false)
     }
-  }, [createFolderMutation, workspaceId, isCreatingFolder])
+  }, [createFolderMutation, workspaceId])
 
   return {
     // State
-    isCreatingFolder,
+    isCreatingFolder: createFolderMutation.isPending,
 
     // Operations
     handleCreateFolder,

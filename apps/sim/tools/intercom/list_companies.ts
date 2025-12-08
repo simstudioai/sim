@@ -29,7 +29,8 @@ export const intercomListCompaniesTool: ToolConfig<
 > = {
   id: 'intercom_list_companies',
   name: 'List Companies from Intercom',
-  description: 'List all companies from Intercom with pagination support',
+  description:
+    'List all companies from Intercom with pagination support. Note: This endpoint has a limit of 10,000 companies that can be returned using pagination. For datasets larger than 10,000 companies, use the Scroll API instead.',
   version: '1.0.0',
 
   params: {

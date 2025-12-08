@@ -66,16 +66,16 @@ Para hacer referencia a variables de entorno en tus flujos de trabajo, utiliza l
   height={350}
 />
 
-## Precedencia de variables
+## Cómo se resuelven las variables
 
-Cuando tienes variables personales y de espacio de trabajo con el mismo nombre:
+**Las variables del espacio de trabajo siempre tienen prioridad** sobre las variables personales, independientemente de quién ejecute el flujo de trabajo.
 
-1. **Las variables del espacio de trabajo tienen precedencia** sobre las variables personales
-2. Esto previene conflictos de nombres y asegura un comportamiento consistente en los flujos de trabajo del equipo
-3. Si existe una variable de espacio de trabajo, la variable personal con el mismo nombre será ignorada
+Cuando no existe una variable de espacio de trabajo para una clave, se utilizan las variables personales:
+- **Ejecuciones manuales (UI)**: Tus variables personales
+- **Ejecuciones automatizadas (API, webhook, programación, chat implementado)**: Variables personales del propietario del flujo de trabajo
 
-<Callout type="warning">
-Elige los nombres de las variables cuidadosamente para evitar sobrescrituras no deseadas. Considera usar prefijos con tus iniciales para variables personales o con el nombre del proyecto para variables del espacio de trabajo.
+<Callout type="info">
+Las variables personales son mejores para pruebas. Usa variables de espacio de trabajo para flujos de trabajo de producción.
 </Callout>
 
 ## Mejores prácticas de seguridad

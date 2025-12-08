@@ -1,16 +1,14 @@
 import type { DAG } from '@/executor/dag/builder'
-import type { SerializableExecutionState } from '@/executor/execution/snapshot'
-import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionContext, ExecutionMetadata, SerializedSnapshot } from '@/executor/types'
+import {
+  type ExecutionMetadata,
+  ExecutionSnapshot,
+  type SerializableExecutionState,
+} from '@/executor/execution/snapshot'
+import type { ExecutionContext, SerializedSnapshot } from '@/executor/types'
 
 function mapFromEntries<T>(map?: Map<string, T>): Record<string, T> | undefined {
   if (!map) return undefined
   return Object.fromEntries(map)
-}
-
-function setToArray<T>(set?: Set<T>): T[] | undefined {
-  if (!set) return undefined
-  return Array.from(set)
 }
 
 function serializeLoopExecutions(
@@ -96,27 +94,26 @@ export function serializePauseSnapshot(
     dagIncomingEdges,
   }
 
-  const executionMetadata = {
+  const executionMetadata: ExecutionMetadata = {
     requestId:
-      (context.metadata as any)?.requestId ??
-      context.executionId ??
-      context.workflowId ??
-      'unknown',
+      metadataFromContext?.requestId ?? context.executionId ?? context.workflowId ?? 'unknown',
     executionId: context.executionId ?? 'unknown',
     workflowId: context.workflowId,
     workspaceId: context.workspaceId,
-    userId: (context.metadata as any)?.userId ?? '',
-    triggerType: (context.metadata as any)?.triggerType ?? 'manual',
+    userId: metadataFromContext?.userId ?? '',
+    sessionUserId: metadataFromContext?.sessionUserId,
+    workflowUserId: metadataFromContext?.workflowUserId,
+    triggerType: metadataFromContext?.triggerType ?? 'manual',
     triggerBlockId: triggerBlockIds[0],
     useDraftState,
-    startTime: context.metadata.startTime ?? new Date().toISOString(),
+    startTime: metadataFromContext?.startTime ?? new Date().toISOString(),
+    isClientSession: metadataFromContext?.isClientSession,
   }
 
   const snapshot = new ExecutionSnapshot(
     executionMetadata,
     context.workflow,
     {},
-    context.environmentVariables ?? {},
     context.workflowVariables ?? {},
     context.selectedOutputs ?? [],
     state

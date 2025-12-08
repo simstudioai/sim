@@ -81,6 +81,11 @@ interface ContextMenuProps {
    * Set to true when user lacks permissions
    */
   disableDelete?: boolean
+  /**
+   * Whether the create option is disabled (default: false)
+   * Set to true when creation is in progress or user lacks permissions
+   */
+  disableCreate?: boolean
 }
 
 /**
@@ -108,6 +113,7 @@ export function ContextMenu({
   disableRename = false,
   disableDuplicate = false,
   disableDelete = false,
+  disableCreate = false,
 }: ContextMenuProps) {
   return (
     <Popover open={isOpen} onOpenChange={onClose}>
@@ -125,10 +131,8 @@ export function ContextMenu({
           <PopoverItem
             disabled={disableRename}
             onClick={() => {
-              if (!disableRename) {
-                onRename()
-                onClose()
-              }
+              onRename()
+              onClose()
             }}
           >
             <Pencil className='h-3 w-3' />
@@ -137,6 +141,7 @@ export function ContextMenu({
         )}
         {showCreate && onCreate && (
           <PopoverItem
+            disabled={disableCreate}
             onClick={() => {
               onCreate()
               onClose()
@@ -150,10 +155,8 @@ export function ContextMenu({
           <PopoverItem
             disabled={disableDuplicate}
             onClick={() => {
-              if (!disableDuplicate) {
-                onDuplicate()
-                onClose()
-              }
+              onDuplicate()
+              onClose()
             }}
           >
             <Copy className='h-3 w-3' />
@@ -164,10 +167,8 @@ export function ContextMenu({
           <PopoverItem
             disabled={disableExport}
             onClick={() => {
-              if (!disableExport) {
-                onExport()
-                onClose()
-              }
+              onExport()
+              onClose()
             }}
           >
             <ArrowUp className='h-3 w-3' />
@@ -177,10 +178,8 @@ export function ContextMenu({
         <PopoverItem
           disabled={disableDelete}
           onClick={() => {
-            if (!disableDelete) {
-              onDelete()
-              onClose()
-            }
+            onDelete()
+            onClose()
           }}
         >
           <Trash className='h-3 w-3' />

@@ -120,6 +120,82 @@ Lesen Sie die neuesten Nachrichten aus Slack-Kanälen. Rufen Sie den Konversatio
 | --------- | ---- | ----------- |
 | `messages` | array | Array von Nachrichtenobjekten aus dem Kanal |
 
+### `slack_list_channels`
+
+Listet alle Kanäle in einem Slack-Workspace auf. Gibt öffentliche und private Kanäle zurück, auf die der Bot Zugriff hat.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
+| `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
+| `includePrivate` | boolean | Nein | Private Kanäle einschließen, in denen der Bot Mitglied ist \(Standard: true\) |
+| `excludeArchived` | boolean | Nein | Archivierte Kanäle ausschließen \(Standard: true\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Kanäle \(Standard: 100, max: 200\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `channels` | array | Array von Kanalobjekten aus dem Workspace |
+
+### `slack_list_members`
+
+Listet alle Mitglieder (Benutzer-IDs) in einem Slack-Kanal auf. Verwenden Sie diese Funktion mit Get User Info, um IDs in Namen aufzulösen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
+| `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
+| `channel` | string | Ja | Kanal-ID, aus der Mitglieder aufgelistet werden sollen |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Mitglieder \(Standard: 100, max: 200\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `members` | array | Array von Benutzer-IDs, die Mitglieder des Kanals sind \(z.B. U1234567890\) |
+
+### `slack_list_users`
+
+Listet alle Benutzer in einem Slack-Workspace auf. Gibt Benutzerprofile mit Namen und Avataren zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
+| `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
+| `includeDeleted` | boolean | Nein | Deaktivierte/gelöschte Benutzer einbeziehen \(Standard: false\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Benutzer \(Standard: 100, max: 200\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `users` | array | Array von Benutzerobjekten aus dem Workspace |
+
+### `slack_get_user`
+
+Ruft detaillierte Informationen über einen bestimmten Slack-Benutzer anhand seiner Benutzer-ID ab.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
+| `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
+| `userId` | string | Ja | Zu suchende Benutzer-ID \(z.B. U1234567890\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `user` | object | Detaillierte Benutzerinformationen |
+
 ### `slack_download`
 
 Eine Datei von Slack herunterladen
@@ -148,7 +224,7 @@ Eine zuvor vom Bot in Slack gesendete Nachricht aktualisieren
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
-| `botToken` | string | Nein | Bot-Token für Custom Bot |
+| `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
 | `channel` | string | Ja | Kanal-ID, in dem die Nachricht gepostet wurde \(z.B. C1234567890\) |
 | `timestamp` | string | Ja | Zeitstempel der zu aktualisierenden Nachricht \(z.B. 1405894322.002768\) |
 | `text` | string | Ja | Neuer Nachrichtentext \(unterstützt Slack mrkdwn-Formatierung\) |
@@ -159,7 +235,7 @@ Eine zuvor vom Bot in Slack gesendete Nachricht aktualisieren
 | --------- | ---- | ----------- |
 | `message` | object | Vollständiges aktualisiertes Nachrichtenobjekt mit allen von Slack zurückgegebenen Eigenschaften |
 | `content` | string | Erfolgsmeldung |
-| `metadata` | object | Metadaten der aktualisierten Nachricht |
+| `metadata` | object | Aktualisierte Nachrichtenmetadaten |
 
 ### `slack_delete_message`
 
@@ -170,7 +246,7 @@ Eine zuvor vom Bot in Slack gesendete Nachricht löschen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
-| `botToken` | string | Nein | Bot-Token für Custom Bot |
+| `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
 | `channel` | string | Ja | Kanal-ID, in dem die Nachricht gepostet wurde \(z.B. C1234567890\) |
 | `timestamp` | string | Ja | Zeitstempel der zu löschenden Nachricht \(z.B. 1405894322.002768\) |
 
@@ -183,7 +259,7 @@ Eine zuvor vom Bot in Slack gesendete Nachricht löschen
 
 ### `slack_add_reaction`
 
-Emoji-Reaktion zu einer Slack-Nachricht hinzufügen
+Eine Emoji-Reaktion zu einer Slack-Nachricht hinzufügen
 
 #### Eingabe
 

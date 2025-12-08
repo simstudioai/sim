@@ -361,6 +361,8 @@ Einen bestehenden Zeitplan in incident.io aktualisieren
 | `id` | string | Ja | Die ID des zu aktualisierenden Zeitplans |
 | `name` | string | Nein | Neuer Name für den Zeitplan |
 | `timezone` | string | Nein | Neue Zeitzone für den Zeitplan \(z.B. America/New_York\) |
+| `config` | string | Nein | Zeitplankonfiguration als JSON-String mit Rotationen. Beispiel: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
+| `Example` | string | Nein | Keine Beschreibung |
 
 #### Ausgabe
 

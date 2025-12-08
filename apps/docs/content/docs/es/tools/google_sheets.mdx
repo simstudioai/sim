@@ -87,9 +87,9 @@ Leer datos de una hoja de cálculo de Google Sheets
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
-| `spreadsheetId` | string | Sí | El ID de la hoja de cálculo de la que leer |
-| `range` | string | No | El rango de celdas del que leer |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Sí | El ID de la hoja de cálculo \(se encuentra en la URL: docs.google.com/spreadsheets/d/\{SPREADSHEET_ID\}/edit\). |
+| `range` | string | No | El rango en notación A1 para leer \(por ejemplo, "Sheet1!A1:D10", "A1:B5"\). Si no se especifica, por defecto es la primera hoja A1:Z1000. |
 
 #### Salida
 
@@ -105,10 +105,10 @@ Escribir datos en una hoja de cálculo de Google Sheets
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
-| `spreadsheetId` | string | Sí | El ID de la hoja de cálculo en la que escribir |
-| `range` | string | No | El rango de celdas en el que escribir |
-| `values` | array | Sí | Los datos a escribir en la hoja de cálculo |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Sí | El ID de la hoja de cálculo |
+| `range` | string | No | El rango en notación A1 donde escribir \(por ejemplo, "Sheet1!A1:D10", "A1:B5"\) |
+| `values` | array | Sí | Los datos a escribir como un array 2D \(por ejemplo, \[\["Nombre", "Edad"\], \["Alice", 30\], \["Bob", 25\]\]\) o array de objetos. |
 | `valueInputOption` | string | No | El formato de los datos a escribir |
 | `includeValuesInResponse` | boolean | No | Si se deben incluir los valores escritos en la respuesta |
 
@@ -129,10 +129,10 @@ Actualizar datos en una hoja de cálculo de Google Sheets
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Sí | El ID de la hoja de cálculo a actualizar |
-| `range` | string | No | El rango de celdas a actualizar |
-| `values` | array | Sí | Los datos para actualizar en la hoja de cálculo |
+| `range` | string | No | El rango en notación A1 para actualizar \(por ejemplo, "Sheet1!A1:D10", "A1:B5"\) |
+| `values` | array | Sí | Los datos para actualizar como un array 2D \(por ejemplo, \[\["Nombre", "Edad"\], \["Alice", 30\]\]\) o array de objetos. |
 | `valueInputOption` | string | No | El formato de los datos a actualizar |
 | `includeValuesInResponse` | boolean | No | Si se deben incluir los valores actualizados en la respuesta |
 
@@ -153,12 +153,12 @@ Añadir datos al final de una hoja de cálculo de Google Sheets
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ----------- | ----------- |
 | `spreadsheetId` | string | Sí | El ID de la hoja de cálculo a la que añadir datos |
-| `range` | string | No | El rango de celdas después del cual añadir datos |
-| `values` | array | Sí | Los datos a añadir a la hoja de cálculo |
+| `range` | string | No | El rango en notación A1 después del cual añadir datos (ej. "Hoja1", "Hoja1!A:D") |
+| `values` | array | Sí | Los datos a añadir como un array 2D (ej. [["Alice", 30], ["Bob", 25]]) o array de objetos. |
 | `valueInputOption` | string | No | El formato de los datos a añadir |
-| `insertDataOption` | string | No | Cómo insertar los datos \(OVERWRITE o INSERT_ROWS\) |
+| `insertDataOption` | string | No | Cómo insertar los datos (OVERWRITE o INSERT_ROWS) |
 | `includeValuesInResponse` | boolean | No | Si se deben incluir los valores añadidos en la respuesta |
 
 #### Salida

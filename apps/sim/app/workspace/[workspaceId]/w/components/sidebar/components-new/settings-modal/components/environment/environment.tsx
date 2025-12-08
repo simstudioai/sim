@@ -30,9 +30,6 @@ const ENV_VAR_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 const PRIMARY_BUTTON_STYLES =
   '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
 
-/**
- * Generates a unique row identifier by combining timestamp with an incrementing counter
- */
 const generateRowId = (() => {
   let counter = 0
   return () => {
@@ -41,35 +38,22 @@ const generateRowId = (() => {
   }
 })()
 
-/**
- * Creates a new empty environment variable with a unique ID
- */
 const createEmptyEnvVar = (): UIEnvironmentVariable => ({
   key: '',
   value: '',
   id: generateRowId(),
 })
 
-/**
- * Represents an environment variable in the UI with optional ID for tracking
- */
 interface UIEnvironmentVariable {
   key: string
   value: string
   id?: number
 }
 
-/**
- * Props for the EnvironmentVariables component
- */
 interface EnvironmentVariablesProps {
-  /** Callback to register a handler that intercepts navigation away from this section */
   registerBeforeLeaveHandler?: (handler: (onProceed: () => void) => void) => void
 }
 
-/**
- * Props for the WorkspaceVariableRow component
- */
 interface WorkspaceVariableRowProps {
   envKey: string
   value: string
@@ -83,9 +67,6 @@ interface WorkspaceVariableRowProps {
   onDemote: (key: string, value: string) => void
 }
 
-/**
- * Renders a single workspace environment variable row with edit and delete capabilities
- */
 function WorkspaceVariableRow({
   envKey,
   value,
@@ -149,11 +130,6 @@ function WorkspaceVariableRow({
   )
 }
 
-/**
- * Environment Variables management component for handling personal and workspace-scoped variables.
- * Provides functionality to create, edit, delete, and share environment variables between
- * personal and workspace scopes with conflict detection.
- */
 export function EnvironmentVariables({ registerBeforeLeaveHandler }: EnvironmentVariablesProps) {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -248,10 +224,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     hasChangesRef.current = hasChanges
   }, [hasChanges])
 
-  /**
-   * Handles navigation attempts away from this section.
-   * Shows unsaved changes modal if there are changes, otherwise proceeds immediately.
-   */
   const handleBeforeLeave = useCallback((onProceed: () => void) => {
     if (hasChangesRef.current) {
       setShowUnsavedChanges(true)
@@ -262,7 +234,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
   }, [])
 
   useEffect(() => {
-    // Skip sync from server after a save - we already have correct local state
     if (hasSavedRef.current) return
 
     const existingVars = Object.values(variables)
@@ -280,7 +251,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
   useEffect(() => {
     if (workspaceEnvData) {
       if (hasSavedRef.current) {
-        // After a save, only update conflicts - refs were already set optimistically
         setConflicts(workspaceEnvData?.conflicts || [])
         hasSavedRef.current = false
       } else {
@@ -291,7 +261,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     }
   }, [workspaceEnvData])
 
-  // Register the before-leave handler
   useEffect(() => {
     if (registerBeforeLeaveHandler) {
       registerBeforeLeaveHandler(handleBeforeLeave)
@@ -380,9 +349,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     e.currentTarget.scrollLeft = 0
   }, [])
 
-  /**
-   * Parses a single line to extract environment variable key-value pair
-   */
   const parseEnvVarLine = useCallback((line: string): UIEnvironmentVariable | null => {
     const equalIndex = line.indexOf('=')
     if (equalIndex === -1 || equalIndex === 0) return null
@@ -394,9 +360,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     return { key: potentialKey, value, id: generateRowId() }
   }, [])
 
-  /**
-   * Handles pasting a single value into a specific field
-   */
   const handleSingleValuePaste = useCallback(
     (text: string, index: number, inputType: 'key' | 'value') => {
       setEnvVars((prev) => {
@@ -408,9 +371,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     []
   )
 
-  /**
-   * Handles pasting multiple key=value pairs
-   */
   const handleKeyValuePaste = useCallback(
     (lines: string[]) => {
       const parsedVars = lines
@@ -429,10 +389,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     [parseEnvVarLine]
   )
 
-  /**
-   * Handles paste events for environment variable inputs with smart detection
-   * of key=value pairs vs single values
-   */
   const handlePaste = useCallback(
     (e: React.ClipboardEvent<HTMLInputElement>, index: number) => {
       const text = e.clipboardData.getData('text').trim()
@@ -460,9 +416,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     [parseEnvVarLine, handleSingleValuePaste, handleKeyValuePaste]
   )
 
-  /**
-   * Discards all changes and reverts to initial state
-   */
   const handleCancel = useCallback(() => {
     setEnvVars(JSON.parse(JSON.stringify(initialVarsRef.current)))
     setWorkspaceVars({ ...initialWorkspaceVarsRef.current })
@@ -472,13 +425,9 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     pendingProceedCallback.current = null
   }, [])
 
-  /**
-   * Saves all personal and workspace environment variables with optimistic updates
-   */
   const handleSave = useCallback(async () => {
     const onProceed = pendingProceedCallback.current
 
-    // Save previous state for rollback on error
     const prevInitialVars = [...initialVarsRef.current]
     const prevInitialWorkspaceVars = { ...initialWorkspaceVarsRef.current }
 
@@ -486,11 +435,9 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
       setShowUnsavedChanges(false)
       hasSavedRef.current = true
 
-      // Optimistically update refs to mark current state as "saved"
       initialWorkspaceVarsRef.current = { ...workspaceVars }
       initialVarsRef.current = JSON.parse(JSON.stringify(envVars.filter((v) => v.key && v.value)))
 
-      // Force recomputation of change tracking based on updated baselines
       setChangeToken((prev) => prev + 1)
 
       const validVariables = envVars
@@ -526,7 +473,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
       onProceed?.()
       pendingProceedCallback.current = null
     } catch (error) {
-      // Rollback optimistic updates on error
       hasSavedRef.current = false
       initialVarsRef.current = prevInitialVars
       initialWorkspaceVarsRef.current = prevInitialWorkspaceVars
@@ -541,9 +487,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     removeWorkspaceMutation,
   ])
 
-  /**
-   * Promotes a personal environment variable to workspace scope
-   */
   const promoteToWorkspace = useCallback(
     (envVar: UIEnvironmentVariable) => {
       if (!envVar.key || !envVar.value || !workspaceId) return
@@ -556,10 +499,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     [workspaceId]
   )
 
-  /**
-   * Demotes a newly promoted workspace variable back to personal scope.
-   * Only works for variables that were promoted during this session (before save).
-   */
   const demoteToPersonal = useCallback((key: string, value: string) => {
     if (!key) return
     setWorkspaceVars((prev) => {
@@ -572,9 +511,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
 
   const conflictClassName = 'border-[var(--text-error)] bg-[#F6D2D2] dark:bg-[#442929]'
 
-  /**
-   * Renders a single personal environment variable row with conflict detection
-   */
   const renderEnvVarRow = useCallback(
     (envVar: UIEnvironmentVariable, originalIndex: number) => {
       const isConflict = !!envVar.key && Object.hasOwn(workspaceVars, envVar.key)
@@ -679,7 +615,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
   return (
     <>
       <div className='flex h-full flex-col gap-[16px]'>
-        {/* Hidden inputs to prevent browser password manager autofill interference */}
         <div className='hidden'>
           <input
             type='text'
@@ -746,7 +681,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
           </Tooltip.Root>
         </div>
 
-        {/* Scrollable Content */}
         <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
           <div className='flex flex-col gap-[16px]'>
             {isLoading ? (
@@ -774,7 +708,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
               </>
             ) : (
               <>
-                {/* Workspace section */}
                 {(!searchTerm.trim() || filteredWorkspaceEntries.length > 0) && (
                   <div className='flex flex-col gap-[8px]'>
                     <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
@@ -807,7 +740,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
                   </div>
                 )}
 
-                {/* Personal section */}
                 {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
                   <div className='flex flex-col gap-[8px]'>
                     <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
@@ -820,7 +752,6 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
                     ))}
                   </div>
                 )}
-                {/* Show message when search has no results across both sections */}
                 {searchTerm.trim() &&
                   filteredEnvVars.length === 0 &&
                   filteredWorkspaceEntries.length === 0 &&

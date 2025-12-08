@@ -62,7 +62,7 @@ function UserAvatar({ user, index }: UserAvatarProps) {
           sizes='14px'
           className='object-cover'
           referrerPolicy='no-referrer'
-          unoptimized={user.avatarUrl.startsWith('http')}
+          unoptimized
           onError={() => setImageError(true)}
         />
       ) : (

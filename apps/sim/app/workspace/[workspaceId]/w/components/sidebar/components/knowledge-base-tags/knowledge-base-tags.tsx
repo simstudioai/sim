@@ -5,11 +5,10 @@ import { Eye, MoreHorizontal, Plus, Trash2, X } from 'lucide-react'
 import {
   Button as EmcnButton,
   Modal,
+  ModalBody,
   ModalContent,
-  ModalDescription,
   ModalFooter,
   ModalHeader,
-  ModalTitle,
 } from '@/components/emcn'
 import {
   Button,
@@ -449,46 +448,40 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
 
       {/* Delete Confirmation Dialog */}
       <Modal open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>Delete Tag</ModalTitle>
-            <ModalDescription asChild>
-              <div>
-                <div className='mb-2'>
-                  Are you sure you want to delete the "{selectedTag?.displayName}" tag? This will
-                  remove this tag from {selectedTagUsage?.documentCount || 0} document
-                  {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.{' '}
-                  <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                    This action cannot be undone.
-                  </span>
-                </div>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete Tag</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              Are you sure you want to delete the "{selectedTag?.displayName}" tag? This will remove
+              this tag from {selectedTagUsage?.documentCount || 0} document
+              {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
 
-                {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
-                  <div className='mt-4'>
-                    <div className='mb-2 font-medium text-sm'>Affected documents:</div>
-                    <DocumentList
-                      documents={selectedTagUsage.documents}
-                      totalCount={selectedTagUsage.documentCount}
-                      maxHeight='max-h-32'
-                    />
-                  </div>
-                )}
+            {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
+              <div className='mt-4'>
+                <div className='mb-2 font-medium text-sm'>Affected documents:</div>
+                <DocumentList
+                  documents={selectedTagUsage.documents}
+                  totalCount={selectedTagUsage.documentCount}
+                  maxHeight='max-h-32'
+                />
               </div>
-            </ModalDescription>
-          </ModalHeader>
+            )}
+          </ModalBody>
           <ModalFooter>
             <EmcnButton
-              variant='outline'
-              className='h-[32px] px-[12px]'
+              variant='active'
               disabled={isDeleting}
               onClick={() => setDeleteDialogOpen(false)}
             >
               Cancel
             </EmcnButton>
             <EmcnButton
+              variant='primary'
               onClick={confirmDeleteTag}
               disabled={isDeleting}
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {isDeleting ? 'Deleting...' : 'Delete Tag'}
             </EmcnButton>

@@ -14,13 +14,9 @@ export const dynamic = 'force-dynamic'
 /**
  * POST - Refresh an MCP server connection (requires any workspace permission)
  */
-export const POST = withMcpAuth('read')(
-  async (
-    request: NextRequest,
-    { userId, workspaceId, requestId },
-    { params }: { params: { id: string } }
-  ) => {
-    const serverId = params.id
+export const POST = withMcpAuth<{ id: string }>('read')(
+  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+    const { id: serverId } = await params
 
     try {
       logger.info(

@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useEffect, useState } from 'react'
-import type { PageTree } from 'fumadocs-core/server'
+import type { Folder, Item, Separator } from 'fumadocs-core/page-tree'
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -11,7 +11,7 @@ function isActive(url: string, pathname: string, nested = true): boolean {
   return url === pathname || (nested && pathname.startsWith(`${url}/`))
 }
 
-export function SidebarItem({ item }: { item: PageTree.Item }) {
+export function SidebarItem({ item }: { item: Item }) {
   const pathname = usePathname()
   const active = isActive(item.url, pathname, false)
 
@@ -33,15 +33,7 @@ export function SidebarItem({ item }: { item: PageTree.Item }) {
   )
 }
 
-export function SidebarFolder({
-  item,
-  level,
-  children,
-}: {
-  item: PageTree.Folder
-  level: number
-  children: ReactNode
-}) {
+export function SidebarFolder({ item, children }: { item: Folder; children: ReactNode }) {
   const pathname = usePathname()
   const hasActiveChild = checkHasActiveChild(item, pathname)
   const [open, setOpen] = useState(hasActiveChild)
@@ -112,7 +104,7 @@ export function SidebarFolder({
   )
 }
 
-export function SidebarSeparator({ item }: { item: PageTree.Separator }) {
+export function SidebarSeparator({ item }: { item: Separator }) {
   return (
     <p className='mt-4 mb-1.5 px-2.5 font-semibold text-[10px] text-gray-500/80 uppercase tracking-wide dark:text-gray-500'>
       {item.name}
@@ -120,7 +112,7 @@ export function SidebarSeparator({ item }: { item: PageTree.Separator }) {
   )
 }
 
-function checkHasActiveChild(node: PageTree.Folder, pathname: string): boolean {
+function checkHasActiveChild(node: Folder, pathname: string): boolean {
   if (node.index && isActive(node.index.url, pathname)) {
     return true
   }

@@ -1,6 +1,6 @@
 ---
 title: Kalshi
-description: 访问 Kalshi 的预测市场数据
+description: 访问预测市场并在 Kalshi 上进行交易
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -27,7 +27,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 Kalshi 预测市场集成到工作流中。可以获取市场、单个市场、事件、单个事件、余额、头寸、订单、订单簿、交易、K 线、成交、系列和交易所状态。
+将 Kalshi 预测市场集成到工作流程中。可以获取市场、单个市场、事件、单个事件、余额、头寸、订单、订单簿、交易、K线图、成交、系列、交易所状态，并进行下单/取消/修改交易。
 
 ## 工具
 
@@ -172,16 +172,34 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `success` | boolean | 操作成功状态 |
 | `output` | object | 订单数据和元数据 |
 
-### `kalshi_get_orderbook`
+### `kalshi_get_order`
 
-检索特定市场的订单簿（买入和卖出）
+通过 ID 从 Kalshi 检索特定订单的详细信息
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `ticker` | string | 是 | 市场代码 \(例如，KXBTC-24DEC31\) |
-| `depth` | number | 否 | 每侧返回的价格级别数量 |
+| `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
+| `privateKey` | string | 是 | 您的 RSA 私钥 \(PEM 格式\) |
+| `orderId` | string | 是 | 要检索的订单 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 订单数据 |
+
+### `kalshi_get_orderbook`
+
+检索特定市场的订单簿（买入和卖出报价）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `ticker` | string | 是 | 市场代码 \(例如：KXBTC-24DEC31\) |
 
 #### 输出
 
@@ -192,15 +210,12 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ### `kalshi_get_trades`
 
-获取所有市场或特定市场的最近交易记录
+检索所有市场的最近交易
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `ticker` | string | 否 | 按市场代码过滤 |
-| `minTs` | number | 否 | 最小时间戳 \(Unix 毫秒\) |
-| `maxTs` | number | 否 | 最大时间戳 \(Unix 毫秒\) |
 | `limit` | string | 否 | 结果数量 \(1-1000，默认值：100\) |
 | `cursor` | string | 否 | 下一页的分页游标 |
 
@@ -213,7 +228,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ### `kalshi_get_candlesticks`
 
-获取特定市场的 OHLC 蜡烛图数据
+检索特定市场的 OHLC 蜡烛图数据
 
 #### 输入
 
@@ -221,16 +236,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `seriesTicker` | string | 是 | 系列代码 |
 | `ticker` | string | 是 | 市场代码 \(例如：KXBTC-24DEC31\) |
-| `startTs` | number | 否 | 开始时间戳 \(Unix 毫秒\) |
-| `endTs` | number | 否 | 结束时间戳 \(Unix 毫秒\) |
-| `periodInterval` | number | 否 | 时间间隔：1 \(1分钟\)，60 \(1小时\)，或 1440 \(1天\) |
+| `startTs` | number | 是 | 开始时间戳 \(Unix 秒\) |
+| `endTs` | number | 是 | 结束时间戳 \(Unix 秒\) |
+| `periodInterval` | number | 是 | 时间间隔：1 \(1分钟\), 60 \(1小时\), 或 1440 \(1天\) |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | K线数据和元数据 |
+| `output` | object | 蜡烛图数据和元数据 |
 
 ### `kalshi_get_fills`
 
@@ -241,12 +256,12 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
-| `privateKey` | string | 是 | 您的 RSA 私钥（PEM 格式）|
-| `ticker` | string | 否 | 按市场代码筛选 |
-| `orderId` | string | 否 | 按订单 ID 筛选 |
-| `minTs` | number | 否 | 最小时间戳（Unix 毫秒）|
-| `maxTs` | number | 否 | 最大时间戳（Unix 毫秒）|
-| `limit` | string | 否 | 结果数量（1-1000，默认值：100）|
+| `privateKey` | string | 是 | 您的 RSA 私钥 \(PEM 格式\) |
+| `ticker` | string | 否 | 按市场代码过滤 |
+| `orderId` | string | 否 | 按订单 ID 过滤 |
+| `minTs` | number | 否 | 最小时间戳 \(Unix 毫秒\) |
+| `maxTs` | number | 否 | 最大时间戳 \(Unix 毫秒\) |
+| `limit` | string | 否 | 结果数量 \(1-1000，默认值：100\) |
 | `cursor` | string | 否 | 下一页的分页游标 |
 
 #### 输出
@@ -254,7 +269,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 成交数据和元数据 |
+| `output` | object | 填充数据和元数据 |
 
 ### `kalshi_get_series_by_ticker`
 
@@ -275,7 +290,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ### `kalshi_get_exchange_status`
 
-检索 Kalshi 交易所的当前状态（交易和交易活动）
+检索 Kalshi 交易所的当前状态（交易和交易所活动）
 
 #### 输入
 
@@ -289,7 +304,90 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `success` | boolean | 操作成功状态 |
 | `output` | object | 交易所状态数据和元数据 |
 
+### `kalshi_create_order`
+
+在 Kalshi 预测市场创建新订单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
+| `privateKey` | string | 是 | 您的 RSA 私钥（PEM 格式）|
+| `ticker` | string | 是 | 市场代码 \(例如：KXBTC-24DEC31\) |
+| `side` | string | 是 | 订单方向：'yes' 或 'no' |
+| `action` | string | 是 | 操作类型：'buy' 或 'sell' |
+| `count` | string | 是 | 合约数量（最少 1）|
+| `type` | string | 否 | 订单类型：'limit' 或 'market'（默认：limit）|
+| `yesPrice` | string | 否 | Yes 价格（以美分为单位，1-99）|
+| `noPrice` | string | 否 | No 价格（以美分为单位，1-99）|
+| `yesPriceDollars` | string | 否 | Yes 价格（以美元为单位，例如："0.56"）|
+| `noPriceDollars` | string | 否 | No 价格（以美元为单位，例如："0.56"）|
+| `clientOrderId` | string | 否 | 自定义订单标识符 |
+| `expirationTs` | string | 否 | 订单过期的 Unix 时间戳 |
+| `timeInForce` | string | 否 | 有效时间：'fill_or_kill'，'good_till_canceled'，'immediate_or_cancel' |
+| `buyMaxCost` | string | 否 | 最大成本（以美分为单位，自动启用 fill_or_kill）|
+| `postOnly` | string | 否 | 设置为 'true' 以仅限做市订单 |
+| `reduceOnly` | string | 否 | 设置为 'true' 以仅限减少头寸 |
+| `selfTradePreventionType` | string | 否 | 自交易预防：'taker_at_cross' 或 'maker' |
+| `orderGroupId` | string | 否 | 关联的订单组 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的订单数据 |
+
+### `kalshi_cancel_order`
+
+取消 Kalshi 上的现有订单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
+| `privateKey` | string | 是 | 您的 RSA 私钥 \(PEM 格式\) |
+| `orderId` | string | 是 | 要取消的订单 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 已取消的订单数据 |
+
+### `kalshi_amend_order`
+
+修改 Kalshi 上现有订单的价格或数量
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
+| `privateKey` | string | 是 | 您的 RSA 私钥 \(PEM 格式\) |
+| `orderId` | string | 是 | 要修改的订单 ID |
+| `ticker` | string | 是 | 市场代码 |
+| `side` | string | 是 | 订单方向：'yes' 或 'no' |
+| `action` | string | 是 | 操作类型：'buy' 或 'sell' |
+| `clientOrderId` | string | 是 | 原始客户指定的订单 ID |
+| `updatedClientOrderId` | string | 是 | 修改后的客户指定订单 ID |
+| `count` | string | 否 | 更新后的订单数量 |
+| `yesPrice` | string | 否 | 更新后的 yes 价格（以分为单位 \(1-99\)） |
+| `noPrice` | string | 否 | 更新后的 no 价格（以分为单位 \(1-99\)） |
+| `yesPriceDollars` | string | 否 | 更新后的 yes 价格（以美元为单位 \(例如，"0.56"\)） |
+| `noPriceDollars` | string | 否 | 更新后的 no 价格（以美元为单位 \(例如，"0.56"\)） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 修改后的订单数据 |
+
 ## 注意
 
-- 类别: `tools`
-- 类型: `kalshi`
+- 类别：`tools`
+- 类型：`kalshi`

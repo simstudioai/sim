@@ -482,7 +482,6 @@ export const auth = betterAuth({
           prompt: 'consent',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-forms`,
         },
-
         {
           providerId: 'google-vault',
           clientId: env.GOOGLE_CLIENT_ID as string,

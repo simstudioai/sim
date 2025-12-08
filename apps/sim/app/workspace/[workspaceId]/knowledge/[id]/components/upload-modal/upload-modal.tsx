@@ -3,14 +3,7 @@
 import { useRef, useState } from 'react'
 import { AlertCircle, Check, Loader2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import {
-  Button,
-  Modal,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  ModalTitle,
-} from '@/components/emcn'
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -156,15 +149,14 @@ export function UploadModal({
 
   return (
     <Modal open={open} onOpenChange={handleClose}>
-      <ModalContent className='flex max-h-[95vh] flex-col overflow-hidden sm:max-w-[600px]'>
-        <ModalHeader>
-          <ModalTitle>Upload Documents</ModalTitle>
-        </ModalHeader>
+      <ModalContent className='max-h-[95vh] sm:max-w-[600px]'>
+        <ModalHeader>Upload Documents</ModalHeader>
 
-        <div className='flex-1 space-y-6 overflow-auto'>
-          {/* File Upload Section */}
-          <div className='space-y-3'>
-            <Label>Select Files</Label>
+        <ModalBody>
+          <div className='space-y-[12px]'>
+            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+              Select Files
+            </Label>
 
             {files.length === 0 ? (
               <div
@@ -172,10 +164,10 @@ export function UploadModal({
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`relative flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
+                className={`relative flex cursor-pointer items-center justify-center rounded-lg border-[1.5px] border-dashed p-8 text-center transition-colors ${
                   isDragging
-                    ? 'border-primary bg-primary/5'
-                    : 'border-muted-foreground/25 hover:border-muted-foreground/40 hover:bg-muted/10'
+                    ? 'border-[var(--brand-primary-hex)] bg-[var(--brand-primary-hex)]/5'
+                    : 'border-[var(--c-575757)] hover:border-[var(--text-secondary)]'
                 }`}
               >
                 <input
@@ -187,10 +179,10 @@ export function UploadModal({
                   multiple
                 />
                 <div className='space-y-2'>
-                  <p className='font-medium text-sm'>
+                  <p className='font-medium text-[var(--text-primary)] text-sm'>
                     {isDragging ? 'Drop files here!' : 'Drop files here or click to browse'}
                   </p>
-                  <p className='text-muted-foreground text-xs'>
+                  <p className='text-[var(--text-tertiary)] text-xs'>
                     Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON, YAML,
                     YML (max 100MB each)
                   </p>
@@ -205,8 +197,8 @@ export function UploadModal({
                   onClick={() => fileInputRef.current?.click()}
                   className={`cursor-pointer rounded-md border border-dashed p-3 text-center transition-colors ${
                     isDragging
-                      ? 'border-primary bg-primary/5'
-                      : 'border-muted-foreground/25 hover:border-muted-foreground/40'
+                      ? 'border-[var(--brand-primary-hex)] bg-[var(--brand-primary-hex)]/5'
+                      : 'border-[var(--c-575757)] hover:border-[var(--text-secondary)]'
                   }`}
                 >
                   <input
@@ -217,7 +209,7 @@ export function UploadModal({
                     className='hidden'
                     multiple
                   />
-                  <p className='text-sm'>
+                  <p className='text-[var(--text-primary)] text-sm'>
                     {isDragging ? 'Drop more files here!' : 'Drop more files or click to browse'}
                   </p>
                 </div>
@@ -238,12 +230,16 @@ export function UploadModal({
                               {isCurrentlyUploading && (
                                 <Loader2 className='h-4 w-4 animate-spin text-[var(--brand-primary-hex)]' />
                               )}
-                              {isCompleted && <Check className='h-4 w-4 text-green-500' />}
-                              {isFailed && <X className='h-4 w-4 text-red-500' />}
-                              <p className='truncate font-medium text-sm'>{file.name}</p>
+                              {isCompleted && (
+                                <Check className='h-4 w-4 text-[var(--text-success)]' />
+                              )}
+                              {isFailed && <X className='h-4 w-4 text-[var(--text-error)]' />}
+                              <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
+                                {file.name}
+                              </p>
                             </div>
                             <div className='flex items-center gap-2'>
-                              <p className='text-muted-foreground text-xs'>
+                              <p className='text-[var(--text-tertiary)] text-xs'>
                                 {formatFileSize(file.size)}
                               </p>
                               {isCurrentlyUploading && (
@@ -253,7 +249,9 @@ export function UploadModal({
                               )}
                             </div>
                             {isFailed && fileStatus?.error && (
-                              <p className='mt-1 text-red-500 text-xs'>{fileStatus.error}</p>
+                              <p className='mt-1 text-[var(--text-error)] text-xs'>
+                                {fileStatus.error}
+                              </p>
                             )}
                           </div>
                           <Button
@@ -261,7 +259,7 @@ export function UploadModal({
                             variant='ghost'
                             onClick={() => removeFile(index)}
                             disabled={isUploading}
-                            className='h-8 w-8 p-0 text-muted-foreground hover:text-destructive'
+                            className='h-8 w-8 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-error)]'
                           >
                             <X className='h-4 w-4' />
                           </Button>
@@ -275,36 +273,32 @@ export function UploadModal({
 
             {/* Show upload error first, then file error only if no upload error */}
             {uploadError && (
-              <div className='rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2'>
+              <div className='rounded-md border border-[var(--text-error)]/50 bg-[var(--text-error)]/10 px-3 py-2'>
                 <div className='flex items-start gap-2'>
-                  <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-destructive' />
-                  <div className='flex-1 text-destructive text-sm'>{uploadError.message}</div>
+                  <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-[var(--text-error)]' />
+                  <div className='flex-1 text-[var(--text-error)] text-sm'>
+                    {uploadError.message}
+                  </div>
                 </div>
               </div>
             )}
 
             {fileError && !uploadError && (
-              <div className='rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-destructive text-sm'>
+              <div className='rounded-md border border-[var(--text-error)]/50 bg-[var(--text-error)]/10 px-3 py-2 text-[var(--text-error)] text-sm'>
                 {fileError}
               </div>
             )}
           </div>
-        </div>
+        </ModalBody>
 
         <ModalFooter>
-          <Button
-            variant='outline'
-            onClick={handleClose}
-            disabled={isUploading}
-            className='h-[32px] px-[12px]'
-          >
+          <Button variant='default' onClick={handleClose} disabled={isUploading}>
             Cancel
           </Button>
           <Button
             variant='primary'
             onClick={handleUpload}
             disabled={files.length === 0 || isUploading}
-            className='h-[32px] px-[12px]'
           >
             {isUploading
               ? uploadProgress.stage === 'uploading'

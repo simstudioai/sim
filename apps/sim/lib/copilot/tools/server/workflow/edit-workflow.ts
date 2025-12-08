@@ -3,14 +3,429 @@ import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
-import { getAllBlocks } from '@/blocks/registry'
+import { getAllBlocks, getBlock } from '@/blocks/registry'
+import type { SubBlockConfig } from '@/blocks/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/consts'
+
+/** Selector subblock types that can be validated */
+const SELECTOR_TYPES = new Set([
+  'oauth-input',
+  'knowledge-base-selector',
+  'document-selector',
+  'file-selector',
+  'project-selector',
+  'channel-selector',
+  'folder-selector',
+  'mcp-server-selector',
+  'mcp-tool-selector',
+  'workflow-selector',
+])
+
+const validationLogger = createLogger('EditWorkflowValidation')
+
+/**
+ * Validation error for a specific field
+ */
+interface ValidationError {
+  blockId: string
+  blockType: string
+  field: string
+  value: any
+  error: string
+}
+
+/**
+ * Types of items that can be skipped during operation application
+ */
+type SkippedItemType =
+  | 'block_not_found'
+  | 'invalid_block_type'
+  | 'invalid_edge_target'
+  | 'invalid_edge_source'
+  | 'invalid_subblock_field'
+  | 'missing_required_params'
+  | 'invalid_subflow_parent'
+
+/**
+ * Represents an item that was skipped during operation application
+ */
+interface SkippedItem {
+  type: SkippedItemType
+  operationType: string
+  blockId: string
+  reason: string
+  details?: Record<string, any>
+}
+
+/**
+ * Logs and records a skipped item
+ */
+function logSkippedItem(skippedItems: SkippedItem[], item: SkippedItem): void {
+  validationLogger.warn(`Skipped ${item.operationType} operation: ${item.reason}`, {
+    type: item.type,
+    operationType: item.operationType,
+    blockId: item.blockId,
+    ...(item.details && { details: item.details }),
+  })
+  skippedItems.push(item)
+}
+
+/**
+ * Result of input validation
+ */
+interface ValidationResult {
+  validInputs: Record<string, any>
+  errors: ValidationError[]
+}
+
+/**
+ * Validates and filters inputs against a block's subBlock configuration
+ * Returns valid inputs and any validation errors encountered
+ */
+function validateInputsForBlock(
+  blockType: string,
+  inputs: Record<string, any>,
+  blockId: string
+): ValidationResult {
+  const errors: ValidationError[] = []
+  const blockConfig = getBlock(blockType)
+
+  if (!blockConfig) {
+    // Unknown block type - return inputs as-is (let it fail later if invalid)
+    validationLogger.warn(`Unknown block type: ${blockType}, skipping validation`)
+    return { validInputs: inputs, errors: [] }
+  }
+
+  const validatedInputs: Record<string, any> = {}
+  const subBlockMap = new Map<string, SubBlockConfig>()
+
+  // Build map of subBlock id -> config
+  for (const subBlock of blockConfig.subBlocks) {
+    subBlockMap.set(subBlock.id, subBlock)
+  }
+
+  for (const [key, value] of Object.entries(inputs)) {
+    // Skip runtime subblock IDs
+    if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+      continue
+    }
+
+    const subBlockConfig = subBlockMap.get(key)
+
+    // If subBlock doesn't exist in config, skip it (unless it's a known dynamic field)
+    if (!subBlockConfig) {
+      // Some fields are valid but not in subBlocks (like loop/parallel config)
+      // Allow these through for special block types
+      if (blockType === 'loop' || blockType === 'parallel') {
+        validatedInputs[key] = value
+      } else {
+        errors.push({
+          blockId,
+          blockType,
+          field: key,
+          value,
+          error: `Unknown input field "${key}" for block type "${blockType}"`,
+        })
+      }
+      continue
+    }
+
+    // Note: We do NOT check subBlockConfig.condition here.
+    // Conditions are for UI display logic (show/hide fields in the editor).
+    // For API/Copilot, any valid field in the block schema should be accepted.
+    // The runtime will use the relevant fields based on the actual operation.
+
+    // Validate value based on subBlock type
+    const validationResult = validateValueForSubBlockType(
+      subBlockConfig,
+      value,
+      key,
+      blockType,
+      blockId
+    )
+    if (validationResult.valid) {
+      validatedInputs[key] = validationResult.value
+    } else if (validationResult.error) {
+      errors.push(validationResult.error)
+    }
+  }
+
+  return { validInputs: validatedInputs, errors }
+}
+
+/**
+ * Result of validating a single value
+ */
+interface ValueValidationResult {
+  valid: boolean
+  value?: any
+  error?: ValidationError
+}
+
+/**
+ * Validates a value against its expected subBlock type
+ * Returns validation result with the value or an error
+ */
+function validateValueForSubBlockType(
+  subBlockConfig: SubBlockConfig,
+  value: any,
+  fieldName: string,
+  blockType: string,
+  blockId: string
+): ValueValidationResult {
+  const { type } = subBlockConfig
+
+  // Handle null/undefined - allow clearing fields
+  if (value === null || value === undefined) {
+    return { valid: true, value }
+  }
+
+  switch (type) {
+    case 'dropdown': {
+      // Validate against allowed options
+      const options =
+        typeof subBlockConfig.options === 'function'
+          ? subBlockConfig.options()
+          : subBlockConfig.options
+      if (options && Array.isArray(options)) {
+        const validIds = options.map((opt) => opt.id)
+        if (!validIds.includes(value)) {
+          return {
+            valid: false,
+            error: {
+              blockId,
+              blockType,
+              field: fieldName,
+              value,
+              error: `Invalid dropdown value "${value}" for field "${fieldName}". Valid options: ${validIds.join(', ')}`,
+            },
+          }
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'slider': {
+      // Validate numeric range
+      const numValue = typeof value === 'number' ? value : Number(value)
+      if (Number.isNaN(numValue)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid slider value "${value}" for field "${fieldName}" - must be a number`,
+          },
+        }
+      }
+      // Clamp to range (allow but warn)
+      let clampedValue = numValue
+      if (subBlockConfig.min !== undefined && numValue < subBlockConfig.min) {
+        clampedValue = subBlockConfig.min
+      }
+      if (subBlockConfig.max !== undefined && numValue > subBlockConfig.max) {
+        clampedValue = subBlockConfig.max
+      }
+      return {
+        valid: true,
+        value: subBlockConfig.integer ? Math.round(clampedValue) : clampedValue,
+      }
+    }
+
+    case 'switch': {
+      // Must be boolean
+      if (typeof value !== 'boolean') {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid switch value "${value}" for field "${fieldName}" - must be true or false`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'file-upload': {
+      // File upload should be an object with specific properties or null
+      if (value === null) return { valid: true, value: null }
+      if (typeof value !== 'object') {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid file-upload value for field "${fieldName}" - expected object with name and path properties, or null`,
+          },
+        }
+      }
+      // Validate file object has required properties
+      if (value && (!value.name || !value.path)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid file-upload object for field "${fieldName}" - must have "name" and "path" properties`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'input-format':
+    case 'table': {
+      // Should be an array
+      if (!Array.isArray(value)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid ${type} value for field "${fieldName}" - expected an array`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'tool-input': {
+      // Should be an array of tool objects
+      if (!Array.isArray(value)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid tool-input value for field "${fieldName}" - expected an array of tool objects`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'code': {
+      // Code must be a string (content can be JS, Python, JSON, SQL, HTML, etc.)
+      if (typeof value !== 'string') {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid code value for field "${fieldName}" - expected a string, got ${typeof value}`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'response-format': {
+      // Allow empty/null
+      if (value === null || value === undefined || value === '') {
+        return { valid: true, value }
+      }
+      // Allow objects (will be stringified later by normalizeResponseFormat)
+      if (typeof value === 'object') {
+        return { valid: true, value }
+      }
+      // If string, must be valid JSON
+      if (typeof value === 'string') {
+        try {
+          JSON.parse(value)
+          return { valid: true, value }
+        } catch {
+          return {
+            valid: false,
+            error: {
+              blockId,
+              blockType,
+              field: fieldName,
+              value,
+              error: `Invalid response-format value for field "${fieldName}" - string must be valid JSON`,
+            },
+          }
+        }
+      }
+      // Reject numbers, booleans, etc.
+      return {
+        valid: false,
+        error: {
+          blockId,
+          blockType,
+          field: fieldName,
+          value,
+          error: `Invalid response-format value for field "${fieldName}" - expected a JSON string or object`,
+        },
+      }
+    }
+
+    case 'short-input':
+    case 'long-input':
+    case 'combobox': {
+      // Should be string (combobox allows custom values)
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        // Convert to string but don't error
+        return { valid: true, value: String(value) }
+      }
+      return { valid: true, value }
+    }
+
+    // Selector types - allow strings (IDs) or arrays of strings
+    case 'oauth-input':
+    case 'knowledge-base-selector':
+    case 'document-selector':
+    case 'file-selector':
+    case 'project-selector':
+    case 'channel-selector':
+    case 'folder-selector':
+    case 'mcp-server-selector':
+    case 'mcp-tool-selector':
+    case 'workflow-selector': {
+      if (subBlockConfig.multiSelect && Array.isArray(value)) {
+        return { valid: true, value }
+      }
+      if (typeof value === 'string') {
+        return { valid: true, value }
+      }
+      return {
+        valid: false,
+        error: {
+          blockId,
+          blockType,
+          field: fieldName,
+          value,
+          error: `Invalid selector value for field "${fieldName}" - expected a string${subBlockConfig.multiSelect ? ' or array of strings' : ''}`,
+        },
+      }
+    }
+
+    default:
+      // For unknown types, pass through
+      return { valid: true, value }
+  }
+}
 
 interface EditWorkflowOperation {
   operation_type: 'add' | 'edit' | 'delete' | 'insert_into_subflow' | 'extract_from_subflow'
@@ -118,8 +533,23 @@ function topologicalSortInserts(
 /**
  * Helper to create a block state from operation params
  */
-function createBlockFromParams(blockId: string, params: any, parentId?: string): any {
+function createBlockFromParams(
+  blockId: string,
+  params: any,
+  parentId?: string,
+  errorsCollector?: ValidationError[]
+): any {
   const blockConfig = getAllBlocks().find((b) => b.type === params.type)
+
+  // Validate inputs against block configuration
+  let validatedInputs: Record<string, any> | undefined
+  if (params.inputs) {
+    const result = validateInputsForBlock(params.type, params.inputs, blockId)
+    validatedInputs = result.validInputs
+    if (errorsCollector && result.errors.length > 0) {
+      errorsCollector.push(...result.errors)
+    }
+  }
 
   // Determine outputs based on trigger mode
   const triggerMode = params.triggerMode || false
@@ -129,8 +559,8 @@ function createBlockFromParams(blockId: string, params: any, parentId?: string):
     outputs = params.outputs
   } else if (blockConfig) {
     const subBlocks: Record<string, any> = {}
-    if (params.inputs) {
-      Object.entries(params.inputs).forEach(([key, value]) => {
+    if (validatedInputs) {
+      Object.entries(validatedInputs).forEach(([key, value]) => {
         // Skip runtime subblock IDs when computing outputs
         if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
           return
@@ -158,9 +588,9 @@ function createBlockFromParams(blockId: string, params: any, parentId?: string):
     data: parentId ? { parentId, extent: 'parent' as const } : {},
   }
 
-  // Add inputs as subBlocks
-  if (params.inputs) {
-    Object.entries(params.inputs).forEach(([key, value]) => {
+  // Add validated inputs as subBlocks
+  if (validatedInputs) {
+    Object.entries(validatedInputs).forEach(([key, value]) => {
       if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
         return
       }
@@ -299,11 +729,33 @@ function normalizeResponseFormat(value: any): string {
 function addConnectionsAsEdges(
   modifiedState: any,
   blockId: string,
-  connections: Record<string, any>
+  connections: Record<string, any>,
+  logger: ReturnType<typeof createLogger>,
+  skippedItems?: SkippedItem[]
 ): void {
   Object.entries(connections).forEach(([sourceHandle, targets]) => {
     const targetArray = Array.isArray(targets) ? targets : [targets]
     targetArray.forEach((targetId: string) => {
+      // Validate target block exists - skip edge if target doesn't exist
+      if (!modifiedState.blocks[targetId]) {
+        logger.warn(
+          `Target block "${targetId}" not found when creating connection from "${blockId}". ` +
+            `Edge skipped.`,
+          {
+            sourceBlockId: blockId,
+            targetBlockId: targetId,
+            existingBlocks: Object.keys(modifiedState.blocks),
+          }
+        )
+        skippedItems?.push({
+          type: 'invalid_edge_target',
+          operationType: 'add_edge',
+          blockId: blockId,
+          reason: `Edge from "${blockId}" to "${targetId}" skipped - target block does not exist`,
+          details: { sourceHandle, targetId },
+        })
+        return
+      }
       modifiedState.edges.push({
         id: crypto.randomUUID(),
         source: blockId,
@@ -349,14 +801,29 @@ function applyTriggerConfigToBlockSubblocks(block: any, triggerConfig: Record<st
 }
 
 /**
+ * Result of applying operations to workflow state
+ */
+interface ApplyOperationsResult {
+  state: any
+  validationErrors: ValidationError[]
+  skippedItems: SkippedItem[]
+}
+
+/**
  * Apply operations directly to the workflow JSON state
  */
 function applyOperationsToWorkflowState(
   workflowState: any,
   operations: EditWorkflowOperation[]
-): any {
+): ApplyOperationsResult {
   // Deep clone the workflow state to avoid mutations
   const modifiedState = JSON.parse(JSON.stringify(workflowState))
+
+  // Collect validation errors across all operations
+  const validationErrors: ValidationError[] = []
+
+  // Collect skipped items across all operations
+  const skippedItems: SkippedItem[] = []
 
   // Log initial state
   const logger = createLogger('EditWorkflowServerTool')
@@ -369,7 +836,18 @@ function applyOperationsToWorkflowState(
     initialBlockCount: Object.keys(modifiedState.blocks || {}).length,
   })
 
-  // Reorder operations: delete -> extract -> add -> insert -> edit
+  /**
+   * Reorder operations to ensure correct execution sequence:
+   * 1. delete - Remove blocks first to free up IDs and clean state
+   * 2. extract_from_subflow - Extract blocks from subflows before modifications
+   * 3. add - Create new blocks so they exist before being referenced
+   * 4. insert_into_subflow - Insert blocks into subflows (sorted by parent dependency)
+   * 5. edit - Edit existing blocks last, so connections to newly added blocks work
+   *
+   * This ordering is CRITICAL: edit operations may reference blocks being added
+   * in the same batch (e.g., connecting block A to newly added block B).
+   * Without proper ordering, the target block wouldn't exist yet.
+   */
   const deletes = operations.filter((op) => op.operation_type === 'delete')
   const extracts = operations.filter((op) => op.operation_type === 'extract_from_subflow')
   const adds = operations.filter((op) => op.operation_type === 'add')
@@ -405,288 +883,496 @@ function applyOperationsToWorkflowState(
 
     switch (operation_type) {
       case 'delete': {
-        if (modifiedState.blocks[block_id]) {
-          // Find all child blocks to remove
-          const blocksToRemove = new Set<string>([block_id])
-          const findChildren = (parentId: string) => {
-            Object.entries(modifiedState.blocks).forEach(([childId, child]: [string, any]) => {
-              if (child.data?.parentId === parentId) {
-                blocksToRemove.add(childId)
-                findChildren(childId)
-              }
-            })
-          }
-          findChildren(block_id)
-
-          // Remove blocks
-          blocksToRemove.forEach((id) => delete modifiedState.blocks[id])
-
-          // Remove edges connected to deleted blocks
-          modifiedState.edges = modifiedState.edges.filter(
-            (edge: any) => !blocksToRemove.has(edge.source) && !blocksToRemove.has(edge.target)
-          )
+        if (!modifiedState.blocks[block_id]) {
+          logSkippedItem(skippedItems, {
+            type: 'block_not_found',
+            operationType: 'delete',
+            blockId: block_id,
+            reason: `Block "${block_id}" does not exist and cannot be deleted`,
+          })
+          break
         }
+
+        // Find all child blocks to remove
+        const blocksToRemove = new Set<string>([block_id])
+        const findChildren = (parentId: string) => {
+          Object.entries(modifiedState.blocks).forEach(([childId, child]: [string, any]) => {
+            if (child.data?.parentId === parentId) {
+              blocksToRemove.add(childId)
+              findChildren(childId)
+            }
+          })
+        }
+        findChildren(block_id)
+
+        // Remove blocks
+        blocksToRemove.forEach((id) => delete modifiedState.blocks[id])
+
+        // Remove edges connected to deleted blocks
+        modifiedState.edges = modifiedState.edges.filter(
+          (edge: any) => !blocksToRemove.has(edge.source) && !blocksToRemove.has(edge.target)
+        )
         break
       }
 
       case 'edit': {
-        if (modifiedState.blocks[block_id]) {
-          const block = modifiedState.blocks[block_id]
+        if (!modifiedState.blocks[block_id]) {
+          logSkippedItem(skippedItems, {
+            type: 'block_not_found',
+            operationType: 'edit',
+            blockId: block_id,
+            reason: `Block "${block_id}" does not exist and cannot be edited`,
+          })
+          break
+        }
 
-          // Ensure block has essential properties
-          if (!block.type) {
-            logger.warn(`Block ${block_id} missing type property, skipping edit`, {
-              blockKeys: Object.keys(block),
-              blockData: JSON.stringify(block),
-            })
-            break
+        const block = modifiedState.blocks[block_id]
+
+        // Ensure block has essential properties
+        if (!block.type) {
+          logger.warn(`Block ${block_id} missing type property, skipping edit`, {
+            blockKeys: Object.keys(block),
+            blockData: JSON.stringify(block),
+          })
+          logSkippedItem(skippedItems, {
+            type: 'block_not_found',
+            operationType: 'edit',
+            blockId: block_id,
+            reason: `Block "${block_id}" exists but has no type property`,
+          })
+          break
+        }
+
+        // Update inputs (convert to subBlocks format)
+        if (params?.inputs) {
+          if (!block.subBlocks) block.subBlocks = {}
+
+          // Validate inputs against block configuration
+          const validationResult = validateInputsForBlock(block.type, params.inputs, block_id)
+          validationErrors.push(...validationResult.errors)
+
+          Object.entries(validationResult.validInputs).forEach(([inputKey, value]) => {
+            // Normalize common field name variations (LLM may use plural/singular inconsistently)
+            let key = inputKey
+            if (
+              key === 'credentials' &&
+              !block.subBlocks.credentials &&
+              block.subBlocks.credential
+            ) {
+              key = 'credential'
+            }
+
+            if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+              return
+            }
+            let sanitizedValue = value
+
+            // Special handling for inputFormat - ensure it's an array
+            if (key === 'inputFormat' && value !== null && value !== undefined) {
+              if (!Array.isArray(value)) {
+                // Invalid format, default to empty array
+                sanitizedValue = []
+              }
+            }
+
+            // Special handling for tools - normalize to restore sanitized fields
+            if (key === 'tools' && Array.isArray(value)) {
+              sanitizedValue = normalizeTools(value)
+            }
+
+            // Special handling for responseFormat - normalize to ensure consistent format
+            if (key === 'responseFormat' && value) {
+              sanitizedValue = normalizeResponseFormat(value)
+            }
+
+            if (!block.subBlocks[key]) {
+              block.subBlocks[key] = {
+                id: key,
+                type: 'short-input',
+                value: sanitizedValue,
+              }
+            } else {
+              const existingValue = block.subBlocks[key].value
+              const valuesEqual =
+                typeof existingValue === 'object' || typeof sanitizedValue === 'object'
+                  ? JSON.stringify(existingValue) === JSON.stringify(sanitizedValue)
+                  : existingValue === sanitizedValue
+
+              if (!valuesEqual) {
+                block.subBlocks[key].value = sanitizedValue
+              }
+            }
+          })
+
+          if (
+            Object.hasOwn(params.inputs, 'triggerConfig') &&
+            block.subBlocks.triggerConfig &&
+            typeof block.subBlocks.triggerConfig.value === 'object'
+          ) {
+            applyTriggerConfigToBlockSubblocks(block, block.subBlocks.triggerConfig.value)
           }
 
-          // Update inputs (convert to subBlocks format)
-          if (params?.inputs) {
-            if (!block.subBlocks) block.subBlocks = {}
-            Object.entries(params.inputs).forEach(([key, value]) => {
-              if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+          // Update loop/parallel configuration in block.data (strict validation)
+          if (block.type === 'loop') {
+            block.data = block.data || {}
+            // loopType is always valid
+            if (params.inputs.loopType !== undefined) {
+              const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
+              if (validLoopTypes.includes(params.inputs.loopType)) {
+                block.data.loopType = params.inputs.loopType
+              }
+            }
+            const effectiveLoopType = params.inputs.loopType ?? block.data.loopType ?? 'for'
+            // iterations only valid for 'for' loopType
+            if (params.inputs.iterations !== undefined && effectiveLoopType === 'for') {
+              block.data.count = params.inputs.iterations
+            }
+            // collection only valid for 'forEach' loopType
+            if (params.inputs.collection !== undefined && effectiveLoopType === 'forEach') {
+              block.data.collection = params.inputs.collection
+            }
+            // condition only valid for 'while' or 'doWhile' loopType
+            if (
+              params.inputs.condition !== undefined &&
+              (effectiveLoopType === 'while' || effectiveLoopType === 'doWhile')
+            ) {
+              if (effectiveLoopType === 'doWhile') {
+                block.data.doWhileCondition = params.inputs.condition
+              } else {
+                block.data.whileCondition = params.inputs.condition
+              }
+            }
+          } else if (block.type === 'parallel') {
+            block.data = block.data || {}
+            // parallelType is always valid
+            if (params.inputs.parallelType !== undefined) {
+              const validParallelTypes = ['count', 'collection']
+              if (validParallelTypes.includes(params.inputs.parallelType)) {
+                block.data.parallelType = params.inputs.parallelType
+              }
+            }
+            const effectiveParallelType =
+              params.inputs.parallelType ?? block.data.parallelType ?? 'count'
+            // count only valid for 'count' parallelType
+            if (params.inputs.count !== undefined && effectiveParallelType === 'count') {
+              block.data.count = params.inputs.count
+            }
+            // collection only valid for 'collection' parallelType
+            if (params.inputs.collection !== undefined && effectiveParallelType === 'collection') {
+              block.data.collection = params.inputs.collection
+            }
+          }
+        }
+
+        // Update basic properties
+        if (params?.type !== undefined) {
+          // Special container types (loop, parallel) are not in the block registry but are valid
+          const isContainerType = params.type === 'loop' || params.type === 'parallel'
+
+          // Validate type before setting (skip validation for container types)
+          const blockConfig = getBlock(params.type)
+          if (!blockConfig && !isContainerType) {
+            logSkippedItem(skippedItems, {
+              type: 'invalid_block_type',
+              operationType: 'edit',
+              blockId: block_id,
+              reason: `Invalid block type "${params.type}" - type change skipped`,
+              details: { requestedType: params.type },
+            })
+          } else {
+            block.type = params.type
+          }
+        }
+        if (params?.name !== undefined) block.name = params.name
+
+        // Handle trigger mode toggle
+        if (typeof params?.triggerMode === 'boolean') {
+          block.triggerMode = params.triggerMode
+
+          if (params.triggerMode === true) {
+            // Remove all incoming edges when enabling trigger mode
+            modifiedState.edges = modifiedState.edges.filter(
+              (edge: any) => edge.target !== block_id
+            )
+          }
+        }
+
+        // Handle advanced mode toggle
+        if (typeof params?.advancedMode === 'boolean') {
+          block.advancedMode = params.advancedMode
+        }
+
+        // Handle nested nodes update (for loops/parallels)
+        if (params?.nestedNodes) {
+          // Remove all existing child blocks
+          const existingChildren = Object.keys(modifiedState.blocks).filter(
+            (id) => modifiedState.blocks[id].data?.parentId === block_id
+          )
+          existingChildren.forEach((childId) => delete modifiedState.blocks[childId])
+
+          // Remove edges to/from removed children
+          modifiedState.edges = modifiedState.edges.filter(
+            (edge: any) =>
+              !existingChildren.includes(edge.source) && !existingChildren.includes(edge.target)
+          )
+
+          // Add new nested blocks
+          Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
+            const childBlockState = createBlockFromParams(
+              childId,
+              childBlock,
+              block_id,
+              validationErrors
+            )
+            modifiedState.blocks[childId] = childBlockState
+
+            // Add connections for child block
+            if (childBlock.connections) {
+              addConnectionsAsEdges(
+                modifiedState,
+                childId,
+                childBlock.connections,
+                logger,
+                skippedItems
+              )
+            }
+          })
+
+          // Update loop/parallel configuration based on type (strict validation)
+          if (block.type === 'loop') {
+            block.data = block.data || {}
+            // loopType is always valid
+            if (params.inputs?.loopType) {
+              const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
+              if (validLoopTypes.includes(params.inputs.loopType)) {
+                block.data.loopType = params.inputs.loopType
+              }
+            }
+            const effectiveLoopType = params.inputs?.loopType ?? block.data.loopType ?? 'for'
+            // iterations only valid for 'for' loopType
+            if (params.inputs?.iterations && effectiveLoopType === 'for') {
+              block.data.count = params.inputs.iterations
+            }
+            // collection only valid for 'forEach' loopType
+            if (params.inputs?.collection && effectiveLoopType === 'forEach') {
+              block.data.collection = params.inputs.collection
+            }
+            // condition only valid for 'while' or 'doWhile' loopType
+            if (
+              params.inputs?.condition &&
+              (effectiveLoopType === 'while' || effectiveLoopType === 'doWhile')
+            ) {
+              if (effectiveLoopType === 'doWhile') {
+                block.data.doWhileCondition = params.inputs.condition
+              } else {
+                block.data.whileCondition = params.inputs.condition
+              }
+            }
+          } else if (block.type === 'parallel') {
+            block.data = block.data || {}
+            // parallelType is always valid
+            if (params.inputs?.parallelType) {
+              const validParallelTypes = ['count', 'collection']
+              if (validParallelTypes.includes(params.inputs.parallelType)) {
+                block.data.parallelType = params.inputs.parallelType
+              }
+            }
+            const effectiveParallelType =
+              params.inputs?.parallelType ?? block.data.parallelType ?? 'count'
+            // count only valid for 'count' parallelType
+            if (params.inputs?.count && effectiveParallelType === 'count') {
+              block.data.count = params.inputs.count
+            }
+            // collection only valid for 'collection' parallelType
+            if (params.inputs?.collection && effectiveParallelType === 'collection') {
+              block.data.collection = params.inputs.collection
+            }
+          }
+        }
+
+        // Handle connections update (convert to edges)
+        if (params?.connections) {
+          // Remove existing edges from this block
+          modifiedState.edges = modifiedState.edges.filter((edge: any) => edge.source !== block_id)
+
+          // Add new edges based on connections
+          Object.entries(params.connections).forEach(([connectionType, targets]) => {
+            if (targets === null) return
+
+            // Map semantic connection names to actual React Flow handle IDs
+            // 'success' in YAML/connections maps to 'source' handle in React Flow
+            const mapConnectionTypeToHandle = (type: string): string => {
+              if (type === 'success') return 'source'
+              if (type === 'error') return 'error'
+              // Conditions and other types pass through as-is
+              return type
+            }
+
+            const actualSourceHandle = mapConnectionTypeToHandle(connectionType)
+
+            const addEdge = (targetBlock: string, targetHandle?: string) => {
+              // Validate target block exists - skip edge if target doesn't exist
+              if (!modifiedState.blocks[targetBlock]) {
+                logger.warn(
+                  `Target block "${targetBlock}" not found when creating connection from "${block_id}". ` +
+                    `Edge skipped.`,
+                  {
+                    sourceBlockId: block_id,
+                    targetBlockId: targetBlock,
+                    existingBlocks: Object.keys(modifiedState.blocks),
+                  }
+                )
+                logSkippedItem(skippedItems, {
+                  type: 'invalid_edge_target',
+                  operationType: 'edit',
+                  blockId: block_id,
+                  reason: `Edge from "${block_id}" to "${targetBlock}" skipped - target block does not exist`,
+                  details: { sourceHandle: actualSourceHandle, targetId: targetBlock },
+                })
                 return
               }
-              let sanitizedValue = value
-
-              // Special handling for inputFormat - ensure it's an array
-              if (key === 'inputFormat' && value !== null && value !== undefined) {
-                if (!Array.isArray(value)) {
-                  // Invalid format, default to empty array
-                  sanitizedValue = []
-                }
-              }
-
-              // Special handling for tools - normalize to restore sanitized fields
-              if (key === 'tools' && Array.isArray(value)) {
-                sanitizedValue = normalizeTools(value)
-              }
-
-              // Special handling for responseFormat - normalize to ensure consistent format
-              if (key === 'responseFormat' && value) {
-                sanitizedValue = normalizeResponseFormat(value)
-              }
-
-              if (!block.subBlocks[key]) {
-                block.subBlocks[key] = {
-                  id: key,
-                  type: 'short-input',
-                  value: sanitizedValue,
-                }
-              } else {
-                const existingValue = block.subBlocks[key].value
-                const valuesEqual =
-                  typeof existingValue === 'object' || typeof sanitizedValue === 'object'
-                    ? JSON.stringify(existingValue) === JSON.stringify(sanitizedValue)
-                    : existingValue === sanitizedValue
-
-                if (!valuesEqual) {
-                  block.subBlocks[key].value = sanitizedValue
-                }
-              }
-            })
-
-            if (
-              Object.hasOwn(params.inputs, 'triggerConfig') &&
-              block.subBlocks.triggerConfig &&
-              typeof block.subBlocks.triggerConfig.value === 'object'
-            ) {
-              applyTriggerConfigToBlockSubblocks(block, block.subBlocks.triggerConfig.value)
+              modifiedState.edges.push({
+                id: crypto.randomUUID(),
+                source: block_id,
+                sourceHandle: actualSourceHandle,
+                target: targetBlock,
+                targetHandle: targetHandle || 'target',
+                type: 'default',
+              })
             }
 
-            // Update loop/parallel configuration in block.data
-            if (block.type === 'loop') {
-              block.data = block.data || {}
-              if (params.inputs.loopType !== undefined) block.data.loopType = params.inputs.loopType
-              if (params.inputs.iterations !== undefined)
-                block.data.count = params.inputs.iterations
-              if (params.inputs.collection !== undefined)
-                block.data.collection = params.inputs.collection
-              if (params.inputs.condition !== undefined)
-                block.data.whileCondition = params.inputs.condition
-            } else if (block.type === 'parallel') {
-              block.data = block.data || {}
-              if (params.inputs.parallelType !== undefined)
-                block.data.parallelType = params.inputs.parallelType
-              if (params.inputs.count !== undefined) block.data.count = params.inputs.count
-              if (params.inputs.collection !== undefined)
-                block.data.collection = params.inputs.collection
+            if (typeof targets === 'string') {
+              addEdge(targets)
+            } else if (Array.isArray(targets)) {
+              targets.forEach((target: any) => {
+                if (typeof target === 'string') {
+                  addEdge(target)
+                } else if (target?.block) {
+                  addEdge(target.block, target.handle)
+                }
+              })
+            } else if (typeof targets === 'object' && (targets as any)?.block) {
+              addEdge((targets as any).block, (targets as any).handle)
             }
-          }
+          })
+        }
 
-          // Update basic properties
-          if (params?.type !== undefined) block.type = params.type
-          if (params?.name !== undefined) block.name = params.name
-
-          // Handle trigger mode toggle
-          if (typeof params?.triggerMode === 'boolean') {
-            block.triggerMode = params.triggerMode
-
-            if (params.triggerMode === true) {
-              // Remove all incoming edges when enabling trigger mode
-              modifiedState.edges = modifiedState.edges.filter(
-                (edge: any) => edge.target !== block_id
-              )
-            }
-          }
-
-          // Handle advanced mode toggle
-          if (typeof params?.advancedMode === 'boolean') {
-            block.advancedMode = params.advancedMode
-          }
-
-          // Handle nested nodes update (for loops/parallels)
-          if (params?.nestedNodes) {
-            // Remove all existing child blocks
-            const existingChildren = Object.keys(modifiedState.blocks).filter(
-              (id) => modifiedState.blocks[id].data?.parentId === block_id
-            )
-            existingChildren.forEach((childId) => delete modifiedState.blocks[childId])
-
-            // Remove edges to/from removed children
+        // Handle edge removal
+        if (params?.removeEdges && Array.isArray(params.removeEdges)) {
+          params.removeEdges.forEach(({ targetBlockId, sourceHandle = 'source' }) => {
             modifiedState.edges = modifiedState.edges.filter(
               (edge: any) =>
-                !existingChildren.includes(edge.source) && !existingChildren.includes(edge.target)
+                !(
+                  edge.source === block_id &&
+                  edge.target === targetBlockId &&
+                  edge.sourceHandle === sourceHandle
+                )
             )
-
-            // Add new nested blocks
-            Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
-              const childBlockState = createBlockFromParams(childId, childBlock, block_id)
-              modifiedState.blocks[childId] = childBlockState
-
-              // Add connections for child block
-              if (childBlock.connections) {
-                addConnectionsAsEdges(modifiedState, childId, childBlock.connections)
-              }
-            })
-
-            // Update loop/parallel configuration based on type
-            if (block.type === 'loop') {
-              block.data = block.data || {}
-              if (params.inputs?.loopType) block.data.loopType = params.inputs.loopType
-              if (params.inputs?.iterations) block.data.count = params.inputs.iterations
-              if (params.inputs?.collection) block.data.collection = params.inputs.collection
-              if (params.inputs?.condition) block.data.whileCondition = params.inputs.condition
-            } else if (block.type === 'parallel') {
-              block.data = block.data || {}
-              if (params.inputs?.parallelType) block.data.parallelType = params.inputs.parallelType
-              if (params.inputs?.count) block.data.count = params.inputs.count
-              if (params.inputs?.collection) block.data.collection = params.inputs.collection
-            }
-          }
-
-          // Handle connections update (convert to edges)
-          if (params?.connections) {
-            // Remove existing edges from this block
-            modifiedState.edges = modifiedState.edges.filter(
-              (edge: any) => edge.source !== block_id
-            )
-
-            // Add new edges based on connections
-            Object.entries(params.connections).forEach(([connectionType, targets]) => {
-              if (targets === null) return
-
-              // Map semantic connection names to actual React Flow handle IDs
-              // 'success' in YAML/connections maps to 'source' handle in React Flow
-              const mapConnectionTypeToHandle = (type: string): string => {
-                if (type === 'success') return 'source'
-                if (type === 'error') return 'error'
-                // Conditions and other types pass through as-is
-                return type
-              }
-
-              const actualSourceHandle = mapConnectionTypeToHandle(connectionType)
-
-              const addEdge = (targetBlock: string, targetHandle?: string) => {
-                modifiedState.edges.push({
-                  id: crypto.randomUUID(),
-                  source: block_id,
-                  sourceHandle: actualSourceHandle,
-                  target: targetBlock,
-                  targetHandle: targetHandle || 'target',
-                  type: 'default',
-                })
-              }
-
-              if (typeof targets === 'string') {
-                addEdge(targets)
-              } else if (Array.isArray(targets)) {
-                targets.forEach((target: any) => {
-                  if (typeof target === 'string') {
-                    addEdge(target)
-                  } else if (target?.block) {
-                    addEdge(target.block, target.handle)
-                  }
-                })
-              } else if (typeof targets === 'object' && (targets as any)?.block) {
-                addEdge((targets as any).block, (targets as any).handle)
-              }
-            })
-          }
-
-          // Handle edge removal
-          if (params?.removeEdges && Array.isArray(params.removeEdges)) {
-            params.removeEdges.forEach(({ targetBlockId, sourceHandle = 'source' }) => {
-              modifiedState.edges = modifiedState.edges.filter(
-                (edge: any) =>
-                  !(
-                    edge.source === block_id &&
-                    edge.target === targetBlockId &&
-                    edge.sourceHandle === sourceHandle
-                  )
-              )
-            })
-          }
+          })
         }
         break
       }
 
       case 'add': {
-        if (params?.type && params?.name) {
-          // Create new block with proper structure
-          const newBlock = createBlockFromParams(block_id, params)
+        if (!params?.type || !params?.name) {
+          logSkippedItem(skippedItems, {
+            type: 'missing_required_params',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Missing required params (type or name) for adding block "${block_id}"`,
+            details: { hasType: !!params?.type, hasName: !!params?.name },
+          })
+          break
+        }
 
-          // Set loop/parallel data on parent block BEFORE adding to blocks
-          if (params.nestedNodes) {
-            if (params.type === 'loop') {
-              newBlock.data = {
-                ...newBlock.data,
-                loopType: params.inputs?.loopType || 'for',
-                ...(params.inputs?.collection && { collection: params.inputs.collection }),
-                ...(params.inputs?.iterations && { count: params.inputs.iterations }),
-              }
-            } else if (params.type === 'parallel') {
-              newBlock.data = {
-                ...newBlock.data,
-                parallelType: params.inputs?.parallelType || 'count',
-                ...(params.inputs?.collection && { collection: params.inputs.collection }),
-                ...(params.inputs?.count && { count: params.inputs.count }),
-              }
+        // Special container types (loop, parallel) are not in the block registry but are valid
+        const isContainerType = params.type === 'loop' || params.type === 'parallel'
+
+        // Validate block type before adding (skip validation for container types)
+        const addBlockConfig = getBlock(params.type)
+        if (!addBlockConfig && !isContainerType) {
+          logSkippedItem(skippedItems, {
+            type: 'invalid_block_type',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Invalid block type "${params.type}" - block not added`,
+            details: { requestedType: params.type },
+          })
+          break
+        }
+
+        // Create new block with proper structure
+        const newBlock = createBlockFromParams(block_id, params, undefined, validationErrors)
+
+        // Set loop/parallel data on parent block BEFORE adding to blocks (strict validation)
+        if (params.nestedNodes) {
+          if (params.type === 'loop') {
+            const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
+            const loopType =
+              params.inputs?.loopType && validLoopTypes.includes(params.inputs.loopType)
+                ? params.inputs.loopType
+                : 'for'
+            newBlock.data = {
+              ...newBlock.data,
+              loopType,
+              // Only include type-appropriate fields
+              ...(loopType === 'forEach' &&
+                params.inputs?.collection && { collection: params.inputs.collection }),
+              ...(loopType === 'for' &&
+                params.inputs?.iterations && { count: params.inputs.iterations }),
+              ...(loopType === 'while' &&
+                params.inputs?.condition && { whileCondition: params.inputs.condition }),
+              ...(loopType === 'doWhile' &&
+                params.inputs?.condition && { doWhileCondition: params.inputs.condition }),
+            }
+          } else if (params.type === 'parallel') {
+            const validParallelTypes = ['count', 'collection']
+            const parallelType =
+              params.inputs?.parallelType && validParallelTypes.includes(params.inputs.parallelType)
+                ? params.inputs.parallelType
+                : 'count'
+            newBlock.data = {
+              ...newBlock.data,
+              parallelType,
+              // Only include type-appropriate fields
+              ...(parallelType === 'collection' &&
+                params.inputs?.collection && { collection: params.inputs.collection }),
+              ...(parallelType === 'count' &&
+                params.inputs?.count && { count: params.inputs.count }),
             }
           }
+        }
 
-          // Add parent block FIRST before adding children
-          // This ensures children can reference valid parentId
-          modifiedState.blocks[block_id] = newBlock
+        // Add parent block FIRST before adding children
+        // This ensures children can reference valid parentId
+        modifiedState.blocks[block_id] = newBlock
 
-          // Handle nested nodes (for loops/parallels created from scratch)
-          if (params.nestedNodes) {
-            Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
-              const childBlockState = createBlockFromParams(childId, childBlock, block_id)
-              modifiedState.blocks[childId] = childBlockState
+        // Handle nested nodes (for loops/parallels created from scratch)
+        if (params.nestedNodes) {
+          Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
+            const childBlockState = createBlockFromParams(
+              childId,
+              childBlock,
+              block_id,
+              validationErrors
+            )
+            modifiedState.blocks[childId] = childBlockState
 
-              if (childBlock.connections) {
-                addConnectionsAsEdges(modifiedState, childId, childBlock.connections)
-              }
-            })
-          }
+            if (childBlock.connections) {
+              addConnectionsAsEdges(
+                modifiedState,
+                childId,
+                childBlock.connections,
+                logger,
+                skippedItems
+              )
+            }
+          })
+        }
 
-          // Add connections as edges
-          if (params.connections) {
-            addConnectionsAsEdges(modifiedState, block_id, params.connections)
-          }
+        // Add connections as edges
+        if (params.connections) {
+          addConnectionsAsEdges(modifiedState, block_id, params.connections, logger, skippedItems)
         }
         break
       }
@@ -694,20 +1380,29 @@ function applyOperationsToWorkflowState(
       case 'insert_into_subflow': {
         const subflowId = params?.subflowId
         if (!subflowId || !params?.type || !params?.name) {
-          logger.error('Missing required params for insert_into_subflow', { block_id, params })
+          logSkippedItem(skippedItems, {
+            type: 'missing_required_params',
+            operationType: 'insert_into_subflow',
+            blockId: block_id,
+            reason: `Missing required params (subflowId, type, or name) for inserting block "${block_id}"`,
+            details: {
+              hasSubflowId: !!subflowId,
+              hasType: !!params?.type,
+              hasName: !!params?.name,
+            },
+          })
           break
         }
 
         const subflowBlock = modifiedState.blocks[subflowId]
         if (!subflowBlock) {
-          logger.error('Subflow block not found - parent must be created first', {
-            subflowId,
-            block_id,
-            existingBlocks: Object.keys(modifiedState.blocks),
+          logSkippedItem(skippedItems, {
+            type: 'invalid_subflow_parent',
             operationType: 'insert_into_subflow',
+            blockId: block_id,
+            reason: `Subflow block "${subflowId}" not found - block "${block_id}" not inserted`,
+            details: { subflowId },
           })
-          // This is a critical error - the operation ordering is wrong
-          // Skip this operation but don't break the entire workflow
           break
         }
 
@@ -734,9 +1429,17 @@ function applyOperationsToWorkflowState(
             extent: 'parent' as const,
           }
 
-          // Update inputs if provided
+          // Update inputs if provided (with validation)
           if (params.inputs) {
-            Object.entries(params.inputs).forEach(([key, value]) => {
+            // Validate inputs against block configuration
+            const validationResult = validateInputsForBlock(
+              existingBlock.type,
+              params.inputs,
+              block_id
+            )
+            validationErrors.push(...validationResult.errors)
+
+            Object.entries(validationResult.validInputs).forEach(([key, value]) => {
               // Skip runtime subblock IDs (webhookId, triggerPath, testUrl, testUrlExpiresAt, scheduleId)
               if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
                 return
@@ -772,8 +1475,24 @@ function applyOperationsToWorkflowState(
             })
           }
         } else {
+          // Special container types (loop, parallel) are not in the block registry but are valid
+          const isContainerType = params.type === 'loop' || params.type === 'parallel'
+
+          // Validate block type before creating (skip validation for container types)
+          const insertBlockConfig = getBlock(params.type)
+          if (!insertBlockConfig && !isContainerType) {
+            logSkippedItem(skippedItems, {
+              type: 'invalid_block_type',
+              operationType: 'insert_into_subflow',
+              blockId: block_id,
+              reason: `Invalid block type "${params.type}" - block not inserted into subflow`,
+              details: { requestedType: params.type, subflowId },
+            })
+            break
+          }
+
           // Create new block as child of subflow
-          const newBlock = createBlockFromParams(block_id, params, subflowId)
+          const newBlock = createBlockFromParams(block_id, params, subflowId, validationErrors)
           modifiedState.blocks[block_id] = newBlock
         }
 
@@ -783,7 +1502,7 @@ function applyOperationsToWorkflowState(
           modifiedState.edges = modifiedState.edges.filter((edge: any) => edge.source !== block_id)
 
           // Add new connections
-          addConnectionsAsEdges(modifiedState, block_id, params.connections)
+          addConnectionsAsEdges(modifiedState, block_id, params.connections, logger, skippedItems)
         }
         break
       }
@@ -791,13 +1510,23 @@ function applyOperationsToWorkflowState(
       case 'extract_from_subflow': {
         const subflowId = params?.subflowId
         if (!subflowId) {
-          logger.warn('Missing subflowId for extract_from_subflow', { block_id })
+          logSkippedItem(skippedItems, {
+            type: 'missing_required_params',
+            operationType: 'extract_from_subflow',
+            blockId: block_id,
+            reason: `Missing subflowId for extracting block "${block_id}"`,
+          })
           break
         }
 
         const block = modifiedState.blocks[block_id]
         if (!block) {
-          logger.warn('Block not found for extraction', { block_id })
+          logSkippedItem(skippedItems, {
+            type: 'block_not_found',
+            operationType: 'extract_from_subflow',
+            blockId: block_id,
+            reason: `Block "${block_id}" not found for extraction`,
+          })
           break
         }
 
@@ -854,7 +1583,103 @@ function applyOperationsToWorkflowState(
     )
   }
 
-  return modifiedState
+  return { state: modifiedState, validationErrors, skippedItems }
+}
+
+/**
+ * Validates selector IDs in the workflow state exist in the database
+ * Returns validation errors for any invalid selector IDs
+ */
+async function validateWorkflowSelectorIds(
+  workflowState: any,
+  context: { userId: string; workspaceId?: string }
+): Promise<ValidationError[]> {
+  const logger = createLogger('EditWorkflowSelectorValidation')
+  const errors: ValidationError[] = []
+
+  // Collect all selector fields from all blocks
+  const selectorsToValidate: Array<{
+    blockId: string
+    blockType: string
+    fieldName: string
+    selectorType: string
+    value: string | string[]
+  }> = []
+
+  for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
+    const blockData = block as any
+    const blockType = blockData.type
+    if (!blockType) continue
+
+    const blockConfig = getBlock(blockType)
+    if (!blockConfig) continue
+
+    // Check each subBlock for selector types
+    for (const subBlockConfig of blockConfig.subBlocks) {
+      if (!SELECTOR_TYPES.has(subBlockConfig.type)) continue
+
+      const subBlockValue = blockData.subBlocks?.[subBlockConfig.id]?.value
+      if (!subBlockValue) continue
+
+      // Handle comma-separated values for multi-select
+      let values: string | string[] = subBlockValue
+      if (typeof subBlockValue === 'string' && subBlockValue.includes(',')) {
+        values = subBlockValue
+          .split(',')
+          .map((v: string) => v.trim())
+          .filter(Boolean)
+      }
+
+      selectorsToValidate.push({
+        blockId,
+        blockType,
+        fieldName: subBlockConfig.id,
+        selectorType: subBlockConfig.type,
+        value: values,
+      })
+    }
+  }
+
+  if (selectorsToValidate.length === 0) {
+    return errors
+  }
+
+  logger.info('Validating selector IDs', {
+    selectorCount: selectorsToValidate.length,
+    userId: context.userId,
+    workspaceId: context.workspaceId,
+  })
+
+  // Validate each selector field
+  for (const selector of selectorsToValidate) {
+    const result = await validateSelectorIds(selector.selectorType, selector.value, context)
+
+    if (result.invalid.length > 0) {
+      errors.push({
+        blockId: selector.blockId,
+        blockType: selector.blockType,
+        field: selector.fieldName,
+        value: selector.value,
+        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} - ID(s) do not exist`,
+      })
+    }
+
+    if (result.warning) {
+      logger.warn(result.warning, {
+        blockId: selector.blockId,
+        fieldName: selector.fieldName,
+      })
+    }
+  }
+
+  if (errors.length > 0) {
+    logger.warn('Found invalid selector IDs', {
+      errorCount: errors.length,
+      errors: errors.map((e) => ({ blockId: e.blockId, field: e.field, error: e.error })),
+    })
+  }
+
+  return errors
 }
 
 async function getCurrentWorkflowStateFromDb(
@@ -937,7 +1762,39 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
     }
 
     // Apply operations directly to the workflow state
-    const modifiedWorkflowState = applyOperationsToWorkflowState(workflowState, operations)
+    const {
+      state: modifiedWorkflowState,
+      validationErrors,
+      skippedItems,
+    } = applyOperationsToWorkflowState(workflowState, operations)
+
+    // Get workspaceId for selector validation
+    let workspaceId: string | undefined
+    try {
+      const [workflowRecord] = await db
+        .select({ workspaceId: workflowTable.workspaceId })
+        .from(workflowTable)
+        .where(eq(workflowTable.id, workflowId))
+        .limit(1)
+      workspaceId = workflowRecord?.workspaceId ?? undefined
+    } catch (error) {
+      logger.warn('Failed to get workspaceId for selector validation', { error, workflowId })
+    }
+
+    // Validate selector IDs exist in the database
+    if (context?.userId) {
+      try {
+        const selectorErrors = await validateWorkflowSelectorIds(modifiedWorkflowState, {
+          userId: context.userId,
+          workspaceId,
+        })
+        validationErrors.push(...selectorErrors)
+      } catch (error) {
+        logger.warn('Selector ID validation failed', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
 
     // Validate the workflow state
     const validation = validateWorkflowState(modifiedWorkflowState, { sanitize: true })
@@ -956,39 +1813,30 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
       })
     }
 
-    // Extract and persist custom tools to database
-    if (context?.userId) {
+    // Extract and persist custom tools to database (reuse workspaceId from selector validation)
+    if (context?.userId && workspaceId) {
       try {
-        // Get workspaceId from the workflow
-        const [workflowRecord] = await db
-          .select({ workspaceId: workflowTable.workspaceId })
-          .from(workflowTable)
-          .where(eq(workflowTable.id, workflowId))
-          .limit(1)
+        const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
+        const { saved, errors } = await extractAndPersistCustomTools(
+          finalWorkflowState,
+          workspaceId,
+          context.userId
+        )
 
-        if (workflowRecord?.workspaceId) {
-          const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
-          const { saved, errors } = await extractAndPersistCustomTools(
-            finalWorkflowState,
-            workflowRecord.workspaceId,
-            context.userId
-          )
+        if (saved > 0) {
+          logger.info(`Persisted ${saved} custom tool(s) to database`, { workflowId })
+        }
 
-          if (saved > 0) {
-            logger.info(`Persisted ${saved} custom tool(s) to database`, { workflowId })
-          }
-
-          if (errors.length > 0) {
-            logger.warn('Some custom tools failed to persist', { errors, workflowId })
-          }
-        } else {
-          logger.warn('Workflow has no workspaceId, skipping custom tools persistence', {
-            workflowId,
-          })
+        if (errors.length > 0) {
+          logger.warn('Some custom tools failed to persist', { errors, workflowId })
         }
       } catch (error) {
         logger.error('Failed to persist custom tools', { error, workflowId })
       }
+    } else if (context?.userId && !workspaceId) {
+      logger.warn('Workflow has no workspaceId, skipping custom tools persistence', {
+        workflowId,
+      })
     } else {
       logger.warn('No userId in context - skipping custom tools persistence', { workflowId })
     }
@@ -997,14 +1845,36 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
       operationCount: operations.length,
       blocksCount: Object.keys(modifiedWorkflowState.blocks).length,
       edgesCount: modifiedWorkflowState.edges.length,
-      validationErrors: validation.errors.length,
+      inputValidationErrors: validationErrors.length,
+      skippedItemsCount: skippedItems.length,
+      schemaValidationErrors: validation.errors.length,
       validationWarnings: validation.warnings.length,
     })
+
+    // Format validation errors for LLM feedback
+    const inputErrors =
+      validationErrors.length > 0
+        ? validationErrors.map((e) => `Block "${e.blockId}" (${e.blockType}): ${e.error}`)
+        : undefined
+
+    // Format skipped items for LLM feedback
+    const skippedMessages =
+      skippedItems.length > 0 ? skippedItems.map((item) => item.reason) : undefined
 
     // Return the modified workflow state for the client to convert to YAML if needed
     return {
       success: true,
       workflowState: validation.sanitizedState || modifiedWorkflowState,
+      // Include input validation errors so the LLM can see what was rejected
+      ...(inputErrors && {
+        inputValidationErrors: inputErrors,
+        inputValidationMessage: `${inputErrors.length} input(s) were rejected due to validation errors. The workflow was still updated with valid inputs only. Errors: ${inputErrors.join('; ')}`,
+      }),
+      // Include skipped items so the LLM can see what operations were skipped
+      ...(skippedMessages && {
+        skippedItems: skippedMessages,
+        skippedItemsMessage: `${skippedItems.length} operation(s) were skipped due to invalid references. Details: ${skippedMessages.join('; ')}`,
+      }),
     }
   },
 }

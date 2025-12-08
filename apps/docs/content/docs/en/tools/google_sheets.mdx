@@ -91,8 +91,8 @@ Read data from a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet to read from |
-| `range` | string | No | The range of cells to read from |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet \(found in the URL: docs.google.com/spreadsheets/d/\{SPREADSHEET_ID\}/edit\). |
+| `range` | string | No | The A1 notation range to read \(e.g. "Sheet1!A1:D10", "A1:B5"\). Defaults to first sheet A1:Z1000 if not specified. |
 
 #### Output
 
@@ -109,9 +109,9 @@ Write data to a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet to write to |
-| `range` | string | No | The range of cells to write to |
-| `values` | array | Yes | The data to write to the spreadsheet |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
+| `range` | string | No | The A1 notation range to write to \(e.g. "Sheet1!A1:D10", "A1:B5"\) |
+| `values` | array | Yes | The data to write as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to write |
 | `includeValuesInResponse` | boolean | No | Whether to include the written values in the response |
 
@@ -134,8 +134,8 @@ Update data in a Google Sheets spreadsheet
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to update |
-| `range` | string | No | The range of cells to update |
-| `values` | array | Yes | The data to update in the spreadsheet |
+| `range` | string | No | The A1 notation range to update \(e.g. "Sheet1!A1:D10", "A1:B5"\) |
+| `values` | array | Yes | The data to update as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to update |
 | `includeValuesInResponse` | boolean | No | Whether to include the updated values in the response |
 
@@ -158,8 +158,8 @@ Append data to the end of a Google Sheets spreadsheet
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to append to |
-| `range` | string | No | The range of cells to append after |
-| `values` | array | Yes | The data to append to the spreadsheet |
+| `range` | string | No | The A1 notation range to append after \(e.g. "Sheet1", "Sheet1!A:D"\) |
+| `values` | array | Yes | The data to append as a 2D array \(e.g. \[\["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to append |
 | `insertDataOption` | string | No | How to insert the data \(OVERWRITE or INSERT_ROWS\) |
 | `includeValuesInResponse` | boolean | No | Whether to include the appended values in the response |

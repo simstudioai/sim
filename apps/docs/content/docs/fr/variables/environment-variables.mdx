@@ -66,16 +66,16 @@ Pour référencer des variables d'environnement dans vos workflows, utilisez la 
   height={350}
 />
 
-## Priorité des variables
+## Comment les variables sont résolues
 
-Lorsque vous avez à la fois des variables personnelles et d'espace de travail portant le même nom :
+**Les variables d'espace de travail ont toujours la priorité** sur les variables personnelles, quel que soit l'utilisateur qui exécute le flux de travail.
 
-1. **Les variables d'espace de travail ont la priorité** sur les variables personnelles
-2. Cela évite les conflits de nommage et assure un comportement cohérent dans les workflows d'équipe
-3. Si une variable d'espace de travail existe, la variable personnelle portant le même nom est ignorée
+Lorsqu'aucune variable d'espace de travail n'existe pour une clé, les variables personnelles sont utilisées :
+- **Exécutions manuelles (UI)** : Vos variables personnelles
+- **Exécutions automatisées (API, webhook, planification, chat déployé)** : Variables personnelles du propriétaire du flux de travail
 
-<Callout type="warning">
-Choisissez les noms de variables avec soin pour éviter les remplacements involontaires. Envisagez de préfixer les variables personnelles avec vos initiales ou les variables d'espace de travail avec le nom du projet.
+<Callout type="info">
+Les variables personnelles sont idéales pour les tests. Utilisez les variables d'espace de travail pour les flux de travail en production.
 </Callout>
 
 ## Bonnes pratiques de sécurité
