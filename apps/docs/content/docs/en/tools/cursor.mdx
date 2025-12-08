@@ -10,6 +10,29 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#1E1E1E"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Cursor](https://www.cursor.so/) is an AI IDE and cloud-based platform that lets you launch and manage powerful AI agents able to work directly on your GitHub repositories. Cursor agents can automate development tasks, enhance your team's productivity, and collaborate with you by making code changes, responding to natural language instructions, and maintaining conversation history about their activities.
+
+With Cursor, you can:
+
+- **Launch cloud agents for codebases**: Instantly create new AI agents that work on your repositories in the cloud
+- **Delegate coding tasks using natural language**: Guide agents with written instructions, amendments, and clarifications
+- **Monitor progress and outputs**: Retrieve agent status, view detailed results, and inspect current or completed tasks
+- **Access full conversation history**: Review all prompts and AI responses for transparency and auditability
+- **Control and manage agent lifecycle**: List active agents, terminate agents, and manage API-based agent launches and follow-ups
+
+In Sim, the Cursor integration enables your agents and workflows to interact programmatically with Cursor cloud agents. This means you can use Sim to:
+
+- List all cloud agents and browse their current state (`cursor_list_agents`)
+- Retrieve up-to-date status and outputs for any agent (`cursor_get_agent`)
+- View the full conversation history for any coding agent (`cursor_get_conversation`)
+- Add follow-up instructions or new prompts to a running agent
+- Manage and terminate agents as needed
+
+This integration helps you combine the flexible intelligence of Sim agents with the powerful development automation capabilities of Cursor, making it possible to scale AI-driven development across your projects.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.
@@ -109,7 +132,7 @@ Add a follow-up instruction to an existing cloud agent.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Cursor API key |
 | `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
-| `promptText` | string | Yes | The follow-up instruction text for the agent |
+| `followupPromptText` | string | Yes | The follow-up instruction text for the agent |
 | `promptImages` | string | No | JSON array of image objects with base64 data and dimensions \(max 5\) |
 
 #### Output
