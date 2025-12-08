@@ -22,10 +22,14 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | Variable | Provider |
 |----------|----------|
 | `OPENAI_API_KEY` | OpenAI |
-| `ANTHROPIC_API_KEY` | Anthropic Claude |
-| `GEMINI_API_KEY` | Google Gemini |
+| `ANTHROPIC_API_KEY_1` | Anthropic Claude |
+| `GEMINI_API_KEY_1` | Google Gemini |
 | `MISTRAL_API_KEY` | Mistral |
 | `OLLAMA_URL` | Ollama (default: `http://localhost:11434`) |
+
+<Callout type="info">
+  For load balancing, add multiple keys with `_1`, `_2`, `_3` suffixes (e.g., `OPENAI_API_KEY_1`, `OPENAI_API_KEY_2`). Works with OpenAI, Anthropic, and Gemini.
+</Callout>
 
 <Callout type="info">
   In Docker, use `OLLAMA_URL=http://host.docker.internal:11434` for host-machine Ollama.
@@ -59,6 +63,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 | Variable | Description |
 |----------|-------------|
+| `API_ENCRYPTION_KEY` | Encrypts stored API keys (32 hex chars): `openssl rand -hex 32` |
 | `COPILOT_API_KEY` | API key for copilot features |
 | `ADMIN_API_KEY` | Admin API key for GitOps operations |
 | `RESEND_API_KEY` | Email service for notifications |

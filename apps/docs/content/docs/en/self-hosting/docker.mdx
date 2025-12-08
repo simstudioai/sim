@@ -23,6 +23,7 @@ Open [http://localhost:3000](http://localhost:3000)
 ```bash
 # Generate secrets
 cat > .env << EOF
+DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
 BETTER_AUTH_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 INTERNAL_API_SECRET=$(openssl rand -hex 32)
