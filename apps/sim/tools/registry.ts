@@ -82,6 +82,15 @@ import {
   confluenceUpdateTool,
 } from '@/tools/confluence'
 import {
+  cursorAddFollowupTool,
+  cursorDeleteAgentTool,
+  cursorGetAgentTool,
+  cursorGetConversationTool,
+  cursorLaunchAgentTool,
+  cursorListAgentsTool,
+  cursorStopAgentTool,
+} from '@/tools/cursor'
+import {
   datadogCancelDowntimeTool,
   datadogCreateDowntimeTool,
   datadogCreateEventTool,
@@ -1787,6 +1796,13 @@ export const tools: Record<string, ToolConfig> = {
   confluence_list_labels: confluenceListLabelsTool,
   confluence_get_space: confluenceGetSpaceTool,
   confluence_list_spaces: confluenceListSpacesTool,
+  cursor_list_agents: cursorListAgentsTool,
+  cursor_get_agent: cursorGetAgentTool,
+  cursor_get_conversation: cursorGetConversationTool,
+  cursor_launch_agent: cursorLaunchAgentTool,
+  cursor_add_followup: cursorAddFollowupTool,
+  cursor_stop_agent: cursorStopAgentTool,
+  cursor_delete_agent: cursorDeleteAgentTool,
   trello_list_lists: trelloListListsTool,
   trello_list_cards: trelloListCardsTool,
   trello_create_card: trelloCreateCardTool,
