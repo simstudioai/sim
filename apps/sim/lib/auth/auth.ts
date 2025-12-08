@@ -18,7 +18,6 @@ import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import {
   getEmailSubject,
-  renderInvitationEmail,
   renderOTPEmail,
   renderPasswordResetEmail,
 } from '@/components/emails/render-email'
@@ -2067,36 +2066,6 @@ export const auth = betterAuth({
               )
 
               return hasTeamPlan
-            },
-            membershipLimit: 50,
-            sendInvitationEmail: async (data: any) => {
-              try {
-                const { invitation, organization, inviter } = data
-
-                const inviteUrl = `${getBaseUrl()}/invite/${invitation.id}`
-                const inviterName = inviter.user?.name || 'A team member'
-
-                const html = await renderInvitationEmail(
-                  inviterName,
-                  organization.name,
-                  inviteUrl,
-                  invitation.email
-                )
-
-                const result = await sendEmail({
-                  to: invitation.email,
-                  subject: `${inviterName} has invited you to join ${organization.name} on Sim`,
-                  html,
-                  from: getFromEmailAddress(),
-                  emailType: 'transactional',
-                })
-
-                if (!result.success) {
-                  logger.error('Failed to send organization invitation email:', result.message)
-                }
-              } catch (error) {
-                logger.error('Error sending invitation email', { error })
-              }
             },
             organizationCreation: {
               afterCreate: async ({ organization, user }) => {
