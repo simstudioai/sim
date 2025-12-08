@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Library, Loader2, RefreshCw, Search } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
-import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
+import { Button, Tooltip } from '@/components/emcn'
+import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/core/utils/cn'
 import KPIs from '@/app/workspace/[workspaceId]/logs/components/dashboard/kpis'
 import WorkflowDetails from '@/app/workspace/[workspaceId]/logs/components/dashboard/workflow-details'
 import WorkflowsList from '@/app/workspace/[workspaceId]/logs/components/dashboard/workflows-list'
@@ -452,71 +453,133 @@ export default function Dashboard() {
   }, [live])
 
   return (
-    <div className={`flex h-full min-w-0 flex-1 flex-col ${soehne.className}`}>
-      <div className='flex min-w-0 flex-1 overflow-hidden'>
-        <div
-          className='flex flex-1 flex-col overflow-hidden p-6'
-          style={{ scrollbarGutter: 'stable' }}
-        >
-          {/* Controls */}
-          <Controls
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            isRefetching={isRefetching}
-            resetToNow={resetToNow}
-            live={live}
-            setLive={setLive}
-            viewMode={viewMode as string}
-            setViewMode={setViewMode as (mode: 'logs' | 'dashboard') => void}
-          />
+    <div className='flex h-full flex-1 flex-col overflow-hidden'>
+      <div className='flex flex-1 overflow-hidden'>
+        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+          {/* Header with icon and title */}
+          <div>
+            <div className='flex items-start gap-[12px]'>
+              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#1E3A5A] bg-[#0F2C4D]'>
+                <Library className='h-[14px] w-[14px] text-[#3B82F6]' />
+              </div>
+              <h1 className='font-medium text-[18px]'>Logs</h1>
+            </div>
+            <p className='mt-[10px] font-base text-[#888888] text-[14px]'>
+              View workflow run history and analyze performance.
+            </p>
+          </div>
+
+          {/* Search and controls row */}
+          <div className='mt-[14px] flex items-center justify-between'>
+            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+              <Input
+                placeholder='Search'
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
+            </div>
+            <div className='flex items-center gap-[8px]'>
+              {/* Refresh button */}
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='default'
+                    className={cn(
+                      'h-[32px] w-[32px] rounded-[6px] p-0',
+                      isRefetching && 'opacity-50'
+                    )}
+                    onClick={isRefetching ? undefined : resetToNow}
+                  >
+                    {isRefetching ? (
+                      <Loader2 className='h-[14px] w-[14px] animate-spin' />
+                    ) : (
+                      <RefreshCw className='h-[14px] w-[14px]' />
+                    )}
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>{isRefetching ? 'Refreshing...' : 'Refresh'}</Tooltip.Content>
+              </Tooltip.Root>
+
+              {/* Live button */}
+              <Button
+                variant={live ? 'primary' : 'default'}
+                onClick={() => setLive((prev) => !prev)}
+                className='h-[32px] rounded-[6px] px-[10px]'
+              >
+                Live
+              </Button>
+
+              {/* View mode toggle */}
+              <div className='flex h-[32px] items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-elevated)] p-[2px]'>
+                <Button
+                  variant={(viewMode as string) !== 'dashboard' ? 'active' : 'ghost'}
+                  onClick={() => setViewMode('logs')}
+                  className='h-[26px] rounded-[4px] px-[10px] text-[13px]'
+                >
+                  Logs
+                </Button>
+                <Button
+                  variant={(viewMode as string) === 'dashboard' ? 'active' : 'ghost'}
+                  onClick={() => setViewMode('dashboard')}
+                  className='h-[26px] rounded-[4px] px-[10px] text-[13px]'
+                >
+                  Dashboard
+                </Button>
+              </div>
+            </div>
+          </div>
 
           {/* Content */}
           {loading ? (
-            <div className='flex flex-1 items-center justify-center'>
-              <div className='flex items-center gap-2 text-muted-foreground'>
-                <Loader2 className='h-5 w-5 animate-spin' />
-                <span>Loading execution history...</span>
+            <div className='mt-[24px] flex flex-1 items-center justify-center'>
+              <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
+                <Loader2 className='h-[16px] w-[16px] animate-spin' />
+                <span className='text-[13px]'>Loading execution history...</span>
               </div>
             </div>
           ) : error ? (
-            <div className='flex flex-1 items-center justify-center'>
-              <div className='text-destructive'>
-                <p className='font-medium'>Error loading data</p>
-                <p className='text-sm'>{error}</p>
+            <div className='mt-[24px] flex flex-1 items-center justify-center'>
+              <div className='text-[var(--text-error)]'>
+                <p className='font-medium text-[13px]'>Error loading data</p>
+                <p className='text-[12px]'>{error}</p>
               </div>
             </div>
           ) : executions.length === 0 ? (
-            <div className='flex flex-1 items-center justify-center'>
-              <div className='text-center text-muted-foreground'>
-                <p className='font-medium'>No execution history</p>
-                <p className='mt-1 text-sm'>Execute some workflows to see their history here</p>
+            <div className='mt-[24px] flex flex-1 items-center justify-center'>
+              <div className='text-center text-[var(--text-secondary)]'>
+                <p className='font-medium text-[13px]'>No execution history</p>
+                <p className='mt-[4px] text-[12px]'>
+                  Execute some workflows to see their history here
+                </p>
               </div>
             </div>
           ) : (
             <>
               {/* Top section pinned */}
-              <div className='sticky top-0 z-10 mb-1 bg-background pb-1'>
+              <div className='sticky top-0 z-10 mt-[24px] mb-1 bg-background pb-1'>
                 {/* Time Range Display */}
                 <div className='mb-3 flex items-center justify-between'>
                   <div className='flex min-w-0 items-center gap-3'>
-                    <span className='max-w-[40vw] truncate font-[500] text-muted-foreground text-sm'>
+                    <span className='max-w-[40vw] truncate font-medium text-[12px] text-[var(--text-tertiary)]'>
                       {getDateRange()}
                     </span>
                     {(workflowIds.length > 0 || folderIds.length > 0 || triggers.length > 0) && (
-                      <div className='flex items-center gap-2 text-muted-foreground text-xs'>
+                      <div className='flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]'>
                         <span>Filters:</span>
                         {workflowIds.length > 0 && (
-                          <span className='inline-flex items-center rounded-[6px] bg-primary/10 px-2 py-0.5 text-primary text-xs'>
+                          <span className='inline-flex items-center rounded-[6px] bg-primary/10 px-2 py-0.5 text-[11px] text-primary'>
                             {workflowIds.length} workflow{workflowIds.length !== 1 ? 's' : ''}
                           </span>
                         )}
                         {folderIds.length > 0 && (
-                          <span className='inline-flex items-center rounded-[6px] bg-primary/10 px-2 py-0.5 text-primary text-xs'>
+                          <span className='inline-flex items-center rounded-[6px] bg-primary/10 px-2 py-0.5 text-[11px] text-primary'>
                             {folderIds.length} folder{folderIds.length !== 1 ? 's' : ''}
                           </span>
                         )}
                         {triggers.length > 0 && (
-                          <span className='inline-flex items-center rounded-[6px] bg-primary/10 px-2 py-0.5 text-primary text-xs'>
+                          <span className='inline-flex items-center rounded-[6px] bg-primary/10 px-2 py-0.5 text-[11px] text-primary'>
                             {triggers.length} trigger{triggers.length !== 1 ? 's' : ''}
                           </span>
                         )}

@@ -138,8 +138,8 @@ export default function Templates({
         <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
           <div>
             <div className='flex items-start gap-[12px]'>
-              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#7A5F11] bg-[#514215]'>
-                <Layout className='h-[14px] w-[14px] text-[#FBBC04]' />
+              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#1E3A5A] bg-[#0F2A3D]'>
+                <Layout className='h-[14px] w-[14px] text-[#60A5FA]' />
               </div>
               <h1 className='font-medium text-[18px]'>Templates</h1>
             </div>
@@ -177,8 +177,6 @@ export default function Templates({
               )}
             </div>
           </div>
-
-          <div className='mt-[24px] h-[1px] w-full border-[var(--border)] border-t' />
 
           <div className='mt-[24px] grid grid-cols-1 gap-x-[20px] gap-y-[40px] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
             {loading ? (

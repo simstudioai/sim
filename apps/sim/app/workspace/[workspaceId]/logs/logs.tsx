@@ -1,13 +1,20 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, ArrowUpRight, Info, Loader2 } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, Bell, Library, Loader2, RefreshCw, Upload } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import {
+  Badge,
+  Button,
+  buttonVariants,
+  Combobox,
+  type ComboboxOption,
+  Tooltip,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
-import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
 import { NotificationSettings } from '@/app/workspace/[workspaceId]/logs/components/notification-settings/notification-settings'
 import { AutocompleteSearch } from '@/app/workspace/[workspaceId]/logs/components/search/search'
 import { Sidebar } from '@/app/workspace/[workspaceId]/logs/components/sidebar/sidebar'
@@ -23,27 +30,12 @@ import type { WorkflowLog } from '@/stores/logs/filters/types'
 
 const LOGS_PER_PAGE = 50
 
-const selectedRowAnimation = `
-  @keyframes borderPulse {
-    0% { border-left-color: hsl(var(--primary) / 0.3) }
-    50% { border-left-color: hsl(var(--primary) / 0.7) }
-    100% { border-left-color: hsl(var(--primary) / 0.5) }
-  }
-  .selected-row {
-    animation: borderPulse 1s ease-in-out
-    border-left-color: hsl(var(--primary) / 0.5)
-  }
-`
-
 const TriggerBadge = React.memo(({ trigger }: { trigger: string }) => {
   const metadata = getIntegrationMetadata(trigger)
   return (
-    <div
-      className='inline-flex items-center rounded-[6px] px-[8px] py-[2px] font-medium text-[12px] text-white'
-      style={{ backgroundColor: metadata.color }}
-    >
+    <Badge variant='default' className='rounded-[6px] px-[9px] py-[2px] text-[12px]'>
       {metadata.label}
-    </div>
+    </Badge>
   )
 })
 
@@ -363,237 +355,328 @@ export default function Logs() {
   }
 
   return (
-    <div className='fixed inset-0 left-[256px] flex min-w-0 flex-col'>
-      {/* Add the animation styles */}
-      <style jsx global>
-        {selectedRowAnimation}
-      </style>
+    <div className='flex h-full flex-1 flex-col overflow-hidden'>
+      <div className='flex flex-1 overflow-hidden'>
+        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+          {/* Header with icon and title */}
+          <div>
+            <div className='flex items-start gap-[12px]'>
+              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#7A5F11] bg-[#514215]'>
+                <Library className='h-[14px] w-[14px] text-[#FBBC04]' />
+              </div>
+              <h1 className='font-medium text-[18px]'>Logs</h1>
+            </div>
+            <p className='mt-[10px] font-base text-[#888888] text-[14px]'>
+              View workflow run history and analyze performance.
+            </p>
+          </div>
 
-      <div className='flex min-w-0 flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col p-[24px]'>
-          <Controls
-            isRefetching={logsQuery.isFetching}
-            resetToNow={handleRefresh}
-            live={isLive}
-            setLive={(fn) => setIsLive(fn)}
-            viewMode={viewMode as string}
-            setViewMode={setViewMode as (mode: 'logs' | 'dashboard') => void}
-            searchComponent={
-              <AutocompleteSearch
-                value={searchQuery}
-                onChange={setSearchQuery}
-                placeholder='Search logs...'
-                onOpenChange={(open: boolean) => {
-                  isSearchOpenRef.current = open
-                }}
-              />
-            }
-            showExport={true}
-            onExport={handleExport}
-            canConfigureNotifications={userPermissions.canEdit}
-            onConfigureNotifications={() => setIsNotificationSettingsOpen(true)}
-          />
+          {/* Search and controls row */}
+          <div className='mt-[14px] flex items-center justify-between'>
+            <AutocompleteSearch
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder='Search'
+              onOpenChange={(open: boolean) => {
+                isSearchOpenRef.current = open
+              }}
+            />
+            <div className='flex items-center gap-[8px]'>
+              {/* Export button */}
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='default'
+                    className='h-[32px] w-[32px] rounded-[6px] p-0'
+                    onClick={handleExport}
+                  >
+                    <Upload className='h-[14px] w-[14px]' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Export as CSV</Tooltip.Content>
+              </Tooltip.Root>
 
-          {/* Table container */}
-          <div className='flex flex-1 flex-col overflow-hidden rounded-[8px] border dark:border-[var(--border)]'>
-            {/* Header */}
-            <div className='flex-shrink-0 border-b bg-[var(--surface-1)] dark:border-[var(--border)] dark:bg-[var(--surface-1)]'>
-              <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_120px] gap-[8px] px-[24px] py-[12px] md:grid-cols-[140px_90px_140px_120px] md:gap-[12px] lg:min-w-0 lg:grid-cols-[160px_100px_160px_120px] lg:gap-[16px] xl:grid-cols-[160px_100px_160px_120px_120px_100px]'>
-                <div className='font-medium text-[13px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
-                  Time
-                </div>
-                <div className='font-medium text-[13px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
-                  Status
-                </div>
-                <div className='font-medium text-[13px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
-                  Workflow
-                </div>
-                <div className='font-medium text-[13px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
-                  Cost
-                </div>
-                <div className='hidden font-medium text-[13px] text-[var(--text-tertiary)] xl:block dark:text-[var(--text-tertiary)]'>
-                  Trigger
-                </div>
+              {/* Notification Settings button */}
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='default'
+                    className='h-[32px] w-[32px] rounded-[6px] p-0'
+                    onClick={() => setIsNotificationSettingsOpen(true)}
+                  >
+                    <Bell className='h-[14px] w-[14px]' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Notification Settings</Tooltip.Content>
+              </Tooltip.Root>
 
-                <div className='hidden font-medium text-[13px] text-[var(--text-tertiary)] xl:block dark:text-[var(--text-tertiary)]'>
-                  Duration
-                </div>
+              {/* Refresh button */}
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='default'
+                    className={cn(
+                      'h-[32px] w-[32px] rounded-[6px] p-0',
+                      logsQuery.isFetching && 'opacity-50'
+                    )}
+                    onClick={logsQuery.isFetching ? undefined : handleRefresh}
+                  >
+                    {logsQuery.isFetching ? (
+                      <Loader2 className='h-[14px] w-[14px] animate-spin' />
+                    ) : (
+                      <RefreshCw className='h-[14px] w-[14px]' />
+                    )}
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  {logsQuery.isFetching ? 'Refreshing...' : 'Refresh'}
+                </Tooltip.Content>
+              </Tooltip.Root>
+
+              {/* Live button */}
+              <Button
+                variant={isLive ? 'primary' : 'default'}
+                onClick={() => setIsLive((prev) => !prev)}
+                className='h-[32px] rounded-[6px] px-[10px]'
+              >
+                Live
+              </Button>
+
+              {/* View mode toggle */}
+              <div className='flex h-[32px] items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-elevated)] p-[2px]'>
+                <Button
+                  variant={(viewMode as string) !== 'dashboard' ? 'active' : 'ghost'}
+                  onClick={() => setViewMode('logs')}
+                  className='h-[26px] rounded-[4px] px-[10px] text-[13px]'
+                >
+                  Logs
+                </Button>
+                <Button
+                  variant={(viewMode as string) === 'dashboard' ? 'active' : 'ghost'}
+                  onClick={() => setViewMode('dashboard')}
+                  className='h-[26px] rounded-[4px] px-[10px] text-[13px]'
+                >
+                  Dashboard
+                </Button>
               </div>
             </div>
+          </div>
 
-            {/* Table body - scrollable */}
-            <div className='flex-1 overflow-y-auto overflow-x-hidden' ref={scrollContainerRef}>
-              {logsQuery.isLoading && !logsQuery.data ? (
-                <div className='flex h-full items-center justify-center'>
-                  <div className='flex items-center gap-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
-                    <Loader2 className='h-[16px] w-[16px] animate-spin' />
-                    <span className='text-[13px]'>Loading logs...</span>
-                  </div>
-                </div>
-              ) : logsQuery.isError ? (
-                <div className='flex h-full items-center justify-center'>
-                  <div className='flex items-center gap-[8px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                    <AlertCircle className='h-[16px] w-[16px]' />
-                    <span className='text-[13px]'>
-                      Error: {logsQuery.error?.message || 'Failed to load logs'}
-                    </span>
-                  </div>
-                </div>
-              ) : logs.length === 0 ? (
-                <div className='flex h-full items-center justify-center'>
-                  <div className='flex items-center gap-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
-                    <Info className='h-[16px] w-[16px]' />
-                    <span className='text-[13px]'>No logs found</span>
-                  </div>
-                </div>
-              ) : (
-                <div className='pb-[16px]'>
-                  {logs.map((log) => {
-                    const formattedDate = formatDate(log.createdAt)
-                    const isSelected = selectedLog?.id === log.id
-                    const baseLevel = (log.level || 'info').toLowerCase()
-                    const isError = baseLevel === 'error'
-                    const isPending = !isError && log.hasPendingPause === true
-                    const statusLabel = isPending
-                      ? 'Pending'
-                      : `${baseLevel.charAt(0).toUpperCase()}${baseLevel.slice(1)}`
+          {/* Main content area with sidebar and table */}
+          <div className='mt-[24px] flex min-h-0 flex-1 gap-[16px] overflow-hidden'>
+            {/* Filter sidebar */}
+            <LogsFilterSidebar />
 
-                    return (
-                      <div
-                        key={log.id}
-                        ref={isSelected ? selectedRowRef : null}
-                        className={`cursor-pointer border-b transition-all duration-200 dark:border-[var(--border)] ${
-                          isSelected ? 'bg-[var(--border)]' : 'hover:bg-[var(--border)]'
-                        }`}
-                        onClick={() => handleLogClick(log)}
-                      >
-                        <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_120px_40px] items-center gap-[8px] px-[24px] py-[12px] md:grid-cols-[140px_90px_140px_120px_40px] md:gap-[12px] lg:min-w-0 lg:grid-cols-[160px_100px_160px_120px_40px] lg:gap-[16px] xl:grid-cols-[160px_100px_160px_120px_120px_100px_40px]'>
-                          {/* Time */}
-                          <div>
-                            <div className='text-[13px]'>
-                              <span className='text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
-                                {formattedDate.compactDate}
-                              </span>
-                              <span className='ml-[8px] hidden font-medium sm:inline'>
-                                {formattedDate.compactTime}
-                              </span>
+            {/* Table container - #202020 base */}
+            <div className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px] bg-[#202020]'>
+              {/* Table header - #242424 */}
+              <div className='flex-shrink-0 rounded-t-[6px] bg-[#242424] px-[24px] py-[10px]'>
+                <div className='flex items-center'>
+                  <span className='w-[14%] min-w-[110px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Date
+                  </span>
+                  <span className='w-[12%] min-w-[100px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Time
+                  </span>
+                  <span className='w-[12%] min-w-[100px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Status
+                  </span>
+                  <span className='w-[20%] min-w-[140px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Workflow
+                  </span>
+                  <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Cost
+                  </span>
+                  <span className='w-[14%] min-w-[110px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Trigger
+                  </span>
+                  <span className='w-[16%] min-w-[100px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Duration
+                  </span>
+                </div>
+              </div>
+
+              {/* Table body - scrollable */}
+              <div
+                className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden'
+                ref={scrollContainerRef}
+              >
+                {logsQuery.isLoading && !logsQuery.data ? (
+                  <div className='flex h-full items-center justify-center'>
+                    <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
+                      <Loader2 className='h-[16px] w-[16px] animate-spin' />
+                      <span className='text-[13px]'>Loading logs...</span>
+                    </div>
+                  </div>
+                ) : logsQuery.isError ? (
+                  <div className='flex h-full items-center justify-center'>
+                    <div className='flex items-center gap-[8px] text-[var(--text-error)]'>
+                      <AlertCircle className='h-[16px] w-[16px]' />
+                      <span className='text-[13px]'>
+                        Error: {logsQuery.error?.message || 'Failed to load logs'}
+                      </span>
+                    </div>
+                  </div>
+                ) : logs.length === 0 ? (
+                  <div className='flex h-full items-center justify-center'>
+                    <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
+                      <span className='text-[13px]'>No logs found</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {logs.map((log) => {
+                      const formattedDate = formatDate(log.createdAt)
+                      const isSelected = selectedLog?.id === log.id
+                      const baseLevel = (log.level || 'info').toLowerCase()
+                      const isError = baseLevel === 'error'
+                      const isPending = !isError && log.hasPendingPause === true
+                      const statusLabel = isPending
+                        ? 'Pending'
+                        : `${baseLevel.charAt(0).toUpperCase()}${baseLevel.slice(1)}`
+
+                      return (
+                        <div
+                          key={log.id}
+                          ref={isSelected ? selectedRowRef : null}
+                          className={cn(
+                            'relative flex h-[44px] cursor-pointer items-center px-[24px] hover:bg-[#292929]',
+                            isSelected && 'bg-[#292929]'
+                          )}
+                          onClick={() => handleLogClick(log)}
+                        >
+                          <div className='flex flex-1 items-center'>
+                            {/* Date */}
+                            <span className='w-[14%] min-w-[110px] font-medium text-[12px] text-[var(--text-primary)]'>
+                              {formattedDate.compactDate}
+                            </span>
+
+                            {/* Time */}
+                            <span className='w-[12%] min-w-[100px] font-medium text-[12px] text-[var(--text-primary)]'>
+                              {formattedDate.compactTime}
+                            </span>
+
+                            {/* Status */}
+                            <div className='w-[12%] min-w-[100px]'>
+                              {isError ? (
+                                <div className='flex h-[24px] w-[56px] items-center justify-start gap-[5px] rounded-[6px] border border-[var(--terminal-status-error-border)] bg-[var(--terminal-status-error-bg)] pl-[9px]'>
+                                  <div
+                                    className='h-[6px] w-[6px] rounded-[2px]'
+                                    style={{ backgroundColor: 'var(--text-error)' }}
+                                  />
+                                  <span
+                                    className='font-medium text-[11.5px]'
+                                    style={{ color: 'var(--text-error)' }}
+                                  >
+                                    Error
+                                  </span>
+                                </div>
+                              ) : isPending ? (
+                                <div className='flex h-[24px] w-[70px] items-center justify-start gap-[5px] rounded-[6px] border border-[var(--terminal-status-warning-border)] bg-[var(--terminal-status-warning-bg)] pl-[9px]'>
+                                  <div
+                                    className='h-[6px] w-[6px] rounded-[2px]'
+                                    style={{
+                                      backgroundColor: 'var(--terminal-status-warning-color)',
+                                    }}
+                                  />
+                                  <span
+                                    className='font-medium text-[11.5px]'
+                                    style={{ color: 'var(--terminal-status-warning-color)' }}
+                                  >
+                                    Pending
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className='flex h-[24px] w-[56px] items-center justify-start gap-[8px] rounded-[6px] border border-[var(--terminal-status-info-border)] bg-[var(--terminal-status-info-bg)] pl-[9px]'>
+                                  <div
+                                    className='h-[6px] w-[6px] rounded-[2px]'
+                                    style={{ backgroundColor: 'var(--terminal-status-info-color)' }}
+                                  />
+                                  <span
+                                    className='font-medium text-[11.5px]'
+                                    style={{ color: 'var(--terminal-status-info-color)' }}
+                                  >
+                                    {statusLabel}
+                                  </span>
+                                </div>
+                              )}
                             </div>
-                          </div>
 
-                          {/* Status */}
-                          <div>
-                            {isError || !isPending ? (
-                              <div
-                                className={cn(
-                                  'flex h-[24px] w-[56px] items-center justify-start rounded-[6px] border pl-[9px]',
-                                  isError
-                                    ? 'gap-[5px] border-[#883827] bg-[#491515]'
-                                    : 'gap-[8px] border-[#686868] bg-[#383838]'
-                                )}
-                              >
-                                <div
-                                  className='h-[6px] w-[6px] rounded-[2px]'
-                                  style={{
-                                    backgroundColor: isError ? 'var(--text-error)' : '#B7B7B7',
-                                  }}
-                                />
-                                <span
-                                  className='font-medium text-[11.5px]'
-                                  style={{ color: isError ? 'var(--text-error)' : '#B7B7B7' }}
-                                >
-                                  {statusLabel}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className='inline-flex items-center bg-amber-300 px-[8px] py-[2px] font-medium text-[12px] text-amber-900 dark:bg-amber-500/90 dark:text-black'>
-                                {statusLabel}
-                              </div>
-                            )}
-                          </div>
+                            {/* Workflow */}
+                            <span className='w-[20%] min-w-[140px] truncate pr-[8px] font-medium text-[12px] text-[var(--text-primary)]'>
+                              {log.workflow?.name || 'Unknown'}
+                            </span>
 
-                          {/* Workflow */}
-                          <div className='min-w-0'>
-                            <div className='flex items-center gap-2 truncate'>
-                              <div
-                                className='h-[12px] w-[12px] flex-shrink-0 rounded'
-                                style={{
-                                  backgroundColor: log.workflow?.color || '#64748b',
-                                }}
-                              />
-                              <span className='truncate font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-                                {log.workflow?.name || 'Unknown Workflow'}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Cost */}
-                          <div>
-                            <div className='font-medium text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+                            {/* Cost */}
+                            <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-primary)]'>
                               {typeof (log as any)?.cost?.total === 'number'
                                 ? `$${((log as any).cost.total as number).toFixed(4)}`
                                 : '—'}
+                            </span>
+
+                            {/* Trigger */}
+                            <div className='w-[14%] min-w-[110px]'>
+                              {log.trigger ? (
+                                <TriggerBadge trigger={log.trigger} />
+                              ) : (
+                                <span className='font-medium text-[12px] text-[var(--text-primary)]'>
+                                  —
+                                </span>
+                              )}
                             </div>
-                          </div>
 
-                          {/* Trigger */}
-                          <div className='hidden xl:block'>
-                            {log.trigger ? (
-                              <TriggerBadge trigger={log.trigger} />
-                            ) : (
-                              <div className='font-medium text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
-                                —
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Duration */}
-                          <div className='hidden xl:block'>
-                            <div className='font-medium text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
-                              {log.duration || '—'}
+                            {/* Duration */}
+                            <div className='w-[16%] min-w-[100px]'>
+                              <Badge
+                                variant='default'
+                                className='rounded-[6px] px-[9px] py-[2px] text-[12px]'
+                              >
+                                {log.duration || '—'}
+                              </Badge>
                             </div>
                           </div>
 
                           {/* Resume Link */}
-                          <div className='flex justify-end'>
-                            {isPending &&
-                            log.executionId &&
-                            (log.workflow?.id || log.workflowId) ? (
-                              <Link
-                                href={`/resume/${log.workflow?.id || log.workflowId}/${log.executionId}`}
-                                className='inline-flex h-[28px] w-[28px] items-center justify-center rounded-[8px] border border-primary/60 border-dashed text-primary hover:bg-primary/10'
-                                aria-label='Open resume console'
-                              >
-                                <ArrowUpRight className='h-[14px] w-[14px]' />
-                              </Link>
-                            ) : (
-                              <span className='h-[28px] w-[28px]' />
-                            )}
-                          </div>
+                          {isPending && log.executionId && (log.workflow?.id || log.workflowId) && (
+                            <Link
+                              href={`/resume/${log.workflow?.id || log.workflowId}/${log.executionId}`}
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className={cn(
+                                buttonVariants({ variant: 'active' }),
+                                'absolute right-[24px] h-[26px] w-[26px] rounded-[6px] p-0'
+                              )}
+                              aria-label='Open resume console'
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ArrowUpRight className='h-[14px] w-[14px]' />
+                            </Link>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {/* Infinite scroll loader */}
+                    {logsQuery.hasNextPage && (
+                      <div className='flex items-center justify-center py-[16px]'>
+                        <div
+                          ref={loaderRef}
+                          className='flex items-center gap-[8px] text-[var(--text-secondary)]'
+                        >
+                          {logsQuery.isFetchingNextPage ? (
+                            <>
+                              <Loader2 className='h-[16px] w-[16px] animate-spin' />
+                              <span className='text-[13px]'>Loading more...</span>
+                            </>
+                          ) : (
+                            <span className='text-[13px]'>Scroll to load more</span>
+                          )}
                         </div>
                       </div>
-                    )
-                  })}
-
-                  {/* Infinite scroll loader */}
-                  {logsQuery.hasNextPage && (
-                    <div className='flex items-center justify-center py-[16px]'>
-                      <div
-                        ref={loaderRef}
-                        className='flex items-center gap-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'
-                      >
-                        {logsQuery.isFetchingNextPage ? (
-                          <>
-                            <Loader2 className='h-[16px] w-[16px] animate-spin' />
-                            <span className='text-[13px]'>Loading more...</span>
-                          </>
-                        ) : (
-                          <span className='text-[13px]'>Scroll to load more</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -617,5 +700,234 @@ export default function Logs() {
         onOpenChange={setIsNotificationSettingsOpen}
       />
     </div>
+  )
+}
+
+/**
+ * LogsFilterSidebar component - displays filter options in the sidebar
+ */
+function LogsFilterSidebar() {
+  const { level, setLevel } = useFilterStore()
+
+  const statusOptions: ComboboxOption[] = [
+    { value: 'all', label: 'All' },
+    { value: 'error', label: 'Error' },
+    { value: 'info', label: 'Info' },
+  ]
+
+  return (
+    <div className='w-[204px] flex-shrink-0 rounded-[6px] bg-[#242424] p-[10px]'>
+      <div className='flex flex-col gap-[16px]'>
+        {/* Status Filter */}
+        <div className='flex flex-col gap-[8px]'>
+          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Status</span>
+          <Combobox
+            options={statusOptions}
+            value={level}
+            onChange={(val) => setLevel(val as 'all' | 'error' | 'info')}
+            placeholder='Select status'
+            size='sm'
+          />
+        </div>
+
+        {/* Workflow Filter */}
+        <div className='flex flex-col gap-[8px]'>
+          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Workflow</span>
+          <WorkflowFilterCombobox />
+        </div>
+
+        {/* Folder Filter */}
+        <div className='flex flex-col gap-[8px]'>
+          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Folder</span>
+          <FolderFilterCombobox />
+        </div>
+
+        {/* Trigger Filter */}
+        <div className='flex flex-col gap-[8px]'>
+          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Trigger</span>
+          <TriggerFilterCombobox />
+        </div>
+
+        {/* Timeline Filter */}
+        <div className='flex flex-col gap-[8px]'>
+          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Timeline</span>
+          <TimelineFilterCombobox />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Workflow filter combobox component
+ */
+function WorkflowFilterCombobox() {
+  const { workflowIds, setWorkflowIds } = useFilterStore()
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+  const [workflows, setWorkflows] = useState<Array<{ id: string; name: string }>>([])
+
+  useEffect(() => {
+    const fetchWorkflows = async () => {
+      try {
+        const res = await fetch(`/api/workflows?workspaceId=${encodeURIComponent(workspaceId)}`)
+        if (res.ok) {
+          const body = await res.json()
+          setWorkflows(Array.isArray(body?.data) ? body.data : [])
+        }
+      } catch {
+        setWorkflows([])
+      }
+    }
+    if (workspaceId) fetchWorkflows()
+  }, [workspaceId])
+
+  const options: ComboboxOption[] = useMemo(
+    () => [
+      { value: 'all', label: 'All workflows' },
+      ...workflows.map((w) => ({ value: w.id, label: w.name })),
+    ],
+    [workflows]
+  )
+
+  const currentValue = workflowIds.length === 0 ? 'all' : workflowIds[0]
+
+  return (
+    <Combobox
+      options={options}
+      value={currentValue}
+      onChange={(val) => {
+        if (val === 'all') {
+          setWorkflowIds([])
+        } else {
+          setWorkflowIds([val])
+        }
+      }}
+      placeholder='Select workflow'
+      size='sm'
+    />
+  )
+}
+
+/**
+ * Folder filter combobox component
+ */
+function FolderFilterCombobox() {
+  const { folderIds, setFolderIds } = useFilterStore()
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+  const folders = useFolderStore((state) => state.folders)
+
+  const folderList = useMemo(() => {
+    return Object.values(folders).filter((f) => f.workspaceId === workspaceId)
+  }, [folders, workspaceId])
+
+  const options: ComboboxOption[] = useMemo(
+    () => [
+      { value: 'all', label: 'All folders' },
+      ...folderList.map((f) => ({ value: f.id, label: f.name })),
+    ],
+    [folderList]
+  )
+
+  const currentValue = folderIds.length === 0 ? 'all' : folderIds[0]
+
+  return (
+    <Combobox
+      options={options}
+      value={currentValue}
+      onChange={(val) => {
+        if (val === 'all') {
+          setFolderIds([])
+        } else {
+          setFolderIds([val])
+        }
+      }}
+      placeholder='Select folder'
+      size='sm'
+    />
+  )
+}
+
+/**
+ * Trigger filter combobox component
+ */
+function TriggerFilterCombobox() {
+  const { triggers, setTriggers } = useFilterStore()
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+  const [triggerOptions, setTriggerOptions] = useState<Array<{ value: string; label: string }>>([])
+
+  useEffect(() => {
+    const fetchTriggers = async () => {
+      try {
+        const res = await fetch(`/api/logs/triggers?workspaceId=${workspaceId}`)
+        if (res.ok) {
+          const data = await res.json()
+          setTriggerOptions(
+            data.triggers.map((trigger: string) => ({
+              value: trigger,
+              label: getIntegrationMetadata(trigger).label,
+            }))
+          )
+        }
+      } catch {
+        setTriggerOptions([])
+      }
+    }
+    if (workspaceId) fetchTriggers()
+  }, [workspaceId])
+
+  const options: ComboboxOption[] = useMemo(
+    () => [{ value: 'all', label: 'All triggers' }, ...triggerOptions],
+    [triggerOptions]
+  )
+
+  const currentValue = triggers.length === 0 ? 'all' : triggers[0]
+
+  return (
+    <Combobox
+      options={options}
+      value={currentValue}
+      onChange={(val) => {
+        if (val === 'all') {
+          setTriggers([])
+        } else {
+          setTriggers([val])
+        }
+      }}
+      placeholder='Select trigger'
+      size='sm'
+    />
+  )
+}
+
+/**
+ * Timeline filter combobox component
+ */
+function TimelineFilterCombobox() {
+  const { timeRange, setTimeRange } = useFilterStore()
+
+  const timeRangeOptions: ComboboxOption[] = [
+    { value: 'All time', label: 'All time' },
+    { value: 'Past 30 minutes', label: 'Past 30 minutes' },
+    { value: 'Past hour', label: 'Past hour' },
+    { value: 'Past 6 hours', label: 'Past 6 hours' },
+    { value: 'Past 12 hours', label: 'Past 12 hours' },
+    { value: 'Past 24 hours', label: 'Past 24 hours' },
+    { value: 'Past 3 days', label: 'Past 3 days' },
+    { value: 'Past 7 days', label: 'Past 7 days' },
+    { value: 'Past 14 days', label: 'Past 14 days' },
+    { value: 'Past 30 days', label: 'Past 30 days' },
+  ]
+
+  return (
+    <Combobox
+      options={timeRangeOptions}
+      value={timeRange}
+      onChange={(val) => setTimeRange(val as typeof timeRange)}
+      placeholder='Select time range'
+      size='sm'
+    />
   )
 }

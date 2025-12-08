@@ -31,7 +31,7 @@ interface AutocompleteSearchProps {
 export function AutocompleteSearch({
   value,
   onChange,
-  placeholder = 'Search logs...',
+  placeholder = 'Search',
   className,
   onOpenChange,
 }: AutocompleteSearchProps) {
@@ -139,11 +139,11 @@ export function AutocompleteSearch({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const [dropdownWidth, setDropdownWidth] = useState(500)
+  const [dropdownWidth, setDropdownWidth] = useState(400)
   useEffect(() => {
     const measure = () => {
       if (inputRef.current) {
-        setDropdownWidth(inputRef.current.parentElement?.offsetWidth || 500)
+        setDropdownWidth(inputRef.current.parentElement?.offsetWidth || 400)
       }
     }
     measure()
@@ -181,15 +181,12 @@ export function AutocompleteSearch({
         }}
       >
         <PopoverAnchor asChild>
-          <div className='relative flex h-9 w-[500px] items-center rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] transition-colors focus-within:border-[var(--surface-14)] focus-within:ring-1 focus-within:ring-ring hover:border-[var(--surface-14)] dark:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)]'>
+          <div className='relative flex h-[32px] w-[400px] items-center rounded-[8px] bg-[var(--surface-5)]'>
             {/* Search Icon */}
-            <Search
-              className='ml-2.5 h-4 w-4 flex-shrink-0 text-muted-foreground'
-              strokeWidth={2}
-            />
+            <Search className='mr-[6px] ml-[8px] h-[14px] w-[14px] flex-shrink-0 text-[var(--text-subtle)]' />
 
             {/* Scrollable container for badges */}
-            <div className='flex flex-1 items-center gap-1.5 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+            <div className='flex flex-1 items-center gap-[6px] overflow-x-auto pr-[6px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
               {/* Applied Filter Badges */}
               {appliedFilters.map((filter, index) => (
                 <Button
@@ -197,7 +194,7 @@ export function AutocompleteSearch({
                   variant='outline'
                   className={cn(
                     'h-6 flex-shrink-0 gap-1 rounded-[6px] px-2 text-[11px]',
-                    highlightedBadgeIndex === index && 'border-white dark:border-white'
+                    highlightedBadgeIndex === index && 'border'
                   )}
                   onClick={(e) => {
                     e.preventDefault()
@@ -238,7 +235,7 @@ export function AutocompleteSearch({
                 onKeyDown={handleKeyDown}
                 onFocus={handleFocus}
                 onBlur={handleBlur}
-                className='min-w-[100px] flex-1 border-0 bg-transparent font-sans text-foreground text-sm outline-none placeholder:text-[var(--text-muted)]'
+                className='min-w-[80px] flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none outline-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0 md:text-sm'
               />
             </div>
 
@@ -246,10 +243,10 @@ export function AutocompleteSearch({
             {(hasFilters || hasTextSearch) && (
               <button
                 type='button'
-                className='mr-2.5 flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground'
+                className='mr-[8px] ml-[6px] flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover:text-[var(--text-secondary)]'
                 onClick={clearAll}
               >
-                <X className='h-4 w-4' />
+                <X className='h-[14px] w-[14px]' />
               </button>
             )}
           </div>
@@ -290,7 +287,7 @@ export function AutocompleteSearch({
 
                 {sections.map((section) => (
                   <div key={section.title}>
-                    <div className='border-border/50 border-t px-3 py-1.5 font-medium text-[11px] text-[var(--text-muted)] uppercase tracking-wide'>
+                    <div className='border-[var(--divider)] border-t px-3 py-1.5 font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
                       {section.title}
                     </div>
                     {section.suggestions.map((suggestion) => {
@@ -345,7 +342,7 @@ export function AutocompleteSearch({
               // Single section layout
               <div className='py-1'>
                 {suggestionType === 'filters' && (
-                  <div className='border-border/50 border-b px-3 py-1.5 font-medium text-[11px] text-[var(--text-muted)] uppercase tracking-wide'>
+                  <div className='border-[var(--divider)] border-b px-3 py-1.5 font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
                     SUGGESTED FILTERS
                   </div>
                 )}
