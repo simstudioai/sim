@@ -21,6 +21,24 @@ export default defineConfig({
     alias: {
       '@sim/db': resolve(__dirname, '../../packages/db'),
     },
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        singleThread: false,
+        useAtomics: true,
+        isolate: true,
+      },
+    },
+    fileParallelism: true,
+    maxConcurrency: 20,
+    testTimeout: 10000,
+    deps: {
+      optimizer: {
+        web: {
+          enabled: true,
+        },
+      },
+    },
   },
   resolve: {
     alias: [

@@ -356,7 +356,6 @@ const SubBlockRow = ({
     return tool?.name ?? null
   }, [subBlock?.type, rawValue, mcpToolsData])
 
-  // Compute webhook URL for webhookUrlDisplay subblocks
   const webhookUrlDisplayValue = useMemo(() => {
     if (subBlock?.id !== 'webhookUrlDisplay' || !blockId) {
       return null

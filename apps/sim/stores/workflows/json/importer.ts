@@ -65,8 +65,6 @@ function regenerateIds(workflowState: WorkflowState): WorkflowState {
   Object.entries(newBlocks).forEach(([blockId, block]) => {
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
-        // Clear runtime trigger values (webhookId, triggerPath, testUrl, etc.)
-        // These are workflow-specific and must be regenerated for imported workflows
         if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(subBlockId)) {
           block.subBlocks[subBlockId] = {
             ...subBlock,
