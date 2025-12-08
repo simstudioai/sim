@@ -10,14 +10,8 @@ const SENTINEL_START_PATTERN = new RegExp(
   `${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.START_SUFFIX}`
 )
 const SENTINEL_END_PATTERN = new RegExp(`${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.END_SUFFIX}`)
-/**
- * ==================
- * LOOP UTILITIES
- * ==================
- */
-/**
- * Build sentinel start node ID
- */
+
+/** Build sentinel start node ID */
 export function buildSentinelStartId(loopId: string): string {
   return `${LOOP.SENTINEL.PREFIX}${loopId}${LOOP.SENTINEL.START_SUFFIX}`
 }
@@ -41,11 +35,7 @@ export function extractLoopIdFromSentinel(sentinelId: string): string | null {
   if (endMatch) return endMatch[1]
   return null
 }
-/**
- * ==================
- * PARALLEL UTILITIES
- * ==================
- */
+
 /**
  * Parse distribution items from parallel config
  * Handles: arrays, JSON strings, and references
