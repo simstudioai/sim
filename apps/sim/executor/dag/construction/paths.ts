@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { isMetadataOnlyBlockType, isTriggerBlockType } from '@/executor/consts'
+import { isMetadataOnlyBlockType, isTriggerBlockType } from '@/executor/constants'
 import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 

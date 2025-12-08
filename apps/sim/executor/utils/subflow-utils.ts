@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { LOOP, PARALLEL, PARSING, REFERENCE } from '@/executor/consts'
+import { LOOP, PARALLEL, PARSING, REFERENCE } from '@/executor/constants'
 import type { SerializedParallel } from '@/serializer/types'
 
 const logger = createLogger('SubflowUtils')

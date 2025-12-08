@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { splitReferenceSegment } from '@/lib/workflows/sanitization/references'
-import { REFERENCE } from '@/executor/consts'
+import { REFERENCE } from '@/executor/constants'
 import { createCombinedPattern } from '@/executor/utils/reference-validation'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 

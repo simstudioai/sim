@@ -9,7 +9,7 @@ import {
   DEFAULT_FREE_STORAGE_LIMIT_GB,
   DEFAULT_PRO_STORAGE_LIMIT_GB,
   DEFAULT_TEAM_STORAGE_LIMIT_GB,
-} from '@sim/db/consts'
+} from '@sim/db/constants'
 import { organization, subscription, userStats } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { getEnv } from '@/lib/core/config/env'

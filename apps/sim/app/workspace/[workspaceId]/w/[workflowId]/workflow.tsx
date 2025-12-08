@@ -40,7 +40,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { isAnnotationOnlyBlock } from '@/executor/consts'
+import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'

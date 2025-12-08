@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { BlockType } from '@/executor/consts'
+import { BlockType } from '@/executor/constants'
 import { DAGBuilder } from '@/executor/dag/builder'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 

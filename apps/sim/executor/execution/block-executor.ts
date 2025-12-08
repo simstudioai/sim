@@ -7,7 +7,7 @@ import {
   DEFAULTS,
   EDGE,
   isSentinelBlockType,
-} from '@/executor/consts'
+} from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
 import {

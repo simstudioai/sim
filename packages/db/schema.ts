@@ -17,7 +17,7 @@ import {
   uuid,
   vector,
 } from 'drizzle-orm/pg-core'
-import { DEFAULT_FREE_CREDITS, TAG_SLOTS } from './consts'
+import { DEFAULT_FREE_CREDITS, TAG_SLOTS } from './constants'
 
 // Custom tsvector type for full-text search
 export const tsvector = customType<{

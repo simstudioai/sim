@@ -1,4 +1,4 @@
-import { PARALLEL } from '@/executor/consts'
+import { PARALLEL } from '@/executor/constants'
 import type { ExecutionContext, LoopPauseScope, ParallelPauseScope } from '@/executor/types'
 
 interface NodeMetadataLike {

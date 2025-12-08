@@ -2,7 +2,7 @@ import '@/executor/__test-utils__/mock-dependencies'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
-import { BlockType } from '@/executor/consts'
+import { BlockType } from '@/executor/constants'
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
 import type { ExecutionContext } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'

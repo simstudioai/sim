@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { EVALUATOR } from '@/executor/consts'
+import { EVALUATOR } from '@/executor/constants'
 
 const logger = createLogger('JSONUtils')
 
