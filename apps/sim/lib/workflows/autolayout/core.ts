@@ -226,8 +226,47 @@ function resolveVerticalOverlaps(nodes: GraphNode[], verticalSpacing: number): v
 }
 
 /**
+ * Checks if a block is a container type (loop or parallel)
+ */
+function isContainerBlock(node: GraphNode): boolean {
+  return node.block.type === 'loop' || node.block.type === 'parallel'
+}
+
+/**
+ * Sorts nodes within a layer to minimize edge crossings.
+ * Containers are placed first, then non-containers below them.
+ * This ensures edges from container ends don't cross through sibling blocks.
+ */
+function sortNodesForMinimalCrossings(nodes: GraphNode[]): GraphNode[] {
+  const containers = nodes.filter(isContainerBlock)
+  const nonContainers = nodes.filter((n) => !isContainerBlock(n))
+
+  // Sort containers by height (tallest first) for better visual balance
+  containers.sort((a, b) => b.metrics.height - a.metrics.height)
+
+  // Sort non-containers by their outgoing connections (more connections = higher priority)
+  nonContainers.sort((a, b) => b.outgoing.size - a.outgoing.size)
+
+  // Place containers first, then non-containers below
+  return [...containers, ...nonContainers]
+}
+
+/**
+ * Extra vertical spacing after containers to prevent edge crossings with sibling blocks.
+ * This creates clearance for edges from container ends to route cleanly.
+ */
+const CONTAINER_VERTICAL_CLEARANCE = 120
+
+/**
+ * Fixed Y offset from block top to the center of the connection handle.
+ * This matches the handle positioning in workflow-block.tsx: top: '20px'
+ */
+const HANDLE_Y_OFFSET = 20
+
+/**
  * Calculates positions for nodes organized by layer.
  * Uses cumulative width-based X positioning to properly handle containers of varying widths.
+ * Aligns blocks based on their connected predecessors to achieve handle-to-handle alignment.
  */
 export function calculatePositions(
   layers: Map<number, GraphNode[]>,
@@ -236,7 +275,6 @@ export function calculatePositions(
   const horizontalSpacing = options.horizontalSpacing ?? DEFAULT_LAYOUT_OPTIONS.horizontalSpacing
   const verticalSpacing = options.verticalSpacing ?? DEFAULT_LAYOUT_OPTIONS.verticalSpacing
   const padding = options.padding ?? DEFAULT_LAYOUT_OPTIONS.padding
-  const alignment = options.alignment ?? DEFAULT_LAYOUT_OPTIONS.alignment
 
   const layerNumbers = Array.from(layers.keys()).sort((a, b) => a - b)
 
@@ -257,41 +295,91 @@ export function calculatePositions(
     cumulativeX += layerWidths.get(layerNum)! + horizontalSpacing
   }
 
-  // Position nodes using cumulative X
+  // Build a flat map of all nodes for quick lookups
+  const allNodes = new Map<string, GraphNode>()
+  for (const nodesInLayer of layers.values()) {
+    for (const node of nodesInLayer) {
+      allNodes.set(node.id, node)
+    }
+  }
+
+  // Position nodes layer by layer, aligning with connected predecessors
   for (const layerNum of layerNumbers) {
     const nodesInLayer = layers.get(layerNum)!
     const xPosition = layerXPositions.get(layerNum)!
 
-    // Calculate total height for this layer
-    const totalHeight = nodesInLayer.reduce(
-      (sum, node, idx) => sum + node.metrics.height + (idx > 0 ? verticalSpacing : 0),
-      0
-    )
+    // Separate containers and non-containers
+    const containersInLayer = nodesInLayer.filter(isContainerBlock)
+    const nonContainersInLayer = nodesInLayer.filter((n) => !isContainerBlock(n))
 
-    // Start Y based on alignment
-    let yOffset: number
-    switch (alignment) {
-      case 'start':
-        yOffset = padding.y
-        break
-      case 'center':
-        yOffset = Math.max(padding.y, 300 - totalHeight / 2)
-        break
-      case 'end':
-        yOffset = 600 - totalHeight - padding.y
-        break
-      default:
-        yOffset = padding.y
-        break
+    // For the first layer (layer 0), position sequentially from padding.y
+    if (layerNum === 0) {
+      let yOffset = padding.y
+
+      // Sort containers by height for visual balance
+      containersInLayer.sort((a, b) => b.metrics.height - a.metrics.height)
+
+      for (const node of containersInLayer) {
+        node.position = { x: xPosition, y: yOffset }
+        yOffset += node.metrics.height + verticalSpacing
+      }
+
+      if (containersInLayer.length > 0 && nonContainersInLayer.length > 0) {
+        yOffset += CONTAINER_VERTICAL_CLEARANCE
+      }
+
+      // Sort non-containers by outgoing connections
+      nonContainersInLayer.sort((a, b) => b.outgoing.size - a.outgoing.size)
+
+      for (const node of nonContainersInLayer) {
+        node.position = { x: xPosition, y: yOffset }
+        yOffset += node.metrics.height + verticalSpacing
+      }
+      continue
     }
 
-    // Position each node
-    for (const node of nodesInLayer) {
-      node.position = {
-        x: xPosition,
-        y: yOffset,
+    // For subsequent layers, align with connected predecessors (handle-to-handle)
+    const positioned = new Set<string>()
+    const pendingNodes = [...containersInLayer, ...nonContainersInLayer]
+
+    // First pass: position nodes that have positioned predecessors
+    for (const node of pendingNodes) {
+      // Find predecessors (incoming connections) that are already positioned
+      const predecessorYs: number[] = []
+      for (const incomingId of node.incoming) {
+        const predecessor = allNodes.get(incomingId)
+        if (predecessor && predecessor.position.y !== undefined) {
+          // Calculate the handle Y position of predecessor
+          const predecessorHandleY = predecessor.position.y + HANDLE_Y_OFFSET
+          // To align handles, this node should be at: predecessorHandleY - HANDLE_Y_OFFSET
+          predecessorYs.push(predecessorHandleY - HANDLE_Y_OFFSET)
+        }
       }
-      yOffset += node.metrics.height + verticalSpacing
+
+      if (predecessorYs.length > 0) {
+        // Use the average Y of all predecessors for nodes with multiple inputs
+        const targetY = predecessorYs.reduce((a, b) => a + b, 0) / predecessorYs.length
+        node.position = { x: xPosition, y: targetY }
+        positioned.add(node.id)
+      }
+    }
+
+    // Second pass: position remaining nodes (no positioned predecessors)
+    // Stack them below the last positioned node or from padding.y
+    let fallbackY = padding.y
+    for (const node of pendingNodes) {
+      if (positioned.has(node.id)) {
+        // Track the bottom of positioned nodes for fallback positioning
+        fallbackY = Math.max(fallbackY, node.position.y + node.metrics.height + verticalSpacing)
+      }
+    }
+
+    for (const node of pendingNodes) {
+      if (!positioned.has(node.id)) {
+        node.position = { x: xPosition, y: fallbackY }
+        fallbackY += node.metrics.height + verticalSpacing
+        positioned.add(node.id)
+      }
     }
   }
 
