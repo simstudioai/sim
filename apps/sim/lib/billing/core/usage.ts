@@ -65,7 +65,6 @@ async function getOrgUsageLimit(
     return { limit: Math.max(configured, minimum), minimum }
   }
 
-  // Fallback for backward compatibility - orgUsageLimit should be set by syncSubscriptionUsageLimits
   logger.warn('Team org missing usage limit, using seats × basePrice fallback', {
     orgId: organizationId,
     seats,
