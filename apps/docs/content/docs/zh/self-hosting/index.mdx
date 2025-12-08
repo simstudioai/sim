@@ -1,0 +1,50 @@
+---
+title: 自托管
+description: 在您自己的基础设施上部署 Sim Studio
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+使用 Docker 或 Kubernetes 在您自己的基础设施上部署 Sim Studio。
+
+## 要求
+
+| 资源 | 最低要求 | 推荐配置 |
+|----------|---------|-------------|
+| CPU | 2 核 | 4 核及以上 |
+| 内存 | 12 GB | 16 GB 及以上 |
+| 存储 | 20 GB SSD | 50 GB 及以上 SSD |
+| Docker | 20.10+ | 最新版本 |
+
+## 快速开始
+
+```bash
+git clone https://github.com/simstudioai/sim.git && cd sim
+docker compose -f docker-compose.prod.yml up -d
+```
+
+打开 [http://localhost:3000](http://localhost:3000)
+
+## 部署选项
+
+<Cards>
+  <Card title="Docker" href="/self-hosting/docker">
+    使用 Docker Compose 在任何服务器上部署
+  </Card>
+  <Card title="Kubernetes" href="/self-hosting/kubernetes">
+    使用 Helm 在 Kubernetes 集群上部署
+  </Card>
+  <Card title="Cloud Platforms" href="/self-hosting/platforms">
+    Railway、DigitalOcean、AWS、Azure、GCP 指南
+  </Card>
+</Cards>
+
+## 架构
+
+| 组件 | 端口 | 描述 |
+|-----------|------|-------------|
+| simstudio | 3000 | 主应用程序 |
+| realtime | 3002 | WebSocket 服务器 |
+| db | 5432 | 带有 pgvector 的 PostgreSQL |
+| migrations | - | 数据库迁移（运行一次） |
