@@ -11,7 +11,7 @@ export { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/b
 /**
  * Horizontal spacing between layers (columns)
  */
-export const DEFAULT_HORIZONTAL_SPACING = 550
+export const DEFAULT_HORIZONTAL_SPACING = 350
 
 /**
  * Vertical spacing between blocks in the same layer
@@ -81,7 +81,7 @@ export const DEFAULT_LAYOUT_OPTIONS = {
 /**
  * Default horizontal spacing for containers (tighter than root level)
  */
-export const DEFAULT_CONTAINER_HORIZONTAL_SPACING = 400
+export const DEFAULT_CONTAINER_HORIZONTAL_SPACING = 250
 
 /**
  * Container-specific layout options (tighter spacing for nested layouts)
