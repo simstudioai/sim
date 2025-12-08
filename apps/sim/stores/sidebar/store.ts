@@ -65,7 +65,6 @@ export const useSidebarStore = create<SidebarState>()(
         }
       },
       partialize: (state) => ({
-        workspaceDropdownOpen: state.workspaceDropdownOpen,
         sidebarWidth: state.sidebarWidth,
         isCollapsed: state.isCollapsed,
       }),
