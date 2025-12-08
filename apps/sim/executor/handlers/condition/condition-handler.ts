@@ -87,6 +87,17 @@ export class ConditionBlockHandler implements BlockHandler {
       block
     )
 
+    // Handle case where no condition matched and no else exists - branch ends gracefully
+    if (!selectedConnection || !selectedCondition) {
+      return {
+        ...((sourceOutput as any) || {}),
+        conditionResult: false,
+        selectedPath: null,
+        selectedConditionId: null,
+        selectedOption: null,
+      }
+    }
+
     const targetBlock = ctx.workflow?.blocks.find((b) => b.id === selectedConnection?.target)
     if (!targetBlock) {
       throw new Error(`Target block ${selectedConnection?.target} not found`)
@@ -145,8 +156,8 @@ export class ConditionBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     block: SerializedBlock
   ): Promise<{
-    selectedConnection: { target: string; sourceHandle?: string }
-    selectedCondition: { id: string; title: string; value: string }
+    selectedConnection: { target: string; sourceHandle?: string } | null
+    selectedCondition: { id: string; title: string; value: string } | null
   }> {
     for (const condition of conditions) {
       if (condition.title === CONDITION.ELSE_TITLE) {
@@ -185,14 +196,16 @@ export class ConditionBlockHandler implements BlockHandler {
       if (elseConnection) {
         return { selectedConnection: elseConnection, selectedCondition: elseCondition }
       }
-      throw new Error(
-        `No path found for condition block "${block.metadata?.name}", and 'else' connection missing.`
-      )
+      // Else exists but has no connection - treat as no match, branch ends
+      logger.info(`No condition matched and else has no connection - branch ending`, {
+        blockId: block.id,
+      })
+      return { selectedConnection: null, selectedCondition: null }
     }
 
-    throw new Error(
-      `No matching path found for condition block "${block.metadata?.name}", and no 'else' block exists.`
-    )
+    // No condition matched and no else exists - branch ends gracefully
+    logger.info(`No condition matched and no else block - branch ending`, { blockId: block.id })
+    return { selectedConnection: null, selectedCondition: null }
   }
 
   private findConnectionForCondition(
