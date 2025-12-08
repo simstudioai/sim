@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { member, organization, userStats } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
-import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
 import { isBillingEnabled } from '@/lib/core/config/environment'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -108,19 +107,10 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
                 )
               }
             }
-            // Determine org cap
-            let orgCap = org.orgUsageLimit ? Number.parseFloat(String(org.orgUsageLimit)) : 0
+            // Determine org cap from orgUsageLimit (should always be set for team/enterprise)
+            const orgCap = org.orgUsageLimit ? Number.parseFloat(String(org.orgUsageLimit)) : 0
             if (!orgCap || Number.isNaN(orgCap)) {
-              // Fall back to minimum billing amount from Stripe subscription
-              const orgSub = await getOrganizationSubscription(org.id)
-              if (orgSub?.seats) {
-                const { basePrice } = getPlanPricing(orgSub.plan)
-                orgCap = (orgSub.seats ?? 0) * basePrice
-              } else {
-                // If no subscription, use team default
-                const { basePrice } = getPlanPricing('team')
-                orgCap = basePrice // Default to 1 seat minimum
-              }
+              logger.warn('Organization missing usage limit', { orgId: org.id })
             }
             if (pooledUsage >= orgCap) {
               isExceeded = true

@@ -386,20 +386,28 @@ export class ExecutionLogger implements IExecutionLoggerService {
               limit,
             })
           } else if (sub?.referenceId) {
-            let orgLimit = 0
+            // Fetch org usage limit
             const orgRows = await db
               .select({ orgUsageLimit: organization.orgUsageLimit })
               .from(organization)
               .where(eq(organization.id, sub.referenceId))
               .limit(1)
-            const { getPlanPricing } = await import('@/lib/billing/core/billing')
-            const { basePrice } = getPlanPricing(sub.plan)
-            const minimum = (sub.seats || 1) * basePrice
-            if (orgRows.length > 0 && orgRows[0].orgUsageLimit) {
-              const configured = Number.parseFloat(orgRows[0].orgUsageLimit)
-              orgLimit = Math.max(configured, minimum)
+
+            const configured =
+              orgRows.length > 0 && orgRows[0].orgUsageLimit
+                ? Number.parseFloat(orgRows[0].orgUsageLimit)
+                : null
+
+            let orgLimit: number
+            if (sub.plan === 'enterprise') {
+              // Enterprise: Use configured limit directly (no per-seat minimum)
+              orgLimit = configured ?? 0
             } else {
-              orgLimit = minimum
+              // Team: Use configured limit but never below seats × basePrice
+              const { getPlanPricing } = await import('@/lib/billing/core/billing')
+              const { basePrice } = getPlanPricing(sub.plan)
+              const minimum = (sub.seats || 1) * basePrice
+              orgLimit = configured !== null ? Math.max(configured, minimum) : minimum
             }
 
             const [{ sum: orgUsageBefore }] = await db
