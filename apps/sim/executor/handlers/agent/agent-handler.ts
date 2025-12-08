@@ -2,7 +2,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
-import { AGENT, BlockType, DEFAULTS, HTTP } from '@/executor/consts'
+import { AGENT, BlockType, DEFAULTS, HTTP } from '@/executor/constants'
 import { memoryService } from '@/executor/handlers/agent/memory'
 import type {
   AgentInputs,

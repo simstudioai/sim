@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { EDGE } from '@/executor/consts'
+import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { BlockExecutor } from '@/executor/execution/block-executor'
 import type { BlockStateController } from '@/executor/execution/types'

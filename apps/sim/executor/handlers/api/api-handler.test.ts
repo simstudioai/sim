@@ -1,7 +1,7 @@
 import '@/executor/__test-utils__/mock-dependencies'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { BlockType } from '@/executor/consts'
+import { BlockType } from '@/executor/constants'
 import { ApiBlockHandler } from '@/executor/handlers/api/api-handler'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'

@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { WorkflowState } from '../workflow/types'
 
 const logger = createLogger('WorkflowJsonImporter')
@@ -60,10 +61,18 @@ function regenerateIds(workflowState: WorkflowState): WorkflowState {
     })
   }
 
-  // Fifth pass: update any block references in subblock values
+  // Fifth pass: update any block references in subblock values and clear runtime trigger values
   Object.entries(newBlocks).forEach(([blockId, block]) => {
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
+        if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(subBlockId)) {
+          block.subBlocks[subBlockId] = {
+            ...subBlock,
+            value: null,
+          }
+          return
+        }
+
         if (subBlock.value && typeof subBlock.value === 'string') {
           // Replace any block references in the value
           let updatedValue = subBlock.value

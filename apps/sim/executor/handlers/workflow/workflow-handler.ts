@@ -3,7 +3,7 @@ import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
-import { BlockType, DEFAULTS, HTTP } from '@/executor/consts'
+import { BlockType, DEFAULTS, HTTP } from '@/executor/constants'
 import type {
   BlockHandler,
   ExecutionContext,

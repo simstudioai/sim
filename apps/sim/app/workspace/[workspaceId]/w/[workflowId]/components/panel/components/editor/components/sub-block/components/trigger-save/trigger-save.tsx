@@ -16,7 +16,7 @@ import { useTriggerConfigAggregation } from '@/hooks/use-trigger-config-aggregat
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getTrigger, isTriggerValid } from '@/triggers'
-import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/consts'
+import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 import { ShortInput } from '../short-input/short-input'
 
 const logger = createLogger('TriggerSave')

@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType, CONDITION, DEFAULTS, EDGE } from '@/executor/consts'
+import { BlockType, CONDITION, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 

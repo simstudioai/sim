@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { buildLoopIndexCondition, DEFAULTS, EDGE } from '@/executor/consts'
+import { buildLoopIndexCondition, DEFAULTS, EDGE } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { LoopScope } from '@/executor/execution/state'
 import type { BlockStateController } from '@/executor/execution/types'

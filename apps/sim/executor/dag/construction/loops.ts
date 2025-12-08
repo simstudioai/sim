@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { BlockType, LOOP, type SentinelType } from '@/executor/consts'
+import { BlockType, LOOP, type SentinelType } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import { buildSentinelEndId, buildSentinelStartId } from '@/executor/utils/subflow-utils'
 
