@@ -20,7 +20,7 @@ export const addFollowupTool: ToolConfig<AddFollowupParams, AddFollowupResponse>
       visibility: 'user-or-llm',
       description: 'Unique identifier for the cloud agent (e.g., bc_abc123)',
     },
-    promptText: {
+    followupPromptText: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
@@ -44,7 +44,7 @@ export const addFollowupTool: ToolConfig<AddFollowupParams, AddFollowupResponse>
     body: (params) => {
       const body: Record<string, any> = {
         prompt: {
-          text: params.promptText,
+          text: params.followupPromptText,
         },
       }
 

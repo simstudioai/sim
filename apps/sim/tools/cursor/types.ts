@@ -31,7 +31,7 @@ export interface LaunchAgentParams extends BaseCursorParams {
 
 export interface AddFollowupParams extends BaseCursorParams {
   agentId: string
-  promptText: string
+  followupPromptText: string
   promptImages?: string
 }
 

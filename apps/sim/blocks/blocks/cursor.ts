@@ -103,7 +103,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
       required: true,
     },
     {
-      id: 'promptText',
+      id: 'followupPromptText',
       title: 'Follow-up Prompt',
       type: 'long-input',
       placeholder: 'Additional instructions for the agent...',
@@ -152,6 +152,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
     repository: { type: 'string', description: 'GitHub repository URL' },
     ref: { type: 'string', description: 'Branch, tag, or commit reference' },
     promptText: { type: 'string', description: 'Instruction text for the agent' },
+    followupPromptText: { type: 'string', description: 'Follow-up instruction text for the agent' },
     promptImages: { type: 'string', description: 'JSON array of image objects' },
     model: { type: 'string', description: 'Model to use (empty for auto-selection)' },
     branchName: { type: 'string', description: 'Custom branch name' },
