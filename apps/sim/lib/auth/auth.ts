@@ -13,7 +13,7 @@ import {
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import {
@@ -2068,50 +2068,7 @@ export const auth = betterAuth({
 
               return hasTeamPlan
             },
-            // Set a fixed membership limit of 50, but the actual limit will be enforced in the invitation flow
             membershipLimit: 50,
-            // Validate seat limits before sending invitations
-            beforeInvite: async ({ organization }: { organization: { id: string } }) => {
-              const subscriptions = await db
-                .select()
-                .from(schema.subscription)
-                .where(
-                  and(
-                    eq(schema.subscription.referenceId, organization.id),
-                    eq(schema.subscription.status, 'active')
-                  )
-                )
-
-              const teamOrEnterpriseSubscription = subscriptions.find(
-                (sub) => sub.plan === 'team' || sub.plan === 'enterprise'
-              )
-
-              if (!teamOrEnterpriseSubscription) {
-                throw new Error('No active team or enterprise subscription for this organization')
-              }
-
-              const members = await db
-                .select()
-                .from(schema.member)
-                .where(eq(schema.member.organizationId, organization.id))
-
-              const pendingInvites = await db
-                .select()
-                .from(schema.invitation)
-                .where(
-                  and(
-                    eq(schema.invitation.organizationId, organization.id),
-                    eq(schema.invitation.status, 'pending')
-                  )
-                )
-
-              const totalCount = members.length + pendingInvites.length
-              const seatLimit = teamOrEnterpriseSubscription.seats || 1
-
-              if (totalCount >= seatLimit) {
-                throw new Error(`Organization has reached its seat limit of ${seatLimit}`)
-              }
-            },
             sendInvitationEmail: async (data: any) => {
               try {
                 const { invitation, organization, inviter } = data
