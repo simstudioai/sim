@@ -142,8 +142,8 @@ Function (Process) → Condition (account_type === 'enterprise') → Advanced or
 
 ## Mejores prácticas
 
-- **Ordenar las condiciones correctamente**: Coloca las condiciones más específicas antes que las generales para asegurar que la lógica específica tenga prioridad sobre las alternativas
-- **Incluir una condición predeterminada**: Añade una condición general (`true`) como última condición para manejar casos no coincidentes y evitar que la ejecución del flujo de trabajo se detenga
-- **Mantener las expresiones simples**: Usa expresiones booleanas claras y directas para mejorar la legibilidad y facilitar la depuración
-- **Documentar tus condiciones**: Añade descripciones para explicar el propósito de cada condición para una mejor colaboración en equipo y mantenimiento
-- **Probar casos límite**: Verifica que las condiciones manejen correctamente los valores límite probando con valores en los extremos de tus rangos de condición
+- **Ordena las condiciones correctamente**: Coloca las condiciones más específicas antes que las generales para asegurar que la lógica específica tenga prioridad sobre las alternativas
+- **Usa la rama else cuando sea necesario**: Si ninguna condición coincide y la rama else no está conectada, la rama del flujo de trabajo terminará correctamente. Conecta la rama else si necesitas una ruta alternativa para casos no coincidentes
+- **Mantén las expresiones simples**: Usa expresiones booleanas claras y directas para mejorar la legibilidad y facilitar la depuración
+- **Documenta tus condiciones**: Añade descripciones para explicar el propósito de cada condición para una mejor colaboración en equipo y mantenimiento
+- **Prueba casos límite**: Verifica que las condiciones manejen correctamente los valores límite probando con valores en los extremos de los rangos de tus condiciones
