@@ -59,7 +59,7 @@ export default function WorkflowsPage() {
       <div className='flex h-full items-center justify-center'>
         <div className='text-center'>
           <div className='mx-auto mb-4'>
-            <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+            <Loader2 className='h-5 w-5 animate-spin text-muted-foreground' />
           </div>
         </div>
       </div>

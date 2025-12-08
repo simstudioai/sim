@@ -940,7 +940,7 @@ export function NotificationSettings({
               {isLoadingSlackAccounts ? (
                 <Skeleton className='h-9 w-full' />
               ) : slackAccounts.length === 0 ? (
-                <div className='rounded-[4px] border border-dashed p-4 text-center'>
+                <div className='rounded-[4px] border p-4 text-center'>
                   <p className='text-[12px] text-[var(--text-muted)]'>
                     No Slack accounts connected
                   </p>
@@ -1219,7 +1219,7 @@ export function NotificationSettings({
   return (
     <>
       <Modal open={open} onOpenChange={handleClose}>
-        <ModalContent className='h-[70vh] w-[660px]'>
+        <ModalContent size='xl' className='h-[70vh]'>
           <ModalHeader>Notifications</ModalHeader>
 
           <ModalTabs

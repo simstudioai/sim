@@ -386,7 +386,7 @@ export function ChatDeploy({
       </form>
 
       <Modal open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete Chat</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>

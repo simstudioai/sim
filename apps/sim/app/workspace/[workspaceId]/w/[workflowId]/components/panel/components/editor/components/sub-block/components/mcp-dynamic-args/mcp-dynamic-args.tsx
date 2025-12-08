@@ -509,7 +509,7 @@ export function McpDynamicArgs({
 
   if (!selectedTool) {
     return (
-      <div className='rounded-lg border border-dashed p-8 text-center'>
+      <div className='rounded-lg border p-8 text-center'>
         <p className='text-muted-foreground text-sm'>Select a tool to configure its parameters</p>
       </div>
     )
@@ -522,7 +522,7 @@ export function McpDynamicArgs({
     (isLoading || mcpTools.length === 0)
   ) {
     return (
-      <div className='rounded-lg border border-dashed p-8 text-center'>
+      <div className='rounded-lg border p-8 text-center'>
         <p className='text-muted-foreground text-sm'>Loading tool schema...</p>
       </div>
     )
@@ -530,7 +530,7 @@ export function McpDynamicArgs({
 
   if (!toolSchema?.properties || Object.keys(toolSchema.properties).length === 0) {
     return (
-      <div className='rounded-lg border border-dashed p-8 text-center'>
+      <div className='rounded-lg border p-8 text-center'>
         <p className='text-muted-foreground text-sm'>This tool requires no parameters</p>
       </div>
     )

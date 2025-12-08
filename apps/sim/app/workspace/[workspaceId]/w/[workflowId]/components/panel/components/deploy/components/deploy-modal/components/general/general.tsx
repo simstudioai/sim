@@ -253,7 +253,7 @@ export function GeneralDeploy({
       </div>
 
       <Modal open={showLoadDialog} onOpenChange={setShowLoadDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Load Deployment</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
@@ -283,7 +283,7 @@ export function GeneralDeploy({
       </Modal>
 
       <Modal open={showPromoteDialog} onOpenChange={setShowPromoteDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Promote to live</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>

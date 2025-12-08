@@ -119,7 +119,7 @@ export default function WorkspacePage() {
     return (
       <div className='flex h-screen w-full items-center justify-center'>
         <div className='flex flex-col items-center justify-center text-center align-middle'>
-          <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+          <Loader2 className='h-5 w-5 animate-spin text-muted-foreground' />
         </div>
       </div>
     )

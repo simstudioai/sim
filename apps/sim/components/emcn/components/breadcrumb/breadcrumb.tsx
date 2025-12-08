@@ -32,14 +32,14 @@ function Breadcrumb({ items, className, ...props }: BreadcrumbProps) {
             {item.href && !isLast ? (
               <Link
                 href={item.href}
-                className='font-medium text-[14px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                className='block max-w-[200px] truncate font-medium text-[14px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
               >
                 {item.label}
               </Link>
             ) : (
               <span
                 className={cn(
-                  'font-medium text-[14px]',
+                  'block max-w-[200px] truncate font-medium text-[14px]',
                   isLast ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'
                 )}
               >

@@ -205,7 +205,7 @@ export function Knowledge() {
               {isLoading ? (
                 <BaseCardSkeletonGrid count={8} />
               ) : filteredAndSortedKnowledgeBases.length === 0 ? (
-                <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+                <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
                   <div className='text-center'>
                     <p className='font-medium text-[var(--text-secondary)] text-sm'>
                       {emptyState.title}
@@ -216,7 +216,7 @@ export function Knowledge() {
                   </div>
                 </div>
               ) : error ? (
-                <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+                <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
                   <div className='text-center'>
                     <p className='font-medium text-[var(--text-secondary)] text-sm'>
                       Error loading knowledge bases

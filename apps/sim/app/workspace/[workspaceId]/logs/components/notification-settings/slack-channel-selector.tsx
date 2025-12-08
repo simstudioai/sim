@@ -81,7 +81,7 @@ export function SlackChannelSelector({
 
   if (!accountId) {
     return (
-      <div className='rounded-[8px] border border-dashed p-3 text-center'>
+      <div className='rounded-[8px] border p-3 text-center'>
         <p className='text-muted-foreground text-sm'>Select a Slack account first</p>
       </div>
     )

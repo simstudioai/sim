@@ -172,7 +172,7 @@ export function EditChunkModal({
   return (
     <>
       <Modal open={isOpen} onOpenChange={handleCloseAttempt}>
-        <ModalContent className='sm:max-w-[600px]'>
+        <ModalContent size='lg'>
           <div className='flex items-center justify-between px-[16px] py-[10px]'>
             <DialogPrimitive.Title className='font-medium text-[16px] text-[var(--text-primary)]'>
               Edit Chunk #{chunk.chunkIndex}
@@ -297,7 +297,7 @@ export function EditChunkModal({
 
       {/* Unsaved Changes Alert */}
       <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Unsaved Changes</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>

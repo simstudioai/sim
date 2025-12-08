@@ -186,7 +186,7 @@ export default function Templates({
                 <TemplateCardSkeleton key={`skeleton-${index}`} />
               ))
             ) : filteredTemplates.length === 0 ? (
-              <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+              <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
                 <div className='text-center'>
                   <p className='font-medium text-muted-foreground text-sm'>{emptyState.title}</p>
                   <p className='mt-1 text-muted-foreground/70 text-xs'>{emptyState.description}</p>

@@ -44,6 +44,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import {
   ActionBar,
   AddDocumentsModal,
+  BaseTagsModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -167,7 +168,10 @@ function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) 
 
           <div className='mt-[14px] flex items-center justify-between'>
             <Skeleton className='h-[27px] w-[200px] rounded-[4px]' />
-            <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
+            <div className='flex items-center gap-2'>
+              <Skeleton className='h-[32px] w-[52px] rounded-[6px]' />
+              <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
+            </div>
           </div>
 
           <div className='mt-[4px]'>
@@ -331,16 +335,8 @@ export function KnowledgeBase({
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()
 
-  /**
-   * Track mount state to avoid hydration mismatch from React Query cache
-   */
-  const [hasMounted, setHasMounted] = useState(false)
-
-  useEffect(() => {
-    setHasMounted(true)
-  }, [])
-
   const [searchQuery, setSearchQuery] = useState('')
+  const [showTagsModal, setShowTagsModal] = useState(false)
 
   /**
    * Memoize the search query setter to prevent unnecessary re-renders
@@ -355,6 +351,9 @@ export function KnowledgeBase({
   const [showAddDocumentsModal, setShowAddDocumentsModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isBulkOperating, setIsBulkOperating] = useState(false)
+  const [showDeleteDocumentModal, setShowDeleteDocumentModal] = useState(false)
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null)
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState<DocumentSortField>('uploadedAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
@@ -609,11 +608,21 @@ export function KnowledgeBase({
   }
 
   /**
-   * Handles deleting a single document
+   * Opens the delete document confirmation modal
    */
-  const handleDeleteDocument = async (docId: string) => {
+  const handleDeleteDocument = (docId: string) => {
+    setDocumentToDelete(docId)
+    setShowDeleteDocumentModal(true)
+  }
+
+  /**
+   * Confirms and executes the deletion of a single document
+   */
+  const confirmDeleteDocument = async () => {
+    if (!documentToDelete) return
+
     try {
-      const response = await fetch(`/api/knowledge/${id}/documents/${docId}`, {
+      const response = await fetch(`/api/knowledge/${id}/documents/${documentToDelete}`, {
         method: 'DELETE',
       })
 
@@ -628,12 +637,15 @@ export function KnowledgeBase({
 
         setSelectedDocuments((prev) => {
           const newSet = new Set(prev)
-          newSet.delete(docId)
+          newSet.delete(documentToDelete)
           return newSet
         })
       }
     } catch (err) {
       logger.error('Error deleting document:', err)
+    } finally {
+      setShowDeleteDocumentModal(false)
+      setDocumentToDelete(null)
     }
   }
 
@@ -810,9 +822,17 @@ export function KnowledgeBase({
   }
 
   /**
-   * Handles bulk deletion of selected documents
+   * Opens the bulk delete confirmation modal
    */
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
+    if (selectedDocuments.size === 0) return
+    setShowBulkDeleteModal(true)
+  }
+
+  /**
+   * Confirms and executes the bulk deletion of selected documents
+   */
+  const confirmBulkDelete = async () => {
     const documentsToDelete = documents.filter((doc) => selectedDocuments.has(doc.id))
 
     if (documentsToDelete.length === 0) return
@@ -848,6 +868,7 @@ export function KnowledgeBase({
       logger.error('Error deleting documents:', err)
     } finally {
       setIsBulkOperating(false)
+      setShowBulkDeleteModal(false)
     }
   }
 
@@ -855,10 +876,7 @@ export function KnowledgeBase({
   const enabledCount = selectedDocumentsList.filter((doc) => doc.enabled).length
   const disabledCount = selectedDocumentsList.filter((doc) => !doc.enabled).length
 
-  if (
-    !hasMounted ||
-    ((isLoadingKnowledgeBase || isLoadingDocuments) && !knowledgeBase && documents.length === 0)
-  ) {
+  if ((isLoadingKnowledgeBase || isLoadingDocuments) && !knowledgeBase && documents.length === 0) {
     return <KnowledgeBaseLoading knowledgeBaseName={knowledgeBaseName} />
   }
 
@@ -875,7 +893,7 @@ export function KnowledgeBase({
             <Breadcrumb items={breadcrumbItems} />
 
             <div className='mt-[24px]'>
-              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
                 <div className='text-center'>
                   <p className='font-medium text-[var(--text-secondary)] text-sm'>
                     Error loading knowledge base
@@ -900,9 +918,20 @@ export function KnowledgeBase({
             <h1 className='font-medium text-[18px] text-[var(--text-primary)]'>
               {knowledgeBaseName}
             </h1>
-            <Button onClick={() => setShowDeleteDialog(true)} className='h-[32px] rounded-[6px]'>
-              <Trash className='h-[14px] w-[14px]' />
-            </Button>
+            <div className='flex items-center gap-2'>
+              {userPermissions.canEdit && (
+                <Button
+                  onClick={() => setShowTagsModal(true)}
+                  variant='default'
+                  className='h-[32px] rounded-[6px]'
+                >
+                  Tags
+                </Button>
+              )}
+              <Button onClick={() => setShowDeleteDialog(true)} className='h-[32px] rounded-[6px]'>
+                <Trash className='h-[14px] w-[14px]' />
+              </Button>
+            </div>
           </div>
 
           {knowledgeBase?.description && (
@@ -913,7 +942,7 @@ export function KnowledgeBase({
 
           <div className='mt-[16px] flex items-center gap-[8px]'>
             <span className='text-[14px] text-[var(--text-muted)]'>
-              {documents.length} {documents.length === 1 ? 'document' : 'documents'}
+              {pagination.total} {pagination.total === 1 ? 'document' : 'documents'}
             </span>
             {knowledgeBase?.updatedAt && (
               <>
@@ -971,7 +1000,7 @@ export function KnowledgeBase({
 
           {error && !isLoadingKnowledgeBase && (
             <div className='mt-[24px]'>
-              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
                 <div className='text-center'>
                   <p className='font-medium text-[var(--text-secondary)] text-sm'>
                     Error loading documents
@@ -982,11 +1011,11 @@ export function KnowledgeBase({
             </div>
           )}
 
-          <div className='mt-[12px] flex flex-1 flex-col overflow-hidden'>
+          <div className='mt-[12px] flex flex-1 flex-col'>
             {isLoadingDocuments && documents.length === 0 ? (
               <DocumentTableSkeleton rowCount={5} />
             ) : documents.length === 0 ? (
-              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+              <div className='mt-[10px] flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
                 <div className='text-center'>
                   <p className='font-medium text-[var(--text-secondary)] text-sm'>
                     {searchQuery ? 'No documents found' : 'No documents yet'}
@@ -1267,14 +1296,16 @@ export function KnowledgeBase({
         </div>
       </div>
 
+      <BaseTagsModal open={showTagsModal} onOpenChange={setShowTagsModal} knowledgeBaseId={id} />
+
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete Knowledge Base</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
               Are you sure you want to delete "{knowledgeBaseName}"? This will permanently delete
-              the knowledge base and all {documents.length} document
-              {documents.length === 1 ? '' : 's'} within it.{' '}
+              the knowledge base and all {pagination.total} document
+              {pagination.total === 1 ? '' : 's'} within it.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
@@ -1293,6 +1324,65 @@ export function KnowledgeBase({
               className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {isDeleting ? 'Deleting...' : 'Delete Knowledge Base'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal open={showDeleteDocumentModal} onOpenChange={setShowDeleteDocumentModal}>
+        <ModalContent size='sm'>
+          <ModalHeader>Delete Document</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              Are you sure you want to delete "
+              {documents.find((doc) => doc.id === documentToDelete)?.filename ?? 'this document'}"?{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant='active'
+              onClick={() => {
+                setShowDeleteDocumentModal(false)
+                setDocumentToDelete(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='primary'
+              onClick={confirmDeleteDocument}
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
+            >
+              Delete Document
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal open={showBulkDeleteModal} onOpenChange={setShowBulkDeleteModal}>
+        <ModalContent size='sm'>
+          <ModalHeader>Delete Documents</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              Are you sure you want to delete {selectedDocuments.size} document
+              {selectedDocuments.size === 1 ? '' : 's'}?{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='active' onClick={() => setShowBulkDeleteModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant='primary'
+              onClick={confirmBulkDelete}
+              disabled={isBulkOperating}
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
+            >
+              {isBulkOperating
+                ? 'Deleting...'
+                : `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`}
             </Button>
           </ModalFooter>
         </ModalContent>

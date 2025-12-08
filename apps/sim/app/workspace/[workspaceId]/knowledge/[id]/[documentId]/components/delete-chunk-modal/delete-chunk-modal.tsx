@@ -66,7 +66,7 @@ export function DeleteChunkModal({
 
   return (
     <Modal open={isOpen} onOpenChange={onClose}>
-      <ModalContent className='w-[400px]'>
+      <ModalContent size='sm'>
         <ModalHeader>Delete Chunk</ModalHeader>
         <ModalBody>
           <p className='text-[12px] text-[var(--text-tertiary)]'>

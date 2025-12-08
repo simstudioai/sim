@@ -838,7 +838,8 @@ try {
     <>
       <Modal open={open} onOpenChange={handleClose}>
         <ModalContent
-          className='h-[80vh] w-[900px]'
+          size='full'
+          className='h-[80vh]'
           onKeyDown={(e) => {
             if (e.key === 'Escape' && (showEnvVars || showTags || showSchemaParams)) {
               e.preventDefault()
@@ -1191,7 +1192,7 @@ try {
       </Modal>
 
       <Modal open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete Custom Tool</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>

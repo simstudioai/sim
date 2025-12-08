@@ -118,7 +118,7 @@ export function CreateChunkModal({
   return (
     <>
       <Modal open={open} onOpenChange={handleCloseAttempt}>
-        <ModalContent className='sm:max-w-[600px]'>
+        <ModalContent size='lg'>
           <ModalHeader>Create Chunk</ModalHeader>
 
           <form>
@@ -176,7 +176,7 @@ export function CreateChunkModal({
 
       {/* Unsaved Changes Alert */}
       <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Discard Changes</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>

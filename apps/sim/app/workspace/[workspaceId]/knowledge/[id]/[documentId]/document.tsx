@@ -40,6 +40,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import {
   CreateChunkModal,
   DeleteChunkModal,
+  DocumentTagsModal,
   EditChunkModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
@@ -216,7 +217,10 @@ function DocumentLoading({
 
           <div className='mt-[14px] flex items-center justify-between'>
             <Skeleton className='h-[27px] w-[200px] rounded-[4px]' />
-            <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
+            <div className='flex items-center gap-2'>
+              <Skeleton className='h-[32px] w-[52px] rounded-[6px]' />
+              <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
+            </div>
           </div>
 
           <div className='mt-[4px]'>
@@ -270,6 +274,16 @@ export function Document({
   const searchParams = useSearchParams()
   const currentPageFromURL = Number.parseInt(searchParams.get('page') || '1', 10)
   const userPermissions = useUserPermissionsContext()
+
+  /**
+   * Get cached document synchronously for immediate render
+   */
+  const getInitialCachedDocument = useCallback(() => {
+    const cachedDocuments = getCachedDocuments(knowledgeBaseId)
+    return cachedDocuments?.documents?.find((d) => d.id === documentId) || null
+  }, [getCachedDocuments, knowledgeBaseId, documentId])
+
+  const [showTagsModal, setShowTagsModal] = useState(false)
 
   // Search state management
   const [searchQuery, setSearchQuery] = useState('')
@@ -436,8 +450,9 @@ export function Document({
   const refreshChunks = showingSearch ? async () => {} : initialRefreshChunks
   const updateChunk = showingSearch ? (id: string, updates: any) => {} : initialUpdateChunk
 
-  const [documentData, setDocumentData] = useState<DocumentData | null>(null)
-  const [isLoadingDocument, setIsLoadingDocument] = useState(true)
+  const initialCachedDoc = getInitialCachedDocument()
+  const [documentData, setDocumentData] = useState<DocumentData | null>(initialCachedDoc)
+  const [isLoadingDocument, setIsLoadingDocument] = useState(!initialCachedDoc)
   const [error, setError] = useState<string | null>(null)
 
   const [isCreateChunkModalOpen, setIsCreateChunkModalOpen] = useState(false)
@@ -453,19 +468,21 @@ export function Document({
 
   useEffect(() => {
     const fetchDocument = async () => {
+      // Check for cached data first
+      const cachedDocuments = getCachedDocuments(knowledgeBaseId)
+      const cachedDoc = cachedDocuments?.documents?.find((d) => d.id === documentId)
+
+      if (cachedDoc) {
+        setDocumentData(cachedDoc)
+        setIsLoadingDocument(false)
+        return
+      }
+
+      // Only show loading and fetch if we don't have cached data
+      setIsLoadingDocument(true)
+      setError(null)
+
       try {
-        setIsLoadingDocument(true)
-        setError(null)
-
-        const cachedDocuments = getCachedDocuments(knowledgeBaseId)
-        const cachedDoc = cachedDocuments?.documents?.find((d) => d.id === documentId)
-
-        if (cachedDoc) {
-          setDocumentData(cachedDoc)
-          setIsLoadingDocument(false)
-          return
-        }
-
         const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`)
 
         if (!response.ok) {
@@ -719,6 +736,14 @@ export function Document({
 
   const isAllSelected = displayChunks.length > 0 && selectedChunks.size === displayChunks.length
 
+  const handleDocumentTagsUpdate = useCallback(
+    (tagData: Record<string, string>) => {
+      updateDocumentInStore(knowledgeBaseId, documentId, tagData)
+      setDocumentData((prev) => (prev ? { ...prev, ...tagData } : null))
+    },
+    [knowledgeBaseId, documentId, updateDocumentInStore]
+  )
+
   if (isLoadingDocument) {
     return (
       <DocumentLoading
@@ -745,7 +770,7 @@ export function Document({
           <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
             <Breadcrumb items={errorBreadcrumbItems} />
             <div className='mt-[24px]'>
-              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
                 <div className='text-center'>
                   <p className='font-medium text-[var(--text-secondary)] text-sm'>
                     Error loading document
@@ -770,20 +795,31 @@ export function Document({
             <h1 className='font-medium text-[18px] text-[var(--text-primary)]'>
               {effectiveDocumentName}
             </h1>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
+            <div className='flex items-center gap-2'>
+              {userPermissions.canEdit && (
                 <Button
-                  onClick={() => setShowDeleteDocumentDialog(true)}
-                  disabled={!userPermissions.canEdit}
+                  onClick={() => setShowTagsModal(true)}
+                  variant='default'
                   className='h-[32px] rounded-[6px]'
                 >
-                  <Trash className='h-[14px] w-[14px]' />
+                  Tags
                 </Button>
-              </Tooltip.Trigger>
-              {!userPermissions.canEdit && (
-                <Tooltip.Content>Write permission required to delete document</Tooltip.Content>
               )}
-            </Tooltip.Root>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    onClick={() => setShowDeleteDocumentDialog(true)}
+                    disabled={!userPermissions.canEdit}
+                    className='h-[32px] rounded-[6px]'
+                  >
+                    <Trash className='h-[14px] w-[14px]' />
+                  </Button>
+                </Tooltip.Trigger>
+                {!userPermissions.canEdit && (
+                  <Tooltip.Content>Write permission required to delete document</Tooltip.Content>
+                )}
+              </Tooltip.Root>
+            </div>
           </div>
 
           <p className='mt-[4px] font-medium text-[14px] text-[var(--text-tertiary)]'>
@@ -860,7 +896,7 @@ export function Document({
 
           <div className='mt-[12px] flex flex-1 flex-col overflow-hidden'>
             {displayChunks.length === 0 && documentData?.processingStatus === 'completed' ? (
-              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+              <div className='mt-[10px] flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
                 <div className='text-center'>
                   <p className='font-medium text-[var(--text-secondary)] text-sm'>
                     {searchQuery ? 'No chunks found' : 'No chunks yet'}
@@ -1112,6 +1148,15 @@ export function Document({
         </div>
       </div>
 
+      <DocumentTagsModal
+        open={showTagsModal}
+        onOpenChange={setShowTagsModal}
+        knowledgeBaseId={knowledgeBaseId}
+        documentId={documentId}
+        documentData={documentData}
+        onDocumentUpdate={handleDocumentTagsUpdate}
+      />
+
       {/* Edit Chunk Modal */}
       <EditChunkModal
         chunk={selectedChunk}
@@ -1181,7 +1226,7 @@ export function Document({
 
       {/* Delete Document Modal */}
       <Modal open={showDeleteDocumentDialog} onOpenChange={setShowDeleteDocumentDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete Document</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>

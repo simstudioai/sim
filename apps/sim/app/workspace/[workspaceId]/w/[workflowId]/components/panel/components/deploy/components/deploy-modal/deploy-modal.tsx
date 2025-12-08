@@ -539,7 +539,7 @@ export function DeployModal({
   return (
     <>
       <Modal open={open} onOpenChange={handleCloseModal}>
-        <ModalContent className='h-[76vh] w-[660px]'>
+        <ModalContent size='lg' className='h-[76vh]'>
           <ModalHeader>Deploy Workflow</ModalHeader>
 
           <ModalTabs
@@ -697,7 +697,7 @@ export function DeployModal({
       </Modal>
 
       <Modal open={showUndeployConfirm} onOpenChange={setShowUndeployConfirm}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Undeploy API</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>

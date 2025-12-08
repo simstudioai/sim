@@ -103,6 +103,20 @@ const ModalOverlay = React.forwardRef<
 
 ModalOverlay.displayName = 'ModalOverlay'
 
+/**
+ * Modal size variants with responsive viewport-based sizing.
+ * Each size uses viewport units with sensible min/max constraints.
+ */
+const MODAL_SIZES = {
+  sm: 'w-[90vw] max-w-[400px]',
+  md: 'w-[90vw] max-w-[500px]',
+  lg: 'w-[90vw] max-w-[600px]',
+  xl: 'w-[90vw] max-w-[800px]',
+  full: 'w-[95vw] max-w-[1200px]',
+} as const
+
+export type ModalSize = keyof typeof MODAL_SIZES
+
 export interface ModalContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
   /**
@@ -110,6 +124,16 @@ export interface ModalContentProps
    * @default true
    */
   showClose?: boolean
+  /**
+   * Modal size variant with responsive viewport-based sizing.
+   * - sm: max 400px (dialogs, confirmations)
+   * - md: max 500px (default, forms)
+   * - lg: max 600px (content-heavy modals)
+   * - xl: max 800px (complex editors)
+   * - full: max 1200px (dashboards, large content)
+   * @default 'md'
+   */
+  size?: ModalSize
 }
 
 /**
@@ -119,7 +143,7 @@ export interface ModalContentProps
 const ModalContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   ModalContentProps
->(({ className, children, showClose = true, style, ...props }, ref) => {
+>(({ className, children, showClose = true, size = 'md', style, ...props }, ref) => {
   const [isInteractionReady, setIsInteractionReady] = React.useState(false)
 
   React.useEffect(() => {
@@ -135,7 +159,8 @@ const ModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] left-[50%] z-[500] flex max-h-[80vh] w-[30vw] min-w-[400px] translate-x-[-50%] translate-y-[-50%] flex-col rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
+          'fixed top-[50%] left-[50%] z-[500] flex max-h-[85vh] translate-x-[-50%] translate-y-[-50%] flex-col rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
+          MODAL_SIZES[size],
           className
         )}
         style={style}
@@ -169,14 +194,17 @@ const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
   ({ className, children, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('flex items-center justify-between px-[16px] py-[10px]', className)}
+      className={cn(
+        'flex min-w-0 items-center justify-between gap-[8px] px-[16px] py-[10px]',
+        className
+      )}
       {...props}
     >
-      <DialogPrimitive.Title className='font-medium text-[16px] text-[var(--text-primary)]'>
+      <DialogPrimitive.Title className='min-w-0 truncate font-medium text-[16px] text-[var(--text-primary)]'>
         {children}
       </DialogPrimitive.Title>
       <DialogPrimitive.Close asChild>
-        <Button variant='ghost' className='h-[16px] w-[16px] p-0'>
+        <Button variant='ghost' className='h-[16px] w-[16px] flex-shrink-0 p-0'>
           <X className='h-[16px] w-[16px]' />
           <span className='sr-only'>Close</span>
         </Button>
@@ -365,4 +393,5 @@ export {
   ModalPortal,
   ModalOverlay,
   ModalClose,
+  MODAL_SIZES,
 }
