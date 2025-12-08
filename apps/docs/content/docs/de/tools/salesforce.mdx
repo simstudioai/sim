@@ -413,6 +413,165 @@ Löschen eines Kontos aus Salesforce CRM
 | `success` | boolean | Status des Operationserfolgs |
 | `output` | json | Ergebnisdaten der Operation |
 
+### `salesforce_list_reports`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | json | Ergebnisdaten der Operation |
+
+### `salesforce_get_report`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | json | Ergebnisdaten der Operation |
+
+### `salesforce_run_report`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | json | Ergebnisdaten der Operation |
+
+### `salesforce_list_report_types`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | json | Ergebnisdaten der Operation |
+
+### `salesforce_list_dashboards`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | json | Ergebnisdaten der Operation |
+
+### `salesforce_get_dashboard`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | json | Ergebnisdaten der Operation |
+
+### `salesforce_refresh_dashboard`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | json | Ergebnisdaten der Operation |
+
+### `salesforce_query`
+
+Führt eine benutzerdefinierte SOQL-Abfrage aus, um Daten von Salesforce abzurufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Nein | Keine Beschreibung |
+| `instanceUrl` | string | Nein | Keine Beschreibung |
+| `query` | string | Ja | Auszuführende SOQL-Abfrage \(z.B. SELECT Id, Name FROM Account LIMIT 10\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus |
+| `output` | object | Abfrageergebnisse |
+
+### `salesforce_query_more`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | json | Ergebnisdaten der Operation |
+
+### `salesforce_describe_object`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | json | Ergebnisdaten der Operation |
+
+### `salesforce_list_objects`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | json | Ergebnisdaten der Operation |
+
 ## Hinweise
 
 - Kategorie: `tools`

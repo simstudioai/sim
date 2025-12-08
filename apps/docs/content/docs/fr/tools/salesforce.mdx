@@ -413,6 +413,165 @@ Supprimer un compte de Salesforce CRM
 | `success` | boolean | Statut de réussite de l'opération |
 | `output` | json | Données résultant de l'opération |
 
+### `salesforce_list_reports`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | json | Données résultant de l'opération |
+
+### `salesforce_get_report`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | json | Données résultant de l'opération |
+
+### `salesforce_run_report`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | json | Données résultant de l'opération |
+
+### `salesforce_list_report_types`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | json | Données résultant de l'opération |
+
+### `salesforce_list_dashboards`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | json | Données résultant de l'opération |
+
+### `salesforce_get_dashboard`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | json | Données résultant de l'opération |
+
+### `salesforce_refresh_dashboard`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | json | Données résultant de l'opération |
+
+### `salesforce_query`
+
+Exécuter une requête SOQL personnalisée pour récupérer des données depuis Salesforce
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Non | Pas de description |
+| `instanceUrl` | string | Non | Pas de description |
+| `query` | string | Oui | Requête SOQL à exécuter \(ex. : SELECT Id, Name FROM Account LIMIT 10\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite |
+| `output` | object | Résultats de la requête |
+
+### `salesforce_query_more`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | json | Données résultant de l'opération |
+
+### `salesforce_describe_object`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | json | Données résultant de l'opération |
+
+### `salesforce_list_objects`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | json | Données résultant de l'opération |
+
 ## Notes
 
 - Catégorie : `tools`
