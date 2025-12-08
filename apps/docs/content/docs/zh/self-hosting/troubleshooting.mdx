@@ -1,0 +1,113 @@
+---
+title: 故障排除
+description: 常见问题及解决方案
+---
+
+## 数据库连接失败
+
+```bash
+# Check database is running
+docker compose ps db
+
+# Test connection
+docker compose exec db psql -U postgres -c "SELECT 1"
+```
+
+验证 `DATABASE_URL` 格式：`postgresql://user:pass@host:5432/database`
+
+## Ollama 模型未显示
+
+在 Docker 中，`localhost` = 容器，而不是您的主机。
+
+```bash
+# For host-machine Ollama, use:
+OLLAMA_URL=http://host.docker.internal:11434  # macOS/Windows
+OLLAMA_URL=http://192.168.1.x:11434           # Linux (use actual IP)
+```
+
+## WebSocket/实时功能无法正常工作
+
+1. 检查 `NEXT_PUBLIC_SOCKET_URL` 是否与您的域名匹配
+2. 验证实时服务是否正在运行：`docker compose ps realtime`
+3. 确保反向代理支持 WebSocket 升级（参见 [Docker 指南](/self-hosting/docker)）
+
+## 502 错误网关
+
+```bash
+# Check app is running
+docker compose ps simstudio
+docker compose logs simstudio
+
+# Common causes: out of memory, database not ready
+```
+
+## 迁移错误
+
+```bash
+# View migration logs
+docker compose logs migrations
+
+# Run manually
+docker compose exec simstudio bun run db:migrate
+```
+
+## 找不到 pgvector
+
+使用正确的 PostgreSQL 镜像：
+
+```yaml
+image: pgvector/pgvector:pg17  # NOT postgres:17
+```
+
+## 证书错误 (CERT_HAS_EXPIRED)
+
+如果调用外部 API 时出现 SSL 证书错误：
+
+```bash
+# Update CA certificates in container
+docker compose exec simstudio apt-get update && apt-get install -y ca-certificates
+
+# Or set in environment (not recommended for production)
+NODE_TLS_REJECT_UNAUTHORIZED=0
+```
+
+## 登录后出现空白页面
+
+1. 检查浏览器控制台是否有错误
+2. 验证 `NEXT_PUBLIC_APP_URL` 是否与您的实际域名匹配
+3. 清除浏览器的 Cookie 和本地存储
+4. 检查所有服务是否正在运行：`docker compose ps`
+
+## Windows 特定问题
+
+**Windows 上的 Turbopack 错误：**
+
+```bash
+# Use WSL2 for better compatibility
+wsl --install
+
+# Or disable Turbopack in package.json
+# Change "next dev --turbopack" to "next dev"
+```
+
+**行尾问题：**
+
+```bash
+# Configure git to use LF
+git config --global core.autocrlf input
+```
+
+## 查看日志
+
+```bash
+# All services
+docker compose logs -f
+
+# Specific service
+docker compose logs -f simstudio
+```
+
+## 获取帮助
+
+- [GitHub Issues](https://github.com/simstudioai/sim/issues)
+- [Discord](https://discord.gg/Hr4UWYEcTT)

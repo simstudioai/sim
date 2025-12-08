@@ -1,0 +1,50 @@
+---
+title: セルフホスティング
+description: 自社のインフラストラクチャにSim Studioをデプロイ
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+DockerまたはKubernetesを使用して、自社のインフラストラクチャにSim Studioをデプロイします。
+
+## 要件
+
+| リソース | 最小 | 推奨 |
+|----------|---------|-------------|
+| CPU | 2コア | 4+コア |
+| RAM | 12 GB | 16+ GB |
+| ストレージ | 20 GB SSD | 50+ GB SSD |
+| Docker | 20.10+ | 最新版 |
+
+## クイックスタート
+
+```bash
+git clone https://github.com/simstudioai/sim.git && cd sim
+docker compose -f docker-compose.prod.yml up -d
+```
+
+[http://localhost:3000](http://localhost:3000)を開く
+
+## デプロイオプション
+
+<Cards>
+  <Card title="Docker" href="/self-hosting/docker">
+    任意のサーバーでDocker Composeを使用してデプロイ
+  </Card>
+  <Card title="Kubernetes" href="/self-hosting/kubernetes">
+    KubernetesクラスターでHelmを使用してデプロイ
+  </Card>
+  <Card title="クラウドプラットフォーム" href="/self-hosting/platforms">
+    Railway、DigitalOcean、AWS、Azure、GCPのガイド
+  </Card>
+</Cards>
+
+## アーキテクチャ
+
+| コンポーネント | ポート | 説明 |
+|-----------|------|-------------|
+| simstudio | 3000 | メインアプリケーション |
+| realtime | 3002 | WebSocketサーバー |
+| db | 5432 | pgvector搭載のPostgreSQL |
+| migrations | - | データベースマイグレーション（一度だけ実行） |
