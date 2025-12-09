@@ -1,22 +1,22 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Library, Loader2, RefreshCw, Search } from 'lucide-react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Button, Tooltip } from '@/components/emcn'
-import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/core/utils/cn'
-import { Timeline } from '@/app/workspace/[workspaceId]/logs/components'
-import { mapToExecutionLog, mapToExecutionLogAlt } from '@/app/workspace/[workspaceId]/logs/utils'
+import { Loader2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  formatLatency,
+  mapToExecutionLog,
+  mapToExecutionLogAlt,
+} from '@/app/workspace/[workspaceId]/logs/utils'
 import {
   useExecutionsMetrics,
   useGlobalDashboardLogs,
   useWorkflowDashboardLogs,
 } from '@/hooks/queries/logs'
-import { formatCost } from '@/providers/utils'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { KPIs, WorkflowDetails, WorkflowsList } from './components'
+import { LineChart, WorkflowsList } from './components'
 
 type TimeFilter = '30m' | '1h' | '6h' | '12h' | '24h' | '3d' | '7d' | '14d' | '30d'
 
@@ -40,31 +40,128 @@ interface WorkflowExecution {
 const DEFAULT_SEGMENTS = 72
 const MIN_SEGMENT_PX = 10
 
-interface ExecutionLog {
-  id: string
-  executionId: string
-  startedAt: string
-  level: string
-  trigger: string
-  triggerUserId: string | null
-  triggerInputs: any
-  outputs: any
-  errorMessage: string | null
-  duration: number | null
-  cost: {
-    input: number
-    output: number
-    total: number
-  } | null
-  workflowName?: string
-  workflowColor?: string
+/**
+ * Skeleton loader for a single graph card
+ */
+function GraphCardSkeleton({ title }: { title: string }) {
+  return (
+    <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-elevated)]'>
+      <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px]'>
+        <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
+          {title}
+        </span>
+        <Skeleton className='h-[20px] w-[40px]' />
+      </div>
+      <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-1)] px-[14px] py-[10px]'>
+        <div className='flex h-[166px] flex-col justify-end gap-[4px]'>
+          {/* Skeleton bars simulating chart */}
+          <div className='flex items-end gap-[2px]'>
+            {Array.from({ length: 24 }).map((_, i) => (
+              <Skeleton
+                key={i}
+                className='flex-1'
+                style={{
+                  height: `${Math.random() * 80 + 20}%`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
-export default function Dashboard() {
+/**
+ * Skeleton loader for a workflow row in the workflows list
+ */
+function WorkflowRowSkeleton() {
+  return (
+    <div className='flex h-[44px] items-center gap-[16px] px-[24px]'>
+      {/* Workflow name with color */}
+      <div className='flex w-[160px] flex-shrink-0 items-center gap-[8px] pr-[8px]'>
+        <Skeleton className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]' />
+        <Skeleton className='h-[16px] flex-1' />
+      </div>
+
+      {/* Status bar - takes most of the space */}
+      <div className='flex-1'>
+        <Skeleton className='h-[24px] w-full rounded-[4px]' />
+      </div>
+
+      {/* Success rate */}
+      <div className='w-[100px] flex-shrink-0 pl-[16px]'>
+        <Skeleton className='h-[16px] w-[50px]' />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Skeleton loader for the workflows list table
+ */
+function WorkflowsListSkeleton({ rowCount = 5 }: { rowCount?: number }) {
+  return (
+    <div className='flex h-full flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)]'>
+      {/* Table header */}
+      <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px]'>
+        <div className='flex items-center gap-[16px]'>
+          <span className='w-[160px] flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
+            Workflow
+          </span>
+          <span className='flex-1 font-medium text-[12px] text-[var(--text-tertiary)]'>Logs</span>
+          <span className='w-[100px] flex-shrink-0 pl-[16px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+            Success Rate
+          </span>
+        </div>
+      </div>
+
+      {/* Table body - scrollable */}
+      <div className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden'>
+        {Array.from({ length: rowCount }).map((_, i) => (
+          <WorkflowRowSkeleton key={i} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Complete skeleton loader for the entire dashboard
+ */
+function DashboardSkeleton() {
+  return (
+    <div className='mt-[24px] flex min-h-0 flex-1 flex-col'>
+      {/* Graphs Section */}
+      <div className='mb-[16px] flex-shrink-0'>
+        <div className='grid grid-cols-1 gap-[16px] md:grid-cols-3'>
+          <GraphCardSkeleton title='Runs' />
+          <GraphCardSkeleton title='Errors' />
+          <GraphCardSkeleton title='Latency' />
+        </div>
+      </div>
+
+      {/* Workflows Table - takes remaining space */}
+      <div className='min-h-0 flex-1 overflow-hidden'>
+        <WorkflowsListSkeleton rowCount={14} />
+      </div>
+    </div>
+  )
+}
+
+interface DashboardProps {
+  isLive?: boolean
+  refreshTrigger?: number
+  onCustomTimeRangeChange?: (isCustom: boolean) => void
+}
+
+export default function Dashboard({
+  isLive = false,
+  refreshTrigger = 0,
+  onCustomTimeRangeChange,
+}: DashboardProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const router = useRouter()
-  const searchParams = useSearchParams()
 
   const getTimeFilterFromRange = (range: string): TimeFilter => {
     switch (range) {
@@ -90,11 +187,11 @@ export default function Dashboard() {
         return '30d'
     }
   }
+
   const [endTime, setEndTime] = useState<Date>(new Date())
   const [expandedWorkflowId, setExpandedWorkflowId] = useState<string | null>(null)
   const [selectedSegments, setSelectedSegments] = useState<Record<string, number[]>>({})
   const [lastAnchorIndices, setLastAnchorIndices] = useState<Record<string, number>>({})
-  const [searchQuery, setSearchQuery] = useState('')
   const [segmentCount, setSegmentCount] = useState<number>(DEFAULT_SEGMENTS)
   const barsAreaRef = useRef<HTMLDivElement | null>(null)
 
@@ -102,9 +199,9 @@ export default function Dashboard() {
     workflowIds,
     folderIds,
     triggers,
-    viewMode,
-    setViewMode,
     timeRange: sidebarTimeRange,
+    level,
+    searchQuery,
   } = useFilterStore()
 
   const { workflows } = useWorkflowRegistry()
@@ -158,8 +255,9 @@ export default function Dashboard() {
       workflowIds: workflowIds.length > 0 ? workflowIds : undefined,
       folderIds: folderIds.length > 0 ? folderIds : undefined,
       triggers: triggers.length > 0 ? triggers : undefined,
+      level: level !== 'all' ? level : undefined,
     }),
-    [workspaceId, segmentCount, getStartTime, endTime, workflowIds, folderIds, triggers]
+    [workspaceId, segmentCount, getStartTime, endTime, workflowIds, folderIds, triggers, level]
   )
 
   const logsFilters = useMemo(
@@ -170,9 +268,11 @@ export default function Dashboard() {
       workflowIds: workflowIds.length > 0 ? workflowIds : undefined,
       folderIds: folderIds.length > 0 ? folderIds : undefined,
       triggers: triggers.length > 0 ? triggers : undefined,
+      level: level !== 'all' ? level : undefined,
+      searchQuery: searchQuery.trim() || undefined,
       limit: 50,
     }),
-    [workspaceId, getStartTime, endTime, workflowIds, folderIds, triggers]
+    [workspaceId, getStartTime, endTime, workflowIds, folderIds, triggers, level, searchQuery]
   )
 
   const metricsQuery = useExecutionsMetrics(metricsFilters, {
@@ -190,8 +290,47 @@ export default function Dashboard() {
   const executions = metricsQuery.data?.workflows ?? []
   const aggregateSegments = metricsQuery.data?.aggregateSegments ?? []
   const loading = metricsQuery.isLoading
-  const isRefetching = metricsQuery.isFetching && !metricsQuery.isLoading
   const error = metricsQuery.error?.message ?? null
+
+  // Check if any filters are actually applied
+  const hasActiveFilters = useMemo(
+    () =>
+      level !== 'all' ||
+      workflowIds.length > 0 ||
+      folderIds.length > 0 ||
+      triggers.length > 0 ||
+      searchQuery.trim() !== '',
+    [level, workflowIds, folderIds, triggers, searchQuery]
+  )
+
+  // Filter workflows based on search query and whether they have any executions matching the filters
+  const filteredExecutions = useMemo(() => {
+    let filtered = executions
+
+    // Only filter out workflows with no executions if filters are active
+    if (hasActiveFilters) {
+      filtered = filtered.filter((workflow) => {
+        const hasExecutions = workflow.segments.some((seg) => seg.hasExecutions === true)
+        return hasExecutions
+      })
+    }
+
+    // Apply search query filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      filtered = filtered.filter((workflow) => workflow.workflowName.toLowerCase().includes(query))
+    }
+
+    // Sort by creation date (newest first) to match sidebar ordering
+    filtered = filtered.sort((a, b) => {
+      const workflowA = workflows[a.workflowId]
+      const workflowB = workflows[b.workflowId]
+      if (!workflowA || !workflowB) return 0
+      return workflowB.createdAt.getTime() - workflowA.createdAt.getTime()
+    })
+
+    return filtered
+  }, [executions, searchQuery, hasActiveFilters, workflows])
 
   const globalLogs = useMemo(() => {
     if (!globalLogsQuery.data?.pages) return []
@@ -206,24 +345,139 @@ export default function Dashboard() {
   const globalDetails = useMemo(() => {
     if (!aggregateSegments.length) return null
 
-    const errorRates = aggregateSegments.map((s) => ({
+    const hasSelection = Object.keys(selectedSegments).length > 0
+    const hasWorkflowFilter = expandedWorkflowId && expandedWorkflowId !== '__multi__'
+
+    // Stack filters: workflow filter + segment selection
+    const segmentsToUse = hasSelection
+      ? (() => {
+          // Get all selected segment indices across all workflows
+          const allSelectedIndices = new Set<number>()
+          Object.values(selectedSegments).forEach((indices) => {
+            indices.forEach((idx) => allSelectedIndices.add(idx))
+          })
+
+          // For each selected index, aggregate data from workflows that have that segment selected
+          // If a workflow filter is active, only include that workflow's data
+          return Array.from(allSelectedIndices)
+            .sort((a, b) => a - b)
+            .map((idx) => {
+              let totalExecutions = 0
+              let successfulExecutions = 0
+              let weightedLatencySum = 0
+              let latencyCount = 0
+              const timestamp = aggregateSegments[idx]?.timestamp || ''
+
+              // Sum up data from workflows that have this segment selected
+              Object.entries(selectedSegments).forEach(([workflowId, indices]) => {
+                if (!indices.includes(idx)) return
+
+                // If workflow filter is active, skip other workflows
+                if (hasWorkflowFilter && workflowId !== expandedWorkflowId) return
+
+                const workflow = filteredExecutions.find((w) => w.workflowId === workflowId)
+                const segment = workflow?.segments[idx]
+                if (!segment) return
+
+                totalExecutions += segment.totalExecutions || 0
+                successfulExecutions += segment.successfulExecutions || 0
+
+                if (segment.avgDurationMs && segment.totalExecutions) {
+                  weightedLatencySum += segment.avgDurationMs * segment.totalExecutions
+                  latencyCount += segment.totalExecutions
+                }
+              })
+
+              return {
+                timestamp,
+                totalExecutions,
+                successfulExecutions,
+                avgDurationMs: latencyCount > 0 ? weightedLatencySum / latencyCount : 0,
+              }
+            })
+        })()
+      : hasWorkflowFilter
+        ? (() => {
+            // Filter to show only the expanded workflow's data
+            const workflow = filteredExecutions.find((w) => w.workflowId === expandedWorkflowId)
+            if (!workflow) return aggregateSegments
+
+            return workflow.segments.map((segment) => ({
+              timestamp: segment.timestamp,
+              totalExecutions: segment.totalExecutions || 0,
+              successfulExecutions: segment.successfulExecutions || 0,
+              avgDurationMs: segment.avgDurationMs ?? 0,
+            }))
+          })()
+        : hasActiveFilters
+          ? (() => {
+              // Always recalculate aggregate segments based on filtered workflows when filters are active
+              return aggregateSegments.map((aggSeg, idx) => {
+                let totalExecutions = 0
+                let successfulExecutions = 0
+                let weightedLatencySum = 0
+                let latencyCount = 0
+
+                filteredExecutions.forEach((workflow) => {
+                  const segment = workflow.segments[idx]
+                  if (!segment) return
+
+                  totalExecutions += segment.totalExecutions || 0
+                  successfulExecutions += segment.successfulExecutions || 0
+
+                  if (segment.avgDurationMs && segment.totalExecutions) {
+                    weightedLatencySum += segment.avgDurationMs * segment.totalExecutions
+                    latencyCount += segment.totalExecutions
+                  }
+                })
+
+                return {
+                  timestamp: aggSeg.timestamp,
+                  totalExecutions,
+                  successfulExecutions,
+                  avgDurationMs: latencyCount > 0 ? weightedLatencySum / latencyCount : 0,
+                }
+              })
+            })()
+          : aggregateSegments
+
+    const errorRates = segmentsToUse.map((s) => ({
       timestamp: s.timestamp,
       value: s.totalExecutions > 0 ? (1 - s.successfulExecutions / s.totalExecutions) * 100 : 0,
     }))
 
-    const executionCounts = aggregateSegments.map((s) => ({
+    const executionCounts = segmentsToUse.map((s) => ({
       timestamp: s.timestamp,
       value: s.totalExecutions,
+    }))
+
+    const failureCounts = segmentsToUse.map((s) => ({
+      timestamp: s.timestamp,
+      value: s.totalExecutions - s.successfulExecutions,
+    }))
+
+    const latencies = segmentsToUse.map((s) => ({
+      timestamp: s.timestamp,
+      value: s.avgDurationMs ?? 0,
     }))
 
     return {
       errorRates,
       durations: [],
       executionCounts,
+      failureCounts,
+      latencies,
       logs: globalLogs,
       allLogs: globalLogs,
     }
-  }, [aggregateSegments, globalLogs])
+  }, [
+    aggregateSegments,
+    globalLogs,
+    selectedSegments,
+    filteredExecutions,
+    expandedWorkflowId,
+    hasActiveFilters,
+  ])
 
   const workflowDetails = useMemo(() => {
     if (!expandedWorkflowId || !workflowLogs.length) return {}
@@ -239,51 +493,51 @@ export default function Dashboard() {
     }
   }, [expandedWorkflowId, workflowLogs])
 
-  useEffect(() => {
-    const urlView = searchParams.get('view')
-    if (urlView === 'dashboard' || urlView === 'logs') {
-      if ((viewMode as string) !== urlView) setViewMode(urlView as any)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const sp = new URLSearchParams(Array.from(searchParams.entries()))
-    if (!sp.get('view')) {
-      sp.set('view', viewMode as string)
-      router.replace(`${window.location.pathname}?${sp.toString()}`, { scroll: false })
-      return
-    }
-    if (sp.get('view') !== (viewMode as string)) {
-      sp.set('view', viewMode as string)
-      router.replace(`${window.location.pathname}?${sp.toString()}`, { scroll: false })
-    }
-  }, [viewMode, router, searchParams])
-
-  const filteredExecutions = searchQuery.trim()
-    ? executions.filter((workflow) =>
-        workflow.workflowName.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : executions
-
   const aggregate = useMemo(() => {
+    const hasSelection = Object.keys(selectedSegments).length > 0
+    const hasWorkflowFilter = expandedWorkflowId && expandedWorkflowId !== '__multi__'
     let totalExecutions = 0
     let successfulExecutions = 0
     let activeWorkflows = 0
+    let weightedLatencySum = 0
+    let latencyExecutionCount = 0
 
-    for (const wf of executions) {
+    // Apply workflow filter first if present, otherwise use filtered executions
+    const workflowsToProcess = hasWorkflowFilter
+      ? filteredExecutions.filter((wf) => wf.workflowId === expandedWorkflowId)
+      : filteredExecutions
+
+    for (const wf of workflowsToProcess) {
+      const selectedIndices = hasSelection ? selectedSegments[wf.workflowId] : null
       let workflowHasExecutions = false
-      for (const seg of wf.segments) {
-        totalExecutions += seg.totalExecutions || 0
-        successfulExecutions += seg.successfulExecutions || 0
-        if (seg.hasExecutions) workflowHasExecutions = true
-      }
+
+      wf.segments.forEach((seg, idx) => {
+        // If segment selection exists, only count selected segments
+        // Otherwise, count all segments
+        if (!selectedIndices || selectedIndices.includes(idx)) {
+          const execCount = seg.totalExecutions || 0
+          totalExecutions += execCount
+          successfulExecutions += seg.successfulExecutions || 0
+
+          if (
+            seg.avgDurationMs !== undefined &&
+            seg.avgDurationMs !== null &&
+            seg.avgDurationMs > 0 &&
+            execCount > 0
+          ) {
+            weightedLatencySum += seg.avgDurationMs * execCount
+            latencyExecutionCount += execCount
+          }
+          if (seg.hasExecutions) workflowHasExecutions = true
+        }
+      })
+
       if (workflowHasExecutions) activeWorkflows += 1
     }
 
     const failedExecutions = Math.max(totalExecutions - successfulExecutions, 0)
     const successRate = totalExecutions > 0 ? (successfulExecutions / totalExecutions) * 100 : 100
+    const avgLatency = latencyExecutionCount > 0 ? weightedLatencySum / latencyExecutionCount : 0
 
     return {
       totalExecutions,
@@ -291,8 +545,9 @@ export default function Dashboard() {
       failedExecutions,
       activeWorkflows,
       successRate,
+      avgLatency,
     }
-  }, [executions])
+  }, [filteredExecutions, selectedSegments, expandedWorkflowId])
 
   const loadMoreLogs = useCallback(
     (workflowId: string) => {
@@ -317,8 +572,12 @@ export default function Dashboard() {
     (workflowId: string) => {
       if (expandedWorkflowId === workflowId) {
         setExpandedWorkflowId(null)
+        setSelectedSegments({})
+        setLastAnchorIndices({})
       } else {
         setExpandedWorkflowId(workflowId)
+        setSelectedSegments({})
+        setLastAnchorIndices({})
       }
     },
     [expandedWorkflowId]
@@ -395,18 +654,63 @@ export default function Dashboard() {
         }
       }
     },
-    [expandedWorkflowId, workflowDetails, lastAnchorIndices]
+    [expandedWorkflowId, lastAnchorIndices]
   )
 
+  // Update endTime when filters change to ensure consistent time ranges with logs view
   useEffect(() => {
+    setEndTime(new Date())
     setSelectedSegments({})
     setLastAnchorIndices({})
-  }, [timeFilter, endTime, workflowIds, folderIds, triggers])
+  }, [timeFilter, workflowIds, folderIds, triggers, level, searchQuery])
+
+  // Clear expanded workflow if it's no longer in filtered executions
+  useEffect(() => {
+    if (expandedWorkflowId && expandedWorkflowId !== '__multi__') {
+      const isStillVisible = filteredExecutions.some((wf) => wf.workflowId === expandedWorkflowId)
+      if (!isStillVisible) {
+        setExpandedWorkflowId(null)
+        setSelectedSegments({})
+        setLastAnchorIndices({})
+      }
+    } else if (expandedWorkflowId === '__multi__') {
+      // Check if any of the selected workflows are still visible
+      const selectedWorkflowIds = Object.keys(selectedSegments)
+      const stillVisibleIds = selectedWorkflowIds.filter((id) =>
+        filteredExecutions.some((wf) => wf.workflowId === id)
+      )
+
+      if (stillVisibleIds.length === 0) {
+        setExpandedWorkflowId(null)
+        setSelectedSegments({})
+        setLastAnchorIndices({})
+      } else if (stillVisibleIds.length !== selectedWorkflowIds.length) {
+        // Remove segments for workflows that are no longer visible
+        const updatedSegments: Record<string, number[]> = {}
+        stillVisibleIds.forEach((id) => {
+          if (selectedSegments[id]) {
+            updatedSegments[id] = selectedSegments[id]
+          }
+        })
+        setSelectedSegments(updatedSegments)
+
+        if (stillVisibleIds.length === 1) {
+          setExpandedWorkflowId(stillVisibleIds[0])
+        }
+      }
+    }
+  }, [filteredExecutions, expandedWorkflowId, selectedSegments])
+
+  // Notify parent when custom time range is active
+  useEffect(() => {
+    const hasCustomRange = Object.keys(selectedSegments).length > 0
+    onCustomTimeRangeChange?.(hasCustomRange)
+  }, [selectedSegments, onCustomTimeRangeChange])
 
   useEffect(() => {
     if (!barsAreaRef.current) return
     const el = barsAreaRef.current
-    let debounceId: any = null
+    let debounceId: ReturnType<typeof setTimeout> | null = null
     const ro = new ResizeObserver(([entry]) => {
       const w = entry?.contentRect?.width || 720
       const n = Math.max(36, Math.min(96, Math.floor(w / MIN_SEGMENT_PX)))
@@ -427,590 +731,561 @@ export default function Dashboard() {
     }
   }, [])
 
-  const getDateRange = () => {
-    const start = getStartTime()
-    return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} - ${endTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', year: 'numeric' })}`
-  }
-
-  const resetToNow = () => {
-    setEndTime(new Date())
-  }
-
-  const [live, setLive] = useState(false)
-
+  // Live mode: refresh endTime periodically
   useEffect(() => {
-    let interval: any
-    if (live) {
-      interval = setInterval(() => {
-        resetToNow()
-      }, 5000)
+    if (!isLive) return
+    const interval = setInterval(() => {
+      setEndTime(new Date())
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [isLive])
+
+  // Refresh when trigger changes
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      setEndTime(new Date())
     }
-    return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [live])
+  }, [refreshTrigger])
+
+  if (loading) {
+    return <DashboardSkeleton />
+  }
+
+  if (error) {
+    return (
+      <div className='mt-[24px] flex flex-1 items-center justify-center'>
+        <div className='text-[var(--text-error)]'>
+          <p className='font-medium text-[13px]'>Error loading data</p>
+          <p className='text-[12px]'>{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (executions.length === 0) {
+    return (
+      <div className='mt-[24px] flex flex-1 items-center justify-center'>
+        <div className='text-center text-[var(--text-secondary)]'>
+          <p className='font-medium text-[13px]'>No execution history</p>
+          <p className='mt-[4px] text-[12px]'>Execute some workflows to see their history here</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className='flex h-full flex-1 flex-col overflow-hidden'>
-      <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
-          <div>
-            <div className='flex items-start gap-[12px]'>
-              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#1E3A5A] bg-[#0F2C4D]'>
-                <Library className='h-[14px] w-[14px] text-[#3B82F6]' />
-              </div>
-              <h1 className='font-medium text-[18px]'>Logs</h1>
+    <div className='mt-[24px] flex min-h-0 flex-1 flex-col'>
+      {/* Graphs Section */}
+      <div className='mb-[16px] flex-shrink-0'>
+        <div className='grid grid-cols-1 gap-[16px] md:grid-cols-3'>
+          {/* Runs Graph */}
+          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-elevated)]'>
+            <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px]'>
+              <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
+                Runs
+              </span>
+              {globalDetails && globalDetails.executionCounts.length > 0 && (
+                <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-sm'>
+                  {aggregate.totalExecutions}
+                </span>
+              )}
             </div>
-            <p className='mt-[10px] font-base text-[#888888] text-[14px]'>
-              View workflow run history and analyze performance.
-            </p>
-          </div>
-
-          <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
-              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-              <Input
-                placeholder='Search'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
-            <div className='flex items-center gap-[8px]'>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='default'
-                    className={cn(
-                      'h-[32px] w-[32px] rounded-[6px] p-0',
-                      isRefetching && 'opacity-50'
-                    )}
-                    onClick={isRefetching ? undefined : resetToNow}
-                  >
-                    {isRefetching ? (
-                      <Loader2 className='h-[14px] w-[14px] animate-spin' />
-                    ) : (
-                      <RefreshCw className='h-[14px] w-[14px]' />
-                    )}
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>{isRefetching ? 'Refreshing...' : 'Refresh'}</Tooltip.Content>
-              </Tooltip.Root>
-
-              <Button
-                variant={live ? 'primary' : 'default'}
-                onClick={() => setLive((prev) => !prev)}
-                className='h-[32px] rounded-[6px] px-[10px]'
-              >
-                Live
-              </Button>
-
-              <div className='flex h-[32px] items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-elevated)] p-[2px]'>
-                <Button
-                  variant={(viewMode as string) !== 'dashboard' ? 'active' : 'ghost'}
-                  onClick={() => setViewMode('logs')}
-                  className='h-[26px] rounded-[4px] px-[10px] text-[13px]'
-                >
-                  Logs
-                </Button>
-                <Button
-                  variant={(viewMode as string) === 'dashboard' ? 'active' : 'ghost'}
-                  onClick={() => setViewMode('dashboard')}
-                  className='h-[26px] rounded-[4px] px-[10px] text-[13px]'
-                >
-                  Dashboard
-                </Button>
-              </div>
+            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-1)] px-[14px] py-[10px]'>
+              {globalDetails ? (
+                <LineChart
+                  key={`runs-${expandedWorkflowId || 'all'}-${Object.keys(selectedSegments).length}-${filteredExecutions.length}`}
+                  data={globalDetails.executionCounts}
+                  label=''
+                  color='var(--brand-tertiary)'
+                  unit=''
+                />
+              ) : (
+                <div className='flex h-[166px] items-center justify-center'>
+                  <Loader2 className='h-[16px] w-[16px] animate-spin text-[var(--text-secondary)]' />
+                </div>
+              )}
             </div>
           </div>
 
-          {loading ? (
-            <div className='mt-[24px] flex flex-1 items-center justify-center'>
-              <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
-                <Loader2 className='h-[16px] w-[16px] animate-spin' />
-                <span className='text-[13px]'>Loading execution history...</span>
-              </div>
+          {/* Errors Graph */}
+          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-elevated)]'>
+            <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px]'>
+              <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
+                Errors
+              </span>
+              {globalDetails && globalDetails.failureCounts.length > 0 && (
+                <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-sm'>
+                  {aggregate.failedExecutions}
+                </span>
+              )}
             </div>
-          ) : error ? (
-            <div className='mt-[24px] flex flex-1 items-center justify-center'>
-              <div className='text-[var(--text-error)]'>
-                <p className='font-medium text-[13px]'>Error loading data</p>
-                <p className='text-[12px]'>{error}</p>
-              </div>
-            </div>
-          ) : executions.length === 0 ? (
-            <div className='mt-[24px] flex flex-1 items-center justify-center'>
-              <div className='text-center text-[var(--text-secondary)]'>
-                <p className='font-medium text-[13px]'>No execution history</p>
-                <p className='mt-[4px] text-[12px]'>
-                  Execute some workflows to see their history here
-                </p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className='sticky top-0 z-10 mt-[24px] mb-1 bg-background pb-1'>
-                <div className='mb-3 flex items-center justify-between'>
-                  <div className='flex min-w-0 items-center gap-3'>
-                    <span className='max-w-[40vw] truncate font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      {getDateRange()}
-                    </span>
-                    {(workflowIds.length > 0 || folderIds.length > 0 || triggers.length > 0) && (
-                      <div className='flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]'>
-                        <span>Filters:</span>
-                        {workflowIds.length > 0 && (
-                          <span className='inline-flex items-center rounded-[6px] bg-primary/10 px-2 py-0.5 text-[11px] text-primary'>
-                            {workflowIds.length} workflow{workflowIds.length !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                        {folderIds.length > 0 && (
-                          <span className='inline-flex items-center rounded-[6px] bg-primary/10 px-2 py-0.5 text-[11px] text-primary'>
-                            {folderIds.length} folder{folderIds.length !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                        {triggers.length > 0 && (
-                          <span className='inline-flex items-center rounded-[6px] bg-primary/10 px-2 py-0.5 text-[11px] text-primary'>
-                            {triggers.length} trigger{triggers.length !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className='flex items-center gap-2'>
-                    <div className='mr-2 hidden sm:block'>
-                      <Timeline variant='header' />
-                    </div>
-                  </div>
+            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-1)] px-[14px] py-[10px]'>
+              {globalDetails ? (
+                <LineChart
+                  key={`errors-${expandedWorkflowId || 'all'}-${Object.keys(selectedSegments).length}-${filteredExecutions.length}`}
+                  data={globalDetails.failureCounts}
+                  label=''
+                  color='var(--text-error)'
+                  unit=''
+                />
+              ) : (
+                <div className='flex h-[166px] items-center justify-center'>
+                  <Loader2 className='h-[16px] w-[16px] animate-spin text-[var(--text-secondary)]' />
                 </div>
+              )}
+            </div>
+          </div>
 
-                <KPIs aggregate={aggregate} />
-
-                <div ref={barsAreaRef} className='mb-1'>
-                  <WorkflowsList
-                    executions={executions as any}
-                    filteredExecutions={filteredExecutions as any}
-                    expandedWorkflowId={expandedWorkflowId}
-                    onToggleWorkflow={toggleWorkflow}
-                    selectedSegments={selectedSegments}
-                    onSegmentClick={handleSegmentClick}
-                    searchQuery={searchQuery}
-                    segmentDurationMs={
-                      (endTime.getTime() - getStartTime().getTime()) / Math.max(1, segmentCount)
-                    }
-                  />
+          {/* Latency Graph */}
+          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-elevated)]'>
+            <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px]'>
+              <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
+                Latency
+              </span>
+              {globalDetails && globalDetails.latencies.length > 0 && (
+                <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-sm'>
+                  {formatLatency(aggregate.avgLatency)}
+                </span>
+              )}
+            </div>
+            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-1)] px-[14px] py-[10px]'>
+              {globalDetails ? (
+                <LineChart
+                  key={`latency-${expandedWorkflowId || 'all'}-${Object.keys(selectedSegments).length}-${filteredExecutions.length}`}
+                  data={globalDetails.latencies}
+                  label=''
+                  color='var(--c-F59E0B)'
+                  unit='latency'
+                />
+              ) : (
+                <div className='flex h-[166px] items-center justify-center'>
+                  <Loader2 className='h-[16px] w-[16px] animate-spin text-[var(--text-secondary)]' />
                 </div>
-              </div>
-
-              <div className='min-h-0 flex-1 overflow-auto'>
-                {(() => {
-                  if (expandedWorkflowId === '__multi__') {
-                    const selectedWorkflowIds = Object.keys(selectedSegments)
-                    const totalMs = endTime.getTime() - getStartTime().getTime()
-                    const segMs = totalMs / Math.max(1, segmentCount)
-
-                    const allSegmentIndices = new Set<number>()
-                    for (const indices of Object.values(selectedSegments)) {
-                      indices.forEach((idx) => allSegmentIndices.add(idx))
-                    }
-                    const sortedIndices = Array.from(allSegmentIndices).sort((a, b) => a - b)
-
-                    const allLogs: any[] = []
-                    let totalExecutions = 0
-                    let totalSuccess = 0
-
-                    const aggregatedSegments: Array<{
-                      timestamp: string
-                      totalExecutions: number
-                      successfulExecutions: number
-                      avgDurationMs: number
-                      durationCount: number
-                    }> = []
-
-                    for (const idx of sortedIndices) {
-                      let timestamp = ''
-                      for (const wfId of selectedWorkflowIds) {
-                        const wf = executions.find((w) => w.workflowId === wfId)
-                        if (wf?.segments[idx]) {
-                          timestamp = wf.segments[idx].timestamp
-                          break
-                        }
-                      }
-
-                      aggregatedSegments.push({
-                        timestamp,
-                        totalExecutions: 0,
-                        successfulExecutions: 0,
-                        avgDurationMs: 0,
-                        durationCount: 0,
-                      })
-                    }
-
-                    for (const wfId of selectedWorkflowIds) {
-                      const wf = executions.find((w) => w.workflowId === wfId)
-                      const details = workflowDetails[wfId]
-                      const indices = selectedSegments[wfId] || []
-
-                      if (!wf || !details || indices.length === 0) continue
-
-                      const windows = indices
-                        .map((idx) => wf.segments[idx])
-                        .filter(Boolean)
-                        .map((s) => {
-                          const start = new Date(s.timestamp).getTime()
-                          const end = start + segMs
-                          totalExecutions += s.totalExecutions || 0
-                          totalSuccess += s.successfulExecutions || 0
-                          return { start, end }
-                        })
-
-                      const inAnyWindow = (t: number) =>
-                        windows.some((w) => t >= w.start && t < w.end)
-
-                      const workflowLogs = details.allLogs
-                        .filter((log) => inAnyWindow(new Date(log.startedAt).getTime()))
-                        .map((log) => ({
-                          ...log,
-                          workflowName: (log as any).workflowName || wf.workflowName,
-                          workflowColor:
-                            (log as any).workflowColor || workflows[wfId]?.color || '#64748b',
-                        }))
-
-                      allLogs.push(...workflowLogs)
-
-                      indices.forEach((idx) => {
-                        const segment = wf.segments[idx]
-                        if (!segment) return
-
-                        const aggIndex = sortedIndices.indexOf(idx)
-                        if (aggIndex >= 0 && aggregatedSegments[aggIndex]) {
-                          const agg = aggregatedSegments[aggIndex]
-                          agg.totalExecutions += segment.totalExecutions || 0
-                          agg.successfulExecutions += segment.successfulExecutions || 0
-                          if (segment.avgDurationMs) {
-                            agg.avgDurationMs += segment.avgDurationMs
-                            agg.durationCount += 1
-                          }
-                        }
-                      })
-                    }
-
-                    const errorRates = aggregatedSegments.map((seg) => ({
-                      timestamp: seg.timestamp,
-                      value:
-                        seg.totalExecutions > 0
-                          ? (1 - seg.successfulExecutions / seg.totalExecutions) * 100
-                          : 0,
-                    }))
-
-                    const executionCounts = aggregatedSegments.map((seg) => ({
-                      timestamp: seg.timestamp,
-                      value: seg.totalExecutions,
-                    }))
-
-                    const durations = aggregatedSegments.map((seg) => ({
-                      timestamp: seg.timestamp,
-                      value: seg.durationCount > 0 ? seg.avgDurationMs / seg.durationCount : 0,
-                    }))
-
-                    allLogs.sort(
-                      (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
-                    )
-
-                    const totalFailures = Math.max(totalExecutions - totalSuccess, 0)
-                    const totalRate =
-                      totalExecutions > 0 ? (totalSuccess / totalExecutions) * 100 : 100
-
-                    let multiWorkflowTimeRange: { start: Date; end: Date } | null = null
-                    if (sortedIndices.length > 0) {
-                      const firstIdx = sortedIndices[0]
-                      const lastIdx = sortedIndices[sortedIndices.length - 1]
-
-                      let earliestStart: Date | null = null
-                      for (const wfId of selectedWorkflowIds) {
-                        const wf = executions.find((w) => w.workflowId === wfId)
-                        const segment = wf?.segments[firstIdx]
-                        if (segment) {
-                          const start = new Date(segment.timestamp)
-                          if (!earliestStart || start < earliestStart) {
-                            earliestStart = start
-                          }
-                        }
-                      }
-
-                      let latestEnd: Date | null = null
-                      for (const wfId of selectedWorkflowIds) {
-                        const wf = executions.find((w) => w.workflowId === wfId)
-                        const segment = wf?.segments[lastIdx]
-                        if (segment) {
-                          const end = new Date(new Date(segment.timestamp).getTime() + segMs)
-                          if (!latestEnd || end > latestEnd) {
-                            latestEnd = end
-                          }
-                        }
-                      }
-
-                      if (earliestStart && latestEnd) {
-                        multiWorkflowTimeRange = {
-                          start: earliestStart,
-                          end: latestEnd,
-                        }
-                      }
-                    }
-
-                    const workflowNames = selectedWorkflowIds
-                      .map((id) => executions.find((w) => w.workflowId === id)?.workflowName)
-                      .filter(Boolean) as string[]
-
-                    return (
-                      <WorkflowDetails
-                        workspaceId={workspaceId}
-                        expandedWorkflowId={'__multi__'}
-                        workflowName={`${selectedWorkflowIds.length} workflows selected`}
-                        overview={{
-                          total: totalExecutions,
-                          success: totalSuccess,
-                          failures: totalFailures,
-                          rate: totalRate,
-                        }}
-                        details={
-                          {
-                            errorRates,
-                            durations,
-                            executionCounts,
-                            logs: allLogs,
-                            allLogs: allLogs,
-                          } as any
-                        }
-                        selectedSegmentIndex={sortedIndices}
-                        selectedSegment={null}
-                        selectedSegmentTimeRange={multiWorkflowTimeRange}
-                        selectedWorkflowNames={workflowNames}
-                        segmentDurationMs={segMs}
-                        clearSegmentSelection={() => {
-                          setSelectedSegments({})
-                          setLastAnchorIndices({})
-                          setExpandedWorkflowId(null)
-                        }}
-                        formatCost={formatCost}
-                        onLoadMore={undefined}
-                        hasMore={false}
-                        isLoadingMore={false}
-                      />
-                    )
-                  }
-
-                  if (expandedWorkflowId) {
-                    const wf = executions.find((w) => w.workflowId === expandedWorkflowId)
-                    if (!wf) return null
-                    const total = wf.segments.reduce((s, x) => s + (x.totalExecutions || 0), 0)
-                    const success = wf.segments.reduce(
-                      (s, x) => s + (x.successfulExecutions || 0),
-                      0
-                    )
-                    const failures = Math.max(total - success, 0)
-                    const rate = total > 0 ? (success / total) * 100 : 100
-
-                    const details = workflowDetails[expandedWorkflowId]
-                    let logsToDisplay = (details?.logs || []).map((log) => ({
-                      ...log,
-                      workflowName: (log as any).workflowName || wf.workflowName,
-                    }))
-                    const buildSeriesFromSegments = (
-                      segs: WorkflowExecution['segments']
-                    ): {
-                      errorRates: { timestamp: string; value: number }[]
-                      executionCounts: { timestamp: string; value: number }[]
-                      durations: { timestamp: string; value: number }[]
-                      durationP50?: { timestamp: string; value: number }[]
-                      durationP90?: { timestamp: string; value: number }[]
-                      durationP99?: { timestamp: string; value: number }[]
-                    } => {
-                      const errorRates = segs.map((s) => ({
-                        timestamp: s.timestamp,
-                        value:
-                          s.totalExecutions > 0
-                            ? 100 -
-                              Math.min(
-                                100,
-                                Math.max(
-                                  0,
-                                  (s.successfulExecutions / Math.max(1, s.totalExecutions)) * 100
-                                )
-                              )
-                            : 0,
-                      }))
-                      const executionCounts = segs.map((s) => ({
-                        timestamp: s.timestamp,
-                        value: s.totalExecutions || 0,
-                      }))
-                      const durations = segs.map((s) => ({
-                        timestamp: s.timestamp,
-                        value: typeof s.avgDurationMs === 'number' ? s.avgDurationMs : 0,
-                      }))
-                      const durationP50 = segs.map((s) => ({
-                        timestamp: s.timestamp,
-                        value: typeof s.p50Ms === 'number' ? s.p50Ms : 0,
-                      }))
-                      const durationP90 = segs.map((s) => ({
-                        timestamp: s.timestamp,
-                        value: typeof s.p90Ms === 'number' ? s.p90Ms : 0,
-                      }))
-                      const durationP99 = segs.map((s) => ({
-                        timestamp: s.timestamp,
-                        value: typeof s.p99Ms === 'number' ? s.p99Ms : 0,
-                      }))
-                      return {
-                        errorRates,
-                        executionCounts,
-                        durations,
-                        durationP50,
-                        durationP90,
-                        durationP99,
-                      }
-                    }
-
-                    const workflowSelectedIndices = selectedSegments[expandedWorkflowId] || []
-                    if (details && workflowSelectedIndices.length > 0) {
-                      const totalMs = endTime.getTime() - getStartTime().getTime()
-                      const segMs = totalMs / Math.max(1, segmentCount)
-
-                      const windows = workflowSelectedIndices
-                        .map((idx) => wf.segments[idx])
-                        .filter(Boolean)
-                        .map((s) => {
-                          const start = new Date(s.timestamp).getTime()
-                          const end = start + segMs
-                          return { start, end }
-                        })
-
-                      const inAnyWindow = (t: number) =>
-                        windows.some((w) => t >= w.start && t < w.end)
-
-                      logsToDisplay = details.allLogs
-                        .filter((log) => inAnyWindow(new Date(log.startedAt).getTime()))
-                        .map((log) => ({
-                          ...log,
-                          workflowName: (log as any).workflowName || wf.workflowName,
-                        }))
-                    }
-
-                    const segmentsToUse =
-                      workflowSelectedIndices.length > 0
-                        ? wf.segments.filter((_, i) => workflowSelectedIndices.includes(i))
-                        : wf.segments
-                    const series = buildSeriesFromSegments(segmentsToUse as any)
-
-                    const detailsWithFilteredLogs = details
-                      ? {
-                          ...details,
-                          logs: logsToDisplay,
-                          errorRates: series.errorRates,
-                          durations: series.durations,
-                          executionCounts: series.executionCounts,
-                          durationP50: series.durationP50,
-                          durationP90: series.durationP90,
-                          durationP99: series.durationP99,
-                        }
-                      : undefined
-
-                    const selectedSegment =
-                      workflowSelectedIndices.length === 1
-                        ? wf.segments[workflowSelectedIndices[0]]
-                        : null
-
-                    const segMs =
-                      (endTime.getTime() - getStartTime().getTime()) / Math.max(1, segmentCount)
-                    const selectedSegmentsData = workflowSelectedIndices
-                      .map((idx) => wf.segments[idx])
-                      .filter(Boolean)
-                    const timeRange =
-                      selectedSegmentsData.length > 0
-                        ? (() => {
-                            const sortedIndices = [...workflowSelectedIndices].sort((a, b) => a - b)
-                            const firstSegment = wf.segments[sortedIndices[0]]
-                            const lastSegment = wf.segments[sortedIndices[sortedIndices.length - 1]]
-                            if (!firstSegment || !lastSegment) return null
-                            const rangeStart = new Date(firstSegment.timestamp)
-                            const rangeEnd = new Date(lastSegment.timestamp).getTime() + segMs
-                            return {
-                              start: rangeStart,
-                              end: new Date(rangeEnd),
-                            }
-                          })()
-                        : null
-
-                    return (
-                      <WorkflowDetails
-                        workspaceId={workspaceId}
-                        expandedWorkflowId={expandedWorkflowId}
-                        workflowName={wf.workflowName}
-                        overview={{ total, success, failures, rate }}
-                        details={detailsWithFilteredLogs as any}
-                        selectedSegmentIndex={workflowSelectedIndices}
-                        selectedSegment={
-                          selectedSegment
-                            ? {
-                                timestamp: selectedSegment.timestamp,
-                                totalExecutions: selectedSegment.totalExecutions,
-                              }
-                            : null
-                        }
-                        selectedSegmentTimeRange={timeRange}
-                        selectedWorkflowNames={undefined}
-                        segmentDurationMs={segMs}
-                        clearSegmentSelection={() => {
-                          setSelectedSegments({})
-                          setLastAnchorIndices({})
-                        }}
-                        formatCost={formatCost}
-                        onLoadMore={() => loadMoreLogs(expandedWorkflowId)}
-                        hasMore={workflowLogsQuery.hasNextPage ?? false}
-                        isLoadingMore={workflowLogsQuery.isFetchingNextPage}
-                      />
-                    )
-                  }
-
-                  if (!globalDetails) return null
-                  const totals = aggregateSegments.reduce(
-                    (acc, s) => {
-                      acc.total += s.totalExecutions
-                      acc.success += s.successfulExecutions
-                      return acc
-                    },
-                    { total: 0, success: 0 }
-                  )
-                  const failures = Math.max(totals.total - totals.success, 0)
-                  const rate = totals.total > 0 ? (totals.success / totals.total) * 100 : 100
-
-                  return (
-                    <WorkflowDetails
-                      workspaceId={workspaceId}
-                      expandedWorkflowId={'all'}
-                      workflowName={'All workflows'}
-                      overview={{ total: totals.total, success: totals.success, failures, rate }}
-                      details={globalDetails as any}
-                      selectedSegmentIndex={[]}
-                      selectedSegment={null}
-                      selectedSegmentTimeRange={null}
-                      selectedWorkflowNames={undefined}
-                      segmentDurationMs={undefined}
-                      clearSegmentSelection={() => {
-                        setSelectedSegments({})
-                        setLastAnchorIndices({})
-                      }}
-                      formatCost={formatCost}
-                      onLoadMore={loadMoreGlobalLogs}
-                      hasMore={globalLogsQuery.hasNextPage ?? false}
-                      isLoadingMore={globalLogsQuery.isFetchingNextPage}
-                    />
-                  )
-                })()}
-              </div>
-            </>
-          )}
+              )}
+            </div>
+          </div>
         </div>
+      </div>
+
+      {/* Workflows Table - takes remaining space */}
+      <div className='min-h-0 flex-1 overflow-hidden' ref={barsAreaRef}>
+        <WorkflowsList
+          executions={executions as WorkflowExecution[]}
+          filteredExecutions={filteredExecutions as WorkflowExecution[]}
+          expandedWorkflowId={expandedWorkflowId}
+          onToggleWorkflow={toggleWorkflow}
+          selectedSegments={selectedSegments}
+          onSegmentClick={handleSegmentClick}
+          searchQuery={searchQuery}
+          segmentDurationMs={
+            (endTime.getTime() - getStartTime().getTime()) / Math.max(1, segmentCount)
+          }
+        />
       </div>
     </div>
   )
 }
+
+/*
+      <div className='min-h-0 flex-1 overflow-auto' style={{ display: 'none' }}>
+        {(() => {
+          if (expandedWorkflowId === '__multi__') {
+            const selectedWorkflowIds = Object.keys(selectedSegments)
+            const totalMs = endTime.getTime() - getStartTime().getTime()
+            const segMs = totalMs / Math.max(1, segmentCount)
+
+            const allSegmentIndices = new Set<number>()
+            for (const indices of Object.values(selectedSegments)) {
+              indices.forEach((idx) => allSegmentIndices.add(idx))
+            }
+            const sortedIndices = Array.from(allSegmentIndices).sort((a, b) => a - b)
+
+            const allLogs: ReturnType<typeof mapToExecutionLog>[] = []
+            let totalExecutions = 0
+            let totalSuccess = 0
+
+            const aggregatedSegments: Array<{
+              timestamp: string
+              totalExecutions: number
+              successfulExecutions: number
+              avgDurationMs: number
+              durationCount: number
+            }> = []
+
+            for (const idx of sortedIndices) {
+              let timestamp = ''
+              for (const wfId of selectedWorkflowIds) {
+                const wf = executions.find((w) => w.workflowId === wfId)
+                if (wf?.segments[idx]) {
+                  timestamp = wf.segments[idx].timestamp
+                  break
+                }
+              }
+
+              aggregatedSegments.push({
+                timestamp,
+                totalExecutions: 0,
+                successfulExecutions: 0,
+                avgDurationMs: 0,
+                durationCount: 0,
+              })
+            }
+
+            for (const wfId of selectedWorkflowIds) {
+              const wf = executions.find((w) => w.workflowId === wfId)
+              const details = workflowDetails[wfId]
+              const indices = selectedSegments[wfId] || []
+
+              if (!wf || !details || indices.length === 0) continue
+
+              const windows = indices
+                .map((idx) => wf.segments[idx])
+                .filter(Boolean)
+                .map((s) => {
+                  const start = new Date(s.timestamp).getTime()
+                  const end = start + segMs
+                  totalExecutions += s.totalExecutions || 0
+                  totalSuccess += s.successfulExecutions || 0
+                  return { start, end }
+                })
+
+              const inAnyWindow = (t: number) => windows.some((w) => t >= w.start && t < w.end)
+
+              const wfLogs = details.allLogs
+                .filter((log) => inAnyWindow(new Date(log.startedAt).getTime()))
+                .map((log) => ({
+                  ...log,
+                  workflowName: (log as { workflowName?: string }).workflowName || wf.workflowName,
+                  workflowColor:
+                    (log as { workflowColor?: string }).workflowColor ||
+                    workflows[wfId]?.color ||
+                    '#64748b',
+                }))
+
+              allLogs.push(...wfLogs)
+
+              indices.forEach((idx) => {
+                const segment = wf.segments[idx]
+                if (!segment) return
+
+                const aggIndex = sortedIndices.indexOf(idx)
+                if (aggIndex >= 0 && aggregatedSegments[aggIndex]) {
+                  const agg = aggregatedSegments[aggIndex]
+                  agg.totalExecutions += segment.totalExecutions || 0
+                  agg.successfulExecutions += segment.successfulExecutions || 0
+                  if (segment.avgDurationMs) {
+                    agg.avgDurationMs += segment.avgDurationMs
+                    agg.durationCount += 1
+                  }
+                }
+              })
+            }
+
+            const errorRates = aggregatedSegments.map((seg) => ({
+              timestamp: seg.timestamp,
+              value:
+                seg.totalExecutions > 0
+                  ? (1 - seg.successfulExecutions / seg.totalExecutions) * 100
+                  : 0,
+            }))
+
+            const executionCounts = aggregatedSegments.map((seg) => ({
+              timestamp: seg.timestamp,
+              value: seg.totalExecutions,
+            }))
+
+            const durations = aggregatedSegments.map((seg) => ({
+              timestamp: seg.timestamp,
+              value: seg.durationCount > 0 ? seg.avgDurationMs / seg.durationCount : 0,
+            }))
+
+            allLogs.sort(
+              (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+            )
+
+            const totalFailures = Math.max(totalExecutions - totalSuccess, 0)
+            const totalRate = totalExecutions > 0 ? (totalSuccess / totalExecutions) * 100 : 100
+
+            let multiWorkflowTimeRange: { start: Date; end: Date } | null = null
+            if (sortedIndices.length > 0) {
+              const firstIdx = sortedIndices[0]
+              const lastIdx = sortedIndices[sortedIndices.length - 1]
+
+              let earliestStart: Date | null = null
+              for (const wfId of selectedWorkflowIds) {
+                const wf = executions.find((w) => w.workflowId === wfId)
+                const segment = wf?.segments[firstIdx]
+                if (segment) {
+                  const start = new Date(segment.timestamp)
+                  if (!earliestStart || start < earliestStart) {
+                    earliestStart = start
+                  }
+                }
+              }
+
+              let latestEnd: Date | null = null
+              for (const wfId of selectedWorkflowIds) {
+                const wf = executions.find((w) => w.workflowId === wfId)
+                const segment = wf?.segments[lastIdx]
+                if (segment) {
+                  const end = new Date(new Date(segment.timestamp).getTime() + segMs)
+                  if (!latestEnd || end > latestEnd) {
+                    latestEnd = end
+                  }
+                }
+              }
+
+              if (earliestStart && latestEnd) {
+                multiWorkflowTimeRange = {
+                  start: earliestStart,
+                  end: latestEnd,
+                }
+              }
+            }
+
+            const workflowNames = selectedWorkflowIds
+              .map((id) => executions.find((w) => w.workflowId === id)?.workflowName)
+              .filter(Boolean) as string[]
+
+            return (
+              <WorkflowDetails
+                workspaceId={workspaceId}
+                expandedWorkflowId={'__multi__'}
+                workflowName={`${selectedWorkflowIds.length} workflows selected`}
+                overview={{
+                  total: totalExecutions,
+                  success: totalSuccess,
+                  failures: totalFailures,
+                  rate: totalRate,
+                }}
+                details={
+                  {
+                    errorRates,
+                    durations,
+                    executionCounts,
+                    logs: allLogs,
+                    allLogs: allLogs,
+                  } as Parameters<typeof WorkflowDetails>[0]['details']
+                }
+                selectedSegmentIndex={sortedIndices}
+                selectedSegment={null}
+                selectedSegmentTimeRange={multiWorkflowTimeRange}
+                selectedWorkflowNames={workflowNames}
+                segmentDurationMs={segMs}
+                clearSegmentSelection={() => {
+                  setSelectedSegments({})
+                  setLastAnchorIndices({})
+                  setExpandedWorkflowId(null)
+                }}
+                formatCost={formatCost}
+                onLoadMore={undefined}
+                hasMore={false}
+                isLoadingMore={false}
+              />
+            )
+          }
+
+          if (expandedWorkflowId) {
+            const wf = executions.find((w) => w.workflowId === expandedWorkflowId)
+            if (!wf) return null
+            const total = wf.segments.reduce((s, x) => s + (x.totalExecutions || 0), 0)
+            const success = wf.segments.reduce((s, x) => s + (x.successfulExecutions || 0), 0)
+            const failures = Math.max(total - success, 0)
+            const rate = total > 0 ? (success / total) * 100 : 100
+
+            const details = workflowDetails[expandedWorkflowId]
+            let logsToDisplay = (details?.logs || []).map((log) => ({
+              ...log,
+              workflowName: (log as { workflowName?: string }).workflowName || wf.workflowName,
+            }))
+
+            const buildSeriesFromSegments = (
+              segs: WorkflowExecution['segments']
+            ): {
+              errorRates: { timestamp: string; value: number }[]
+              executionCounts: { timestamp: string; value: number }[]
+              durations: { timestamp: string; value: number }[]
+              durationP50?: { timestamp: string; value: number }[]
+              durationP90?: { timestamp: string; value: number }[]
+              durationP99?: { timestamp: string; value: number }[]
+            } => {
+              const errRates = segs.map((s) => ({
+                timestamp: s.timestamp,
+                value:
+                  s.totalExecutions > 0
+                    ? 100 -
+                      Math.min(
+                        100,
+                        Math.max(0, (s.successfulExecutions / Math.max(1, s.totalExecutions)) * 100)
+                      )
+                    : 0,
+              }))
+              const execCounts = segs.map((s) => ({
+                timestamp: s.timestamp,
+                value: s.totalExecutions || 0,
+              }))
+              const durs = segs.map((s) => ({
+                timestamp: s.timestamp,
+                value: typeof s.avgDurationMs === 'number' ? s.avgDurationMs : 0,
+              }))
+              const durationP50 = segs.map((s) => ({
+                timestamp: s.timestamp,
+                value: typeof s.p50Ms === 'number' ? s.p50Ms : 0,
+              }))
+              const durationP90 = segs.map((s) => ({
+                timestamp: s.timestamp,
+                value: typeof s.p90Ms === 'number' ? s.p90Ms : 0,
+              }))
+              const durationP99 = segs.map((s) => ({
+                timestamp: s.timestamp,
+                value: typeof s.p99Ms === 'number' ? s.p99Ms : 0,
+              }))
+              return {
+                errorRates: errRates,
+                executionCounts: execCounts,
+                durations: durs,
+                durationP50,
+                durationP90,
+                durationP99,
+              }
+            }
+
+            const workflowSelectedIndices = selectedSegments[expandedWorkflowId] || []
+            if (details && workflowSelectedIndices.length > 0) {
+              const totalMs = endTime.getTime() - getStartTime().getTime()
+              const segMs = totalMs / Math.max(1, segmentCount)
+
+              const windows = workflowSelectedIndices
+                .map((idx) => wf.segments[idx])
+                .filter(Boolean)
+                .map((s) => {
+                  const start = new Date(s.timestamp).getTime()
+                  const end = start + segMs
+                  return { start, end }
+                })
+
+              const inAnyWindow = (t: number) => windows.some((w) => t >= w.start && t < w.end)
+
+              logsToDisplay = details.allLogs
+                .filter((log) => inAnyWindow(new Date(log.startedAt).getTime()))
+                .map((log) => ({
+                  ...log,
+                  workflowName: (log as { workflowName?: string }).workflowName || wf.workflowName,
+                }))
+            }
+
+            const segmentsToUse =
+              workflowSelectedIndices.length > 0
+                ? wf.segments.filter((_, i) => workflowSelectedIndices.includes(i))
+                : wf.segments
+            const series = buildSeriesFromSegments(segmentsToUse)
+
+            const detailsWithFilteredLogs = details
+              ? {
+                  ...details,
+                  logs: logsToDisplay,
+                  errorRates: series.errorRates,
+                  durations: series.durations,
+                  executionCounts: series.executionCounts,
+                  durationP50: series.durationP50,
+                  durationP90: series.durationP90,
+                  durationP99: series.durationP99,
+                }
+              : undefined
+
+            const selectedSegment =
+              workflowSelectedIndices.length === 1 ? wf.segments[workflowSelectedIndices[0]] : null
+
+            const segMs = (endTime.getTime() - getStartTime().getTime()) / Math.max(1, segmentCount)
+            const selectedSegmentsData = workflowSelectedIndices
+              .map((idx) => wf.segments[idx])
+              .filter(Boolean)
+            const timeRange =
+              selectedSegmentsData.length > 0
+                ? (() => {
+                    const sortedIdx = [...workflowSelectedIndices].sort((a, b) => a - b)
+                    const firstSegment = wf.segments[sortedIdx[0]]
+                    const lastSegment = wf.segments[sortedIdx[sortedIdx.length - 1]]
+                    if (!firstSegment || !lastSegment) return null
+                    const rangeStart = new Date(firstSegment.timestamp)
+                    const rangeEnd = new Date(lastSegment.timestamp).getTime() + segMs
+                    return {
+                      start: rangeStart,
+                      end: new Date(rangeEnd),
+                    }
+                  })()
+                : null
+
+            return (
+              <WorkflowDetails
+                workspaceId={workspaceId}
+                expandedWorkflowId={expandedWorkflowId}
+                workflowName={wf.workflowName}
+                overview={{ total, success, failures, rate }}
+                details={
+                  detailsWithFilteredLogs as Parameters<typeof WorkflowDetails>[0]['details']
+                }
+                selectedSegmentIndex={workflowSelectedIndices}
+                selectedSegment={
+                  selectedSegment
+                    ? {
+                        timestamp: selectedSegment.timestamp,
+                        totalExecutions: selectedSegment.totalExecutions,
+                      }
+                    : null
+                }
+                selectedSegmentTimeRange={timeRange}
+                selectedWorkflowNames={undefined}
+                segmentDurationMs={segMs}
+                clearSegmentSelection={() => {
+                  setSelectedSegments({})
+                  setLastAnchorIndices({})
+                }}
+                formatCost={formatCost}
+                onLoadMore={() => loadMoreLogs(expandedWorkflowId)}
+                hasMore={workflowLogsQuery.hasNextPage ?? false}
+                isLoadingMore={workflowLogsQuery.isFetchingNextPage}
+              />
+            )
+          }
+
+          if (!globalDetails) return null
+          const totals = aggregateSegments.reduce(
+            (acc, s) => {
+              acc.total += s.totalExecutions
+              acc.success += s.successfulExecutions
+              return acc
+            },
+            { total: 0, success: 0 }
+          )
+          const failures = Math.max(totals.total - totals.success, 0)
+          const rate = totals.total > 0 ? (totals.success / totals.total) * 100 : 100
+
+          return (
+            <WorkflowDetails
+              workspaceId={workspaceId}
+              expandedWorkflowId={'all'}
+              workflowName={'All workflows'}
+              overview={{ total: totals.total, success: totals.success, failures, rate }}
+              details={globalDetails as Parameters<typeof WorkflowDetails>[0]['details']}
+              selectedSegmentIndex={[]}
+              selectedSegment={null}
+              selectedSegmentTimeRange={null}
+              selectedWorkflowNames={undefined}
+              segmentDurationMs={undefined}
+              clearSegmentSelection={() => {
+                setSelectedSegments({})
+                setLastAnchorIndices({})
+              }}
+              formatCost={formatCost}
+              onLoadMore={loadMoreGlobalLogs}
+              hasMore={globalLogsQuery.hasNextPage ?? false}
+              isLoadingMore={globalLogsQuery.isFetchingNextPage}
+            />
+          )
+        })()}
+      </div>
+    </>
+  )
+}
+*/

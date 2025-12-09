@@ -131,7 +131,7 @@ export function Knowledge() {
     <>
       <div className='flex h-full flex-1 flex-col'>
         <div className='flex flex-1 overflow-hidden'>
-          <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+          <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[28px] pb-[24px]'>
             <div>
               <div className='flex items-start gap-[12px]'>
                 <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#1E5A3E] bg-[#0F3D2C]'>
@@ -139,7 +139,7 @@ export function Knowledge() {
                 </div>
                 <h1 className='font-medium text-[18px]'>Knowledge Base</h1>
               </div>
-              <p className='mt-[10px] font-base text-[#888888] text-[14px]'>
+              <p className='mt-[10px] text-[14px] text-[var(--text-tertiary)]'>
                 Create and manage knowledge bases with custom files.
               </p>
             </div>

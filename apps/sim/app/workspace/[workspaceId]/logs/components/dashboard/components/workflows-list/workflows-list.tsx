@@ -1,5 +1,5 @@
-import { memo, useMemo } from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { memo } from 'react'
+import { cn } from '@/lib/core/utils/cn'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { StatusBar, type StatusBarSegment } from '..'
 
@@ -35,74 +35,58 @@ export function WorkflowsList({
   segmentDurationMs: number
 }) {
   const { workflows } = useWorkflowRegistry()
-  const segmentsCount = filteredExecutions[0]?.segments?.length || 120
-  const durationLabel = useMemo(() => {
-    const segMs = Math.max(1, Math.floor(segmentDurationMs || 0))
-    const days = Math.round(segMs / (24 * 60 * 60 * 1000))
-    if (days >= 1) return `${days} day${days !== 1 ? 's' : ''}`
-    const hours = Math.round(segMs / (60 * 60 * 1000))
-    if (hours >= 1) return `${hours} hour${hours !== 1 ? 's' : ''}`
-    const mins = Math.max(1, Math.round(segMs / (60 * 1000)))
-    return `${mins} minute${mins !== 1 ? 's' : ''}`
-  }, [segmentDurationMs])
 
-  function DynamicLegend() {
-    return (
-      <p className='mt-0.5 text-[11px] text-muted-foreground'>
-        Each cell ≈ {durationLabel} of the selected range. Click a cell to filter details.
-      </p>
-    )
-  }
   return (
-    <div
-      className='overflow-hidden rounded-[11px] border bg-card shadow-sm'
-      style={{ height: '380px', display: 'flex', flexDirection: 'column' }}
-    >
-      <div className='flex-shrink-0 border-b bg-muted/30 px-4 py-2'>
-        <div className='flex items-center justify-between'>
-          <div>
-            <h3 className='font-[480] text-sm'>Workflows</h3>
-            <DynamicLegend />
-          </div>
-          <span className='text-muted-foreground text-xs'>
-            {filteredExecutions.length} workflow
-            {filteredExecutions.length !== 1 ? 's' : ''}
-            {searchQuery && ` (filtered from ${executions.length})`}
+    <div className='flex h-full flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)]'>
+      {/* Table header */}
+      <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px]'>
+        <div className='flex items-center gap-[16px]'>
+          <span className='w-[160px] flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
+            Workflow
+          </span>
+          <span className='flex-1 font-medium text-[12px] text-[var(--text-tertiary)]'>Logs</span>
+          <span className='w-[100px] flex-shrink-0 pl-[16px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+            Success Rate
           </span>
         </div>
       </div>
-      <ScrollArea className='min-h-0 flex-1 overflow-auto'>
-        <div className='space-y-1 p-3'>
-          {filteredExecutions.length === 0 ? (
-            <div className='py-8 text-center text-muted-foreground text-sm'>
-              No workflows found matching "{searchQuery}"
-            </div>
-          ) : (
-            filteredExecutions.map((workflow, idx) => {
+
+      {/* Table body - scrollable */}
+      <div className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden'>
+        {filteredExecutions.length === 0 ? (
+          <div className='flex items-center justify-center py-[32px]'>
+            <span className='text-[13px] text-[var(--text-secondary)]'>
+              {searchQuery ? `No workflows found matching "${searchQuery}"` : 'No workflows found'}
+            </span>
+          </div>
+        ) : (
+          <div>
+            {filteredExecutions.map((workflow, idx) => {
               const isSelected = expandedWorkflowId === workflow.workflowId
 
               return (
                 <div
                   key={workflow.workflowId}
-                  className={`flex cursor-pointer items-center gap-4 px-2 py-1.5 transition-colors ${
-                    isSelected ? 'bg-accent/40' : 'hover:bg-accent/20'
-                  }`}
+                  className={cn(
+                    'flex h-[44px] cursor-pointer items-center gap-[16px] px-[24px] hover:bg-[var(--c-2A2A2A)]',
+                    isSelected && 'bg-[var(--c-2A2A2A)]'
+                  )}
                   onClick={() => onToggleWorkflow(workflow.workflowId)}
                 >
-                  <div className='w-52 min-w-0 flex-shrink-0'>
-                    <div className='flex items-center gap-2'>
-                      <div
-                        className='h-[14px] w-[14px] flex-shrink-0 rounded'
-                        style={{
-                          backgroundColor: workflows[workflow.workflowId]?.color || '#64748b',
-                        }}
-                      />
-                      <h3 className='truncate font-[460] text-sm dark:font-medium'>
-                        {workflow.workflowName}
-                      </h3>
-                    </div>
+                  {/* Workflow name with color */}
+                  <div className='flex w-[160px] flex-shrink-0 items-center gap-[8px] pr-[8px]'>
+                    <div
+                      className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
+                      style={{
+                        backgroundColor: workflows[workflow.workflowId]?.color || '#64748b',
+                      }}
+                    />
+                    <span className='min-w-0 truncate font-medium text-[12px] text-[var(--text-primary)]'>
+                      {workflow.workflowName}
+                    </span>
                   </div>
 
+                  {/* Status bar - takes most of the space */}
                   <div className='flex-1'>
                     <StatusBar
                       segments={workflow.segments}
@@ -114,17 +98,16 @@ export function WorkflowsList({
                     />
                   </div>
 
-                  <div className='w-16 flex-shrink-0 text-right'>
-                    <span className='font-[460] text-muted-foreground text-sm'>
-                      {workflow.overallSuccessRate.toFixed(1)}%
-                    </span>
-                  </div>
+                  {/* Success rate */}
+                  <span className='w-[100px] flex-shrink-0 pl-[16px] font-medium text-[12px] text-[var(--text-primary)]'>
+                    {workflow.overallSuccessRate.toFixed(1)}%
+                  </span>
                 </div>
               )
-            })
-          )}
-        </div>
-      </ScrollArea>
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

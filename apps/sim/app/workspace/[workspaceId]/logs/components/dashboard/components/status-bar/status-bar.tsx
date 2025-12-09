@@ -57,21 +57,28 @@ export function StatusBar({
             : false
 
           let color: string
+          let hoverBrightness: string
           if (!segment.hasExecutions) {
             color = 'bg-gray-300/60 dark:bg-gray-500/40'
+            hoverBrightness = 'hover:brightness-200'
           } else if (segment.successRate === 100) {
             color = 'bg-emerald-400/90'
+            hoverBrightness = 'hover:brightness-110'
           } else if (segment.successRate >= 95) {
             color = 'bg-amber-400/90'
+            hoverBrightness = 'hover:brightness-110'
           } else {
             color = 'bg-red-400/90'
+            hoverBrightness = 'hover:brightness-110'
           }
 
           return (
             <div
               key={i}
-              className={`h-6 flex-1 rounded-[3px] ${color} cursor-pointer transition-[opacity,transform] hover:opacity-90 ${
-                isSelected ? 'relative z-10 ring-2 ring-primary ring-offset-1' : 'relative z-0'
+              className={`h-6 flex-1 rounded-[3px] ${color} ${hoverBrightness} cursor-pointer transition-all ${
+                isSelected
+                  ? 'relative z-10 scale-105 shadow-sm ring-1 ring-[var(--text-secondary)]'
+                  : 'relative z-0'
               }`}
               aria-label={`Segment ${i + 1}`}
               onMouseEnter={() => setHoverIndex(i)}
@@ -90,7 +97,7 @@ export function StatusBar({
 
       {hoverIndex !== null && segments[hoverIndex] && (
         <div
-          className={`-translate-x-1/2 pointer-events-none absolute z-20 w-max whitespace-nowrap rounded-md bg-background/90 px-2 py-1 text-center text-[11px] shadow-sm ring-1 ring-border backdrop-blur ${
+          className={`-translate-x-1/2 pointer-events-none absolute z-20 w-max whitespace-nowrap rounded-[8px] border border-[var(--border-strong)] bg-[var(--surface-1)] px-[8px] py-[6px] text-center text-[11px] shadow-lg ${
             preferBelow ? '' : '-translate-y-full'
           }`}
           style={{
@@ -101,14 +108,18 @@ export function StatusBar({
         >
           {segments[hoverIndex].hasExecutions ? (
             <div>
-              <div className='font-semibold'>{labels[hoverIndex].successLabel}</div>
-              <div className='text-muted-foreground'>{labels[hoverIndex].countsLabel}</div>
+              <div className='font-semibold text-[var(--text-primary)]'>
+                {labels[hoverIndex].successLabel}
+              </div>
+              <div className='text-[var(--text-secondary)]'>{labels[hoverIndex].countsLabel}</div>
               {labels[hoverIndex].rangeLabel && (
-                <div className='mt-0.5 text-muted-foreground'>{labels[hoverIndex].rangeLabel}</div>
+                <div className='mt-0.5 text-[var(--text-tertiary)]'>
+                  {labels[hoverIndex].rangeLabel}
+                </div>
               )}
             </div>
           ) : (
-            <div className='text-muted-foreground'>{labels[hoverIndex].rangeLabel}</div>
+            <div className='text-[var(--text-secondary)]'>{labels[hoverIndex].rangeLabel}</div>
           )}
         </div>
       )}

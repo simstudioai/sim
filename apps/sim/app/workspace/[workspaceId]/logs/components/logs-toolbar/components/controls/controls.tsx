@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { ArrowUp, Bell, Loader2, RefreshCw, Search } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
+import { ArrowUp, Bell, ChevronDown, Loader2, RefreshCw, Search } from 'lucide-react'
 import {
   Button,
   Popover,
@@ -13,7 +13,83 @@ import { MoreHorizontal } from '@/components/emcn/icons'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/core/utils/cn'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
-import { Timeline } from '@/app/workspace/[workspaceId]/logs/components'
+import { useFilterStore } from '@/stores/logs/filters/store'
+import type { TimeRange } from '@/stores/logs/filters/types'
+
+const FILTER_BUTTON_CLASS =
+  'w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[var(--white)] font-normal text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+
+type TimelineProps = {
+  variant?: 'default' | 'header'
+}
+
+/**
+ * Timeline component for time range selection.
+ * Displays a dropdown with predefined time ranges.
+ * @param props - The component props
+ * @returns Time range selector dropdown
+ */
+function Timeline({ variant = 'default' }: TimelineProps = {}) {
+  const { timeRange, setTimeRange } = useFilterStore()
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false)
+
+  const specificTimeRanges: TimeRange[] = [
+    'Past 30 minutes',
+    'Past hour',
+    'Past 6 hours',
+    'Past 12 hours',
+    'Past 24 hours',
+    'Past 3 days',
+    'Past 7 days',
+    'Past 14 days',
+    'Past 30 days',
+  ]
+
+  const handleTimeRangeSelect = (range: TimeRange) => {
+    setTimeRange(range)
+    setIsPopoverOpen(false)
+  }
+
+  return (
+    <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+      <PopoverTrigger asChild>
+        <Button variant='outline' className={FILTER_BUTTON_CLASS}>
+          {timeRange}
+          <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align={variant === 'header' ? 'end' : 'start'}
+        side='bottom'
+        sideOffset={4}
+        maxHeight={144}
+      >
+        <PopoverScrollArea>
+          <PopoverItem
+            active={timeRange === 'All time'}
+            showCheck
+            onClick={() => handleTimeRangeSelect('All time')}
+          >
+            All time
+          </PopoverItem>
+
+          <div className='my-[2px] h-px bg-[var(--surface-11)]' />
+
+          {specificTimeRanges.map((range) => (
+            <PopoverItem
+              key={range}
+              active={timeRange === range}
+              showCheck
+              onClick={() => handleTimeRangeSelect(range)}
+            >
+              {range}
+            </PopoverItem>
+          ))}
+        </PopoverScrollArea>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 interface ControlsProps {
   searchQuery?: string

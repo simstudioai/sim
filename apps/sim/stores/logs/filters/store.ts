@@ -44,8 +44,16 @@ const parseTimeRangeFromURL = (value: string | null): TimeRange => {
 }
 
 const parseLogLevelFromURL = (value: string | null): LogLevel => {
-  if (value === 'error' || value === 'info') return value
-  return 'all'
+  if (!value) return 'all'
+  // Support comma-separated values for multiple selections
+  const levels = value.split(',').filter(Boolean)
+  const validLevels = levels.filter(
+    (l) => l === 'error' || l === 'info' || l === 'running' || l === 'pending'
+  )
+  if (validLevels.length === 0) return 'all'
+  if (validLevels.length === 1) return validLevels[0] as LogLevel
+  // Return comma-separated string for multiple selections
+  return validLevels.join(',') as LogLevel
 }
 
 const parseTriggerArrayFromURL = (value: string | null): TriggerType[] => {

@@ -935,12 +935,12 @@ export function KnowledgeBase({
           </div>
 
           {knowledgeBase?.description && (
-            <p className='mt-[4px] font-medium text-[14px] text-[var(--text-tertiary)]'>
+            <p className='mt-[4px] line-clamp-2 max-w-[40vw] font-medium text-[14px] text-[var(--text-tertiary)]'>
               {knowledgeBase.description}
             </p>
           )}
 
-          <div className='mt-[16px] flex items-center gap-[8px]'>
+          <div className='mt-[12px] flex items-center gap-[8px]'>
             <span className='text-[14px] text-[var(--text-muted)]'>
               {pagination.total} {pagination.total === 1 ? 'document' : 'documents'}
             </span>

@@ -135,7 +135,7 @@ export default function Templates({
   return (
     <div className='flex h-[100vh] flex-col'>
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[28px] pb-[24px]'>
           <div>
             <div className='flex items-start gap-[12px]'>
               <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#1E3A5A] bg-[#0F2A3D]'>
@@ -143,7 +143,7 @@ export default function Templates({
               </div>
               <h1 className='font-medium text-[18px]'>Templates</h1>
             </div>
-            <p className='mt-[10px] font-base text-[#888888] text-[14px]'>
+            <p className='mt-[10px] text-[14px] text-[var(--text-tertiary)]'>
               Grab a template and start building, or make one from scratch.
             </p>
           </div>

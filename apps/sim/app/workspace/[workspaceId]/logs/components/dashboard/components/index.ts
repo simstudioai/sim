@@ -1,5 +1,3 @@
-export { Controls } from './controls'
-export { type AggregateMetrics, KPIs } from './kpis'
 export { LineChart, type LineChartMultiSeries, type LineChartPoint } from './line-chart'
 export { StatusBar, type StatusBarSegment } from './status-bar'
 export {

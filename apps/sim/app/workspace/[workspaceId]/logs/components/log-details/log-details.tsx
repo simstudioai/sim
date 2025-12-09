@@ -24,20 +24,35 @@ import { LogMarkdownRenderer } from './components/markdown-renderer'
 import '@/components/emcn/components/code/code.css'
 
 interface LogDetailsProps {
+  /** The log to display details for */
   log: WorkflowLog | null
+  /** Whether the sidebar is open */
   isOpen: boolean
+  /** Whether details are being loaded */
   isLoadingDetails?: boolean
+  /** Callback when closing the sidebar */
   onClose: () => void
+  /** Callback to navigate to next log */
   onNavigateNext?: () => void
+  /** Callback to navigate to previous log */
   onNavigatePrev?: () => void
+  /** Whether there is a next log available */
   hasNext?: boolean
+  /** Whether there is a previous log available */
   hasPrev?: boolean
 }
 
+interface PrettifyResult {
+  isJson: boolean
+  formatted: string
+}
+
 /**
- * Tries to parse a string as JSON and prettify it
+ * Tries to parse a string as JSON and prettify it.
+ * @param content - String content to attempt JSON parsing
+ * @returns Object containing whether content is JSON and the formatted result
  */
-const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string } => {
+const tryPrettifyJson = (content: string): PrettifyResult => {
   try {
     const trimmed = content.trim()
     if (
@@ -55,17 +70,28 @@ const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string 
   }
 }
 
+interface BlockContentDisplayProps {
+  /** System comment to display as header */
+  systemComment: string
+  /** Formatted content string */
+  formatted: string
+  /** Whether the content is JSON */
+  isJson: boolean
+  /** Optional block input data */
+  blockInput?: Record<string, unknown>
+}
+
+/**
+ * Displays block content with tabs for output and input.
+ * @param props - Component props
+ * @returns Block content display component
+ */
 const BlockContentDisplay = ({
   systemComment,
   formatted,
   isJson,
   blockInput,
-}: {
-  systemComment: string
-  formatted: string
-  isJson: boolean
-  blockInput?: Record<string, any>
-}) => {
+}: BlockContentDisplayProps) => {
   const [activeTab, setActiveTab] = useState<'output' | 'input'>(blockInput ? 'output' : 'output')
 
   const blockInputString = useMemo(() => {
@@ -150,6 +176,12 @@ const BlockContentDisplay = ({
   )
 }
 
+/**
+ * Sidebar panel displaying detailed information about a selected log.
+ * Supports navigation between logs, resizable width, and expandable sections.
+ * @param props - Component props
+ * @returns Log details sidebar component
+ */
 export function LogDetails({
   log,
   isOpen,
@@ -182,14 +214,14 @@ export function LogDetails({
   const formattedContent = useMemo(() => {
     if (!log) return null
 
-    let blockInput: Record<string, any> | undefined
+    let blockInput: Record<string, unknown> | undefined
 
     if (log.executionData?.blockInput) {
-      blockInput = log.executionData.blockInput
+      blockInput = log.executionData.blockInput as Record<string, unknown>
     } else if (log.executionData?.traceSpans) {
       const firstSpanWithInput = log.executionData.traceSpans.find((s) => s.input)
       if (firstSpanWithInput?.input) {
-        blockInput = firstSpanWithInput.input as any
+        blockInput = firstSpanWithInput.input as Record<string, unknown>
       }
     }
 
@@ -298,7 +330,7 @@ export function LogDetails({
 
   return (
     <div
-      className={`fixed top-[94px] right-0 bottom-0 z-50 flex transform flex-col overflow-hidden border-l bg-[var(--surface-1)] dark:border-[var(--border)] dark:bg-[var(--surface-1)] ${
+      className={`fixed top-[94px] right-0 bottom-0 z-50 flex transform flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)] ${
         isOpen ? 'translate-x-0' : 'translate-x-full'
       } ${isDragging ? '' : 'transition-all duration-300 ease-in-out'}`}
       style={{ width: `${width}px`, minWidth: `${MIN_WIDTH}px` }}
@@ -316,9 +348,7 @@ export function LogDetails({
         <>
           {/* Header */}
           <div className='flex items-center justify-between px-[8px] pt-[14px] pb-[14px]'>
-            <h2 className='font-medium text-[15px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-              Log Details
-            </h2>
+            <h2 className='font-medium text-[15px] text-[var(--text-primary)] '>Log Details</h2>
             <div className='flex items-center gap-[4px]'>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -366,7 +396,7 @@ export function LogDetails({
               <div className='w-full space-y-[16px] pr-[12px] pb-[16px]'>
                 {/* Timestamp */}
                 <div>
-                  <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                  <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
                     Timestamp
                   </h3>
                   <div className='group relative text-[13px]'>
@@ -378,7 +408,7 @@ export function LogDetails({
                 {/* Workflow */}
                 {log.workflow && (
                   <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
                       Workflow
                     </h3>
                     <div className='group relative text-[13px]'>
@@ -397,7 +427,7 @@ export function LogDetails({
                 {/* Execution ID */}
                 {log.executionId && (
                   <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
                       Execution ID
                     </h3>
                     <div className='group relative break-all font-mono text-[13px]'>
@@ -409,7 +439,7 @@ export function LogDetails({
 
                 {/* Status */}
                 <div>
-                  <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                  <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
                     Status
                   </h3>
                   {(() => {
@@ -430,7 +460,7 @@ export function LogDetails({
                 {/* Trigger */}
                 {log.trigger && triggerMetadata && (
                   <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
                       Trigger
                     </h3>
                     <div className='group relative text-[13px]'>
@@ -443,7 +473,7 @@ export function LogDetails({
                 {/* Duration */}
                 {log.duration && (
                   <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
                       Duration
                     </h3>
                     <div className='group relative text-[13px]'>
@@ -455,7 +485,7 @@ export function LogDetails({
 
                 {/* Suspense while details load (positioned after summary fields) */}
                 {isLoadingDetails && (
-                  <div className='flex w-full items-center justify-start gap-[8px] py-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+                  <div className='flex w-full items-center justify-start gap-[8px] py-[8px] text-[var(--text-secondary)] '>
                     <Loader2 className='h-[16px] w-[16px] animate-spin' />
                     <span className='text-[13px]'>Loading details…</span>
                   </div>
@@ -464,20 +494,20 @@ export function LogDetails({
                 {/* Files */}
                 {log.files && log.files.length > 0 && (
                   <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
                       Files ({log.files.length})
                     </h3>
                     <div className='space-y-[8px]'>
                       {log.files.map((file, index) => (
                         <div
                           key={file.id || index}
-                          className='flex items-center justify-between border bg-muted/30 p-[8px] dark:border-[var(--border)]'
+                          className='flex items-center justify-between border border-[var(--border)] bg-muted/30 p-[8px]'
                         >
                           <div className='min-w-0 flex-1'>
                             <div className='truncate font-medium text-[13px]' title={file.name}>
                               {file.name}
                             </div>
-                            <div className='text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+                            <div className='text-[12px] text-[var(--text-secondary)] '>
                               {file.size ? `${Math.round(file.size / 1024)}KB` : 'Unknown size'}
                               {file.type && ` • ${file.type.split('/')[0]}`}
                             </div>
@@ -494,18 +524,18 @@ export function LogDetails({
                 {/* Frozen Canvas Button - only show for workflow execution logs with execution ID */}
                 {isWorkflowExecutionLog && log.executionId && (
                   <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
                       Workflow State
                     </h3>
                     <Button
                       variant='ghost'
                       onClick={() => setIsFrozenCanvasOpen(true)}
-                      className='h-8 w-full justify-start gap-[8px] border bg-muted/30 hover:bg-muted/50 dark:border-[var(--border)]'
+                      className='h-8 w-full justify-start gap-[8px] border border-[var(--border)] bg-muted/30 hover:bg-muted/50'
                     >
                       <Eye className='h-[14px] w-[14px]' />
                       View Snapshot
                     </Button>
-                    <p className='mt-[4px] text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+                    <p className='mt-[4px] text-[12px] text-[var(--text-secondary)] '>
                       See the exact workflow state and block inputs/outputs at execution time
                     </p>
                   </div>
@@ -529,7 +559,7 @@ export function LogDetails({
                 {/* Tool Calls (if available) */}
                 {log.executionData?.toolCalls && log.executionData.toolCalls.length > 0 && (
                   <div className='w-full'>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
                       Tool Calls
                     </h3>
                     <div className='w-full overflow-x-hidden bg-secondary/30 p-[12px]'>
@@ -541,42 +571,38 @@ export function LogDetails({
                 {/* Cost Information (moved to bottom) */}
                 {hasCostInfo && (
                   <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
                       Cost Breakdown
                     </h3>
-                    <div className='overflow-hidden border dark:border-[var(--border)]'>
+                    <div className='overflow-hidden border border-[var(--border)]'>
                       <div className='space-y-[8px] p-[12px]'>
                         <div className='flex items-center justify-between'>
-                          <span className='text-[13px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+                          <span className='text-[13px] text-[var(--text-secondary)] '>
                             Base Execution:
                           </span>
                           <span className='text-[13px]'>{formatCost(BASE_EXECUTION_CHARGE)}</span>
                         </div>
                         <div className='flex items-center justify-between'>
-                          <span className='text-[13px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+                          <span className='text-[13px] text-[var(--text-secondary)] '>
                             Model Input:
                           </span>
                           <span className='text-[13px]'>{formatCost(log.cost?.input || 0)}</span>
                         </div>
                         <div className='flex items-center justify-between'>
-                          <span className='text-[13px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+                          <span className='text-[13px] text-[var(--text-secondary)] '>
                             Model Output:
                           </span>
                           <span className='text-[13px]'>{formatCost(log.cost?.output || 0)}</span>
                         </div>
-                        <div className='mt-[4px] flex items-center justify-between border-t pt-[8px] dark:border-[var(--border)]'>
-                          <span className='text-[13px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
-                            Total:
-                          </span>
-                          <span className='text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                        <div className='mt-[4px] flex items-center justify-between border-[var(--border)] border-t pt-[8px]'>
+                          <span className='text-[13px] text-[var(--text-secondary)] '>Total:</span>
+                          <span className='text-[13px] text-[var(--text-primary)] '>
                             {formatCost(log.cost?.total || 0)}
                           </span>
                         </div>
                         <div className='flex items-center justify-between'>
-                          <span className='text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
-                            Tokens:
-                          </span>
-                          <span className='text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                          <span className='text-[12px] text-[var(--text-tertiary)] '>Tokens:</span>
+                          <span className='text-[12px] text-[var(--text-tertiary)] '>
                             {log.cost?.tokens?.prompt || 0} in / {log.cost?.tokens?.completion || 0}{' '}
                             out
                           </span>
@@ -585,68 +611,70 @@ export function LogDetails({
 
                       {/* Models Breakdown */}
                       {log.cost?.models && Object.keys(log.cost?.models).length > 0 && (
-                        <div className='border-t dark:border-[var(--border)]'>
+                        <div className='border-[var(--border)] border-t'>
                           <button
                             onClick={() => setIsModelsExpanded(!isModelsExpanded)}
                             className='flex w-full items-center justify-between p-[12px] text-left transition-colors hover:bg-muted/50'
                           >
-                            <span className='font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                            <span className='font-medium text-[12px] text-[var(--text-tertiary)] '>
                               Model Breakdown ({Object.keys(log.cost?.models || {}).length})
                             </span>
                             {isModelsExpanded ? (
-                              <ChevronUp className='h-[12px] w-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]' />
+                              <ChevronUp className='h-[12px] w-[12px] text-[var(--text-tertiary)] ' />
                             ) : (
-                              <ChevronDown className='h-[12px] w-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]' />
+                              <ChevronDown className='h-[12px] w-[12px] text-[var(--text-tertiary)] ' />
                             )}
                           </button>
 
                           {isModelsExpanded && (
-                            <div className='space-y-[12px] border-t bg-muted/30 p-[12px] dark:border-[var(--border)]'>
-                              {Object.entries(log.cost?.models || {}).map(
-                                ([model, cost]: [string, any]) => (
+                            <div className='space-y-[12px] border-[var(--border)] border-t bg-muted/30 p-[12px]'>
+                              {Object.entries(log.cost?.models || {}).map(([model, cost]) => {
+                                const modelCost = cost as {
+                                  input?: number
+                                  output?: number
+                                  total?: number
+                                  tokens?: { prompt?: number; completion?: number }
+                                }
+                                return (
                                   <div key={model} className='space-y-[4px]'>
                                     <div className='font-medium font-mono text-[12px]'>{model}</div>
                                     <div className='space-y-[4px] text-[12px]'>
                                       <div className='flex justify-between'>
-                                        <span className='text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
-                                          Input:
-                                        </span>
-                                        <span>{formatCost(cost.input || 0)}</span>
+                                        <span className='text-[var(--text-secondary)]'>Input:</span>
+                                        <span>{formatCost(modelCost.input || 0)}</span>
                                       </div>
                                       <div className='flex justify-between'>
-                                        <span className='text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+                                        <span className='text-[var(--text-secondary)]'>
                                           Output:
                                         </span>
-                                        <span>{formatCost(cost.output || 0)}</span>
+                                        <span>{formatCost(modelCost.output || 0)}</span>
                                       </div>
-                                      <div className='flex justify-between border-t pt-[4px] dark:border-[var(--border)]'>
-                                        <span className='text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
-                                          Total:
-                                        </span>
+                                      <div className='flex justify-between border-[var(--border)] border-t pt-[4px]'>
+                                        <span className='text-[var(--text-secondary)]'>Total:</span>
                                         <span className='font-medium'>
-                                          {formatCost(cost.total || 0)}
+                                          {formatCost(modelCost.total || 0)}
                                         </span>
                                       </div>
                                       <div className='flex justify-between'>
-                                        <span className='text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+                                        <span className='text-[var(--text-secondary)]'>
                                           Tokens:
                                         </span>
                                         <span>
-                                          {cost.tokens?.prompt || 0} in /{' '}
-                                          {cost.tokens?.completion || 0} out
+                                          {modelCost.tokens?.prompt || 0} in /{' '}
+                                          {modelCost.tokens?.completion || 0} out
                                         </span>
                                       </div>
                                     </div>
                                   </div>
                                 )
-                              )}
+                              })}
                             </div>
                           )}
                         </div>
                       )}
 
                       {isWorkflowWithCost && (
-                        <div className='border-t bg-muted p-[12px] text-[12px] text-[var(--text-secondary)] dark:border-[var(--border)] dark:text-[var(--text-secondary)]'>
+                        <div className='border-[var(--border)] border-t bg-muted p-[12px] text-[12px] text-[var(--text-secondary)] '>
                           <p>
                             Total cost includes a base execution charge of{' '}
                             {formatCost(BASE_EXECUTION_CHARGE)} plus any model usage costs.

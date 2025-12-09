@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
-import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
-import { and, eq, gte, inArray, lte } from 'drizzle-orm'
+import { pausedExecutions, permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { and, eq, gte, inArray, isNotNull, isNull, lte, or, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -15,6 +15,7 @@ const QueryParamsSchema = z.object({
   workflowIds: z.string().optional(),
   folderIds: z.string().optional(),
   triggers: z.string().optional(),
+  level: z.string().optional(), // Supports comma-separated values: 'error,running'
 })
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -84,10 +85,55 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       inArray(workflowExecutionLogs.workflowId, workflowIdList),
       gte(workflowExecutionLogs.startedAt, start),
       lte(workflowExecutionLogs.startedAt, end),
-    ] as any[]
+    ] as SQL[]
     if (qp.triggers) {
       const t = qp.triggers.split(',').filter(Boolean)
       logWhere.push(inArray(workflowExecutionLogs.trigger, t))
+    }
+
+    // Handle level filtering with support for derived statuses and multiple selections
+    if (qp.level && qp.level !== 'all') {
+      const levels = qp.level.split(',').filter(Boolean)
+      const levelConditions: SQL[] = []
+
+      for (const level of levels) {
+        if (level === 'error') {
+          levelConditions.push(eq(workflowExecutionLogs.level, 'error'))
+        } else if (level === 'info') {
+          // Completed info logs only
+          const condition = and(
+            eq(workflowExecutionLogs.level, 'info'),
+            isNotNull(workflowExecutionLogs.endedAt)
+          )
+          if (condition) levelConditions.push(condition)
+        } else if (level === 'running') {
+          // Running logs: info level with no endedAt
+          const condition = and(
+            eq(workflowExecutionLogs.level, 'info'),
+            isNull(workflowExecutionLogs.endedAt)
+          )
+          if (condition) levelConditions.push(condition)
+        } else if (level === 'pending') {
+          // Pending logs: info level with pause status indicators
+          const condition = and(
+            eq(workflowExecutionLogs.level, 'info'),
+            or(
+              sql`(${pausedExecutions.totalPauseCount} > 0 AND ${pausedExecutions.resumedCount} < ${pausedExecutions.totalPauseCount})`,
+              and(
+                isNotNull(pausedExecutions.status),
+                sql`${pausedExecutions.status} != 'fully_resumed'`
+              )
+            )
+          )
+          if (condition) levelConditions.push(condition)
+        }
+      }
+
+      if (levelConditions.length > 0) {
+        const combinedCondition =
+          levelConditions.length === 1 ? levelConditions[0] : or(...levelConditions)
+        if (combinedCondition) logWhere.push(combinedCondition)
+      }
     }
 
     const logs = await db
@@ -95,9 +141,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         workflowId: workflowExecutionLogs.workflowId,
         level: workflowExecutionLogs.level,
         startedAt: workflowExecutionLogs.startedAt,
+        endedAt: workflowExecutionLogs.endedAt,
         totalDurationMs: workflowExecutionLogs.totalDurationMs,
+        pausedTotalPauseCount: pausedExecutions.totalPauseCount,
+        pausedResumedCount: pausedExecutions.resumedCount,
+        pausedStatus: pausedExecutions.status,
       })
       .from(workflowExecutionLogs)
+      .leftJoin(
+        pausedExecutions,
+        eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+      )
       .where(and(...logWhere))
 
     type Bucket = {

@@ -1,11 +1,7 @@
 export { Dashboard } from './dashboard'
-export { Timeline } from './filters'
-export { FrozenCanvas, FrozenCanvasModal } from './frozen-canvas'
 export { LogDetails, LogMarkdownRenderer } from './log-details'
-export { LogsFilter } from './logs-filter'
-export { NotificationSettings } from './notification-settings'
-export { AutocompleteSearch } from './search'
-export { ToolCallsDisplay } from './tool-calls'
+export { FrozenCanvas, FrozenCanvasModal } from './log-details/components/frozen-canvas'
+export { ToolCallsDisplay } from './log-details/components/tool-calls'
 export {
   BlockDataDisplay,
   CollapsibleInputOutput,
@@ -13,4 +9,10 @@ export {
   normalizeChildWorkflowSpan,
   TraceSpanItem,
   TraceSpans,
-} from './trace-spans'
+} from './log-details/components/trace-spans'
+export {
+  AutocompleteSearch,
+  Controls,
+  LogsToolbar,
+  NotificationSettings,
+} from './logs-toolbar'
