@@ -363,6 +363,8 @@ export function Dropdown({
     )
   }, [multiSelect, multiValues, optionMap])
 
+  const isSearchable = subBlockId === 'operation'
+
   return (
     <Combobox
       options={comboboxOptions}
@@ -375,7 +377,6 @@ export function Dropdown({
       editable={false}
       onOpenChange={(open) => {
         if (open) {
-          // Fetch options when the dropdown is opened to ensure freshness
           void fetchOptionsIfNeeded()
         }
       }}
@@ -383,6 +384,8 @@ export function Dropdown({
       multiSelect={multiSelect}
       isLoading={isLoadingOptions}
       error={fetchError}
+      searchable={isSearchable}
+      searchPlaceholder='Search operations...'
     />
   )
 }
