@@ -641,9 +641,10 @@ const sseHandlers: Record<string, SSEHandler> = {
         if (
           isRejectedState(current.state) ||
           isReviewState(current.state) ||
-          isBackgroundState(current.state)
+          isBackgroundState(current.state) ||
+          current.state === ClientToolCallState.success
         ) {
-          // Preserve terminal review/rejected state; do not override
+          // Preserve terminal states; do not override
           return
         }
         const targetState = success
