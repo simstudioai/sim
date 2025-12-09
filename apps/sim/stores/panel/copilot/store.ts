@@ -240,6 +240,20 @@ function isBackgroundState(state: any): boolean {
   }
 }
 
+/**
+ * Checks if a tool call state is terminal (success, error, rejected, aborted, review, or background)
+ */
+function isTerminalState(state: any): boolean {
+  return (
+    state === ClientToolCallState.success ||
+    state === ClientToolCallState.error ||
+    state === ClientToolCallState.rejected ||
+    state === ClientToolCallState.aborted ||
+    isReviewState(state) ||
+    isBackgroundState(state)
+  )
+}
+
 // Helper: abort all in-progress client tools and update inline blocks
 function abortAllInProgressTools(set: any, get: () => CopilotStore) {
   try {
@@ -641,10 +655,9 @@ const sseHandlers: Record<string, SSEHandler> = {
         if (
           isRejectedState(current.state) ||
           isReviewState(current.state) ||
-          isBackgroundState(current.state) ||
-          current.state === ClientToolCallState.success
+          isBackgroundState(current.state)
         ) {
-          // Preserve terminal states; do not override
+          // Preserve terminal review/rejected state; do not override
           return
         }
         const targetState = success
@@ -883,6 +896,15 @@ const sseHandlers: Record<string, SSEHandler> = {
           const ctx = createExecutionContext({ toolCallId: id, toolName: name || 'unknown_tool' })
           // Defer executing transition by a tick to let pending render
           setTimeout(() => {
+            // Guard against duplicate execution - check if already executing or terminal
+            const currentState = get().toolCallsById[id]?.state
+            if (
+              currentState === ClientToolCallState.executing ||
+              isTerminalState(currentState)
+            ) {
+              return
+            }
+
             const executingMap = { ...get().toolCallsById }
             executingMap[id] = {
               ...executingMap[id],
@@ -985,6 +1007,15 @@ const sseHandlers: Record<string, SSEHandler> = {
       const hasInterrupt = !!inst?.getInterruptDisplays?.()
       if (!hasInterrupt && typeof inst?.execute === 'function') {
         setTimeout(() => {
+          // Guard against duplicate execution - check if already executing or terminal
+          const currentState = get().toolCallsById[id]?.state
+          if (
+            currentState === ClientToolCallState.executing ||
+            isTerminalState(currentState)
+          ) {
+            return
+          }
+
           const executingMap = { ...get().toolCallsById }
           executingMap[id] = {
             ...executingMap[id],
