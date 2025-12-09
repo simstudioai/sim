@@ -207,6 +207,10 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
           },
         })
       }
+
+      return badRequestResponse(
+        `User is already a member of another organization. Users can only belong to one organization at a time.`
+      )
     }
 
     const result = await addUserToOrganization({
