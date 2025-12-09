@@ -1,0 +1,183 @@
+---
+title: SFTP
+description: Übertragen Sie Dateien über SFTP (SSH File Transfer Protocol)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sftp"
+  color="#2D3748"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SFTP (SSH File Transfer Protocol)](https://en.wikipedia.org/wiki/SSH_File_Transfer_Protocol) ist ein sicheres Netzwerkprotokoll, das es Ihnen ermöglicht, Dateien auf entfernten Servern hochzuladen, herunterzuladen und zu verwalten. SFTP arbeitet über SSH und ist damit ideal für automatisierte, verschlüsselte Dateiübertragungen und die Fernverwaltung von Dateien in modernen Arbeitsabläufen.
+
+Mit den in Sim integrierten SFTP-Tools können Sie die Übertragung von Dateien zwischen Ihren KI-Agenten und externen Systemen oder Servern einfach automatisieren. Dies ermöglicht Ihren Agenten, kritische Datenaustausche, Backups, Dokumentenerstellung und die Orchestrierung entfernter Systeme – alles mit robuster Sicherheit – zu verwalten.
+
+**Wichtige Funktionen, die über SFTP-Tools verfügbar sind:**
+
+- **Dateien hochladen:** Übertragen Sie nahtlos Dateien jeder Art von Ihrem Workflow auf einen entfernten Server, mit Unterstützung für Passwort- und SSH-Private-Key-Authentifizierung.
+- **Dateien herunterladen:** Rufen Sie Dateien von entfernten SFTP-Servern direkt zur Verarbeitung, Archivierung oder weiteren Automatisierung ab.
+- **Dateien auflisten & verwalten:** Verzeichnisse auflisten, Dateien und Ordner löschen oder erstellen und Dateisystemberechtigungen ferngesteuert verwalten.
+- **Flexible Authentifizierung:** Verbinden Sie sich entweder mit herkömmlichen Passwörtern oder SSH-Schlüsseln, mit Unterstützung für Passphrasen und Berechtigungskontrolle.
+- **Unterstützung großer Dateien:** Verwalten Sie programmatisch große Datei-Uploads und -Downloads, mit integrierten Größenbeschränkungen für die Sicherheit.
+
+Durch die Integration von SFTP in Sim können Sie sichere Dateioperationen als Teil jedes Workflows automatisieren, sei es Datenerfassung, Berichterstattung, Wartung entfernter Systeme oder dynamischer Inhaltsaustausch zwischen Plattformen.
+
+Die folgenden Abschnitte beschreiben die wichtigsten verfügbaren SFTP-Tools:
+
+- **sftp_upload:** Laden Sie eine oder mehrere Dateien auf einen entfernten Server hoch.
+- **sftp_download:** Laden Sie Dateien von einem entfernten Server in Ihren Workflow herunter.
+- **sftp_list:** Listen Sie Verzeichnisinhalte auf einem entfernten SFTP-Server auf.
+- **sftp_delete:** Löschen Sie Dateien oder Verzeichnisse von einem entfernten Server.
+- **sftp_create:** Erstellen Sie neue Dateien auf einem entfernten SFTP-Server.
+- **sftp_mkdir:** Erstellen Sie neue Verzeichnisse aus der Ferne.
+
+Siehe die Werkzeugdokumentation unten für detaillierte Ein- und Ausgabeparameter für jede Operation.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Dateien auf Remote-Servern über SFTP hochladen, herunterladen, auflisten und verwalten. Unterstützt sowohl Passwort- als auch Private-Key-Authentifizierung für sichere Dateiübertragungen.
+
+## Werkzeuge
+
+### `sftp_upload`
+
+Dateien auf einen Remote-SFTP-Server hochladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SFTP-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SFTP-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SFTP-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein Private Key verwendet wird\) |
+| `privateKey` | string | Nein | Private Key für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten Private Key |
+| `remotePath` | string | Ja | Zielverzeichnis auf dem Remote-Server |
+| `files` | file[] | Nein | Hochzuladende Dateien |
+| `fileContent` | string | Nein | Direkter Dateiinhalt zum Hochladen \(für Textdateien\) |
+| `fileName` | string | Nein | Dateiname bei Verwendung von direktem Inhalt |
+| `overwrite` | boolean | Nein | Ob bestehende Dateien überschrieben werden sollen \(Standard: true\) |
+| `permissions` | string | Nein | Dateiberechtigungen \(z.B. 0644\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Upload erfolgreich war |
+| `uploadedFiles` | json | Array mit Details zu hochgeladenen Dateien \(Name, remotePath, Größe\) |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `sftp_download`
+
+Datei von einem entfernten SFTP-Server herunterladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SFTP-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SFTP-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SFTP-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `remotePath` | string | Ja | Pfad zur Datei auf dem entfernten Server |
+| `encoding` | string | Nein | Ausgabe-Kodierung: utf-8 für Text, base64 für Binärdaten \(Standard: utf-8\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Download erfolgreich war |
+| `fileName` | string | Name der heruntergeladenen Datei |
+| `content` | string | Dateiinhalt \(Text oder base64-kodiert\) |
+| `size` | number | Dateigröße in Bytes |
+| `encoding` | string | Inhaltskodierung \(utf-8 oder base64\) |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `sftp_list`
+
+Dateien und Verzeichnisse auf einem entfernten SFTP-Server auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SFTP-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SFTP-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SFTP-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `remotePath` | string | Ja | Verzeichnispfad auf dem entfernten Server |
+| `detailed` | boolean | Nein | Detaillierte Dateiinformationen einschließen \(Größe, Berechtigungen, Änderungsdatum\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Vorgang erfolgreich war |
+| `path` | string | Verzeichnispfad, der aufgelistet wurde |
+| `entries` | json | Array von Verzeichniseinträgen mit Name, Typ, Größe, Berechtigungen, modifiedAt |
+| `count` | number | Anzahl der Einträge im Verzeichnis |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `sftp_delete`
+
+Löschen einer Datei oder eines Verzeichnisses auf einem entfernten SFTP-Server
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SFTP-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SFTP-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SFTP-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `remotePath` | string | Ja | Pfad zur Datei oder zum Verzeichnis, das gelöscht werden soll |
+| `recursive` | boolean | Nein | Verzeichnisse rekursiv löschen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Löschen erfolgreich war |
+| `deletedPath` | string | Pfad, der gelöscht wurde |
+| `message` | string | Statusmeldung des Vorgangs |
+
+### `sftp_mkdir`
+
+Ein Verzeichnis auf einem entfernten SFTP-Server erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | SFTP-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | SFTP-Server-Port \(Standard: 22\) |
+| `username` | string | Ja | SFTP-Benutzername |
+| `password` | string | Nein | Passwort für die Authentifizierung \(wenn kein privater Schlüssel verwendet wird\) |
+| `privateKey` | string | Nein | Privater Schlüssel für die Authentifizierung \(OpenSSH-Format\) |
+| `passphrase` | string | Nein | Passphrase für verschlüsselten privaten Schlüssel |
+| `remotePath` | string | Ja | Pfad für das neue Verzeichnis |
+| `recursive` | boolean | Nein | Übergeordnete Verzeichnisse erstellen, falls sie nicht existieren |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Verzeichnis erfolgreich erstellt wurde |
+| `createdPath` | string | Pfad des erstellten Verzeichnisses |
+| `message` | string | Statusmeldung des Vorgangs |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `sftp`

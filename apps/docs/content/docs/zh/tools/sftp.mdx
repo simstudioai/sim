@@ -1,0 +1,183 @@
+---
+title: SFTP
+description: 通过 SFTP（SSH 文件传输协议）传输文件
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sftp"
+  color="#2D3748"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SFTP（SSH 文件传输协议）](https://en.wikipedia.org/wiki/SSH_File_Transfer_Protocol) 是一种安全的网络协议，可让您在远程服务器上上传、下载和管理文件。SFTP 基于 SSH 运行，非常适合现代工作流程中的自动化加密文件传输和远程文件管理。
+
+通过将 SFTP 工具集成到 Sim 中，您可以轻松实现 AI 代理与外部系统或服务器之间的文件自动化传输。这使您的代理能够管理关键数据交换、备份、文档生成和远程系统协调——所有这些都具有强大的安全性。
+
+**通过 SFTP 工具可用的关键功能：**
+
+- **上传文件：** 无缝地将任何类型的文件从您的工作流程传输到远程服务器，支持密码和 SSH 私钥认证。
+- **下载文件：** 直接从远程 SFTP 服务器检索文件以进行处理、存档或进一步自动化。
+- **列出和管理文件：** 枚举目录，删除或创建文件和文件夹，并远程管理文件系统权限。
+- **灵活的认证：** 使用传统密码或 SSH 密钥连接，支持密码短语和权限控制。
+- **大文件支持：** 以编程方式管理大文件的上传和下载，并内置大小限制以确保安全。
+
+通过将 SFTP 集成到 Sim 中，您可以将安全的文件操作自动化为任何工作流程的一部分，无论是数据收集、报告、远程系统维护，还是平台之间的动态内容交换。
+
+以下部分描述了可用的关键 SFTP 工具：
+
+- **sftp_upload：** 将一个或多个文件上传到远程服务器。
+- **sftp_download：** 从远程服务器下载文件到您的工作流程。
+- **sftp_list：** 列出远程 SFTP 服务器上的目录内容。
+- **sftp_delete：** 从远程服务器删除文件或目录。
+- **sftp_create：** 在远程 SFTP 服务器上创建新文件。
+- **sftp_mkdir：** 远程创建新目录。
+
+请参阅下面的工具文档，了解每个操作的详细输入和输出参数。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+通过 SFTP 上传、下载、列出和管理远程服务器上的文件。支持密码和私钥认证，确保文件传输安全。
+
+## 工具
+
+### `sftp_upload`
+
+将文件上传到远程 SFTP 服务器
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SFTP 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SFTP 服务器端口 \(默认值: 22\) |
+| `username` | string | 是 | SFTP 用户名 |
+| `password` | string | 否 | 用于认证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于认证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `remotePath` | string | 是 | 远程服务器上的目标目录 |
+| `files` | file[] | 否 | 要上传的文件 |
+| `fileContent` | string | 否 | 要上传的直接文件内容 \(针对文本文件\) |
+| `fileName` | string | 否 | 使用直接内容时的文件名 |
+| `overwrite` | boolean | 否 | 是否覆盖现有文件 \(默认值: true\) |
+| `permissions` | string | 否 | 文件权限 \(例如: 0644\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 上传是否成功 |
+| `uploadedFiles` | json | 上传文件详情数组 \(名称, 远程路径, 大小\) |
+| `message` | string | 操作状态消息 |
+
+### `sftp_download`
+
+从远程 SFTP 服务器下载文件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SFTP 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SFTP 服务器端口（默认：22） |
+| `username` | string | 是 | SFTP 用户名 |
+| `password` | string | 否 | 用于身份验证的密码（如果未使用私钥） |
+| `privateKey` | string | 否 | 用于身份验证的私钥（OpenSSH 格式） |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `remotePath` | string | 是 | 远程服务器上文件的路径 |
+| `encoding` | string | 否 | 输出编码：utf-8 表示文本，base64 表示二进制（默认：utf-8） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 下载是否成功 |
+| `fileName` | string | 下载文件的名称 |
+| `content` | string | 文件内容（文本或 base64 编码） |
+| `size` | number | 文件大小（字节） |
+| `encoding` | string | 内容编码（utf-8 或 base64） |
+| `message` | string | 操作状态消息 |
+
+### `sftp_list`
+
+列出远程 SFTP 服务器上的文件和目录
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SFTP 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SFTP 服务器端口（默认：22） |
+| `username` | string | 是 | SFTP 用户名 |
+| `password` | string | 否 | 用于身份验证的密码（如果未使用私钥） |
+| `privateKey` | string | 否 | 用于身份验证的私钥（OpenSSH 格式） |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `remotePath` | string | 是 | 远程服务器上的目录路径 |
+| `detailed` | boolean | 否 | 是否包含详细的文件信息（大小、权限、修改日期） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作是否成功 |
+| `path` | string | 被列出的目录路径 |
+| `entries` | json | 包含名称、类型、大小、权限、修改时间的目录条目数组 |
+| `count` | number | 目录中的条目数量 |
+| `message` | string | 操作状态消息 |
+
+### `sftp_delete`
+
+删除远程 SFTP 服务器上的文件或目录
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SFTP 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SFTP 服务器端口 \(默认值: 22\) |
+| `username` | string | 是 | SFTP 用户名 |
+| `password` | string | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `remotePath` | string | 是 | 要删除的文件或目录的路径 |
+| `recursive` | boolean | 否 | 是否递归删除目录 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除是否成功 |
+| `deletedPath` | string | 被删除的路径 |
+| `message` | string | 操作状态消息 |
+
+### `sftp_mkdir`
+
+在远程 SFTP 服务器上创建一个目录
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SFTP 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SFTP 服务器端口 \(默认值: 22\) |
+| `username` | string | 是 | SFTP 用户名 |
+| `password` | string | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `remotePath` | string | 是 | 新目录的路径 |
+| `recursive` | boolean | 否 | 如果父目录不存在，是否创建父目录 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 目录是否成功创建 |
+| `createdPath` | string | 创建的目录路径 |
+| `message` | string | 操作状态消息 |
+
+## 注意事项
+
+- 分类: `tools`
+- 类型: `sftp`
