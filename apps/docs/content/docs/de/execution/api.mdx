@@ -27,14 +27,16 @@ Alle API-Antworten enthalten Informationen über Ihre Workflow-Ausführungslimit
 "limits": {
   "workflowExecutionRateLimit": {
     "sync": {
-      "limit": 60,        // Max sync workflow executions per minute
-      "remaining": 58,    // Remaining sync workflow executions
-      "resetAt": "..."    // When the window resets
+      "requestsPerMinute": 60,  // Sustained rate limit per minute
+      "maxBurst": 120,          // Maximum burst capacity
+      "remaining": 118,         // Current tokens available (up to maxBurst)
+      "resetAt": "..."          // When tokens next refill
     },
     "async": {
-      "limit": 60,        // Max async workflow executions per minute
-      "remaining": 59,    // Remaining async workflow executions
-      "resetAt": "..."    // When the window resets
+      "requestsPerMinute": 200, // Sustained rate limit per minute
+      "maxBurst": 400,          // Maximum burst capacity
+      "remaining": 398,         // Current tokens available
+      "resetAt": "..."          // When tokens next refill
     }
   },
   "usage": {
@@ -46,7 +48,7 @@ Alle API-Antworten enthalten Informationen über Ihre Workflow-Ausführungslimit
 }
 ```
 
-**Hinweis:** Die Ratenbegrenzungen in der Antwort beziehen sich auf Workflow-Ausführungen. Die Ratenbegrenzungen für den Aufruf dieses API-Endpunkts befinden sich in den Antwort-Headern (`X-RateLimit-*`).
+**Hinweis:** Ratenbegrenzungen verwenden einen Token-Bucket-Algorithmus. `remaining` kann `requestsPerMinute` bis zu `maxBurst` überschreiten, wenn du dein volles Kontingent in letzter Zeit nicht genutzt hast, was Burst-Traffic ermöglicht. Die Ratenbegrenzungen im Antworttext gelten für Workflow-Ausführungen. Die Ratenbegrenzungen für den Aufruf dieses API-Endpunkts befinden sich in den Antwort-Headern (`X-RateLimit-*`).
 
 ### Logs abfragen
 
@@ -110,13 +112,15 @@ Fragen Sie Workflow-Ausführungsprotokolle mit umfangreichen Filteroptionen ab.
       "limits": {
         "workflowExecutionRateLimit": {
           "sync": {
-            "limit": 60,
-            "remaining": 58,
+            "requestsPerMinute": 60,
+            "maxBurst": 120,
+            "remaining": 118,
             "resetAt": "2025-01-01T12:35:56.789Z"
           },
           "async": {
-            "limit": 60,
-            "remaining": 59,
+            "requestsPerMinute": 200,
+            "maxBurst": 400,
+            "remaining": 398,
             "resetAt": "2025-01-01T12:35:56.789Z"
           }
         },
@@ -190,13 +194,15 @@ Rufen Sie detaillierte Informationen zu einem bestimmten Logeintrag ab.
         "limits": {
           "workflowExecutionRateLimit": {
             "sync": {
-              "limit": 60,
-              "remaining": 58,
+              "requestsPerMinute": 60,
+              "maxBurst": 120,
+              "remaining": 118,
               "resetAt": "2025-01-01T12:35:56.789Z"
             },
             "async": {
-              "limit": 60,
-              "remaining": 59,
+              "requestsPerMinute": 200,
+              "maxBurst": 400,
+              "remaining": 398,
               "resetAt": "2025-01-01T12:35:56.789Z"
             }
           },
@@ -482,19 +488,27 @@ Fehlgeschlagene Webhook-Zustellungen werden mit exponentiellem Backoff und Jitte
 
 ## Rate-Limiting
 
-Die API implementiert Rate-Limiting, um eine faire Nutzung zu gewährleisten:
+Die API verwendet einen **Token-Bucket-Algorithmus** für die Ratenbegrenzung, der eine faire Nutzung ermöglicht und gleichzeitig Burst-Traffic zulässt:
 
-- **Kostenloser Plan**: 10 Anfragen pro Minute
-- **Pro-Plan**: 30 Anfragen pro Minute
-- **Team-Plan**: 60 Anfragen pro Minute
-- **Enterprise-Plan**: Individuelle Limits
+| Plan | Anfragen/Minute | Burst-Kapazität |
+|------|-----------------|----------------|
+| Free | 10 | 20 |
+| Pro | 30 | 60 |
+| Team | 60 | 120 |
+| Enterprise | 120 | 240 |
 
-Rate-Limit-Informationen sind in den Antwort-Headern enthalten:
-- `X-RateLimit-Limit`: Maximale Anfragen pro Zeitfenster
-- `X-RateLimit-Remaining`: Verbleibende Anfragen im aktuellen Zeitfenster
-- `X-RateLimit-Reset`: ISO-Zeitstempel, wann das Zeitfenster zurückgesetzt wird
+**Wie es funktioniert:**
+- Tokens werden mit der Rate `requestsPerMinute` aufgefüllt
+- Du kannst im Leerlauf bis zu `maxBurst` Tokens ansammeln
+- Jede Anfrage verbraucht 1 Token
+- Die Burst-Kapazität ermöglicht die Bewältigung von Verkehrsspitzen
 
-## Beispiel: Abfragen neuer Logs
+Informationen zur Ratenbegrenzung sind in den Antwort-Headern enthalten:
+- `X-RateLimit-Limit`: Anfragen pro Minute (Auffüllrate)
+- `X-RateLimit-Remaining`: Aktuell verfügbare Tokens
+- `X-RateLimit-Reset`: ISO-Zeitstempel, wann Tokens als nächstes aufgefüllt werden
+
+## Beispiel: Abfragen nach neuen Logs
 
 ```javascript
 let cursor = null;
@@ -541,7 +555,7 @@ async function pollLogs() {
 setInterval(pollLogs, 30000);
 ```
 
-## Beispiel: Verarbeiten von Webhooks
+## Beispiel: Verarbeitung von Webhooks
 
 ```javascript
 import express from 'express';
