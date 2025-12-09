@@ -1,0 +1,49 @@
+---
+title: RSS Feed
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+The RSS Feed block monitors RSS and Atom feeds – when new items are published, your workflow triggers automatically.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/rss.png"
+    alt="RSS Feed Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Configuration
+
+1. **Add RSS Feed Block** - Drag the RSS Feed block to start your workflow
+2. **Enter Feed URL** - Paste the URL of any RSS or Atom feed
+3. **Deploy** - Deploy your workflow to activate polling
+
+Once deployed, the feed is checked every minute for new items.
+
+## Output Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | string | Item title |
+| `link` | string | Item link |
+| `pubDate` | string | Publication date |
+| `item` | object | Raw item with all fields |
+| `feed` | object | Raw feed metadata |
+
+Access mapped fields directly (`<rss.title>`) or use the raw objects for any field (`<rss.item.author>`, `<rss.feed.language>`).
+
+## Use Cases
+
+- **Content monitoring** - Track blogs, news sites, or competitor updates
+- **Podcast automation** - Trigger workflows when new episodes drop
+- **Release tracking** - Monitor GitHub releases, changelogs, or product updates
+- **Social aggregation** - Collect content from platforms that expose RSS feeds
+
+<Callout>
+RSS triggers only fire for items published after you save the trigger. Existing feed items are not processed.
+</Callout>

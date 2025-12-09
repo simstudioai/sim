@@ -30,6 +30,9 @@ Use the Start block for everything originating from the editor, deploy-to-API, o
   <Card title="Schedule" href="/triggers/schedule">
     Cron or interval based execution
   </Card>
+  <Card title="RSS Feed" href="/triggers/rss">
+    Monitor RSS and Atom feeds for new content
+  </Card>
 </Cards>
 
 ## Quick Comparison
@@ -39,6 +42,7 @@ Use the Start block for everything originating from the editor, deploy-to-API, o
 | **Start** | Editor runs, deploy-to-API requests, or chat messages |
 | **Schedule** | Timer managed in schedule block |
 | **Webhook** | On inbound HTTP request |
+| **RSS Feed** | New item published to feed |
 
 > The Start block always exposes `input`, `conversationId`, and `files` fields. Add custom fields to the input format for additional structured data.
 
