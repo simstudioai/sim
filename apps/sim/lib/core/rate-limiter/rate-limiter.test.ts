@@ -1,37 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
-import { MANUAL_EXECUTION_LIMIT, RATE_LIMITS } from '@/lib/core/rate-limiter/types'
+import { RateLimiter } from './rate-limiter'
+import type { ConsumeResult, RateLimitStorageAdapter, TokenStatus } from './storage'
+import { MANUAL_EXECUTION_LIMIT, RATE_LIMITS } from './types'
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(),
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((field, value) => ({ field, value })),
-  sql: vi.fn((strings, ...values) => ({ sql: strings.join('?'), values })),
-  and: vi.fn((...conditions) => ({ and: conditions })),
-}))
-
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: vi.fn().mockReturnValue(null),
-}))
-
-import { db } from '@sim/db'
-import { getRedisClient } from '@/lib/core/config/redis'
+const createMockAdapter = (): RateLimitStorageAdapter => ({
+  consumeTokens: vi.fn(),
+  getTokenStatus: vi.fn(),
+  resetBucket: vi.fn(),
+})
 
 describe('RateLimiter', () => {
-  const rateLimiter = new RateLimiter()
   const testUserId = 'test-user-123'
   const freeSubscription = { plan: 'free', referenceId: testUserId }
+  let mockAdapter: RateLimitStorageAdapter
+  let rateLimiter: RateLimiter
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(getRedisClient).mockReturnValue(null)
+    mockAdapter = createMockAdapter()
+    rateLimiter = new RateLimiter(mockAdapter)
   })
 
   describe('checkRateLimitWithSubscription', () => {
@@ -46,32 +33,16 @@ describe('RateLimiter', () => {
       expect(result.allowed).toBe(true)
       expect(result.remaining).toBe(MANUAL_EXECUTION_LIMIT)
       expect(result.resetAt).toBeInstanceOf(Date)
-      expect(db.select).not.toHaveBeenCalled()
+      expect(mockAdapter.consumeTokens).not.toHaveBeenCalled()
     })
 
-    it('should allow first API request for sync execution (DB fallback)', async () => {
-      vi.mocked(db.select).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
-          }),
-        }),
-      } as any)
-
-      vi.mocked(db.insert).mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          onConflictDoUpdate: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([
-              {
-                syncApiRequests: 1,
-                asyncApiRequests: 0,
-                apiEndpointRequests: 0,
-                windowStart: new Date(),
-              },
-            ]),
-          }),
-        }),
-      } as any)
+    it('should consume tokens for API requests', async () => {
+      const mockResult: ConsumeResult = {
+        allowed: true,
+        tokensRemaining: RATE_LIMITS.free.sync.maxTokens - 1,
+        resetAt: new Date(Date.now() + 60000),
+      }
+      vi.mocked(mockAdapter.consumeTokens).mockResolvedValue(mockResult)
 
       const result = await rateLimiter.checkRateLimitWithSubscription(
         testUserId,
@@ -81,109 +52,61 @@ describe('RateLimiter', () => {
       )
 
       expect(result.allowed).toBe(true)
-      expect(result.remaining).toBe(RATE_LIMITS.free.syncApiExecutionsPerMinute - 1)
-      expect(result.resetAt).toBeInstanceOf(Date)
-    })
-
-    it('should allow first API request for async execution (DB fallback)', async () => {
-      vi.mocked(db.select).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
-          }),
-        }),
-      } as any)
-
-      vi.mocked(db.insert).mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          onConflictDoUpdate: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([
-              {
-                syncApiRequests: 0,
-                asyncApiRequests: 1,
-                apiEndpointRequests: 0,
-                windowStart: new Date(),
-              },
-            ]),
-          }),
-        }),
-      } as any)
-
-      const result = await rateLimiter.checkRateLimitWithSubscription(
-        testUserId,
-        freeSubscription,
-        'api',
-        true
+      expect(result.remaining).toBe(mockResult.tokensRemaining)
+      expect(mockAdapter.consumeTokens).toHaveBeenCalledWith(
+        `${testUserId}:sync`,
+        1,
+        RATE_LIMITS.free.sync
       )
-
-      expect(result.allowed).toBe(true)
-      expect(result.remaining).toBe(RATE_LIMITS.free.asyncApiExecutionsPerMinute - 1)
-      expect(result.resetAt).toBeInstanceOf(Date)
     })
 
-    it('should work for all trigger types except manual (DB fallback)', async () => {
-      const triggerTypes = ['api', 'webhook', 'schedule', 'chat'] as const
-
-      for (const triggerType of triggerTypes) {
-        vi.mocked(db.select).mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([]),
-            }),
-          }),
-        } as any)
-
-        vi.mocked(db.insert).mockReturnValue({
-          values: vi.fn().mockReturnValue({
-            onConflictDoUpdate: vi.fn().mockReturnValue({
-              returning: vi.fn().mockResolvedValue([
-                {
-                  syncApiRequests: 1,
-                  asyncApiRequests: 0,
-                  apiEndpointRequests: 0,
-                  windowStart: new Date(),
-                },
-              ]),
-            }),
-          }),
-        } as any)
-
-        const result = await rateLimiter.checkRateLimitWithSubscription(
-          testUserId,
-          freeSubscription,
-          triggerType,
-          false
-        )
-
-        expect(result.allowed).toBe(true)
-        expect(result.remaining).toBe(RATE_LIMITS.free.syncApiExecutionsPerMinute - 1)
+    it('should use async bucket for async requests', async () => {
+      const mockResult: ConsumeResult = {
+        allowed: true,
+        tokensRemaining: RATE_LIMITS.free.async.maxTokens - 1,
+        resetAt: new Date(Date.now() + 60000),
       }
+      vi.mocked(mockAdapter.consumeTokens).mockResolvedValue(mockResult)
+
+      await rateLimiter.checkRateLimitWithSubscription(testUserId, freeSubscription, 'api', true)
+
+      expect(mockAdapter.consumeTokens).toHaveBeenCalledWith(
+        `${testUserId}:async`,
+        1,
+        RATE_LIMITS.free.async
+      )
     })
 
-    it('should use Redis when available', async () => {
-      const mockRedis = {
-        eval: vi.fn().mockResolvedValue(1), // Lua script returns count after INCR
+    it('should use api-endpoint bucket for api-endpoint trigger', async () => {
+      const mockResult: ConsumeResult = {
+        allowed: true,
+        tokensRemaining: RATE_LIMITS.free.apiEndpoint.maxTokens - 1,
+        resetAt: new Date(Date.now() + 60000),
       }
-      vi.mocked(getRedisClient).mockReturnValue(mockRedis as any)
+      vi.mocked(mockAdapter.consumeTokens).mockResolvedValue(mockResult)
 
-      const result = await rateLimiter.checkRateLimitWithSubscription(
+      await rateLimiter.checkRateLimitWithSubscription(
         testUserId,
         freeSubscription,
-        'api',
+        'api-endpoint',
         false
       )
 
-      expect(result.allowed).toBe(true)
-      expect(result.remaining).toBe(RATE_LIMITS.free.syncApiExecutionsPerMinute - 1)
-      expect(mockRedis.eval).toHaveBeenCalled()
-      expect(db.select).not.toHaveBeenCalled()
+      expect(mockAdapter.consumeTokens).toHaveBeenCalledWith(
+        `${testUserId}:api-endpoint`,
+        1,
+        RATE_LIMITS.free.apiEndpoint
+      )
     })
 
-    it('should deny requests when Redis rate limit exceeded', async () => {
-      const mockRedis = {
-        eval: vi.fn().mockResolvedValue(RATE_LIMITS.free.syncApiExecutionsPerMinute + 1),
+    it('should deny requests when rate limit exceeded', async () => {
+      const mockResult: ConsumeResult = {
+        allowed: false,
+        tokensRemaining: 0,
+        resetAt: new Date(Date.now() + 60000),
+        retryAfterMs: 30000,
       }
-      vi.mocked(getRedisClient).mockReturnValue(mockRedis as any)
+      vi.mocked(mockAdapter.consumeTokens).mockResolvedValue(mockResult)
 
       const result = await rateLimiter.checkRateLimitWithSubscription(
         testUserId,
@@ -194,36 +117,53 @@ describe('RateLimiter', () => {
 
       expect(result.allowed).toBe(false)
       expect(result.remaining).toBe(0)
+      expect(result.retryAfterMs).toBe(30000)
     })
 
-    it('should fall back to DB when Redis fails', async () => {
-      const mockRedis = {
-        eval: vi.fn().mockRejectedValue(new Error('Redis connection failed')),
+    it('should use organization key for team subscriptions', async () => {
+      const orgId = 'org-123'
+      const teamSubscription = { plan: 'team', referenceId: orgId }
+      const mockResult: ConsumeResult = {
+        allowed: true,
+        tokensRemaining: RATE_LIMITS.team.sync.maxTokens - 1,
+        resetAt: new Date(Date.now() + 60000),
       }
-      vi.mocked(getRedisClient).mockReturnValue(mockRedis as any)
+      vi.mocked(mockAdapter.consumeTokens).mockResolvedValue(mockResult)
 
-      vi.mocked(db.select).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
-          }),
-        }),
-      } as any)
+      await rateLimiter.checkRateLimitWithSubscription(testUserId, teamSubscription, 'api', false)
 
-      vi.mocked(db.insert).mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          onConflictDoUpdate: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([
-              {
-                syncApiRequests: 1,
-                asyncApiRequests: 0,
-                apiEndpointRequests: 0,
-                windowStart: new Date(),
-              },
-            ]),
-          }),
-        }),
-      } as any)
+      expect(mockAdapter.consumeTokens).toHaveBeenCalledWith(
+        `${orgId}:sync`,
+        1,
+        RATE_LIMITS.team.sync
+      )
+    })
+
+    it('should use user key when team subscription referenceId matches userId', async () => {
+      const directTeamSubscription = { plan: 'team', referenceId: testUserId }
+      const mockResult: ConsumeResult = {
+        allowed: true,
+        tokensRemaining: RATE_LIMITS.team.sync.maxTokens - 1,
+        resetAt: new Date(Date.now() + 60000),
+      }
+      vi.mocked(mockAdapter.consumeTokens).mockResolvedValue(mockResult)
+
+      await rateLimiter.checkRateLimitWithSubscription(
+        testUserId,
+        directTeamSubscription,
+        'api',
+        false
+      )
+
+      expect(mockAdapter.consumeTokens).toHaveBeenCalledWith(
+        `${testUserId}:sync`,
+        1,
+        RATE_LIMITS.team.sync
+      )
+    })
+
+    it('should allow on error to avoid blocking users', async () => {
+      vi.mocked(mockAdapter.consumeTokens).mockRejectedValue(new Error('Storage error'))
 
       const result = await rateLimiter.checkRateLimitWithSubscription(
         testUserId,
@@ -233,12 +173,32 @@ describe('RateLimiter', () => {
       )
 
       expect(result.allowed).toBe(true)
-      expect(db.select).toHaveBeenCalled()
+    })
+
+    it('should work for all non-manual trigger types', async () => {
+      const triggerTypes = ['api', 'webhook', 'schedule', 'chat'] as const
+      const mockResult: ConsumeResult = {
+        allowed: true,
+        tokensRemaining: 10,
+        resetAt: new Date(Date.now() + 60000),
+      }
+      vi.mocked(mockAdapter.consumeTokens).mockResolvedValue(mockResult)
+
+      for (const triggerType of triggerTypes) {
+        await rateLimiter.checkRateLimitWithSubscription(
+          testUserId,
+          freeSubscription,
+          triggerType,
+          false
+        )
+        expect(mockAdapter.consumeTokens).toHaveBeenCalled()
+        vi.mocked(mockAdapter.consumeTokens).mockClear()
+      }
     })
   })
 
   describe('getRateLimitStatusWithSubscription', () => {
-    it('should return unlimited for manual trigger type', async () => {
+    it('should return unlimited status for manual trigger type', async () => {
       const status = await rateLimiter.getRateLimitStatusWithSubscription(
         testUserId,
         freeSubscription,
@@ -249,36 +209,17 @@ describe('RateLimiter', () => {
       expect(status.used).toBe(0)
       expect(status.limit).toBe(MANUAL_EXECUTION_LIMIT)
       expect(status.remaining).toBe(MANUAL_EXECUTION_LIMIT)
-      expect(status.resetAt).toBeInstanceOf(Date)
+      expect(mockAdapter.getTokenStatus).not.toHaveBeenCalled()
     })
 
-    it('should return sync API limits for API trigger type (DB fallback)', async () => {
-      vi.mocked(db.select).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
-          }),
-        }),
-      } as any)
-
-      const status = await rateLimiter.getRateLimitStatusWithSubscription(
-        testUserId,
-        freeSubscription,
-        'api',
-        false
-      )
-
-      expect(status.used).toBe(0)
-      expect(status.limit).toBe(RATE_LIMITS.free.syncApiExecutionsPerMinute)
-      expect(status.remaining).toBe(RATE_LIMITS.free.syncApiExecutionsPerMinute)
-      expect(status.resetAt).toBeInstanceOf(Date)
-    })
-
-    it('should use Redis for status when available', async () => {
-      const mockRedis = {
-        get: vi.fn().mockResolvedValue('5'),
+    it('should return status from storage for API requests', async () => {
+      const mockStatus: TokenStatus = {
+        tokensAvailable: 15,
+        maxTokens: RATE_LIMITS.free.sync.maxTokens,
+        lastRefillAt: new Date(),
+        nextRefillAt: new Date(Date.now() + 60000),
       }
-      vi.mocked(getRedisClient).mockReturnValue(mockRedis as any)
+      vi.mocked(mockAdapter.getTokenStatus).mockResolvedValue(mockStatus)
 
       const status = await rateLimiter.getRateLimitStatusWithSubscription(
         testUserId,
@@ -287,23 +228,25 @@ describe('RateLimiter', () => {
         false
       )
 
-      expect(status.used).toBe(5)
-      expect(status.limit).toBe(RATE_LIMITS.free.syncApiExecutionsPerMinute)
-      expect(status.remaining).toBe(RATE_LIMITS.free.syncApiExecutionsPerMinute - 5)
-      expect(mockRedis.get).toHaveBeenCalled()
-      expect(db.select).not.toHaveBeenCalled()
+      expect(status.remaining).toBe(15)
+      expect(status.limit).toBe(RATE_LIMITS.free.sync.refillRate)
+      expect(mockAdapter.getTokenStatus).toHaveBeenCalledWith(
+        `${testUserId}:sync`,
+        RATE_LIMITS.free.sync
+      )
     })
   })
 
   describe('resetRateLimit', () => {
-    it('should delete rate limit record for user', async () => {
-      vi.mocked(db.delete).mockReturnValue({
-        where: vi.fn().mockResolvedValue({}),
-      } as any)
+    it('should reset all bucket types for a user', async () => {
+      vi.mocked(mockAdapter.resetBucket).mockResolvedValue()
 
       await rateLimiter.resetRateLimit(testUserId)
 
-      expect(db.delete).toHaveBeenCalled()
+      expect(mockAdapter.resetBucket).toHaveBeenCalledTimes(3)
+      expect(mockAdapter.resetBucket).toHaveBeenCalledWith(`${testUserId}:sync`)
+      expect(mockAdapter.resetBucket).toHaveBeenCalledWith(`${testUserId}:async`)
+      expect(mockAdapter.resetBucket).toHaveBeenCalledWith(`${testUserId}:api-endpoint`)
     })
   })
 })

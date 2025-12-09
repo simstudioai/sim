@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
+import { RateLimiter } from '@/lib/core/rate-limiter'
 import { createLogger } from '@/lib/logs/console/logger'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
@@ -12,6 +12,7 @@ export interface RateLimitResult {
   remaining: number
   resetAt: Date
   limit: number
+  retryAfterMs?: number
   userId?: string
   error?: string
 }
@@ -26,7 +27,7 @@ export async function checkRateLimit(
       return {
         allowed: false,
         remaining: 0,
-        limit: 10, // Default to free tier limit
+        limit: 10,
         resetAt: new Date(),
         error: auth.error,
       }
@@ -35,12 +36,11 @@ export async function checkRateLimit(
     const userId = auth.userId!
     const subscription = await getHighestPrioritySubscription(userId)
 
-    // Use api-endpoint trigger type for external API rate limiting
     const result = await rateLimiter.checkRateLimitWithSubscription(
       userId,
       subscription,
       'api-endpoint',
-      false // Not relevant for api-endpoint trigger type
+      false
     )
 
     if (!result.allowed) {
@@ -51,7 +51,6 @@ export async function checkRateLimit(
       })
     }
 
-    // Get the actual rate limit for this user's plan
     const rateLimitStatus = await rateLimiter.getRateLimitStatusWithSubscription(
       userId,
       subscription,
@@ -60,8 +59,11 @@ export async function checkRateLimit(
     )
 
     return {
-      ...result,
+      allowed: result.allowed,
+      remaining: result.remaining,
+      resetAt: result.resetAt,
       limit: rateLimitStatus.limit,
+      retryAfterMs: result.retryAfterMs,
       userId,
     }
   } catch (error) {
@@ -88,6 +90,10 @@ export function createRateLimitResponse(result: RateLimitResult): NextResponse {
   }
 
   if (!result.allowed) {
+    const retryAfterSeconds = result.retryAfterMs
+      ? Math.ceil(result.retryAfterMs / 1000)
+      : Math.ceil((result.resetAt.getTime() - Date.now()) / 1000)
+
     return NextResponse.json(
       {
         error: 'Rate limit exceeded',
@@ -98,7 +104,7 @@ export function createRateLimitResponse(result: RateLimitResult): NextResponse {
         status: 429,
         headers: {
           ...headers,
-          'Retry-After': Math.ceil((result.resetAt.getTime() - Date.now()) / 1000).toString(),
+          'Retry-After': retryAfterSeconds.toString(),
         },
       }
     )

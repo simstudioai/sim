@@ -718,15 +718,11 @@ export const subscription = pgTable(
   })
 )
 
-export const userRateLimits = pgTable('user_rate_limits', {
-  referenceId: text('reference_id').primaryKey(), // Can be userId or organizationId for pooling
-  syncApiRequests: integer('sync_api_requests').notNull().default(0), // Sync API requests counter
-  asyncApiRequests: integer('async_api_requests').notNull().default(0), // Async API requests counter
-  apiEndpointRequests: integer('api_endpoint_requests').notNull().default(0), // External API endpoint requests counter
-  windowStart: timestamp('window_start').notNull().defaultNow(),
-  lastRequestAt: timestamp('last_request_at').notNull().defaultNow(),
-  isRateLimited: boolean('is_rate_limited').notNull().default(false),
-  rateLimitResetAt: timestamp('rate_limit_reset_at'),
+export const rateLimitBucket = pgTable('rate_limit_bucket', {
+  key: text('key').primaryKey(),
+  tokens: decimal('tokens').notNull(),
+  lastRefillAt: timestamp('last_refill_at').notNull(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 export const chat = pgTable(
