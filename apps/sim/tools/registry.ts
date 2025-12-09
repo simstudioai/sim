@@ -153,6 +153,7 @@ import {
   dropboxSearchTool,
   dropboxUploadTool,
 } from '@/tools/dropbox'
+import { duckduckgoSearchTool } from '@/tools/duckduckgo'
 import {
   dynamodbDeleteTool,
   dynamodbGetTool,
@@ -1587,6 +1588,7 @@ export const tools: Record<string, ToolConfig> = {
   dropbox_get_metadata: dropboxGetMetadataTool,
   dropbox_create_shared_link: dropboxCreateSharedLinkTool,
   dropbox_search: dropboxSearchTool,
+  duckduckgo_search: duckduckgoSearchTool,
   mongodb_query: mongodbQueryTool,
   mongodb_insert: mongodbInsertTool,
   mongodb_update: mongodbUpdateTool,
