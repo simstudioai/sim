@@ -18,11 +18,6 @@ export interface KalshiGetOrdersResponse {
   output: {
     orders: KalshiOrder[]
     paging?: KalshiPagingInfo
-    metadata: {
-      operation: 'get_orders'
-      totalReturned: number
-    }
-    success: boolean
   }
 }
 
@@ -108,26 +103,18 @@ export const kalshiGetOrdersTool: ToolConfig<KalshiGetOrdersParams, KalshiGetOrd
         paging: {
           cursor: data.cursor || null,
         },
-        metadata: {
-          operation: 'get_orders' as const,
-          totalReturned: orders.length,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    orders: {
+      type: 'array',
+      description: 'Array of order objects',
+    },
+    paging: {
       type: 'object',
-      description: 'Orders data and metadata',
-      properties: {
-        orders: { type: 'array', description: 'Array of order objects' },
-        paging: { type: 'object', description: 'Pagination information' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Pagination cursor for fetching more results',
     },
   },
 }

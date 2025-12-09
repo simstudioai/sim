@@ -945,6 +945,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     categories: { type: 'json', description: 'List of categories' },
     // Tag outputs
     tag: { type: 'json', description: 'Tag data' },
+    tags: { type: 'json', description: 'List of tags' },
     // User outputs
     user: { type: 'json', description: 'User data' },
     users: { type: 'json', description: 'List of users' },

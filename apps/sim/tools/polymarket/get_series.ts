@@ -8,11 +8,6 @@ export interface PolymarketGetSeriesResponse {
   success: boolean
   output: {
     series: PolymarketSeries[]
-    metadata: {
-      operation: 'get_series'
-      totalReturned: number
-    }
-    success: boolean
   }
 }
 
@@ -29,7 +24,7 @@ export const polymarketGetSeriesTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of results per page (recommended: 25-50)',
+      description: 'Number of results per page (max 50)',
     },
     offset: {
       type: 'string',
@@ -41,12 +36,13 @@ export const polymarketGetSeriesTool: ToolConfig<
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams()
-      if (params.limit) queryParams.append('limit', params.limit)
+      // Default limit to 50 to prevent browser crashes from large data sets
+      queryParams.append('limit', params.limit || '50')
       if (params.offset) queryParams.append('offset', params.offset)
 
       const query = queryParams.toString()
       const url = buildGammaUrl('/series')
-      return query ? `${url}?${query}` : url
+      return `${url}?${query}`
     },
     method: 'GET',
     headers: () => ({
@@ -61,32 +57,44 @@ export const polymarketGetSeriesTool: ToolConfig<
       handlePolymarketError(data, response.status, 'get_series')
     }
 
-    // Response is an array of series
-    const series = Array.isArray(data) ? data : []
+    // Response is an array of series - each series can contain thousands of nested events
+    // Strip the events array to prevent browser crashes (use get_events to fetch events separately)
+    const series = Array.isArray(data)
+      ? data.map((s: any) => ({
+          id: s.id,
+          ticker: s.ticker,
+          slug: s.slug,
+          title: s.title,
+          seriesType: s.seriesType,
+          recurrence: s.recurrence,
+          image: s.image,
+          icon: s.icon,
+          active: s.active,
+          closed: s.closed,
+          archived: s.archived,
+          featured: s.featured,
+          restricted: s.restricted,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+          volume: s.volume,
+          liquidity: s.liquidity,
+          commentCount: s.commentCount,
+          eventCount: s.events?.length || 0, // Include count instead of full array
+        }))
+      : []
 
     return {
       success: true,
       output: {
         series,
-        metadata: {
-          operation: 'get_series' as const,
-          totalReturned: series.length,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Series data and metadata',
-      properties: {
-        series: { type: 'array', description: 'Array of series objects' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+    series: {
+      type: 'array',
+      description: 'Array of series objects',
     },
   },
 }

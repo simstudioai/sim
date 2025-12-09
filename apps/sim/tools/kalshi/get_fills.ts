@@ -19,11 +19,6 @@ export interface KalshiGetFillsResponse {
   output: {
     fills: KalshiFill[]
     paging?: KalshiPagingInfo
-    metadata: {
-      operation: 'get_fills'
-      totalReturned: number
-    }
-    success: boolean
   }
 }
 
@@ -115,26 +110,18 @@ export const kalshiGetFillsTool: ToolConfig<KalshiGetFillsParams, KalshiGetFills
         paging: {
           cursor: data.cursor || null,
         },
-        metadata: {
-          operation: 'get_fills' as const,
-          totalReturned: fills.length,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    fills: {
+      type: 'array',
+      description: 'Array of fill/trade objects',
+    },
+    paging: {
       type: 'object',
-      description: 'Fills data and metadata',
-      properties: {
-        fills: { type: 'array', description: 'Array of fill/trade objects' },
-        paging: { type: 'object', description: 'Pagination information' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Pagination cursor for fetching more results',
     },
   },
 }

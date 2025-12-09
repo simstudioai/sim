@@ -26,10 +26,6 @@ export interface KalshiCreateOrderResponse {
   success: boolean
   output: {
     order: KalshiOrder
-    metadata: {
-      operation: 'create_order'
-    }
-    success: boolean
   }
 }
 
@@ -185,24 +181,14 @@ export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCr
         success: true,
         output: {
           order: data.order,
-          metadata: {
-            operation: 'create_order' as const,
-          },
-          success: true,
         },
       }
     },
 
     outputs: {
-      success: { type: 'boolean', description: 'Operation success status' },
-      output: {
+      order: {
         type: 'object',
-        description: 'Created order data',
-        properties: {
-          order: { type: 'object', description: 'The created order object' },
-          metadata: { type: 'object', description: 'Operation metadata' },
-          success: { type: 'boolean', description: 'Operation success' },
-        },
+        description: 'The created order object',
       },
     },
   }

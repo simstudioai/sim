@@ -345,19 +345,30 @@ Delete an email template from SendGrid
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
+| `message` | string | Status or success message |
 | `messageId` | string | Email message ID \(send_mail\) |
+| `to` | string | Recipient email address \(send_mail\) |
+| `subject` | string | Email subject \(send_mail, create_template_version\) |
 | `id` | string | Resource ID |
 | `jobId` | string | Job ID for async operations |
-| `email` | string | Email address |
-| `firstName` | string | First name |
-| `lastName` | string | Last name |
+| `email` | string | Contact email address |
+| `firstName` | string | Contact first name |
+| `lastName` | string | Contact last name |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `listIds` | json | Array of list IDs the contact belongs to |
+| `customFields` | json | Custom field values |
 | `contacts` | json | Array of contacts |
 | `contactCount` | number | Number of contacts |
 | `lists` | json | Array of lists |
-| `templates` | json | Array of templates |
-| `message` | string | Status or success message |
 | `name` | string | Resource name |
+| `templates` | json | Array of templates |
 | `generation` | string | Template generation |
+| `versions` | json | Array of template versions |
+| `templateId` | string | Template ID |
+| `active` | boolean | Whether template version is active |
+| `htmlContent` | string | HTML content |
+| `plainContent` | string | Plain text content |
 
 ### `sendgrid_create_template_version`
 

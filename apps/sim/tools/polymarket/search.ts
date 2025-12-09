@@ -10,11 +10,6 @@ export interface PolymarketSearchResponse {
   success: boolean
   output: {
     results: PolymarketSearchResult
-    metadata: {
-      operation: 'search'
-      query: string
-    }
-    success: boolean
   }
 }
 
@@ -33,20 +28,21 @@ export const polymarketSearchTool: ToolConfig<PolymarketSearchParams, Polymarket
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of results per page (recommended: 25-50)',
+      description: 'Number of results per page (max 50)',
     },
     offset: {
       type: 'string',
       required: false,
-      description: 'Pagination offset (skip this many results)',
+      description: 'Pagination offset',
     },
   },
 
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams()
-      queryParams.append('query', params.query)
-      if (params.limit) queryParams.append('limit', params.limit)
+      queryParams.append('q', params.query)
+      // Default limit to 50 to prevent browser crashes from large data sets
+      queryParams.append('limit', params.limit || '50')
       if (params.offset) queryParams.append('offset', params.offset)
 
       return `${buildGammaUrl('/public-search')}?${queryParams.toString()}`
@@ -57,7 +53,7 @@ export const polymarketSearchTool: ToolConfig<PolymarketSearchParams, Polymarket
     }),
   },
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!response.ok) {
@@ -75,25 +71,14 @@ export const polymarketSearchTool: ToolConfig<PolymarketSearchParams, Polymarket
       success: true,
       output: {
         results,
-        metadata: {
-          operation: 'search' as const,
-          query: params?.query || '',
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    results: {
       type: 'object',
-      description: 'Search results and metadata',
-      properties: {
-        results: { type: 'object', description: 'Search results (markets, events, profiles)' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Search results containing markets, events, and profiles arrays',
     },
   },
 }

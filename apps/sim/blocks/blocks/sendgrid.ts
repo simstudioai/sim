@@ -460,19 +460,36 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
   },
 
   outputs: {
+    // Common
     success: { type: 'boolean', description: 'Operation success status' },
+    message: { type: 'string', description: 'Status or success message' },
+    // Send mail outputs
     messageId: { type: 'string', description: 'Email message ID (send_mail)' },
+    to: { type: 'string', description: 'Recipient email address (send_mail)' },
+    subject: { type: 'string', description: 'Email subject (send_mail, create_template_version)' },
+    // Contact outputs
     id: { type: 'string', description: 'Resource ID' },
     jobId: { type: 'string', description: 'Job ID for async operations' },
-    email: { type: 'string', description: 'Email address' },
-    firstName: { type: 'string', description: 'First name' },
-    lastName: { type: 'string', description: 'Last name' },
+    email: { type: 'string', description: 'Contact email address' },
+    firstName: { type: 'string', description: 'Contact first name' },
+    lastName: { type: 'string', description: 'Contact last name' },
+    createdAt: { type: 'string', description: 'Creation timestamp' },
+    updatedAt: { type: 'string', description: 'Last update timestamp' },
+    listIds: { type: 'json', description: 'Array of list IDs the contact belongs to' },
+    customFields: { type: 'json', description: 'Custom field values' },
     contacts: { type: 'json', description: 'Array of contacts' },
     contactCount: { type: 'number', description: 'Number of contacts' },
+    // List outputs
     lists: { type: 'json', description: 'Array of lists' },
-    templates: { type: 'json', description: 'Array of templates' },
-    message: { type: 'string', description: 'Status or success message' },
     name: { type: 'string', description: 'Resource name' },
+    // Template outputs
+    templates: { type: 'json', description: 'Array of templates' },
     generation: { type: 'string', description: 'Template generation' },
+    versions: { type: 'json', description: 'Array of template versions' },
+    // Template version outputs
+    templateId: { type: 'string', description: 'Template ID' },
+    active: { type: 'boolean', description: 'Whether template version is active' },
+    htmlContent: { type: 'string', description: 'HTML content' },
+    plainContent: { type: 'string', description: 'Plain text content' },
   },
 }

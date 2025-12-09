@@ -11,10 +11,6 @@ export interface PolymarketGetEventResponse {
   success: boolean
   output: {
     event: PolymarketEvent
-    metadata: {
-      operation: 'get_event'
-    }
-    success: boolean
   }
 }
 
@@ -65,24 +61,14 @@ export const polymarketGetEventTool: ToolConfig<
       success: true,
       output: {
         event: data,
-        metadata: {
-          operation: 'get_event' as const,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    event: {
       type: 'object',
-      description: 'Event data and metadata',
-      properties: {
-        event: { type: 'object', description: 'Event object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Event object with details',
     },
   },
 }

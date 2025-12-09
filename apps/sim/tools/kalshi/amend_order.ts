@@ -20,10 +20,6 @@ export interface KalshiAmendOrderResponse {
   success: boolean
   output: {
     order: KalshiOrder
-    metadata: {
-      operation: 'amend_order'
-    }
-    success: boolean
   }
 }
 
@@ -140,24 +136,14 @@ export const kalshiAmendOrderTool: ToolConfig<KalshiAmendOrderParams, KalshiAmen
       success: true,
       output: {
         order: data.order,
-        metadata: {
-          operation: 'amend_order' as const,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    order: {
       type: 'object',
-      description: 'Amended order data',
-      properties: {
-        order: { type: 'object', description: 'The amended order object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'The amended order object',
     },
   },
 }

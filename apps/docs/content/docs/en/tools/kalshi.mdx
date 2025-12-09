@@ -52,8 +52,8 @@ Retrieve a list of prediction markets from Kalshi with optional filtering
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Markets data and metadata |
+| `markets` | array | Array of market objects |
+| `paging` | object | Pagination cursor for fetching more results |
 
 ### `kalshi_get_market`
 
@@ -69,8 +69,7 @@ Retrieve details of a specific prediction market by ticker
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Market data and metadata |
+| `market` | object | Market object with details |
 
 ### `kalshi_get_events`
 
@@ -90,8 +89,8 @@ Retrieve a list of events from Kalshi with optional filtering
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Events data and metadata |
+| `events` | array | Array of event objects |
+| `paging` | object | Pagination cursor for fetching more results |
 
 ### `kalshi_get_event`
 
@@ -108,8 +107,7 @@ Retrieve details of a specific event by ticker
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Event data and metadata |
+| `event` | object | Event object with details |
 
 ### `kalshi_get_balance`
 
@@ -126,8 +124,10 @@ Retrieve your account balance and portfolio value from Kalshi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Balance data and metadata |
+| `balance` | number | Account balance in cents |
+| `portfolioValue` | number | Portfolio value in cents |
+| `balanceDollars` | number | Account balance in dollars |
+| `portfolioValueDollars` | number | Portfolio value in dollars |
 
 ### `kalshi_get_positions`
 
@@ -149,8 +149,8 @@ Retrieve your open positions from Kalshi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Positions data and metadata |
+| `positions` | array | Array of position objects |
+| `paging` | object | Pagination cursor for fetching more results |
 
 ### `kalshi_get_orders`
 
@@ -172,8 +172,8 @@ Retrieve your orders from Kalshi with optional filtering
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Orders data and metadata |
+| `orders` | array | Array of order objects |
+| `paging` | object | Pagination cursor for fetching more results |
 
 ### `kalshi_get_order`
 
@@ -191,8 +191,7 @@ Retrieve details of a specific order by ID from Kalshi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Order data |
+| `order` | object | Order object with details |
 
 ### `kalshi_get_orderbook`
 
@@ -208,8 +207,7 @@ Retrieve the orderbook (yes and no bids) for a specific market
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Orderbook data and metadata |
+| `orderbook` | object | Orderbook with yes/no bids and asks |
 
 ### `kalshi_get_trades`
 
@@ -226,8 +224,8 @@ Retrieve recent trades across all markets
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Trades data and metadata |
+| `trades` | array | Array of trade objects |
+| `paging` | object | Pagination cursor for fetching more results |
 
 ### `kalshi_get_candlesticks`
 
@@ -247,8 +245,7 @@ Retrieve OHLC candlestick data for a specific market
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Candlestick data and metadata |
+| `candlesticks` | array | Array of OHLC candlestick data |
 
 ### `kalshi_get_fills`
 
@@ -271,8 +268,8 @@ Retrieve your portfolio
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Fills data and metadata |
+| `fills` | array | Array of fill/trade objects |
+| `paging` | object | Pagination cursor for fetching more results |
 
 ### `kalshi_get_series_by_ticker`
 
@@ -288,8 +285,7 @@ Retrieve details of a specific market series by ticker
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Series data and metadata |
+| `series` | object | Series object with details |
 
 ### `kalshi_get_exchange_status`
 
@@ -304,8 +300,7 @@ Retrieve the current status of the Kalshi exchange (trading and exchange activit
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Exchange status data and metadata |
+| `status` | object | Exchange status with trading_active and exchange_active flags |
 
 ### `kalshi_create_order`
 
@@ -339,8 +334,7 @@ Create a new order on a Kalshi prediction market
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Created order data |
+| `order` | object | The created order object |
 
 ### `kalshi_cancel_order`
 
@@ -358,8 +352,8 @@ Cancel an existing order on Kalshi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Canceled order data |
+| `order` | object | The canceled order object |
+| `reducedBy` | number | Number of contracts canceled |
 
 ### `kalshi_amend_order`
 
@@ -387,8 +381,7 @@ Modify the price or quantity of an existing order on Kalshi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Amended order data |
+| `order` | object | The amended order object |
 
 
 

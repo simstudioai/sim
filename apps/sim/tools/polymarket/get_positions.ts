@@ -11,12 +11,6 @@ export interface PolymarketGetPositionsResponse {
   success: boolean
   output: {
     positions: PolymarketPosition[]
-    metadata: {
-      operation: 'get_positions'
-      user: string
-      totalReturned: number
-    }
-    success: boolean
   }
 }
 
@@ -56,7 +50,7 @@ export const polymarketGetPositionsTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!response.ok) {
@@ -70,26 +64,14 @@ export const polymarketGetPositionsTool: ToolConfig<
       success: true,
       output: {
         positions,
-        metadata: {
-          operation: 'get_positions' as const,
-          user: params?.user || '',
-          totalReturned: positions.length,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Positions data and metadata',
-      properties: {
-        positions: { type: 'array', description: 'Array of position objects' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+    positions: {
+      type: 'array',
+      description: 'Array of position objects',
     },
   },
 }

@@ -11,10 +11,6 @@ export interface KalshiCancelOrderResponse {
   output: {
     order: KalshiOrder
     reducedBy: number
-    metadata: {
-      operation: 'cancel_order'
-    }
-    success: boolean
   }
 }
 
@@ -66,25 +62,18 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
         output: {
           order: data.order,
           reducedBy: data.reduced_by || 0,
-          metadata: {
-            operation: 'cancel_order' as const,
-          },
-          success: true,
         },
       }
     },
 
     outputs: {
-      success: { type: 'boolean', description: 'Operation success status' },
-      output: {
+      order: {
         type: 'object',
-        description: 'Canceled order data',
-        properties: {
-          order: { type: 'object', description: 'The canceled order object' },
-          reducedBy: { type: 'number', description: 'Number of contracts canceled' },
-          metadata: { type: 'object', description: 'Operation metadata' },
-          success: { type: 'boolean', description: 'Operation success' },
-        },
+        description: 'The canceled order object',
+      },
+      reducedBy: {
+        type: 'number',
+        description: 'Number of contracts canceled',
       },
     },
   }

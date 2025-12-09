@@ -242,7 +242,7 @@ export const PolymarketBlock: BlockConfig = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: 'Number of results (recommended: 25-50)',
+      placeholder: 'Number of results (max 50)',
       condition: {
         field: 'operation',
         value: ['get_markets', 'get_events', 'get_tags', 'search', 'get_series', 'get_trades'],
@@ -379,7 +379,30 @@ export const PolymarketBlock: BlockConfig = {
     endTs: { type: 'number', description: 'End timestamp (Unix)' },
   },
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: { type: 'json', description: 'Operation result data' },
+    // List operations
+    markets: { type: 'json', description: 'Array of market objects (get_markets)' },
+    events: { type: 'json', description: 'Array of event objects (get_events)' },
+    tags: { type: 'json', description: 'Array of tag objects (get_tags)' },
+    series: {
+      type: 'json',
+      description: 'Array or single series object (get_series, get_series_by_id)',
+    },
+    positions: { type: 'json', description: 'Array of position objects (get_positions)' },
+    trades: { type: 'json', description: 'Array of trade objects (get_trades)' },
+    // Single item operations
+    market: { type: 'json', description: 'Single market object (get_market)' },
+    event: { type: 'json', description: 'Single event object (get_event)' },
+    // Search
+    results: {
+      type: 'json',
+      description: 'Search results with markets, events, profiles (search)',
+    },
+    // CLOB operations
+    orderbook: { type: 'json', description: 'Order book with bids and asks (get_orderbook)' },
+    price: { type: 'string', description: 'Market price (get_price, get_last_trade_price)' },
+    midpoint: { type: 'string', description: 'Midpoint price (get_midpoint)' },
+    history: { type: 'json', description: 'Price history entries (get_price_history)' },
+    spread: { type: 'json', description: 'Bid-ask spread (get_spread)' },
+    tickSize: { type: 'string', description: 'Minimum tick size (get_tick_size)' },
   },
 }

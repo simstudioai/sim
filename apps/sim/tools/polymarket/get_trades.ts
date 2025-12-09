@@ -11,11 +11,6 @@ export interface PolymarketGetTradesResponse {
   success: boolean
   output: {
     trades: PolymarketTrade[]
-    metadata: {
-      operation: 'get_trades'
-      totalReturned: number
-    }
-    success: boolean
   }
 }
 
@@ -42,7 +37,7 @@ export const polymarketGetTradesTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of results per page (recommended: 25-50)',
+      description: 'Number of results per page (max 50)',
     },
     offset: {
       type: 'string',
@@ -56,12 +51,13 @@ export const polymarketGetTradesTool: ToolConfig<
       const queryParams = new URLSearchParams()
       if (params.user) queryParams.append('user', params.user)
       if (params.market) queryParams.append('market', params.market)
-      if (params.limit) queryParams.append('limit', params.limit)
+      // Default limit to 50 to prevent browser crashes from large data sets
+      queryParams.append('limit', params.limit || '50')
       if (params.offset) queryParams.append('offset', params.offset)
 
       const query = queryParams.toString()
       const url = buildDataUrl('/trades')
-      return query ? `${url}?${query}` : url
+      return `${url}?${query}`
     },
     method: 'GET',
     headers: () => ({
@@ -83,25 +79,14 @@ export const polymarketGetTradesTool: ToolConfig<
       success: true,
       output: {
         trades,
-        metadata: {
-          operation: 'get_trades' as const,
-          totalReturned: trades.length,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Trades data and metadata',
-      properties: {
-        trades: { type: 'array', description: 'Array of trade objects' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+    trades: {
+      type: 'array',
+      description: 'Array of trade objects',
     },
   },
 }

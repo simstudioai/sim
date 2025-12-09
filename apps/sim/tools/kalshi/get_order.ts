@@ -10,10 +10,6 @@ export interface KalshiGetOrderResponse {
   success: boolean
   output: {
     order: KalshiOrder
-    metadata: {
-      operation: 'get_order'
-    }
-    success: boolean
   }
 }
 
@@ -63,24 +59,14 @@ export const kalshiGetOrderTool: ToolConfig<KalshiGetOrderParams, KalshiGetOrder
       success: true,
       output: {
         order: data.order,
-        metadata: {
-          operation: 'get_order' as const,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    order: {
       type: 'object',
-      description: 'Order data',
-      properties: {
-        order: { type: 'object', description: 'The order object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Order object with details',
     },
   },
 }

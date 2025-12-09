@@ -8,11 +8,6 @@ export interface PolymarketGetTagsResponse {
   success: boolean
   output: {
     tags: PolymarketTag[]
-    metadata: {
-      operation: 'get_tags'
-      totalReturned: number
-    }
-    success: boolean
   }
 }
 
@@ -27,7 +22,7 @@ export const polymarketGetTagsTool: ToolConfig<PolymarketGetTagsParams, Polymark
       limit: {
         type: 'string',
         required: false,
-        description: 'Number of results per page (recommended: 25-50)',
+        description: 'Number of results per page (max 50)',
       },
       offset: {
         type: 'string',
@@ -39,12 +34,13 @@ export const polymarketGetTagsTool: ToolConfig<PolymarketGetTagsParams, Polymark
     request: {
       url: (params) => {
         const queryParams = new URLSearchParams()
-        if (params.limit) queryParams.append('limit', params.limit)
+        // Default limit to 50 to prevent browser crashes from large data sets
+        queryParams.append('limit', params.limit || '50')
         if (params.offset) queryParams.append('offset', params.offset)
 
         const query = queryParams.toString()
         const url = buildGammaUrl('/tags')
-        return query ? `${url}?${query}` : url
+        return `${url}?${query}`
       },
       method: 'GET',
       headers: () => ({
@@ -66,25 +62,14 @@ export const polymarketGetTagsTool: ToolConfig<PolymarketGetTagsParams, Polymark
         success: true,
         output: {
           tags,
-          metadata: {
-            operation: 'get_tags' as const,
-            totalReturned: tags.length,
-          },
-          success: true,
         },
       }
     },
 
     outputs: {
-      success: { type: 'boolean', description: 'Operation success status' },
-      output: {
-        type: 'object',
-        description: 'Tags data and metadata',
-        properties: {
-          tags: { type: 'array', description: 'Array of tag objects' },
-          metadata: { type: 'object', description: 'Operation metadata' },
-          success: { type: 'boolean', description: 'Operation success' },
-        },
+      tags: {
+        type: 'array',
+        description: 'Array of tag objects with id, label, and slug',
       },
     },
   }
