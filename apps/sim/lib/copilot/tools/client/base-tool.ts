@@ -86,7 +86,9 @@ export class BaseClientTool {
    * Ensure the tool is marked complete. If not already marked, marks it with error.
    * This should be called in finally blocks to prevent leaked tool calls.
    */
-  async ensureMarkedComplete(fallbackMessage = 'Tool execution did not complete properly'): Promise<void> {
+  async ensureMarkedComplete(
+    fallbackMessage = 'Tool execution did not complete properly'
+  ): Promise<void> {
     if (!this.isMarkedComplete) {
       baseToolLogger.warn('Tool was not marked complete, marking with error', {
         toolCallId: this.toolCallId,
@@ -102,10 +104,7 @@ export class BaseClientTool {
    * Execute with timeout protection. Wraps the execution in a timeout and ensures
    * markToolComplete is always called.
    */
-  async executeWithTimeout(
-    executeFn: () => Promise<void>,
-    timeoutMs?: number
-  ): Promise<void> {
+  async executeWithTimeout(executeFn: () => Promise<void>, timeoutMs?: number): Promise<void> {
     const timeout = timeoutMs ?? this.timeoutMs
     let timeoutId: NodeJS.Timeout | null = null
 

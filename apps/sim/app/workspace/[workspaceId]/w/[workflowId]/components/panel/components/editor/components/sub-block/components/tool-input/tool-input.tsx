@@ -1862,7 +1862,7 @@ export function ToolInput({
 
             // Derive title and schema from resolved tool or inline data
             const customToolTitle = isCustomTool
-              ? (tool.title || resolvedCustomTool?.title || 'Unknown Tool')
+              ? tool.title || resolvedCustomTool?.title || 'Unknown Tool'
               : null
             const customToolSchema = isCustomTool ? tool.schema || resolvedCustomTool?.schema : null
             const customToolParams =
@@ -1908,7 +1908,9 @@ export function ToolInput({
             const requiresOAuth =
               !isCustomTool && !isMcpTool && currentToolId && toolRequiresOAuth(currentToolId)
             const oauthConfig =
-              !isCustomTool && !isMcpTool && currentToolId ? getToolOAuthConfig(currentToolId) : null
+              !isCustomTool && !isMcpTool && currentToolId
+                ? getToolOAuthConfig(currentToolId)
+                : null
 
             // Tools are always expandable so users can access the interface
             const isExpandedForDisplay = isPreview
@@ -2117,7 +2119,7 @@ export function ToolInput({
                         const firstParam = params[0] as ToolParameterConfig
                         const groupValue = JSON.stringify(
                           params.reduce(
-                            (acc, p) => ({ ...acc, [p.id]: (tool.params || {})[p.id] === 'true' }),
+                            (acc, p) => ({ ...acc, [p.id]: tool.params?.[p.id] === 'true' }),
                             {}
                           )
                         )
@@ -2176,7 +2178,7 @@ export function ToolInput({
                               {param.uiComponent ? (
                                 renderParameterInput(
                                   param,
-                                  (tool.params || {})[param.id] || '',
+                                  tool.params?.[param.id] || '',
                                   (value) => handleParamChange(toolIndex, param.id, value),
                                   toolIndex,
                                   tool.params || {}
@@ -2195,7 +2197,7 @@ export function ToolInput({
                                     type: 'short-input',
                                     title: param.id,
                                   }}
-                                  value={(tool.params || {})[param.id] || ''}
+                                  value={tool.params?.[param.id] || ''}
                                   onChange={(value) =>
                                     handleParamChange(toolIndex, param.id, value)
                                   }

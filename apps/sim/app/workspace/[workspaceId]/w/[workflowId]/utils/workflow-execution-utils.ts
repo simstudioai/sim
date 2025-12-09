@@ -88,7 +88,7 @@ export async function executeWorkflowWithFullLogging(
           const event = JSON.parse(data)
 
           switch (event.type) {
-            case 'block:started':
+            case 'block:started': {
               // Add block to active set for pulsing animation
               activeBlocksSet.add(event.data.blockId)
               setActiveBlocks(new Set(activeBlocksSet))
@@ -101,6 +101,7 @@ export async function executeWorkflowWithFullLogging(
                 setEdgeRunStatus(edge.id, 'success')
               })
               break
+            }
 
             case 'block:completed':
               // Remove block from active set

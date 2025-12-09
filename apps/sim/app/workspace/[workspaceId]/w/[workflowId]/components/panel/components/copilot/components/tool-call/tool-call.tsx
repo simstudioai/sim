@@ -505,10 +505,10 @@ function RunSkipButtons({
         {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
         Allow
       </Button>
-        <Button onClick={onAlwaysAllow} disabled={isProcessing} variant='default'>
-          {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
-          Always Allow
-        </Button>
+      <Button onClick={onAlwaysAllow} disabled={isProcessing} variant='default'>
+        {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
+        Always Allow
+      </Button>
       <Button onClick={onSkip} disabled={isProcessing} variant='default'>
         Skip
       </Button>

@@ -859,7 +859,10 @@ export async function POST(req: NextRequest) {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`))
             } catch (enqueueError) {
               // Stream might already be closed, that's ok
-              logger.warn(`[${tracker.requestId}] Could not send error event to client:`, enqueueError)
+              logger.warn(
+                `[${tracker.requestId}] Could not send error event to client:`,
+                enqueueError
+              )
             }
           } finally {
             try {
