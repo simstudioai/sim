@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import {
   member,
-  organization,
   userStats,
   user as userTable,
   workflow,
@@ -10,7 +9,11 @@ import {
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { checkUsageStatus, maybeSendUsageThresholdEmail } from '@/lib/billing/core/usage'
+import {
+  checkUsageStatus,
+  getOrgUsageLimit,
+  maybeSendUsageThresholdEmail,
+} from '@/lib/billing/core/usage'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/environment'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -386,29 +389,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
               limit,
             })
           } else if (sub?.referenceId) {
-            // Fetch org usage limit
-            const orgRows = await db
-              .select({ orgUsageLimit: organization.orgUsageLimit })
-              .from(organization)
-              .where(eq(organization.id, sub.referenceId))
-              .limit(1)
-
-            const configured =
-              orgRows.length > 0 && orgRows[0].orgUsageLimit
-                ? Number.parseFloat(orgRows[0].orgUsageLimit)
-                : null
-
-            let orgLimit: number
-            if (sub.plan === 'enterprise') {
-              // Enterprise: Use configured limit directly (no per-seat minimum)
-              orgLimit = configured ?? 0
-            } else {
-              // Team: Use configured limit but never below seats × basePrice
-              const { getPlanPricing } = await import('@/lib/billing/core/billing')
-              const { basePrice } = getPlanPricing(sub.plan)
-              const minimum = (sub.seats || 1) * basePrice
-              orgLimit = configured !== null ? Math.max(configured, minimum) : minimum
-            }
+            // Get org usage limit using shared helper
+            const { limit: orgLimit } = await getOrgUsageLimit(sub.referenceId, sub.plan, sub.seats)
 
             const [{ sum: orgUsageBefore }] = await db
               .select({ sum: sql`COALESCE(SUM(${userStats.currentPeriodCost}), 0)` })

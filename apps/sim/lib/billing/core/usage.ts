@@ -22,7 +22,7 @@ import { getEmailPreferences } from '@/lib/messaging/email/unsubscribe'
 
 const logger = createLogger('UsageManagement')
 
-interface OrgUsageLimitResult {
+export interface OrgUsageLimitResult {
   limit: number
   minimum: number
 }
@@ -32,7 +32,7 @@ interface OrgUsageLimitResult {
  * - Enterprise: Uses orgUsageLimit directly (fixed pricing)
  * - Team: Uses orgUsageLimit but never below seats × basePrice
  */
-async function getOrgUsageLimit(
+export async function getOrgUsageLimit(
   organizationId: string,
   plan: string,
   seats: number | null
