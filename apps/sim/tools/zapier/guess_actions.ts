@@ -11,12 +11,17 @@ export const zapierGuessActionsTool: ToolConfig<
     'Find relevant Zapier actions using natural language. Searches across 30,000+ actions to find the best matches for your query.',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'zapier',
+  },
+
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Zapier AI Actions API key from actions.zapier.com/credentials',
+      visibility: 'hidden',
+      description: 'Access token for Zapier AI Actions API',
     },
     query: {
       type: 'string',
@@ -46,7 +51,7 @@ export const zapierGuessActionsTool: ToolConfig<
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      'x-api-key': params.apiKey,
+      Authorization: `Bearer ${params.accessToken}`,
     }),
     body: (params) => {
       const body: Record<string, any> = {

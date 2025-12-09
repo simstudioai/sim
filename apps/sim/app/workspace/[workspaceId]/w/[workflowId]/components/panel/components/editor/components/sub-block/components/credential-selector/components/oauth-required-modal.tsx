@@ -262,6 +262,8 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'sharing.write': 'Share files and folders with others',
   // WordPress.com scopes
   global: 'Full access to manage your WordPress.com sites, posts, pages, media, and settings',
+  // Zapier AI Actions scopes
+  'nla:exposed_actions:execute': 'Execute Zapier AI Actions on your behalf',
 }
 
 function getScopeDescription(scope: string): string {

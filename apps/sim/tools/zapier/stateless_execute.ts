@@ -14,12 +14,17 @@ export const zapierStatelessExecuteTool: ToolConfig<
     'Execute any Zapier action directly without creating a stored AI Action first. Provide the app, action, and instructions.',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'zapier',
+  },
+
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Zapier AI Actions API key from actions.zapier.com/credentials',
+      visibility: 'hidden',
+      description: 'Access token for Zapier AI Actions API',
     },
     app: {
       type: 'string',
@@ -113,7 +118,7 @@ export const zapierStatelessExecuteTool: ToolConfig<
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      'x-api-key': params.apiKey,
+      Authorization: `Bearer ${params.accessToken}`,
     }),
     body: (params) => {
       const body: Record<string, any> = {

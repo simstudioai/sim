@@ -1,13 +1,15 @@
 import { ZapierIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { ZapierResponse } from '@/tools/zapier/types'
 
 export const ZapierBlock: BlockConfig<ZapierResponse> = {
   type: 'zapier',
   name: 'Zapier',
   description: 'Execute actions across 7,000+ apps using Zapier AI Actions',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Connect to Zapier AI Actions to execute any of 30,000+ actions across 7,000+ apps. Send emails, create documents, update CRMs, post messages, and more - all through natural language instructions. Requires a Zapier AI Actions API key.',
+    'Connect to Zapier AI Actions to execute any of 30,000+ actions across 7,000+ apps. Send emails, create documents, update CRMs, post messages, and more - all through natural language instructions.',
   docsLink: 'https://docs.sim.ai/tools/zapier',
   category: 'tools',
   bgColor: '#FFFFFF',
@@ -32,11 +34,12 @@ export const ZapierBlock: BlockConfig<ZapierResponse> = {
       value: () => 'execute',
     },
     {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      placeholder: 'Enter your Zapier AI Actions API key',
-      password: true,
+      id: 'credential',
+      title: 'Zapier Account',
+      type: 'oauth-input',
+      serviceId: 'zapier',
+      requiredScopes: ['openid', 'nla:exposed_actions:execute'],
+      placeholder: 'Select Zapier account',
       required: true,
     },
     // Execute Action fields
@@ -487,7 +490,7 @@ export const ZapierBlock: BlockConfig<ZapierResponse> = {
       params: (params) => {
         const {
           operation,
-          apiKey,
+          credential,
           actionId,
           instructions,
           params: execParams,
@@ -521,7 +524,7 @@ export const ZapierBlock: BlockConfig<ZapierResponse> = {
           deleteActionId,
         } = params
 
-        const baseParams: Record<string, any> = { apiKey }
+        const baseParams: Record<string, any> = { credential }
 
         // Helper to parse JSON params
         const parseJsonParams = (jsonParams: any) => {
@@ -622,7 +625,7 @@ export const ZapierBlock: BlockConfig<ZapierResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    apiKey: { type: 'string', description: 'Zapier AI Actions API key' },
+    credential: { type: 'string', description: 'Zapier OAuth credential' },
     // Execute inputs
     actionId: { type: 'string', description: 'AI Action ID to execute' },
     instructions: { type: 'string', description: 'Plain English instructions for the action' },

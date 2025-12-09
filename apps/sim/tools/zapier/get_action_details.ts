@@ -14,12 +14,17 @@ export const zapierGetActionDetailsTool: ToolConfig<
     'Get detailed information about a specific action including its required inputs (needs) and outputs (gives).',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'zapier',
+  },
+
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Zapier AI Actions API key from actions.zapier.com/credentials',
+      visibility: 'hidden',
+      description: 'Access token for Zapier AI Actions API',
     },
     app: {
       type: 'string',
@@ -109,7 +114,7 @@ export const zapierGetActionDetailsTool: ToolConfig<
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      'x-api-key': params.apiKey,
+      Authorization: `Bearer ${params.accessToken}`,
     }),
     body: (params) => ({
       params: params.params || {},

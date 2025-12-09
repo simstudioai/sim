@@ -9,12 +9,17 @@ export const zapierListActionsTool: ToolConfig<ZapierListActionsParams, ZapierLi
       'List all AI Actions configured in your Zapier account. Returns stored actions that can be executed.',
     version: '1.0.0',
 
+    oauth: {
+      required: true,
+      provider: 'zapier',
+    },
+
     params: {
-      apiKey: {
+      accessToken: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'Zapier AI Actions API key from actions.zapier.com/credentials',
+        visibility: 'hidden',
+        description: 'Access token for Zapier AI Actions API',
       },
     },
 
@@ -23,7 +28,7 @@ export const zapierListActionsTool: ToolConfig<ZapierListActionsParams, ZapierLi
       method: 'GET',
       headers: (params) => ({
         'Content-Type': 'application/json',
-        'x-api-key': params.apiKey,
+        Authorization: `Bearer ${params.accessToken}`,
       }),
     },
 

@@ -10,12 +10,17 @@ export const zapierDeleteAiActionTool: ToolConfig<
   description: 'Delete a stored AI Action from Zapier.',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'zapier',
+  },
+
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Zapier AI Actions API key from actions.zapier.com/credentials',
+      visibility: 'hidden',
+      description: 'Access token for Zapier AI Actions API',
     },
     actionId: {
       type: 'string',
@@ -31,7 +36,7 @@ export const zapierDeleteAiActionTool: ToolConfig<
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      'x-api-key': params.apiKey,
+      Authorization: `Bearer ${params.accessToken}`,
     }),
   },
 

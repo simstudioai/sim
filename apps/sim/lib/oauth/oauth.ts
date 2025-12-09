@@ -37,6 +37,7 @@ import {
   WebflowIcon,
   WordpressIcon,
   xIcon,
+  ZapierIcon,
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
@@ -70,6 +71,7 @@ export type OAuthProvider =
   | 'shopify'
   | 'zoom'
   | 'wordpress'
+  | 'zapier'
   | string
 
 export type OAuthService =
@@ -111,6 +113,7 @@ export type OAuthService =
   | 'shopify'
   | 'zoom'
   | 'wordpress'
+  | 'zapier'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -891,6 +894,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'wordpress',
   },
+  zapier: {
+    id: 'zapier',
+    name: 'Zapier',
+    icon: (props) => ZapierIcon(props),
+    services: {
+      zapier: {
+        id: 'zapier',
+        name: 'Zapier AI Actions',
+        description: 'Execute actions across 7,000+ apps using Zapier AI Actions.',
+        providerId: 'zapier',
+        icon: (props) => ZapierIcon(props),
+        baseProviderIcon: (props) => ZapierIcon(props),
+        scopes: ['openid', 'nla:exposed_actions:execute'],
+      },
+    },
+    defaultService: 'zapier',
+  },
 }
 
 /**
@@ -1468,6 +1488,20 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'zapier': {
+      // Zapier AI Actions OAuth - tokens expire after 10 hours
+      const { clientId, clientSecret } = getCredentials(
+        env.ZAPIER_CLIENT_ID,
+        env.ZAPIER_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://actions.zapier.com/oauth/token/',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     default:

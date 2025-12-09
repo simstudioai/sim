@@ -1,8 +1,8 @@
 import type { ToolResponse } from '@/tools/types'
 
-// Base params - all Zapier tools require API key
+// Base params - all Zapier tools require OAuth access token
 export interface ZapierBaseParams {
-  apiKey: string
+  accessToken: string
 }
 
 // Parameter constraint for execute action

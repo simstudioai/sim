@@ -1847,6 +1847,59 @@ export const auth = betterAuth({
             }
           },
         },
+
+        // Zapier AI Actions provider
+        {
+          providerId: 'zapier',
+          clientId: env.ZAPIER_CLIENT_ID as string,
+          clientSecret: env.ZAPIER_CLIENT_SECRET as string,
+          authorizationUrl: 'https://actions.zapier.com/oauth/authorize/',
+          tokenUrl: 'https://actions.zapier.com/oauth/token/',
+          userInfoUrl: 'https://actions.zapier.com/api/v2/check/',
+          scopes: ['openid', 'nla:exposed_actions:execute'],
+          responseType: 'code',
+          pkce: true,
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/zapier`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching Zapier user profile')
+
+              // Zapier's check endpoint returns account info when using OAuth
+              const response = await fetch('https://actions.zapier.com/api/v2/check/', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Failed to fetch Zapier user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const data = await response.json()
+
+              // Zapier check endpoint returns account_id and other info
+              const userId = data.account_id || data.user_id || `zapier-${Date.now()}`
+
+              return {
+                id: userId.toString(),
+                name: data.email || 'Zapier User',
+                email: data.email || `${userId}@zapier.user`,
+                emailVerified: !!data.email,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in Zapier getUserInfo:', { error })
+              return null
+            }
+          },
+        },
       ],
     }),
     // Include SSO plugin when enabled

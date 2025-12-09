@@ -11,12 +11,17 @@ export const zapierExecuteActionTool: ToolConfig<
     'Execute a stored AI Action in Zapier. Runs any of the 30,000+ actions across 7,000+ apps that Zapier supports.',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'zapier',
+  },
+
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Zapier AI Actions API key from actions.zapier.com/credentials',
+      visibility: 'hidden',
+      description: 'Access token for Zapier AI Actions API',
     },
     actionId: {
       type: 'string',
@@ -53,7 +58,7 @@ export const zapierExecuteActionTool: ToolConfig<
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      'x-api-key': params.apiKey,
+      Authorization: `Bearer ${params.accessToken}`,
     }),
     body: (params) => {
       const body: Record<string, any> = {

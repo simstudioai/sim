@@ -11,12 +11,17 @@ export const zapierCreateAiActionTool: ToolConfig<
     'Create a new stored AI Action in Zapier. The action can then be executed with zapier_execute_action.',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'zapier',
+  },
+
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Zapier AI Actions API key from actions.zapier.com/credentials',
+      visibility: 'hidden',
+      description: 'Access token for Zapier AI Actions API',
     },
     app: {
       type: 'string',
@@ -79,7 +84,7 @@ export const zapierCreateAiActionTool: ToolConfig<
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      'x-api-key': params.apiKey,
+      Authorization: `Bearer ${params.accessToken}`,
     }),
     body: (params) => ({
       app: params.app,
