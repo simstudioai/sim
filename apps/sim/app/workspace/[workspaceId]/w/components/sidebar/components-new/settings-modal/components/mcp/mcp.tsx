@@ -80,7 +80,12 @@ export function MCP() {
     isLoading: serversLoading,
     error: serversError,
   } = useMcpServers(workspaceId)
-  const { data: mcpToolsData = [], error: toolsError } = useMcpToolsQuery(workspaceId)
+  const {
+    data: mcpToolsData = [],
+    error: toolsError,
+    isLoading: toolsLoading,
+    isFetching: toolsFetching,
+  } = useMcpToolsQuery(workspaceId)
   const createServerMutation = useCreateMcpServer()
   const deleteServerMutation = useDeleteMcpServer()
   const { testResult, isTestingConnection, testConnection, clearTestResult } = useMcpServerTest()
@@ -632,6 +637,7 @@ export function MCP() {
               {filteredServers.map((server) => {
                 if (!server?.id) return null
                 const tools = toolsByServer[server.id] || []
+                const isLoadingTools = toolsLoading || toolsFetching
 
                 return (
                   <ServerListItem
@@ -639,6 +645,7 @@ export function MCP() {
                     server={server}
                     tools={tools}
                     isDeleting={deletingServers.has(server.id)}
+                    isLoadingTools={isLoadingTools}
                     onRemove={() => handleRemoveServer(server.id, server.name || 'this server')}
                     onViewDetails={() => handleViewDetails(server.id)}
                   />

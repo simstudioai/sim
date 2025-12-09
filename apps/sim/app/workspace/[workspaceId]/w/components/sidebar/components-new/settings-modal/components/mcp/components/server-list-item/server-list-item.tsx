@@ -28,6 +28,7 @@ interface ServerListItemProps {
   server: any
   tools: any[]
   isDeleting: boolean
+  isLoadingTools?: boolean
   onRemove: () => void
   onViewDetails: () => void
 }
@@ -39,6 +40,7 @@ export function ServerListItem({
   server,
   tools,
   isDeleting,
+  isLoadingTools = false,
   onRemove,
   onViewDetails,
 }: ServerListItemProps) {
@@ -54,7 +56,9 @@ export function ServerListItem({
           </span>
           <span className='text-[13px] text-[var(--text-secondary)]'>({transportLabel})</span>
         </div>
-        <p className='truncate text-[13px] text-[var(--text-muted)]'>{toolsLabel}</p>
+        <p className='truncate text-[13px] text-[var(--text-muted)]'>
+          {isLoadingTools && tools.length === 0 ? 'Loading...' : toolsLabel}
+        </p>
       </div>
       <div className='flex flex-shrink-0 items-center gap-[4px]'>
         <Button

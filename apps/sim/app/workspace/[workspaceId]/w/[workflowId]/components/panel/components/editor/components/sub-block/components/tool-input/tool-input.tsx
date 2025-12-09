@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -844,6 +844,52 @@ export function ToolInput({
     Array.isArray(value) && value.length > 0 && typeof value[0] === 'object'
       ? (value as unknown as StoredTool[])
       : []
+
+  const hasBackfilledRef = useRef(false)
+  useEffect(() => {
+    if (
+      isPreview ||
+      mcpLoading ||
+      mcpTools.length === 0 ||
+      selectedTools.length === 0 ||
+      hasBackfilledRef.current
+    ) {
+      return
+    }
+
+    const mcpToolsNeedingSchema = selectedTools.filter(
+      (tool) => tool.type === 'mcp' && !tool.schema && tool.params?.toolName
+    )
+
+    if (mcpToolsNeedingSchema.length === 0) {
+      return
+    }
+
+    const updatedTools = selectedTools.map((tool) => {
+      if (tool.type !== 'mcp' || tool.schema || !tool.params?.toolName) {
+        return tool
+      }
+
+      const mcpTool = mcpTools.find(
+        (mt) => mt.name === tool.params?.toolName && mt.serverId === tool.params?.serverId
+      )
+
+      if (mcpTool?.inputSchema) {
+        logger.info(`Backfilling schema for MCP tool: ${tool.params.toolName}`)
+        return { ...tool, schema: mcpTool.inputSchema }
+      }
+
+      return tool
+    })
+
+    const hasChanges = updatedTools.some((tool, i) => tool.schema && !selectedTools[i].schema)
+
+    if (hasChanges) {
+      hasBackfilledRef.current = true
+      logger.info(`Backfilled schemas for ${mcpToolsNeedingSchema.length} MCP tool(s)`)
+      setStoreValue(updatedTools)
+    }
+  }, [mcpTools, mcpLoading, selectedTools, isPreview, setStoreValue])
 
   /**
    * Checks if a tool is already selected in the current workflow
