@@ -37,7 +37,7 @@ if tokens >= requested then
   allowed = 1
 end
 
-redis.call('HMSET', key, 'tokens', tokens, 'lastRefillAt', lastRefillAt)
+redis.call('HSET', key, 'tokens', tokens, 'lastRefillAt', lastRefillAt)
 redis.call('EXPIRE', key, ttl)
 
 local nextRefillAt = lastRefillAt + refillIntervalMs

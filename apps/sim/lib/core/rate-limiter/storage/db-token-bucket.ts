@@ -82,8 +82,7 @@ export class DbTokenBucket implements RateLimitStorageAdapter {
     const lastRefillMs = record.lastRefillAt.getTime()
     const nextRefillAt = new Date(lastRefillMs + config.refillIntervalMs)
 
-    const tokensBeforeConsume = tokens + requestedTokens
-    const allowed = tokensBeforeConsume >= requestedTokens && tokens >= 0
+    const allowed = tokens >= 0
 
     return {
       allowed,
