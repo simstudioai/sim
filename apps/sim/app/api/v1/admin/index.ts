@@ -13,7 +13,6 @@
  *   GET    /api/v1/admin/users/:id                          - Get user details
  *   GET    /api/v1/admin/users/:id/billing                  - Get user billing info
  *   PATCH  /api/v1/admin/users/:id/billing                  - Update user billing (limit, blocked)
- *   POST   /api/v1/admin/users/:id/billing/move-to-org      - Move user to organization
  *
  *   Workspaces:
  *   GET    /api/v1/admin/workspaces                         - List all workspaces
@@ -36,7 +35,7 @@
  *   GET    /api/v1/admin/organizations/:id                  - Get organization details
  *   PATCH  /api/v1/admin/organizations/:id                  - Update organization
  *   GET    /api/v1/admin/organizations/:id/members          - List organization members
- *   POST   /api/v1/admin/organizations/:id/members          - Add member to organization
+ *   POST   /api/v1/admin/organizations/:id/members          - Add/update member in organization
  *   GET    /api/v1/admin/organizations/:id/members/:mid     - Get member details
  *   PATCH  /api/v1/admin/organizations/:id/members/:mid     - Update member role
  *   DELETE /api/v1/admin/organizations/:id/members/:mid     - Remove member

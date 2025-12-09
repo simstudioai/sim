@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
-import { member, subscription } from '@sim/db/schema'
+import { member, organization, subscription } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { getPlanPricing } from '@/lib/billing/core/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { isBillingEnabled } from '@/lib/core/config/environment'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -172,6 +173,39 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       })
       .where(eq(subscription.id, orgSubscription.id))
 
+    // Update orgUsageLimit to reflect new seat count (seats × basePrice as minimum)
+    const { basePrice } = getPlanPricing('team')
+    const newMinimumLimit = newSeatCount * basePrice
+
+    const orgData = await db
+      .select({ orgUsageLimit: organization.orgUsageLimit })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1)
+
+    const currentOrgLimit =
+      orgData.length > 0 && orgData[0].orgUsageLimit
+        ? Number.parseFloat(orgData[0].orgUsageLimit)
+        : 0
+
+    // Update if new minimum is higher than current limit
+    if (newMinimumLimit > currentOrgLimit) {
+      await db
+        .update(organization)
+        .set({
+          orgUsageLimit: newMinimumLimit.toFixed(2),
+          updatedAt: new Date(),
+        })
+        .where(eq(organization.id, organizationId))
+
+      logger.info('Updated organization usage limit for seat change', {
+        organizationId,
+        newSeatCount,
+        newMinimumLimit,
+        previousLimit: currentOrgLimit,
+      })
+    }
+
     logger.info('Successfully updated seat count', {
       organizationId,
       stripeSubscriptionId: orgSubscription.stripeSubscriptionId,
@@ -217,77 +251,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     logger.error('Failed to update organization seats', {
-      organizationId,
-      error,
-    })
-
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
-
-/**
- * GET /api/organizations/[id]/seats
- * Get current seat information for an organization
- */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await getSession()
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { id: organizationId } = await params
-
-    // Verify user has access to this organization
-    const memberEntry = await db
-      .select()
-      .from(member)
-      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
-      .limit(1)
-
-    if (memberEntry.length === 0) {
-      return NextResponse.json(
-        { error: 'Forbidden - Not a member of this organization' },
-        { status: 403 }
-      )
-    }
-
-    // Get subscription data
-    const subscriptionRecord = await db
-      .select()
-      .from(subscription)
-      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
-      .limit(1)
-
-    if (subscriptionRecord.length === 0) {
-      return NextResponse.json({ error: 'No active subscription found' }, { status: 404 })
-    }
-
-    // Get member count
-    const memberCount = await db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(eq(member.organizationId, organizationId))
-
-    const orgSubscription = subscriptionRecord[0]
-    const maxSeats = orgSubscription.seats || 1
-    const usedSeats = memberCount.length
-    const availableSeats = Math.max(0, maxSeats - usedSeats)
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        maxSeats,
-        usedSeats,
-        availableSeats,
-        plan: orgSubscription.plan,
-        canModifySeats: orgSubscription.plan === 'team',
-      },
-    })
-  } catch (error) {
-    const { id: organizationId } = await params
-    logger.error('Failed to get organization seats', {
       organizationId,
       error,
     })

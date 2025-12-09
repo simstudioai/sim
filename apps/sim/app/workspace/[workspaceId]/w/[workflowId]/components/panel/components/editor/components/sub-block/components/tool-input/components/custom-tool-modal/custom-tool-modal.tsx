@@ -58,6 +58,7 @@ interface CustomToolModalProps {
 
 export interface CustomTool {
   type: 'custom-tool'
+  id?: string
   title: string
   name: string
   description: string
@@ -433,6 +434,8 @@ try {
         }
       }
 
+      let savedToolId: string | undefined
+
       if (isEditing && toolIdToUpdate) {
         await updateToolMutation.mutateAsync({
           workspaceId,
@@ -443,8 +446,9 @@ try {
             code: functionCode || '',
           },
         })
+        savedToolId = toolIdToUpdate
       } else {
-        await createToolMutation.mutateAsync({
+        const result = await createToolMutation.mutateAsync({
           workspaceId,
           tool: {
             title: name,
@@ -452,10 +456,13 @@ try {
             code: functionCode || '',
           },
         })
+        // Get the ID from the created tool
+        savedToolId = result?.[0]?.id
       }
 
       const customTool: CustomTool = {
         type: 'custom-tool',
+        id: savedToolId,
         title: name,
         name,
         description,

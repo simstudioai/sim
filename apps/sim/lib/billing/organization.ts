@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { getPlanPricing } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -145,11 +146,52 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
         plan: subscription.plan,
       })
     } else {
-      // Organization subscription - sync usage limits for all members
+      // Organization subscription - set org usage limit and sync member limits
+      const organizationId = subscription.referenceId
+
+      // Set orgUsageLimit for team plans (enterprise is set via webhook with custom pricing)
+      if (subscription.plan === 'team') {
+        const { basePrice } = getPlanPricing(subscription.plan)
+        const seats = subscription.seats ?? 1
+        const orgLimit = seats * basePrice
+
+        // Only set if not already set or if updating to a higher value based on seats
+        const orgData = await db
+          .select({ orgUsageLimit: schema.organization.orgUsageLimit })
+          .from(schema.organization)
+          .where(eq(schema.organization.id, organizationId))
+          .limit(1)
+
+        const currentLimit =
+          orgData.length > 0 && orgData[0].orgUsageLimit
+            ? Number.parseFloat(orgData[0].orgUsageLimit)
+            : 0
+
+        // Update if no limit set, or if new seat-based minimum is higher
+        if (currentLimit < orgLimit) {
+          await db
+            .update(schema.organization)
+            .set({
+              orgUsageLimit: orgLimit.toFixed(2),
+              updatedAt: new Date(),
+            })
+            .where(eq(schema.organization.id, organizationId))
+
+          logger.info('Set organization usage limit for team plan', {
+            organizationId,
+            seats,
+            basePrice,
+            orgLimit,
+            previousLimit: currentLimit,
+          })
+        }
+      }
+
+      // Sync usage limits for all members
       const members = await db
         .select({ userId: schema.member.userId })
         .from(schema.member)
-        .where(eq(schema.member.organizationId, subscription.referenceId))
+        .where(eq(schema.member.organizationId, organizationId))
 
       if (members.length > 0) {
         for (const member of members) {
@@ -158,7 +200,7 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
           } catch (memberError) {
             logger.error('Failed to sync usage limits for organization member', {
               userId: member.userId,
-              organizationId: subscription.referenceId,
+              organizationId,
               subscriptionId: subscription.id,
               error: memberError,
             })
@@ -166,7 +208,7 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
         }
 
         logger.info('Synced usage limits for organization members', {
-          organizationId: subscription.referenceId,
+          organizationId,
           memberCount: members.length,
           subscriptionId: subscription.id,
           plan: subscription.plan,

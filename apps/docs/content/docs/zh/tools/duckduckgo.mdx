@@ -1,0 +1,63 @@
+---
+title: DuckDuckGo
+description: 使用 DuckDuckGo 搜索
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="duckduckgo"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DuckDuckGo](https://duckduckgo.com/) 是一个注重隐私的网页搜索引擎，提供即时答案、摘要、相关主题等功能——无需跟踪您或您的搜索记录。DuckDuckGo 让您无需用户画像或定向广告即可轻松获取信息。
+
+在 Sim 中使用 DuckDuckGo，您可以：
+
+- **搜索网页**：即时找到答案、事实和搜索查询的概述
+- **获取直接答案**：检索计算、转换或事实查询的具体响应
+- **访问摘要**：接收搜索主题的简短总结或描述
+- **获取相关主题**：发现与搜索相关的链接和参考资料
+- **过滤输出**：可选择移除 HTML 或跳过歧义消解以获得更简洁的结果
+
+这些功能使您的 Sim 代理能够自动访问最新的网络知识——从在工作流程中呈现事实，到通过最新信息丰富文档和分析。由于 DuckDuckGo 的即时答案 API 是开放的且不需要 API 密钥，因此集成到您的自动化业务流程中既简单又安全。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用 DuckDuckGo 即时答案 API 搜索网页。返回即时答案、摘要、相关主题等。无需 API 密钥即可免费使用。
+
+## 工具
+
+### `duckduckgo_search`
+
+使用 DuckDuckGo 即时答案 API 搜索网页。返回查询的即时答案、摘要和相关主题。无需 API 密钥即可免费使用。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 要执行的搜索查询 |
+| `noHtml` | boolean | 否 | 从结果文本中移除 HTML \(默认值: true\) |
+| `skipDisambig` | boolean | 否 | 跳过歧义消解结果 \(默认值: false\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `heading` | string | 即时答案的标题 |
+| `abstract` | string | 主题的简短摘要 |
+| `abstractText` | string | 摘要的纯文本版本 |
+| `abstractSource` | string | 摘要的来源（例如，Wikipedia） |
+| `abstractURL` | string | 摘要来源的 URL |
+| `image` | string | 与主题相关的图片的 URL |
+| `answer` | string | 如果可用，直接答案（例如，用于计算） |
+| `answerType` | string | 答案的类型（例如，calc，ip 等） |
+| `type` | string | 响应类型：A（文章），D（消歧），C（类别），N（名称），E（独占） |
+| `relatedTopics` | array | 包含相关主题及其 URL 和描述的数组 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`duckduckgo`

@@ -50,6 +50,7 @@
     "onedollarstats": "0.0.10",
     "postgres": "^3.4.5",
     "remark-gfm": "4.0.1",
+    "rss-parser": "3.13.0",
     "socket.io-client": "4.8.1",
     "twilio": "5.9.0"
   },

@@ -134,7 +134,7 @@ async function executeWebhookJobInternal(
   const loggingSession = new LoggingSession(
     payload.workflowId,
     executionId,
-    payload.provider || 'webhook',
+    payload.provider,
     requestId
   )
 

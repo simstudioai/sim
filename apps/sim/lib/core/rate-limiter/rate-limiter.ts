@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { userRateLimits } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { createLogger } from '@/lib/logs/console/logger'
+import type Redis from 'ioredis'
+import { getRedisClient } from '@/lib/core/config/redis'
 import {
   MANUAL_EXECUTION_LIMIT,
   RATE_LIMIT_WINDOW_MS,
@@ -10,7 +10,8 @@ import {
   type RateLimitCounterType,
   type SubscriptionPlan,
   type TriggerType,
-} from '@/services/queue/types'
+} from '@/lib/core/rate-limiter/types'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('RateLimiter')
 
@@ -89,6 +90,69 @@ export class RateLimiter {
   }
 
   /**
+   * Check rate limit using Redis (faster, single atomic operation)
+   * Uses fixed window algorithm with INCR + EXPIRE
+   */
+  private async checkRateLimitRedis(
+    redis: Redis,
+    rateLimitKey: string,
+    counterType: RateLimitCounterType,
+    limit: number
+  ): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
+    const windowMs = RATE_LIMIT_WINDOW_MS
+    const windowKey = Math.floor(Date.now() / windowMs)
+    const key = `ratelimit:${rateLimitKey}:${counterType}:${windowKey}`
+    const ttlSeconds = Math.ceil(windowMs / 1000)
+
+    // Atomic increment + expire
+    const count = (await redis.eval(
+      'local c = redis.call("INCR", KEYS[1]) if c == 1 then redis.call("EXPIRE", KEYS[1], ARGV[1]) end return c',
+      1,
+      key,
+      ttlSeconds
+    )) as number
+
+    const resetAt = new Date((windowKey + 1) * windowMs)
+
+    if (count > limit) {
+      logger.info(`Rate limit exceeded (Redis) - request ${count} > limit ${limit}`, {
+        rateLimitKey,
+        counterType,
+        limit,
+        count,
+      })
+      return { allowed: false, remaining: 0, resetAt }
+    }
+
+    return { allowed: true, remaining: limit - count, resetAt }
+  }
+
+  /**
+   * Get rate limit status using Redis (read-only, doesn't increment)
+   */
+  private async getRateLimitStatusRedis(
+    redis: Redis,
+    rateLimitKey: string,
+    counterType: RateLimitCounterType,
+    limit: number
+  ): Promise<{ used: number; limit: number; remaining: number; resetAt: Date }> {
+    const windowMs = RATE_LIMIT_WINDOW_MS
+    const windowKey = Math.floor(Date.now() / windowMs)
+    const key = `ratelimit:${rateLimitKey}:${counterType}:${windowKey}`
+
+    const countStr = await redis.get(key)
+    const used = countStr ? Number.parseInt(countStr, 10) : 0
+    const resetAt = new Date((windowKey + 1) * windowMs)
+
+    return {
+      used,
+      limit,
+      remaining: Math.max(0, limit - used),
+      resetAt,
+    }
+  }
+
+  /**
    * Check if user can execute a workflow with organization-aware rate limiting
    * Manual executions bypass rate limiting entirely
    */
@@ -114,6 +178,18 @@ export class RateLimiter {
       const counterType = this.getCounterType(triggerType, isAsync)
       const execLimit = this.getRateLimitForCounter(limit, counterType)
 
+      // Try Redis first for faster rate limiting
+      const redis = getRedisClient()
+      if (redis) {
+        try {
+          return await this.checkRateLimitRedis(redis, rateLimitKey, counterType, execLimit)
+        } catch (error) {
+          logger.warn('Redis rate limit check failed, falling back to DB:', { error })
+          // Fall through to DB implementation
+        }
+      }
+
+      // Fallback to DB implementation
       const now = new Date()
       const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_MS)
 
@@ -274,21 +350,6 @@ export class RateLimiter {
   }
 
   /**
-   * Legacy method - for backward compatibility
-   * @deprecated Use checkRateLimitWithSubscription instead
-   */
-  async checkRateLimit(
-    userId: string,
-    subscriptionPlan: SubscriptionPlan = 'free',
-    triggerType: TriggerType = 'manual',
-    isAsync = false
-  ): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
-    // For backward compatibility, fetch the subscription
-    const subscription = await getHighestPrioritySubscription(userId)
-    return this.checkRateLimitWithSubscription(userId, subscription, triggerType, isAsync)
-  }
-
-  /**
    * Get current rate limit status with organization awareness
    * Only applies to API executions
    */
@@ -315,6 +376,18 @@ export class RateLimiter {
       const counterType = this.getCounterType(triggerType, isAsync)
       const execLimit = this.getRateLimitForCounter(limit, counterType)
 
+      // Try Redis first for faster status check
+      const redis = getRedisClient()
+      if (redis) {
+        try {
+          return await this.getRateLimitStatusRedis(redis, rateLimitKey, counterType, execLimit)
+        } catch (error) {
+          logger.warn('Redis rate limit status check failed, falling back to DB:', { error })
+          // Fall through to DB implementation
+        }
+      }
+
+      // Fallback to DB implementation
       const now = new Date()
       const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_MS)
 
@@ -353,21 +426,6 @@ export class RateLimiter {
         resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
       }
     }
-  }
-
-  /**
-   * Legacy method - for backward compatibility
-   * @deprecated Use getRateLimitStatusWithSubscription instead
-   */
-  async getRateLimitStatus(
-    userId: string,
-    subscriptionPlan: SubscriptionPlan = 'free',
-    triggerType: TriggerType = 'manual',
-    isAsync = false
-  ): Promise<{ used: number; limit: number; remaining: number; resetAt: Date }> {
-    // For backward compatibility, fetch the subscription
-    const subscription = await getHighestPrioritySubscription(userId)
-    return this.getRateLimitStatusWithSubscription(userId, subscription, triggerType, isAsync)
   }
 
   /**

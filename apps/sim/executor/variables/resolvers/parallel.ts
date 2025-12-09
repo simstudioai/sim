@@ -98,16 +98,43 @@ export class ParallelResolver implements Resolver {
     return undefined
   }
 
-  private getDistributionItems(parallelConfig: any): any {
-    let distributionItems = parallelConfig.distributionItems || parallelConfig.distribution || []
-    if (typeof distributionItems === 'string' && !distributionItems.startsWith('<')) {
+  private getDistributionItems(parallelConfig: any): any[] {
+    const rawItems = parallelConfig.distributionItems || parallelConfig.distribution || []
+
+    // Already an array - return as-is
+    if (Array.isArray(rawItems)) {
+      return rawItems
+    }
+
+    // Object - convert to entries array (consistent with loop forEach behavior)
+    if (typeof rawItems === 'object' && rawItems !== null) {
+      return Object.entries(rawItems)
+    }
+
+    // String handling
+    if (typeof rawItems === 'string') {
+      // Skip references - they should be resolved by the variable resolver
+      if (rawItems.startsWith('<')) {
+        return []
+      }
+
+      // Try to parse as JSON
       try {
-        distributionItems = JSON.parse(distributionItems.replace(/'/g, '"'))
+        const parsed = JSON.parse(rawItems.replace(/'/g, '"'))
+        if (Array.isArray(parsed)) {
+          return parsed
+        }
+        // Parsed to non-array (e.g. object) - convert to entries
+        if (typeof parsed === 'object' && parsed !== null) {
+          return Object.entries(parsed)
+        }
+        return []
       } catch (e) {
-        logger.error('Failed to parse distribution items', { distributionItems })
+        logger.error('Failed to parse distribution items', { rawItems })
         return []
       }
     }
-    return distributionItems
+
+    return []
   }
 }

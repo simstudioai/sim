@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Check, Copy, Plus, Search } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { Button, Input as EmcnInput } from '@/components/emcn'
 import {
   Modal,
   ModalBody,
@@ -28,7 +28,11 @@ function CopilotKeySkeleton() {
   return (
     <div className='flex items-center justify-between gap-[12px]'>
       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-        <Skeleton className='h-[13px] w-[120px]' />
+        <div className='flex items-center gap-[6px]'>
+          <Skeleton className='h-5 w-[80px]' />
+          <Skeleton className='h-5 w-[140px]' />
+        </div>
+        <Skeleton className='h-5 w-[100px]' />
       </div>
       <Skeleton className='h-[26px] w-[48px] rounded-[6px]' />
     </div>
@@ -44,28 +48,50 @@ export function Copilot() {
   const generateKey = useGenerateCopilotKey()
   const deleteKeyMutation = useDeleteCopilotKey()
 
-  const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [newKeyName, setNewKeyName] = useState('')
   const [newKey, setNewKey] = useState<string | null>(null)
+  const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
   const [deleteKey, setDeleteKey] = useState<CopilotKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [createError, setCreateError] = useState<string | null>(null)
 
   const filteredKeys = useMemo(() => {
     if (!searchTerm.trim()) return keys
     const term = searchTerm.toLowerCase()
-    return keys.filter((key) => key.displayKey?.toLowerCase().includes(term))
+    return keys.filter(
+      (key) =>
+        key.name?.toLowerCase().includes(term) || key.displayKey?.toLowerCase().includes(term)
+    )
   }, [keys, searchTerm])
 
-  const onGenerate = async () => {
+  const handleCreateKey = async () => {
+    if (!newKeyName.trim()) return
+
+    const trimmedName = newKeyName.trim()
+    const isDuplicate = keys.some((k) => k.name === trimmedName)
+    if (isDuplicate) {
+      setCreateError(
+        `A Copilot API key named "${trimmedName}" already exists. Please choose a different name.`
+      )
+      return
+    }
+
+    setCreateError(null)
     try {
-      const data = await generateKey.mutateAsync()
+      const data = await generateKey.mutateAsync({ name: trimmedName })
       if (data?.key?.apiKey) {
         setNewKey(data.key.apiKey)
         setShowNewKeyDialog(true)
+        setNewKeyName('')
+        setCreateError(null)
+        setIsCreateDialogOpen(false)
       }
     } catch (error) {
       logger.error('Failed to generate copilot API key', { error })
+      setCreateError('Failed to create API key. Please check your connection and try again.')
     }
   }
 
@@ -88,6 +114,15 @@ export function Copilot() {
     }
   }
 
+  const formatDate = (dateString?: string | null) => {
+    if (!dateString) return 'Never'
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
   const hasKeys = keys.length > 0
   const showEmptyState = !hasKeys
   const showNoResults = searchTerm.trim() && filteredKeys.length === 0 && keys.length > 0
@@ -103,20 +138,23 @@ export function Copilot() {
               strokeWidth={2}
             />
             <Input
-              placeholder='Search keys...'
+              placeholder='Search API keys...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
           <Button
-            onClick={onGenerate}
+            onClick={() => {
+              setIsCreateDialogOpen(true)
+              setCreateError(null)
+            }}
             variant='primary'
-            disabled={isLoading || generateKey.isPending}
+            disabled={isLoading}
             className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90 disabled:cursor-not-allowed disabled:opacity-60'
           >
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
-            {generateKey.isPending ? 'Creating...' : 'Create'}
+            Create
           </Button>
         </div>
 
@@ -137,7 +175,15 @@ export function Copilot() {
               {filteredKeys.map((key) => (
                 <div key={key.id} className='flex items-center justify-between gap-[12px]'>
                   <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                    <p className='truncate text-[13px] text-[var(--text-primary)]'>
+                    <div className='flex items-center gap-[6px]'>
+                      <span className='max-w-[280px] truncate font-medium text-[14px]'>
+                        {key.name || 'Unnamed Key'}
+                      </span>
+                      <span className='text-[13px] text-[var(--text-secondary)]'>
+                        (last used: {formatDate(key.lastUsed).toLowerCase()})
+                      </span>
+                    </div>
+                    <p className='truncate text-[13px] text-[var(--text-muted)]'>
                       {key.displayKey}
                     </p>
                   </div>
@@ -155,13 +201,67 @@ export function Copilot() {
               ))}
               {showNoResults && (
                 <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
-                  No keys found matching "{searchTerm}"
+                  No API keys found matching "{searchTerm}"
                 </div>
               )}
             </div>
           )}
         </div>
       </div>
+
+      {/* Create API Key Dialog */}
+      <Modal open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Create new API key</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              This key will allow access to Copilot features. Make sure to copy it after creation as
+              you won't be able to see it again.
+            </p>
+
+            <div className='mt-[16px] flex flex-col gap-[8px]'>
+              <p className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                Enter a name for your API key to help you identify it later.
+              </p>
+              <EmcnInput
+                value={newKeyName}
+                onChange={(e) => {
+                  setNewKeyName(e.target.value)
+                  if (createError) setCreateError(null)
+                }}
+                placeholder='e.g., Development, Production'
+                className='h-9'
+                autoFocus
+              />
+              {createError && (
+                <p className='text-[11px] text-[var(--text-error)] leading-tight'>{createError}</p>
+              )}
+            </div>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button
+              variant='default'
+              onClick={() => {
+                setIsCreateDialogOpen(false)
+                setNewKeyName('')
+                setCreateError(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type='button'
+              variant='primary'
+              onClick={handleCreateKey}
+              disabled={!newKeyName.trim() || generateKey.isPending}
+              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+            >
+              {generateKey.isPending ? 'Creating...' : 'Create'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* New API Key Dialog */}
       <Modal
@@ -215,7 +315,11 @@ export function Copilot() {
           <ModalHeader>Delete API key</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
-              Deleting this API key will immediately revoke access for any integrations using it.{' '}
+              Deleting{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {deleteKey?.name || 'Unnamed Key'}
+              </span>{' '}
+              will immediately revoke access for any integrations using it.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>

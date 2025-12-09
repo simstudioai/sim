@@ -1,0 +1,63 @@
+---
+title: DuckDuckGo
+description: Suche mit DuckDuckGo
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="duckduckgo"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DuckDuckGo](https://duckduckgo.com/) ist eine datenschutzorientierte Websuchmaschine, die sofortige Antworten, Zusammenfassungen, verwandte Themen und mehr liefert – ohne dich oder deine Suchen zu verfolgen. DuckDuckGo macht es einfach, Informationen ohne Benutzerprofilierung oder zielgerichtete Werbung zu finden.
+
+Mit DuckDuckGo in Sim kannst du:
+
+- **Im Web suchen**: Finde sofort Antworten, Fakten und Übersichten für eine bestimmte Suchanfrage
+- **Direkte Antworten erhalten**: Erhalte spezifische Antworten für Berechnungen, Umrechnungen oder Faktenfragen
+- **Auf Zusammenfassungen zugreifen**: Erhalte kurze Zusammenfassungen oder Beschreibungen für deine Suchthemen
+- **Verwandte Themen abrufen**: Entdecke Links und Referenzen, die für deine Suche relevant sind
+- **Ausgabe filtern**: Optional HTML entfernen oder Begriffsklärungen überspringen für sauberere Ergebnisse
+
+Diese Funktionen ermöglichen es deinen Sim-Agenten, den Zugriff auf aktuelles Webwissen zu automatisieren – vom Auffinden von Fakten in einem Workflow bis hin zur Anreicherung von Dokumenten und Analysen mit aktuellen Informationen. Da DuckDuckGos Instant Answers API offen ist und keinen API-Schlüssel erfordert, lässt sie sich einfach und datenschutzsicher in deine automatisierten Geschäftsprozesse integrieren.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Durchsuche das Web mit der DuckDuckGo Instant Answers API. Liefert sofortige Antworten, Zusammenfassungen, verwandte Themen und mehr. Kostenlos nutzbar ohne API-Schlüssel.
+
+## Tools
+
+### `duckduckgo_search`
+
+Durchsuche das Web mit der DuckDuckGo Instant Answers API. Liefert sofortige Antworten, Zusammenfassungen und verwandte Themen für deine Anfrage. Kostenlos nutzbar ohne API-Schlüssel.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Ja | Die auszuführende Suchanfrage |
+| `noHtml` | boolean | Nein | HTML aus Text in Ergebnissen entfernen \(Standard: true\) |
+| `skipDisambig` | boolean | Nein | Begriffsklärungsergebnisse überspringen \(Standard: false\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `heading` | string | Die Überschrift/der Titel der Sofortantwort |
+| `abstract` | string | Eine kurze Zusammenfassung des Themas |
+| `abstractText` | string | Einfache Textversion der Zusammenfassung |
+| `abstractSource` | string | Die Quelle der Zusammenfassung \(z.B. Wikipedia\) |
+| `abstractURL` | string | URL zur Quelle der Zusammenfassung |
+| `image` | string | URL zu einem Bild zum Thema |
+| `answer` | string | Direkte Antwort, falls verfügbar \(z.B. für Berechnungen\) |
+| `answerType` | string | Typ der Antwort \(z.B. calc, ip, usw.\) |
+| `type` | string | Antworttyp: A \(Artikel\), D \(Begriffsklärung\), C \(Kategorie\), N \(Name\), E \(Exklusiv\) |
+| `relatedTopics` | array | Array verwandter Themen mit URLs und Beschreibungen |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `duckduckgo`

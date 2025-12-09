@@ -1,0 +1,49 @@
+---
+title: RSS-Feed
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+Der RSS-Feed-Block überwacht RSS- und Atom-Feeds – wenn neue Einträge veröffentlicht werden, wird Ihr Workflow automatisch ausgelöst.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/rss.png"
+    alt="RSS-Feed-Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Konfiguration
+
+1. **RSS-Feed-Block hinzufügen** - Ziehen Sie den RSS-Feed-Block, um Ihren Workflow zu starten
+2. **Feed-URL eingeben** - Fügen Sie die URL eines beliebigen RSS- oder Atom-Feeds ein
+3. **Bereitstellen** - Stellen Sie Ihren Workflow bereit, um das Polling zu aktivieren
+
+Nach der Bereitstellung wird der Feed jede Minute auf neue Einträge überprüft.
+
+## Ausgabefelder
+
+| Feld | Typ | Beschreibung |
+|-------|------|-------------|
+| `title` | string | Titel des Eintrags |
+| `link` | string | Link des Eintrags |
+| `pubDate` | string | Veröffentlichungsdatum |
+| `item` | object | Rohdaten des Eintrags mit allen Feldern |
+| `feed` | object | Rohdaten der Feed-Metadaten |
+
+Greifen Sie direkt auf zugeordnete Felder zu (`<rss.title>`) oder verwenden Sie die Rohobjekte für beliebige Felder (`<rss.item.author>`, `<rss.feed.language>`).
+
+## Anwendungsfälle
+
+- **Inhaltsüberwachung** - Verfolgen Sie Blogs, Nachrichtenseiten oder Updates von Wettbewerbern
+- **Podcast-Automatisierung** - Lösen Sie Workflows aus, wenn neue Episoden erscheinen
+- **Release-Tracking** - Überwachen Sie GitHub-Releases, Changelogs oder Produkt-Updates
+- **Social-Media-Aggregation** - Sammeln Sie Inhalte von Plattformen, die RSS-Feeds anbieten
+
+<Callout>
+RSS-Trigger werden nur für Einträge ausgelöst, die nach dem Speichern des Triggers veröffentlicht wurden. Bestehende Feed-Einträge werden nicht verarbeitet.
+</Callout>

@@ -21,14 +21,17 @@ import { Image } from '@/components/ui/image'
 エディタ、APIへのデプロイ、またはチャットへのデプロイエクスペリエンスから始まるすべてのものにはスタートブロックを使用します。イベント駆動型ワークフローには他のトリガーも利用可能です：
 
 <Cards>
-  <Card title="スタート" href="/triggers/start">
+  <Card title="Start" href="/triggers/start">
     エディタ実行、APIデプロイメント、チャットデプロイメントをサポートする統合エントリーポイント
   </Card>
-  <Card title="ウェブフック" href="/triggers/webhook">
-    外部ウェブフックペイロードを受信
+  <Card title="Webhook" href="/triggers/webhook">
+    外部のwebhookペイロードを受信
   </Card>
-  <Card title="スケジュール" href="/triggers/schedule">
+  <Card title="Schedule" href="/triggers/schedule">
     Cronまたは間隔ベースの実行
+  </Card>
+  <Card title="RSS Feed" href="/triggers/rss">
+    新しいコンテンツのRSSとAtomフィードを監視
   </Card>
 </Cards>
 
@@ -36,9 +39,10 @@ import { Image } from '@/components/ui/image'
 
 | トリガー | 開始条件 |
 |---------|-----------------|
-| **スタート** | エディタ実行、APIへのデプロイリクエスト、またはチャットメッセージ |
-| **スケジュール** | スケジュールブロックで管理されるタイマー |
-| **ウェブフック** | 受信HTTPリクエスト時 |
+| **Start** | エディタ実行、APIへのデプロイリクエスト、またはチャットメッセージ |
+| **Schedule** | スケジュールブロックで管理されるタイマー |
+| **Webhook** | 受信HTTPリクエスト時 |
+| **RSS Feed** | フィードに新しいアイテムが公開された時 |
 
 > スタートブロックは常に `input`、`conversationId`、および `files` フィールドを公開します。追加の構造化データには入力フォーマットにカスタムフィールドを追加してください。
 

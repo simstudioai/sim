@@ -364,7 +364,7 @@ describe('Chat Identifier API Route', () => {
         error: {
           message: 'Workflow is not deployed',
           statusCode: 403,
-          logCreated: true,
+          logCreated: false,
         },
       })
 

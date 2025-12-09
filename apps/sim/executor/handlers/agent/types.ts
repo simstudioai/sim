@@ -32,6 +32,8 @@ export interface ToolInput {
   timeout?: number
   usageControl?: 'auto' | 'force' | 'none'
   operation?: string
+  /** Database ID for custom tools (new reference format) */
+  customToolId?: string
 }
 
 export interface Message {

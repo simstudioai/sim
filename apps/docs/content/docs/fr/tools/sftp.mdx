@@ -1,0 +1,183 @@
+---
+title: SFTP
+description: Transférer des fichiers via SFTP (Protocole de transfert de fichiers SSH)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sftp"
+  color="#2D3748"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SFTP (Protocole de transfert de fichiers SSH)](https://en.wikipedia.org/wiki/SSH_File_Transfer_Protocol) est un protocole réseau sécurisé qui vous permet de téléverser, télécharger et gérer des fichiers sur des serveurs distants. SFTP fonctionne via SSH, ce qui en fait une solution idéale pour les transferts de fichiers automatisés et chiffrés, ainsi que pour la gestion de fichiers à distance dans les flux de travail modernes.
+
+Grâce aux outils SFTP intégrés à Sim, vous pouvez facilement automatiser le déplacement de fichiers entre vos agents IA et des systèmes ou serveurs externes. Cela permet à vos agents de gérer les échanges de données critiques, les sauvegardes, la génération de documents et l'orchestration de systèmes distants, le tout avec une sécurité robuste.
+
+**Fonctionnalités clés disponibles via les outils SFTP :**
+
+- **Téléversement de fichiers :** Transférez facilement des fichiers de tout type depuis votre flux de travail vers un serveur distant, avec prise en charge de l'authentification par mot de passe et par clé privée SSH.
+- **Téléchargement de fichiers :** Récupérez des fichiers depuis des serveurs SFTP distants directement pour traitement, archivage ou automatisation supplémentaire.
+- **Liste et gestion des fichiers :** Énumérez les répertoires, supprimez ou créez des fichiers et dossiers, et gérez les permissions du système de fichiers à distance.
+- **Authentification flexible :** Connectez-vous en utilisant soit des mots de passe traditionnels, soit des clés SSH, avec prise en charge des phrases secrètes et du contrôle des permissions.
+- **Prise en charge des fichiers volumineux :** Gérez de manière programmatique les téléversements et téléchargements de fichiers volumineux, avec des limites de taille intégrées pour la sécurité.
+
+En intégrant SFTP à Sim, vous pouvez automatiser les opérations de fichiers sécurisées dans le cadre de n'importe quel flux de travail, qu'il s'agisse de collecte de données, de rapports, de maintenance de systèmes distants ou d'échange dynamique de contenu entre plateformes.
+
+Les sections ci-dessous décrivent les principaux outils SFTP disponibles :
+
+- **sftp_upload :** Téléverser un ou plusieurs fichiers vers un serveur distant.
+- **sftp_download :** Télécharger des fichiers depuis un serveur distant vers votre flux de travail.
+- **sftp_list :** Lister le contenu des répertoires sur un serveur SFTP distant.
+- **sftp_delete :** Supprimer des fichiers ou des répertoires d'un serveur distant.
+- **sftp_create :** Créer de nouveaux fichiers sur un serveur SFTP distant.
+- **sftp_mkdir :** Créer de nouveaux répertoires à distance.
+
+Consultez la documentation de l'outil ci-dessous pour les paramètres d'entrée et de sortie détaillés pour chaque opération.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Téléchargez, téléchargez, listez et gérez des fichiers sur des serveurs distants via SFTP. Prend en charge l'authentification par mot de passe et par clé privée pour des transferts de fichiers sécurisés.
+
+## Outils
+
+### `sftp_upload`
+
+Téléverser des fichiers vers un serveur SFTP distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur SFTP |
+| `port` | number | Oui | Port du serveur SFTP \(par défaut : 22\) |
+| `username` | string | Oui | Nom d'utilisateur SFTP |
+| `password` | string | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | string | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | string | Non | Phrase secrète pour la clé privée chiffrée |
+| `remotePath` | string | Oui | Répertoire de destination sur le serveur distant |
+| `files` | file[] | Non | Fichiers à téléverser |
+| `fileContent` | string | Non | Contenu direct du fichier à téléverser \(pour les fichiers texte\) |
+| `fileName` | string | Non | Nom du fichier lors de l'utilisation du contenu direct |
+| `overwrite` | boolean | Non | Écraser les fichiers existants \(par défaut : true\) |
+| `permissions` | string | Non | Permissions du fichier \(ex. 0644\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si le téléversement a réussi |
+| `uploadedFiles` | json | Tableau des détails des fichiers téléversés \(nom, chemin distant, taille\) |
+| `message` | string | Message d'état de l'opération |
+
+### `sftp_download`
+
+Télécharger un fichier depuis un serveur SFTP distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur SFTP |
+| `port` | nombre | Oui | Port du serveur SFTP \(par défaut : 22\) |
+| `username` | chaîne | Oui | Nom d'utilisateur SFTP |
+| `password` | chaîne | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | chaîne | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | chaîne | Non | Phrase secrète pour la clé privée chiffrée |
+| `remotePath` | chaîne | Oui | Chemin vers le fichier sur le serveur distant |
+| `encoding` | chaîne | Non | Encodage de sortie : utf-8 pour le texte, base64 pour le binaire \(par défaut : utf-8\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si le téléchargement a réussi |
+| `fileName` | chaîne | Nom du fichier téléchargé |
+| `content` | chaîne | Contenu du fichier \(texte ou encodé en base64\) |
+| `size` | nombre | Taille du fichier en octets |
+| `encoding` | chaîne | Encodage du contenu \(utf-8 ou base64\) |
+| `message` | chaîne | Message d'état de l'opération |
+
+### `sftp_list`
+
+Lister les fichiers et répertoires sur un serveur SFTP distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur SFTP |
+| `port` | nombre | Oui | Port du serveur SFTP \(par défaut : 22\) |
+| `username` | chaîne | Oui | Nom d'utilisateur SFTP |
+| `password` | chaîne | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | chaîne | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | chaîne | Non | Phrase secrète pour la clé privée chiffrée |
+| `remotePath` | chaîne | Oui | Chemin du répertoire sur le serveur distant |
+| `detailed` | booléen | Non | Inclure des informations détaillées sur les fichiers \(taille, permissions, date de modification\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si l'opération a réussi |
+| `path` | string | Chemin du répertoire qui a été listé |
+| `entries` | json | Tableau des entrées du répertoire avec nom, type, taille, permissions, modifiedAt |
+| `count` | number | Nombre d'entrées dans le répertoire |
+| `message` | string | Message d'état de l'opération |
+
+### `sftp_delete`
+
+Supprimer un fichier ou un répertoire sur un serveur SFTP distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur SFTP |
+| `port` | number | Oui | Port du serveur SFTP \(par défaut : 22\) |
+| `username` | string | Oui | Nom d'utilisateur SFTP |
+| `password` | string | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | string | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | string | Non | Phrase secrète pour la clé privée chiffrée |
+| `remotePath` | string | Oui | Chemin vers le fichier ou le répertoire à supprimer |
+| `recursive` | boolean | Non | Supprimer les répertoires de façon récursive |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si la suppression a réussi |
+| `deletedPath` | string | Chemin qui a été supprimé |
+| `message` | string | Message d'état de l'opération |
+
+### `sftp_mkdir`
+
+Créer un répertoire sur un serveur SFTP distant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur SFTP |
+| `port` | nombre | Oui | Port du serveur SFTP \(par défaut : 22\) |
+| `username` | chaîne | Oui | Nom d'utilisateur SFTP |
+| `password` | chaîne | Non | Mot de passe pour l'authentification \(si vous n'utilisez pas de clé privée\) |
+| `privateKey` | chaîne | Non | Clé privée pour l'authentification \(format OpenSSH\) |
+| `passphrase` | chaîne | Non | Phrase secrète pour la clé privée chiffrée |
+| `remotePath` | chaîne | Oui | Chemin pour le nouveau répertoire |
+| `recursive` | booléen | Non | Créer les répertoires parents s'ils n'existent pas |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si le répertoire a été créé avec succès |
+| `createdPath` | chaîne | Chemin du répertoire créé |
+| `message` | chaîne | Message d'état de l'opération |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `sftp`
