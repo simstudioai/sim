@@ -96,6 +96,7 @@ import { SearchBlock } from '@/blocks/blocks/search'
 import { SendGridBlock } from '@/blocks/blocks/sendgrid'
 import { SentryBlock } from '@/blocks/blocks/sentry'
 import { SerperBlock } from '@/blocks/blocks/serper'
+import { SftpBlock } from '@/blocks/blocks/sftp'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock } from '@/blocks/blocks/shopify'
 import { SlackBlock } from '@/blocks/blocks/slack'
@@ -240,6 +241,7 @@ export const registry: Record<string, BlockConfig> = {
   shopify: ShopifyBlock,
   slack: SlackBlock,
   smtp: SmtpBlock,
+  sftp: SftpBlock,
   ssh: SSHBlock,
   stagehand: StagehandBlock,
   stagehand_agent: StagehandAgentBlock,
