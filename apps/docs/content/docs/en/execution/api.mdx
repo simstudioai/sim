@@ -27,14 +27,16 @@ All API responses include information about your workflow execution limits and u
 "limits": {
   "workflowExecutionRateLimit": {
     "sync": {
-      "limit": 60,        // Max sync workflow executions per minute
-      "remaining": 58,    // Remaining sync workflow executions
-      "resetAt": "..."    // When the window resets
+      "requestsPerMinute": 60,  // Sustained rate limit per minute
+      "maxBurst": 120,          // Maximum burst capacity
+      "remaining": 118,         // Current tokens available (up to maxBurst)
+      "resetAt": "..."          // When tokens next refill
     },
     "async": {
-      "limit": 60,        // Max async workflow executions per minute
-      "remaining": 59,    // Remaining async workflow executions
-      "resetAt": "..."    // When the window resets
+      "requestsPerMinute": 200, // Sustained rate limit per minute
+      "maxBurst": 400,          // Maximum burst capacity
+      "remaining": 398,         // Current tokens available
+      "resetAt": "..."          // When tokens next refill
     }
   },
   "usage": {
@@ -46,7 +48,7 @@ All API responses include information about your workflow execution limits and u
 }
 ```
 
-**Note:** The rate limits in the response body are for workflow executions. The rate limits for calling this API endpoint are in the response headers (`X-RateLimit-*`).
+**Note:** Rate limits use a token bucket algorithm. `remaining` can exceed `requestsPerMinute` up to `maxBurst` when you haven't used your full allowance recently, allowing for burst traffic. The rate limits in the response body are for workflow executions. The rate limits for calling this API endpoint are in the response headers (`X-RateLimit-*`).
 
 ### Query Logs
 
@@ -108,13 +110,15 @@ Query workflow execution logs with extensive filtering options.
       "limits": {
         "workflowExecutionRateLimit": {
           "sync": {
-            "limit": 60,
-            "remaining": 58,
+            "requestsPerMinute": 60,
+            "maxBurst": 120,
+            "remaining": 118,
             "resetAt": "2025-01-01T12:35:56.789Z"
           },
           "async": {
-            "limit": 60,
-            "remaining": 59,
+            "requestsPerMinute": 200,
+            "maxBurst": 400,
+            "remaining": 398,
             "resetAt": "2025-01-01T12:35:56.789Z"
           }
         },
@@ -184,13 +188,15 @@ Retrieve detailed information about a specific log entry.
         "limits": {
           "workflowExecutionRateLimit": {
             "sync": {
-              "limit": 60,
-              "remaining": 58,
+              "requestsPerMinute": 60,
+              "maxBurst": 120,
+              "remaining": 118,
               "resetAt": "2025-01-01T12:35:56.789Z"
             },
             "async": {
-              "limit": 60,
-              "remaining": 59,
+              "requestsPerMinute": 200,
+              "maxBurst": 400,
+              "remaining": 398,
               "resetAt": "2025-01-01T12:35:56.789Z"
             }
           },
@@ -467,17 +473,25 @@ Failed webhook deliveries are retried with exponential backoff and jitter:
 
 ## Rate Limiting
 
-The API implements rate limiting to ensure fair usage:
+The API uses a **token bucket algorithm** for rate limiting, providing fair usage while allowing burst traffic:
 
-- **Free plan**: 10 requests per minute
-- **Pro plan**: 30 requests per minute
-- **Team plan**: 60 requests per minute
-- **Enterprise plan**: Custom limits
+| Plan | Requests/Minute | Burst Capacity |
+|------|-----------------|----------------|
+| Free | 10 | 20 |
+| Pro | 30 | 60 |
+| Team | 60 | 120 |
+| Enterprise | 120 | 240 |
+
+**How it works:**
+- Tokens refill at `requestsPerMinute` rate
+- You can accumulate up to `maxBurst` tokens when idle
+- Each request consumes 1 token
+- Burst capacity allows handling traffic spikes
 
 Rate limit information is included in response headers:
-- `X-RateLimit-Limit`: Maximum requests per window
-- `X-RateLimit-Remaining`: Requests remaining in current window
-- `X-RateLimit-Reset`: ISO timestamp when the window resets
+- `X-RateLimit-Limit`: Requests per minute (refill rate)
+- `X-RateLimit-Remaining`: Current tokens available
+- `X-RateLimit-Reset`: ISO timestamp when tokens next refill
 
 ## Example: Polling for New Logs
 

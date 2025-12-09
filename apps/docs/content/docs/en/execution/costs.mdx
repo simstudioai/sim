@@ -143,8 +143,20 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 {
   "success": true,
   "rateLimit": {
-    "sync": { "isLimited": false, "limit": 10, "remaining": 10, "resetAt": "2025-09-08T22:51:55.999Z" },
-    "async": { "isLimited": false, "limit": 50, "remaining": 50, "resetAt": "2025-09-08T22:51:56.155Z" },
+    "sync": {
+      "isLimited": false,
+      "requestsPerMinute": 25,
+      "maxBurst": 50,
+      "remaining": 50,
+      "resetAt": "2025-09-08T22:51:55.999Z"
+    },
+    "async": {
+      "isLimited": false,
+      "requestsPerMinute": 200,
+      "maxBurst": 400,
+      "remaining": 400,
+      "resetAt": "2025-09-08T22:51:56.155Z"
+    },
     "authType": "api"
   },
   "usage": {
@@ -154,6 +166,11 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
   }
 }
 ```
+
+**Rate Limit Fields:**
+- `requestsPerMinute`: Sustained rate limit (tokens refill at this rate)
+- `maxBurst`: Maximum tokens you can accumulate (burst capacity)
+- `remaining`: Current tokens available (can be up to `maxBurst`)
 
 **Response Fields:**
 - `currentPeriodCost` reflects usage in the current billing period
