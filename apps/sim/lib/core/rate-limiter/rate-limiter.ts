@@ -104,11 +104,13 @@ export class RateLimiter {
     const key = `ratelimit:${rateLimitKey}:${counterType}:${windowKey}`
     const ttlSeconds = Math.ceil(windowMs / 1000)
 
-    // Atomic increment - creates key with value 1 if doesn't exist
-    const count = await redis.incr(key)
-
-    // Always set expiry to ensure keys don't persist indefinitely
-    await redis.expire(key, ttlSeconds)
+    // Atomic increment + expire
+    const count = (await redis.eval(
+      'local c = redis.call("INCR", KEYS[1]) if c == 1 then redis.call("EXPIRE", KEYS[1], ARGV[1]) end return c',
+      1,
+      key,
+      ttlSeconds
+    )) as number
 
     const resetAt = new Date((windowKey + 1) * windowMs)
 

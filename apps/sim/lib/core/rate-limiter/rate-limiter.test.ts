@@ -162,8 +162,7 @@ describe('RateLimiter', () => {
 
     it('should use Redis when available', async () => {
       const mockRedis = {
-        incr: vi.fn().mockResolvedValue(1),
-        expire: vi.fn().mockResolvedValue(1),
+        eval: vi.fn().mockResolvedValue(1), // Lua script returns count after INCR
       }
       vi.mocked(getRedisClient).mockReturnValue(mockRedis as any)
 
@@ -176,15 +175,13 @@ describe('RateLimiter', () => {
 
       expect(result.allowed).toBe(true)
       expect(result.remaining).toBe(RATE_LIMITS.free.syncApiExecutionsPerMinute - 1)
-      expect(mockRedis.incr).toHaveBeenCalled()
-      expect(mockRedis.expire).toHaveBeenCalled()
+      expect(mockRedis.eval).toHaveBeenCalled()
       expect(db.select).not.toHaveBeenCalled()
     })
 
     it('should deny requests when Redis rate limit exceeded', async () => {
       const mockRedis = {
-        incr: vi.fn().mockResolvedValue(RATE_LIMITS.free.syncApiExecutionsPerMinute + 1),
-        expire: vi.fn().mockResolvedValue(1),
+        eval: vi.fn().mockResolvedValue(RATE_LIMITS.free.syncApiExecutionsPerMinute + 1),
       }
       vi.mocked(getRedisClient).mockReturnValue(mockRedis as any)
 
@@ -201,7 +198,7 @@ describe('RateLimiter', () => {
 
     it('should fall back to DB when Redis fails', async () => {
       const mockRedis = {
-        incr: vi.fn().mockRejectedValue(new Error('Redis connection failed')),
+        eval: vi.fn().mockRejectedValue(new Error('Redis connection failed')),
       }
       vi.mocked(getRedisClient).mockReturnValue(mockRedis as any)
 

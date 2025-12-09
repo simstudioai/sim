@@ -140,7 +140,7 @@ vi.mock('@/lib/workspaces/utils', async () => {
   }
 })
 
-vi.mock('@/services/queue', () => ({
+vi.mock('@/lib/core/rate-limiter', () => ({
   RateLimiter: vi.fn().mockImplementation(() => ({
     checkRateLimit: vi.fn().mockResolvedValue({
       allowed: true,
