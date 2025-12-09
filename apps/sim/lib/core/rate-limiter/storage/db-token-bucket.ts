@@ -16,6 +16,7 @@ export class DbTokenBucket implements RateLimitStorageAdapter {
   ): Promise<ConsumeResult> {
     const now = new Date()
     const nowMs = now.getTime()
+    const nowIso = now.toISOString()
 
     const result = await db
       .insert(rateLimitBucket)
@@ -35,7 +36,7 @@ export class DbTokenBucket implements RateLimitStorageAdapter {
                   ${config.maxTokens}::numeric,
                   ${rateLimitBucket.tokens}::numeric + (
                     FLOOR(
-                      EXTRACT(EPOCH FROM (${now}::timestamp - ${rateLimitBucket.lastRefillAt})) * 1000
+                      EXTRACT(EPOCH FROM (${nowIso}::timestamp - ${rateLimitBucket.lastRefillAt})) * 1000
                       / ${config.refillIntervalMs}
                     ) * ${config.refillRate}
                   )::numeric
@@ -45,7 +46,7 @@ export class DbTokenBucket implements RateLimitStorageAdapter {
                 ${config.maxTokens}::numeric,
                 ${rateLimitBucket.tokens}::numeric + (
                   FLOOR(
-                    EXTRACT(EPOCH FROM (${now}::timestamp - ${rateLimitBucket.lastRefillAt})) * 1000
+                    EXTRACT(EPOCH FROM (${nowIso}::timestamp - ${rateLimitBucket.lastRefillAt})) * 1000
                     / ${config.refillIntervalMs}
                   ) * ${config.refillRate}
                 )::numeric
@@ -56,12 +57,12 @@ export class DbTokenBucket implements RateLimitStorageAdapter {
           lastRefillAt: sql`
             CASE
               WHEN FLOOR(
-                EXTRACT(EPOCH FROM (${now}::timestamp - ${rateLimitBucket.lastRefillAt})) * 1000
+                EXTRACT(EPOCH FROM (${nowIso}::timestamp - ${rateLimitBucket.lastRefillAt})) * 1000
                 / ${config.refillIntervalMs}
               ) > 0
               THEN ${rateLimitBucket.lastRefillAt} + (
                 FLOOR(
-                  EXTRACT(EPOCH FROM (${now}::timestamp - ${rateLimitBucket.lastRefillAt})) * 1000
+                  EXTRACT(EPOCH FROM (${nowIso}::timestamp - ${rateLimitBucket.lastRefillAt})) * 1000
                   / ${config.refillIntervalMs}
                 ) * ${config.refillIntervalMs} * INTERVAL '1 millisecond'
               )

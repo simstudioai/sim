@@ -162,7 +162,7 @@ describe('RateLimiter', () => {
       )
     })
 
-    it('should allow on error to avoid blocking users', async () => {
+    it('should deny on storage error (fail closed)', async () => {
       vi.mocked(mockAdapter.consumeTokens).mockRejectedValue(new Error('Storage error'))
 
       const result = await rateLimiter.checkRateLimitWithSubscription(
@@ -172,7 +172,8 @@ describe('RateLimiter', () => {
         false
       )
 
-      expect(result.allowed).toBe(true)
+      expect(result.allowed).toBe(false)
+      expect(result.remaining).toBe(0)
     })
 
     it('should work for all non-manual trigger types', async () => {

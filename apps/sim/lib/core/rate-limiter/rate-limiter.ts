@@ -128,8 +128,18 @@ export class RateLimiter {
         retryAfterMs: result.retryAfterMs,
       }
     } catch (error) {
-      logger.error('Error checking rate limit:', error)
-      return this.createUnlimitedResult()
+      logger.error('Rate limit storage error - failing closed (denying request)', {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        triggerType,
+        isAsync,
+      })
+      return {
+        allowed: false,
+        remaining: 0,
+        resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
+        retryAfterMs: RATE_LIMIT_WINDOW_MS,
+      }
     }
   }
 
@@ -160,14 +170,19 @@ export class RateLimiter {
         resetAt: status.nextRefillAt,
       }
     } catch (error) {
-      logger.error('Error getting rate limit status:', error)
+      logger.error('Error getting rate limit status - returning default config', {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        triggerType,
+        isAsync,
+      })
       const plan = (subscription?.plan || 'free') as SubscriptionPlan
       const counterType = this.getCounterType(triggerType, isAsync)
       const config = this.getBucketConfig(plan, counterType)
       return {
         requestsPerMinute: config.refillRate,
         maxBurst: config.maxTokens,
-        remaining: config.refillRate,
+        remaining: 0,
         resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
       }
     }

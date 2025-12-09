@@ -9,7 +9,9 @@ const logger = createLogger('RateLimitStorage')
 let cachedAdapter: RateLimitStorageAdapter | null = null
 
 export function createStorageAdapter(): RateLimitStorageAdapter {
-  if (cachedAdapter) return cachedAdapter
+  if (cachedAdapter) {
+    return cachedAdapter
+  }
 
   const redis = getRedisClient()
   if (redis) {
