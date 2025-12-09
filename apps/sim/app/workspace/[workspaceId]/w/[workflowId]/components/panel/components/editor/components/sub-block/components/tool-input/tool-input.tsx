@@ -2360,7 +2360,7 @@ export function ToolInput({
                         mcpTools={mcpTools}
                         searchQuery={searchQuery || ''}
                         customFilter={customFilter}
-                        onToolSelect={(tool) => handleMcpToolSelect(tool, false)}
+                        onToolSelect={handleMcpToolSelect}
                         disabled={false}
                       />
 
