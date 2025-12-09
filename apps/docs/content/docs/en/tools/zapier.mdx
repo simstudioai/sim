@@ -1,0 +1,275 @@
+---
+title: Zapier
+description: Execute actions across 7,000+ apps using Zapier AI Actions
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zapier"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Zapier](https://zapier.com/) connects 7,000+ apps and automates workflows without manual coding. The Zapier integration in Sim empowers you to execute, search, build, and manage powerful AI-driven actions across thousands of applications—all with plain English instructions.
+
+With Zapier AI Actions in Sim, you can:
+
+- **Execute Actions:** Instantly trigger any stored AI Action in your Zapier account. Launch emails, messages, project updates, document workflows, CRM updates, and much more.
+- **List Actions:** Retrieve a list of your available AI Actions configured in Zapier. Discover what's possible and find the right tool for your workflow.
+- **Search Apps:** Find apps in Zapier’s ecosystem by name or keyword. Easily check if the app you need is supported before building automations.
+- **Find Actions (Guess):** Describe what you want to accomplish in plain English (e.g., "send a Slack message", "create a Google Sheet row"), and let Zapier’s AI suggest matching actions—even across unfamiliar apps or APIs.
+- **Create Actions:** Programmatically define new AI Actions by specifying the target app, action type (write, read, search), and required parameters, directly from your workflow.
+
+By combining these capabilities, you can search for apps, define new AI Actions, discover possible automations, list available actions, and execute any workflow—fully automated, with the power of both Sim and Zapier.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect to Zapier AI Actions to execute any of 30,000+ actions across 7,000+ apps. Send emails, create documents, update CRMs, post messages, and more - all through natural language instructions. Requires a Zapier AI Actions API key.
+
+
+
+## Tools
+
+### `zapier_execute_action`
+
+Execute a stored AI Action in Zapier. Runs any of the 30,000+ actions across 7,000+ apps that Zapier supports.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Zapier AI Actions API key from actions.zapier.com/credentials |
+| `actionId` | string | Yes | The ID of the AI Action to execute |
+| `instructions` | string | Yes | Plain English instructions for what the action should do \(e.g., "Send a message about the weekly report to #general"\) |
+| `previewOnly` | boolean | No | If true, preview the execution without actually running it |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `executionLogId` | string | Unique identifier for this execution \(can be used for feedback\) |
+| `actionUsed` | string | Name of the action that was executed |
+| `inputParams` | json | Parameters that were passed to the API |
+| `resolvedParams` | json | Parameters that the AI resolved for execution |
+| `results` | json | Results from the action execution |
+| `resultFieldLabels` | json | Human-readable labels for result fields |
+| `status` | string | Execution status: success, error, empty, preview, or halted |
+| `error` | string | Error message if execution failed |
+
+### `zapier_list_actions`
+
+List all AI Actions configured in your Zapier account. Returns stored actions that can be executed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Zapier AI Actions API key from actions.zapier.com/credentials |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `actions` | json | Array of configured AI Actions with id, description, actionType, app, appLabel, action, actionLabel, params, accountId, authenticationId, needs |
+| `configurationLink` | string | Link to configure more actions in Zapier |
+
+### `zapier_search_apps`
+
+Search for apps available in Zapier. Returns apps with their available action counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Zapier AI Actions API key from actions.zapier.com/credentials |
+| `query` | string | No | Optional search query to filter apps by name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `apps` | json | Array of apps with app, name, logoUrl, authType, actions \(raw counts by type\), actionCount, writeActionCount, searchActionCount, readActionCount |
+
+### `zapier_guess_actions`
+
+Find relevant Zapier actions using natural language. Searches across 30,000+ actions to find the best matches for your query.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Zapier AI Actions API key from actions.zapier.com/credentials |
+| `query` | string | Yes | Natural language description of what you want to do \(e.g., "send a Slack message", "create a Google Doc"\) |
+| `actionTypes` | array | No | Types of actions to search for: write, search, read. If not specified, returns all types. |
+| `count` | number | No | Maximum number of results to return \(default: 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `actions` | json | Array of matching actions with app, action, actionType, name \(combined app/action name\), description, image, and score |
+
+### `zapier_create_action`
+
+Create a new stored AI Action in Zapier. The action can then be executed with zapier_execute_action.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Zapier AI Actions API key from actions.zapier.com/credentials |
+| `app` | string | Yes | The app identifier \(e.g., "slack", "gmail", "google-docs"\) |
+| `action` | string | Yes | The action identifier \(e.g., "send_channel_message", "send_email"\) |
+| `actionType` | string | No | Type of action: write, search, or read. Defaults to write. |
+| `accountId` | number | No | Zapier account ID |
+| `authenticationId` | number | No | Authentication ID for the app connection |
+| `meta` | json | No | Metadata object with params labels, app_label, action_label, authentication_label, app_needs_auth |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The ID of the created AI Action \(use this with execute_action\) |
+| `description` | string | Description of the action |
+| `actionType` | string | Type of action \(write, search, read, read_bulk, search_or_write, search_and_write\) |
+| `app` | string | App identifier |
+| `appLabel` | string | Human-readable app label from meta |
+| `action` | string | Action identifier |
+| `actionLabel` | string | Human-readable action label from meta |
+
+### `zapier_stateless_execute`
+
+Execute any Zapier action directly without creating a stored AI Action first. Provide the app, action, and instructions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Zapier AI Actions API key from actions.zapier.com/credentials |
+| `app` | string | Yes | The app to use \(e.g., "SlackAPI", "GoogleSheetsV2API", "GmailV2API"\) |
+| `action` | string | Yes | The action to run \(e.g., "direct_message", "add_row", "send_email"\) |
+| `instructions` | string | Yes | Plain English instructions about how to run the action \(e.g., "Send a message saying hello to #general"\) |
+| `actionType` | string | No | Type of action: write, search, read, read_bulk, search_or_write, search_and_write |
+| `previewOnly` | boolean | No | If true, preview the execution without actually running it |
+| `authenticationId` | number | No | Authentication ID for the app connection |
+| `accountId` | number | No | Zapier account ID |
+| `providerId` | string | No | Provider ID for AI Actions |
+| `tokenBudget` | number | No | Max tokens per field \(default: 1000\) |
+| `skipParamGuessing` | boolean | No | Skip AI parameter guessing |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `executionLogId` | string | Unique identifier for this execution |
+| `actionUsed` | string | Name of the action that was executed |
+| `inputParams` | json | Parameters that were passed to the API |
+| `resolvedParams` | json | Parameters that the AI resolved for execution |
+| `results` | json | Results from the action execution |
+| `resultFieldLabels` | json | Human-readable labels for result fields |
+| `status` | string | Execution status: success, error, empty, preview, or halted |
+| `error` | string | Error message if execution failed |
+
+### `zapier_search_app_actions`
+
+Search for available actions within a specific Zapier app. Returns all actions the app supports.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Zapier AI Actions API key from actions.zapier.com/credentials |
+| `app` | string | Yes | The app identifier to search actions for \(e.g., "SlackAPI", "GmailV2API"\) |
+| `query` | string | No | Optional search query to filter actions by name or description |
+| `actionTypes` | array | No | Filter by action types: write, search, read, read_bulk, search_or_write, search_and_write. Defaults to write and search. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `actions` | json | Array of actions with app, action, actionType, displayName, description, relevancyScore, appNeedsAuth, appInfo |
+
+### `zapier_get_action_details`
+
+Get detailed information about a specific action including its required inputs (needs) and outputs (gives).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Zapier AI Actions API key from actions.zapier.com/credentials |
+| `app` | string | Yes | The app identifier \(e.g., "SlackAPI", "GmailV2API"\) |
+| `action` | string | Yes | The action identifier \(e.g., "send_channel_message", "send_email"\) |
+| `actionType` | string | No | Type of action: write, search, read. Defaults to write. |
+| `includeNeeds` | boolean | No | Include input requirements \(needs\). Defaults to true. |
+| `includeGives` | boolean | No | Include output specifications \(gives\). Defaults to false. |
+| `includeSample` | boolean | No | Include sample execution result. Defaults to false. |
+| `accountId` | number | No | Zapier account ID |
+| `authenticationId` | number | No | Authentication ID for the app connection |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | json | Action metadata including type, key, name, noun, and description |
+| `needs` | json | Array of input requirements with key, type, label, required, helpText, defaultValue, choices, dependsOn |
+| `gives` | json | Array of output fields with key, label, type, important, sample |
+| `sample` | json | Sample execution result if requested |
+| `customNeedsProbability` | number | Probability \(0-1\) that this action has custom/dynamic input fields |
+
+### `zapier_update_action`
+
+Update an existing stored AI Action configuration in Zapier.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Zapier AI Actions API key from actions.zapier.com/credentials |
+| `actionId` | string | Yes | The ID of the AI Action to update |
+| `app` | string | Yes | The app identifier \(e.g., "SlackAPI", "GmailV2API"\) |
+| `action` | string | Yes | The action identifier \(e.g., "send_channel_message", "send_email"\) |
+| `actionType` | string | No | Type of action: write, search, read, read_bulk, search_or_write, search_and_write |
+| `accountId` | number | No | Zapier account ID |
+| `authenticationId` | number | No | Authentication ID for the app connection |
+| `meta` | json | No | Metadata object with params labels, app_label, action_label, authentication_label, app_needs_auth |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The ID of the updated AI Action |
+| `description` | string | Description of the action |
+| `actionType` | string | Type of action |
+| `app` | string | App identifier |
+| `appLabel` | string | Human-readable app label |
+| `action` | string | Action identifier |
+| `actionLabel` | string | Human-readable action label |
+
+### `zapier_delete_action`
+
+Delete a stored AI Action from Zapier.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Zapier AI Actions API key from actions.zapier.com/credentials |
+| `actionId` | string | Yes | The ID of the AI Action to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the action was successfully deleted |
+| `message` | string | Status message |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `zapier`

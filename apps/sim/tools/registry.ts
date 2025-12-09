@@ -1261,6 +1261,18 @@ import {
   youtubeVideoDetailsTool,
 } from '@/tools/youtube'
 import {
+  zapierCreateAiActionTool,
+  zapierDeleteAiActionTool,
+  zapierExecuteActionTool,
+  zapierGetActionDetailsTool,
+  zapierGuessActionsTool,
+  zapierListActionsTool,
+  zapierSearchAppActionsTool,
+  zapierSearchAppsTool,
+  zapierStatelessExecuteTool,
+  zapierUpdateAiActionTool,
+} from '@/tools/zapier'
+import {
   zendeskAutocompleteOrganizationsTool,
   zendeskCreateOrganizationsBulkTool,
   zendeskCreateOrganizationTool,
@@ -2501,4 +2513,16 @@ export const tools: Record<string, ToolConfig> = {
   zoom_get_meeting_recordings: zoomGetMeetingRecordingsTool,
   zoom_delete_recording: zoomDeleteRecordingTool,
   zoom_list_past_participants: zoomListPastParticipantsTool,
+
+  // Zapier tools
+  zapier_execute_action: zapierExecuteActionTool,
+  zapier_list_actions: zapierListActionsTool,
+  zapier_search_apps: zapierSearchAppsTool,
+  zapier_guess_actions: zapierGuessActionsTool,
+  zapier_create_action: zapierCreateAiActionTool,
+  zapier_stateless_execute: zapierStatelessExecuteTool,
+  zapier_search_app_actions: zapierSearchAppActionsTool,
+  zapier_get_action_details: zapierGetActionDetailsTool,
+  zapier_update_action: zapierUpdateAiActionTool,
+  zapier_delete_action: zapierDeleteAiActionTool,
 }

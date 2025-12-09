@@ -133,6 +133,7 @@ import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { XBlock } from '@/blocks/blocks/x'
 import { YouTubeBlock } from '@/blocks/blocks/youtube'
+import { ZapierBlock } from '@/blocks/blocks/zapier'
 import { ZendeskBlock } from '@/blocks/blocks/zendesk'
 import { ZepBlock } from '@/blocks/blocks/zep'
 import { ZoomBlock } from '@/blocks/blocks/zoom'
@@ -275,8 +276,9 @@ export const registry: Record<string, BlockConfig> = {
   workflow_input: WorkflowInputBlock,
   x: XBlock,
   youtube: YouTubeBlock,
-  zep: ZepBlock,
+  zapier: ZapierBlock,
   zendesk: ZendeskBlock,
+  zep: ZepBlock,
   zoom: ZoomBlock,
 }
 
