@@ -322,7 +322,8 @@ class McpService {
   }
 
   /**
-   * Execute a tool on a specific server
+   * Execute a tool on a specific server with retry logic for session errors.
+   * Retries once on session-related errors (400, 404, session ID issues).
    */
   async executeTool(
     userId: string,
@@ -331,27 +332,57 @@ class McpService {
     workspaceId: string
   ): Promise<McpToolResult> {
     const requestId = generateRequestId()
+    const maxRetries = 2
 
-    logger.info(
-      `[${requestId}] Executing MCP tool ${toolCall.name} on server ${serverId} for user ${userId}`
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        logger.info(
+          `[${requestId}] Executing MCP tool ${toolCall.name} on server ${serverId} for user ${userId}${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}`
+        )
+
+        const config = await this.getServerConfig(serverId, workspaceId)
+        if (!config) {
+          throw new Error(`Server ${serverId} not found or not accessible`)
+        }
+
+        const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
+        const client = await this.createClient(resolvedConfig)
+
+        try {
+          const result = await client.callTool(toolCall)
+          logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
+          return result
+        } finally {
+          await client.disconnect()
+        }
+      } catch (error) {
+        if (this.isSessionError(error) && attempt < maxRetries - 1) {
+          logger.warn(
+            `[${requestId}] Session error executing tool ${toolCall.name}, retrying (attempt ${attempt + 1}):`,
+            error
+          )
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          continue
+        }
+        throw error
+      }
+    }
+
+    throw new Error(`Failed to execute tool ${toolCall.name} after ${maxRetries} attempts`)
+  }
+
+  /**
+   * Check if an error indicates a session-related issue that might be resolved by retry
+   */
+  private isSessionError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error)
+    const lowerMessage = message.toLowerCase()
+    return (
+      lowerMessage.includes('session') ||
+      lowerMessage.includes('400') ||
+      lowerMessage.includes('404') ||
+      lowerMessage.includes('no valid session')
     )
-
-    const config = await this.getServerConfig(serverId, workspaceId)
-    if (!config) {
-      throw new Error(`Server ${serverId} not found or not accessible`)
-    }
-
-    const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
-
-    const client = await this.createClient(resolvedConfig)
-
-    try {
-      const result = await client.callTool(toolCall)
-      logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
-      return result
-    } finally {
-      await client.disconnect()
-    }
   }
 
   /**
@@ -433,7 +464,8 @@ class McpService {
   }
 
   /**
-   * Discover tools from a specific server
+   * Discover tools from a specific server with retry logic for session errors.
+   * Retries once on session-related errors (400, 404, session ID issues).
    */
   async discoverServerTools(
     userId: string,
@@ -441,25 +473,43 @@ class McpService {
     workspaceId: string
   ): Promise<McpTool[]> {
     const requestId = generateRequestId()
+    const maxRetries = 2
 
-    logger.info(`[${requestId}] Discovering tools from server ${serverId} for user ${userId}`)
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        logger.info(
+          `[${requestId}] Discovering tools from server ${serverId} for user ${userId}${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}`
+        )
 
-    const config = await this.getServerConfig(serverId, workspaceId)
-    if (!config) {
-      throw new Error(`Server ${serverId} not found or not accessible`)
+        const config = await this.getServerConfig(serverId, workspaceId)
+        if (!config) {
+          throw new Error(`Server ${serverId} not found or not accessible`)
+        }
+
+        const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
+        const client = await this.createClient(resolvedConfig)
+
+        try {
+          const tools = await client.listTools()
+          logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
+          return tools
+        } finally {
+          await client.disconnect()
+        }
+      } catch (error) {
+        if (this.isSessionError(error) && attempt < maxRetries - 1) {
+          logger.warn(
+            `[${requestId}] Session error discovering tools from server ${serverId}, retrying (attempt ${attempt + 1}):`,
+            error
+          )
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          continue
+        }
+        throw error
+      }
     }
 
-    const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
-
-    const client = await this.createClient(resolvedConfig)
-
-    try {
-      const tools = await client.listTools()
-      logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
-      return tools
-    } finally {
-      await client.disconnect()
-    }
+    throw new Error(`Failed to discover tools from server ${serverId} after ${maxRetries} attempts`)
   }
 
   /**
