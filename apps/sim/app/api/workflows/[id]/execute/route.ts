@@ -395,8 +395,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       triggerType: loggingTriggerType,
       executionId,
       requestId,
-      checkRateLimit: false, // Manual executions bypass rate limits
-      checkDeployment: !shouldUseDraftState, // Check deployment unless using draft
+      checkDeployment: !shouldUseDraftState,
       loggingSession,
     })
 

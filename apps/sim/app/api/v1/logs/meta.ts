@@ -1,7 +1,7 @@
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getEffectiveCurrentPeriodCost } from '@/lib/billing/core/usage'
-import { RateLimiter } from '@/services/queue'
+import { RateLimiter } from '@/lib/core/rate-limiter'
 
 export interface UserLimits {
   workflowExecutionRateLimit: {
