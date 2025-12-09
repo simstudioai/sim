@@ -342,19 +342,30 @@ Eine E-Mail-Vorlage von SendGrid löschen
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `messageId` | string | E-Mail-Nachrichten-ID (send_mail) |
+| `message` | string | Status- oder Erfolgsmeldung |
+| `messageId` | string | E-Mail-Nachrichten-ID \(send_mail\) |
+| `to` | string | E-Mail-Adresse des Empfängers \(send_mail\) |
+| `subject` | string | E-Mail-Betreff \(send_mail, create_template_version\) |
 | `id` | string | Ressourcen-ID |
 | `jobId` | string | Job-ID für asynchrone Operationen |
-| `email` | string | E-Mail-Adresse |
-| `firstName` | string | Vorname |
-| `lastName` | string | Nachname |
+| `email` | string | E-Mail-Adresse des Kontakts |
+| `firstName` | string | Vorname des Kontakts |
+| `lastName` | string | Nachname des Kontakts |
+| `createdAt` | string | Erstellungszeitstempel |
+| `updatedAt` | string | Zeitstempel der letzten Aktualisierung |
+| `listIds` | json | Array von Listen-IDs, zu denen der Kontakt gehört |
+| `customFields` | json | Benutzerdefinierte Feldwerte |
 | `contacts` | json | Array von Kontakten |
 | `contactCount` | number | Anzahl der Kontakte |
 | `lists` | json | Array von Listen |
-| `templates` | json | Array von Vorlagen |
-| `message` | string | Status- oder Erfolgsmeldung |
 | `name` | string | Ressourcenname |
+| `templates` | json | Array von Vorlagen |
 | `generation` | string | Vorlagengeneration |
+| `versions` | json | Array von Vorlagenversionen |
+| `templateId` | string | Vorlagen-ID |
+| `active` | boolean | Ob die Vorlagenversion aktiv ist |
+| `htmlContent` | string | HTML-Inhalt |
+| `plainContent` | string | Nur-Text-Inhalt |
 
 ### `sendgrid_create_template_version`
 

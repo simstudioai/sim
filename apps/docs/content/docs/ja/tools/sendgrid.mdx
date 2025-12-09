@@ -342,19 +342,30 @@ SendGridからメールテンプレートを削除する
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `success` | boolean | 操作成功ステータス |
-| `messageId` | string | メールメッセージID（send_mail） |
+| `message` | string | ステータスまたは成功メッセージ |
+| `messageId` | string | メールメッセージID \(send_mail\) |
+| `to` | string | 受信者のメールアドレス \(send_mail\) |
+| `subject` | string | メールの件名 \(send_mail, create_template_version\) |
 | `id` | string | リソースID |
-| `jobId` | string | 非同期操作のジョブID |
-| `email` | string | メールアドレス |
-| `firstName` | string | 名 |
-| `lastName` | string | 姓 |
+| `jobId` | string | 非同期操作用のジョブID |
+| `email` | string | 連絡先のメールアドレス |
+| `firstName` | string | 連絡先の名 |
+| `lastName` | string | 連絡先の姓 |
+| `createdAt` | string | 作成タイムスタンプ |
+| `updatedAt` | string | 最終更新タイムスタンプ |
+| `listIds` | json | 連絡先が所属するリストIDの配列 |
+| `customFields` | json | カスタムフィールドの値 |
 | `contacts` | json | 連絡先の配列 |
 | `contactCount` | number | 連絡先の数 |
 | `lists` | json | リストの配列 |
-| `templates` | json | テンプレートの配列 |
-| `message` | string | ステータスまたは成功メッセージ |
 | `name` | string | リソース名 |
-| `generation` | string | テンプレート生成方法 |
+| `templates` | json | テンプレートの配列 |
+| `generation` | string | テンプレート世代 |
+| `versions` | json | テンプレートバージョンの配列 |
+| `templateId` | string | テンプレートID |
+| `active` | boolean | テンプレートバージョンがアクティブかどうか |
+| `htmlContent` | string | HTML内容 |
+| `plainContent` | string | プレーンテキスト内容 |
 
 ### `sendgrid_create_template_version`
 

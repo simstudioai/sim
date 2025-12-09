@@ -342,20 +342,31 @@ Supprimer un modèle d'e-mail de SendGrid
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Statut de réussite de l'opération |
-| `messageId` | chaîne | ID du message e-mail \(send_mail\) |
-| `id` | chaîne | ID de la ressource |
-| `jobId` | chaîne | ID de tâche pour les opérations asynchrones |
-| `email` | chaîne | Adresse e-mail |
-| `firstName` | chaîne | Prénom |
-| `lastName` | chaîne | Nom de famille |
+| `success` | boolean | Statut de réussite de l'opération |
+| `message` | string | Message d'état ou de réussite |
+| `messageId` | string | ID du message e-mail \(send_mail\) |
+| `to` | string | Adresse e-mail du destinataire \(send_mail\) |
+| `subject` | string | Objet de l'e-mail \(send_mail, create_template_version\) |
+| `id` | string | ID de la ressource |
+| `jobId` | string | ID de tâche pour les opérations asynchrones |
+| `email` | string | Adresse e-mail du contact |
+| `firstName` | string | Prénom du contact |
+| `lastName` | string | Nom de famille du contact |
+| `createdAt` | string | Horodatage de création |
+| `updatedAt` | string | Horodatage de dernière mise à jour |
+| `listIds` | json | Tableau des ID de listes auxquelles le contact appartient |
+| `customFields` | json | Valeurs des champs personnalisés |
 | `contacts` | json | Tableau de contacts |
-| `contactCount` | nombre | Nombre de contacts |
+| `contactCount` | number | Nombre de contacts |
 | `lists` | json | Tableau de listes |
+| `name` | string | Nom de la ressource |
 | `templates` | json | Tableau de modèles |
-| `message` | chaîne | Statut ou message de réussite |
-| `name` | chaîne | Nom de la ressource |
-| `generation` | chaîne | Génération du modèle |
+| `generation` | string | Génération du modèle |
+| `versions` | json | Tableau des versions du modèle |
+| `templateId` | string | ID du modèle |
+| `active` | boolean | Si la version du modèle est active |
+| `htmlContent` | string | Contenu HTML |
+| `plainContent` | string | Contenu en texte brut |
 
 ### `sendgrid_create_template_version`
 

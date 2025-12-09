@@ -44,14 +44,14 @@ Rufen Sie eine Liste von Prognosemärkten von Polymarket mit optionaler Filterun
 | `order` | string | Nein | Sortierfeld \(z.B. volumeNum, liquidityNum, startDate, endDate, createdAt\) |
 | `ascending` | string | Nein | Sortierrichtung \(true für aufsteigend, false für absteigend\) |
 | `tagId` | string | Nein | Nach Tag-ID filtern |
-| `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(empfohlen: 25-50\) |
+| `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(max 50\) |
 | `offset` | string | Nein | Paginierungsoffset \(überspringe diese Anzahl an Ergebnissen\) |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
+| `success` | boolean | Erfolgsstatus der Operation |
 | `output` | object | Marktdaten und Metadaten |
 
 ### `polymarket_get_market`
@@ -80,11 +80,11 @@ Ruft eine Liste von Events von Polymarket mit optionaler Filterung ab
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `closed` | string | Nein | Nach geschlossenem Status filtern \(true/false\). Verwenden Sie false für nur aktive Events. |
+| `closed` | string | Nein | Nach geschlossenem Status filtern \(true/false\). Verwenden Sie false für nur aktive Ereignisse. |
 | `order` | string | Nein | Sortierfeld \(z.B. volume, liquidity, startDate, endDate, createdAt\) |
 | `ascending` | string | Nein | Sortierrichtung \(true für aufsteigend, false für absteigend\) |
 | `tagId` | string | Nein | Nach Tag-ID filtern |
-| `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(empfohlen: 25-50\) |
+| `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(max 50\) |
 | `offset` | string | Nein | Paginierungsoffset \(überspringe diese Anzahl an Ergebnissen\) |
 
 #### Ausgabe
@@ -107,10 +107,10 @@ Ruft Details eines bestimmten Events nach ID oder Slug ab
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Ereignisdaten und Metadaten |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Event-Daten und Metadaten |
 
 ### `polymarket_get_tags`
 
@@ -118,16 +118,16 @@ Verfügbare Tags zum Filtern von Märkten von Polymarket abrufen
 
 #### Input
 
-| Parameter | Type | Erforderlich | Beschreibung |
+| Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(empfohlen: 25-50\) |
+| `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(max 50\) |
 | `offset` | string | Nein | Paginierungsoffset \(überspringe diese Anzahl an Ergebnissen\) |
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
+| `success` | boolean | Erfolgsstatus der Operation |
 | `output` | object | Tag-Daten und Metadaten |
 
 ### `polymarket_search`
@@ -136,17 +136,17 @@ Nach Märkten, Ereignissen und Profilen auf Polymarket suchen
 
 #### Input
 
-| Parameter | Type | Erforderlich | Beschreibung |
+| Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Ja | Suchbegriff |
-| `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(empfohlen: 25-50\) |
-| `offset` | string | Nein | Paginierungsoffset \(überspringe diese Anzahl an Ergebnissen\) |
+| `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(max 50\) |
+| `offset` | string | Nein | Paginierungsoffset |
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
+| `success` | boolean | Erfolgsstatus der Operation |
 | `output` | object | Suchergebnisse und Metadaten |
 
 ### `polymarket_get_series`
@@ -155,17 +155,16 @@ Serien (verwandte Marktgruppen) von Polymarket abrufen
 
 #### Input
 
-| Parameter | Type | Erforderlich | Beschreibung |
+| Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(empfohlen: 25-50\) |
+| `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(max 50\) |
 | `offset` | string | Nein | Paginierungsoffset \(überspringe diese Anzahl an Ergebnissen\) |
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Seriendaten und Metadaten |
+| `series` | array | Array von Serien-Objekten |
 
 ### `polymarket_get_series_by_id`
 
@@ -179,10 +178,9 @@ Eine bestimmte Serie (zugehörige Marktgruppe) anhand der ID von Polymarket abru
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Seriendaten und Metadaten |
+| `series` | object | Serien-Objekt mit Details |
 
 ### `polymarket_get_orderbook`
 
@@ -196,10 +194,9 @@ Die Orderbuch-Zusammenfassung für einen bestimmten Token abrufen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Orderbuch-Daten und Metadaten |
+| `orderbook` | object | Orderbuch mit Geld- und Briefkurs-Arrays |
 
 ### `polymarket_get_price`
 
@@ -216,8 +213,7 @@ Den Marktpreis für einen bestimmten Token und eine bestimmte Seite abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Preisdaten und Metadaten |
+| `price` | string | Marktpreis |
 
 ### `polymarket_get_midpoint`
 
@@ -233,8 +229,7 @@ Abrufen des Mittelpreises für einen bestimmten Token
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Mittelpreisdaten und Metadaten |
+| `midpoint` | string | Mittelkurs |
 
 ### `polymarket_get_price_history`
 
@@ -254,8 +249,7 @@ Abrufen historischer Preisdaten für einen bestimmten Markttoken
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Preisverlaufsdaten und Metadaten |
+| `history` | array | Array von Preisverlaufseinträgen mit Zeitstempel \(t\) und Preis \(p\) |
 
 ### `polymarket_get_last_trade_price`
 
@@ -271,8 +265,7 @@ Den letzten Handelspreis für einen bestimmten Token abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Letzter Handelspreis und Metadaten |
+| `price` | string | Letzter Handelspreis |
 
 ### `polymarket_get_spread`
 
@@ -288,8 +281,7 @@ Die Geld-Brief-Spanne für einen bestimmten Token abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Spread-Daten und Metadaten |
+| `spread` | object | Geld-Brief-Spanne mit Geld- und Briefkursen |
 
 ### `polymarket_get_tick_size`
 
@@ -305,8 +297,7 @@ Die minimale Tickgröße für einen bestimmten Token abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Tickgröße und Metadaten |
+| `tickSize` | string | Minimale Tick-Größe |
 
 ### `polymarket_get_positions`
 
@@ -323,8 +314,7 @@ Benutzerpositionen von Polymarket abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Positionsdaten und Metadaten |
+| `positions` | array | Array von Positions-Objekten |
 
 ### `polymarket_get_trades`
 
@@ -336,15 +326,14 @@ Handelshistorie von Polymarket abrufen
 | --------- | ---- | -------- | ----------- |
 | `user` | string | Nein | Wallet-Adresse des Benutzers zum Filtern von Trades |
 | `market` | string | Nein | Markt-ID zum Filtern von Trades |
-| `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(empfohlen: 25-50\) |
-| `offset` | string | Nein | Paginierungsoffset \(überspringe so viele Ergebnisse\) |
+| `limit` | string | Nein | Anzahl der Ergebnisse pro Seite \(max 50\) |
+| `offset` | string | Nein | Paginierungsoffset \(überspringe diese Anzahl an Ergebnissen\) |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Handelsdaten und Metadaten |
+| `trades` | array | Array von Handelsobjekten |
 
 ## Hinweise
 

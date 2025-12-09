@@ -40,19 +40,18 @@ Récupérer une liste des marchés prédictifs de Polymarket avec filtrage optio
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
-| `closed` | string | Non | Filtrer par statut fermé \(true/false\). Utilisez false pour les marchés actifs uniquement. |
-| `order` | string | Non | Champ de tri \(par exemple, volumeNum, liquidityNum, startDate, endDate, createdAt\) |
+| `closed` | string | Non | Filtrer par statut fermé \(true/false\). Utiliser false pour les marchés actifs uniquement. |
+| `order` | string | Non | Champ de tri \(ex. volumeNum, liquidityNum, startDate, endDate, createdAt\) |
 | `ascending` | string | Non | Direction de tri \(true pour ascendant, false pour descendant\) |
 | `tagId` | string | Non | Filtrer par ID de tag |
-| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
+| `limit` | string | Non | Nombre de résultats par page \(max 50\) |
 | `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Statut de réussite de l'opération |
-| `output` | objet | Données des marchés et métadonnées |
+| `markets` | array | Tableau d'objets de marché |
 
 ### `polymarket_get_market`
 
@@ -69,8 +68,7 @@ Récupérer les détails d'un marché prédictif spécifique par ID ou slug
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données de marché et métadonnées |
+| `market` | object | Objet de marché avec détails |
 
 ### `polymarket_get_events`
 
@@ -80,19 +78,18 @@ Récupérer une liste d'événements de Polymarket avec filtrage optionnel
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
-| `closed` | string | Non | Filtrer par statut fermé \(true/false\). Utilisez false pour les événements actifs uniquement. |
-| `order` | string | Non | Champ de tri \(par exemple, volume, liquidity, startDate, endDate, createdAt\) |
+| `closed` | string | Non | Filtrer par statut fermé \(true/false\). Utiliser false pour les événements actifs uniquement. |
+| `order` | string | Non | Champ de tri \(ex. volume, liquidity, startDate, endDate, createdAt\) |
 | `ascending` | string | Non | Direction de tri \(true pour ascendant, false pour descendant\) |
 | `tagId` | string | Non | Filtrer par ID de tag |
-| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
+| `limit` | string | Non | Nombre de résultats par page \(max 50\) |
 | `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données d'événements et métadonnées |
+| `events` | array | Tableau d'objets d'événements |
 
 ### `polymarket_get_event`
 
@@ -109,8 +106,7 @@ Récupérer les détails d'un événement spécifique par ID ou slug
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données et métadonnées de l'événement |
+| `event` | object | Objet d'événement avec détails |
 
 ### `polymarket_get_tags`
 
@@ -119,16 +115,15 @@ Récupérer les tags disponibles pour filtrer les marchés sur Polymarket
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
-| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
+| --------- | ---- | ---------- | ----------- |
+| `limit` | string | Non | Nombre de résultats par page \(max 50\) |
 | `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données et métadonnées des tags |
+| `tags` | array | Tableau d'objets de tags avec id, label et slug |
 
 ### `polymarket_search`
 
@@ -137,17 +132,16 @@ Rechercher des marchés, des événements et des profils sur Polymarket
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `query` | string | Oui | Terme de recherche |
-| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
-| `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
+| `limit` | string | Non | Nombre de résultats par page \(max 50\) |
+| `offset` | string | Non | Décalage de pagination |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Résultats de recherche et métadonnées |
+| `results` | object | Résultats de recherche contenant des tableaux de marchés, d'événements et de profils |
 
 ### `polymarket_get_series`
 
@@ -156,8 +150,8 @@ Récupérer des séries (groupes de marchés liés) depuis Polymarket
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
-| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
+| --------- | ---- | ---------- | ----------- |
+| `limit` | string | Non | Nombre de résultats par page \(max 50\) |
 | `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
 
 #### Sortie
@@ -165,7 +159,7 @@ Récupérer des séries (groupes de marchés liés) depuis Polymarket
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données et métadonnées de la série |
+| `output` | object | Données des séries et métadonnées |
 
 ### `polymarket_get_series_by_id`
 
@@ -182,7 +176,7 @@ Récupérer une série spécifique (groupe de marché associé) par ID depuis Po
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données et métadonnées de la série |
+| `output` | object | Données de série et métadonnées |
 
 ### `polymarket_get_orderbook`
 
@@ -199,7 +193,7 @@ Récupérer le résumé du carnet d'ordres pour un jeton spécifique
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données et métadonnées du carnet d'ordres |
+| `output` | object | Données du carnet d'ordres et métadonnées |
 
 ### `polymarket_get_price`
 
@@ -217,7 +211,7 @@ Récupérer le prix du marché pour un jeton et un côté spécifiques
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données de prix et métadonnées |
+| `output` | object | Données de prix du marché et métadonnées |
 
 ### `polymarket_get_midpoint`
 
@@ -255,7 +249,7 @@ Récupérer les données historiques de prix pour un jeton de marché spécifiqu
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données d'historique de prix et métadonnées |
+| `output` | object | Données d'historique des prix et métadonnées |
 
 ### `polymarket_get_last_trade_price`
 
@@ -272,7 +266,7 @@ Récupérer le dernier prix de transaction pour un jeton spécifique
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Dernier prix de transaction et métadonnées |
+| `output` | object | Données du dernier prix d'échange et métadonnées |
 
 ### `polymarket_get_spread`
 
@@ -289,7 +283,7 @@ Récupérer l'écart entre l'offre et la demande pour un jeton spécifique
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données d'écart et métadonnées |
+| `output` | object | Données d'écart achat-vente et métadonnées |
 
 ### `polymarket_get_tick_size`
 
@@ -306,7 +300,7 @@ Récupérer la taille minimale du tick pour un jeton spécifique
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Taille du tick et métadonnées |
+| `output` | object | Données de taille minimale de tick et métadonnées |
 
 ### `polymarket_get_positions`
 
@@ -336,15 +330,14 @@ Récupérer l'historique des transactions depuis Polymarket
 | --------- | ---- | ---------- | ----------- |
 | `user` | string | Non | Adresse du portefeuille de l'utilisateur pour filtrer les transactions |
 | `market` | string | Non | ID de marché pour filtrer les transactions |
-| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
+| `limit` | string | Non | Nombre de résultats par page \(max 50\) |
 | `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données des transactions et métadonnées |
+| `trades` | array | Tableau d'objets de transactions |
 
 ## Notes
 

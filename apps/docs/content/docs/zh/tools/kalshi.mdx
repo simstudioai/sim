@@ -49,8 +49,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 市场数据和元数据 |
+| `markets` | array | 市场对象的数组 |
+| `paging` | object | 用于获取更多结果的分页游标 |
 
 ### `kalshi_get_market`
 
@@ -66,8 +66,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 市场数据和元数据 |
+| `market` | object | 包含详细信息的市场对象 |
 
 ### `kalshi_get_events`
 
@@ -87,8 +86,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 事件数据和元数据 |
+| `events` | array | 事件对象的数组 |
+| `paging` | object | 用于获取更多结果的分页游标 |
 
 ### `kalshi_get_event`
 
@@ -105,8 +104,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 事件数据和元数据 |
+| `event` | object | 包含详细信息的事件对象 |
 
 ### `kalshi_get_balance`
 
@@ -123,8 +121,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 余额数据和元数据 |
+| `balance` | number | 账户余额（以分为单位） |
+| `portfolioValue` | number | 投资组合价值（以分为单位） |
+| `balanceDollars` | number | 账户余额（以美元为单位） |
+| `portfolioValueDollars` | number | 投资组合价值（以美元为单位） |
 
 ### `kalshi_get_positions`
 
@@ -146,8 +146,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 位置数据和元数据 |
+| `positions` | array | 持仓对象的数组 |
+| `paging` | object | 用于获取更多结果的分页游标 |
 
 ### `kalshi_get_orders`
 
@@ -169,8 +169,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 订单数据和元数据 |
+| `orders` | array | 订单对象的数组 |
+| `paging` | object | 用于获取更多结果的分页游标 |
 
 ### `kalshi_get_order`
 
@@ -188,8 +188,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 订单数据 |
+| `order` | object | 包含详细信息的订单对象 |
 
 ### `kalshi_get_orderbook`
 
@@ -205,8 +204,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 订单簿数据和元数据 |
+| `orderbook` | object | 包含买入/卖出报价的订单簿 |
 
 ### `kalshi_get_trades`
 
@@ -223,8 +221,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 交易数据和元数据 |
+| `trades` | array | 交易对象的数组 |
+| `paging` | object | 用于获取更多结果的分页游标 |
 
 ### `kalshi_get_candlesticks`
 
@@ -244,8 +242,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 蜡烛图数据和元数据 |
+| `candlesticks` | array | OHLC 蜡烛图数据的数组 |
 
 ### `kalshi_get_fills`
 
@@ -268,8 +265,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 填充数据和元数据 |
+| `fills` | array | 成交/交易对象的数组 |
+| `paging` | object | 用于获取更多结果的分页游标 |
 
 ### `kalshi_get_series_by_ticker`
 
@@ -285,8 +282,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 系列数据和元数据 |
+| `series` | object | 包含详细信息的系列对象 |
 
 ### `kalshi_get_exchange_status`
 
@@ -301,8 +297,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 交易所状态数据和元数据 |
+| `status` | object | 包含 trading_active 和 exchange_active 标志的交易所状态 |
 
 ### `kalshi_create_order`
 
@@ -336,8 +331,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的订单数据 |
+| `order` | object | 创建的订单对象 |
 
 ### `kalshi_cancel_order`
 
@@ -355,8 +349,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 已取消的订单数据 |
+| `order` | object | 已取消的订单对象 |
+| `reducedBy` | number | 已取消的合约数量 |
 
 ### `kalshi_amend_order`
 
@@ -384,8 +378,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 修改后的订单数据 |
+| `order` | object | 修改后的订单对象 |
 
 ## 注意
 

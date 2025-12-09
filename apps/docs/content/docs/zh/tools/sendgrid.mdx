@@ -342,19 +342,30 @@ SendGrid 的主要功能包括：
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `success` | boolean | 操作成功状态 |
-| `messageId` | string | 电子邮件消息 ID \(send_mail\) |
+| `message` | string | 状态或成功消息 |
+| `messageId` | string | 邮件消息 ID \(send_mail\) |
+| `to` | string | 收件人邮箱地址 \(send_mail\) |
+| `subject` | string | 邮件主题 \(send_mail, create_template_version\) |
 | `id` | string | 资源 ID |
 | `jobId` | string | 异步操作的作业 ID |
-| `email` | string | 电子邮件地址 |
-| `firstName` | string | 名字 |
-| `lastName` | string | 姓氏 |
+| `email` | string | 联系人邮箱地址 |
+| `firstName` | string | 联系人名字 |
+| `lastName` | string | 联系人姓氏 |
+| `createdAt` | string | 创建时间戳 |
+| `updatedAt` | string | 最后更新时间戳 |
+| `listIds` | json | 联系人所属列表 ID 的数组 |
+| `customFields` | json | 自定义字段值 |
 | `contacts` | json | 联系人数组 |
-| `contactCount` | number | 联系人数量 |
+| `contactCount` | number | 联系人数 |
 | `lists` | json | 列表数组 |
-| `templates` | json | 模板数组 |
-| `message` | string | 状态或成功消息 |
 | `name` | string | 资源名称 |
-| `generation` | string | 模板生成方式 |
+| `templates` | json | 模板数组 |
+| `generation` | string | 模板生成 |
+| `versions` | json | 模板版本数组 |
+| `templateId` | string | 模板 ID |
+| `active` | boolean | 模板版本是否激活 |
+| `htmlContent` | string | HTML 内容 |
+| `plainContent` | string | 纯文本内容 |
 
 ### `sendgrid_create_template_version`
 
