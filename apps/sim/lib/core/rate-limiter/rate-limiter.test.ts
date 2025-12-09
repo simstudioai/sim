@@ -206,8 +206,8 @@ describe('RateLimiter', () => {
         false
       )
 
-      expect(status.used).toBe(0)
-      expect(status.limit).toBe(MANUAL_EXECUTION_LIMIT)
+      expect(status.requestsPerMinute).toBe(MANUAL_EXECUTION_LIMIT)
+      expect(status.maxBurst).toBe(MANUAL_EXECUTION_LIMIT)
       expect(status.remaining).toBe(MANUAL_EXECUTION_LIMIT)
       expect(mockAdapter.getTokenStatus).not.toHaveBeenCalled()
     })
