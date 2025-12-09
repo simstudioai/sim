@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
-import { member, subscription } from '@sim/db/schema'
+import { member, organization, subscription } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { getPlanPricing } from '@/lib/billing/core/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { isBillingEnabled } from '@/lib/core/config/environment'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -171,6 +172,39 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         seats: newSeatCount,
       })
       .where(eq(subscription.id, orgSubscription.id))
+
+    // Update orgUsageLimit to reflect new seat count (seats × basePrice as minimum)
+    const { basePrice } = getPlanPricing('team')
+    const newMinimumLimit = newSeatCount * basePrice
+
+    const orgData = await db
+      .select({ orgUsageLimit: organization.orgUsageLimit })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1)
+
+    const currentOrgLimit =
+      orgData.length > 0 && orgData[0].orgUsageLimit
+        ? Number.parseFloat(orgData[0].orgUsageLimit)
+        : 0
+
+    // Update if new minimum is higher than current limit
+    if (newMinimumLimit > currentOrgLimit) {
+      await db
+        .update(organization)
+        .set({
+          orgUsageLimit: newMinimumLimit.toFixed(2),
+          updatedAt: new Date(),
+        })
+        .where(eq(organization.id, organizationId))
+
+      logger.info('Updated organization usage limit for seat change', {
+        organizationId,
+        newSeatCount,
+        newMinimumLimit,
+        previousLimit: currentOrgLimit,
+      })
+    }
 
     logger.info('Successfully updated seat count', {
       organizationId,
