@@ -1,5 +1,5 @@
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
-import { REFERENCE } from '@/executor/consts'
+import { REFERENCE } from '@/executor/constants'
 
 /**
  * Creates a regex pattern for matching variable references.

@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { EDGE, isConditionBlockType, isRouterBlockType } from '@/executor/consts'
+import { EDGE, isConditionBlockType, isRouterBlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import {
   buildBranchNodeId,

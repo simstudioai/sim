@@ -1,0 +1,74 @@
+import type { ToolConfig } from '@/tools/types'
+import { getInstanceUrl } from './utils'
+
+export interface SalesforceDeleteOpportunityParams {
+  accessToken: string
+  idToken?: string
+  instanceUrl?: string
+  opportunityId: string
+}
+
+export interface SalesforceDeleteOpportunityResponse {
+  success: boolean
+  output: {
+    id: string
+    deleted: boolean
+    metadata: {
+      operation: 'delete_opportunity'
+    }
+  }
+}
+
+export const salesforceDeleteOpportunityTool: ToolConfig<
+  SalesforceDeleteOpportunityParams,
+  SalesforceDeleteOpportunityResponse
+> = {
+  id: 'salesforce_delete_opportunity',
+  name: 'Delete Opportunity from Salesforce',
+  description: 'Delete an opportunity',
+  version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'salesforce',
+  },
+
+  params: {
+    accessToken: { type: 'string', required: true, visibility: 'hidden' },
+    idToken: { type: 'string', required: false, visibility: 'hidden' },
+    instanceUrl: { type: 'string', required: false, visibility: 'hidden' },
+    opportunityId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Opportunity ID (required)',
+    },
+  },
+
+  request: {
+    url: (params) =>
+      `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Opportunity/${params.opportunityId}`,
+    method: 'DELETE',
+    headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
+  },
+
+  transformResponse: async (response, params?) => {
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data[0]?.message || data.message || 'Failed to delete opportunity')
+    }
+    return {
+      success: true,
+      output: {
+        id: params?.opportunityId || '',
+        deleted: true,
+        metadata: { operation: 'delete_opportunity' },
+      },
+    }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Success' },
+    output: { type: 'object', description: 'Deleted opportunity' },
+  },
+}

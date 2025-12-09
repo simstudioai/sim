@@ -1,4 +1,4 @@
-import { BlockType, isMetadataOnlyBlockType } from '@/executor/consts'
+import { BlockType, isMetadataOnlyBlockType } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import {
   buildBranchNodeId,

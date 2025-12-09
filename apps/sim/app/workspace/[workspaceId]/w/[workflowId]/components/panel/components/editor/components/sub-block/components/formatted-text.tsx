@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { splitReferenceSegment } from '@/lib/workflows/sanitization/references'
-import { REFERENCE } from '@/executor/consts'
+import { REFERENCE } from '@/executor/constants'
 import { createCombinedPattern } from '@/executor/utils/reference-validation'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 
@@ -67,7 +67,7 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
 
     if (matchText.startsWith(REFERENCE.ENV_VAR_START)) {
       nodes.push(
-        <span key={key++} className='text-[#34B5FF] dark:text-[#34B5FF]'>
+        <span key={key++} className='text-[#34B5FF]'>
           {matchText}
         </span>
       )
@@ -77,7 +77,7 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
       if (split && shouldHighlightReference(split.reference)) {
         pushPlainText(split.leading)
         nodes.push(
-          <span key={key++} className='text-[#34B5FF] dark:text-[#34B5FF]'>
+          <span key={key++} className='text-[#34B5FF]'>
             {split.reference}
           </span>
         )

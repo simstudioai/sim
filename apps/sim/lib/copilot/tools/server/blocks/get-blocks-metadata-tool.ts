@@ -12,7 +12,7 @@ import { AuthMode } from '@/blocks/types'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { tools as toolsRegistry } from '@/tools/registry'
 import { getTrigger, isTriggerValid } from '@/triggers'
-import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/consts'
+import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
 export interface CopilotSubblockMetadata {
   id: string

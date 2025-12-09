@@ -1,7 +1,7 @@
 import '@/executor/__test-utils__/mock-dependencies'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { BlockType } from '@/executor/consts'
+import { BlockType } from '@/executor/constants'
 import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-handler'
 import type { BlockState, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -365,7 +365,7 @@ describe('ConditionBlockHandler', () => {
     )
   })
 
-  it('should throw error if no condition matches and no else exists', async () => {
+  it('should return no-match result if no condition matches and no else exists', async () => {
     const conditions = [
       { id: 'cond1', title: 'if', value: 'false' },
       { id: 'cond2', title: 'else if', value: 'context.value === 99' },
@@ -392,9 +392,15 @@ describe('ConditionBlockHandler', () => {
       .mockReturnValueOnce('false')
       .mockReturnValueOnce('context.value === 99')
 
-    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      `No matching path found for condition block "${mockBlock.metadata?.name}", and no 'else' block exists.`
-    )
+    const result = await handler.execute(mockContext, mockBlock, inputs)
+
+    // Should return success with no path selected (branch ends gracefully)
+    expect((result as any).conditionResult).toBe(false)
+    expect((result as any).selectedPath).toBeNull()
+    expect((result as any).selectedConditionId).toBeNull()
+    expect((result as any).selectedOption).toBeNull()
+    // Decision should not be set when no condition matches
+    expect(mockContext.decisions.condition.has(mockBlock.id)).toBe(false)
   })
 
   it('falls back to else path when loop context data is unavailable', async () => {

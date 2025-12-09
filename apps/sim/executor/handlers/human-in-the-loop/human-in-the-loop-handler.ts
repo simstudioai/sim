@@ -8,7 +8,7 @@ import {
   type FieldType,
   HTTP,
   PAUSE_RESUME,
-} from '@/executor/consts'
+} from '@/executor/constants'
 import {
   generatePauseContextId,
   mapNodeMetadataToPauseScopes,

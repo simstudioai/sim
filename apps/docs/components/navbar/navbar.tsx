@@ -20,7 +20,7 @@ export function Navbar() {
         <div
           className='relative flex w-full items-center justify-between'
           style={{
-            paddingLeft: 'calc(var(--sidebar-offset) + 20px)',
+            paddingLeft: 'calc(var(--sidebar-offset) + 32px)',
             paddingRight: 'calc(var(--toc-offset) + 60px)',
           }}
         >

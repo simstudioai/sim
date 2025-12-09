@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { BlockType, REFERENCE } from '@/executor/consts'
+import { BlockType, REFERENCE } from '@/executor/constants'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
 import { replaceValidReferences } from '@/executor/utils/reference-validation'

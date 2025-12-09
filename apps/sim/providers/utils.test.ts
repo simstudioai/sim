@@ -41,7 +41,6 @@ describe('getApiKey', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    // @ts-expect-error - mocking boolean with different value
     isHostedSpy.mockReturnValue(false)
 
     module.require = vi.fn(() => ({
@@ -55,7 +54,6 @@ describe('getApiKey', () => {
   })
 
   it('should return user-provided key when not in hosted environment', () => {
-    // @ts-expect-error - mocking boolean with different value
     isHostedSpy.mockReturnValue(false)
 
     // For OpenAI
@@ -68,7 +66,6 @@ describe('getApiKey', () => {
   })
 
   it('should throw error if no key provided in non-hosted environment', () => {
-    // @ts-expect-error - mocking boolean with different value
     isHostedSpy.mockReturnValue(false)
 
     expect(() => getApiKey('openai', 'gpt-4')).toThrow('API key is required for openai gpt-4')

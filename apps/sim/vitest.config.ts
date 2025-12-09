@@ -1,4 +1,4 @@
-import path, { resolve } from 'path'
+import path from 'path'
 /// <reference types="vitest" />
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
@@ -18,8 +18,23 @@ export default defineConfig({
     include: ['**/*.test.{ts,tsx}'],
     exclude: [...configDefaults.exclude, '**/node_modules/**', '**/dist/**'],
     setupFiles: ['./vitest.setup.ts'],
-    alias: {
-      '@sim/db': resolve(__dirname, '../../packages/db'),
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        singleThread: false,
+        useAtomics: true,
+        isolate: true,
+      },
+    },
+    fileParallelism: true,
+    maxConcurrency: 20,
+    testTimeout: 10000,
+    deps: {
+      optimizer: {
+        web: {
+          enabled: true,
+        },
+      },
     },
   },
   resolve: {

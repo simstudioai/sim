@@ -3,12 +3,9 @@ import {
   CONTAINER_LAYOUT_OPTIONS,
   DEFAULT_LAYOUT_OPTIONS,
   MAX_OVERLAP_ITERATIONS,
-  OVERLAP_MARGIN,
 } from '@/lib/workflows/autolayout/constants'
 import type { Edge, GraphNode, LayoutOptions } from '@/lib/workflows/autolayout/types'
 import {
-  boxesOverlap,
-  createBoundingBox,
   getBlockMetrics,
   normalizePositions,
   prepareBlockMetrics,
@@ -172,11 +169,10 @@ export function groupByLayer(nodes: Map<string, GraphNode>): Map<number, GraphNo
 }
 
 /**
- * Resolves overlaps between all nodes, including across layers.
- * Nodes in the same layer are shifted vertically to avoid overlap.
- * Nodes in different layers that overlap are shifted down.
+ * Resolves vertical overlaps between nodes in the same layer.
+ * X overlaps are prevented by construction via cumulative width-based positioning.
  */
-function resolveOverlaps(nodes: GraphNode[], verticalSpacing: number): void {
+function resolveVerticalOverlaps(nodes: GraphNode[], verticalSpacing: number): void {
   let iteration = 0
   let hasOverlap = true
 
@@ -184,42 +180,37 @@ function resolveOverlaps(nodes: GraphNode[], verticalSpacing: number): void {
     hasOverlap = false
     iteration++
 
-    // Sort nodes by layer then by Y position for consistent processing
-    const sortedNodes = [...nodes].sort((a, b) => {
-      if (a.layer !== b.layer) return a.layer - b.layer
-      return a.position.y - b.position.y
-    })
+    // Group nodes by layer for same-layer overlap resolution
+    const nodesByLayer = new Map<number, GraphNode[]>()
+    for (const node of nodes) {
+      if (!nodesByLayer.has(node.layer)) {
+        nodesByLayer.set(node.layer, [])
+      }
+      nodesByLayer.get(node.layer)!.push(node)
+    }
 
-    for (let i = 0; i < sortedNodes.length; i++) {
-      for (let j = i + 1; j < sortedNodes.length; j++) {
-        const node1 = sortedNodes[i]
-        const node2 = sortedNodes[j]
+    // Process each layer independently
+    for (const [layer, layerNodes] of nodesByLayer) {
+      if (layerNodes.length < 2) continue
 
-        const box1 = createBoundingBox(node1.position, node1.metrics)
-        const box2 = createBoundingBox(node2.position, node2.metrics)
+      // Sort by Y position for consistent processing
+      layerNodes.sort((a, b) => a.position.y - b.position.y)
 
-        // Check for overlap with margin
-        if (boxesOverlap(box1, box2, OVERLAP_MARGIN)) {
+      for (let i = 0; i < layerNodes.length - 1; i++) {
+        const node1 = layerNodes[i]
+        const node2 = layerNodes[i + 1]
+
+        const node1Bottom = node1.position.y + node1.metrics.height
+        const requiredY = node1Bottom + verticalSpacing
+
+        if (node2.position.y < requiredY) {
           hasOverlap = true
+          node2.position.y = requiredY
 
-          // If in same layer, shift vertically around midpoint
-          if (node1.layer === node2.layer) {
-            const midpoint = (node1.position.y + node2.position.y) / 2
-
-            node1.position.y = midpoint - node1.metrics.height / 2 - verticalSpacing / 2
-            node2.position.y = midpoint + node2.metrics.height / 2 + verticalSpacing / 2
-          } else {
-            // Different layers - shift the later one down
-            const requiredSpace = box1.y + box1.height + verticalSpacing
-            if (node2.position.y < requiredSpace) {
-              node2.position.y = requiredSpace
-            }
-          }
-
-          logger.debug('Resolved overlap between blocks', {
+          logger.debug('Resolved vertical overlap in layer', {
+            layer,
             block1: node1.id,
             block2: node2.id,
-            sameLayer: node1.layer === node2.layer,
             iteration,
           })
         }
@@ -228,14 +219,15 @@ function resolveOverlaps(nodes: GraphNode[], verticalSpacing: number): void {
   }
 
   if (hasOverlap) {
-    logger.warn('Could not fully resolve all overlaps after max iterations', {
+    logger.warn('Could not fully resolve all vertical overlaps after max iterations', {
       iterations: MAX_OVERLAP_ITERATIONS,
     })
   }
 }
 
 /**
- * Calculates positions for nodes organized by layer
+ * Calculates positions for nodes organized by layer.
+ * Uses cumulative width-based X positioning to properly handle containers of varying widths.
  */
 export function calculatePositions(
   layers: Map<number, GraphNode[]>,
@@ -248,9 +240,27 @@ export function calculatePositions(
 
   const layerNumbers = Array.from(layers.keys()).sort((a, b) => a - b)
 
+  // Calculate max width for each layer
+  const layerWidths = new Map<number, number>()
   for (const layerNum of layerNumbers) {
     const nodesInLayer = layers.get(layerNum)!
-    const xPosition = padding.x + layerNum * horizontalSpacing
+    const maxWidth = Math.max(...nodesInLayer.map((n) => n.metrics.width))
+    layerWidths.set(layerNum, maxWidth)
+  }
+
+  // Calculate cumulative X positions for each layer based on actual widths
+  const layerXPositions = new Map<number, number>()
+  let cumulativeX = padding.x
+
+  for (const layerNum of layerNumbers) {
+    layerXPositions.set(layerNum, cumulativeX)
+    cumulativeX += layerWidths.get(layerNum)! + horizontalSpacing
+  }
+
+  // Position nodes using cumulative X
+  for (const layerNum of layerNumbers) {
+    const nodesInLayer = layers.get(layerNum)!
+    const xPosition = layerXPositions.get(layerNum)!
 
     // Calculate total height for this layer
     const totalHeight = nodesInLayer.reduce(
@@ -285,8 +295,8 @@ export function calculatePositions(
     }
   }
 
-  // Resolve overlaps across all nodes
-  resolveOverlaps(Array.from(layers.values()).flat(), verticalSpacing)
+  // Resolve vertical overlaps within layers (X overlaps prevented by cumulative positioning)
+  resolveVerticalOverlaps(Array.from(layers.values()).flat(), verticalSpacing)
 }
 
 /**

@@ -50,7 +50,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
 
   request: {
     url: () => {
-      return 'https://www.googleapis.com/drive/v3/files'
+      return 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true'
     },
     method: 'POST',
     headers: (params) => {

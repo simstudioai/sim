@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
+import { isReference, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { extractBaseBlockId, extractBranchIndex } from '@/executor/utils/subflow-utils'
 import {
   navigatePath,

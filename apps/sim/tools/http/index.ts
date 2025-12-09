@@ -1,3 +1,3 @@
-import { requestTool } from '@/tools/http/request'
+import { requestTool } from './request'
 
-export { requestTool }
+export const httpRequestTool = requestTool

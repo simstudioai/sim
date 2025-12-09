@@ -128,6 +128,11 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   const billingStatus = getBillingStatus(subscriptionData?.data)
   const isBlocked = billingStatus === 'blocked'
+  const blockedReason = subscriptionData?.data?.billingBlockedReason as
+    | 'payment_failed'
+    | 'dispute'
+    | null
+  const isDispute = isBlocked && blockedReason === 'dispute'
   const showUpgradeButton =
     (planType === 'free' || isBlocked || progressPercentage >= 80) && planType !== 'enterprise'
 
@@ -209,8 +214,20 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
       }
 
       const blocked = getBillingStatus(subscriptionData?.data) === 'blocked'
+      const reason = subscriptionData?.data?.billingBlockedReason as
+        | 'payment_failed'
+        | 'dispute'
+        | null
       const canUpg = canUpgrade(subscriptionData?.data)
 
+      // For disputes, open help modal instead of billing portal
+      if (blocked && reason === 'dispute') {
+        window.dispatchEvent(new CustomEvent('open-help-modal'))
+        logger.info('Opened help modal for disputed account')
+        return
+      }
+
+      // For payment failures, open billing portal
       if (blocked) {
         try {
           const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
@@ -265,10 +282,17 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
           <div className='flex min-w-0 flex-1 items-center gap-[4px]'>
             {isBlocked ? (
-              <>
-                <span className='font-medium text-[12px] text-red-400'>Payment</span>
-                <span className='font-medium text-[12px] text-red-400'>Required</span>
-              </>
+              isDispute ? (
+                <>
+                  <span className='font-medium text-[12px] text-red-400'>Account</span>
+                  <span className='font-medium text-[12px] text-red-400'>Frozen</span>
+                </>
+              ) : (
+                <>
+                  <span className='font-medium text-[12px] text-red-400'>Payment</span>
+                  <span className='font-medium text-[12px] text-red-400'>Required</span>
+                </>
+              )
             ) : (
               <>
                 <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
@@ -292,7 +316,9 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
             }`}
             onClick={handleClick}
           >
-            <span className='font-medium text-[12px]'>{isBlocked ? 'Fix Now' : 'Upgrade'}</span>
+            <span className='font-medium text-[12px]'>
+              {isBlocked ? (isDispute ? 'Get Help' : 'Fix Now') : 'Upgrade'}
+            </span>
           </Button>
         )}
       </div>

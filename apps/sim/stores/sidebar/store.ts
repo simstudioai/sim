@@ -8,9 +8,11 @@ interface SidebarState {
   workspaceDropdownOpen: boolean
   sidebarWidth: number
   isCollapsed: boolean
+  _hasHydrated: boolean
   setWorkspaceDropdownOpen: (isOpen: boolean) => void
   setSidebarWidth: (width: number) => void
   setIsCollapsed: (isCollapsed: boolean) => void
+  setHasHydrated: (hasHydrated: boolean) => void
 }
 
 /**
@@ -26,6 +28,7 @@ export const useSidebarStore = create<SidebarState>()(
       workspaceDropdownOpen: false,
       sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
       isCollapsed: false,
+      _hasHydrated: false,
       setWorkspaceDropdownOpen: (isOpen) => set({ workspaceDropdownOpen: isOpen }),
       setSidebarWidth: (width) => {
         // Only enforce minimum - maximum is enforced dynamically by the resize hook
@@ -47,17 +50,24 @@ export const useSidebarStore = create<SidebarState>()(
           document.documentElement.style.setProperty('--sidebar-width', `${currentWidth}px`)
         }
       },
+      setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
     }),
     {
       name: 'sidebar-state',
       onRehydrateStorage: () => (state) => {
-        // Validate and enforce constraints after rehydration
-        if (state && typeof window !== 'undefined') {
-          // Use 0 width if collapsed (floating UI), otherwise use stored width
-          const width = state.isCollapsed ? 0 : state.sidebarWidth
-          document.documentElement.style.setProperty('--sidebar-width', `${width}px`)
+        // Mark store as hydrated and apply CSS variables
+        if (state) {
+          state.setHasHydrated(true)
+          if (typeof window !== 'undefined') {
+            const width = state.isCollapsed ? 0 : state.sidebarWidth
+            document.documentElement.style.setProperty('--sidebar-width', `${width}px`)
+          }
         }
       },
+      partialize: (state) => ({
+        sidebarWidth: state.sidebarWidth,
+        isCollapsed: state.isCollapsed,
+      }),
     }
   )
 )

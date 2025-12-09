@@ -5,9 +5,15 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('OAuth Utils', () => {
-  const mockSession = { user: { id: 'test-user-id' } }
-  const mockDb = {
+const mockSession = { user: { id: 'test-user-id' } }
+const mockGetSession = vi.fn()
+
+vi.mock('@/lib/auth', () => ({
+  getSession: () => mockGetSession(),
+}))
+
+vi.mock('@sim/db', () => ({
+  db: {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
@@ -15,33 +21,41 @@ describe('OAuth Utils', () => {
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
-  }
-  const mockRefreshOAuthToken = vi.fn()
-  const mockLogger = {
+  },
+}))
+
+vi.mock('@/lib/oauth/oauth', () => ({
+  refreshOAuthToken: vi.fn(),
+}))
+
+vi.mock('@/lib/logs/console/logger', () => ({
+  createLogger: vi.fn().mockReturnValue({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
-  }
+  }),
+}))
 
+import { db } from '@sim/db'
+import { createLogger } from '@/lib/logs/console/logger'
+import { refreshOAuthToken } from '@/lib/oauth/oauth'
+import {
+  getCredential,
+  getUserId,
+  refreshAccessTokenIfNeeded,
+  refreshTokenIfNeeded,
+} from '@/app/api/auth/oauth/utils'
+
+const mockDb = db as any
+const mockRefreshOAuthToken = refreshOAuthToken as any
+const mockLogger = (createLogger as any)()
+
+describe('OAuth Utils', () => {
   beforeEach(() => {
-    vi.resetModules()
-
-    vi.doMock('@/lib/auth', () => ({
-      getSession: vi.fn().mockResolvedValue(mockSession),
-    }))
-
-    vi.doMock('@sim/db', () => ({
-      db: mockDb,
-    }))
-
-    vi.doMock('@/lib/oauth/oauth', () => ({
-      refreshOAuthToken: mockRefreshOAuthToken,
-    }))
-
-    vi.doMock('@/lib/logs/console/logger', () => ({
-      createLogger: vi.fn().mockReturnValue(mockLogger),
-    }))
+    vi.clearAllMocks()
+    mockGetSession.mockResolvedValue(mockSession)
+    mockDb.limit.mockReturnValue([])
   })
 
   afterEach(() => {
@@ -50,8 +64,6 @@ describe('OAuth Utils', () => {
 
   describe('getUserId', () => {
     it('should get user ID from session when no workflowId is provided', async () => {
-      const { getUserId } = await import('@/app/api/auth/oauth/utils')
-
       const userId = await getUserId('request-id')
 
       expect(userId).toBe('test-user-id')
@@ -59,8 +71,6 @@ describe('OAuth Utils', () => {
 
     it('should get user ID from workflow when workflowId is provided', async () => {
       mockDb.limit.mockReturnValueOnce([{ userId: 'workflow-owner-id' }])
-
-      const { getUserId } = await import('@/app/api/auth/oauth/utils')
 
       const userId = await getUserId('request-id', 'workflow-id')
 
@@ -72,11 +82,7 @@ describe('OAuth Utils', () => {
     })
 
     it('should return undefined if no session is found', async () => {
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue(null),
-      }))
-
-      const { getUserId } = await import('@/app/api/auth/oauth/utils')
+      mockGetSession.mockResolvedValueOnce(null)
 
       const userId = await getUserId('request-id')
 
@@ -86,8 +92,6 @@ describe('OAuth Utils', () => {
 
     it('should return undefined if workflow is not found', async () => {
       mockDb.limit.mockReturnValueOnce([])
-
-      const { getUserId } = await import('@/app/api/auth/oauth/utils')
 
       const userId = await getUserId('request-id', 'nonexistent-workflow-id')
 
@@ -101,8 +105,6 @@ describe('OAuth Utils', () => {
       const mockCredential = { id: 'credential-id', userId: 'test-user-id' }
       mockDb.limit.mockReturnValueOnce([mockCredential])
 
-      const { getCredential } = await import('@/app/api/auth/oauth/utils')
-
       const credential = await getCredential('request-id', 'credential-id', 'test-user-id')
 
       expect(mockDb.select).toHaveBeenCalled()
@@ -115,8 +117,6 @@ describe('OAuth Utils', () => {
 
     it('should return undefined when credential is not found', async () => {
       mockDb.limit.mockReturnValueOnce([])
-
-      const { getCredential } = await import('@/app/api/auth/oauth/utils')
 
       const credential = await getCredential('request-id', 'nonexistent-id', 'test-user-id')
 
@@ -134,8 +134,6 @@ describe('OAuth Utils', () => {
         accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000), // 1 hour in the future
         providerId: 'google',
       }
-
-      const { refreshTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
 
       const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
 
@@ -159,8 +157,6 @@ describe('OAuth Utils', () => {
         refreshToken: 'new-refresh-token',
       })
 
-      const { refreshTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
-
       const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
 
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token')
@@ -183,8 +179,6 @@ describe('OAuth Utils', () => {
 
       mockRefreshOAuthToken.mockResolvedValueOnce(null)
 
-      const { refreshTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
-
       await expect(
         refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
       ).rejects.toThrow('Failed to refresh token')
@@ -200,8 +194,6 @@ describe('OAuth Utils', () => {
         accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000), // 1 hour in the past
         providerId: 'google',
       }
-
-      const { refreshTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
 
       const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
 
@@ -221,8 +213,6 @@ describe('OAuth Utils', () => {
         userId: 'test-user-id',
       }
       mockDb.limit.mockReturnValueOnce([mockCredential])
-
-      const { refreshAccessTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
 
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
@@ -247,8 +237,6 @@ describe('OAuth Utils', () => {
         refreshToken: 'new-refresh-token',
       })
 
-      const { refreshAccessTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
-
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token')
@@ -259,8 +247,6 @@ describe('OAuth Utils', () => {
 
     it('should return null if credential not found', async () => {
       mockDb.limit.mockReturnValueOnce([])
-
-      const { refreshAccessTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
 
       const token = await refreshAccessTokenIfNeeded('nonexistent-id', 'test-user-id', 'request-id')
 
@@ -280,8 +266,6 @@ describe('OAuth Utils', () => {
       mockDb.limit.mockReturnValueOnce([mockCredential])
 
       mockRefreshOAuthToken.mockResolvedValueOnce(null)
-
-      const { refreshAccessTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
 
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 

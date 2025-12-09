@@ -2,7 +2,7 @@ import type { Edge } from 'reactflow'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { TRIGGER_PERSISTED_SUBBLOCK_IDS } from '@/triggers/consts'
+import { TRIGGER_PERSISTED_SUBBLOCK_IDS } from '@/triggers/constants'
 
 /**
  * Sanitized workflow state for copilot (removes all UI-specific data)

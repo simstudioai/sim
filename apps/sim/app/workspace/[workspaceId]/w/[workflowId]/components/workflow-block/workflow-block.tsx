@@ -5,6 +5,7 @@ import { Badge } from '@/components/emcn/components/badge/badge'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
@@ -242,6 +243,7 @@ const SubBlockRow = ({
   rawValue,
   workspaceId,
   workflowId,
+  blockId,
   allSubBlockValues,
 }: {
   title: string
@@ -250,6 +252,7 @@ const SubBlockRow = ({
   rawValue?: unknown
   workspaceId?: string
   workflowId?: string
+  blockId?: string
   allSubBlockValues?: Record<string, { value: unknown }>
 }) => {
   const getStringValue = useCallback(
@@ -353,6 +356,17 @@ const SubBlockRow = ({
     return tool?.name ?? null
   }, [subBlock?.type, rawValue, mcpToolsData])
 
+  const webhookUrlDisplayValue = useMemo(() => {
+    if (subBlock?.id !== 'webhookUrlDisplay' || !blockId) {
+      return null
+    }
+    const baseUrl = getBaseUrl()
+    const triggerPath = allSubBlockValues?.triggerPath?.value as string | undefined
+    return triggerPath
+      ? `${baseUrl}/api/webhooks/trigger/${triggerPath}`
+      : `${baseUrl}/api/webhooks/trigger/${blockId}`
+  }, [subBlock?.id, blockId, allSubBlockValues])
+
   const allVariables = useVariablesStore((state) => state.variables)
 
   const variablesDisplayValue = useMemo(() => {
@@ -393,6 +407,7 @@ const SubBlockRow = ({
     workflowSelectionName ||
     mcpServerDisplayName ||
     mcpToolDisplayName ||
+    webhookUrlDisplayValue ||
     selectorDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
@@ -1002,6 +1017,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                         rawValue={rawValue}
                         workspaceId={workspaceId}
                         workflowId={currentWorkflowId}
+                        blockId={id}
                         allSubBlockValues={subBlockState}
                       />
                     )

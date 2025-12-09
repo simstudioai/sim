@@ -566,6 +566,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         return
       }
 
+      // All costs go to currentPeriodCost - credits are applied at end of billing cycle
       const updateFields: any = {
         totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
         totalCost: sql`total_cost + ${costToStore}`,
