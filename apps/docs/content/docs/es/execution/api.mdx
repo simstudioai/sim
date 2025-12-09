@@ -27,14 +27,16 @@ Todas las respuestas de la API incluyen información sobre tus límites de ejecu
 "limits": {
   "workflowExecutionRateLimit": {
     "sync": {
-      "limit": 60,        // Max sync workflow executions per minute
-      "remaining": 58,    // Remaining sync workflow executions
-      "resetAt": "..."    // When the window resets
+      "requestsPerMinute": 60,  // Sustained rate limit per minute
+      "maxBurst": 120,          // Maximum burst capacity
+      "remaining": 118,         // Current tokens available (up to maxBurst)
+      "resetAt": "..."          // When tokens next refill
     },
     "async": {
-      "limit": 60,        // Max async workflow executions per minute
-      "remaining": 59,    // Remaining async workflow executions
-      "resetAt": "..."    // When the window resets
+      "requestsPerMinute": 200, // Sustained rate limit per minute
+      "maxBurst": 400,          // Maximum burst capacity
+      "remaining": 398,         // Current tokens available
+      "resetAt": "..."          // When tokens next refill
     }
   },
   "usage": {
@@ -46,7 +48,7 @@ Todas las respuestas de la API incluyen información sobre tus límites de ejecu
 }
 ```
 
-**Nota:** Los límites de tasa en el cuerpo de la respuesta son para ejecuciones de flujos de trabajo. Los límites de tasa para llamar a este endpoint de la API están en los encabezados de respuesta (`X-RateLimit-*`).
+**Nota:** Los límites de tasa utilizan un algoritmo de cubo de tokens. `remaining` puede exceder `requestsPerMinute` hasta `maxBurst` cuando no has usado tu asignación completa recientemente, permitiendo tráfico en ráfagas. Los límites de tasa en el cuerpo de la respuesta son para ejecuciones de flujo de trabajo. Los límites de tasa para llamar a este punto final de la API están en los encabezados de respuesta (`X-RateLimit-*`).
 
 ### Consultar registros
 
@@ -110,13 +112,15 @@ Consulta los registros de ejecución de flujos de trabajo con amplias opciones d
       "limits": {
         "workflowExecutionRateLimit": {
           "sync": {
-            "limit": 60,
-            "remaining": 58,
+            "requestsPerMinute": 60,
+            "maxBurst": 120,
+            "remaining": 118,
             "resetAt": "2025-01-01T12:35:56.789Z"
           },
           "async": {
-            "limit": 60,
-            "remaining": 59,
+            "requestsPerMinute": 200,
+            "maxBurst": 400,
+            "remaining": 398,
             "resetAt": "2025-01-01T12:35:56.789Z"
           }
         },
@@ -190,13 +194,15 @@ Recupera información detallada sobre una entrada de registro específica.
         "limits": {
           "workflowExecutionRateLimit": {
             "sync": {
-              "limit": 60,
-              "remaining": 58,
+              "requestsPerMinute": 60,
+              "maxBurst": 120,
+              "remaining": 118,
               "resetAt": "2025-01-01T12:35:56.789Z"
             },
             "async": {
-              "limit": 60,
-              "remaining": 59,
+              "requestsPerMinute": 200,
+              "maxBurst": 400,
+              "remaining": 398,
               "resetAt": "2025-01-01T12:35:56.789Z"
             }
           },
@@ -482,19 +488,27 @@ Las entregas de webhook fallidas se reintentan con retroceso exponencial y fluct
 
 ## Limitación de tasa
 
-La API implementa limitación de tasa para asegurar un uso justo:
+La API utiliza un **algoritmo de cubo de tokens** para limitar la tasa, proporcionando un uso justo mientras permite tráfico en ráfagas:
 
-- **Plan gratuito**: 10 solicitudes por minuto
-- **Plan Pro**: 30 solicitudes por minuto
-- **Plan Team**: 60 solicitudes por minuto
-- **Plan Enterprise**: Límites personalizados
+| Plan | Solicitudes/Minuto | Capacidad de ráfaga |
+|------|-----------------|----------------|
+| Free | 10 | 20 |
+| Pro | 30 | 60 |
+| Team | 60 | 120 |
+| Enterprise | 120 | 240 |
 
-La información de límite de tasa se incluye en las cabeceras de respuesta:
-- `X-RateLimit-Limit`: Solicitudes máximas por ventana
-- `X-RateLimit-Remaining`: Solicitudes restantes en la ventana actual
-- `X-RateLimit-Reset`: Marca de tiempo ISO cuando la ventana se reinicia
+**Cómo funciona:**
+- Los tokens se recargan a una tasa de `requestsPerMinute`
+- Puedes acumular hasta `maxBurst` tokens cuando estás inactivo
+- Cada solicitud consume 1 token
+- La capacidad de ráfaga permite manejar picos de tráfico
 
-## Ejemplo: Sondeo de nuevos registros
+La información del límite de tasa se incluye en los encabezados de respuesta:
+- `X-RateLimit-Limit`: Solicitudes por minuto (tasa de recarga)
+- `X-RateLimit-Remaining`: Tokens disponibles actualmente
+- `X-RateLimit-Reset`: Marca de tiempo ISO cuando los tokens se recargan nuevamente
+
+## Ejemplo: Sondeo para nuevos registros
 
 ```javascript
 let cursor = null;

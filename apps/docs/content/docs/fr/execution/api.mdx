@@ -27,14 +27,16 @@ Toutes les réponses API incluent des informations sur vos limites d'exécution 
 "limits": {
   "workflowExecutionRateLimit": {
     "sync": {
-      "limit": 60,        // Max sync workflow executions per minute
-      "remaining": 58,    // Remaining sync workflow executions
-      "resetAt": "..."    // When the window resets
+      "requestsPerMinute": 60,  // Sustained rate limit per minute
+      "maxBurst": 120,          // Maximum burst capacity
+      "remaining": 118,         // Current tokens available (up to maxBurst)
+      "resetAt": "..."          // When tokens next refill
     },
     "async": {
-      "limit": 60,        // Max async workflow executions per minute
-      "remaining": 59,    // Remaining async workflow executions
-      "resetAt": "..."    // When the window resets
+      "requestsPerMinute": 200, // Sustained rate limit per minute
+      "maxBurst": 400,          // Maximum burst capacity
+      "remaining": 398,         // Current tokens available
+      "resetAt": "..."          // When tokens next refill
     }
   },
   "usage": {
@@ -46,7 +48,7 @@ Toutes les réponses API incluent des informations sur vos limites d'exécution 
 }
 ```
 
-**Remarque :** Les limites de débit dans le corps de la réponse concernent les exécutions de workflow. Les limites de débit pour l'appel de ce point de terminaison API se trouvent dans les en-têtes de réponse (`X-RateLimit-*`).
+**Remarque :** les limites de débit utilisent un algorithme de seau à jetons. `remaining` peut dépasser `requestsPerMinute` jusqu'à `maxBurst` lorsque vous n'avez pas utilisé récemment votre allocation complète, permettant ainsi un trafic en rafale. Les limites de débit dans le corps de la réponse concernent les exécutions de workflow. Les limites de débit pour appeler ce point de terminaison API se trouvent dans les en-têtes de réponse (`X-RateLimit-*`).
 
 ### Interrogation des journaux
 
@@ -110,13 +112,15 @@ Interrogez les journaux d'exécution des workflows avec de nombreuses options de
       "limits": {
         "workflowExecutionRateLimit": {
           "sync": {
-            "limit": 60,
-            "remaining": 58,
+            "requestsPerMinute": 60,
+            "maxBurst": 120,
+            "remaining": 118,
             "resetAt": "2025-01-01T12:35:56.789Z"
           },
           "async": {
-            "limit": 60,
-            "remaining": 59,
+            "requestsPerMinute": 200,
+            "maxBurst": 400,
+            "remaining": 398,
             "resetAt": "2025-01-01T12:35:56.789Z"
           }
         },
@@ -190,13 +194,15 @@ Récupérer des informations détaillées sur une entrée de journal spécifique
         "limits": {
           "workflowExecutionRateLimit": {
             "sync": {
-              "limit": 60,
-              "remaining": 58,
+              "requestsPerMinute": 60,
+              "maxBurst": 120,
+              "remaining": 118,
               "resetAt": "2025-01-01T12:35:56.789Z"
             },
             "async": {
-              "limit": 60,
-              "remaining": 59,
+              "requestsPerMinute": 200,
+              "maxBurst": 400,
+              "remaining": 398,
               "resetAt": "2025-01-01T12:35:56.789Z"
             }
           },
@@ -482,19 +488,27 @@ Les livraisons de webhook échouées sont réessayées avec un backoff exponenti
 
 ## Limitation de débit
 
-L'API implémente une limitation de débit pour garantir une utilisation équitable :
+L'API utilise un **algorithme de seau à jetons** pour limiter le débit, offrant une utilisation équitable tout en permettant des pics de trafic :
 
-- **Plan gratuit** : 10 requêtes par minute
-- **Plan Pro** : 30 requêtes par minute
-- **Plan Équipe** : 60 requêtes par minute
-- **Plan Entreprise** : Limites personnalisées
+| Forfait | Requêtes/minute | Capacité de rafale |
+|------|-----------------|----------------|
+| Gratuit | 10 | 20 |
+| Pro | 30 | 60 |
+| Équipe | 60 | 120 |
+| Entreprise | 120 | 240 |
 
-Les informations de limitation de débit sont incluses dans les en-têtes de réponse :
-- `X-RateLimit-Limit` : Nombre maximum de requêtes par fenêtre
-- `X-RateLimit-Remaining` : Requêtes restantes dans la fenêtre actuelle
-- `X-RateLimit-Reset` : Horodatage ISO indiquant quand la fenêtre se réinitialise
+**Comment ça fonctionne :**
+- Les jetons se rechargent au rythme de `requestsPerMinute`
+- Vous pouvez accumuler jusqu'à `maxBurst` jetons en période d'inactivité
+- Chaque requête consomme 1 jeton
+- La capacité de rafale permet de gérer les pics de trafic
 
-## Exemple : Polling pour nouveaux logs
+Les informations sur les limites de débit sont incluses dans les en-têtes de réponse :
+- `X-RateLimit-Limit` : requêtes par minute (taux de recharge)
+- `X-RateLimit-Remaining` : jetons actuellement disponibles
+- `X-RateLimit-Reset` : horodatage ISO indiquant quand les jetons seront rechargés
+
+## Exemple : interrogation pour de nouveaux journaux
 
 ```javascript
 let cursor = null;
@@ -541,7 +555,7 @@ async function pollLogs() {
 setInterval(pollLogs, 30000);
 ```
 
-## Exemple : Traitement des webhooks
+## Exemple : traitement des webhooks
 
 ```javascript
 import express from 'express';
