@@ -30,15 +30,19 @@ Verwende den Start-Block für alles, was aus dem Editor, deploy-to-API oder depl
   <Card title="Schedule" href="/triggers/schedule">
     Cron- oder intervallbasierte Ausführung
   </Card>
+  <Card title="RSS Feed" href="/triggers/rss">
+    RSS- und Atom-Feeds auf neue Inhalte überwachen
+  </Card>
 </Cards>
 
 ## Schneller Vergleich
 
 | Trigger | Startbedingung |
 |---------|-----------------|
-| **Start** | Editor-Ausführungen, deploy-to-API Anfragen oder Chat-Nachrichten |
+| **Start** | Editor-Ausführungen, Deploy-to-API-Anfragen oder Chat-Nachrichten |
 | **Schedule** | Timer, der im Schedule-Block verwaltet wird |
 | **Webhook** | Bei eingehender HTTP-Anfrage |
+| **RSS Feed** | Neues Element im Feed veröffentlicht |
 
 > Der Start-Block stellt immer `input`, `conversationId` und `files` Felder bereit. Füge benutzerdefinierte Felder zum Eingabeformat für zusätzliche strukturierte Daten hinzu.
 

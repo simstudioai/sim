@@ -21,14 +21,17 @@ import { Image } from '@/components/ui/image'
 使用 Start 块处理从编辑器、部署到 API 或部署到聊天的所有操作。其他触发器可用于事件驱动的工作流：
 
 <Cards>
-  <Card title="Start" href="/triggers/start">
+  <Card title="开始" href="/triggers/start">
     支持编辑器运行、API 部署和聊天部署的统一入口点
   </Card>
   <Card title="Webhook" href="/triggers/webhook">
     接收外部 webhook 负载
   </Card>
-  <Card title="Schedule" href="/triggers/schedule">
+  <Card title="计划" href="/triggers/schedule">
     基于 Cron 或间隔的执行
+  </Card>
+  <Card title="RSS 源" href="/triggers/rss">
+    监控 RSS 和 Atom 源的新内容
   </Card>
 </Cards>
 
@@ -36,9 +39,10 @@ import { Image } from '@/components/ui/image'
 
 | 触发器 | 启动条件 |
 |---------|-----------------|
-| **Start** | 编辑器运行、部署到 API 请求或聊天消息 |
-| **Schedule** | 在 Schedule 块中管理的计时器 |
-| **Webhook** | 收到入站 HTTP 请求 |
+| **开始** | 编辑器运行、部署到 API 请求或聊天消息 |
+| **计划** | 在计划块中管理的计时器 |
+| **Webhook** | 收到入站 HTTP 请求时 |
+| **RSS 源** | 源中发布了新项目 |
 
 > Start 块始终公开 `input`、`conversationId` 和 `files` 字段。通过向输入格式添加自定义字段来增加结构化数据。
 
