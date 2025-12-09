@@ -199,12 +199,6 @@ export const ToolArgSchemas = {
       .describe(
         'Required for edit and delete operations. The database ID of the custom tool (e.g., "0robnW7_JUVwZrDkq1mqj"). Use get_workflow_data with data_type "custom_tools" to get the list of tools and their IDs. Do NOT use the function name - use the actual "id" field from the tool.'
       ),
-    title: z
-      .string()
-      .optional()
-      .describe(
-        'The display title of the custom tool. Required for add. Should always be provided for edit/delete so the user knows which tool is being modified.'
-      ),
     schema: z
       .object({
         type: z.literal('function'),

@@ -14,6 +14,7 @@ import {
   StartBlockPath,
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
+import { coerceValue } from '@/executor/utils/start-block'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
@@ -757,7 +758,7 @@ export function useWorkflowExecution() {
       if (Array.isArray(inputFormatValue)) {
         inputFormatValue.forEach((field: any) => {
           if (field && typeof field === 'object' && field.name && field.value !== undefined) {
-            testInput[field.name] = field.value
+            testInput[field.name] = coerceValue(field.type, field.value)
           }
         })
       }

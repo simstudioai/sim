@@ -25,7 +25,6 @@ interface CustomToolSchema {
 interface ManageCustomToolArgs {
   operation: 'add' | 'edit' | 'delete'
   toolId?: string
-  title?: string
   schema?: CustomToolSchema
   code?: string
 }
@@ -72,12 +71,12 @@ export class ManageCustomToolClientTool extends BaseClientTool {
       // Return undefined if no operation yet - use static defaults
       if (!operation) return undefined
 
-      // Get tool name from params, or look it up from the store by toolId
-      let toolName = params?.title || params?.schema?.function?.name
+      // Get tool name from schema, or look it up from the store by toolId
+      let toolName = params?.schema?.function?.name
       if (!toolName && params?.toolId) {
         try {
           const tool = useCustomToolsStore.getState().getTool(params.toolId)
-          toolName = tool?.title || tool?.schema?.function?.name
+          toolName = tool?.schema?.function?.name
         } catch {
           // Ignore errors accessing store
         }
@@ -190,7 +189,7 @@ export class ManageCustomToolClientTool extends BaseClientTool {
       throw new Error('Operation is required')
     }
 
-    const { operation, toolId, title, schema, code } = args
+    const { operation, toolId, schema, code } = args
 
     // Get workspace ID from the workflow registry
     const { hydration } = useWorkflowRegistry.getState()
@@ -202,16 +201,16 @@ export class ManageCustomToolClientTool extends BaseClientTool {
     logger.info(`Executing custom tool operation: ${operation}`, {
       operation,
       toolId,
-      title,
+      functionName: schema?.function?.name,
       workspaceId,
     })
 
     switch (operation) {
       case 'add':
-        await this.addCustomTool({ title, schema, code, workspaceId }, logger)
+        await this.addCustomTool({ schema, code, workspaceId }, logger)
         break
       case 'edit':
-        await this.editCustomTool({ toolId, title, schema, code, workspaceId }, logger)
+        await this.editCustomTool({ toolId, schema, code, workspaceId }, logger)
         break
       case 'delete':
         await this.deleteCustomTool({ toolId, workspaceId }, logger)
@@ -226,18 +225,14 @@ export class ManageCustomToolClientTool extends BaseClientTool {
    */
   private async addCustomTool(
     params: {
-      title?: string
       schema?: CustomToolSchema
       code?: string
       workspaceId: string
     },
     logger: ReturnType<typeof createLogger>
   ): Promise<void> {
-    const { title, schema, code, workspaceId } = params
+    const { schema, code, workspaceId } = params
 
-    if (!title) {
-      throw new Error('Title is required for adding a custom tool')
-    }
     if (!schema) {
       throw new Error('Schema is required for adding a custom tool')
     }
@@ -245,11 +240,13 @@ export class ManageCustomToolClientTool extends BaseClientTool {
       throw new Error('Code is required for adding a custom tool')
     }
 
+    const functionName = schema.function.name
+
     const response = await fetch(API_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        tools: [{ title, schema, code }],
+        tools: [{ title: functionName, schema, code }],
         workspaceId,
       }),
     })
@@ -265,14 +262,14 @@ export class ManageCustomToolClientTool extends BaseClientTool {
     }
 
     const createdTool = data.data[0]
-    logger.info(`Created custom tool: ${title}`, { toolId: createdTool.id })
+    logger.info(`Created custom tool: ${functionName}`, { toolId: createdTool.id })
 
     this.setState(ClientToolCallState.success)
-    await this.markToolComplete(200, `Created custom tool "${title}"`, {
+    await this.markToolComplete(200, `Created custom tool "${functionName}"`, {
       success: true,
       operation: 'add',
       toolId: createdTool.id,
-      title,
+      functionName,
     })
   }
 
@@ -282,22 +279,21 @@ export class ManageCustomToolClientTool extends BaseClientTool {
   private async editCustomTool(
     params: {
       toolId?: string
-      title?: string
       schema?: CustomToolSchema
       code?: string
       workspaceId: string
     },
     logger: ReturnType<typeof createLogger>
   ): Promise<void> {
-    const { toolId, title, schema, code, workspaceId } = params
+    const { toolId, schema, code, workspaceId } = params
 
     if (!toolId) {
       throw new Error('Tool ID is required for editing a custom tool')
     }
 
-    // At least one of title, schema, or code must be provided
-    if (!title && !schema && !code) {
-      throw new Error('At least one of title, schema, or code must be provided for editing')
+    // At least one of schema or code must be provided
+    if (!schema && !code) {
+      throw new Error('At least one of schema or code must be provided for editing')
     }
 
     // We need to send the full tool data to the API for updates
@@ -314,11 +310,12 @@ export class ManageCustomToolClientTool extends BaseClientTool {
       throw new Error(`Tool with ID ${toolId} not found`)
     }
 
-    // Merge updates with existing tool
+    // Merge updates with existing tool - use function name as title
+    const mergedSchema = schema ?? existingTool.schema
     const updatedTool = {
       id: toolId,
-      title: title ?? existingTool.title,
-      schema: schema ?? existingTool.schema,
+      title: mergedSchema.function.name,
+      schema: mergedSchema,
       code: code ?? existingTool.code,
     }
 
@@ -337,14 +334,15 @@ export class ManageCustomToolClientTool extends BaseClientTool {
       throw new Error(data.error || 'Failed to update custom tool')
     }
 
-    logger.info(`Updated custom tool: ${updatedTool.title}`, { toolId })
+    const functionName = updatedTool.schema.function.name
+    logger.info(`Updated custom tool: ${functionName}`, { toolId })
 
     this.setState(ClientToolCallState.success)
-    await this.markToolComplete(200, `Updated custom tool "${updatedTool.title}"`, {
+    await this.markToolComplete(200, `Updated custom tool "${functionName}"`, {
       success: true,
       operation: 'edit',
       toolId,
-      title: updatedTool.title,
+      functionName,
     })
   }
 
