@@ -107,10 +107,8 @@ export class RateLimiter {
     // Atomic increment - creates key with value 1 if doesn't exist
     const count = await redis.incr(key)
 
-    // Set expiry only on first request (when count is 1)
-    if (count === 1) {
-      await redis.expire(key, ttlSeconds)
-    }
+    // Always set expiry to ensure keys don't persist indefinitely
+    await redis.expire(key, ttlSeconds)
 
     const resetAt = new Date((windowKey + 1) * windowMs)
 
