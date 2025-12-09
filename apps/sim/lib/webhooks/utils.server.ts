@@ -795,6 +795,33 @@ export async function formatWebhookInput(
     return body
   }
 
+  if (foundWebhook.provider === 'rss') {
+    if (body && typeof body === 'object' && 'item' in body) {
+      const item = body.item as Record<string, any>
+      const feed = body.feed as Record<string, any>
+
+      return {
+        title: item?.title,
+        link: item?.link,
+        pubDate: item?.pubDate,
+        item,
+        feed,
+        webhook: {
+          data: {
+            provider: 'rss',
+            path: foundWebhook.path,
+            providerConfig: foundWebhook.providerConfig,
+            payload: body,
+            headers: Object.fromEntries(request.headers.entries()),
+            method: request.method,
+          },
+        },
+        workflowId: foundWorkflow.id,
+      }
+    }
+    return body
+  }
+
   if (foundWebhook.provider === 'hubspot') {
     const events = Array.isArray(body) ? body : [body]
     const event = events[0]
@@ -2339,6 +2366,41 @@ export async function configureOutlookPolling(
       webhookId: webhookData.id,
       error: error.message,
       stack: error.stack,
+    })
+    return false
+  }
+}
+
+/**
+ * Configure RSS polling for a webhook
+ */
+export async function configureRssPolling(webhookData: any, requestId: string): Promise<boolean> {
+  const logger = createLogger('RssWebhookSetup')
+  logger.info(`[${requestId}] Setting up RSS polling for webhook ${webhookData.id}`)
+
+  try {
+    const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
+    const now = new Date()
+
+    await db
+      .update(webhook)
+      .set({
+        providerConfig: {
+          ...providerConfig,
+          lastCheckedTimestamp: now.toISOString(),
+          lastSeenGuids: [],
+          setupCompleted: true,
+        },
+        updatedAt: now,
+      })
+      .where(eq(webhook.id, webhookData.id))
+
+    logger.info(`[${requestId}] Successfully configured RSS polling for webhook ${webhookData.id}`)
+    return true
+  } catch (error: any) {
+    logger.error(`[${requestId}] Failed to configure RSS polling`, {
+      webhookId: webhookData.id,
+      error: error.message,
     })
     return false
   }

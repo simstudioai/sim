@@ -82,7 +82,11 @@ async function generateIconMapping(): Promise<Record<string, string>> {
       }
 
       // Skip blocks that don't have documentation (same logic as generateBlockDoc)
-      if (blockConfig.type.includes('_trigger') || blockConfig.type.includes('_webhook')) {
+      if (
+        blockConfig.type.includes('_trigger') ||
+        blockConfig.type.includes('_webhook') ||
+        blockConfig.type.includes('rss')
+      ) {
         continue
       }
 
@@ -95,7 +99,8 @@ async function generateIconMapping(): Promise<Record<string, string>> {
         blockConfig.type === 'webhook' ||
         blockConfig.type === 'schedule' ||
         blockConfig.type === 'mcp' ||
-        blockConfig.type === 'generic_webhook'
+        blockConfig.type === 'generic_webhook' ||
+        blockConfig.type === 'rss'
       ) {
         continue
       }
@@ -910,7 +915,11 @@ async function generateBlockDoc(blockPath: string) {
       return
     }
 
-    if (blockConfig.type.includes('_trigger') || blockConfig.type.includes('_webhook')) {
+    if (
+      blockConfig.type.includes('_trigger') ||
+      blockConfig.type.includes('_webhook') ||
+      blockConfig.type.includes('rss')
+    ) {
       console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
       return
     }
@@ -924,7 +933,8 @@ async function generateBlockDoc(blockPath: string) {
       blockConfig.type === 'webhook' ||
       blockConfig.type === 'schedule' ||
       blockConfig.type === 'mcp' ||
-      blockConfig.type === 'generic_webhook'
+      blockConfig.type === 'generic_webhook' ||
+      blockConfig.type === 'rss'
     ) {
       return
     }
