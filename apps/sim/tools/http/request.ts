@@ -40,15 +40,6 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       type: 'object',
       description: 'Form data to send (will set appropriate Content-Type)',
     },
-    timeout: {
-      type: 'number',
-      default: 10000,
-      description: 'Request timeout in milliseconds',
-    },
-    validateStatus: {
-      type: 'object',
-      description: 'Custom status validation function',
-    },
   },
 
   request: {

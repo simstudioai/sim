@@ -158,8 +158,8 @@ export const HTTP = {
 
 export const AGENT = {
   DEFAULT_MODEL: 'claude-sonnet-4-5',
-  DEFAULT_FUNCTION_TIMEOUT: 5000,
-  REQUEST_TIMEOUT: 120000,
+  DEFAULT_FUNCTION_TIMEOUT: 600000, // 10 minutes for custom tool code execution
+  REQUEST_TIMEOUT: 600000, // 10 minutes for LLM API requests
   CUSTOM_TOOL_PREFIX: 'custom_',
 } as const
 
