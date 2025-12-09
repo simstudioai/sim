@@ -156,18 +156,6 @@ function resolveCustomToolFromReference(
     }
   }
 
-  // Try to find by title or function name as fallback for backwards compatibility
-  if (storedTool.title) {
-    const byTitle = customToolsList.find((t) => t.title === storedTool.title)
-    if (byTitle) {
-      return {
-        schema: byTitle.schema,
-        code: byTitle.code,
-        title: byTitle.title,
-      }
-    }
-  }
-
   return null
 }
 
