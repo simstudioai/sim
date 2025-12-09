@@ -4,7 +4,9 @@ import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
 import { env } from '@/lib/core/config/env'
 
-const GenerateApiKeySchema = z.object({}).optional()
+const GenerateApiKeySchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255, 'Name is too long'),
+})
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,13 +33,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const { name } = validationResult.data
+
     const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify({ userId, name }),
     })
 
     if (!res.ok) {

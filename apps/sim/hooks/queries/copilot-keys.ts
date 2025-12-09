@@ -18,6 +18,9 @@ export const copilotKeysKeys = {
 export interface CopilotKey {
   id: string
   displayKey: string // "•••••{last6}"
+  name: string | null
+  createdAt: string | null
+  lastUsed: string | null
 }
 
 /**
@@ -59,18 +62,26 @@ export function useCopilotKeys() {
 }
 
 /**
+ * Generate key params
+ */
+interface GenerateKeyParams {
+  name: string
+}
+
+/**
  * Generate new Copilot API key mutation
  */
 export function useGenerateCopilotKey() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (): Promise<GenerateKeyResponse> => {
+    mutationFn: async ({ name }: GenerateKeyParams): Promise<GenerateKeyResponse> => {
       const response = await fetch('/api/copilot/api-keys/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ name }),
       })
 
       if (!response.ok) {
