@@ -28,8 +28,8 @@ export interface RateLimitResult {
 }
 
 export interface RateLimitStatus {
-  used: number
-  limit: number
+  requestsPerMinute: number
+  maxBurst: number
   remaining: number
   resetAt: Date
 }
@@ -86,8 +86,8 @@ export class RateLimiter {
 
   private createUnlimitedStatus(config: TokenBucketConfig): RateLimitStatus {
     return {
-      used: 0,
-      limit: MANUAL_EXECUTION_LIMIT,
+      requestsPerMinute: MANUAL_EXECUTION_LIMIT,
+      maxBurst: MANUAL_EXECUTION_LIMIT,
       remaining: MANUAL_EXECUTION_LIMIT,
       resetAt: new Date(Date.now() + config.refillIntervalMs),
     }
@@ -154,8 +154,8 @@ export class RateLimiter {
       const status = await this.storage.getTokenStatus(storageKey, config)
 
       return {
-        used: config.maxTokens - status.tokensAvailable,
-        limit: config.refillRate,
+        requestsPerMinute: config.refillRate,
+        maxBurst: config.maxTokens,
         remaining: Math.floor(status.tokensAvailable),
         resetAt: status.nextRefillAt,
       }
@@ -165,8 +165,8 @@ export class RateLimiter {
       const counterType = this.getCounterType(triggerType, isAsync)
       const config = this.getBucketConfig(plan, counterType)
       return {
-        used: 0,
-        limit: config.refillRate,
+        requestsPerMinute: config.refillRate,
+        maxBurst: config.maxTokens,
         remaining: config.refillRate,
         resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
       }

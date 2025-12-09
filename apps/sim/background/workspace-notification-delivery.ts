@@ -116,12 +116,14 @@ async function buildPayload(
 
       payload.data.rateLimits = {
         sync: {
-          limit: syncStatus.limit,
+          requestsPerMinute: syncStatus.requestsPerMinute,
+          maxBurst: syncStatus.maxBurst,
           remaining: syncStatus.remaining,
           resetAt: syncStatus.resetAt.toISOString(),
         },
         async: {
-          limit: asyncStatus.limit,
+          requestsPerMinute: asyncStatus.requestsPerMinute,
+          maxBurst: asyncStatus.maxBurst,
           remaining: asyncStatus.remaining,
           resetAt: asyncStatus.resetAt.toISOString(),
         },

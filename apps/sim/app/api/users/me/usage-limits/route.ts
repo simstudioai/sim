@@ -50,13 +50,15 @@ export async function GET(request: NextRequest) {
       rateLimit: {
         sync: {
           isLimited: syncStatus.remaining === 0,
-          limit: syncStatus.limit,
+          requestsPerMinute: syncStatus.requestsPerMinute,
+          maxBurst: syncStatus.maxBurst,
           remaining: syncStatus.remaining,
           resetAt: syncStatus.resetAt,
         },
         async: {
           isLimited: asyncStatus.remaining === 0,
-          limit: asyncStatus.limit,
+          requestsPerMinute: asyncStatus.requestsPerMinute,
+          maxBurst: asyncStatus.maxBurst,
           remaining: asyncStatus.remaining,
           resetAt: asyncStatus.resetAt,
         },

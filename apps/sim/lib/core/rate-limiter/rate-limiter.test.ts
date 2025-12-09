@@ -229,7 +229,8 @@ describe('RateLimiter', () => {
       )
 
       expect(status.remaining).toBe(15)
-      expect(status.limit).toBe(RATE_LIMITS.free.sync.refillRate)
+      expect(status.requestsPerMinute).toBe(RATE_LIMITS.free.sync.refillRate)
+      expect(status.maxBurst).toBe(RATE_LIMITS.free.sync.maxTokens)
       expect(mockAdapter.getTokenStatus).toHaveBeenCalledWith(
         `${testUserId}:sync`,
         RATE_LIMITS.free.sync

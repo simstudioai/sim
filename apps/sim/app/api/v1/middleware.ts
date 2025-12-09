@@ -62,7 +62,7 @@ export async function checkRateLimit(
       allowed: result.allowed,
       remaining: result.remaining,
       resetAt: result.resetAt,
-      limit: rateLimitStatus.limit,
+      limit: rateLimitStatus.requestsPerMinute,
       retryAfterMs: result.retryAfterMs,
       userId,
     }

@@ -6,12 +6,14 @@ import { RateLimiter } from '@/lib/core/rate-limiter'
 export interface UserLimits {
   workflowExecutionRateLimit: {
     sync: {
-      limit: number
+      requestsPerMinute: number
+      maxBurst: number
       remaining: number
       resetAt: string
     }
     async: {
-      limit: number
+      requestsPerMinute: number
+      maxBurst: number
       remaining: number
       resetAt: string
     }
@@ -40,12 +42,14 @@ export async function getUserLimits(userId: string): Promise<UserLimits> {
   return {
     workflowExecutionRateLimit: {
       sync: {
-        limit: syncStatus.limit,
+        requestsPerMinute: syncStatus.requestsPerMinute,
+        maxBurst: syncStatus.maxBurst,
         remaining: syncStatus.remaining,
         resetAt: syncStatus.resetAt.toISOString(),
       },
       async: {
-        limit: asyncStatus.limit,
+        requestsPerMinute: asyncStatus.requestsPerMinute,
+        maxBurst: asyncStatus.maxBurst,
         remaining: asyncStatus.remaining,
         resetAt: asyncStatus.resetAt.toISOString(),
       },
@@ -62,7 +66,7 @@ export async function getUserLimits(userId: string): Promise<UserLimits> {
 export function createApiResponse<T>(
   data: T,
   limits: UserLimits,
-  apiRateLimit: { limit: number; remaining: number; resetAt: Date }
+  apiRateLimit: { requestsPerMinute: number; remaining: number; resetAt: Date }
 ) {
   return {
     body: {
@@ -70,7 +74,7 @@ export function createApiResponse<T>(
       limits,
     },
     headers: {
-      'X-RateLimit-Limit': apiRateLimit.limit.toString(),
+      'X-RateLimit-Limit': apiRateLimit.requestsPerMinute.toString(),
       'X-RateLimit-Remaining': apiRateLimit.remaining.toString(),
       'X-RateLimit-Reset': apiRateLimit.resetAt.toISOString(),
     },
