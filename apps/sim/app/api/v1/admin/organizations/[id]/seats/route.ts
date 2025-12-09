@@ -7,17 +7,18 @@
  *
  * PATCH /api/v1/admin/organizations/[id]/seats
  *
- * Update organization seat count (for admin override of enterprise seats).
+ * Update organization seat count with Stripe sync (matches user flow).
  *
  * Body:
- *   - seats: number - New seat count (for enterprise metadata.seats)
+ *   - seats: number - New seat count (positive integer)
  *
- * Response: AdminSingleResponse<{ success: true, seats: number }>
+ * Response: AdminSingleResponse<{ success: true, seats: number, plan: string, stripeUpdated?: boolean }>
  */
 
 import { db } from '@sim/db'
 import { organization, subscription } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getOrganizationSeatAnalytics } from '@/lib/billing/validation/seat-management'
 import { createLogger } from '@/lib/logs/console/logger'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -105,11 +106,14 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
       return notFoundResponse('Subscription')
     }
 
+    const newSeatCount = body.seats
+    let stripeUpdated = false
+
     if (subData.plan === 'enterprise') {
       const currentMetadata = (subData.metadata as Record<string, unknown>) || {}
       const newMetadata = {
         ...currentMetadata,
-        seats: body.seats,
+        seats: newSeatCount,
       }
 
       await db
@@ -118,23 +122,72 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
         .where(eq(subscription.id, subData.id))
 
       logger.info(`Admin API: Updated enterprise seats for organization ${organizationId}`, {
-        seats: body.seats,
+        seats: newSeatCount,
+      })
+    } else if (subData.plan === 'team') {
+      if (subData.stripeSubscriptionId) {
+        const stripe = requireStripeClient()
+
+        const stripeSubscription = await stripe.subscriptions.retrieve(subData.stripeSubscriptionId)
+
+        if (stripeSubscription.status !== 'active') {
+          return badRequestResponse('Stripe subscription is not active')
+        }
+
+        const subscriptionItem = stripeSubscription.items.data[0]
+        if (!subscriptionItem) {
+          return internalErrorResponse('No subscription item found in Stripe subscription')
+        }
+
+        const currentSeats = subData.seats || 1
+
+        logger.info('Admin API: Updating Stripe subscription quantity', {
+          organizationId,
+          stripeSubscriptionId: subData.stripeSubscriptionId,
+          subscriptionItemId: subscriptionItem.id,
+          currentSeats,
+          newSeatCount,
+        })
+
+        await stripe.subscriptions.update(subData.stripeSubscriptionId, {
+          items: [
+            {
+              id: subscriptionItem.id,
+              quantity: newSeatCount,
+            },
+          ],
+          proration_behavior: 'create_prorations',
+        })
+
+        stripeUpdated = true
+      }
+
+      await db
+        .update(subscription)
+        .set({ seats: newSeatCount })
+        .where(eq(subscription.id, subData.id))
+
+      logger.info(`Admin API: Updated team seats for organization ${organizationId}`, {
+        seats: newSeatCount,
+        stripeUpdated,
       })
     } else {
       await db
         .update(subscription)
-        .set({ seats: body.seats })
+        .set({ seats: newSeatCount })
         .where(eq(subscription.id, subData.id))
 
-      logger.info(`Admin API: Updated team seats for organization ${organizationId}`, {
-        seats: body.seats,
+      logger.info(`Admin API: Updated seats for organization ${organizationId}`, {
+        seats: newSeatCount,
+        plan: subData.plan,
       })
     }
 
     return singleResponse({
       success: true,
-      seats: body.seats,
+      seats: newSeatCount,
       plan: subData.plan,
+      stripeUpdated,
     })
   } catch (error) {
     logger.error('Admin API: Failed to update organization seats', { error, organizationId })

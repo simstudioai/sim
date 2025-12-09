@@ -13,13 +13,16 @@
  *
  * Add a user to an organization with full billing logic.
  * Handles Pro usage snapshot and subscription cancellation like the invitation flow.
+ * If user is already a member, updates their role if different.
  *
  * Body:
  *   - userId: string - User ID to add
  *   - role: string - Role ('admin' | 'member')
- *   - skipBillingLogic?: boolean - Skip Pro cancellation (default: false)
  *
- * Response: AdminSingleResponse<AdminMember>
+ * Response: AdminSingleResponse<AdminMember & {
+ *   action: 'created' | 'updated' | 'already_member',
+ *   billingActions: { proUsageSnapshotted, proCancelledAtPeriodEnd }
+ * }>
  */
 
 import { db } from '@sim/db'
@@ -129,8 +132,6 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       return badRequestResponse('role must be "admin" or "member"')
     }
 
-    const skipBillingLogic = body.skipBillingLogic === true
-
     const [orgData] = await db
       .select({ id: organization.id, name: organization.name })
       .from(organization)
@@ -151,11 +152,67 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       return notFoundResponse('User')
     }
 
+    const [existingMember] = await db
+      .select({
+        id: member.id,
+        role: member.role,
+        createdAt: member.createdAt,
+        organizationId: member.organizationId,
+      })
+      .from(member)
+      .where(eq(member.userId, body.userId))
+      .limit(1)
+
+    if (existingMember) {
+      if (existingMember.organizationId === organizationId) {
+        if (existingMember.role !== body.role) {
+          await db.update(member).set({ role: body.role }).where(eq(member.id, existingMember.id))
+
+          logger.info(
+            `Admin API: Updated user ${body.userId} role in organization ${organizationId}`,
+            {
+              previousRole: existingMember.role,
+              newRole: body.role,
+            }
+          )
+
+          return singleResponse({
+            id: existingMember.id,
+            userId: body.userId,
+            organizationId,
+            role: body.role,
+            createdAt: existingMember.createdAt.toISOString(),
+            userName: userData.name,
+            userEmail: userData.email,
+            action: 'updated' as const,
+            billingActions: {
+              proUsageSnapshotted: false,
+              proCancelledAtPeriodEnd: false,
+            },
+          })
+        }
+
+        return singleResponse({
+          id: existingMember.id,
+          userId: body.userId,
+          organizationId,
+          role: existingMember.role,
+          createdAt: existingMember.createdAt.toISOString(),
+          userName: userData.name,
+          userEmail: userData.email,
+          action: 'already_member' as const,
+          billingActions: {
+            proUsageSnapshotted: false,
+            proCancelledAtPeriodEnd: false,
+          },
+        })
+      }
+    }
+
     const result = await addUserToOrganization({
       userId: body.userId,
       organizationId,
       role: body.role,
-      skipBillingLogic,
     })
 
     if (!result.success) {
@@ -176,11 +233,11 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       role: body.role,
       memberId: result.memberId,
       billingActions: result.billingActions,
-      skipBillingLogic,
     })
 
     return singleResponse({
       ...data,
+      action: 'created' as const,
       billingActions: {
         proUsageSnapshotted: result.billingActions.proUsageSnapshotted,
         proCancelledAtPeriodEnd: result.billingActions.proCancelledAtPeriodEnd,
