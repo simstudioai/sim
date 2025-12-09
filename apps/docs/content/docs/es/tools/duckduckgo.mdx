@@ -1,0 +1,63 @@
+---
+title: DuckDuckGo
+description: Busca con DuckDuckGo
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="duckduckgo"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DuckDuckGo](https://duckduckgo.com/) es un motor de búsqueda web enfocado en la privacidad que ofrece respuestas instantáneas, resúmenes, temas relacionados y más, sin rastrear a ti o tus búsquedas. DuckDuckGo facilita encontrar información sin perfiles de usuario ni anuncios dirigidos.
+
+Con DuckDuckGo en Sim, puedes:
+
+- **Buscar en la web**: Encuentra instantáneamente respuestas, hechos y resúmenes para una consulta de búsqueda determinada
+- **Obtener respuestas directas**: Recibe respuestas específicas para cálculos, conversiones o consultas factuales
+- **Acceder a resúmenes**: Recibe breves sumarios o descripciones para tus temas de búsqueda
+- **Obtener temas relacionados**: Descubre enlaces y referencias relevantes para tu búsqueda
+- **Filtrar resultados**: Opcionalmente elimina HTML o evita la desambiguación para obtener resultados más limpios
+
+Estas características permiten a tus agentes Sim automatizar el acceso a conocimientos web actualizados, desde mostrar hechos en un flujo de trabajo hasta enriquecer documentos y análisis con información actualizada. Como la API de Respuestas Instantáneas de DuckDuckGo es abierta y no requiere una clave API, es simple y segura para la privacidad al integrarla en tus procesos de negocio automatizados.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Busca en la web usando la API de Respuestas Instantáneas de DuckDuckGo. Devuelve respuestas instantáneas, resúmenes, temas relacionados y más. Uso gratuito sin necesidad de clave API.
+
+## Herramientas
+
+### `duckduckgo_search`
+
+Busca en la web usando la API de Respuestas Instantáneas de DuckDuckGo. Devuelve respuestas instantáneas, resúmenes y temas relacionados para tu consulta. Uso gratuito sin necesidad de clave API.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `query` | string | Sí | La consulta de búsqueda a ejecutar |
+| `noHtml` | boolean | No | Eliminar HTML del texto en los resultados \(predeterminado: true\) |
+| `skipDisambig` | boolean | No | Omitir resultados de desambiguación \(predeterminado: false\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `heading` | string | El encabezado/título de la respuesta instantánea |
+| `abstract` | string | Un breve resumen abstracto del tema |
+| `abstractText` | string | Versión en texto plano del resumen |
+| `abstractSource` | string | La fuente del resumen \(p. ej., Wikipedia\) |
+| `abstractURL` | string | URL a la fuente del resumen |
+| `image` | string | URL a una imagen relacionada con el tema |
+| `answer` | string | Respuesta directa si está disponible \(p. ej., para cálculos\) |
+| `answerType` | string | Tipo de respuesta \(p. ej., calc, ip, etc.\) |
+| `type` | string | Tipo de respuesta: A \(artículo\), D \(desambiguación\), C \(categoría\), N \(nombre\), E \(exclusivo\) |
+| `relatedTopics` | array | Array de temas relacionados con URLs y descripciones |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `duckduckgo`
