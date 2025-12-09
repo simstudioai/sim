@@ -18,16 +18,15 @@ const logger = createLogger('Tools')
 
 /**
  * Maximum request body size in bytes before we warn/error about size limits.
- * Next.js App Router has a default limit around 4MB, and Vercel has 4.5MB limit.
- * We use a conservative 4MB threshold for detection.
+ * Next.js 16 has a default middleware/proxy body limit of 10MB.
  */
-const MAX_REQUEST_BODY_SIZE_BYTES = 4 * 1024 * 1024 // 4MB
+const MAX_REQUEST_BODY_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
 
 /**
  * User-friendly error message for body size limit exceeded
  */
 const BODY_SIZE_LIMIT_ERROR_MESSAGE =
-  'Request body size limit exceeded. The workflow data is too large to process. Try reducing the size of variables, inputs, or data being passed between blocks.'
+  'Request body size limit exceeded (10MB). The workflow data is too large to process. Try reducing the size of variables, inputs, or data being passed between blocks.'
 
 /**
  * Validates request body size and throws a user-friendly error if exceeded
