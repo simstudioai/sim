@@ -42,7 +42,7 @@ function validateRequestBodySize(
 ): void {
   if (!body) return
 
-  const bodySize = new Blob([body]).size
+  const bodySize = Buffer.byteLength(body, 'utf8')
   if (bodySize > MAX_REQUEST_BODY_SIZE_BYTES) {
     const bodySizeMB = (bodySize / (1024 * 1024)).toFixed(2)
     const maxSizeMB = (MAX_REQUEST_BODY_SIZE_BYTES / (1024 * 1024)).toFixed(0)
