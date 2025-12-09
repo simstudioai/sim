@@ -9,11 +9,6 @@ export interface KalshiGetTradesResponse {
   output: {
     trades: KalshiTrade[]
     paging?: KalshiPagingInfo
-    metadata: {
-      operation: 'get_trades'
-      totalReturned: number
-    }
-    success: boolean
   }
 }
 
@@ -68,26 +63,18 @@ export const kalshiGetTradesTool: ToolConfig<KalshiGetTradesParams, KalshiGetTra
         paging: {
           cursor: data.cursor || null,
         },
-        metadata: {
-          operation: 'get_trades' as const,
-          totalReturned: trades.length,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    trades: {
+      type: 'array',
+      description: 'Array of trade objects',
+    },
+    paging: {
       type: 'object',
-      description: 'Trades data and metadata',
-      properties: {
-        trades: { type: 'array', description: 'Array of trade objects' },
-        paging: { type: 'object', description: 'Pagination information' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Pagination cursor for fetching more results',
     },
   },
 }

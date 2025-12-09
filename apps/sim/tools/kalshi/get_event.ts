@@ -11,10 +11,6 @@ export interface KalshiGetEventResponse {
   success: boolean
   output: {
     event: KalshiEvent
-    metadata: {
-      operation: 'get_event'
-    }
-    success: boolean
   }
 }
 
@@ -64,24 +60,14 @@ export const kalshiGetEventTool: ToolConfig<KalshiGetEventParams, KalshiGetEvent
       success: true,
       output: {
         event: data.event,
-        metadata: {
-          operation: 'get_event' as const,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    event: {
       type: 'object',
-      description: 'Event data and metadata',
-      properties: {
-        event: { type: 'object', description: 'Event object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Event object with details',
     },
   },
 }

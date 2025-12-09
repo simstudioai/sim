@@ -10,11 +10,6 @@ export interface PolymarketGetSpreadResponse {
   success: boolean
   output: {
     spread: PolymarketSpread
-    metadata: {
-      operation: 'get_spread'
-      tokenId: string
-    }
-    success: boolean
   }
 }
 
@@ -47,7 +42,7 @@ export const polymarketGetSpreadTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!response.ok) {
@@ -58,25 +53,14 @@ export const polymarketGetSpreadTool: ToolConfig<
       success: true,
       output: {
         spread: data,
-        metadata: {
-          operation: 'get_spread' as const,
-          tokenId: params?.tokenId || '',
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    spread: {
       type: 'object',
-      description: 'Spread data and metadata',
-      properties: {
-        spread: { type: 'object', description: 'Bid-ask spread object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Bid-ask spread with bid and ask prices',
     },
   },
 }

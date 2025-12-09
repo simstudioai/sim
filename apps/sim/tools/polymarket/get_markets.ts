@@ -13,11 +13,6 @@ export interface PolymarketGetMarketsResponse {
   success: boolean
   output: {
     markets: PolymarketMarket[]
-    metadata: {
-      operation: 'get_markets'
-      totalReturned: number
-    }
-    success: boolean
   }
 }
 
@@ -54,7 +49,7 @@ export const polymarketGetMarketsTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of results per page (recommended: 25-50)',
+      description: 'Number of results per page (max 50)',
     },
     offset: {
       type: 'string',
@@ -70,12 +65,13 @@ export const polymarketGetMarketsTool: ToolConfig<
       if (params.order) queryParams.append('order', params.order)
       if (params.ascending) queryParams.append('ascending', params.ascending)
       if (params.tagId) queryParams.append('tag_id', params.tagId)
-      if (params.limit) queryParams.append('limit', params.limit)
+      // Default limit to 50 to prevent browser crashes from large data sets
+      queryParams.append('limit', params.limit || '50')
       if (params.offset) queryParams.append('offset', params.offset)
 
       const query = queryParams.toString()
       const url = buildGammaUrl('/markets')
-      return query ? `${url}?${query}` : url
+      return `${url}?${query}`
     },
     method: 'GET',
     headers: () => ({
@@ -97,25 +93,14 @@ export const polymarketGetMarketsTool: ToolConfig<
       success: true,
       output: {
         markets,
-        metadata: {
-          operation: 'get_markets' as const,
-          totalReturned: markets.length,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Markets data and metadata',
-      properties: {
-        markets: { type: 'array', description: 'Array of market objects' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+    markets: {
+      type: 'array',
+      description: 'Array of market objects',
     },
   },
 }

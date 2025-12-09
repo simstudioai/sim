@@ -18,11 +18,6 @@ export interface KalshiGetPositionsResponse {
   output: {
     positions: KalshiPosition[]
     paging?: KalshiPagingInfo
-    metadata: {
-      operation: 'get_positions'
-      totalReturned: number
-    }
-    success: boolean
   }
 }
 
@@ -111,26 +106,18 @@ export const kalshiGetPositionsTool: ToolConfig<
         paging: {
           cursor: data.cursor || null,
         },
-        metadata: {
-          operation: 'get_positions' as const,
-          totalReturned: positions.length,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    positions: {
+      type: 'array',
+      description: 'Array of position objects',
+    },
+    paging: {
       type: 'object',
-      description: 'Positions data and metadata',
-      properties: {
-        positions: { type: 'array', description: 'Array of position objects' },
-        paging: { type: 'object', description: 'Pagination information' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Pagination cursor for fetching more results',
     },
   },
 }

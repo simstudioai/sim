@@ -10,11 +10,6 @@ export interface PolymarketGetPriceResponse {
   success: boolean
   output: {
     price: string
-    side: string
-    metadata: {
-      operation: 'get_price'
-    }
-    success: boolean
   }
 }
 
@@ -64,26 +59,14 @@ export const polymarketGetPriceTool: ToolConfig<
       success: true,
       output: {
         price: data.price || data,
-        side: data.side || '',
-        metadata: {
-          operation: 'get_price' as const,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Price data and metadata',
-      properties: {
-        price: { type: 'string', description: 'Market price' },
-        side: { type: 'string', description: 'Order side' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+    price: {
+      type: 'string',
+      description: 'Market price',
     },
   },
 }

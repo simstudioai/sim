@@ -10,10 +10,6 @@ export interface PolymarketGetOrderbookResponse {
   success: boolean
   output: {
     orderbook: PolymarketOrderBook
-    metadata: {
-      operation: 'get_orderbook'
-    }
-    success: boolean
   }
 }
 
@@ -57,24 +53,14 @@ export const polymarketGetOrderbookTool: ToolConfig<
       success: true,
       output: {
         orderbook: data,
-        metadata: {
-          operation: 'get_orderbook' as const,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    orderbook: {
       type: 'object',
-      description: 'Orderbook data and metadata',
-      properties: {
-        orderbook: { type: 'object', description: 'Order book with bids and asks' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Order book with bids and asks arrays',
     },
   },
 }
