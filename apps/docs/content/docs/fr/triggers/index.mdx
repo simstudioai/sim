@@ -21,14 +21,17 @@ import { Image } from '@/components/ui/image'
 Utilisez le bloc Démarrer pour tout ce qui provient de l'éditeur, du déploiement vers l'API ou des expériences de déploiement vers le chat. D'autres déclencheurs restent disponibles pour les flux de travail basés sur des événements :
 
 <Cards>
-  <Card title="Démarrer" href="/triggers/start">
+  <Card title="Start" href="/triggers/start">
     Point d'entrée unifié qui prend en charge les exécutions de l'éditeur, les déploiements d'API et les déploiements de chat
   </Card>
   <Card title="Webhook" href="/triggers/webhook">
     Recevoir des charges utiles de webhook externes
   </Card>
-  <Card title="Planification" href="/triggers/schedule">
+  <Card title="Schedule" href="/triggers/schedule">
     Exécution basée sur cron ou intervalle
+  </Card>
+  <Card title="RSS Feed" href="/triggers/rss">
+    Surveiller les flux RSS et Atom pour du nouveau contenu
   </Card>
 </Cards>
 
@@ -36,9 +39,10 @@ Utilisez le bloc Démarrer pour tout ce qui provient de l'éditeur, du déploiem
 
 | Déclencheur | Condition de démarrage |
 |---------|-----------------|
-| **Démarrer** | Exécutions de l'éditeur, requêtes de déploiement vers l'API ou messages de chat |
-| **Planification** | Minuteur géré dans le bloc de planification |
+| **Start** | Exécutions de l'éditeur, requêtes de déploiement d'API ou messages de chat |
+| **Schedule** | Minuteur géré dans le bloc de planification |
 | **Webhook** | Sur requête HTTP entrante |
+| **RSS Feed** | Nouvel élément publié dans le flux |
 
 > Le bloc Démarrer expose toujours les champs `input`, `conversationId` et `files`. Ajoutez des champs personnalisés au format d'entrée pour des données structurées supplémentaires.
 

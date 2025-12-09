@@ -1,0 +1,49 @@
+---
+title: Flux RSS
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+Le bloc Flux RSS surveille les flux RSS et Atom – lorsque de nouveaux éléments sont publiés, votre workflow se déclenche automatiquement.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/rss.png"
+    alt="Bloc Flux RSS"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Configuration
+
+1. **Ajouter le bloc Flux RSS** - Faites glisser le bloc Flux RSS pour démarrer votre workflow
+2. **Saisir l'URL du flux** - Collez l'URL de n'importe quel flux RSS ou Atom
+3. **Déployer** - Déployez votre workflow pour activer l'interrogation
+
+Une fois déployé, le flux est vérifié chaque minute pour détecter de nouveaux éléments.
+
+## Champs de sortie
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `title` | string | Titre de l'élément |
+| `link` | string | Lien de l'élément |
+| `pubDate` | string | Date de publication |
+| `item` | object | Élément brut avec tous les champs |
+| `feed` | object | Métadonnées brutes du flux |
+
+Accédez directement aux champs mappés (`<rss.title>`) ou utilisez les objets bruts pour n'importe quel champ (`<rss.item.author>`, `<rss.feed.language>`).
+
+## Cas d'utilisation
+
+- **Surveillance de contenu** - Suivez les blogs, sites d'actualités ou mises à jour des concurrents
+- **Automatisation de podcast** - Déclenchez des workflows lors de la sortie de nouveaux épisodes
+- **Suivi des versions** - Surveillez les versions GitHub, les journaux de modifications ou les mises à jour de produits
+- **Agrégation sociale** - Collectez du contenu à partir de plateformes qui exposent des flux RSS
+
+<Callout>
+Les déclencheurs RSS ne s'activent que pour les éléments publiés après l'enregistrement du déclencheur. Les éléments existants du flux ne sont pas traités.
+</Callout>
