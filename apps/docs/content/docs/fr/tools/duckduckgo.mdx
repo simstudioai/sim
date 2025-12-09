@@ -1,0 +1,63 @@
+---
+title: DuckDuckGo
+description: Recherchez avec DuckDuckGo
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="duckduckgo"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DuckDuckGo](https://duckduckgo.com/) est un moteur de recherche web axé sur la confidentialité qui fournit des réponses instantanées, des résumés, des sujets connexes et plus encore — sans vous suivre ni suivre vos recherches. DuckDuckGo facilite la recherche d'informations sans profilage d'utilisateur ni publicités ciblées.
+
+Avec DuckDuckGo dans Sim, vous pouvez :
+
+- **Rechercher sur le web** : trouvez instantanément des réponses, des faits et des aperçus pour une requête de recherche donnée
+- **Obtenir des réponses directes** : recevez des réponses spécifiques pour des calculs, des conversions ou des requêtes factuelles
+- **Accéder à des résumés** : recevez de courts résumés ou descriptions pour vos sujets de recherche
+- **Récupérer des sujets connexes** : découvrez des liens et références pertinents pour votre recherche
+- **Filtrer les résultats** : supprimez éventuellement le HTML ou ignorez la désambiguïsation pour des résultats plus propres
+
+Ces fonctionnalités permettent à vos agents Sim d'automatiser l'accès à des connaissances web récentes — de la présentation de faits dans un flux de travail à l'enrichissement de documents et d'analyses avec des informations à jour. Comme l'API Instant Answers de DuckDuckGo est ouverte et ne nécessite pas de clé API, elle s'intègre facilement et en toute sécurité dans vos processus d'entreprise automatisés.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Recherchez sur le web en utilisant l'API Instant Answers de DuckDuckGo. Renvoie des réponses instantanées, des résumés, des sujets connexes et plus encore. Gratuit à utiliser sans clé API.
+
+## Outils
+
+### `duckduckgo_search`
+
+Recherchez sur le web en utilisant l'API Instant Answers de DuckDuckGo. Renvoie des réponses instantanées, des résumés et des sujets connexes pour votre requête. Gratuit à utiliser sans clé API.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Oui | La requête de recherche à exécuter |
+| `noHtml` | boolean | Non | Supprimer le HTML du texte dans les résultats \(par défaut : true\) |
+| `skipDisambig` | boolean | Non | Ignorer les résultats de désambiguïsation \(par défaut : false\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `heading` | string | Le titre/en-tête de la réponse instantanée |
+| `abstract` | string | Un court résumé du sujet |
+| `abstractText` | string | Version en texte brut du résumé |
+| `abstractSource` | string | La source du résumé \(par exemple, Wikipédia\) |
+| `abstractURL` | string | URL vers la source du résumé |
+| `image` | string | URL vers une image liée au sujet |
+| `answer` | string | Réponse directe si disponible \(par exemple, pour les calculs\) |
+| `answerType` | string | Type de réponse \(par exemple, calc, ip, etc.\) |
+| `type` | string | Type de réponse : A \(article\), D \(désambiguïsation\), C \(catégorie\), N \(nom\), E \(exclusif\) |
+| `relatedTopics` | array | Tableau des sujets connexes avec URLs et descriptions |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `duckduckgo`
