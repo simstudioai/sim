@@ -49,7 +49,7 @@ export const zapierExecuteActionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://actions.zapier.com/api/v2/ai-actions/${encodeURIComponent(params.actionId)}/execute${params.previewOnly ? '?preview_only=true' : ''}`,
+      `https://actions.zapier.com/api/v2/ai-actions/${encodeURIComponent(params.actionId)}/execute/${params.previewOnly ? '?preview_only=true' : ''}`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

@@ -115,10 +115,6 @@ export class Serializer {
       safeParallels
     )
 
-    if (validateRequired) {
-      this.validateSubflowsBeforeExecution(blocks, safeLoops, safeParallels)
-    }
-
     return {
       version: '1.0',
       blocks: Object.values(blocks).map((block) =>
@@ -137,18 +133,6 @@ export class Serializer {
       loops: safeLoops,
       parallels: safeParallels,
     }
-  }
-
-  /**
-   * Validate loop and parallel subflows for required inputs when running in "each/collection" modes
-   */
-  private validateSubflowsBeforeExecution(
-    blocks: Record<string, BlockState>,
-    loops: Record<string, Loop>,
-    parallels: Record<string, Parallel>
-  ): void {
-    // Note: Empty collections in forEach loops and parallel collection mode are handled gracefully
-    // at runtime - the loop/parallel will simply be skipped. No build-time validation needed.
   }
 
   private serializeBlock(
@@ -366,6 +350,15 @@ export class Serializer {
         isLegacyAgentField
       ) {
         params[id] = subBlock.value
+      }
+
+      if (subBlockConfig?.type === 'checkbox-list' && Array.isArray(subBlockConfig.options)) {
+        subBlockConfig.options.forEach((option: { id: string; label: string }) => {
+          const optionSubBlock = block.subBlocks[option.id]
+          if (optionSubBlock !== undefined) {
+            params[option.id] = optionSubBlock.value
+          }
+        })
       }
     })
 
