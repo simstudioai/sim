@@ -4,14 +4,16 @@ import { useEffect, useRef, useState } from 'react'
 import { Camera, Check, Pencil } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { Button, Label, Switch } from '@/components/emcn'
 import {
+  Button,
+  Label,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal/modal'
+  Switch,
+} from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { useBrandConfig } from '@/lib/branding/branding'

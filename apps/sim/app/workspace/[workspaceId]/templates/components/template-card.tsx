@@ -217,6 +217,7 @@ function TemplateCardInner({
             defaultZoom={0.8}
             fitPadding={0.2}
             lightweight
+            cursorStyle='pointer'
           />
         ) : (
           <div className='h-full w-full bg-[#2A2A2A]' />

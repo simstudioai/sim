@@ -38,6 +38,8 @@ interface WorkflowPreviewProps {
   onNodeClick?: (blockId: string, mousePosition: { x: number; y: number }) => void
   /** Use lightweight blocks for better performance in template cards */
   lightweight?: boolean
+  /** Cursor style to show when hovering the canvas */
+  cursorStyle?: 'default' | 'pointer' | 'grab'
 }
 
 /**
@@ -102,6 +104,7 @@ export function WorkflowPreview({
   fitPadding = 0.25,
   onNodeClick,
   lightweight = false,
+  cursorStyle = 'grab',
 }: WorkflowPreviewProps) {
   // Use lightweight node types for better performance in template cards
   const nodeTypes = lightweight ? lightweightNodeTypes : fullNodeTypes
@@ -360,6 +363,13 @@ export function WorkflowPreview({
         style={{ height, width, backgroundColor: 'var(--bg)' }}
         className={cn('preview-mode', className)}
       >
+        {cursorStyle && (
+          <style>{`
+            .preview-mode .react-flow__pane {
+              cursor: ${cursorStyle} !important;
+            }
+          `}</style>
+        )}
         <ReactFlow
           nodes={nodes}
           edges={edges}

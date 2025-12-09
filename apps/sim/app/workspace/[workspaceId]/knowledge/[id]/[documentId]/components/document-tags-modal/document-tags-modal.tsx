@@ -2,14 +2,18 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { Button, Combobox, Input, Label, Trash } from '@/components/emcn'
 import {
+  Button,
+  Combobox,
+  Input,
+  Label,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal/modal'
+  Trash,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { MAX_TAG_SLOTS, TAG_SLOTS, type TagSlot } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'

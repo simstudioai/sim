@@ -2,14 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, Clipboard, Eye, EyeOff, Loader2, RefreshCw, X } from 'lucide-react'
-import { Button, Input, Label, Textarea, Tooltip } from '@/components/emcn'
 import {
+  Button,
+  Input,
+  Label,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal/modal'
+  Textarea,
+  Tooltip,
+} from '@/components/emcn'
 import { Alert, AlertDescription, Skeleton } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { generatePassword } from '@/lib/core/security/encryption'

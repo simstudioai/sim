@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { Button } from '@/components/emcn/components/button/button'
+import { Button } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/core/utils/cn'

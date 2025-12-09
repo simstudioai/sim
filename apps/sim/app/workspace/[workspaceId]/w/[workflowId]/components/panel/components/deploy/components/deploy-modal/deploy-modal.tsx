@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { Button } from '@/components/emcn'
 import {
+  Button,
   Modal,
   ModalBody,
   ModalContent,
@@ -13,7 +13,7 @@ import {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
-} from '@/components/emcn/components/modal/modal'
+} from '@/components/emcn'
 import { getEnv } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'

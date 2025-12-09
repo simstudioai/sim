@@ -139,7 +139,7 @@ export function BaseCard({ id, title, docCount, description, updatedAt }: BaseCa
             {updatedAt && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <span className='cursor-default text-[12px] text-[var(--text-muted)]'>
+                  <span className='text-[12px] text-[var(--text-muted)]'>
                     last updated: {formatRelativeTime(updatedAt)}
                   </span>
                 </Tooltip.Trigger>

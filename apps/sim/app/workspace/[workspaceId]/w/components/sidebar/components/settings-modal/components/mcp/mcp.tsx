@@ -3,14 +3,15 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Input as EmcnInput } from '@/components/emcn'
 import {
+  Button,
+  Input as EmcnInput,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal/modal'
+} from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'

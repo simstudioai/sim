@@ -8,21 +8,19 @@ import {
   Input,
   Label,
   Modal,
+  ModalBody,
   ModalContent,
   ModalDescription,
   ModalFooter,
   ModalHeader,
-  ModalTitle,
-  Switch,
-  Tooltip,
-} from '@/components/emcn'
-import {
-  ModalBody,
   ModalTabs,
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
-} from '@/components/emcn/components/modal/modal'
+  ModalTitle,
+  Switch,
+  Tooltip,
+} from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -36,8 +34,8 @@ import {
 } from '@/hooks/queries/notifications'
 import { useConnectOAuthService } from '@/hooks/queries/oauth-connections'
 import { useSlackAccounts } from '@/hooks/use-slack-accounts'
-import { SlackChannelSelector } from './slack-channel-selector'
-import { WorkflowSelector } from './workflow-selector'
+import { SlackChannelSelector } from './components/slack-channel-selector'
+import { WorkflowSelector } from './components/workflow-selector'
 
 const logger = createLogger('NotificationSettings')
 

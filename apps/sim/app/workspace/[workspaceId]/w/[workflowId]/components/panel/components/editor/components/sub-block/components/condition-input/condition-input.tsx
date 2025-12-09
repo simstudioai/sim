@@ -4,15 +4,15 @@ import { ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
 import { useUpdateNodeInternals } from 'reactflow'
-import { Tooltip } from '@/components/emcn'
-import { Button } from '@/components/emcn/components/button/button'
 import {
+  Button,
   Code,
   calculateGutterWidth,
   getCodeEditorProps,
   highlight,
   languages,
-} from '@/components/emcn/components/code/code'
+  Tooltip,
+} from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'

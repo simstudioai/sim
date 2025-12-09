@@ -1,0 +1,64 @@
+---
+description: Component patterns and structure for React components
+globs: ["apps/sim/**/*.tsx"]
+---
+
+# Component Patterns
+
+## Structure Order
+```typescript
+'use client' // Only if using hooks
+
+// 1. Imports (external → internal → relative)
+// 2. Constants at module level
+const CONFIG = { SPACING: 8 } as const
+
+// 3. Props interface with TSDoc
+interface ComponentProps {
+  /** Description */
+  requiredProp: string
+  optionalProp?: boolean
+}
+
+// 4. Component with TSDoc
+export function Component({ requiredProp, optionalProp = false }: ComponentProps) {
+  // a. Refs
+  // b. External hooks (useParams, useRouter)
+  // c. Store hooks
+  // d. Custom hooks
+  // e. Local state
+  // f. useMemo computations
+  // g. useCallback handlers
+  // h. useEffect
+  // i. Return JSX
+}
+```
+
+## Rules
+1. Add `'use client'` when using React hooks
+2. Always define props interface
+3. TSDoc on component: description, @param, @returns
+4. Extract constants with `as const`
+5. Use Tailwind only, no inline styles
+6. Semantic HTML (`aside`, `nav`, `article`)
+7. Include ARIA attributes where appropriate
+8. Optional chain callbacks: `onAction?.(id)`
+
+## Factory Pattern with Caching
+
+When generating components for a specific signature (e.g., icons):
+
+```typescript
+const cache = new Map<string, React.ComponentType<{ className?: string }>>()
+
+function getColorIcon(color: string) {
+  if (cache.has(color)) return cache.get(color)!
+  
+  const Icon = ({ className }: { className?: string }) => (
+    <div className={cn(className, 'rounded-[3px]')} style={{ backgroundColor: color, width: 10, height: 10 }} />
+  )
+  Icon.displayName = `ColorIcon(${color})`
+  cache.set(color, Icon)
+  return Icon
+}
+```

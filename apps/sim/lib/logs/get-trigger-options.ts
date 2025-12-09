@@ -32,16 +32,17 @@ export function getTriggerOptions(): TriggerOption[] {
 
   const coreTypes: TriggerOption[] = [
     { value: 'manual', label: 'Manual', color: '#6b7280' },
-    { value: 'api', label: 'API', color: '#3b82f6' },
-    { value: 'schedule', label: 'Schedule', color: '#10b981' },
-    { value: 'chat', label: 'Chat', color: '#8b5cf6' },
-    { value: 'webhook', label: 'Webhook', color: '#f97316' },
+    { value: 'api', label: 'API', color: '#2563eb' },
+    { value: 'schedule', label: 'Schedule', color: '#059669' },
+    { value: 'chat', label: 'Chat', color: '#7c3aed' },
+    { value: 'webhook', label: 'Webhook', color: '#ea580c' },
   ]
 
   for (const trigger of triggers) {
     const provider = trigger.provider
 
-    if (!provider || providerMap.has(provider)) {
+    // Skip generic webhook and already processed providers
+    if (!provider || providerMap.has(provider) || provider === 'generic') {
       continue
     }
 

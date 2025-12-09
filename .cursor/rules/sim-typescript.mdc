@@ -1,0 +1,24 @@
+---
+description: TypeScript conventions and type safety
+globs: ["apps/sim/**/*.ts", "apps/sim/**/*.tsx"]
+---
+
+# TypeScript Rules
+
+1. **No `any`** - Use proper types or `unknown` with type guards
+2. **Props interface** - Always define, even for simple components
+3. **Callback types** - Full signature with params and return type
+4. **Generics** - Use for reusable components/hooks
+5. **Const assertions** - `as const` for constant objects/arrays
+6. **Ref types** - Explicit: `useRef<HTMLDivElement>(null)`
+
+## Anti-Patterns
+```typescript
+// ❌ Bad
+const handleClick = (e: any) => {}
+useEffect(() => { doSomething(prop) }, []) // Missing dep
+
+// ✅ Good  
+const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {}
+useEffect(() => { doSomething(prop) }, [prop])
+```

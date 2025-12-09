@@ -1,0 +1,67 @@
+---
+description: Core architecture principles for the Sim app
+globs: ["apps/sim/**"]
+---
+
+# Sim App Architecture
+
+## Core Principles
+1. **Single Responsibility**: Each component, hook, store has one clear purpose
+2. **Composition Over Complexity**: Break down complex logic into smaller pieces
+3. **Type Safety First**: TypeScript interfaces for all props, state, return types
+4. **Predictable State**: Zustand for global state, useState for UI-only concerns
+5. **Performance by Default**: useMemo, useCallback, refs appropriately
+
+## File Organization
+
+```
+feature/
+├── components/        # Feature components
+│   └── sub-feature/   # Sub-feature with own components
+├── hooks/             # Custom hooks
+└── feature.tsx        # Main component
+```
+
+## Naming Conventions
+- **Components**: PascalCase (`WorkflowList`, `TriggerPanel`)
+- **Hooks**: camelCase with `use` prefix (`useWorkflowOperations`)
+- **Files**: kebab-case matching export (`workflow-list.tsx`)
+- **Stores**: kebab-case in stores/ (`sidebar/store.ts`)
+- **Constants**: SCREAMING_SNAKE_CASE
+- **Interfaces**: PascalCase with suffix (`WorkflowListProps`)
+
+## State Management
+
+**useState**: UI-only concerns (dropdown open, hover, form inputs)
+**Zustand**: Shared state, persistence, global app state
+**useRef**: DOM refs, avoiding dependency issues, mutable non-reactive values
+
+## Component Extraction
+
+**Extract to separate file when:**
+- Complex (50+ lines)
+- Used across 2+ files
+- Has own state/logic
+
+**Keep inline when:**
+- Simple (< 10 lines)
+- Used in only 1 file
+- Purely presentational
+
+**Never import utilities from another component file.** Extract shared helpers to `lib/` or `utils/`.
+
+## Utils Files
+
+**Never create a `utils.ts` file for a single consumer.** Inline the logic directly in the consuming component.
+
+**Create `utils.ts` when:**
+- 2+ files import the same helper
+
+**Prefer existing sources of truth:**
+- Before duplicating logic, check if a centralized helper already exists (e.g., `lib/logs/get-trigger-options.ts`)
+- Import from the source of truth rather than creating wrapper functions
+
+**Location hierarchy:**
+- `lib/` — App-wide utilities (auth, billing, core)
+- `feature/utils.ts` — Feature-scoped utilities (used by 2+ components in the feature)
+- Inline — Single-use helpers (define directly in the component)

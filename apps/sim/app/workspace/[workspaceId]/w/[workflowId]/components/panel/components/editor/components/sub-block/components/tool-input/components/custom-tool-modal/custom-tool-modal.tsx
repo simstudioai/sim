@@ -3,14 +3,6 @@ import { AlertCircle, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverItem,
-  PopoverScrollArea,
-  PopoverSection,
-} from '@/components/emcn'
-import {
   Modal,
   ModalBody,
   ModalContent,
@@ -20,7 +12,13 @@ import {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
-} from '@/components/emcn/components/modal/modal'
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverItem,
+  PopoverScrollArea,
+  PopoverSection,
+} from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'

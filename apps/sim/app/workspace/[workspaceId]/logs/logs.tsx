@@ -1,26 +1,23 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, ArrowUpRight, Bell, Library, Loader2, RefreshCw, Upload } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, Bell, Loader2, RefreshCw, Upload } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import {
-  Badge,
-  Button,
-  buttonVariants,
-  Combobox,
-  type ComboboxOption,
-  Tooltip,
-} from '@/components/emcn'
+import { Badge, Button, buttonVariants, Library, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
-import { NotificationSettings } from '@/app/workspace/[workspaceId]/logs/components/notification-settings/notification-settings'
-import { AutocompleteSearch } from '@/app/workspace/[workspaceId]/logs/components/search/search'
-import { Sidebar } from '@/app/workspace/[workspaceId]/logs/components/sidebar/sidebar'
-import Dashboard from '@/app/workspace/[workspaceId]/logs/dashboard'
-import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
+import {
+  AutocompleteSearch,
+  Dashboard,
+  LogDetails,
+  LogsFilter,
+  NotificationSettings,
+} from '@/app/workspace/[workspaceId]/logs/components'
+import { formatDate, formatDuration } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { getBlock } from '@/blocks/registry'
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogDetail, useLogsList } from '@/hooks/queries/logs'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -29,17 +26,136 @@ import { useFilterStore } from '@/stores/logs/filters/store'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 
 const LOGS_PER_PAGE = 50
+const REFRESH_SPINNER_DURATION_MS = 1000
+
+/**
+ * Checks if a hex color is gray/neutral (low saturation) or too light/dark
+ */
+function isGrayOrNeutral(hex: string): boolean {
+  const r = Number.parseInt(hex.slice(1, 3), 16)
+  const g = Number.parseInt(hex.slice(3, 5), 16)
+  const b = Number.parseInt(hex.slice(5, 7), 16)
+
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const lightness = (max + min) / 2 / 255
+
+  // Calculate saturation
+  const delta = max - min
+  const saturation = delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1)) / 255
+
+  // Gray if low saturation, or too light (>0.8) or too dark (<0.25)
+  return saturation < 0.2 || lightness > 0.8 || lightness < 0.25
+}
+
+/**
+ * Converts a hex color to a background variant with appropriate opacity
+ */
+function hexToBackground(hex: string): string {
+  const r = Number.parseInt(hex.slice(1, 3), 16)
+  const g = Number.parseInt(hex.slice(3, 5), 16)
+  const b = Number.parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, 0.2)`
+}
+
+/**
+ * Lightens a hex color to make it more vibrant for text
+ */
+function lightenColor(hex: string, percent = 30): string {
+  const r = Number.parseInt(hex.slice(1, 3), 16)
+  const g = Number.parseInt(hex.slice(3, 5), 16)
+  const b = Number.parseInt(hex.slice(5, 7), 16)
+
+  const newR = Math.min(255, Math.round(r + (255 - r) * (percent / 100)))
+  const newG = Math.min(255, Math.round(g + (255 - g) * (percent / 100)))
+  const newB = Math.min(255, Math.round(b + (255 - b) * (percent / 100)))
+
+  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`
+}
+
+const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook']
 
 const TriggerBadge = React.memo(({ trigger }: { trigger: string }) => {
   const metadata = getIntegrationMetadata(trigger)
+  const isIntegration = !CORE_TRIGGER_TYPES.includes(trigger)
+  const block = isIntegration ? getBlock(trigger) : null
+  const IconComponent = block?.icon
+
+  // Use default Badge for manual, generic, unknown integrations (no block), or gray/neutral colors
+  const isUnknownIntegration = isIntegration && trigger !== 'generic' && !block
+  if (
+    trigger === 'manual' ||
+    trigger === 'generic' ||
+    isUnknownIntegration ||
+    isGrayOrNeutral(metadata.color)
+  ) {
+    return (
+      <Badge
+        variant='default'
+        className='inline-flex items-center gap-[6px] rounded-[6px] px-[9px] py-[2px] font-medium text-[12px]'
+      >
+        {IconComponent && <IconComponent className='h-[12px] w-[12px]' />}
+        {metadata.label}
+      </Badge>
+    )
+  }
+
+  const textColor = lightenColor(metadata.color, 65)
+
   return (
-    <Badge variant='default' className='rounded-[6px] px-[9px] py-[2px] text-[12px]'>
+    <div
+      className='inline-flex items-center gap-[6px] rounded-[6px] px-[9px] py-[2px] font-medium text-[12px]'
+      style={{ backgroundColor: hexToBackground(metadata.color), color: textColor }}
+    >
+      {IconComponent && <IconComponent className='h-[12px] w-[12px]' />}
       {metadata.label}
-    </Badge>
+    </div>
   )
 })
 
 TriggerBadge.displayName = 'TriggerBadge'
+
+const RUNNING_COLOR = '#22c55e'
+const PENDING_COLOR = '#f59e0b'
+
+const StatusBadge = React.memo(
+  ({ status }: { status: 'error' | 'pending' | 'running' | 'info' }) => {
+    const config = {
+      error: {
+        bg: 'var(--terminal-status-error-bg)',
+        color: 'var(--text-error)',
+        label: 'Error',
+      },
+      pending: {
+        bg: hexToBackground(PENDING_COLOR),
+        color: lightenColor(PENDING_COLOR, 65),
+        label: 'Pending',
+      },
+      running: {
+        bg: hexToBackground(RUNNING_COLOR),
+        color: lightenColor(RUNNING_COLOR, 65),
+        label: 'Running',
+      },
+      info: {
+        bg: 'var(--terminal-status-info-bg)',
+        color: 'var(--terminal-status-info-color)',
+        label: 'Info',
+      },
+    }[status]
+
+    return (
+      <div
+        className='inline-flex items-center gap-[6px] rounded-[6px] px-[9px] py-[2px] font-medium text-[12px]'
+        style={{ backgroundColor: config.bg, color: config.color }}
+      >
+        <div className='h-[6px] w-[6px] rounded-[2px]' style={{ backgroundColor: config.color }} />
+        {config.label}
+      </div>
+    )
+  }
+)
+
+StatusBadge.displayName = 'StatusBadge'
 
 export default function Logs() {
   const params = useParams()
@@ -85,6 +201,7 @@ export default function Logs() {
   const [, setAvailableFolders] = useState<string[]>([])
 
   const [isLive, setIsLive] = useState(false)
+  const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
   const isSearchOpenRef = useRef<boolean>(false)
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
   const userPermissions = useUserPermissionsContext()
@@ -210,12 +327,37 @@ export default function Logs() {
     }
   }, [selectedLogIndex])
 
-  const handleRefresh = async () => {
-    await logsQuery.refetch()
+  const handleRefresh = useCallback(() => {
+    setIsVisuallyRefreshing(true)
+    setTimeout(() => setIsVisuallyRefreshing(false), REFRESH_SPINNER_DURATION_MS)
+    logsQuery.refetch()
     if (selectedLog?.id) {
-      await logDetailQuery.refetch()
+      logDetailQuery.refetch()
     }
-  }
+  }, [logsQuery, logDetailQuery, selectedLog?.id])
+
+  const handleToggleLive = useCallback(() => {
+    const newIsLive = !isLive
+    setIsLive(newIsLive)
+
+    if (newIsLive) {
+      setIsVisuallyRefreshing(true)
+      setTimeout(() => setIsVisuallyRefreshing(false), REFRESH_SPINNER_DURATION_MS)
+      logsQuery.refetch()
+    }
+  }, [isLive, logsQuery])
+
+  const prevIsFetchingRef = useRef(logsQuery.isFetching)
+  useEffect(() => {
+    const wasFetching = prevIsFetchingRef.current
+    const isFetching = logsQuery.isFetching
+    prevIsFetchingRef.current = isFetching
+
+    if (isLive && !wasFetching && isFetching) {
+      setIsVisuallyRefreshing(true)
+      setTimeout(() => setIsVisuallyRefreshing(false), REFRESH_SPINNER_DURATION_MS)
+    }
+  }, [logsQuery.isFetching, isLive])
 
   const handleExport = async () => {
     const params = new URLSearchParams()
@@ -367,7 +509,7 @@ export default function Logs() {
               <h1 className='font-medium text-[18px]'>Logs</h1>
             </div>
             <p className='mt-[10px] font-base text-[#888888] text-[14px]'>
-              View workflow run history and analyze performance.
+              Shows the history of all workflow runs in your workspace.
             </p>
           </div>
 
@@ -417,11 +559,11 @@ export default function Logs() {
                     variant='default'
                     className={cn(
                       'h-[32px] w-[32px] rounded-[6px] p-0',
-                      logsQuery.isFetching && 'opacity-50'
+                      isVisuallyRefreshing && 'opacity-50'
                     )}
-                    onClick={logsQuery.isFetching ? undefined : handleRefresh}
+                    onClick={isVisuallyRefreshing ? undefined : handleRefresh}
                   >
-                    {logsQuery.isFetching ? (
+                    {isVisuallyRefreshing ? (
                       <Loader2 className='h-[14px] w-[14px] animate-spin' />
                     ) : (
                       <RefreshCw className='h-[14px] w-[14px]' />
@@ -429,14 +571,14 @@ export default function Logs() {
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  {logsQuery.isFetching ? 'Refreshing...' : 'Refresh'}
+                  {isVisuallyRefreshing ? 'Refreshing...' : 'Refresh'}
                 </Tooltip.Content>
               </Tooltip.Root>
 
               {/* Live button */}
               <Button
                 variant={isLive ? 'primary' : 'default'}
-                onClick={() => setIsLive((prev) => !prev)}
+                onClick={handleToggleLive}
                 className='h-[32px] rounded-[6px] px-[10px]'
               >
                 Live
@@ -465,7 +607,7 @@ export default function Logs() {
           {/* Main content area with sidebar and table */}
           <div className='mt-[24px] flex min-h-0 flex-1 gap-[16px] overflow-hidden'>
             {/* Filter sidebar */}
-            <LogsFilterSidebar />
+            <LogsFilter searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
             {/* Table container - #202020 base */}
             <div className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px] bg-[#202020]'>
@@ -531,9 +673,7 @@ export default function Logs() {
                       const baseLevel = (log.level || 'info').toLowerCase()
                       const isError = baseLevel === 'error'
                       const isPending = !isError && log.hasPendingPause === true
-                      const statusLabel = isPending
-                        ? 'Pending'
-                        : `${baseLevel.charAt(0).toUpperCase()}${baseLevel.slice(1)}`
+                      const isRunning = !isError && !isPending && log.duration === null
 
                       return (
                         <div
@@ -558,54 +698,29 @@ export default function Logs() {
 
                             {/* Status */}
                             <div className='w-[12%] min-w-[100px]'>
-                              {isError ? (
-                                <div className='flex h-[24px] w-[56px] items-center justify-start gap-[5px] rounded-[6px] border border-[var(--terminal-status-error-border)] bg-[var(--terminal-status-error-bg)] pl-[9px]'>
-                                  <div
-                                    className='h-[6px] w-[6px] rounded-[2px]'
-                                    style={{ backgroundColor: 'var(--text-error)' }}
-                                  />
-                                  <span
-                                    className='font-medium text-[11.5px]'
-                                    style={{ color: 'var(--text-error)' }}
-                                  >
-                                    Error
-                                  </span>
-                                </div>
-                              ) : isPending ? (
-                                <div className='flex h-[24px] w-[70px] items-center justify-start gap-[5px] rounded-[6px] border border-[var(--terminal-status-warning-border)] bg-[var(--terminal-status-warning-bg)] pl-[9px]'>
-                                  <div
-                                    className='h-[6px] w-[6px] rounded-[2px]'
-                                    style={{
-                                      backgroundColor: 'var(--terminal-status-warning-color)',
-                                    }}
-                                  />
-                                  <span
-                                    className='font-medium text-[11.5px]'
-                                    style={{ color: 'var(--terminal-status-warning-color)' }}
-                                  >
-                                    Pending
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className='flex h-[24px] w-[56px] items-center justify-start gap-[8px] rounded-[6px] border border-[var(--terminal-status-info-border)] bg-[var(--terminal-status-info-bg)] pl-[9px]'>
-                                  <div
-                                    className='h-[6px] w-[6px] rounded-[2px]'
-                                    style={{ backgroundColor: 'var(--terminal-status-info-color)' }}
-                                  />
-                                  <span
-                                    className='font-medium text-[11.5px]'
-                                    style={{ color: 'var(--terminal-status-info-color)' }}
-                                  >
-                                    {statusLabel}
-                                  </span>
-                                </div>
-                              )}
+                              <StatusBadge
+                                status={
+                                  isError
+                                    ? 'error'
+                                    : isPending
+                                      ? 'pending'
+                                      : isRunning
+                                        ? 'running'
+                                        : 'info'
+                                }
+                              />
                             </div>
 
                             {/* Workflow */}
-                            <span className='w-[20%] min-w-[140px] truncate pr-[8px] font-medium text-[12px] text-[var(--text-primary)]'>
-                              {log.workflow?.name || 'Unknown'}
-                            </span>
+                            <div className='flex w-[20%] min-w-[140px] items-center gap-[8px] pr-[8px]'>
+                              <div
+                                className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
+                                style={{ backgroundColor: log.workflow?.color }}
+                              />
+                              <span className='truncate font-medium text-[12px] text-[var(--text-primary)]'>
+                                {log.workflow?.name || 'Unknown'}
+                              </span>
+                            </div>
 
                             {/* Cost */}
                             <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-primary)]'>
@@ -631,7 +746,7 @@ export default function Logs() {
                                 variant='default'
                                 className='rounded-[6px] px-[9px] py-[2px] text-[12px]'
                               >
-                                {log.duration || '—'}
+                                {formatDuration(log.duration) || '—'}
                               </Badge>
                             </div>
                           </div>
@@ -682,8 +797,8 @@ export default function Logs() {
         </div>
       </div>
 
-      {/* Log Sidebar */}
-      <Sidebar
+      {/* Log Details */}
+      <LogDetails
         log={logDetailQuery.data || selectedLog}
         isOpen={isSidebarOpen}
         isLoadingDetails={logDetailQuery.isLoading}
@@ -700,234 +815,5 @@ export default function Logs() {
         onOpenChange={setIsNotificationSettingsOpen}
       />
     </div>
-  )
-}
-
-/**
- * LogsFilterSidebar component - displays filter options in the sidebar
- */
-function LogsFilterSidebar() {
-  const { level, setLevel } = useFilterStore()
-
-  const statusOptions: ComboboxOption[] = [
-    { value: 'all', label: 'All' },
-    { value: 'error', label: 'Error' },
-    { value: 'info', label: 'Info' },
-  ]
-
-  return (
-    <div className='w-[204px] flex-shrink-0 rounded-[6px] bg-[#242424] p-[10px]'>
-      <div className='flex flex-col gap-[16px]'>
-        {/* Status Filter */}
-        <div className='flex flex-col gap-[8px]'>
-          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Status</span>
-          <Combobox
-            options={statusOptions}
-            value={level}
-            onChange={(val) => setLevel(val as 'all' | 'error' | 'info')}
-            placeholder='Select status'
-            size='sm'
-          />
-        </div>
-
-        {/* Workflow Filter */}
-        <div className='flex flex-col gap-[8px]'>
-          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Workflow</span>
-          <WorkflowFilterCombobox />
-        </div>
-
-        {/* Folder Filter */}
-        <div className='flex flex-col gap-[8px]'>
-          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Folder</span>
-          <FolderFilterCombobox />
-        </div>
-
-        {/* Trigger Filter */}
-        <div className='flex flex-col gap-[8px]'>
-          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Trigger</span>
-          <TriggerFilterCombobox />
-        </div>
-
-        {/* Timeline Filter */}
-        <div className='flex flex-col gap-[8px]'>
-          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Timeline</span>
-          <TimelineFilterCombobox />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/**
- * Workflow filter combobox component
- */
-function WorkflowFilterCombobox() {
-  const { workflowIds, setWorkflowIds } = useFilterStore()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
-  const [workflows, setWorkflows] = useState<Array<{ id: string; name: string }>>([])
-
-  useEffect(() => {
-    const fetchWorkflows = async () => {
-      try {
-        const res = await fetch(`/api/workflows?workspaceId=${encodeURIComponent(workspaceId)}`)
-        if (res.ok) {
-          const body = await res.json()
-          setWorkflows(Array.isArray(body?.data) ? body.data : [])
-        }
-      } catch {
-        setWorkflows([])
-      }
-    }
-    if (workspaceId) fetchWorkflows()
-  }, [workspaceId])
-
-  const options: ComboboxOption[] = useMemo(
-    () => [
-      { value: 'all', label: 'All workflows' },
-      ...workflows.map((w) => ({ value: w.id, label: w.name })),
-    ],
-    [workflows]
-  )
-
-  const currentValue = workflowIds.length === 0 ? 'all' : workflowIds[0]
-
-  return (
-    <Combobox
-      options={options}
-      value={currentValue}
-      onChange={(val) => {
-        if (val === 'all') {
-          setWorkflowIds([])
-        } else {
-          setWorkflowIds([val])
-        }
-      }}
-      placeholder='Select workflow'
-      size='sm'
-    />
-  )
-}
-
-/**
- * Folder filter combobox component
- */
-function FolderFilterCombobox() {
-  const { folderIds, setFolderIds } = useFilterStore()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
-  const folders = useFolderStore((state) => state.folders)
-
-  const folderList = useMemo(() => {
-    return Object.values(folders).filter((f) => f.workspaceId === workspaceId)
-  }, [folders, workspaceId])
-
-  const options: ComboboxOption[] = useMemo(
-    () => [
-      { value: 'all', label: 'All folders' },
-      ...folderList.map((f) => ({ value: f.id, label: f.name })),
-    ],
-    [folderList]
-  )
-
-  const currentValue = folderIds.length === 0 ? 'all' : folderIds[0]
-
-  return (
-    <Combobox
-      options={options}
-      value={currentValue}
-      onChange={(val) => {
-        if (val === 'all') {
-          setFolderIds([])
-        } else {
-          setFolderIds([val])
-        }
-      }}
-      placeholder='Select folder'
-      size='sm'
-    />
-  )
-}
-
-/**
- * Trigger filter combobox component
- */
-function TriggerFilterCombobox() {
-  const { triggers, setTriggers } = useFilterStore()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
-  const [triggerOptions, setTriggerOptions] = useState<Array<{ value: string; label: string }>>([])
-
-  useEffect(() => {
-    const fetchTriggers = async () => {
-      try {
-        const res = await fetch(`/api/logs/triggers?workspaceId=${workspaceId}`)
-        if (res.ok) {
-          const data = await res.json()
-          setTriggerOptions(
-            data.triggers.map((trigger: string) => ({
-              value: trigger,
-              label: getIntegrationMetadata(trigger).label,
-            }))
-          )
-        }
-      } catch {
-        setTriggerOptions([])
-      }
-    }
-    if (workspaceId) fetchTriggers()
-  }, [workspaceId])
-
-  const options: ComboboxOption[] = useMemo(
-    () => [{ value: 'all', label: 'All triggers' }, ...triggerOptions],
-    [triggerOptions]
-  )
-
-  const currentValue = triggers.length === 0 ? 'all' : triggers[0]
-
-  return (
-    <Combobox
-      options={options}
-      value={currentValue}
-      onChange={(val) => {
-        if (val === 'all') {
-          setTriggers([])
-        } else {
-          setTriggers([val])
-        }
-      }}
-      placeholder='Select trigger'
-      size='sm'
-    />
-  )
-}
-
-/**
- * Timeline filter combobox component
- */
-function TimelineFilterCombobox() {
-  const { timeRange, setTimeRange } = useFilterStore()
-
-  const timeRangeOptions: ComboboxOption[] = [
-    { value: 'All time', label: 'All time' },
-    { value: 'Past 30 minutes', label: 'Past 30 minutes' },
-    { value: 'Past hour', label: 'Past hour' },
-    { value: 'Past 6 hours', label: 'Past 6 hours' },
-    { value: 'Past 12 hours', label: 'Past 12 hours' },
-    { value: 'Past 24 hours', label: 'Past 24 hours' },
-    { value: 'Past 3 days', label: 'Past 3 days' },
-    { value: 'Past 7 days', label: 'Past 7 days' },
-    { value: 'Past 14 days', label: 'Past 14 days' },
-    { value: 'Past 30 days', label: 'Past 30 days' },
-  ]
-
-  return (
-    <Combobox
-      options={timeRangeOptions}
-      value={timeRange}
-      onChange={(val) => setTimeRange(val as typeof timeRange)}
-      placeholder='Select time range'
-      size='sm'
-    />
   )
 }

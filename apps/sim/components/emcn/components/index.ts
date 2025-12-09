@@ -13,6 +13,7 @@ export { Combobox, type ComboboxOption } from './combobox/combobox'
 export { Input } from './input/input'
 export { Label } from './label/label'
 export {
+  MODAL_SIZES,
   Modal,
   ModalBody,
   ModalClose,
@@ -21,6 +22,12 @@ export {
   ModalDescription,
   ModalFooter,
   ModalHeader,
+  ModalOverlay,
+  ModalPortal,
+  ModalTabs,
+  ModalTabsContent,
+  ModalTabsList,
+  ModalTabsTrigger,
   ModalTitle,
   ModalTrigger,
 } from './modal/modal'

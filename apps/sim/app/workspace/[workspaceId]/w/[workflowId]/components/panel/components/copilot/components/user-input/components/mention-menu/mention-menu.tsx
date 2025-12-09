@@ -12,7 +12,19 @@ import {
 } from '@/components/emcn'
 import type { useMentionData } from '../../hooks/use-mention-data'
 import type { useMentionMenu } from '../../hooks/use-mention-menu'
-import { formatTimestamp } from '../../utils'
+
+function formatTimestamp(iso: string): string {
+  try {
+    const d = new Date(iso)
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    const hh = String(d.getHours()).padStart(2, '0')
+    const min = String(d.getMinutes()).padStart(2, '0')
+    return `${mm}-${dd} ${hh}:${min}`
+  } catch {
+    return iso
+  }
+}
 
 /**
  * Common text styling for loading and empty states

@@ -3,14 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Info, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Input as EmcnInput, Tooltip } from '@/components/emcn'
 import {
+  Button,
+  Input as EmcnInput,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal/modal'
+  Tooltip,
+} from '@/components/emcn'
 import { Input, Skeleton, Switch } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'

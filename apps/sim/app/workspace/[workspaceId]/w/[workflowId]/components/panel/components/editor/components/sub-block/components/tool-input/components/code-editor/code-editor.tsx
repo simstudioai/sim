@@ -10,7 +10,7 @@ import {
   getCodeEditorProps,
   highlight,
   languages,
-} from '@/components/emcn/components/code/code'
+} from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
 

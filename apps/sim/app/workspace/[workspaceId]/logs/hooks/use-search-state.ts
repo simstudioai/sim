@@ -4,7 +4,7 @@ import type {
   Suggestion,
   SuggestionGroup,
   SuggestionSection,
-} from '@/app/workspace/[workspaceId]/logs/types/search'
+} from '@/app/workspace/[workspaceId]/logs/types'
 
 interface UseSearchStateOptions {
   onFiltersChange: (filters: ParsedFilter[], textSearch: string) => void

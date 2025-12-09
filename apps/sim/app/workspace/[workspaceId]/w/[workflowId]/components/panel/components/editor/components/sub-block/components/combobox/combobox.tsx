@@ -217,7 +217,7 @@ export function ComboBox({
     const displayLabel = inputValue
     return (
       <div className='flex w-full items-center truncate [scrollbar-width:none]'>
-        {SelectedIcon && <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0 opacity-60' />}
+        {SelectedIcon && <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0' />}
         <div className='truncate'>
           {formatDisplayText(displayLabel, {
             accessiblePrefixes,

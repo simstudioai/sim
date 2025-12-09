@@ -280,13 +280,22 @@ export const registry: Record<string, BlockConfig> = {
   zoom: ZoomBlock,
 }
 
-export const getBlock = (type: string): BlockConfig | undefined => registry[type]
+export const getBlock = (type: string): BlockConfig | undefined => {
+  // Direct lookup first
+  if (registry[type]) {
+    return registry[type]
+  }
+  // Fallback: normalize hyphens to underscores (e.g., 'microsoft-teams' -> 'microsoft_teams')
+  const normalized = type.replace(/-/g, '_')
+  return registry[normalized]
+}
 
 export const getBlocksByCategory = (category: 'blocks' | 'tools' | 'triggers'): BlockConfig[] =>
   Object.values(registry).filter((block) => block.category === category)
 
 export const getAllBlockTypes = (): string[] => Object.keys(registry)
 
-export const isValidBlockType = (type: string): type is string => type in registry
+export const isValidBlockType = (type: string): type is string =>
+  type in registry || type.replace(/-/g, '_') in registry
 
 export const getAllBlocks = (): BlockConfig[] => Object.values(registry)

@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { Button, Input, Label, Trash } from '@/components/emcn'
 import {
+  Button,
+  Input,
+  Label,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal/modal'
+  Trash,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { createLogger } from '@/lib/logs/console/logger'

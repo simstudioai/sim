@@ -172,6 +172,30 @@ export function mapToExecutionLogAlt(log: any): ExecutionLog {
 
 import { format } from 'date-fns'
 
+/**
+ * Format duration for display in logs UI
+ * If duration is under 1 second, displays as milliseconds (e.g., "500ms")
+ * If duration is 1 second or more, displays as seconds (e.g., "1.23s")
+ * @param duration - Duration string (e.g., "500ms") or null
+ * @returns Formatted duration string or null
+ */
+export function formatDuration(duration: string | null): string | null {
+  if (!duration) return null
+
+  // Extract numeric value from duration string (e.g., "500ms" -> 500)
+  const ms = Number.parseInt(duration.replace(/[^0-9]/g, ''), 10)
+
+  if (!Number.isFinite(ms)) return duration
+
+  if (ms < 1000) {
+    return `${ms}ms`
+  }
+
+  // Convert to seconds with up to 2 decimal places
+  const seconds = ms / 1000
+  return `${seconds.toFixed(2).replace(/\.?0+$/, '')}s`
+}
+
 export const formatDate = (dateString: string) => {
   const date = new Date(dateString)
   return {

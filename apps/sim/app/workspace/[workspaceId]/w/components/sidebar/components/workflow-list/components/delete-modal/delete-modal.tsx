@@ -1,13 +1,6 @@
 'use client'
 
-import { Button } from '@/components/emcn'
-import {
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-} from '@/components/emcn/components/modal/modal'
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 
 interface DeleteModalProps {
   /**

@@ -2,12 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Maximize2, Minimize2 } from 'lucide-react'
-import {
-  formatDurationDisplay,
-  normalizeChildWorkflowSpan,
-  TraceSpanItem,
-} from '@/app/workspace/[workspaceId]/logs/components/trace-spans'
 import type { TraceSpan } from '@/stores/logs/filters/types'
+import { TraceSpanItem } from './components/trace-span-item'
+import { formatDurationDisplay, normalizeChildWorkflowSpan } from './utils'
 
 interface TraceSpansProps {
   traceSpans?: TraceSpan[]

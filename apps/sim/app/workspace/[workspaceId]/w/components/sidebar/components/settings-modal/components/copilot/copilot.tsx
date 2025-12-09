@@ -2,14 +2,12 @@
 
 import { useMemo, useState } from 'react'
 import { Check, Copy, Plus, Search } from 'lucide-react'
-import { Button, Input as EmcnInput } from '@/components/emcn'
-import {
+import { Button, Input as EmcnInput, 
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
-  ModalHeader,
-} from '@/components/emcn/components/modal/modal'
+  ModalHeader, } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import {

@@ -3,14 +3,7 @@
 import { useState } from 'react'
 import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button } from '@/components/emcn'
-import {
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-} from '@/components/emcn/components/modal/modal'
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'

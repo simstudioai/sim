@@ -154,6 +154,7 @@ export function useLogsList(
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 0, // Always consider stale for real-time logs
+    placeholderData: keepPreviousData, // Keep showing old data while fetching new data
     initialPageParam: 1,
     getNextPageParam: (lastPage) => lastPage.nextPage,
   })
