@@ -3,10 +3,10 @@ import { workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
-import { RateLimiter } from '@/services/queue/RateLimiter'
 
 const logger = createLogger('ExecutionPreprocessing')
 
