@@ -17,6 +17,85 @@ import {
 const logger = createLogger('Tools')
 
 /**
+ * Maximum request body size in bytes before we warn/error about size limits.
+ * Next.js App Router has a default limit around 4MB, and Vercel has 4.5MB limit.
+ * We use a conservative 4MB threshold for detection.
+ */
+const MAX_REQUEST_BODY_SIZE_BYTES = 4 * 1024 * 1024 // 4MB
+
+/**
+ * User-friendly error message for body size limit exceeded
+ */
+const BODY_SIZE_LIMIT_ERROR_MESSAGE =
+  'Request body size limit exceeded. The workflow data is too large to process. Try reducing the size of variables, inputs, or data being passed between blocks.'
+
+/**
+ * Validates request body size and throws a user-friendly error if exceeded
+ * @param body - The request body string to check
+ * @param requestId - Request ID for logging
+ * @param context - Context string for logging (e.g., toolId)
+ * @throws Error if body size exceeds the limit
+ */
+function validateRequestBodySize(
+  body: string | undefined,
+  requestId: string,
+  context: string
+): void {
+  if (!body) return
+
+  const bodySize = new Blob([body]).size
+  if (bodySize > MAX_REQUEST_BODY_SIZE_BYTES) {
+    const bodySizeMB = (bodySize / (1024 * 1024)).toFixed(2)
+    const maxSizeMB = (MAX_REQUEST_BODY_SIZE_BYTES / (1024 * 1024)).toFixed(0)
+    logger.error(`[${requestId}] Request body size exceeds limit for ${context}:`, {
+      bodySize,
+      bodySizeMB: `${bodySizeMB}MB`,
+      maxSize: MAX_REQUEST_BODY_SIZE_BYTES,
+      maxSizeMB: `${maxSizeMB}MB`,
+    })
+    throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+  }
+}
+
+/**
+ * Checks if an error message indicates a body size limit issue
+ * @param errorMessage - The error message to check
+ * @returns true if the error is related to body size limits
+ */
+function isBodySizeLimitError(errorMessage: string): boolean {
+  const lowerMessage = errorMessage.toLowerCase()
+  return (
+    lowerMessage.includes('body size') ||
+    lowerMessage.includes('payload too large') ||
+    lowerMessage.includes('entity too large') ||
+    lowerMessage.includes('request entity too large') ||
+    lowerMessage.includes('body_not_allowed') ||
+    lowerMessage.includes('request body larger than')
+  )
+}
+
+/**
+ * Handles body size limit errors by logging and throwing a user-friendly error
+ * @param error - The original error
+ * @param requestId - Request ID for logging
+ * @param context - Context string for logging (e.g., toolId)
+ * @throws Error with user-friendly message if it's a size limit error
+ * @returns false if not a size limit error (caller should continue handling)
+ */
+function handleBodySizeLimitError(error: unknown, requestId: string, context: string): boolean {
+  const errorMessage = error instanceof Error ? error.message : String(error)
+
+  if (isBodySizeLimitError(errorMessage)) {
+    logger.error(`[${requestId}] Request body size limit exceeded for ${context}:`, {
+      originalError: errorMessage,
+    })
+    throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+  }
+
+  return false
+}
+
+/**
  * System parameters that should be filtered out when extracting tool arguments
  * These are internal parameters used by the execution framework, not tool inputs
  */
@@ -537,6 +616,9 @@ async function handleInternalRequest(
     const headers = new Headers(requestParams.headers)
     await addInternalAuthIfNeeded(headers, isInternalRoute, requestId, toolId)
 
+    // Check request body size before sending to detect potential size limit issues
+    validateRequestBodySize(requestParams.body, requestId, toolId)
+
     // Prepare request options
     const requestOptions = {
       method: requestParams.method,
@@ -548,6 +630,15 @@ async function handleInternalRequest(
 
     // For non-OK responses, attempt JSON first; if parsing fails, fall back to text
     if (!response.ok) {
+      // Check for 413 (Entity Too Large) - body size limit exceeded
+      if (response.status === 413) {
+        logger.error(`[${requestId}] Request body too large for ${toolId} (HTTP 413):`, {
+          status: response.status,
+          statusText: response.statusText,
+        })
+        throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+      }
+
       let errorData: any
       try {
         errorData = await response.json()
@@ -645,6 +736,9 @@ async function handleInternalRequest(
       error: undefined,
     }
   } catch (error: any) {
+    // Check if this is a body size limit error and throw user-friendly message
+    handleBodySizeLimitError(error, requestId, toolId)
+
     logger.error(`[${requestId}] Internal request error for ${toolId}:`, {
       error: error instanceof Error ? error.message : String(error),
     })
@@ -737,13 +831,24 @@ async function handleProxyRequest(
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     await addInternalAuthIfNeeded(headers, true, requestId, `proxy:${toolId}`)
 
+    const body = JSON.stringify({ toolId, params, executionContext })
+
+    // Check request body size before sending
+    validateRequestBodySize(body, requestId, `proxy:${toolId}`)
+
     const response = await fetch(proxyUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ toolId, params, executionContext }),
+      body,
     })
 
     if (!response.ok) {
+      // Check for 413 (Entity Too Large) - body size limit exceeded
+      if (response.status === 413) {
+        logger.error(`[${requestId}] Request body too large for proxy:${toolId} (HTTP 413)`)
+        throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+      }
+
       const errorText = await response.text()
       logger.error(`[${requestId}] Proxy request failed for ${toolId}:`, {
         status: response.status,
@@ -783,6 +888,9 @@ async function handleProxyRequest(
     const result = await response.json()
     return result
   } catch (error: any) {
+    // Check if this is a body size limit error and throw user-friendly message
+    handleBodySizeLimitError(error, requestId, `proxy:${toolId}`)
+
     logger.error(`[${requestId}] Proxy request error for ${toolId}:`, {
       error: error instanceof Error ? error.message : String(error),
     })
@@ -880,6 +988,11 @@ async function executeMcpTool(
       workspaceId, // Pass workspace context for scoping
     }
 
+    const body = JSON.stringify(requestBody)
+
+    // Check request body size before sending
+    validateRequestBodySize(body, actualRequestId, `mcp:${toolId}`)
+
     logger.info(`[${actualRequestId}] Making MCP tool request to ${toolName} on ${serverId}`, {
       hasWorkspaceId: !!workspaceId,
       hasWorkflowId: !!workflowId,
@@ -888,7 +1001,7 @@ async function executeMcpTool(
     const response = await fetch(`${baseUrl}/api/mcp/tools/execute`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(requestBody),
+      body,
     })
 
     const endTime = new Date()
@@ -896,6 +1009,21 @@ async function executeMcpTool(
     const duration = endTime.getTime() - new Date(actualStartTime).getTime()
 
     if (!response.ok) {
+      // Check for 413 (Entity Too Large) - body size limit exceeded
+      if (response.status === 413) {
+        logger.error(`[${actualRequestId}] Request body too large for mcp:${toolId} (HTTP 413)`)
+        return {
+          success: false,
+          output: {},
+          error: BODY_SIZE_LIMIT_ERROR_MESSAGE,
+          timing: {
+            startTime: actualStartTime,
+            endTime: endTimeISO,
+            duration,
+          },
+        }
+      }
+
       let errorMessage = `MCP tool execution failed: ${response.status} ${response.statusText}`
 
       try {
@@ -949,6 +1077,24 @@ async function executeMcpTool(
     const endTime = new Date()
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - new Date(actualStartTime).getTime()
+
+    // Check if this is a body size limit error
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    if (isBodySizeLimitError(errorMsg)) {
+      logger.error(`[${actualRequestId}] Request body size limit exceeded for mcp:${toolId}:`, {
+        originalError: errorMsg,
+      })
+      return {
+        success: false,
+        output: {},
+        error: BODY_SIZE_LIMIT_ERROR_MESSAGE,
+        timing: {
+          startTime: actualStartTime,
+          endTime: endTimeISO,
+          duration,
+        },
+      }
+    }
 
     logger.error(`[${actualRequestId}] Error executing MCP tool ${toolId}:`, error)
 
