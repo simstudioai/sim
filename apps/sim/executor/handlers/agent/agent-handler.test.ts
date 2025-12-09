@@ -1719,5 +1719,339 @@ describe('AgentBlockHandler', () => {
 
       expect(contextWithWorkspace.workspaceId).toBe('test-workspace-456')
     })
+
+    it('should use cached schema for MCP tools (no discovery needed)', async () => {
+      const fetchCalls: any[] = []
+
+      mockFetch.mockImplementation((url: string, options: any) => {
+        fetchCalls.push({ url, options })
+
+        if (url.includes('/api/providers')) {
+          return Promise.resolve({
+            ok: true,
+            headers: {
+              get: (name: string) => (name === 'Content-Type' ? 'application/json' : null),
+            },
+            json: () =>
+              Promise.resolve({
+                content: 'Used MCP tool successfully',
+                model: 'gpt-4o',
+                tokens: { prompt: 10, completion: 10, total: 20 },
+                toolCalls: [],
+                timing: { total: 50 },
+              }),
+          })
+        }
+
+        if (url.includes('/api/mcp/tools/execute')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: { output: { content: [{ type: 'text', text: 'Tool executed' }] } },
+              }),
+          })
+        }
+
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+      })
+
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Use the MCP tool',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            type: 'mcp',
+            title: 'list_files',
+            schema: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Directory path' },
+              },
+              required: ['path'],
+            },
+            params: {
+              serverId: 'mcp-server-123',
+              toolName: 'list_files',
+              serverName: 'filesystem',
+            },
+            usageControl: 'auto' as const,
+          },
+        ],
+      }
+
+      const contextWithWorkspace = {
+        ...mockContext,
+        workspaceId: 'test-workspace-123',
+        workflowId: 'test-workflow-456',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(contextWithWorkspace, mockBlock, inputs)
+
+      const discoveryCalls = fetchCalls.filter((c) => c.url.includes('/api/mcp/tools/discover'))
+      expect(discoveryCalls.length).toBe(0)
+
+      const providerCalls = fetchCalls.filter((c) => c.url.includes('/api/providers'))
+      expect(providerCalls.length).toBe(1)
+    })
+
+    it('should pass toolSchema to execution endpoint when using cached schema', async () => {
+      let executionCall: any = null
+
+      mockFetch.mockImplementation((url: string, options: any) => {
+        if (url.includes('/api/providers')) {
+          return Promise.resolve({
+            ok: true,
+            headers: {
+              get: (name: string) => (name === 'Content-Type' ? 'application/json' : null),
+            },
+            json: () =>
+              Promise.resolve({
+                content: 'Tool executed',
+                model: 'gpt-4o',
+                tokens: { prompt: 10, completion: 10, total: 20 },
+                toolCalls: [
+                  {
+                    name: 'search_files',
+                    arguments: { query: 'test' },
+                    result: { success: true, output: {} },
+                  },
+                ],
+                timing: { total: 50 },
+              }),
+          })
+        }
+
+        if (url.includes('/api/mcp/tools/execute')) {
+          executionCall = { url, body: JSON.parse(options.body) }
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: { output: { content: [{ type: 'text', text: 'Search results' }] } },
+              }),
+          })
+        }
+
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+      })
+
+      const cachedSchema = {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search query' },
+        },
+        required: ['query'],
+      }
+
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Search for files',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            type: 'mcp',
+            title: 'search_files',
+            schema: cachedSchema,
+            params: {
+              serverId: 'mcp-search-server',
+              toolName: 'search_files',
+              serverName: 'search',
+            },
+            usageControl: 'auto' as const,
+          },
+        ],
+      }
+
+      const contextWithWorkspace = {
+        ...mockContext,
+        workspaceId: 'test-workspace-123',
+        workflowId: 'test-workflow-456',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(contextWithWorkspace, mockBlock, inputs)
+
+      const providerCalls = mockFetch.mock.calls.filter((c: any) => c[0].includes('/api/providers'))
+      expect(providerCalls.length).toBe(1)
+
+      const providerRequestBody = JSON.parse(providerCalls[0][1].body)
+      expect(providerRequestBody.tools).toBeDefined()
+      expect(providerRequestBody.tools.length).toBe(1)
+      expect(providerRequestBody.tools[0].name).toBe('search_files')
+    })
+
+    it('should handle multiple MCP tools from the same server efficiently', async () => {
+      const fetchCalls: any[] = []
+
+      mockFetch.mockImplementation((url: string, options: any) => {
+        fetchCalls.push({ url, options })
+
+        if (url.includes('/api/providers')) {
+          return Promise.resolve({
+            ok: true,
+            headers: {
+              get: (name: string) => (name === 'Content-Type' ? 'application/json' : null),
+            },
+            json: () =>
+              Promise.resolve({
+                content: 'Used tools',
+                model: 'gpt-4o',
+                tokens: { prompt: 10, completion: 10, total: 20 },
+                toolCalls: [],
+                timing: { total: 50 },
+              }),
+          })
+        }
+
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+      })
+
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Use all the tools',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            type: 'mcp',
+            title: 'tool_1',
+            schema: { type: 'object', properties: {} },
+            params: {
+              serverId: 'same-server',
+              toolName: 'tool_1',
+              serverName: 'server',
+            },
+            usageControl: 'auto' as const,
+          },
+          {
+            type: 'mcp',
+            title: 'tool_2',
+            schema: { type: 'object', properties: {} },
+            params: {
+              serverId: 'same-server',
+              toolName: 'tool_2',
+              serverName: 'server',
+            },
+            usageControl: 'auto' as const,
+          },
+          {
+            type: 'mcp',
+            title: 'tool_3',
+            schema: { type: 'object', properties: {} },
+            params: {
+              serverId: 'same-server',
+              toolName: 'tool_3',
+              serverName: 'server',
+            },
+            usageControl: 'auto' as const,
+          },
+        ],
+      }
+
+      const contextWithWorkspace = {
+        ...mockContext,
+        workspaceId: 'test-workspace-123',
+        workflowId: 'test-workflow-456',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(contextWithWorkspace, mockBlock, inputs)
+
+      const discoveryCalls = fetchCalls.filter((c) => c.url.includes('/api/mcp/tools/discover'))
+      expect(discoveryCalls.length).toBe(0)
+
+      const providerCalls = fetchCalls.filter((c) => c.url.includes('/api/providers'))
+      expect(providerCalls.length).toBe(1)
+
+      const providerRequestBody = JSON.parse(providerCalls[0].options.body)
+      expect(providerRequestBody.tools.length).toBe(3)
+    })
+
+    it('should should fallback to discovery for MCP tools without cached schema', async () => {
+      const fetchCalls: any[] = []
+
+      mockFetch.mockImplementation((url: string, options: any) => {
+        fetchCalls.push({ url, options })
+
+        if (url.includes('/api/mcp/tools/discover')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: {
+                  tools: [
+                    {
+                      name: 'legacy_tool',
+                      description: 'A legacy tool without cached schema',
+                      inputSchema: { type: 'object', properties: {} },
+                      serverName: 'legacy-server',
+                    },
+                  ],
+                },
+              }),
+          })
+        }
+
+        if (url.includes('/api/providers')) {
+          return Promise.resolve({
+            ok: true,
+            headers: {
+              get: (name: string) => (name === 'Content-Type' ? 'application/json' : null),
+            },
+            json: () =>
+              Promise.resolve({
+                content: 'Used legacy tool',
+                model: 'gpt-4o',
+                tokens: { prompt: 10, completion: 10, total: 20 },
+                toolCalls: [],
+                timing: { total: 50 },
+              }),
+          })
+        }
+
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+      })
+
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Use the legacy tool',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            type: 'mcp',
+            title: 'legacy_tool',
+            params: {
+              serverId: 'mcp-legacy-server',
+              toolName: 'legacy_tool',
+              serverName: 'legacy-server',
+            },
+            usageControl: 'auto' as const,
+          },
+        ],
+      }
+
+      const contextWithWorkspace = {
+        ...mockContext,
+        workspaceId: 'test-workspace-123',
+        workflowId: 'test-workflow-456',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(contextWithWorkspace, mockBlock, inputs)
+
+      const discoveryCalls = fetchCalls.filter((c) => c.url.includes('/api/mcp/tools/discover'))
+      expect(discoveryCalls.length).toBe(1)
+
+      expect(discoveryCalls[0].url).toContain('serverId=mcp-legacy-server')
+    })
   })
 })
