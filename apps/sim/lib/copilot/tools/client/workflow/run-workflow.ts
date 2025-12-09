@@ -4,6 +4,7 @@ import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
+  WORKFLOW_EXECUTION_TIMEOUT_MS,
 } from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
@@ -74,7 +75,9 @@ export class RunWorkflowClientTool extends BaseClientTool {
 
   async handleAccept(args?: RunWorkflowArgs): Promise<void> {
     const logger = createLogger('RunWorkflowClientTool')
-    try {
+
+    // Use longer timeout for workflow execution (10 minutes)
+    await this.executeWithTimeout(async () => {
       const params = args || {}
       logger.debug('handleAccept() called', {
         toolCallId: this.toolCallId,
@@ -124,60 +127,54 @@ export class RunWorkflowClientTool extends BaseClientTool {
         toolCallId: this.toolCallId,
       })
 
-      const result = await executeWorkflowWithFullLogging({
-        workflowInput,
-        executionId,
-      })
-
-      setIsExecuting(false)
-
-      // Determine success for both non-streaming and streaming executions
-      let succeeded = true
-      let errorMessage: string | undefined
       try {
-        if (result && typeof result === 'object' && 'success' in (result as any)) {
-          succeeded = Boolean((result as any).success)
-          if (!succeeded) {
-            errorMessage = (result as any)?.error || (result as any)?.output?.error
+        const result = await executeWorkflowWithFullLogging({
+          workflowInput,
+          executionId,
+        })
+
+        // Determine success for both non-streaming and streaming executions
+        let succeeded = true
+        let errorMessage: string | undefined
+        try {
+          if (result && typeof result === 'object' && 'success' in (result as any)) {
+            succeeded = Boolean((result as any).success)
+            if (!succeeded) {
+              errorMessage = (result as any)?.error || (result as any)?.output?.error
+            }
+          } else if (
+            result &&
+            typeof result === 'object' &&
+            'execution' in (result as any) &&
+            (result as any).execution &&
+            typeof (result as any).execution === 'object'
+          ) {
+            succeeded = Boolean((result as any).execution.success)
+            if (!succeeded) {
+              errorMessage =
+                (result as any).execution?.error || (result as any).execution?.output?.error
+            }
           }
-        } else if (
-          result &&
-          typeof result === 'object' &&
-          'execution' in (result as any) &&
-          (result as any).execution &&
-          typeof (result as any).execution === 'object'
-        ) {
-          succeeded = Boolean((result as any).execution.success)
-          if (!succeeded) {
-            errorMessage =
-              (result as any).execution?.error || (result as any).execution?.output?.error
-          }
+        } catch {}
+
+        if (succeeded) {
+          logger.debug('Workflow execution finished with success')
+          this.setState(ClientToolCallState.success)
+          await this.markToolComplete(
+            200,
+            `Workflow execution completed. Started at: ${executionStartTime}`
+          )
+        } else {
+          const msg = errorMessage || 'Workflow execution failed'
+          logger.error('Workflow execution finished with failure', { message: msg })
+          this.setState(ClientToolCallState.error)
+          await this.markToolComplete(500, msg)
         }
-      } catch {}
-
-      if (succeeded) {
-        logger.debug('Workflow execution finished with success')
-        this.setState(ClientToolCallState.success)
-        await this.markToolComplete(
-          200,
-          `Workflow execution completed. Started at: ${executionStartTime}`
-        )
-      } else {
-        const msg = errorMessage || 'Workflow execution failed'
-        logger.error('Workflow execution finished with failure', { message: msg })
-        this.setState(ClientToolCallState.error)
-        await this.markToolComplete(500, msg)
+      } finally {
+        // Always clean up execution state
+        setIsExecuting(false)
       }
-    } catch (error: any) {
-      const message = error instanceof Error ? error.message : String(error)
-      const failedDependency = typeof message === 'string' && /dependency/i.test(message)
-      const status = failedDependency ? 424 : 500
-
-      logger.error('Run workflow failed', { message })
-
-      this.setState(ClientToolCallState.error)
-      await this.markToolComplete(status, failedDependency ? undefined : message)
-    }
+    }, WORKFLOW_EXECUTION_TIMEOUT_MS)
   }
 
   async execute(args?: RunWorkflowArgs): Promise<void> {

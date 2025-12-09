@@ -245,9 +245,11 @@ export class LoopOrchestrator {
   }
 
   /**
-   * Evaluates the initial condition for while loops at the sentinel start.
-   * For while loops, the condition must be checked BEFORE the first iteration.
-   * If the condition is false, the loop body should be skipped entirely.
+   * Evaluates the initial condition for loops at the sentinel start.
+   * - For while loops, the condition must be checked BEFORE the first iteration.
+   * - For forEach loops, skip if the items array is empty.
+   * - For for loops, skip if maxIterations is 0.
+   * - For doWhile loops, always execute at least once.
    *
    * @returns true if the loop should execute, false if it should be skipped
    */
@@ -258,27 +260,47 @@ export class LoopOrchestrator {
       return true
     }
 
-    // Only while loops need an initial condition check
-    // - for/forEach: always execute based on iteration count/items
-    // - doWhile: always execute at least once, check condition after
-    // - while: check condition before first iteration
-    if (scope.loopType !== 'while') {
+    // forEach: skip if items array is empty
+    if (scope.loopType === 'forEach') {
+      if (!scope.items || scope.items.length === 0) {
+        logger.info('ForEach loop has empty items, skipping loop body', { loopId })
+        return false
+      }
       return true
     }
 
-    if (!scope.condition) {
-      logger.warn('No condition defined for while loop', { loopId })
-      return false
+    // for: skip if maxIterations is 0
+    if (scope.loopType === 'for') {
+      if (scope.maxIterations === 0) {
+        logger.info('For loop has 0 iterations, skipping loop body', { loopId })
+        return false
+      }
+      return true
     }
 
-    const result = this.evaluateWhileCondition(ctx, scope.condition, scope)
-    logger.info('While loop initial condition evaluation', {
-      loopId,
-      condition: scope.condition,
-      result,
-    })
+    // doWhile: always execute at least once
+    if (scope.loopType === 'doWhile') {
+      return true
+    }
 
-    return result
+    // while: check condition before first iteration
+    if (scope.loopType === 'while') {
+      if (!scope.condition) {
+        logger.warn('No condition defined for while loop', { loopId })
+        return false
+      }
+
+      const result = this.evaluateWhileCondition(ctx, scope.condition, scope)
+      logger.info('While loop initial condition evaluation', {
+        loopId,
+        condition: scope.condition,
+        result,
+      })
+
+      return result
+    }
+
+    return true
   }
 
   shouldExecuteLoopNode(_ctx: ExecutionContext, _nodeId: string, _loopId: string): boolean {

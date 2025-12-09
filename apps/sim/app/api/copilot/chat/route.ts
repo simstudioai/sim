@@ -353,10 +353,10 @@ export async function POST(req: NextRequest) {
           executeLocally: true,
         },
       ]
-      // Fetch user credentials (OAuth + API keys)
+      // Fetch user credentials (OAuth + API keys) - pass workflowId to get workspace env vars
       try {
         const rawCredentials = await getCredentialsServerTool.execute(
-          {},
+          { workflowId },
           { userId: authenticatedUserId }
         )
 
@@ -840,9 +840,36 @@ export async function POST(req: NextRequest) {
             }
           } catch (error) {
             logger.error(`[${tracker.requestId}] Error processing stream:`, error)
-            controller.error(error)
+
+            // Send an error event to the client before closing so it knows what happened
+            try {
+              const errorMessage =
+                error instanceof Error && error.message === 'terminated'
+                  ? 'Connection to AI service was interrupted. Please try again.'
+                  : 'An unexpected error occurred while processing the response.'
+              const encoder = new TextEncoder()
+
+              // Send error as content so it shows in the chat
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({ type: 'content', data: `\n\n_${errorMessage}_` })}\n\n`
+                )
+              )
+              // Send done event to properly close the stream on client
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`))
+            } catch (enqueueError) {
+              // Stream might already be closed, that's ok
+              logger.warn(
+                `[${tracker.requestId}] Could not send error event to client:`,
+                enqueueError
+              )
+            }
           } finally {
-            controller.close()
+            try {
+              controller.close()
+            } catch {
+              // Controller might already be closed
+            }
           }
         },
       })

@@ -20,7 +20,31 @@ interface CustomTool {
 }
 
 /**
+ * Stored tool format that may contain either reference or inline definition
+ */
+interface StoredCustomTool {
+  type: string
+  title?: string
+  toolId?: string
+  customToolId?: string
+  schema?: any
+  code?: string
+  usageControl?: string
+}
+
+/**
+ * Checks if a stored tool is a reference-only custom tool (no inline definition)
+ */
+function isCustomToolReference(tool: StoredCustomTool): boolean {
+  return tool.type === 'custom-tool' && !!tool.customToolId && !tool.code
+}
+
+/**
  * Extract all custom tools from agent blocks in the workflow state
+ *
+ * @remarks
+ * Only extracts tools with inline definitions (legacy format).
+ * Reference-only tools (new format with customToolId) are skipped since they're already in the database.
  */
 export function extractCustomToolsFromWorkflowState(workflowState: any): CustomTool[] {
   const customToolsMap = new Map<string, CustomTool>()
@@ -60,14 +84,18 @@ export function extractCustomToolsFromWorkflowState(workflowState: any): CustomT
       }
 
       for (const tool of tools) {
-        if (
-          tool &&
-          typeof tool === 'object' &&
-          tool.type === 'custom-tool' &&
-          tool.title &&
-          tool.schema?.function &&
-          tool.code
-        ) {
+        if (!tool || typeof tool !== 'object' || tool.type !== 'custom-tool') {
+          continue
+        }
+
+        // Skip reference-only tools - they're already in the database
+        if (isCustomToolReference(tool)) {
+          logger.debug(`Skipping reference-only custom tool: ${tool.title || tool.customToolId}`)
+          continue
+        }
+
+        // Only persist tools with inline definitions (legacy format)
+        if (tool.title && tool.schema?.function && tool.code) {
           const toolKey = tool.toolId || tool.title
 
           if (!customToolsMap.has(toolKey)) {

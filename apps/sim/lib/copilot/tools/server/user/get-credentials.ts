@@ -5,7 +5,7 @@ import { jwtDecode } from 'jwt-decode'
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getEnvironmentVariableKeys } from '@/lib/environment/utils'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getAllOAuthServices } from '@/lib/oauth/oauth'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -26,8 +26,13 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
 
     const authenticatedUserId = context.userId
 
+    let workspaceId: string | undefined
+
     if (params?.workflowId) {
-      const { hasAccess } = await verifyWorkflowAccess(authenticatedUserId, params.workflowId)
+      const { hasAccess, workspaceId: wId } = await verifyWorkflowAccess(
+        authenticatedUserId,
+        params.workflowId
+      )
 
       if (!hasAccess) {
         const errorMessage = createPermissionError('access credentials in')
@@ -37,6 +42,8 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
         })
         throw new Error(errorMessage)
       }
+
+      workspaceId = wId
     }
 
     const userId = authenticatedUserId
@@ -122,14 +129,23 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
         baseProvider: service.baseProvider,
       }))
 
-    // Fetch environment variables
-    const envResult = await getEnvironmentVariableKeys(userId)
+    // Fetch environment variables from both personal and workspace
+    const envResult = await getPersonalAndWorkspaceEnv(userId, workspaceId)
+
+    // Get all unique variable names from both personal and workspace
+    const personalVarNames = Object.keys(envResult.personalEncrypted)
+    const workspaceVarNames = Object.keys(envResult.workspaceEncrypted)
+    const allVarNames = [...new Set([...personalVarNames, ...workspaceVarNames])]
 
     logger.info('Fetched credentials', {
       userId,
+      workspaceId,
       connectedCount: connectedCredentials.length,
       notConnectedCount: notConnectedServices.length,
-      envVarCount: envResult.count,
+      personalEnvVarCount: personalVarNames.length,
+      workspaceEnvVarCount: workspaceVarNames.length,
+      totalEnvVarCount: allVarNames.length,
+      conflicts: envResult.conflicts,
     })
 
     return {
@@ -144,8 +160,11 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
         },
       },
       environment: {
-        variableNames: envResult.variableNames,
-        count: envResult.count,
+        variableNames: allVarNames,
+        count: allVarNames.length,
+        personalVariables: personalVarNames,
+        workspaceVariables: workspaceVarNames,
+        conflicts: envResult.conflicts,
       },
     }
   },

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { environment } from '@sim/db/schema'
+import { workspaceEnvironment } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
@@ -52,28 +52,33 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVar
       const authenticatedUserId = context.userId
       const { variables, workflowId } = params || ({} as SetEnvironmentVariablesParams)
 
-      if (workflowId) {
-        const { hasAccess } = await verifyWorkflowAccess(authenticatedUserId, workflowId)
-
-        if (!hasAccess) {
-          const errorMessage = createPermissionError('modify environment variables in')
-          logger.error('Unauthorized attempt to set environment variables', {
-            workflowId,
-            authenticatedUserId,
-          })
-          throw new Error(errorMessage)
-        }
+      if (!workflowId) {
+        throw new Error('workflowId is required to set workspace environment variables')
       }
 
-      const userId = authenticatedUserId
+      const { hasAccess, workspaceId } = await verifyWorkflowAccess(authenticatedUserId, workflowId)
+
+      if (!hasAccess) {
+        const errorMessage = createPermissionError('modify environment variables in')
+        logger.error('Unauthorized attempt to set environment variables', {
+          workflowId,
+          authenticatedUserId,
+        })
+        throw new Error(errorMessage)
+      }
+
+      if (!workspaceId) {
+        throw new Error('Could not determine workspace for this workflow')
+      }
 
       const normalized = normalizeVariables(variables || {})
       const { variables: validatedVariables } = EnvVarSchema.parse({ variables: normalized })
 
+      // Fetch existing workspace environment variables
       const existingData = await db
         .select()
-        .from(environment)
-        .where(eq(environment.userId, userId))
+        .from(workspaceEnvironment)
+        .where(eq(workspaceEnvironment.workspaceId, workspaceId))
         .limit(1)
       const existingEncrypted = (existingData[0]?.variables as Record<string, string>) || {}
 
@@ -109,26 +114,36 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVar
 
       const finalEncrypted = { ...existingEncrypted, ...newlyEncrypted }
 
+      // Save to workspace environment variables
       await db
-        .insert(environment)
+        .insert(workspaceEnvironment)
         .values({
           id: crypto.randomUUID(),
-          userId,
+          workspaceId,
           variables: finalEncrypted,
           updatedAt: new Date(),
         })
         .onConflictDoUpdate({
-          target: [environment.userId],
+          target: [workspaceEnvironment.workspaceId],
           set: { variables: finalEncrypted, updatedAt: new Date() },
         })
 
+      logger.info('Saved workspace environment variables', {
+        workspaceId,
+        workflowId,
+        addedCount: added.length,
+        updatedCount: updated.length,
+        totalCount: Object.keys(finalEncrypted).length,
+      })
+
       return {
-        message: `Successfully processed ${Object.keys(validatedVariables).length} environment variable(s): ${added.length} added, ${updated.length} updated`,
+        message: `Successfully processed ${Object.keys(validatedVariables).length} workspace environment variable(s): ${added.length} added, ${updated.length} updated`,
         variableCount: Object.keys(validatedVariables).length,
         variableNames: Object.keys(validatedVariables),
         totalVariableCount: Object.keys(finalEncrypted).length,
         addedVariables: added,
         updatedVariables: updated,
+        workspaceId,
       }
     },
   }

@@ -190,15 +190,25 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
   /**
    * Cleanup on component unmount (page refresh, navigation, etc.)
+   * Uses a ref to track sending state to avoid stale closure issues
+   * Note: Parent workflow.tsx also has useStreamCleanup for page-level cleanup
    */
+  const isSendingRef = useRef(isSendingMessage)
+  isSendingRef.current = isSendingMessage
+  const abortMessageRef = useRef(abortMessage)
+  abortMessageRef.current = abortMessage
+
   useEffect(() => {
     return () => {
-      if (isSendingMessage) {
-        abortMessage()
+      // Use refs to check current values, not stale closure values
+      if (isSendingRef.current) {
+        abortMessageRef.current()
         logger.info('Aborted active message streaming due to component unmount')
       }
     }
-  }, [isSendingMessage, abortMessage])
+    // Empty deps - only run cleanup on actual unmount, not on re-renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /**
    * Container-level click capture to cancel edit mode when clicking outside the current edit area

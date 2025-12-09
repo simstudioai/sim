@@ -5,6 +5,9 @@ import { getTool } from '@/tools/utils'
 
 const logger = createLogger('WorkflowValidation')
 
+/**
+ * Checks if a custom tool has a valid inline schema
+ */
 function isValidCustomToolSchema(tool: any): boolean {
   try {
     if (!tool || typeof tool !== 'object') return false
@@ -22,6 +25,26 @@ function isValidCustomToolSchema(tool: any): boolean {
     if (!params.properties || typeof params.properties !== 'object') return false
 
     return true
+  } catch (_err) {
+    return false
+  }
+}
+
+/**
+ * Checks if a custom tool is a valid reference-only format (new format)
+ */
+function isValidCustomToolReference(tool: any): boolean {
+  try {
+    if (!tool || typeof tool !== 'object') return false
+    if (tool.type !== 'custom-tool') return false
+
+    // Reference format: has customToolId but no inline schema/code
+    // This is valid - the tool will be loaded dynamically during execution
+    if (tool.customToolId && typeof tool.customToolId === 'string') {
+      return true
+    }
+
+    return false
   } catch (_err) {
     return false
   }
@@ -70,23 +93,33 @@ export function sanitizeAgentToolsInBlocks(blocks: Record<string, any>): {
           // Allow non-custom tools to pass through as-is
           if (!tool || typeof tool !== 'object') return false
           if (tool.type !== 'custom-tool') return true
+
+          // Check if it's a valid reference-only format (new format)
+          if (isValidCustomToolReference(tool)) {
+            return true
+          }
+
+          // Check if it's a valid inline schema format (legacy format)
           const ok = isValidCustomToolSchema(tool)
           if (!ok) {
             logger.warn('Removing invalid custom tool from workflow', {
               blockId,
               blockName: block.name,
+              hasCustomToolId: !!tool.customToolId,
+              hasSchema: !!tool.schema,
             })
           }
           return ok
         })
         .map((tool: any) => {
           if (tool.type === 'custom-tool') {
-            // Ensure required defaults to avoid client crashes
-            if (!tool.code || typeof tool.code !== 'string') {
-              tool.code = ''
-            }
+            // For reference-only tools, ensure usageControl default
             if (!tool.usageControl) {
               tool.usageControl = 'auto'
+            }
+            // For inline tools (legacy), also ensure code default
+            if (!tool.customToolId && (!tool.code || typeof tool.code !== 'string')) {
+              tool.code = ''
             }
           }
           return tool
