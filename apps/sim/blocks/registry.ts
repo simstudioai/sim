@@ -18,6 +18,7 @@ import { CursorBlock } from '@/blocks/blocks/cursor'
 import { DatadogBlock } from '@/blocks/blocks/datadog'
 import { DiscordBlock } from '@/blocks/blocks/discord'
 import { DropboxBlock } from '@/blocks/blocks/dropbox'
+import { DuckDuckGoBlock } from '@/blocks/blocks/duckduckgo'
 import { DynamoDBBlock } from '@/blocks/blocks/dynamodb'
 import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock } from '@/blocks/blocks/elevenlabs'
@@ -157,6 +158,7 @@ export const registry: Record<string, BlockConfig> = {
   datadog: DatadogBlock,
   discord: DiscordBlock,
   dropbox: DropboxBlock,
+  duckduckgo: DuckDuckGoBlock,
   elevenlabs: ElevenLabsBlock,
   elasticsearch: ElasticsearchBlock,
   evaluator: EvaluatorBlock,
