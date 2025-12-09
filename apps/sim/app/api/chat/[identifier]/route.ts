@@ -151,8 +151,8 @@ export async function POST(
       triggerType: 'chat',
       executionId,
       requestId,
-      checkRateLimit: false, // Chat bypasses rate limits
-      checkDeployment: true, // Chat requires deployed workflows
+      checkRateLimit: true,
+      checkDeployment: true,
       loggingSession,
     })
 
