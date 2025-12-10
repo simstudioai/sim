@@ -49,9 +49,6 @@ function isImageFile(mimeType: string): boolean {
 }
 
 function getFileUrl(file: ChatFile): string {
-  if (file.url) {
-    return file.url
-  }
   return `/api/files/serve/${encodeURIComponent(file.key)}?context=${file.context || 'execution'}`
 }
 
