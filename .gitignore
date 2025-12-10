@@ -67,6 +67,9 @@ start-collector.sh
 # VSCode
 .vscode
 
+# IntelliJ
+.idea
+
 ## Helm Chart Tests
 helm/sim/test
 i18n.cache
