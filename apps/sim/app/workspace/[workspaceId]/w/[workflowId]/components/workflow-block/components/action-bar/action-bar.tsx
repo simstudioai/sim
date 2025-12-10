@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react'
 import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, LogOut } from 'lucide-react'
-import { Button, Duplicate, Tooltip, Trash2 } from '@/components/emcn'
+import { Button, Copy, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -119,7 +119,7 @@ export const ActionBar = memo(
                 className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)]'
                 disabled={disabled}
               >
-                <Duplicate className='h-[11px] w-[11px]' />
+                <Copy className='h-[11px] w-[11px]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>{getTooltipMessage('Duplicate Block')}</Tooltip.Content>

@@ -410,7 +410,7 @@ export default function Logs() {
 
           {/* Dashboard view */}
           {isDashboardView && (
-            <div className='pr-[24px] pb-[24px]'>
+            <div className='flex min-h-0 flex-1 flex-col pr-[24px]'>
               <Dashboard isLive={isLive} refreshTrigger={dashboardRefreshTrigger} />
             </div>
           )}
