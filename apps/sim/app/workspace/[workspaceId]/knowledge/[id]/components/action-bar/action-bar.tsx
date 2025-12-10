@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion'
-import { Circle, CircleOff, Trash2 } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
-import { Button } from '@/components/ui/button'
+import { Circle, CircleOff } from 'lucide-react'
+import { Button, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 
@@ -42,23 +41,22 @@ export function ActionBar({
       transition={{ duration: 0.2 }}
       className={cn('-translate-x-1/2 fixed bottom-6 left-1/2 z-50 transform', className)}
     >
-      <div className='flex items-center gap-3 rounded-lg border border-gray-200 bg-background px-4 py-2 shadow-sm dark:border-gray-800'>
-        <span className='text-gray-500 text-sm'>{selectedCount} selected</span>
+      <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border-strong)] bg-[var(--surface-1)] p-[8px]'>
+        <span className='px-[4px] text-[13px] text-[var(--text-muted)]'>
+          {selectedCount} selected
+        </span>
 
-        <div className='h-4 w-px bg-gray-200 dark:bg-gray-800' />
-
-        <div className='flex items-center gap-1'>
+        <div className='flex items-center gap-[5px]'>
           {showEnableButton && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  size='sm'
                   onClick={onEnable}
                   disabled={isLoading}
-                  className='text-gray-500 hover:text-gray-700'
+                  className='hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)]'
                 >
-                  <Circle className='h-4 w-4' />
+                  <Circle className='h-[12px] w-[12px]' />
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
@@ -72,12 +70,11 @@ export function ActionBar({
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  size='sm'
                   onClick={onDisable}
                   disabled={isLoading}
-                  className='text-gray-500 hover:text-gray-700'
+                  className='hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)]'
                 >
-                  <CircleOff className='h-4 w-4' />
+                  <CircleOff className='h-[12px] w-[12px]' />
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
@@ -91,12 +88,11 @@ export function ActionBar({
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  size='sm'
                   onClick={onDelete}
                   disabled={isLoading}
-                  className='text-gray-500 hover:text-red-600'
+                  className='hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)]'
                 >
-                  <Trash2 className='h-4 w-4' />
+                  <Trash2 className='h-[12px] w-[12px]' />
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>Delete items</Tooltip.Content>

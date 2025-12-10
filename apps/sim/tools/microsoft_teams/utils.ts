@@ -132,6 +132,115 @@ export async function fetchHostedContentsForChannelMessage(params: {
   }
 }
 
+/**
+ * Download a reference-type attachment (SharePoint/OneDrive file) from Teams.
+ * These are files shared in Teams that are stored in SharePoint/OneDrive.
+ *
+ */
+export async function downloadReferenceAttachment(params: {
+  accessToken: string
+  attachment: MicrosoftTeamsAttachment
+}): Promise<ToolFileData | null> {
+  const { accessToken, attachment } = params
+
+  if (attachment.contentType !== 'reference') {
+    return null
+  }
+
+  const contentUrl = attachment.contentUrl
+  if (!contentUrl) {
+    logger.warn('Reference attachment has no contentUrl', { attachmentId: attachment.id })
+    return null
+  }
+
+  try {
+    const encodedUrl = Buffer.from(contentUrl)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+    const shareId = `u!${encodedUrl}`
+
+    const metadataUrl = `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem`
+    const metadataRes = await fetch(metadataUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+
+    if (!metadataRes.ok) {
+      const errorData = await metadataRes.json().catch(() => ({}))
+      logger.error('Failed to get driveItem metadata via shares API', {
+        status: metadataRes.status,
+        error: errorData,
+        attachmentName: attachment.name,
+      })
+      return null
+    }
+
+    const driveItem = await metadataRes.json()
+    const mimeType = driveItem.file?.mimeType || 'application/octet-stream'
+    const fileName = attachment.name || driveItem.name || 'attachment'
+
+    const downloadUrl = `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem/content`
+    const downloadRes = await fetch(downloadUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+
+    if (!downloadRes.ok) {
+      logger.error('Failed to download file content', {
+        status: downloadRes.status,
+        fileName,
+      })
+      return null
+    }
+
+    const arrayBuffer = await downloadRes.arrayBuffer()
+    const base64Data = Buffer.from(arrayBuffer).toString('base64')
+
+    logger.info('Successfully downloaded reference attachment', {
+      fileName,
+      size: arrayBuffer.byteLength,
+    })
+
+    return {
+      name: fileName,
+      mimeType,
+      data: base64Data,
+    }
+  } catch (error) {
+    logger.error('Error downloading reference attachment:', {
+      error,
+      attachmentId: attachment.id,
+      attachmentName: attachment.name,
+    })
+    return null
+  }
+}
+
+export async function downloadAllReferenceAttachments(params: {
+  accessToken: string
+  attachments: MicrosoftTeamsAttachment[]
+}): Promise<ToolFileData[]> {
+  const { accessToken, attachments } = params
+  const results: ToolFileData[] = []
+
+  const referenceAttachments = attachments.filter((att) => att.contentType === 'reference')
+
+  if (referenceAttachments.length === 0) {
+    return results
+  }
+
+  logger.info(`Downloading ${referenceAttachments.length} reference attachment(s)`)
+
+  for (const attachment of referenceAttachments) {
+    const file = await downloadReferenceAttachment({ accessToken, attachment })
+    if (file) {
+      results.push(file)
+    }
+  }
+
+  return results
+}
+
 function parseMentions(content: string): ParsedMention[] {
   const mentions: ParsedMention[] = []
   const mentionRegex = /<at>([^<]+)<\/at>/gi

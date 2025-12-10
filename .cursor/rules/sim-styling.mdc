@@ -1,0 +1,47 @@
+---
+description: Tailwind CSS and styling conventions
+globs: ["apps/sim/**/*.tsx", "apps/sim/**/*.css"]
+---
+
+# Styling Rules
+
+## Tailwind
+1. **No inline styles** - Use Tailwind classes exclusively
+2. **No duplicate dark classes** - Don't add `dark:` when value matches light mode
+3. **Exact values** - Use design system values (`text-[14px]`, `h-[25px]`)
+4. **Prefer px** - Use `px-[4px]` over `px-1`
+5. **Transitions** - Add `transition-colors` for interactive states
+
+## Conditional Classes
+```typescript
+import { cn } from '@/lib/utils'
+
+<div className={cn(
+  'base-classes',
+  isActive && 'active-classes',
+  disabled ? 'opacity-60' : 'hover:bg-accent'
+)} />
+```
+
+## CSS Variables for Dynamic Styles
+```typescript
+// In store setter
+setSidebarWidth: (width) => {
+  set({ sidebarWidth: width })
+  document.documentElement.style.setProperty('--sidebar-width', `${width}px`)
+}
+
+// In component
+<aside style={{ width: 'var(--sidebar-width)' }} />
+```
+
+## Anti-Patterns
+```typescript
+// ❌ Bad
+<div style={{ width: 200 }}>
+<div className='text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+
+// ✅ Good
+<div className='w-[200px]'>
+<div className='text-[var(--text-primary)]'>
+```

@@ -111,7 +111,7 @@ export function FileSelectorInput({
     return (
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <div className='w-full rounded border border-dashed p-4 text-center text-muted-foreground text-sm'>
+          <div className='w-full rounded border p-4 text-center text-muted-foreground text-sm'>
             File selector not supported for service: {serviceId || 'unknown'}
           </div>
         </Tooltip.Trigger>

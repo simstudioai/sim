@@ -9,11 +9,6 @@ export interface PolymarketGetTickSizeResponse {
   success: boolean
   output: {
     tickSize: string
-    metadata: {
-      operation: 'get_tick_size'
-      tokenId: string
-    }
-    success: boolean
   }
 }
 
@@ -46,7 +41,7 @@ export const polymarketGetTickSizeTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!response.ok) {
@@ -61,25 +56,14 @@ export const polymarketGetTickSizeTool: ToolConfig<
       success: true,
       output: {
         tickSize: String(tickSize),
-        metadata: {
-          operation: 'get_tick_size' as const,
-          tokenId: params?.tokenId || '',
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Tick size and metadata',
-      properties: {
-        tickSize: { type: 'string', description: 'Minimum tick size' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+    tickSize: {
+      type: 'string',
+      description: 'Minimum tick size',
     },
   },
 }

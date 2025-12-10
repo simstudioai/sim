@@ -147,7 +147,7 @@ export function SkeletonLoading({
   children,
 }: SkeletonLoadingProps) {
   return (
-    <div className='flex h-screen w-full flex-col overflow-hidden pl-64'>
+    <div className='flex h-full w-full flex-1 flex-col overflow-hidden'>
       {/* Skeleton Control Bar */}
       <div
         className={`transition-opacity duration-500 ${showSkeleton ? 'opacity-100' : 'pointer-events-none absolute opacity-0'}`}

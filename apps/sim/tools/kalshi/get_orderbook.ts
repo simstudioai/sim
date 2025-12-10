@@ -10,11 +10,6 @@ export interface KalshiGetOrderbookResponse {
   success: boolean
   output: {
     orderbook: KalshiOrderbook
-    metadata: {
-      operation: 'get_orderbook'
-      ticker: string
-    }
-    success: boolean
   }
 }
 
@@ -56,25 +51,14 @@ export const kalshiGetOrderbookTool: ToolConfig<
       success: true,
       output: {
         orderbook,
-        metadata: {
-          operation: 'get_orderbook' as const,
-          ticker: data.ticker || '',
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    orderbook: {
       type: 'object',
-      description: 'Orderbook data and metadata',
-      properties: {
-        orderbook: { type: 'object', description: 'Orderbook with yes/no bids and asks' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Orderbook with yes/no bids and asks',
     },
   },
 }

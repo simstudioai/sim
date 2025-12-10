@@ -1,4 +1,4 @@
 export { CreateChunkModal } from './create-chunk-modal/create-chunk-modal'
 export { DeleteChunkModal } from './delete-chunk-modal/delete-chunk-modal'
-export { DocumentLoading } from './document-loading'
+export { DocumentTagsModal } from './document-tags-modal/document-tags-modal'
 export { EditChunkModal } from './edit-chunk-modal/edit-chunk-modal'

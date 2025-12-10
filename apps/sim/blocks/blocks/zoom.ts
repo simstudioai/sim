@@ -540,33 +540,19 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
     deleteAction: { type: 'string', description: 'Delete action (trash or delete)' },
   },
   outputs: {
-    // Meeting outputs
-    meeting: { type: 'json', description: 'Meeting data' },
-    meetings: { type: 'json', description: 'List of meetings' },
-    // Specific meeting fields
-    id: { type: 'number', description: 'Meeting ID' },
-    uuid: { type: 'string', description: 'Meeting UUID' },
-    topic: { type: 'string', description: 'Meeting topic' },
-    join_url: { type: 'string', description: 'Join URL for participants' },
-    start_url: { type: 'string', description: 'Start URL for host' },
-    start_time: { type: 'string', description: 'Start time' },
-    duration: { type: 'number', description: 'Duration in minutes' },
-    timezone: { type: 'string', description: 'Timezone' },
-    password: { type: 'string', description: 'Meeting password' },
-    agenda: { type: 'string', description: 'Meeting agenda' },
-    settings: { type: 'json', description: 'Meeting settings' },
-    // Invitation
-    invitation: { type: 'string', description: 'Meeting invitation text' },
-    // Recording outputs
-    recording: { type: 'json', description: 'Recording data' },
-    recordings: { type: 'json', description: 'List of recordings' },
-    recording_files: { type: 'json', description: 'Recording files' },
-    share_url: { type: 'string', description: 'Share URL for recording' },
-    // Participant outputs
-    participants: { type: 'json', description: 'List of participants' },
-    // Pagination
-    pageInfo: { type: 'json', description: 'Pagination information' },
     // Success indicator
     success: { type: 'boolean', description: 'Operation success status' },
+    // Meeting outputs
+    meeting: { type: 'json', description: 'Meeting data (create_meeting, get_meeting)' },
+    meetings: { type: 'json', description: 'List of meetings (list_meetings)' },
+    // Invitation
+    invitation: { type: 'string', description: 'Meeting invitation text (get_meeting_invitation)' },
+    // Recording outputs
+    recording: { type: 'json', description: 'Recording data (get_meeting_recordings)' },
+    recordings: { type: 'json', description: 'List of recordings (list_recordings)' },
+    // Participant outputs
+    participants: { type: 'json', description: 'List of participants (list_past_participants)' },
+    // Pagination
+    pageInfo: { type: 'json', description: 'Pagination information' },
   },
 }

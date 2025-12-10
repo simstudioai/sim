@@ -49,8 +49,8 @@ Rufe eine Liste von Prognosemärkten von Kalshi mit optionaler Filterung ab
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Marktdaten und Metadaten |
+| `markets` | array | Array von Markt-Objekten |
+| `paging` | object | Paginierungscursor zum Abrufen weiterer Ergebnisse |
 
 ### `kalshi_get_market`
 
@@ -66,8 +66,7 @@ Rufe Details eines bestimmten Prognosemarkts nach Ticker ab
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Marktdaten und Metadaten |
+| `market` | object | Markt-Objekt mit Details |
 
 ### `kalshi_get_events`
 
@@ -85,10 +84,10 @@ Rufe eine Liste von Events von Kalshi mit optionaler Filterung ab
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Ereignisdaten und Metadaten |
+| `events` | array | Array von Ereignis-Objekten |
+| `paging` | object | Paginierungscursor zum Abrufen weiterer Ergebnisse |
 
 ### `kalshi_get_event`
 
@@ -103,10 +102,9 @@ Details eines bestimmten Ereignisses anhand des Tickers abrufen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Ereignisdaten und Metadaten |
+| `event` | object | Ereignis-Objekt mit Details |
 
 ### `kalshi_get_balance`
 
@@ -121,10 +119,12 @@ Kontostand und Portfoliowert von Kalshi abrufen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Kontostandsdaten und Metadaten |
+| `balance` | number | Kontostand in Cent |
+| `portfolioValue` | number | Portfoliowert in Cent |
+| `balanceDollars` | number | Kontostand in Dollar |
+| `portfolioValueDollars` | number | Portfoliowert in Dollar |
 
 ### `kalshi_get_positions`
 
@@ -146,8 +146,8 @@ Offene Positionen von Kalshi abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Positionsdaten und Metadaten |
+| `positions` | array | Array von Positions-Objekten |
+| `paging` | object | Paginierungscursor zum Abrufen weiterer Ergebnisse |
 
 ### `kalshi_get_orders`
 
@@ -169,8 +169,8 @@ Rufen Sie Ihre Bestellungen von Kalshi mit optionaler Filterung ab
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Bestelldaten und Metadaten |
+| `orders` | array | Array von Auftrags-Objekten |
+| `paging` | object | Paginierungscursor zum Abrufen weiterer Ergebnisse |
 
 ### `kalshi_get_order`
 
@@ -188,8 +188,7 @@ Rufen Sie Details zu einem bestimmten Auftrag anhand der ID von Kalshi ab
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Auftragsdaten |
+| `order` | object | Auftrags-Objekt mit Details |
 
 ### `kalshi_get_orderbook`
 
@@ -205,8 +204,7 @@ Rufen Sie das Orderbuch (Ja- und Nein-Gebote) für einen bestimmten Markt ab
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Orderbuch-Daten und Metadaten |
+| `orderbook` | object | Orderbuch mit Ja/Nein-Geboten und -Anfragen |
 
 ### `kalshi_get_trades`
 
@@ -223,8 +221,8 @@ Rufen Sie aktuelle Trades über alle Märkte hinweg ab
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Handelsdaten und Metadaten |
+| `trades` | array | Array von Handelsobjekten |
+| `paging` | object | Paginierungscursor zum Abrufen weiterer Ergebnisse |
 
 ### `kalshi_get_candlesticks`
 
@@ -244,8 +242,7 @@ OHLC-Kerzendaten für einen bestimmten Markt abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Kerzendaten und Metadaten |
+| `candlesticks` | array | Array von OHLC-Kerzendaten |
 
 ### `kalshi_get_fills`
 
@@ -268,8 +265,8 @@ Ihr Portfolio abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Ausführungsdaten und Metadaten |
+| `fills` | array | Array von Ausführungs-/Handelsobjekten |
+| `paging` | object | Paginierungscursor zum Abrufen weiterer Ergebnisse |
 
 ### `kalshi_get_series_by_ticker`
 
@@ -285,8 +282,7 @@ Details einer bestimmten Marktserie nach Ticker abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Seriendaten und Metadaten |
+| `series` | object | Serienobjekt mit Details |
 
 ### `kalshi_get_exchange_status`
 
@@ -301,8 +297,7 @@ Den aktuellen Status der Kalshi-Börse abrufen (Handel und Börsenaktivität)
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Börsenstatus-Daten und Metadaten |
+| `status` | object | Börsenstatus mit trading_active und exchange_active Flags |
 
 ### `kalshi_create_order`
 
@@ -336,8 +331,7 @@ Eine neue Order auf einem Kalshi-Prognosemarkt erstellen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Erstellte Auftragsdaten |
+| `order` | object | Das erstellte Auftragsobjekt |
 
 ### `kalshi_cancel_order`
 
@@ -355,8 +349,8 @@ Einen bestehenden Auftrag auf Kalshi stornieren
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Stornierte Auftragsdaten |
+| `order` | object | Das stornierte Auftragsobjekt |
+| `reducedBy` | number | Anzahl der stornierten Kontrakte |
 
 ### `kalshi_amend_order`
 
@@ -384,8 +378,7 @@ Preis oder Menge eines bestehenden Auftrags auf Kalshi ändern
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Geänderte Auftragsdaten |
+| `order` | object | Das geänderte Auftragsobjekt |
 
 ## Hinweise
 

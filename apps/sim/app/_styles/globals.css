@@ -206,6 +206,9 @@
     --terminal-status-info-bg: #f5f5f4; /* stone-100 */
     --terminal-status-info-border: #a8a29e; /* stone-400 */
     --terminal-status-info-color: #57534e; /* stone-600 */
+    --terminal-status-warning-bg: #fef9e7;
+    --terminal-status-warning-border: #f5c842;
+    --terminal-status-warning-color: #a16207;
   }
   .dark {
     /* Neutrals (surfaces) */
@@ -336,6 +339,9 @@
     --terminal-status-info-bg: #383838;
     --terminal-status-info-border: #686868;
     --terminal-status-info-color: #b7b7b7;
+    --terminal-status-warning-bg: #3d3520;
+    --terminal-status-warning-border: #5c4d1f;
+    --terminal-status-warning-color: #d4a72c;
   }
 }
 

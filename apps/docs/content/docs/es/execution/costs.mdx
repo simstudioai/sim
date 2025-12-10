@@ -147,8 +147,20 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 {
   "success": true,
   "rateLimit": {
-    "sync": { "isLimited": false, "limit": 10, "remaining": 10, "resetAt": "2025-09-08T22:51:55.999Z" },
-    "async": { "isLimited": false, "limit": 50, "remaining": 50, "resetAt": "2025-09-08T22:51:56.155Z" },
+    "sync": {
+      "isLimited": false,
+      "requestsPerMinute": 25,
+      "maxBurst": 50,
+      "remaining": 50,
+      "resetAt": "2025-09-08T22:51:55.999Z"
+    },
+    "async": {
+      "isLimited": false,
+      "requestsPerMinute": 200,
+      "maxBurst": 400,
+      "remaining": 400,
+      "resetAt": "2025-09-08T22:51:56.155Z"
+    },
     "authType": "api"
   },
   "usage": {
@@ -158,6 +170,11 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
   }
 }
 ```
+
+**Campos de límite de tasa:**
+- `requestsPerMinute`: Límite de tasa sostenida (los tokens se recargan a esta velocidad)
+- `maxBurst`: Máximo de tokens que puedes acumular (capacidad de ráfaga)
+- `remaining`: Tokens disponibles actualmente (puede ser hasta `maxBurst`)
 
 **Campos de respuesta:**
 - `currentPeriodCost` refleja el uso en el período de facturación actual
@@ -170,38 +187,38 @@ Los diferentes planes de suscripción tienen diferentes límites de uso:
 
 | Plan | Límite de uso mensual | Límites de tasa (por minuto) |
 |------|-------------------|-------------------------|
-| **Gratuito** | $10 | 5 sinc, 10 asinc |
-| **Pro** | $100 | 10 sinc, 50 asinc |
-| **Equipo** | $500 (agrupado) | 50 sinc, 100 asinc |
+| **Gratuito** | $10 | 5 sincrónico, 10 asincrónico |
+| **Pro** | $100 | 10 sincrónico, 50 asincrónico |
+| **Equipo** | $500 (agrupado) | 50 sincrónico, 100 asincrónico |
 | **Empresa** | Personalizado | Personalizado |
 
 ## Modelo de facturación
 
-Sim utiliza un modelo de facturación de **suscripción base + exceso**:
+Sim utiliza un modelo de facturación de **suscripción base + excedente**:
 
 ### Cómo funciona
 
 **Plan Pro ($20/mes):**
 - La suscripción mensual incluye $20 de uso
 - Uso por debajo de $20 → Sin cargos adicionales
-- Uso por encima de $20 → Pagas el exceso al final del mes
-- Ejemplo: $35 de uso = $20 (suscripción) + $15 (exceso)
+- Uso por encima de $20 → Pagas el excedente al final del mes
+- Ejemplo: $35 de uso = $20 (suscripción) + $15 (excedente)
 
-**Plan de equipo ($40/usuario/mes):**
+**Plan de Equipo ($40/usuario/mes):**
 - Uso agrupado entre todos los miembros del equipo
-- Exceso calculado del uso total del equipo
+- Excedente calculado del uso total del equipo
 - El propietario de la organización recibe una sola factura
 
-**Planes empresariales:**
-- Precio mensual fijo, sin excesos
+**Planes Empresariales:**
+- Precio mensual fijo, sin excedentes
 - Límites de uso personalizados según el acuerdo
 
 ### Facturación por umbral
 
-Cuando el exceso no facturado alcanza los $50, Sim factura automáticamente el monto total no facturado.
+Cuando el excedente no facturado alcanza los $50, Sim factura automáticamente el monto total no facturado.
 
 **Ejemplo:**
-- Día 10: $70 de exceso → Factura inmediata de $70
+- Día 10: $70 de excedente → Factura inmediata de $70
 - Día 15: $35 adicionales de uso ($105 en total) → Ya facturado, sin acción
 - Día 20: Otros $50 de uso ($155 en total, $85 no facturados) → Factura inmediata de $85
 
@@ -209,8 +226,8 @@ Esto distribuye los cargos por exceso a lo largo del mes en lugar de una gran fa
 
 ## Mejores prácticas para la gestión de costos
 
-1. **Monitorear regularmente**: Revisa tu panel de uso frecuentemente para evitar sorpresas
-2. **Establecer presupuestos**: Usa los límites del plan como guías para tu gasto
+1. **Monitorear regularmente**: Revisa tu panel de uso con frecuencia para evitar sorpresas
+2. **Establecer presupuestos**: Utiliza los límites del plan como guías para tu gasto
 3. **Optimizar flujos de trabajo**: Revisa las ejecuciones de alto costo y optimiza los prompts o la selección de modelos
 4. **Usar modelos apropiados**: Ajusta la complejidad del modelo a los requisitos de la tarea
 5. **Agrupar tareas similares**: Combina múltiples solicitudes cuando sea posible para reducir la sobrecarga

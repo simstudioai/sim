@@ -6,12 +6,14 @@ import { RateLimiter } from '@/lib/core/rate-limiter'
 export interface UserLimits {
   workflowExecutionRateLimit: {
     sync: {
-      limit: number
+      requestsPerMinute: number
+      maxBurst: number
       remaining: number
       resetAt: string
     }
     async: {
-      limit: number
+      requestsPerMinute: number
+      maxBurst: number
       remaining: number
       resetAt: string
     }
@@ -40,12 +42,14 @@ export async function getUserLimits(userId: string): Promise<UserLimits> {
   return {
     workflowExecutionRateLimit: {
       sync: {
-        limit: syncStatus.limit,
+        requestsPerMinute: syncStatus.requestsPerMinute,
+        maxBurst: syncStatus.maxBurst,
         remaining: syncStatus.remaining,
         resetAt: syncStatus.resetAt.toISOString(),
       },
       async: {
-        limit: asyncStatus.limit,
+        requestsPerMinute: asyncStatus.requestsPerMinute,
+        maxBurst: asyncStatus.maxBurst,
         remaining: asyncStatus.remaining,
         resetAt: asyncStatus.resetAt.toISOString(),
       },

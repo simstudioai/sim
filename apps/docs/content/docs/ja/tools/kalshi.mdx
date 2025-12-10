@@ -49,8 +49,8 @@ Kalshiの予測市場をワークフローに統合します。市場一覧、�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 市場データとメタデータ |
+| `markets` | array | 市場オブジェクトの配列 |
+| `paging` | object | さらに結果を取得するためのページネーションカーソル |
 
 ### `kalshi_get_market`
 
@@ -66,8 +66,7 @@ Kalshiの予測市場をワークフローに統合します。市場一覧、�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 市場データとメタデータ |
+| `market` | object | 詳細情報を含む市場オブジェクト |
 
 ### `kalshi_get_events`
 
@@ -87,8 +86,8 @@ Kalshiの予測市場をワークフローに統合します。市場一覧、�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | イベントデータとメタデータ |
+| `events` | array | イベントオブジェクトの配列 |
+| `paging` | object | さらに結果を取得するためのページネーションカーソル |
 
 ### `kalshi_get_event`
 
@@ -105,8 +104,7 @@ Kalshiの予測市場をワークフローに統合します。市場一覧、�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | イベントデータとメタデータ |
+| `event` | object | 詳細情報を含むイベントオブジェクト |
 
 ### `kalshi_get_balance`
 
@@ -123,8 +121,10 @@ Kalshiからアカウント残高とポートフォリオ価値を取得
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 残高データとメタデータ |
+| `balance` | number | セント単位のアカウント残高 |
+| `portfolioValue` | number | セント単位のポートフォリオ価値 |
+| `balanceDollars` | number | ドル単位のアカウント残高 |
+| `portfolioValueDollars` | number | ドル単位のポートフォリオ価値 |
 
 ### `kalshi_get_positions`
 
@@ -146,8 +146,8 @@ Kalshiからオープンポジションを取得
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | ポジションデータとメタデータ |
+| `positions` | array | ポジションオブジェクトの配列 |
+| `paging` | object | さらに結果を取得するためのページネーションカーソル |
 
 ### `kalshi_get_orders`
 
@@ -169,8 +169,8 @@ Kalshiからオープンポジションを取得
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 注文データとメタデータ |
+| `orders` | array | 注文オブジェクトの配列 |
+| `paging` | object | さらに結果を取得するためのページネーションカーソル |
 
 ### `kalshi_get_order`
 
@@ -188,8 +188,7 @@ IDを指定してKalshiから特定の注文の詳細を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 注文データ |
+| `order` | object | 詳細情報を含む注文オブジェクト |
 
 ### `kalshi_get_orderbook`
 
@@ -205,8 +204,7 @@ IDを指定してKalshiから特定の注文の詳細を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 注文板データとメタデータ |
+| `orderbook` | object | yes/noの買い注文と売り注文を含むオーダーブック |
 
 ### `kalshi_get_trades`
 
@@ -223,8 +221,8 @@ IDを指定してKalshiから特定の注文の詳細を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 取引データとメタデータ |
+| `trades` | array | 取引オブジェクトの配列 |
+| `paging` | object | さらに結果を取得するためのページネーションカーソル |
 
 ### `kalshi_get_candlesticks`
 
@@ -244,8 +242,7 @@ IDを指定してKalshiから特定の注文の詳細を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | ローソク足データとメタデータ |
+| `candlesticks` | array | OHLC（始値・高値・安値・終値）ローソク足データの配列 |
 
 ### `kalshi_get_fills`
 
@@ -268,8 +265,8 @@ IDを指定してKalshiから特定の注文の詳細を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 約定データとメタデータ |
+| `fills` | array | 約定/取引オブジェクトの配列 |
+| `paging` | object | さらに結果を取得するためのページネーションカーソル |
 
 ### `kalshi_get_series_by_ticker`
 
@@ -285,8 +282,7 @@ IDを指定してKalshiから特定の注文の詳細を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | シリーズデータとメタデータ |
+| `series` | object | 詳細を含むシリーズオブジェクト |
 
 ### `kalshi_get_exchange_status`
 
@@ -301,8 +297,7 @@ Kalshi取引所の現在のステータス（取引と取引所のアクティ�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 取引所ステータスデータとメタデータ |
+| `status` | object | trading_activeとexchange_activeフラグを含む取引所ステータス |
 
 ### `kalshi_create_order`
 
@@ -336,8 +331,7 @@ Kalshi予測市場に新しい注文を作成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 作成された注文データ |
+| `order` | object | 作成された注文オブジェクト |
 
 ### `kalshi_cancel_order`
 
@@ -355,8 +349,8 @@ Kalshiで既存の注文をキャンセルする
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | キャンセルされた注文データ |
+| `order` | object | キャンセルされた注文オブジェクト |
+| `reducedBy` | number | キャンセルされた契約数 |
 
 ### `kalshi_amend_order`
 
@@ -384,8 +378,7 @@ Kalshiで既存の注文の価格または数量を変更する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 変更された注文データ |
+| `order` | object | 変更された注文オブジェクト |
 
 ## 注意事項
 

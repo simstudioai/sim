@@ -9,11 +9,6 @@ export interface PolymarketGetLastTradePriceResponse {
   success: boolean
   output: {
     price: string
-    metadata: {
-      operation: 'get_last_trade_price'
-      tokenId: string
-    }
-    success: boolean
   }
 }
 
@@ -46,7 +41,7 @@ export const polymarketGetLastTradePriceTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!response.ok) {
@@ -57,25 +52,14 @@ export const polymarketGetLastTradePriceTool: ToolConfig<
       success: true,
       output: {
         price: typeof data === 'string' ? data : data.price || '',
-        metadata: {
-          operation: 'get_last_trade_price' as const,
-          tokenId: params?.tokenId || '',
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Last trade price and metadata',
-      properties: {
-        price: { type: 'string', description: 'Last trade price' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+    price: {
+      type: 'string',
+      description: 'Last trade price',
     },
   },
 }

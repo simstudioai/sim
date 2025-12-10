@@ -343,19 +343,30 @@ Eliminar una plantilla de correo electrónico de SendGrid
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
+| `message` | string | Mensaje de estado o éxito |
 | `messageId` | string | ID del mensaje de correo electrónico \(send_mail\) |
+| `to` | string | Dirección de correo electrónico del destinatario \(send_mail\) |
+| `subject` | string | Asunto del correo electrónico \(send_mail, create_template_version\) |
 | `id` | string | ID del recurso |
-| `jobId` | string | ID del trabajo para operaciones asíncronas |
-| `email` | string | Dirección de correo electrónico |
-| `firstName` | string | Nombre |
-| `lastName` | string | Apellido |
+| `jobId` | string | ID de trabajo para operaciones asíncronas |
+| `email` | string | Dirección de correo electrónico del contacto |
+| `firstName` | string | Nombre del contacto |
+| `lastName` | string | Apellido del contacto |
+| `createdAt` | string | Marca de tiempo de creación |
+| `updatedAt` | string | Marca de tiempo de última actualización |
+| `listIds` | json | Array de IDs de listas a las que pertenece el contacto |
+| `customFields` | json | Valores de campos personalizados |
 | `contacts` | json | Array de contactos |
 | `contactCount` | number | Número de contactos |
 | `lists` | json | Array de listas |
-| `templates` | json | Array de plantillas |
-| `message` | string | Estado o mensaje de éxito |
 | `name` | string | Nombre del recurso |
+| `templates` | json | Array de plantillas |
 | `generation` | string | Generación de plantilla |
+| `versions` | json | Array de versiones de plantilla |
+| `templateId` | string | ID de plantilla |
+| `active` | boolean | Si la versión de la plantilla está activa |
+| `htmlContent` | string | Contenido HTML |
+| `plainContent` | string | Contenido de texto plano |
 
 ### `sendgrid_create_template_version`
 

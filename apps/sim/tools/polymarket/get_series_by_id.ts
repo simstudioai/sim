@@ -10,11 +10,6 @@ export interface PolymarketGetSeriesByIdResponse {
   success: boolean
   output: {
     series: PolymarketSeries
-    metadata: {
-      operation: 'get_series_by_id'
-      seriesId: string
-    }
-    success: boolean
   }
 }
 
@@ -43,7 +38,7 @@ export const polymarketGetSeriesByIdTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!response.ok) {
@@ -54,25 +49,14 @@ export const polymarketGetSeriesByIdTool: ToolConfig<
       success: true,
       output: {
         series: data,
-        metadata: {
-          operation: 'get_series_by_id' as const,
-          seriesId: params?.seriesId || '',
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    series: {
       type: 'object',
-      description: 'Series data and metadata',
-      properties: {
-        series: { type: 'object', description: 'Series object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Series object with details',
     },
   },
 }

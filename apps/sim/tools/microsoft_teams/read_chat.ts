@@ -3,6 +3,7 @@ import type {
   MicrosoftTeamsToolParams,
 } from '@/tools/microsoft_teams/types'
 import {
+  downloadAllReferenceAttachments,
   extractMessageAttachments,
   fetchHostedContentsForChatMessage,
 } from '@/tools/microsoft_teams/utils'
@@ -43,17 +44,14 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
 
   request: {
     url: (params) => {
-      // Ensure chatId is valid
       const chatId = params.chatId?.trim()
       if (!chatId) {
         throw new Error('Chat ID is required')
       }
-      // Fetch the most recent messages from the chat
       return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages?$top=50&$orderby=createdDateTime desc`
     },
     method: 'GET',
     headers: (params) => {
-      // Validate access token
       if (!params.accessToken) {
         throw new Error('Access token is required')
       }
@@ -67,7 +65,6 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
   transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     const data = await response.json()
 
-    // Microsoft Graph API returns messages in a 'value' array
     const messages = data.value || []
 
     if (messages.length === 0) {
@@ -86,24 +83,28 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       }
     }
 
-    // Process messages with attachments
     const processedMessages = await Promise.all(
       messages.map(async (message: any) => {
         const content = message.body?.content || 'No content'
         const messageId = message.id
 
-        // Extract attachments without any content processing
         const attachments = extractMessageAttachments(message)
 
-        // Optionally fetch and upload hosted contents
         let uploaded: any[] = []
         if (params?.includeAttachments && params.accessToken && params.chatId && messageId) {
           try {
-            uploaded = await fetchHostedContentsForChatMessage({
+            const hostedContents = await fetchHostedContentsForChatMessage({
               accessToken: params.accessToken,
               chatId: params.chatId,
               messageId,
             })
+            uploaded.push(...hostedContents)
+
+            const referenceFiles = await downloadAllReferenceAttachments({
+              accessToken: params.accessToken,
+              attachments,
+            })
+            uploaded.push(...referenceFiles)
           } catch (_e) {
             uploaded = []
           }

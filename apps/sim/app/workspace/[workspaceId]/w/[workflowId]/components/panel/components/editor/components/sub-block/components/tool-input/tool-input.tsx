@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -672,7 +672,7 @@ function WorkflowInputMapperSyncWrapper({
 
   if (!workflowId) {
     return (
-      <div className='rounded-md border border-gray-600/50 border-dashed bg-gray-900/20 p-4 text-center text-gray-400 text-sm'>
+      <div className='rounded-md border border-gray-600/50 bg-gray-900/20 p-4 text-center text-gray-400 text-sm'>
         Select a workflow to configure its inputs
       </div>
     )
@@ -688,7 +688,7 @@ function WorkflowInputMapperSyncWrapper({
 
   if (inputFields.length === 0) {
     return (
-      <div className='rounded-md border border-gray-600/50 border-dashed bg-gray-900/20 p-4 text-center text-gray-400 text-sm'>
+      <div className='rounded-md border border-gray-600/50 bg-gray-900/20 p-4 text-center text-gray-400 text-sm'>
         This workflow has no custom input fields
       </div>
     )
@@ -792,6 +792,7 @@ export function ToolInput({
   const [searchQuery, setSearchQuery] = useState('')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [usageControlPopoverIndex, setUsageControlPopoverIndex] = useState<number | null>(null)
   const { data: customTools = [] } = useCustomTools(workspaceId)
 
   const {
@@ -844,6 +845,52 @@ export function ToolInput({
     Array.isArray(value) && value.length > 0 && typeof value[0] === 'object'
       ? (value as unknown as StoredTool[])
       : []
+
+  const hasBackfilledRef = useRef(false)
+  useEffect(() => {
+    if (
+      isPreview ||
+      mcpLoading ||
+      mcpTools.length === 0 ||
+      selectedTools.length === 0 ||
+      hasBackfilledRef.current
+    ) {
+      return
+    }
+
+    const mcpToolsNeedingSchema = selectedTools.filter(
+      (tool) => tool.type === 'mcp' && !tool.schema && tool.params?.toolName
+    )
+
+    if (mcpToolsNeedingSchema.length === 0) {
+      return
+    }
+
+    const updatedTools = selectedTools.map((tool) => {
+      if (tool.type !== 'mcp' || tool.schema || !tool.params?.toolName) {
+        return tool
+      }
+
+      const mcpTool = mcpTools.find(
+        (mt) => mt.name === tool.params?.toolName && mt.serverId === tool.params?.serverId
+      )
+
+      if (mcpTool?.inputSchema) {
+        logger.info(`Backfilling schema for MCP tool: ${tool.params.toolName}`)
+        return { ...tool, schema: mcpTool.inputSchema }
+      }
+
+      return tool
+    })
+
+    const hasChanges = updatedTools.some((tool, i) => tool.schema && !selectedTools[i].schema)
+
+    if (hasChanges) {
+      hasBackfilledRef.current = true
+      logger.info(`Backfilled schemas for ${mcpToolsNeedingSchema.length} MCP tool(s)`)
+      setStoreValue(updatedTools)
+    }
+  }, [mcpTools, mcpLoading, selectedTools, isPreview, setStoreValue])
 
   /**
    * Checks if a tool is already selected in the current workflow
@@ -1980,7 +2027,12 @@ export function ToolInput({
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-[8px]'>
                     {supportsToolControl && (
-                      <Popover>
+                      <Popover
+                        open={usageControlPopoverIndex === toolIndex}
+                        onOpenChange={(open) =>
+                          setUsageControlPopoverIndex(open ? toolIndex : null)
+                        }
+                      >
                         <PopoverTrigger asChild>
                           <button
                             className='flex items-center justify-center font-medium text-[12px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
@@ -2002,20 +2054,29 @@ export function ToolInput({
                         >
                           <PopoverItem
                             active={(tool.usageControl || 'auto') === 'auto'}
-                            onClick={() => handleUsageControlChange(toolIndex, 'auto')}
+                            onClick={() => {
+                              handleUsageControlChange(toolIndex, 'auto')
+                              setUsageControlPopoverIndex(null)
+                            }}
                           >
                             Auto{' '}
                             <span className='text-[var(--text-tertiary)]'>(model decides)</span>
                           </PopoverItem>
                           <PopoverItem
                             active={tool.usageControl === 'force'}
-                            onClick={() => handleUsageControlChange(toolIndex, 'force')}
+                            onClick={() => {
+                              handleUsageControlChange(toolIndex, 'force')
+                              setUsageControlPopoverIndex(null)
+                            }}
                           >
                             Force <span className='text-[var(--text-tertiary)]'>(always use)</span>
                           </PopoverItem>
                           <PopoverItem
                             active={tool.usageControl === 'none'}
-                            onClick={() => handleUsageControlChange(toolIndex, 'none')}
+                            onClick={() => {
+                              handleUsageControlChange(toolIndex, 'none')
+                              setUsageControlPopoverIndex(null)
+                            }}
                           >
                             None
                           </PopoverItem>
@@ -2314,7 +2375,7 @@ export function ToolInput({
                         mcpTools={mcpTools}
                         searchQuery={searchQuery || ''}
                         customFilter={customFilter}
-                        onToolSelect={(tool) => handleMcpToolSelect(tool, false)}
+                        onToolSelect={handleMcpToolSelect}
                         disabled={false}
                       />
 

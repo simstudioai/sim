@@ -10,10 +10,6 @@ export interface KalshiGetMarketResponse {
   success: boolean
   output: {
     market: KalshiMarket
-    metadata: {
-      operation: 'get_market'
-    }
-    success: boolean
   }
 }
 
@@ -50,24 +46,14 @@ export const kalshiGetMarketTool: ToolConfig<KalshiGetMarketParams, KalshiGetMar
       success: true,
       output: {
         market: data.market,
-        metadata: {
-          operation: 'get_market' as const,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    market: {
       type: 'object',
-      description: 'Market data and metadata',
-      properties: {
-        market: { type: 'object', description: 'Market object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Market object with details',
     },
   },
 }

@@ -13,11 +13,6 @@ export interface KalshiGetMarketsResponse {
   output: {
     markets: KalshiMarket[]
     paging?: KalshiPagingInfo
-    metadata: {
-      operation: 'get_markets'
-      totalReturned: number
-    }
-    success: boolean
   }
 }
 
@@ -90,26 +85,18 @@ export const kalshiGetMarketsTool: ToolConfig<KalshiGetMarketsParams, KalshiGetM
         paging: {
           cursor: data.cursor || null,
         },
-        metadata: {
-          operation: 'get_markets' as const,
-          totalReturned: markets.length,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    markets: {
+      type: 'array',
+      description: 'Array of market objects',
+    },
+    paging: {
       type: 'object',
-      description: 'Markets data and metadata',
-      properties: {
-        markets: { type: 'array', description: 'Array of market objects' },
-        paging: { type: 'object', description: 'Pagination information' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Pagination cursor for fetching more results',
     },
   },
 }

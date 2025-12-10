@@ -147,8 +147,20 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 {
   "success": true,
   "rateLimit": {
-    "sync": { "isLimited": false, "limit": 10, "remaining": 10, "resetAt": "2025-09-08T22:51:55.999Z" },
-    "async": { "isLimited": false, "limit": 50, "remaining": 50, "resetAt": "2025-09-08T22:51:56.155Z" },
+    "sync": {
+      "isLimited": false,
+      "requestsPerMinute": 25,
+      "maxBurst": 50,
+      "remaining": 50,
+      "resetAt": "2025-09-08T22:51:55.999Z"
+    },
+    "async": {
+      "isLimited": false,
+      "requestsPerMinute": 200,
+      "maxBurst": 400,
+      "remaining": 400,
+      "resetAt": "2025-09-08T22:51:56.155Z"
+    },
     "authType": "api"
   },
   "usage": {
@@ -159,49 +171,54 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 }
 ```
 
+**Rate-Limit-Felder:**
+- `requestsPerMinute`: Dauerhafte Rate-Begrenzung (Tokens werden mit dieser Rate aufgefüllt)
+- `maxBurst`: Maximale Tokens, die Sie ansammeln können (Burst-Kapazität)
+- `remaining`: Aktuell verfügbare Tokens (können bis zu `maxBurst` sein)
+
 **Antwortfelder:**
-- `currentPeriodCost` zeigt die Nutzung im aktuellen Abrechnungszeitraum
-- `limit` wird aus individuellen Limits (Free/Pro) oder gebündelten Organisationslimits (Team/Enterprise) abgeleitet
+- `currentPeriodCost` spiegelt die Nutzung in der aktuellen Abrechnungsperiode wider
+- `limit` wird von individuellen Limits (Free/Pro) oder gepoolten Organisationslimits (Team/Enterprise) abgeleitet
 - `plan` ist der aktive Plan mit der höchsten Priorität, der mit Ihrem Benutzer verknüpft ist
 
 ## Plan-Limits
 
 Verschiedene Abonnementpläne haben unterschiedliche Nutzungslimits:
 
-| Plan | Monatliches Nutzungslimit | Ratengrenze (pro Minute) |
+| Plan | Monatliches Nutzungslimit | Rate-Limits (pro Minute) |
 |------|-------------------|-------------------------|
 | **Free** | $10 | 5 sync, 10 async |
 | **Pro** | $100 | 10 sync, 50 async |
-| **Team** | $500 (gebündelt) | 50 sync, 100 async |
+| **Team** | $500 (gepoolt) | 50 sync, 100 async |
 | **Enterprise** | Individuell | Individuell |
 
 ## Abrechnungsmodell
 
-Sim verwendet ein **Basisabonnement + Überschreitung** Abrechnungsmodell:
+Sim verwendet ein **Basisabonnement + Mehrverbrauch**-Abrechnungsmodell:
 
 ### Wie es funktioniert
 
-**Pro Plan ($20/Monat):**
+**Pro-Plan ($20/Monat):**
 - Monatliches Abonnement beinhaltet $20 Nutzung
 - Nutzung unter $20 → Keine zusätzlichen Kosten
-- Nutzung über $20 → Zahlung der Überschreitung am Monatsende
-- Beispiel: $35 Nutzung = $20 (Abonnement) + $15 (Überschreitung)
+- Nutzung über $20 → Zahlen Sie den Mehrverbrauch am Monatsende
+- Beispiel: $35 Nutzung = $20 (Abonnement) + $15 (Mehrverbrauch)
 
-**Team Plan ($40/Benutzer/Monat):**
-- Gebündelte Nutzung für alle Teammitglieder
-- Überschreitung wird aus der Gesamtnutzung des Teams berechnet
+**Team-Plan ($40/Benutzer/Monat):**
+- Gepoolte Nutzung für alle Teammitglieder
+- Mehrverbrauch wird aus der Gesamtnutzung des Teams berechnet
 - Organisationsinhaber erhält eine Rechnung
 
-**Enterprise Pläne:**
-- Fester monatlicher Preis, keine Überschreitungen
+**Enterprise-Pläne:**
+- Fester monatlicher Preis, kein Mehrverbrauch
 - Individuelle Nutzungslimits gemäß Vereinbarung
 
-### Schwellenwertabrechnung
+### Schwellenwert-Abrechnung
 
-Wenn die nicht abgerechnete Überschreitung $50 erreicht, berechnet Sim automatisch den gesamten nicht abgerechneten Betrag.
+Wenn der nicht abgerechnete Mehrverbrauch $50 erreicht, berechnet Sim automatisch den gesamten nicht abgerechneten Betrag.
 
 **Beispiel:**
-- Tag 10: $70 Überschreitung → Sofortige Abrechnung von $70
+- Tag 10: $70 Mehrverbrauch → Sofortige Abrechnung von $70
 - Tag 15: Zusätzliche $35 Nutzung ($105 insgesamt) → Bereits abgerechnet, keine Aktion
 - Tag 20: Weitere $50 Nutzung ($155 insgesamt, $85 nicht abgerechnet) → Sofortige Abrechnung von $85
 

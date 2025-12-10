@@ -18,7 +18,6 @@ export async function GET(request: NextRequest) {
     }
     const authenticatedUserId = auth.userId
 
-    // Rate limit info (sync + async), mirroring /users/me/rate-limit
     const userSubscription = await getHighestPrioritySubscription(authenticatedUserId)
     const rateLimiter = new RateLimiter()
     const triggerType = auth.authType === 'api_key' ? 'api' : 'manual'
@@ -37,7 +36,6 @@ export async function GET(request: NextRequest) {
       ),
     ])
 
-    // Usage summary (current period cost + limit + plan)
     const [usageCheck, effectiveCost, storageUsage, storageLimit] = await Promise.all([
       checkServerSideUsageLimits(authenticatedUserId),
       getEffectiveCurrentPeriodCost(authenticatedUserId),
@@ -52,13 +50,15 @@ export async function GET(request: NextRequest) {
       rateLimit: {
         sync: {
           isLimited: syncStatus.remaining === 0,
-          limit: syncStatus.limit,
+          requestsPerMinute: syncStatus.requestsPerMinute,
+          maxBurst: syncStatus.maxBurst,
           remaining: syncStatus.remaining,
           resetAt: syncStatus.resetAt,
         },
         async: {
           isLimited: asyncStatus.remaining === 0,
-          limit: asyncStatus.limit,
+          requestsPerMinute: asyncStatus.requestsPerMinute,
+          maxBurst: asyncStatus.maxBurst,
           remaining: asyncStatus.remaining,
           resetAt: asyncStatus.resetAt,
         },

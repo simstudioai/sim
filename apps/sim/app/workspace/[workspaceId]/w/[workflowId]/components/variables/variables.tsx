@@ -3,19 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
-import type { ComboboxOption } from '@/components/emcn'
 import {
   Badge,
   Button,
   Code,
   Combobox,
+  type ComboboxOption,
   calculateGutterWidth,
   getCodeEditorProps,
   highlight,
   Input,
+  Label,
   languages,
 } from '@/components/emcn'
-import { Label } from '@/components/emcn/components/label/label'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
 import { validateName } from '@/lib/core/utils/validation'

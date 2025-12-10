@@ -14,13 +14,6 @@ export interface KalshiGetCandlesticksResponse {
   success: boolean
   output: {
     candlesticks: KalshiCandlestick[]
-    metadata: {
-      operation: 'get_candlesticks'
-      seriesTicker: string
-      ticker: string
-      totalReturned: number
-    }
-    success: boolean
   }
 }
 
@@ -93,27 +86,14 @@ export const kalshiGetCandlesticksTool: ToolConfig<
       success: true,
       output: {
         candlesticks,
-        metadata: {
-          operation: 'get_candlesticks' as const,
-          seriesTicker: data.series_ticker || '',
-          ticker: data.ticker || '',
-          totalReturned: candlesticks.length,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Candlestick data and metadata',
-      properties: {
-        candlesticks: { type: 'array', description: 'Array of OHLC candlestick objects' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+    candlesticks: {
+      type: 'array',
+      description: 'Array of OHLC candlestick data',
     },
   },
 }

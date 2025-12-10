@@ -27,14 +27,16 @@ curl -H "x-api-key: YOUR_API_KEY" \
 "limits": {
   "workflowExecutionRateLimit": {
     "sync": {
-      "limit": 60,        // Max sync workflow executions per minute
-      "remaining": 58,    // Remaining sync workflow executions
-      "resetAt": "..."    // When the window resets
+      "requestsPerMinute": 60,  // Sustained rate limit per minute
+      "maxBurst": 120,          // Maximum burst capacity
+      "remaining": 118,         // Current tokens available (up to maxBurst)
+      "resetAt": "..."          // When tokens next refill
     },
     "async": {
-      "limit": 60,        // Max async workflow executions per minute
-      "remaining": 59,    // Remaining async workflow executions
-      "resetAt": "..."    // When the window resets
+      "requestsPerMinute": 200, // Sustained rate limit per minute
+      "maxBurst": 400,          // Maximum burst capacity
+      "remaining": 398,         // Current tokens available
+      "resetAt": "..."          // When tokens next refill
     }
   },
   "usage": {
@@ -46,7 +48,7 @@ curl -H "x-api-key: YOUR_API_KEY" \
 }
 ```
 
-**注意：** 响应正文中的速率限制是针对工作流执行的。调用此 API 端点的速率限制在响应标头中（`X-RateLimit-*`）。
+**注意：** 速率限制使用令牌桶算法。`remaining` 可以超过 `requestsPerMinute` 达到 `maxBurst`，当您最近未使用全部配额时，允许突发流量。响应正文中的速率限制适用于工作流执行。调用此 API 端点的速率限制在响应头中（`X-RateLimit-*`）。
 
 ### 查询日志
 
@@ -110,13 +112,15 @@ curl -H "x-api-key: YOUR_API_KEY" \
       "limits": {
         "workflowExecutionRateLimit": {
           "sync": {
-            "limit": 60,
-            "remaining": 58,
+            "requestsPerMinute": 60,
+            "maxBurst": 120,
+            "remaining": 118,
             "resetAt": "2025-01-01T12:35:56.789Z"
           },
           "async": {
-            "limit": 60,
-            "remaining": 59,
+            "requestsPerMinute": 200,
+            "maxBurst": 400,
+            "remaining": 398,
             "resetAt": "2025-01-01T12:35:56.789Z"
           }
         },
@@ -190,13 +194,15 @@ curl -H "x-api-key: YOUR_API_KEY" \
         "limits": {
           "workflowExecutionRateLimit": {
             "sync": {
-              "limit": 60,
-              "remaining": 58,
+              "requestsPerMinute": 60,
+              "maxBurst": 120,
+              "remaining": 118,
               "resetAt": "2025-01-01T12:35:56.789Z"
             },
             "async": {
-              "limit": 60,
-              "remaining": 59,
+              "requestsPerMinute": 200,
+              "maxBurst": 400,
+              "remaining": 398,
               "resetAt": "2025-01-01T12:35:56.789Z"
             }
           },
@@ -482,17 +488,25 @@ curl -H "x-api-key: YOUR_API_KEY" \
 
 ## 速率限制
 
-API 实现了速率限制以确保公平使用：
+该 API 使用 **令牌桶算法** 进行速率限制，在提供公平使用的同时允许突发流量：
 
-- **免费计划**：每分钟 10 次请求
-- **专业计划**：每分钟 30 次请求
-- **团队计划**：每分钟 60 次请求
-- **企业计划**：自定义限制
+| 计划 | 请求/分钟 | 突发容量 |
+|------|-----------|----------|
+| 免费 | 10 | 20 |
+| 专业版 | 30 | 60 |
+| 团队版 | 60 | 120 |
+| 企业版 | 120 | 240 |
 
-速率限制信息包含在响应标头中：
-- `X-RateLimit-Limit`：每个窗口的最大请求数
-- `X-RateLimit-Remaining`：当前窗口中剩余的请求数
-- `X-RateLimit-Reset`：窗口重置时的 ISO 时间戳
+**工作原理：**
+- 令牌以 `requestsPerMinute` 的速率补充
+- 空闲时最多可累积 `maxBurst` 个令牌
+- 每个请求消耗 1 个令牌
+- 突发容量允许处理流量高峰
+
+速率限制信息包含在响应头中：
+- `X-RateLimit-Limit`：每分钟请求数（补充速率）
+- `X-RateLimit-Remaining`：当前可用令牌数
+- `X-RateLimit-Reset`：令牌下次补充的 ISO 时间戳
 
 ## 示例：轮询新日志
 
@@ -541,7 +555,7 @@ async function pollLogs() {
 setInterval(pollLogs, 30000);
 ```
 
-## 示例：处理 Webhook
+## 示例：处理 Webhooks
 
 ```javascript
 import express from 'express';

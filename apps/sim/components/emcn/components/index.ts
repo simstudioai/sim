@@ -1,4 +1,5 @@
 export { Badge } from './badge/badge'
+export { Breadcrumb, type BreadcrumbItem, type BreadcrumbProps } from './breadcrumb/breadcrumb'
 export { Button, buttonVariants } from './button/button'
 export {
   CODE_LINE_HEIGHT_PX,
@@ -12,6 +13,7 @@ export { Combobox, type ComboboxOption } from './combobox/combobox'
 export { Input } from './input/input'
 export { Label } from './label/label'
 export {
+  MODAL_SIZES,
   Modal,
   ModalBody,
   ModalClose,
@@ -20,6 +22,12 @@ export {
   ModalDescription,
   ModalFooter,
   ModalHeader,
+  ModalOverlay,
+  ModalPortal,
+  ModalTabs,
+  ModalTabsContent,
+  ModalTabsList,
+  ModalTabsTrigger,
   ModalTitle,
   ModalTrigger,
 } from './modal/modal'

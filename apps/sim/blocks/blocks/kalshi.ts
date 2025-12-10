@@ -583,7 +583,29 @@ export const KalshiBlock: BlockConfig = {
     status: { type: 'string', description: 'Filter by status' },
   },
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: { type: 'json', description: 'Operation result data' },
+    // List operations
+    markets: { type: 'json', description: 'Array of market objects (get_markets)' },
+    events: { type: 'json', description: 'Array of event objects (get_events)' },
+    orders: { type: 'json', description: 'Array of order objects (get_orders)' },
+    positions: { type: 'json', description: 'Array of position objects (get_positions)' },
+    fills: { type: 'json', description: 'Array of fill objects (get_fills)' },
+    trades: { type: 'json', description: 'Array of trade objects (get_trades)' },
+    candlesticks: { type: 'json', description: 'Array of candlestick data (get_candlesticks)' },
+    // Single item operations
+    market: { type: 'json', description: 'Single market object (get_market)' },
+    event: { type: 'json', description: 'Single event object (get_event)' },
+    order: {
+      type: 'json',
+      description: 'Single order object (get_order, create_order, amend_order, cancel_order)',
+    },
+    series: { type: 'json', description: 'Series object (get_series_by_ticker)' },
+    // Account operations
+    balance: { type: 'number', description: 'Account balance in cents (get_balance)' },
+    // Orderbook
+    orderbook: { type: 'json', description: 'Orderbook data with bids/asks (get_orderbook)' },
+    // Exchange status
+    status: { type: 'json', description: 'Exchange status (get_exchange_status)' },
+    // Pagination
+    paging: { type: 'json', description: 'Pagination cursor for fetching more results' },
   },
 }

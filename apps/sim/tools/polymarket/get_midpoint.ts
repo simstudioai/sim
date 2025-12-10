@@ -9,10 +9,6 @@ export interface PolymarketGetMidpointResponse {
   success: boolean
   output: {
     midpoint: string
-    metadata: {
-      operation: 'get_midpoint'
-    }
-    success: boolean
   }
 }
 
@@ -56,24 +52,14 @@ export const polymarketGetMidpointTool: ToolConfig<
       success: true,
       output: {
         midpoint: data.mid || data.midpoint || data,
-        metadata: {
-          operation: 'get_midpoint' as const,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Midpoint price data and metadata',
-      properties: {
-        midpoint: { type: 'string', description: 'Midpoint price' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+    midpoint: {
+      type: 'string',
+      description: 'Midpoint price',
     },
   },
 }

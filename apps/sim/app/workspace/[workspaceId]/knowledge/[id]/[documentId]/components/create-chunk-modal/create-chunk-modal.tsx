@@ -2,15 +2,16 @@
 
 import { useRef, useState } from 'react'
 import { AlertCircle, Loader2 } from 'lucide-react'
-import { Button, Textarea } from '@/components/emcn'
 import {
+  Button,
+  Label,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal/modal'
-import { Label } from '@/components/ui/label'
+  Textarea,
+} from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ChunkData, DocumentData } from '@/stores/knowledge/store'
 
@@ -119,24 +120,12 @@ export function CreateChunkModal({
   return (
     <>
       <Modal open={open} onOpenChange={handleCloseAttempt}>
-        <ModalContent className='h-[74vh] sm:max-w-[600px]'>
+        <ModalContent size='lg'>
           <ModalHeader>Create Chunk</ModalHeader>
 
-          <form className='flex min-h-0 flex-1 flex-col'>
-            <ModalBody>
-              <div className='space-y-[12px]'>
-                {/* Document Info Section */}
-                <div className='flex items-center gap-3 rounded-lg border p-4'>
-                  <div className='min-w-0 flex-1'>
-                    <p className='font-medium text-[var(--text-primary)] text-sm'>
-                      {document?.filename || 'Unknown Document'}
-                    </p>
-                    <p className='text-[var(--text-tertiary)] text-xs'>
-                      Adding chunk to this document
-                    </p>
-                  </div>
-                </div>
-
+          <form>
+            <ModalBody className='!pb-[16px]'>
+              <div className='flex flex-col gap-[8px]'>
                 {/* Error Display */}
                 {error && (
                   <div className='flex items-center gap-2 rounded-md border border-[var(--text-error)]/50 bg-[var(--text-error)]/10 p-3'>
@@ -146,22 +135,15 @@ export function CreateChunkModal({
                 )}
 
                 {/* Content Input Section */}
-                <div className='space-y-[8px]'>
-                  <Label
-                    htmlFor='content'
-                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
-                  >
-                    Chunk Content
-                  </Label>
-                  <Textarea
-                    id='content'
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder='Enter the content for this chunk...'
-                    rows={10}
-                    disabled={isCreating}
-                  />
-                </div>
+                <Label htmlFor='content'>Chunk</Label>
+                <Textarea
+                  id='content'
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder='Enter the content for this chunk...'
+                  rows={12}
+                  disabled={isCreating}
+                />
               </div>
             </ModalBody>
 
@@ -196,7 +178,7 @@ export function CreateChunkModal({
 
       {/* Unsaved Changes Alert */}
       <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Discard Changes</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>

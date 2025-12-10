@@ -132,7 +132,7 @@ function extractInputFormat(block: SerializedBlock): InputFormatField[] {
     .map((field) => field)
 }
 
-function coerceValue(type: string | null | undefined, value: unknown): unknown {
+export function coerceValue(type: string | null | undefined, value: unknown): unknown {
   if (value === undefined || value === null) {
     return value
   }

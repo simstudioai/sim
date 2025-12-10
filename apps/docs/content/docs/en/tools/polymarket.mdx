@@ -47,15 +47,14 @@ Retrieve a list of prediction markets from Polymarket with optional filtering
 | `order` | string | No | Sort field \(e.g., volumeNum, liquidityNum, startDate, endDate, createdAt\) |
 | `ascending` | string | No | Sort direction \(true for ascending, false for descending\) |
 | `tagId` | string | No | Filter by tag ID |
-| `limit` | string | No | Number of results per page \(recommended: 25-50\) |
+| `limit` | string | No | Number of results per page \(max 50\) |
 | `offset` | string | No | Pagination offset \(skip this many results\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Markets data and metadata |
+| `markets` | array | Array of market objects |
 
 ### `polymarket_get_market`
 
@@ -72,8 +71,7 @@ Retrieve details of a specific prediction market by ID or slug
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Market data and metadata |
+| `market` | object | Market object with details |
 
 ### `polymarket_get_events`
 
@@ -87,15 +85,14 @@ Retrieve a list of events from Polymarket with optional filtering
 | `order` | string | No | Sort field \(e.g., volume, liquidity, startDate, endDate, createdAt\) |
 | `ascending` | string | No | Sort direction \(true for ascending, false for descending\) |
 | `tagId` | string | No | Filter by tag ID |
-| `limit` | string | No | Number of results per page \(recommended: 25-50\) |
+| `limit` | string | No | Number of results per page \(max 50\) |
 | `offset` | string | No | Pagination offset \(skip this many results\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Events data and metadata |
+| `events` | array | Array of event objects |
 
 ### `polymarket_get_event`
 
@@ -112,8 +109,7 @@ Retrieve details of a specific event by ID or slug
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Event data and metadata |
+| `event` | object | Event object with details |
 
 ### `polymarket_get_tags`
 
@@ -123,15 +119,14 @@ Retrieve available tags for filtering markets from Polymarket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | No | Number of results per page \(recommended: 25-50\) |
+| `limit` | string | No | Number of results per page \(max 50\) |
 | `offset` | string | No | Pagination offset \(skip this many results\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Tags data and metadata |
+| `tags` | array | Array of tag objects with id, label, and slug |
 
 ### `polymarket_search`
 
@@ -142,15 +137,14 @@ Search for markets, events, and profiles on Polymarket
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Search query term |
-| `limit` | string | No | Number of results per page \(recommended: 25-50\) |
-| `offset` | string | No | Pagination offset \(skip this many results\) |
+| `limit` | string | No | Number of results per page \(max 50\) |
+| `offset` | string | No | Pagination offset |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Search results and metadata |
+| `results` | object | Search results containing markets, events, and profiles arrays |
 
 ### `polymarket_get_series`
 
@@ -160,15 +154,14 @@ Retrieve series (related market groups) from Polymarket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | No | Number of results per page \(recommended: 25-50\) |
+| `limit` | string | No | Number of results per page \(max 50\) |
 | `offset` | string | No | Pagination offset \(skip this many results\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Series data and metadata |
+| `series` | array | Array of series objects |
 
 ### `polymarket_get_series_by_id`
 
@@ -184,8 +177,7 @@ Retrieve a specific series (related market group) by ID from Polymarket
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Series data and metadata |
+| `series` | object | Series object with details |
 
 ### `polymarket_get_orderbook`
 
@@ -201,8 +193,7 @@ Retrieve the order book summary for a specific token
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Orderbook data and metadata |
+| `orderbook` | object | Order book with bids and asks arrays |
 
 ### `polymarket_get_price`
 
@@ -219,8 +210,7 @@ Retrieve the market price for a specific token and side
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Price data and metadata |
+| `price` | string | Market price |
 
 ### `polymarket_get_midpoint`
 
@@ -236,8 +226,7 @@ Retrieve the midpoint price for a specific token
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Midpoint price data and metadata |
+| `midpoint` | string | Midpoint price |
 
 ### `polymarket_get_price_history`
 
@@ -257,8 +246,7 @@ Retrieve historical price data for a specific market token
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Price history data and metadata |
+| `history` | array | Array of price history entries with timestamp \(t\) and price \(p\) |
 
 ### `polymarket_get_last_trade_price`
 
@@ -274,8 +262,7 @@ Retrieve the last trade price for a specific token
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Last trade price and metadata |
+| `price` | string | Last trade price |
 
 ### `polymarket_get_spread`
 
@@ -291,8 +278,7 @@ Retrieve the bid-ask spread for a specific token
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Spread data and metadata |
+| `spread` | object | Bid-ask spread with bid and ask prices |
 
 ### `polymarket_get_tick_size`
 
@@ -308,8 +294,7 @@ Retrieve the minimum tick size for a specific token
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Tick size and metadata |
+| `tickSize` | string | Minimum tick size |
 
 ### `polymarket_get_positions`
 
@@ -326,8 +311,7 @@ Retrieve user positions from Polymarket
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Positions data and metadata |
+| `positions` | array | Array of position objects |
 
 ### `polymarket_get_trades`
 
@@ -339,15 +323,14 @@ Retrieve trade history from Polymarket
 | --------- | ---- | -------- | ----------- |
 | `user` | string | No | User wallet address to filter trades |
 | `market` | string | No | Market ID to filter trades |
-| `limit` | string | No | Number of results per page \(recommended: 25-50\) |
+| `limit` | string | No | Number of results per page \(max 50\) |
 | `offset` | string | No | Pagination offset \(skip this many results\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Trades data and metadata |
+| `trades` | array | Array of trade objects |
 
 
 

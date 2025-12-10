@@ -10,11 +10,6 @@ export interface KalshiGetSeriesByTickerResponse {
   success: boolean
   output: {
     series: KalshiSeries
-    metadata: {
-      operation: 'get_series_by_ticker'
-      ticker: string
-    }
-    success: boolean
   }
 }
 
@@ -58,25 +53,14 @@ export const kalshiGetSeriesByTickerTool: ToolConfig<
       success: true,
       output: {
         series,
-        metadata: {
-          operation: 'get_series_by_ticker' as const,
-          ticker: series.ticker || '',
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    series: {
       type: 'object',
-      description: 'Series data and metadata',
-      properties: {
-        series: { type: 'object', description: 'Series object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Series object with details',
     },
   },
 }

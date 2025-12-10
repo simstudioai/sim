@@ -1,8 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
-import { Badge } from '@/components/emcn/components/badge/badge'
-import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
+import { Badge, Tooltip } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -28,6 +27,7 @@ import {
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   BLOCK_DIMENSIONS,
+  HANDLE_POSITIONS,
   useBlockDimensions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
@@ -716,7 +716,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const getHandleStyle = (position: 'horizontal' | 'vertical') => {
     if (position === 'horizontal') {
-      return { top: '20px', transform: 'translateY(-50%)' }
+      return { top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px`, transform: 'translateY(-50%)' }
     }
     return { left: '50%', transform: 'translateX(-50%)' }
   }
@@ -1030,7 +1030,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         {type === 'condition' && (
           <>
             {conditionRows.map((cond, condIndex) => {
-              const topOffset = 60 + condIndex * 29
+              const topOffset =
+                HANDLE_POSITIONS.CONDITION_START_Y +
+                condIndex * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
               return (
                 <Handle
                   key={`handle-${cond.id}`}
@@ -1052,7 +1054,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               position={Position.Right}
               id='error'
               className={getHandleClasses('right', true)}
-              style={{ right: '-7px', top: 'auto', bottom: '17px', transform: 'translateY(50%)' }}
+              style={{
+                right: '-7px',
+                top: 'auto',
+                bottom: `${HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET}px`,
+                transform: 'translateY(50%)',
+              }}
               data-nodeid={id}
               data-handleid='error'
               isConnectableStart={true}
@@ -1083,7 +1090,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                 position={Position.Right}
                 id='error'
                 className={getHandleClasses('right', true)}
-                style={{ right: '-7px', top: 'auto', bottom: '17px', transform: 'translateY(50%)' }}
+                style={{
+                  right: '-7px',
+                  top: 'auto',
+                  bottom: `${HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET}px`,
+                  transform: 'translateY(50%)',
+                }}
                 data-nodeid={id}
                 data-handleid='error'
                 isConnectableStart={true}

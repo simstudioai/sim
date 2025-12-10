@@ -122,7 +122,7 @@ export function ProjectSelectorInput({
               onOptionChange={handleChange}
             />
           ) : (
-            <div className='w-full rounded border border-dashed p-4 text-center text-muted-foreground text-sm'>
+            <div className='w-full rounded border p-4 text-center text-muted-foreground text-sm'>
               Project selector not supported for service: {serviceId}
             </div>
           )}

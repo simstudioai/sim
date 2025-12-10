@@ -7,11 +7,7 @@ export type KalshiGetExchangeStatusParams = Record<string, never>
 export interface KalshiGetExchangeStatusResponse {
   success: boolean
   output: {
-    exchangeStatus: KalshiExchangeStatus
-    metadata: {
-      operation: 'get_exchange_status'
-    }
-    success: boolean
+    status: KalshiExchangeStatus
   }
 }
 
@@ -43,7 +39,7 @@ export const kalshiGetExchangeStatusTool: ToolConfig<
       handleKalshiError(data, response.status, 'get_exchange_status')
     }
 
-    const exchangeStatus = {
+    const status = {
       trading_active: data.trading_active ?? false,
       exchange_active: data.exchange_active ?? false,
     }
@@ -51,25 +47,15 @@ export const kalshiGetExchangeStatusTool: ToolConfig<
     return {
       success: true,
       output: {
-        exchangeStatus,
-        metadata: {
-          operation: 'get_exchange_status' as const,
-        },
-        success: true,
+        status,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    status: {
       type: 'object',
-      description: 'Exchange status data and metadata',
-      properties: {
-        exchangeStatus: { type: 'object', description: 'Exchange status object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Exchange status with trading_active and exchange_active flags',
     },
   },
 }

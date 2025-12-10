@@ -13,11 +13,6 @@ export interface KalshiGetEventsResponse {
   output: {
     events: KalshiEvent[]
     paging?: KalshiPagingInfo
-    metadata: {
-      operation: 'get_events'
-      totalReturned: number
-    }
-    success: boolean
   }
 }
 
@@ -91,26 +86,18 @@ export const kalshiGetEventsTool: ToolConfig<KalshiGetEventsParams, KalshiGetEve
         paging: {
           cursor: data.cursor || null,
         },
-        metadata: {
-          operation: 'get_events' as const,
-          totalReturned: events.length,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    events: {
+      type: 'array',
+      description: 'Array of event objects',
+    },
+    paging: {
       type: 'object',
-      description: 'Events data and metadata',
-      properties: {
-        events: { type: 'array', description: 'Array of event objects' },
-        paging: { type: 'object', description: 'Pagination information' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Pagination cursor for fetching more results',
     },
   },
 }

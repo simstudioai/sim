@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { pausedExecutions, permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
-import { and, desc, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -126,13 +126,50 @@ export async function GET(request: NextRequest) {
       // Build additional conditions for the query
       let conditions: SQL | undefined
 
-      // Filter by level (supports comma-separated for OR conditions)
+      // Filter by level with support for derived statuses (running, pending)
       if (params.level && params.level !== 'all') {
         const levels = params.level.split(',').filter(Boolean)
-        if (levels.length === 1) {
-          conditions = and(conditions, eq(workflowExecutionLogs.level, levels[0]))
-        } else if (levels.length > 1) {
-          conditions = and(conditions, inArray(workflowExecutionLogs.level, levels))
+        const levelConditions: SQL[] = []
+
+        for (const level of levels) {
+          if (level === 'error') {
+            // Direct database field
+            levelConditions.push(eq(workflowExecutionLogs.level, 'error'))
+          } else if (level === 'info') {
+            // Completed info logs only (not running, not pending)
+            const condition = and(
+              eq(workflowExecutionLogs.level, 'info'),
+              isNotNull(workflowExecutionLogs.endedAt)
+            )
+            if (condition) levelConditions.push(condition)
+          } else if (level === 'running') {
+            // Running logs: info level with no endedAt
+            const condition = and(
+              eq(workflowExecutionLogs.level, 'info'),
+              isNull(workflowExecutionLogs.endedAt)
+            )
+            if (condition) levelConditions.push(condition)
+          } else if (level === 'pending') {
+            // Pending logs: info level with pause status indicators
+            const condition = and(
+              eq(workflowExecutionLogs.level, 'info'),
+              or(
+                sql`(${pausedExecutions.totalPauseCount} > 0 AND ${pausedExecutions.resumedCount} < ${pausedExecutions.totalPauseCount})`,
+                and(
+                  isNotNull(pausedExecutions.status),
+                  sql`${pausedExecutions.status} != 'fully_resumed'`
+                )
+              )
+            )
+            if (condition) levelConditions.push(condition)
+          }
+        }
+
+        if (levelConditions.length > 0) {
+          conditions = and(
+            conditions,
+            levelConditions.length === 1 ? levelConditions[0] : or(...levelConditions)
+          )
         }
       }
 

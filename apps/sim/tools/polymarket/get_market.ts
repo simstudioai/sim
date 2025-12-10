@@ -11,10 +11,6 @@ export interface PolymarketGetMarketResponse {
   success: boolean
   output: {
     market: PolymarketMarket
-    metadata: {
-      operation: 'get_market'
-    }
-    success: boolean
   }
 }
 
@@ -65,24 +61,14 @@ export const polymarketGetMarketTool: ToolConfig<
       success: true,
       output: {
         market: data,
-        metadata: {
-          operation: 'get_market' as const,
-        },
-        success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    market: {
       type: 'object',
-      description: 'Market data and metadata',
-      properties: {
-        market: { type: 'object', description: 'Market object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+      description: 'Market object with details',
     },
   },
 }
