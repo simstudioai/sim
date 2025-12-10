@@ -53,8 +53,8 @@ export function useNodeUtilities(blocks: Record<string, any>) {
         const blockConfig = getBlock(block.type)
         const subBlockCount = blockConfig?.subBlocks?.length ?? 3
         // Many subblocks are conditionally rendered (advanced mode, provider-specific, etc.)
-        // Use roughly half the config count as a reasonable estimate, capped between 3-8 rows
-        const estimatedRows = Math.max(3, Math.min(Math.ceil(subBlockCount / 2), 8))
+        // Use roughly half the config count as a reasonable estimate, capped between 3-7 rows
+        const estimatedRows = Math.max(3, Math.min(Math.ceil(subBlockCount / 2), 7))
         const hasErrorRow = block.type !== 'starter' && block.type !== 'response' ? 1 : 0
 
         height =
