@@ -12,7 +12,6 @@
  * Body:
  *   - name?: string - Organization name
  *   - slug?: string - Organization slug
- *   - orgUsageLimit?: number - Usage limit (null to clear)
  *
  * Response: AdminSingleResponse<AdminOrganization>
  */
@@ -112,14 +111,10 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
       updateData.slug = body.slug.trim()
     }
 
-    if (body.orgUsageLimit !== undefined) {
-      if (body.orgUsageLimit === null) {
-        updateData.orgUsageLimit = null
-      } else if (typeof body.orgUsageLimit === 'number' && body.orgUsageLimit >= 0) {
-        updateData.orgUsageLimit = body.orgUsageLimit.toFixed(2)
-      } else {
-        return badRequestResponse('orgUsageLimit must be a non-negative number or null')
-      }
+    if (Object.keys(updateData).length === 1) {
+      return badRequestResponse(
+        'No valid fields to update. Use /billing endpoint for orgUsageLimit.'
+      )
     }
 
     const [updated] = await db

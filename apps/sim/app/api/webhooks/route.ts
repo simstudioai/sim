@@ -544,6 +544,43 @@ export async function POST(request: NextRequest) {
     }
     // --- End Outlook specific logic ---
 
+    // --- RSS webhook setup ---
+    if (savedWebhook && provider === 'rss') {
+      logger.info(`[${requestId}] RSS provider detected. Setting up RSS webhook configuration.`)
+      try {
+        const { configureRssPolling } = await import('@/lib/webhooks/utils.server')
+        const success = await configureRssPolling(savedWebhook, requestId)
+
+        if (!success) {
+          logger.error(`[${requestId}] Failed to configure RSS polling, rolling back webhook`)
+          await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
+          return NextResponse.json(
+            {
+              error: 'Failed to configure RSS polling',
+              details: 'Please try again',
+            },
+            { status: 500 }
+          )
+        }
+
+        logger.info(`[${requestId}] Successfully configured RSS polling`)
+      } catch (err) {
+        logger.error(
+          `[${requestId}] Error setting up RSS webhook configuration, rolling back webhook`,
+          err
+        )
+        await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
+        return NextResponse.json(
+          {
+            error: 'Failed to configure RSS webhook',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+    // --- End RSS specific logic ---
+
     const status = targetWebhookId ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })
   } catch (error: any) {

@@ -1,0 +1,63 @@
+---
+title: DuckDuckGo
+description: DuckDuckGoで検索
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="duckduckgo"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DuckDuckGo](https://duckduckgo.com/)は、プライバシーを重視したウェブ検索エンジンで、あなたやあなたの検索を追跡することなく、即時の回答、要約、関連トピックなどを提供します。DuckDuckGoを使えば、ユーザープロファイリングやターゲット広告なしで簡単に情報を見つけることができます。
+
+SimでDuckDuckGoを使用すると、以下のことができます：
+
+- **ウェブ検索**: 特定の検索クエリに対して、回答、事実、概要を即座に見つける
+- **直接的な回答を取得**: 計算、変換、事実に関するクエリに対して特定の回答を取得
+- **要約にアクセス**: 検索トピックに関する短い要約や説明を受け取る
+- **関連トピックを取得**: 検索に関連するリンクや参考情報を発見
+- **出力をフィルタリング**: オプションでHTMLを削除したり、より明確な結果を得るために曖昧さ回避をスキップしたりする
+
+これらの機能により、Simエージェントは最新のウェブ知識への自動アクセスを可能にします — ワークフローでの事実の表示から、最新情報によるドキュメントや分析の強化まで。DuckDuckGoのインスタントアンサーAPIはオープンでAPIキーを必要としないため、自動化されたビジネスプロセスにプライバシーを保ちながら簡単に統合できます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+DuckDuckGoインスタントアンサーAPIを使用してウェブを検索します。インスタントアンサー、要約、関連トピックなどを返します。APIキーなしで無料で使用できます。
+
+## ツール
+
+### `duckduckgo_search`
+
+DuckDuckGoインスタントアンサーAPIを使用してウェブを検索します。クエリに対するインスタントアンサー、要約、関連トピックを返します。APIキーなしで無料で使用できます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | はい | 実行する検索クエリ |
+| `noHtml` | boolean | いいえ | 結果のテキストからHTMLを削除する（デフォルト: true） |
+| `skipDisambig` | boolean | いいえ | 曖昧さ回避の結果をスキップする（デフォルト: false） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `heading` | string | インスタントアンサーの見出し/タイトル |
+| `abstract` | string | トピックの短い要約 |
+| `abstractText` | string | 要約のプレーンテキストバージョン |
+| `abstractSource` | string | 要約の情報源（例：Wikipedia） |
+| `abstractURL` | string | 要約の情報源へのURL |
+| `image` | string | トピックに関連する画像へのURL |
+| `answer` | string | 利用可能な場合は直接的な回答（例：計算の場合） |
+| `answerType` | string | 回答のタイプ（例：calc、ipなど） |
+| `type` | string | レスポンスタイプ：A（記事）、D（曖昧さ回避）、C（カテゴリ）、N（名前）、E（排他的） |
+| `relatedTopics` | array | URLと説明を含む関連トピックの配列 |
+
+## 注意事項
+
+- カテゴリ: `tools`
+- タイプ: `duckduckgo`

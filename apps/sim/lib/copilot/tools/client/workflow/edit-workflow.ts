@@ -197,9 +197,15 @@ export class EditWorkflowClientTool extends BaseClientTool {
 
   async execute(args?: EditWorkflowArgs): Promise<void> {
     const logger = createLogger('EditWorkflowClientTool')
-    try {
+
+    // Use timeout protection to ensure tool always completes
+    await this.executeWithTimeout(async () => {
       if (this.hasExecuted) {
         logger.info('execute skipped (already executed)', { toolCallId: this.toolCallId })
+        // Even if skipped, ensure we mark complete
+        if (!this.hasBeenMarkedComplete()) {
+          await this.markToolComplete(200, 'Tool already executed')
+        }
         return
       }
       this.hasExecuted = true
@@ -252,137 +258,136 @@ export class EditWorkflowClientTool extends BaseClientTool {
         }
       }
 
-      const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toolName: 'edit_workflow',
-          payload: {
-            operations,
-            workflowId,
-            ...(currentUserWorkflow ? { currentUserWorkflow } : {}),
-          },
-        }),
-      })
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => '')
-        try {
-          const errorJson = JSON.parse(errorText)
-          throw new Error(errorJson.error || errorText || `Server error (${res.status})`)
-        } catch {
-          throw new Error(errorText || `Server error (${res.status})`)
-        }
-      }
+      // Fetch with AbortController for timeout support
+      const controller = new AbortController()
+      const fetchTimeout = setTimeout(() => controller.abort(), 60000) // 60s fetch timeout
 
-      const json = await res.json()
-      const parsed = ExecuteResponseSuccessSchema.parse(json)
-      const result = parsed.result as any
-      this.lastResult = result
-      logger.info('server result parsed', {
-        hasWorkflowState: !!result?.workflowState,
-        blocksCount: result?.workflowState
-          ? Object.keys(result.workflowState.blocks || {}).length
-          : 0,
-        hasSkippedItems: !!result?.skippedItems,
-        skippedItemsCount: result?.skippedItems?.length || 0,
-        hasInputValidationErrors: !!result?.inputValidationErrors,
-        inputValidationErrorsCount: result?.inputValidationErrors?.length || 0,
-      })
-
-      // Log skipped items and validation errors for visibility
-      if (result?.skippedItems?.length > 0) {
-        logger.warn('Some operations were skipped during edit_workflow', {
-          skippedItems: result.skippedItems,
+      try {
+        const res = await fetch('/api/copilot/execute-copilot-server-tool', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toolName: 'edit_workflow',
+            payload: {
+              operations,
+              workflowId,
+              ...(currentUserWorkflow ? { currentUserWorkflow } : {}),
+            },
+          }),
+          signal: controller.signal,
         })
-      }
-      if (result?.inputValidationErrors?.length > 0) {
-        logger.warn('Some inputs were rejected during edit_workflow', {
-          inputValidationErrors: result.inputValidationErrors,
-        })
-      }
 
-      // Update diff directly with workflow state - no YAML conversion needed!
-      // The diff engine may transform the workflow state (e.g., assign new IDs), so we must use
-      // the returned proposedState rather than the original result.workflowState
-      let actualDiffWorkflow: WorkflowState | null = null
+        clearTimeout(fetchTimeout)
 
-      if (result.workflowState) {
-        try {
-          if (!this.hasAppliedDiff) {
-            const diffStore = useWorkflowDiffStore.getState()
-            // setProposedChanges applies the state directly to the workflow store
-            await diffStore.setProposedChanges(result.workflowState)
-            logger.info('diff proposed changes set for edit_workflow with direct workflow state')
-            this.hasAppliedDiff = true
-
-            // Read back the applied state from the workflow store
-            const workflowStore = useWorkflowStore.getState()
-            actualDiffWorkflow = workflowStore.getWorkflowState()
-          } else {
-            logger.info('skipping diff apply (already applied)')
-            // If we already applied, read from workflow store
-            const workflowStore = useWorkflowStore.getState()
-            actualDiffWorkflow = workflowStore.getWorkflowState()
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => '')
+          try {
+            const errorJson = JSON.parse(errorText)
+            throw new Error(errorJson.error || errorText || `Server error (${res.status})`)
+          } catch {
+            throw new Error(errorText || `Server error (${res.status})`)
           }
-        } catch (e) {
-          logger.warn('Failed to set proposed changes in diff store', e as any)
-          throw new Error('Failed to create workflow diff')
         }
-      } else {
-        throw new Error('No workflow state returned from server')
-      }
 
-      if (!actualDiffWorkflow) {
-        throw new Error('Failed to retrieve workflow from diff store after setting changes')
-      }
+        const json = await res.json()
+        const parsed = ExecuteResponseSuccessSchema.parse(json)
+        const result = parsed.result as any
+        this.lastResult = result
+        logger.info('server result parsed', {
+          hasWorkflowState: !!result?.workflowState,
+          blocksCount: result?.workflowState
+            ? Object.keys(result.workflowState.blocks || {}).length
+            : 0,
+          hasSkippedItems: !!result?.skippedItems,
+          skippedItemsCount: result?.skippedItems?.length || 0,
+          hasInputValidationErrors: !!result?.inputValidationErrors,
+          inputValidationErrorsCount: result?.inputValidationErrors?.length || 0,
+        })
 
-      // Get the workflow state that was just applied, merge subblocks, and sanitize
-      // This matches what get_user_workflow would return (the true state after edits were applied)
-      const workflowJson = this.getSanitizedWorkflowJson(actualDiffWorkflow)
-
-      // Build sanitized data including workflow JSON and any skipped/validation info
-      const sanitizedData: Record<string, any> = {}
-      if (workflowJson) {
-        sanitizedData.userWorkflow = workflowJson
-      }
-
-      // Include skipped items and validation errors in the response for LLM feedback
-      if (result?.skippedItems?.length > 0) {
-        sanitizedData.skippedItems = result.skippedItems
-        sanitizedData.skippedItemsMessage = result.skippedItemsMessage
-      }
-      if (result?.inputValidationErrors?.length > 0) {
-        sanitizedData.inputValidationErrors = result.inputValidationErrors
-        sanitizedData.inputValidationMessage = result.inputValidationMessage
-      }
-
-      // Build a message that includes info about skipped items
-      let completeMessage = 'Workflow diff ready for review'
-      if (result?.skippedItems?.length > 0 || result?.inputValidationErrors?.length > 0) {
-        const parts: string[] = []
+        // Log skipped items and validation errors for visibility
         if (result?.skippedItems?.length > 0) {
-          parts.push(`${result.skippedItems.length} operation(s) skipped`)
+          logger.warn('Some operations were skipped during edit_workflow', {
+            skippedItems: result.skippedItems,
+          })
         }
         if (result?.inputValidationErrors?.length > 0) {
-          parts.push(`${result.inputValidationErrors.length} input(s) rejected`)
+          logger.warn('Some inputs were rejected during edit_workflow', {
+            inputValidationErrors: result.inputValidationErrors,
+          })
         }
-        completeMessage = `Workflow diff ready for review. Note: ${parts.join(', ')}.`
+
+        // Update diff directly with workflow state - no YAML conversion needed!
+        if (!result.workflowState) {
+          throw new Error('No workflow state returned from server')
+        }
+
+        let actualDiffWorkflow: WorkflowState | null = null
+
+        if (!this.hasAppliedDiff) {
+          const diffStore = useWorkflowDiffStore.getState()
+          // setProposedChanges applies the state optimistically to the workflow store
+          await diffStore.setProposedChanges(result.workflowState)
+          logger.info('diff proposed changes set for edit_workflow with direct workflow state')
+          this.hasAppliedDiff = true
+        }
+
+        // Read back the applied state from the workflow store
+        const workflowStore = useWorkflowStore.getState()
+        actualDiffWorkflow = workflowStore.getWorkflowState()
+
+        if (!actualDiffWorkflow) {
+          throw new Error('Failed to retrieve workflow state after applying changes')
+        }
+
+        // Get the workflow state that was just applied, merge subblocks, and sanitize
+        // This matches what get_user_workflow would return (the true state after edits were applied)
+        const workflowJson = this.getSanitizedWorkflowJson(actualDiffWorkflow)
+
+        // Build sanitized data including workflow JSON and any skipped/validation info
+        const sanitizedData: Record<string, any> = {}
+        if (workflowJson) {
+          sanitizedData.userWorkflow = workflowJson
+        }
+
+        // Include skipped items and validation errors in the response for LLM feedback
+        if (result?.skippedItems?.length > 0) {
+          sanitizedData.skippedItems = result.skippedItems
+          sanitizedData.skippedItemsMessage = result.skippedItemsMessage
+        }
+        if (result?.inputValidationErrors?.length > 0) {
+          sanitizedData.inputValidationErrors = result.inputValidationErrors
+          sanitizedData.inputValidationMessage = result.inputValidationMessage
+        }
+
+        // Build a message that includes info about skipped items
+        let completeMessage = 'Workflow diff ready for review'
+        if (result?.skippedItems?.length > 0 || result?.inputValidationErrors?.length > 0) {
+          const parts: string[] = []
+          if (result?.skippedItems?.length > 0) {
+            parts.push(`${result.skippedItems.length} operation(s) skipped`)
+          }
+          if (result?.inputValidationErrors?.length > 0) {
+            parts.push(`${result.inputValidationErrors.length} input(s) rejected`)
+          }
+          completeMessage = `Workflow diff ready for review. Note: ${parts.join(', ')}.`
+        }
+
+        // Mark complete early to unblock LLM stream
+        await this.markToolComplete(
+          200,
+          completeMessage,
+          Object.keys(sanitizedData).length > 0 ? sanitizedData : undefined
+        )
+
+        // Move into review state
+        this.setState(ClientToolCallState.review, { result })
+      } catch (fetchError: any) {
+        clearTimeout(fetchTimeout)
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Server request timed out')
+        }
+        throw fetchError
       }
-
-      // Mark complete early to unblock LLM stream
-      await this.markToolComplete(
-        200,
-        completeMessage,
-        Object.keys(sanitizedData).length > 0 ? sanitizedData : undefined
-      )
-
-      // Move into review state
-      this.setState(ClientToolCallState.review, { result })
-    } catch (error: any) {
-      const message = error instanceof Error ? error.message : String(error)
-      logger.error('execute error', { message })
-      await this.markToolComplete(500, message)
-      this.setState(ClientToolCallState.error)
-    }
+    })
   }
 }

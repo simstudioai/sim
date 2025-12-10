@@ -127,7 +127,8 @@ export class AgentBlockHandler implements BlockHandler {
         })
         .map(async (tool) => {
           try {
-            if (tool.type === 'custom-tool' && tool.schema) {
+            // Handle custom tools - either inline (schema) or reference (customToolId)
+            if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {
               return await this.createCustomTool(ctx, tool)
             }
             if (tool.type === 'mcp') {
@@ -151,24 +152,47 @@ export class AgentBlockHandler implements BlockHandler {
   private async createCustomTool(ctx: ExecutionContext, tool: ToolInput): Promise<any> {
     const userProvidedParams = tool.params || {}
 
+    // Resolve tool definition - either inline or from database reference
+    let schema = tool.schema
+    let code = tool.code
+    let title = tool.title
+
+    // If this is a reference-only tool (has customToolId but no schema), fetch from API
+    if (tool.customToolId && !schema) {
+      const resolved = await this.fetchCustomToolById(ctx, tool.customToolId)
+      if (!resolved) {
+        logger.error(`Custom tool not found: ${tool.customToolId}`)
+        return null
+      }
+      schema = resolved.schema
+      code = resolved.code
+      title = resolved.title
+    }
+
+    // Validate we have the required data
+    if (!schema?.function) {
+      logger.error('Custom tool missing schema:', { customToolId: tool.customToolId, title })
+      return null
+    }
+
     const { filterSchemaForLLM, mergeToolParameters } = await import('@/tools/params')
 
-    const filteredSchema = filterSchemaForLLM(tool.schema.function.parameters, userProvidedParams)
+    const filteredSchema = filterSchemaForLLM(schema.function.parameters, userProvidedParams)
 
-    const toolId = `${AGENT.CUSTOM_TOOL_PREFIX}${tool.title}`
+    const toolId = `${AGENT.CUSTOM_TOOL_PREFIX}${title}`
     const base: any = {
       id: toolId,
-      name: tool.schema.function.name,
-      description: tool.schema.function.description || '',
+      name: schema.function.name,
+      description: schema.function.description || '',
       params: userProvidedParams,
       parameters: {
         ...filteredSchema,
-        type: tool.schema.function.parameters.type,
+        type: schema.function.parameters.type,
       },
       usageControl: tool.usageControl || 'auto',
     }
 
-    if (tool.code) {
+    if (code) {
       base.executeFunction = async (callParams: Record<string, any>) => {
         const mergedParams = mergeToolParameters(userProvidedParams, callParams)
 
@@ -177,7 +201,7 @@ export class AgentBlockHandler implements BlockHandler {
         const result = await executeTool(
           'function_execute',
           {
-            code: tool.code,
+            code,
             ...mergedParams,
             timeout: tool.timeout ?? AGENT.DEFAULT_FUNCTION_TIMEOUT,
             envVars: ctx.environmentVariables || {},
@@ -203,6 +227,78 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     return base
+  }
+
+  /**
+   * Fetches a custom tool definition from the database by ID
+   * Uses Zustand store in browser, API call on server
+   */
+  private async fetchCustomToolById(
+    ctx: ExecutionContext,
+    customToolId: string
+  ): Promise<{ schema: any; code: string; title: string } | null> {
+    // In browser, use the Zustand store which has cached data from React Query
+    if (typeof window !== 'undefined') {
+      try {
+        const { useCustomToolsStore } = await import('@/stores/custom-tools/store')
+        const tool = useCustomToolsStore.getState().getTool(customToolId)
+        if (tool) {
+          return {
+            schema: tool.schema,
+            code: tool.code || '',
+            title: tool.title,
+          }
+        }
+        logger.warn(`Custom tool not found in store: ${customToolId}`)
+      } catch (error) {
+        logger.error('Error accessing custom tools store:', { error })
+      }
+    }
+
+    // Server-side: fetch from API
+    try {
+      const headers = await buildAuthHeaders()
+      const params: Record<string, string> = {}
+
+      if (ctx.workspaceId) {
+        params.workspaceId = ctx.workspaceId
+      }
+      if (ctx.workflowId) {
+        params.workflowId = ctx.workflowId
+      }
+
+      const url = buildAPIUrl('/api/tools/custom', params)
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers,
+      })
+
+      if (!response.ok) {
+        logger.error(`Failed to fetch custom tools: ${response.status}`)
+        return null
+      }
+
+      const data = await response.json()
+      if (!data.data || !Array.isArray(data.data)) {
+        logger.error('Invalid custom tools API response')
+        return null
+      }
+
+      const tool = data.data.find((t: any) => t.id === customToolId)
+      if (!tool) {
+        logger.warn(`Custom tool not found by ID: ${customToolId}`)
+        return null
+      }
+
+      return {
+        schema: tool.schema,
+        code: tool.code || '',
+        title: tool.title,
+      }
+    } catch (error) {
+      logger.error('Error fetching custom tool:', { customToolId, error })
+      return null
+    }
   }
 
   private async createMcpTool(ctx: ExecutionContext, tool: ToolInput): Promise<any> {

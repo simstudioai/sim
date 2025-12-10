@@ -494,12 +494,17 @@ export async function verifyProviderAuth(
 /**
  * Run preprocessing checks for webhook execution
  * This replaces the old checkRateLimits and checkUsageLimits functions
+ *
+ * @param isTestMode - If true, skips deployment check (for test webhooks that run on live/draft state)
  */
 export async function checkWebhookPreprocessing(
   foundWorkflow: any,
   foundWebhook: any,
-  requestId: string
+  requestId: string,
+  options?: { isTestMode?: boolean }
 ): Promise<NextResponse | null> {
+  const { isTestMode = false } = options || {}
+
   try {
     const executionId = uuidv4()
 
@@ -510,7 +515,7 @@ export async function checkWebhookPreprocessing(
       executionId,
       requestId,
       checkRateLimit: true, // Webhooks need rate limiting
-      checkDeployment: true, // Webhooks require deployed workflows
+      checkDeployment: !isTestMode, // Test webhooks skip deployment check (run on live state)
       workspaceId: foundWorkflow.workspaceId,
     })
 

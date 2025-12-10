@@ -38,17 +38,42 @@ export function extractLoopIdFromSentinel(sentinelId: string): string | null {
 
 /**
  * Parse distribution items from parallel config
- * Handles: arrays, JSON strings, and references
+ * Handles: arrays, JSON strings, objects, and references
+ * Note: References (starting with '<') cannot be resolved at DAG construction time,
+ * they must be resolved at runtime. This function returns [] for references.
  */
 export function parseDistributionItems(config: SerializedParallel): any[] {
   const rawItems = config.distribution ?? []
-  if (typeof rawItems === 'string' && rawItems.startsWith(REFERENCE.START)) {
-    return []
+
+  // Already an array - return as-is
+  if (Array.isArray(rawItems)) {
+    return rawItems
   }
+
+  // Object - convert to entries array (consistent with loop forEach behavior)
+  if (typeof rawItems === 'object' && rawItems !== null) {
+    return Object.entries(rawItems)
+  }
+
+  // String handling
   if (typeof rawItems === 'string') {
+    // References cannot be resolved at DAG construction time
+    if (rawItems.startsWith(REFERENCE.START) && rawItems.endsWith(REFERENCE.END)) {
+      return []
+    }
+
+    // Try to parse as JSON
     try {
       const normalizedJSON = rawItems.replace(/'/g, '"')
-      return JSON.parse(normalizedJSON)
+      const parsed = JSON.parse(normalizedJSON)
+      if (Array.isArray(parsed)) {
+        return parsed
+      }
+      // Parsed to non-array (e.g. object) - convert to entries
+      if (typeof parsed === 'object' && parsed !== null) {
+        return Object.entries(parsed)
+      }
+      return []
     } catch (error) {
       logger.error('Failed to parse distribution items', {
         rawItems,
@@ -57,12 +82,7 @@ export function parseDistributionItems(config: SerializedParallel): any[] {
       return []
     }
   }
-  if (Array.isArray(rawItems)) {
-    return rawItems
-  }
-  if (typeof rawItems === 'object' && rawItems !== null) {
-    return [rawItems]
-  }
+
   return []
 }
 /**

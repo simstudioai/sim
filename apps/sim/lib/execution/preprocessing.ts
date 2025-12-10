@@ -3,10 +3,10 @@ import { workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
-import { RateLimiter } from '@/services/queue/RateLimiter'
 
 const logger = createLogger('ExecutionPreprocessing')
 
@@ -228,26 +228,18 @@ export async function preprocessExecution(
   const workspaceId = workflowRecord.workspaceId || providedWorkspaceId || ''
 
   // ========== STEP 2: Check Deployment Status ==========
+  // If workflow is not deployed and deployment is required, reject without logging.
+  // No log entry or cost should be created for calls to undeployed workflows
+  // since the workflow was never intended to run.
   if (checkDeployment && !workflowRecord.isDeployed) {
     logger.warn(`[${requestId}] Workflow not deployed: ${workflowId}`)
-
-    await logPreprocessingError({
-      workflowId,
-      executionId,
-      triggerType,
-      requestId,
-      userId: workflowRecord.userId || userId,
-      workspaceId,
-      errorMessage: 'Workflow is not deployed. Please deploy the workflow before triggering it.',
-      loggingSession: providedLoggingSession,
-    })
 
     return {
       success: false,
       error: {
         message: 'Workflow is not deployed',
         statusCode: 403,
-        logCreated: true,
+        logCreated: false,
       },
     }
   }

@@ -652,7 +652,16 @@ cronjobs:
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
-      
+
+    rssWebhookPoll:
+      enabled: true
+      name: rss-webhook-poll
+      schedule: "*/1 * * * *"
+      path: "/api/webhooks/poll/rss"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     renewSubscriptions:
       enabled: true
       name: renew-subscriptions

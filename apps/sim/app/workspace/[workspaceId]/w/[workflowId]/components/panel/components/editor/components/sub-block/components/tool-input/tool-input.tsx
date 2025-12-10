@@ -51,7 +51,10 @@ import {
 import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tool-credential-selector'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { getAllBlocks } from '@/blocks'
-import { useCustomTools } from '@/hooks/queries/custom-tools'
+import {
+  type CustomTool as CustomToolDefinition,
+  useCustomTools,
+} from '@/hooks/queries/custom-tools'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
@@ -85,26 +88,82 @@ interface ToolInputProps {
 
 /**
  * Represents a tool selected and configured in the workflow
+ *
+ * @remarks
+ * For custom tools (new format), we only store: type, customToolId, usageControl, isExpanded.
+ * Everything else (title, schema, code) is loaded dynamically from the database.
+ * Legacy custom tools with inline schema/code are still supported for backwards compatibility.
  */
 interface StoredTool {
   /** Block type identifier */
   type: string
-  /** Display title for the tool */
-  title: string
-  /** Direct tool ID for execution */
-  toolId: string
-  /** Parameter values configured by the user */
-  params: Record<string, string>
+  /** Display title for the tool (optional for new custom tool format) */
+  title?: string
+  /** Direct tool ID for execution (optional for new custom tool format) */
+  toolId?: string
+  /** Parameter values configured by the user (optional for new custom tool format) */
+  params?: Record<string, string>
   /** Whether the tool details are expanded in UI */
   isExpanded?: boolean
-  /** Tool schema for custom tools */
+  /** Database ID for custom tools (new format - reference only) */
+  customToolId?: string
+  /** Tool schema for custom tools (legacy format - inline) */
   schema?: any
-  /** Implementation code for custom tools */
+  /** Implementation code for custom tools (legacy format - inline) */
   code?: string
   /** Selected operation for multi-operation tools */
   operation?: string
   /** Tool usage control mode for LLM */
   usageControl?: 'auto' | 'force' | 'none'
+}
+
+/**
+ * Resolves a custom tool reference to its full definition
+ *
+ * @remarks
+ * Custom tools can be stored in two formats:
+ * 1. Reference-only (new): { customToolId: "...", usageControl: "auto" } - loads from database
+ * 2. Inline (legacy): { schema: {...}, code: "..." } - uses embedded definition
+ *
+ * @param storedTool - The stored tool reference
+ * @param customToolsList - List of custom tools from the database
+ * @returns The resolved custom tool with full definition, or null if not found
+ */
+function resolveCustomToolFromReference(
+  storedTool: StoredTool,
+  customToolsList: CustomToolDefinition[]
+): { schema: any; code: string; title: string } | null {
+  // If the tool has a customToolId (new reference format), look it up
+  if (storedTool.customToolId) {
+    const customTool = customToolsList.find((t) => t.id === storedTool.customToolId)
+    if (customTool) {
+      return {
+        schema: customTool.schema,
+        code: customTool.code,
+        title: customTool.title,
+      }
+    }
+    // If not found by ID, fall through to try other methods
+    logger.warn(`Custom tool not found by ID: ${storedTool.customToolId}`)
+  }
+
+  // Legacy format: inline schema and code
+  if (storedTool.schema && storedTool.code !== undefined) {
+    return {
+      schema: storedTool.schema,
+      code: storedTool.code,
+      title: storedTool.title || '',
+    }
+  }
+
+  return null
+}
+
+/**
+ * Checks if a stored custom tool is a reference-only format (no inline code/schema)
+ */
+function isCustomToolReference(storedTool: StoredTool): boolean {
+  return storedTool.type === 'custom-tool' && !!storedTool.customToolId && !storedTool.code
 }
 
 /**
@@ -954,18 +1013,25 @@ export function ToolInput({
     (customTool: CustomTool) => {
       if (isPreview || disabled) return
 
-      const customToolId = `custom-${customTool.schema?.function?.name || 'unknown'}`
-
-      const newTool: StoredTool = {
-        type: 'custom-tool',
-        title: customTool.title,
-        toolId: customToolId,
-        params: {},
-        isExpanded: true,
-        schema: customTool.schema,
-        code: customTool.code || '',
-        usageControl: 'auto',
-      }
+      // If the tool has a database ID, store minimal reference
+      // Otherwise, store inline for backwards compatibility
+      const newTool: StoredTool = customTool.id
+        ? {
+            type: 'custom-tool',
+            customToolId: customTool.id,
+            usageControl: 'auto',
+            isExpanded: true,
+          }
+        : {
+            type: 'custom-tool',
+            title: customTool.title,
+            toolId: `custom-${customTool.schema?.function?.name || 'unknown'}`,
+            params: {},
+            isExpanded: true,
+            schema: customTool.schema,
+            code: customTool.code || '',
+            usageControl: 'auto',
+          }
 
       setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
     },
@@ -975,12 +1041,21 @@ export function ToolInput({
   const handleEditCustomTool = useCallback(
     (toolIndex: number) => {
       const tool = selectedTools[toolIndex]
-      if (tool.type !== 'custom-tool' || !tool.schema) return
+      if (tool.type !== 'custom-tool') return
+
+      // For reference-only tools, we need to resolve the tool from the database
+      // The modal will handle loading the full definition
+      const resolved = resolveCustomToolFromReference(tool, customTools)
+      if (!resolved && !tool.schema) {
+        // Tool not found and no inline definition - can't edit
+        logger.warn('Cannot edit custom tool - not found in database and no inline definition')
+        return
+      }
 
       setEditingToolIndex(toolIndex)
       setCustomToolModalOpen(true)
     },
-    [selectedTools]
+    [selectedTools, customTools]
   )
 
   const handleSaveCustomTool = useCallback(
@@ -988,17 +1063,26 @@ export function ToolInput({
       if (isPreview || disabled) return
 
       if (editingToolIndex !== null) {
+        const existingTool = selectedTools[editingToolIndex]
+
+        // If the tool has a database ID, convert to minimal reference format
+        // Otherwise keep inline for backwards compatibility
+        const updatedTool: StoredTool = customTool.id
+          ? {
+              type: 'custom-tool',
+              customToolId: customTool.id,
+              usageControl: existingTool.usageControl || 'auto',
+              isExpanded: existingTool.isExpanded,
+            }
+          : {
+              ...existingTool,
+              title: customTool.title,
+              schema: customTool.schema,
+              code: customTool.code || '',
+            }
+
         setStoreValue(
-          selectedTools.map((tool, index) =>
-            index === editingToolIndex
-              ? {
-                  ...tool,
-                  title: customTool.title,
-                  schema: customTool.schema,
-                  code: customTool.code || '',
-                }
-              : tool
-          )
+          selectedTools.map((tool, index) => (index === editingToolIndex ? updatedTool : tool))
         )
         setEditingToolIndex(null)
       } else {
@@ -1019,8 +1103,15 @@ export function ToolInput({
   const handleDeleteTool = useCallback(
     (toolId: string) => {
       const updatedTools = selectedTools.filter((tool) => {
+        if (tool.type !== 'custom-tool') return true
+
+        // New format: check customToolId
+        if (tool.customToolId === toolId) {
+          return false
+        }
+
+        // Legacy format: check by function name match
         if (
-          tool.type === 'custom-tool' &&
           tool.schema?.function?.name &&
           customTools.some(
             (customTool) =>
@@ -1083,12 +1174,12 @@ export function ToolInput({
 
       const initialParams = initializeToolParams(newToolId, toolParams.userInputParameters, blockId)
 
-      const oldToolParams = getToolParametersConfig(tool.toolId, tool.type)
+      const oldToolParams = tool.toolId ? getToolParametersConfig(tool.toolId, tool.type) : null
       const oldParamIds = new Set(oldToolParams?.userInputParameters.map((p) => p.id) || [])
       const newParamIds = new Set(toolParams.userInputParameters.map((p) => p.id))
 
       const preservedParams: Record<string, string> = {}
-      Object.entries(tool.params).forEach(([paramId, value]) => {
+      Object.entries(tool.params || {}).forEach(([paramId, value]) => {
         if (newParamIds.has(paramId) && value) {
           preservedParams[paramId] = value
         }
@@ -1666,15 +1757,13 @@ export function ToolInput({
                               key={customTool.id}
                               value={customTool.title}
                               onSelect={() => {
+                                // Store minimal reference - only ID, usageControl, isExpanded
+                                // Everything else (title, toolId, params) loaded dynamically
                                 const newTool: StoredTool = {
                                   type: 'custom-tool',
-                                  title: customTool.title,
-                                  toolId: `custom-${customTool.schema?.function?.name || 'unknown'}`,
-                                  params: {},
-                                  isExpanded: true,
-                                  schema: customTool.schema,
-                                  code: customTool.code,
+                                  customToolId: customTool.id,
                                   usageControl: 'auto',
+                                  isExpanded: true,
                                 }
 
                                 setStoreValue([
@@ -1757,22 +1846,33 @@ export function ToolInput({
             // Get the current tool ID (may change based on operation)
             const currentToolId =
               !isCustomTool && !isMcpTool
-                ? getToolIdForOperation(tool.type, tool.operation) || tool.toolId
-                : tool.toolId
+                ? getToolIdForOperation(tool.type, tool.operation) || tool.toolId || ''
+                : tool.toolId || ''
 
             // Get tool parameters using the new utility with block type for UI components
             const toolParams =
-              !isCustomTool && !isMcpTool ? getToolParametersConfig(currentToolId, tool.type) : null
+              !isCustomTool && !isMcpTool && currentToolId
+                ? getToolParametersConfig(currentToolId, tool.type)
+                : null
 
-            // For custom tools, extract parameters from schema
+            // For custom tools, resolve from reference (new format) or use inline (legacy)
+            const resolvedCustomTool = isCustomTool
+              ? resolveCustomToolFromReference(tool, customTools)
+              : null
+
+            // Derive title and schema from resolved tool or inline data
+            const customToolTitle = isCustomTool
+              ? tool.title || resolvedCustomTool?.title || 'Unknown Tool'
+              : null
+            const customToolSchema = isCustomTool ? tool.schema || resolvedCustomTool?.schema : null
             const customToolParams =
-              isCustomTool && tool.schema && tool.schema.function?.parameters?.properties
-                ? Object.entries(tool.schema.function.parameters.properties || {}).map(
+              isCustomTool && customToolSchema?.function?.parameters?.properties
+                ? Object.entries(customToolSchema.function.parameters.properties || {}).map(
                     ([paramId, param]: [string, any]) => ({
                       id: paramId,
                       type: param.type || 'string',
                       description: param.description || '',
-                      visibility: (tool.schema.function.parameters.required?.includes(paramId)
+                      visibility: (customToolSchema.function.parameters.required?.includes(paramId)
                         ? 'user-or-llm'
                         : 'user-only') as 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden',
                     })
@@ -1805,9 +1905,12 @@ export function ToolInput({
                 : toolParams?.userInputParameters || []
 
             // Check if tool requires OAuth
-            const requiresOAuth = !isCustomTool && !isMcpTool && toolRequiresOAuth(currentToolId)
+            const requiresOAuth =
+              !isCustomTool && !isMcpTool && currentToolId && toolRequiresOAuth(currentToolId)
             const oauthConfig =
-              !isCustomTool && !isMcpTool ? getToolOAuthConfig(currentToolId) : null
+              !isCustomTool && !isMcpTool && currentToolId
+                ? getToolOAuthConfig(currentToolId)
+                : null
 
             // Tools are always expandable so users can access the interface
             const isExpandedForDisplay = isPreview
@@ -1816,7 +1919,7 @@ export function ToolInput({
 
             return (
               <div
-                key={`${tool.toolId}-${toolIndex}`}
+                key={`${tool.customToolId || tool.toolId || toolIndex}-${toolIndex}`}
                 className={cn(
                   'group relative flex flex-col overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-4)] transition-all duration-200 ease-in-out',
                   draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
@@ -1872,7 +1975,7 @@ export function ToolInput({
                       )}
                     </div>
                     <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
-                      {tool.title}
+                      {isCustomTool ? customToolTitle : tool.title}
                     </span>
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-[8px]'>
@@ -1968,7 +2071,7 @@ export function ToolInput({
                         </div>
                         <div className='w-full min-w-0'>
                           <ToolCredentialSelector
-                            value={tool.params.credential || ''}
+                            value={tool.params?.credential || ''}
                             onChange={(value) => handleParamChange(toolIndex, 'credential', value)}
                             provider={oauthConfig.provider as OAuthProvider}
                             requiredScopes={
@@ -2016,7 +2119,7 @@ export function ToolInput({
                         const firstParam = params[0] as ToolParameterConfig
                         const groupValue = JSON.stringify(
                           params.reduce(
-                            (acc, p) => ({ ...acc, [p.id]: tool.params[p.id] === 'true' }),
+                            (acc, p) => ({ ...acc, [p.id]: tool.params?.[p.id] === 'true' }),
                             {}
                           )
                         )
@@ -2075,10 +2178,10 @@ export function ToolInput({
                               {param.uiComponent ? (
                                 renderParameterInput(
                                   param,
-                                  tool.params[param.id] || '',
+                                  tool.params?.[param.id] || '',
                                   (value) => handleParamChange(toolIndex, param.id, value),
                                   toolIndex,
-                                  tool.params
+                                  tool.params || {}
                                 )
                               ) : (
                                 <ShortInput
@@ -2094,7 +2197,7 @@ export function ToolInput({
                                     type: 'short-input',
                                     title: param.id,
                                   }}
-                                  value={tool.params[param.id] || ''}
+                                  value={tool.params?.[param.id] || ''}
                                   onChange={(value) =>
                                     handleParamChange(toolIndex, param.id, value)
                                   }
@@ -2267,15 +2370,35 @@ export function ToolInput({
         blockId={blockId}
         initialValues={
           editingToolIndex !== null && selectedTools[editingToolIndex]?.type === 'custom-tool'
-            ? {
-                id: customTools.find(
-                  (tool) =>
-                    tool.schema?.function?.name ===
-                    selectedTools[editingToolIndex].schema?.function?.name
-                )?.id,
-                schema: selectedTools[editingToolIndex].schema,
-                code: selectedTools[editingToolIndex].code || '',
-              }
+            ? (() => {
+                const storedTool = selectedTools[editingToolIndex]
+                // Resolve the full tool definition from reference or inline
+                const resolved = resolveCustomToolFromReference(storedTool, customTools)
+
+                if (resolved) {
+                  // Find the database ID
+                  const dbTool = storedTool.customToolId
+                    ? customTools.find((t) => t.id === storedTool.customToolId)
+                    : customTools.find(
+                        (t) => t.schema?.function?.name === resolved.schema?.function?.name
+                      )
+
+                  return {
+                    id: dbTool?.id,
+                    schema: resolved.schema,
+                    code: resolved.code,
+                  }
+                }
+
+                // Fallback to inline definition (legacy format)
+                return {
+                  id: customTools.find(
+                    (tool) => tool.schema?.function?.name === storedTool.schema?.function?.name
+                  )?.id,
+                  schema: storedTool.schema,
+                  code: storedTool.code || '',
+                }
+              })()
             : undefined
         }
       />

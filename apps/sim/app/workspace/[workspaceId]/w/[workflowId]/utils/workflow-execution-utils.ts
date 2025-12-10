@@ -1,7 +1,9 @@
 import { v4 as uuidv4 } from 'uuid'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 export interface WorkflowExecutionOptions {
   workflowInput?: any
@@ -26,6 +28,11 @@ export async function executeWorkflowWithFullLogging(
 
   const executionId = options.executionId || uuidv4()
   const { addConsole } = useTerminalConsoleStore.getState()
+  const { setActiveBlocks, setBlockRunStatus, setEdgeRunStatus } = useExecutionStore.getState()
+  const workflowEdges = useWorkflowStore.getState().edges
+
+  // Track active blocks for pulsing animation
+  const activeBlocksSet = new Set<string>()
 
   const payload: any = {
     input: options.workflowInput,
@@ -81,7 +88,29 @@ export async function executeWorkflowWithFullLogging(
           const event = JSON.parse(data)
 
           switch (event.type) {
+            case 'block:started': {
+              // Add block to active set for pulsing animation
+              activeBlocksSet.add(event.data.blockId)
+              setActiveBlocks(new Set(activeBlocksSet))
+
+              // Track edges that led to this block as soon as execution starts
+              const incomingEdges = workflowEdges.filter(
+                (edge) => edge.target === event.data.blockId
+              )
+              incomingEdges.forEach((edge) => {
+                setEdgeRunStatus(edge.id, 'success')
+              })
+              break
+            }
+
             case 'block:completed':
+              // Remove block from active set
+              activeBlocksSet.delete(event.data.blockId)
+              setActiveBlocks(new Set(activeBlocksSet))
+
+              // Track successful block execution in run path
+              setBlockRunStatus(event.data.blockId, 'success')
+
               addConsole({
                 input: event.data.input || {},
                 output: event.data.output,
@@ -105,6 +134,13 @@ export async function executeWorkflowWithFullLogging(
               break
 
             case 'block:error':
+              // Remove block from active set
+              activeBlocksSet.delete(event.data.blockId)
+              setActiveBlocks(new Set(activeBlocksSet))
+
+              // Track failed block execution in run path
+              setBlockRunStatus(event.data.blockId, 'error')
+
               addConsole({
                 input: event.data.input || {},
                 output: {},
@@ -147,6 +183,8 @@ export async function executeWorkflowWithFullLogging(
     }
   } finally {
     reader.releaseLock()
+    // Clear active blocks when execution ends
+    setActiveBlocks(new Set())
   }
 
   return executionResult

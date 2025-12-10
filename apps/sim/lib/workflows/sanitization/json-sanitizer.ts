@@ -128,6 +128,16 @@ function sanitizeConditions(conditionsJson: string): string {
 function sanitizeTools(tools: any[]): any[] {
   return tools.map((tool) => {
     if (tool.type === 'custom-tool') {
+      // New reference format: minimal fields only
+      if (tool.customToolId && !tool.schema && !tool.code) {
+        return {
+          type: tool.type,
+          customToolId: tool.customToolId,
+          usageControl: tool.usageControl,
+        }
+      }
+
+      // Legacy inline format: include all fields
       const sanitized: any = {
         type: tool.type,
         title: tool.title,
@@ -135,15 +145,19 @@ function sanitizeTools(tools: any[]): any[] {
         usageControl: tool.usageControl,
       }
 
+      // Include schema for inline format (legacy format)
       if (tool.schema?.function) {
         sanitized.schema = {
+          type: tool.schema.type || 'function',
           function: {
+            name: tool.schema.function.name,
             description: tool.schema.function.description,
             parameters: tool.schema.function.parameters,
           },
         }
       }
 
+      // Include code for inline format (legacy format)
       if (tool.code) {
         sanitized.code = tool.code
       }
