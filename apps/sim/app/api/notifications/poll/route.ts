@@ -16,15 +16,17 @@ export async function GET(request: NextRequest) {
   const requestId = nanoid()
   logger.info(`Inactivity alert polling triggered (${requestId})`)
 
+  let lockAcquired = false
+
   try {
     const authError = verifyCronAuth(request, 'Inactivity alert polling')
     if (authError) {
       return authError
     }
 
-    const locked = await acquireLock(LOCK_KEY, requestId, LOCK_TTL_SECONDS)
+    lockAcquired = await acquireLock(LOCK_KEY, requestId, LOCK_TTL_SECONDS)
 
-    if (!locked) {
+    if (!lockAcquired) {
       return NextResponse.json(
         {
           success: true,
@@ -57,6 +59,8 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   } finally {
-    await releaseLock(LOCK_KEY).catch(() => {})
+    if (lockAcquired) {
+      await releaseLock(LOCK_KEY, requestId).catch(() => {})
+    }
   }
 }

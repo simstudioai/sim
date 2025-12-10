@@ -4,7 +4,8 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { renderOTPEmail } from '@/components/emails/render-email'
-import { getRedisClient, markMessageAsProcessed, releaseLock } from '@/lib/core/config/redis'
+import { getRedisClient } from '@/lib/core/config/redis'
+import { getStorageMethod } from '@/lib/core/storage'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -17,87 +18,80 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
-// OTP storage utility functions using Redis
-// We use 15 minutes (900 seconds) expiry for OTPs
-const OTP_EXPIRY = 15 * 60
+const OTP_EXPIRY = 15 * 60 // 15 minutes
+const OTP_EXPIRY_MS = OTP_EXPIRY * 1000
 
-// Store OTP in Redis
+/**
+ * In-memory OTP storage for single-instance deployments without Redis.
+ * Only used when REDIS_URL is not configured (determined once at startup).
+ *
+ * Warning: This does NOT work in multi-instance/serverless deployments.
+ */
+const inMemoryOTPStore = new Map<string, { otp: string; expiresAt: number }>()
+
+function cleanupExpiredOTPs() {
+  const now = Date.now()
+  for (const [key, value] of inMemoryOTPStore.entries()) {
+    if (value.expiresAt < now) {
+      inMemoryOTPStore.delete(key)
+    }
+  }
+}
+
 async function storeOTP(email: string, chatId: string, otp: string): Promise<void> {
   const key = `otp:${email}:${chatId}`
-  const redis = getRedisClient()
+  const storageMethod = getStorageMethod()
 
-  if (redis) {
-    // Use Redis if available
+  if (storageMethod === 'redis') {
+    const redis = getRedisClient()
+    if (!redis) {
+      throw new Error('Redis configured but client unavailable')
+    }
     await redis.set(key, otp, 'EX', OTP_EXPIRY)
   } else {
-    // Use the existing function as fallback to mark that an OTP exists
-    await markMessageAsProcessed(key, OTP_EXPIRY)
-
-    // For the fallback case, we need to handle storing the OTP value separately
-    // since markMessageAsProcessed only stores "1"
-    const valueKey = `${key}:value`
-    try {
-      // Access the in-memory cache directly - hacky but works for fallback
-      const inMemoryCache = (global as any).inMemoryCache
-      if (inMemoryCache) {
-        const fullKey = `processed:${valueKey}`
-        const expiry = OTP_EXPIRY ? Date.now() + OTP_EXPIRY * 1000 : null
-        inMemoryCache.set(fullKey, { value: otp, expiry })
-      }
-    } catch (error) {
-      logger.error('Error storing OTP in fallback cache:', error)
-    }
+    cleanupExpiredOTPs()
+    inMemoryOTPStore.set(key, {
+      otp,
+      expiresAt: Date.now() + OTP_EXPIRY_MS,
+    })
   }
 }
 
-// Get OTP from Redis
 async function getOTP(email: string, chatId: string): Promise<string | null> {
   const key = `otp:${email}:${chatId}`
-  const redis = getRedisClient()
+  const storageMethod = getStorageMethod()
 
-  if (redis) {
-    // Use Redis if available
-    return await redis.get(key)
-  }
-  // Use the existing function as fallback - check if it exists
-  const exists = await new Promise((resolve) => {
-    try {
-      // Check the in-memory cache directly - hacky but works for fallback
-      const inMemoryCache = (global as any).inMemoryCache
-      const fullKey = `processed:${key}`
-      const cacheEntry = inMemoryCache?.get(fullKey)
-      resolve(!!cacheEntry)
-    } catch {
-      resolve(false)
+  if (storageMethod === 'redis') {
+    const redis = getRedisClient()
+    if (!redis) {
+      throw new Error('Redis configured but client unavailable')
     }
-  })
+    return redis.get(key)
+  }
 
-  if (!exists) return null
+  const entry = inMemoryOTPStore.get(key)
+  if (!entry) return null
 
-  // Try to get the value key
-  const valueKey = `${key}:value`
-  try {
-    const inMemoryCache = (global as any).inMemoryCache
-    const fullKey = `processed:${valueKey}`
-    const cacheEntry = inMemoryCache?.get(fullKey)
-    return cacheEntry?.value || null
-  } catch {
+  if (entry.expiresAt < Date.now()) {
+    inMemoryOTPStore.delete(key)
     return null
   }
+
+  return entry.otp
 }
 
-// Delete OTP from Redis
 async function deleteOTP(email: string, chatId: string): Promise<void> {
   const key = `otp:${email}:${chatId}`
-  const redis = getRedisClient()
+  const storageMethod = getStorageMethod()
 
-  if (redis) {
-    // Use Redis if available
+  if (storageMethod === 'redis') {
+    const redis = getRedisClient()
+    if (!redis) {
+      throw new Error('Redis configured but client unavailable')
+    }
     await redis.del(key)
   } else {
-    // Use the existing function as fallback
-    await releaseLock(`processed:${key}`)
-    await releaseLock(`processed:${key}:value`)
+    inMemoryOTPStore.delete(key)
   }
 }
 
@@ -110,7 +104,6 @@ const otpVerifySchema = z.object({
   otp: z.string().length(6, 'OTP must be 6 digits'),
 })
 
-// Send OTP endpoint
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ identifier: string }> }
@@ -121,101 +114,82 @@ export async function POST(
   try {
     logger.debug(`[${requestId}] Processing OTP request for identifier: ${identifier}`)
 
-    // Parse request body
-    let body
-    try {
-      body = await request.json()
-      const { email } = otpRequestSchema.parse(body)
+    const body = await request.json()
+    const { email } = otpRequestSchema.parse(body)
 
-      // Find the chat deployment
-      const deploymentResult = await db
-        .select({
-          id: chat.id,
-          authType: chat.authType,
-          allowedEmails: chat.allowedEmails,
-          title: chat.title,
-        })
-        .from(chat)
-        .where(eq(chat.identifier, identifier))
-        .limit(1)
+    const deploymentResult = await db
+      .select({
+        id: chat.id,
+        authType: chat.authType,
+        allowedEmails: chat.allowedEmails,
+        title: chat.title,
+      })
+      .from(chat)
+      .where(eq(chat.identifier, identifier))
+      .limit(1)
 
-      if (deploymentResult.length === 0) {
-        logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
-        return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
-      }
+    if (deploymentResult.length === 0) {
+      logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
+      return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
+    }
 
-      const deployment = deploymentResult[0]
+    const deployment = deploymentResult[0]
 
-      // Verify this is an email-protected chat
-      if (deployment.authType !== 'email') {
-        return addCorsHeaders(
-          createErrorResponse('This chat does not use email authentication', 400),
-          request
-        )
-      }
-
-      const allowedEmails: string[] = Array.isArray(deployment.allowedEmails)
-        ? deployment.allowedEmails
-        : []
-
-      const isEmailAllowed =
-        allowedEmails.includes(email) ||
-        allowedEmails.some((allowed: string) => {
-          if (allowed.startsWith('@')) {
-            const domain = email.split('@')[1]
-            return domain && allowed === `@${domain}`
-          }
-          return false
-        })
-
-      if (!isEmailAllowed) {
-        return addCorsHeaders(
-          createErrorResponse('Email not authorized for this chat', 403),
-          request
-        )
-      }
-
-      const otp = generateOTP()
-
-      await storeOTP(email, deployment.id, otp)
-
-      const emailHtml = await renderOTPEmail(
-        otp,
-        email,
-        'email-verification',
-        deployment.title || 'Chat'
+    if (deployment.authType !== 'email') {
+      return addCorsHeaders(
+        createErrorResponse('This chat does not use email authentication', 400),
+        request
       )
+    }
 
-      const emailResult = await sendEmail({
-        to: email,
-        subject: `Verification code for ${deployment.title || 'Chat'}`,
-        html: emailHtml,
+    const allowedEmails: string[] = Array.isArray(deployment.allowedEmails)
+      ? deployment.allowedEmails
+      : []
+
+    const isEmailAllowed =
+      allowedEmails.includes(email) ||
+      allowedEmails.some((allowed: string) => {
+        if (allowed.startsWith('@')) {
+          const domain = email.split('@')[1]
+          return domain && allowed === `@${domain}`
+        }
+        return false
       })
 
-      if (!emailResult.success) {
-        logger.error(`[${requestId}] Failed to send OTP email:`, emailResult.message)
-        return addCorsHeaders(
-          createErrorResponse('Failed to send verification email', 500),
-          request
-        )
-      }
-
-      // Add a small delay to ensure Redis has fully processed the operation
-      // This helps with eventual consistency in distributed systems
-      await new Promise((resolve) => setTimeout(resolve, 500))
-
-      logger.info(`[${requestId}] OTP sent to ${email} for chat ${deployment.id}`)
-      return addCorsHeaders(createSuccessResponse({ message: 'Verification code sent' }), request)
-    } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        return addCorsHeaders(
-          createErrorResponse(error.errors[0]?.message || 'Invalid request', 400),
-          request
-        )
-      }
-      throw error
+    if (!isEmailAllowed) {
+      return addCorsHeaders(createErrorResponse('Email not authorized for this chat', 403), request)
     }
+
+    const otp = generateOTP()
+    await storeOTP(email, deployment.id, otp)
+
+    const emailHtml = await renderOTPEmail(
+      otp,
+      email,
+      'email-verification',
+      deployment.title || 'Chat'
+    )
+
+    const emailResult = await sendEmail({
+      to: email,
+      subject: `Verification code for ${deployment.title || 'Chat'}`,
+      html: emailHtml,
+    })
+
+    if (!emailResult.success) {
+      logger.error(`[${requestId}] Failed to send OTP email:`, emailResult.message)
+      return addCorsHeaders(createErrorResponse('Failed to send verification email', 500), request)
+    }
+
+    logger.info(`[${requestId}] OTP sent to ${email} for chat ${deployment.id}`)
+    return addCorsHeaders(createSuccessResponse({ message: 'Verification code sent' }), request)
   } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return addCorsHeaders(
+        createErrorResponse(error.errors[0]?.message || 'Invalid request', 400),
+        request
+      )
+    }
     logger.error(`[${requestId}] Error processing OTP request:`, error)
     return addCorsHeaders(
       createErrorResponse(error.message || 'Failed to process request', 500),
@@ -224,7 +198,6 @@ export async function POST(
   }
 }
 
-// Verify OTP endpoint
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ identifier: string }> }
@@ -235,63 +208,50 @@ export async function PUT(
   try {
     logger.debug(`[${requestId}] Verifying OTP for identifier: ${identifier}`)
 
-    // Parse request body
-    let body
-    try {
-      body = await request.json()
-      const { email, otp } = otpVerifySchema.parse(body)
+    const body = await request.json()
+    const { email, otp } = otpVerifySchema.parse(body)
 
-      // Find the chat deployment
-      const deploymentResult = await db
-        .select({
-          id: chat.id,
-          authType: chat.authType,
-        })
-        .from(chat)
-        .where(eq(chat.identifier, identifier))
-        .limit(1)
+    const deploymentResult = await db
+      .select({
+        id: chat.id,
+        authType: chat.authType,
+      })
+      .from(chat)
+      .where(eq(chat.identifier, identifier))
+      .limit(1)
 
-      if (deploymentResult.length === 0) {
-        logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
-        return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
-      }
-
-      const deployment = deploymentResult[0]
-
-      // Check if OTP exists and is valid
-      const storedOTP = await getOTP(email, deployment.id)
-      if (!storedOTP) {
-        return addCorsHeaders(
-          createErrorResponse('No verification code found, request a new one', 400),
-          request
-        )
-      }
-
-      // Check if OTP matches
-      if (storedOTP !== otp) {
-        return addCorsHeaders(createErrorResponse('Invalid verification code', 400), request)
-      }
-
-      // OTP is valid, clean up
-      await deleteOTP(email, deployment.id)
-
-      // Create success response with auth cookie
-      const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
-
-      // Set authentication cookie
-      setChatAuthCookie(response, deployment.id, deployment.authType)
-
-      return response
-    } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        return addCorsHeaders(
-          createErrorResponse(error.errors[0]?.message || 'Invalid request', 400),
-          request
-        )
-      }
-      throw error
+    if (deploymentResult.length === 0) {
+      logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
+      return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
     }
+
+    const deployment = deploymentResult[0]
+
+    const storedOTP = await getOTP(email, deployment.id)
+    if (!storedOTP) {
+      return addCorsHeaders(
+        createErrorResponse('No verification code found, request a new one', 400),
+        request
+      )
+    }
+
+    if (storedOTP !== otp) {
+      return addCorsHeaders(createErrorResponse('Invalid verification code', 400), request)
+    }
+
+    await deleteOTP(email, deployment.id)
+
+    const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
+    setChatAuthCookie(response, deployment.id, deployment.authType)
+
+    return response
   } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return addCorsHeaders(
+        createErrorResponse(error.errors[0]?.message || 'Invalid request', 400),
+        request
+      )
+    }
     logger.error(`[${requestId}] Error verifying OTP:`, error)
     return addCorsHeaders(
       createErrorResponse(error.message || 'Failed to process request', 500),

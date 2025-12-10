@@ -61,6 +61,8 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   } finally {
-    await releaseLock(LOCK_KEY).catch(() => {})
+    if (lockValue) {
+      await releaseLock(LOCK_KEY, lockValue).catch(() => {})
+    }
   }
 }

@@ -177,6 +177,44 @@ describe('Tool Parameters Utils', () => {
       expect(merged.message).toBe('Hello world')
       expect(merged.timeout).toBe(10000)
     })
+
+    it.concurrent('should skip empty strings so LLM values are used', () => {
+      const userProvided = {
+        apiKey: 'user-key',
+        channel: '', // User cleared this field
+        message: '', // User cleared this field too
+      }
+      const llmGenerated = {
+        message: 'Hello world',
+        channel: '#random',
+        timeout: 10000,
+      }
+
+      const merged = mergeToolParameters(userProvided, llmGenerated)
+
+      expect(merged.apiKey).toBe('user-key') // Non-empty user value preserved
+      expect(merged.channel).toBe('#random') // LLM value used because user value was empty
+      expect(merged.message).toBe('Hello world') // LLM value used because user value was empty
+      expect(merged.timeout).toBe(10000)
+    })
+
+    it.concurrent('should skip null and undefined values', () => {
+      const userProvided = {
+        apiKey: 'user-key',
+        channel: null,
+        message: undefined,
+      }
+      const llmGenerated = {
+        message: 'Hello world',
+        channel: '#random',
+      }
+
+      const merged = mergeToolParameters(userProvided, llmGenerated)
+
+      expect(merged.apiKey).toBe('user-key')
+      expect(merged.channel).toBe('#random') // LLM value used
+      expect(merged.message).toBe('Hello world') // LLM value used
+    })
   })
 
   describe('validateToolParameters', () => {
