@@ -1,4 +1,5 @@
 import { getRedisClient } from '@/lib/core/config/redis'
+import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { RateLimitStorageAdapter } from './adapter'
 import { DbTokenBucket } from './db-token-bucket'
@@ -13,16 +14,25 @@ export function createStorageAdapter(): RateLimitStorageAdapter {
     return cachedAdapter
   }
 
-  const redis = getRedisClient()
-  if (redis) {
-    logger.info('Using Redis for rate limiting')
+  const storageMethod = getStorageMethod()
+
+  if (storageMethod === 'redis') {
+    const redis = getRedisClient()
+    if (!redis) {
+      throw new Error('Redis configured but client unavailable')
+    }
+    logger.info('Rate limiting: Using Redis')
     cachedAdapter = new RedisTokenBucket(redis)
   } else {
-    logger.info('Using PostgreSQL for rate limiting')
+    logger.info('Rate limiting: Using PostgreSQL')
     cachedAdapter = new DbTokenBucket()
   }
 
   return cachedAdapter
+}
+
+export function getAdapterType(): StorageMethod {
+  return getStorageMethod()
 }
 
 export function resetStorageAdapter(): void {
