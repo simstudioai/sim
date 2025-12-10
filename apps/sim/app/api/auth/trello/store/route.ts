@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 import { db } from '@/../../packages/db'
 import { account } from '@/../../packages/db/schema'
 
@@ -67,16 +68,19 @@ export async function POST(request: NextRequest) {
         })
         .where(eq(account.id, existing.id))
     } else {
-      await db.insert(account).values({
-        id: `trello_${session.user.id}_${Date.now()}`,
-        userId: session.user.id,
-        providerId: 'trello',
-        accountId: trelloUser.id,
-        accessToken: token,
-        scope: 'read,write',
-        createdAt: now,
-        updatedAt: now,
-      })
+      await safeAccountInsert(
+        {
+          id: `trello_${session.user.id}_${Date.now()}`,
+          userId: session.user.id,
+          providerId: 'trello',
+          accountId: trelloUser.id,
+          accessToken: token,
+          scope: 'read,write',
+          createdAt: now,
+          updatedAt: now,
+        },
+        { provider: 'Trello', identifier: trelloUser.id }
+      )
     }
 
     return NextResponse.json({ success: true })
