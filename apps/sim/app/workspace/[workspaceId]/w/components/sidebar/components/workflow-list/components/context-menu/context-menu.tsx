@@ -28,9 +28,13 @@ interface ContextMenuProps {
    */
   onRename?: () => void
   /**
-   * Callback when create is clicked (for folders)
+   * Callback when create workflow is clicked (for folders)
    */
   onCreate?: () => void
+  /**
+   * Callback when create folder is clicked (for folders)
+   */
+  onCreateFolder?: () => void
   /**
    * Callback when duplicate is clicked
    */
@@ -54,10 +58,15 @@ interface ContextMenuProps {
    */
   showRename?: boolean
   /**
-   * Whether to show the create option (default: false)
+   * Whether to show the create workflow option (default: false)
    * Set to true for folders to create workflows inside
    */
   showCreate?: boolean
+  /**
+   * Whether to show the create folder option (default: false)
+   * Set to true for folders to create sub-folders inside
+   */
+  showCreateFolder?: boolean
   /**
    * Whether to show the duplicate option (default: true)
    * Set to false for items that cannot be duplicated
@@ -89,10 +98,15 @@ interface ContextMenuProps {
    */
   disableDelete?: boolean
   /**
-   * Whether the create option is disabled (default: false)
+   * Whether the create workflow option is disabled (default: false)
    * Set to true when creation is in progress or user lacks permissions
    */
   disableCreate?: boolean
+  /**
+   * Whether the create folder option is disabled (default: false)
+   * Set to true when creation is in progress or user lacks permissions
+   */
+  disableCreateFolder?: boolean
 }
 
 /**
@@ -110,12 +124,14 @@ export function ContextMenu({
   onOpenInNewTab,
   onRename,
   onCreate,
+  onCreateFolder,
   onDuplicate,
   onExport,
   onDelete,
   showOpenInNewTab = false,
   showRename = true,
   showCreate = false,
+  showCreateFolder = false,
   showDuplicate = true,
   showExport = false,
   disableExport = false,
@@ -123,6 +139,7 @@ export function ContextMenu({
   disableDuplicate = false,
   disableDelete = false,
   disableCreate = false,
+  disableCreateFolder = false,
 }: ContextMenuProps) {
   return (
     <Popover open={isOpen} onOpenChange={onClose} variant='primary'>
@@ -166,6 +183,17 @@ export function ContextMenu({
             }}
           >
             Create workflow
+          </PopoverItem>
+        )}
+        {showCreateFolder && onCreateFolder && (
+          <PopoverItem
+            disabled={disableCreateFolder}
+            onClick={() => {
+              onCreateFolder()
+              onClose()
+            }}
+          >
+            Create folder
           </PopoverItem>
         )}
         {showDuplicate && onDuplicate && (
