@@ -2020,14 +2020,6 @@ export const auth = betterAuth({
 
                 try {
                   await handleSubscriptionDeleted(subscription)
-
-                  // Reset usage limits to free tier
-                  await syncSubscriptionUsageLimits(subscription)
-
-                  logger.info('[onSubscriptionDeleted] Reset usage limits to free tier', {
-                    subscriptionId: subscription.id,
-                    referenceId: subscription.referenceId,
-                  })
                 } catch (error) {
                   logger.error('[onSubscriptionDeleted] Failed to handle subscription deletion', {
                     subscriptionId: subscription.id,

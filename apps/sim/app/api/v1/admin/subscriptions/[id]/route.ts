@@ -5,28 +5,28 @@
  *
  * Response: AdminSingleResponse<AdminSubscription>
  *
- * PATCH /api/v1/admin/subscriptions/[id]
+ * DELETE /api/v1/admin/subscriptions/[id]
  *
- * Update subscription details with optional side effects.
+ * Cancel a subscription by triggering Stripe cancellation.
+ * The Stripe webhook handles all cleanup (same as platform cancellation):
+ *   - Updates subscription status to canceled
+ *   - Bills final period overages
+ *   - Resets usage
+ *   - Restores member Pro subscriptions (for team/enterprise)
+ *   - Deletes organization (for team/enterprise)
+ *   - Syncs usage limits to free tier
  *
- * Body:
- *   - plan?: string - New plan (free, pro, team, enterprise)
- *   - status?: string - New status (active, canceled, etc.)
- *   - seats?: number - Seat count (for team plans)
- *   - metadata?: object - Subscription metadata (for enterprise)
- *   - periodStart?: string - Period start (ISO date)
- *   - periodEnd?: string - Period end (ISO date)
- *   - cancelAtPeriodEnd?: boolean - Cancel at period end flag
- *   - syncLimits?: boolean - Sync usage limits for affected users (default: false)
- *   - reason?: string - Reason for the change (for audit logging)
+ * Query Parameters:
+ *   - atPeriodEnd?: boolean - Schedule cancellation at period end instead of immediate (default: false)
+ *   - reason?: string - Reason for cancellation (for audit logging)
  *
- * Response: AdminSingleResponse<AdminSubscription & { sideEffects }>
+ * Response: { success: true, message: string, subscriptionId: string, atPeriodEnd: boolean }
  */
 
 import { db } from '@sim/db'
-import { member, subscription } from '@sim/db/schema'
+import { subscription } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
-import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -42,9 +42,6 @@ const logger = createLogger('AdminSubscriptionDetailAPI')
 interface RouteParams {
   id: string
 }
-
-const VALID_PLANS = ['free', 'pro', 'team', 'enterprise']
-const VALID_STATUSES = ['active', 'canceled', 'past_due', 'unpaid', 'trialing', 'incomplete']
 
 export const GET = withAdminAuthParams<RouteParams>(async (_, context) => {
   const { id: subscriptionId } = await context.params
@@ -69,14 +66,13 @@ export const GET = withAdminAuthParams<RouteParams>(async (_, context) => {
   }
 })
 
-export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) => {
+export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) => {
   const { id: subscriptionId } = await context.params
+  const url = new URL(request.url)
+  const atPeriodEnd = url.searchParams.get('atPeriodEnd') === 'true'
+  const reason = url.searchParams.get('reason') || 'Admin cancellation (no reason provided)'
 
   try {
-    const body = await request.json()
-    const syncLimits = body.syncLimits === true
-    const reason = body.reason || 'Admin update (no reason provided)'
-
     const [existing] = await db
       .select()
       .from(subscription)
@@ -87,150 +83,70 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
       return notFoundResponse('Subscription')
     }
 
-    const updateData: Record<string, unknown> = {}
-    const warnings: string[] = []
-
-    if (body.plan !== undefined) {
-      if (!VALID_PLANS.includes(body.plan)) {
-        return badRequestResponse(`plan must be one of: ${VALID_PLANS.join(', ')}`)
-      }
-      if (body.plan !== existing.plan) {
-        warnings.push(
-          `Plan change from ${existing.plan} to ${body.plan}. This does NOT update Stripe - manual sync required.`
-        )
-      }
-      updateData.plan = body.plan
+    if (existing.status === 'canceled') {
+      return badRequestResponse('Subscription is already canceled')
     }
 
-    if (body.status !== undefined) {
-      if (!VALID_STATUSES.includes(body.status)) {
-        return badRequestResponse(`status must be one of: ${VALID_STATUSES.join(', ')}`)
-      }
-      if (body.status !== existing.status) {
-        warnings.push(
-          `Status change from ${existing.status} to ${body.status}. This does NOT update Stripe - manual sync required.`
-        )
-      }
-      updateData.status = body.status
+    if (!existing.stripeSubscriptionId) {
+      return badRequestResponse('Subscription has no Stripe subscription ID')
     }
 
-    if (body.seats !== undefined) {
-      if (typeof body.seats !== 'number' || body.seats < 1 || !Number.isInteger(body.seats)) {
-        return badRequestResponse('seats must be a positive integer')
-      }
-      updateData.seats = body.seats
+    const stripe = requireStripeClient()
+
+    if (atPeriodEnd) {
+      // Schedule cancellation at period end
+      await stripe.subscriptions.update(existing.stripeSubscriptionId, {
+        cancel_at_period_end: true,
+      })
+
+      // Update DB (webhooks don't sync cancelAtPeriodEnd)
+      await db
+        .update(subscription)
+        .set({ cancelAtPeriodEnd: true })
+        .where(eq(subscription.id, subscriptionId))
+
+      logger.info('Admin API: Scheduled subscription cancellation at period end', {
+        subscriptionId,
+        stripeSubscriptionId: existing.stripeSubscriptionId,
+        plan: existing.plan,
+        referenceId: existing.referenceId,
+        periodEnd: existing.periodEnd,
+        reason,
+      })
+
+      return singleResponse({
+        success: true,
+        message: 'Subscription scheduled to cancel at period end.',
+        subscriptionId,
+        stripeSubscriptionId: existing.stripeSubscriptionId,
+        atPeriodEnd: true,
+        periodEnd: existing.periodEnd?.toISOString() ?? null,
+      })
     }
 
-    if (body.metadata !== undefined) {
-      if (typeof body.metadata !== 'object' || body.metadata === null) {
-        return badRequestResponse('metadata must be an object')
-      }
-      updateData.metadata = {
-        ...((existing.metadata as Record<string, unknown>) || {}),
-        ...body.metadata,
-      }
-    }
+    // Immediate cancellation
+    await stripe.subscriptions.cancel(existing.stripeSubscriptionId, {
+      prorate: true,
+      invoice_now: true,
+    })
 
-    if (body.periodStart !== undefined) {
-      const date = new Date(body.periodStart)
-      if (Number.isNaN(date.getTime())) {
-        return badRequestResponse('periodStart must be a valid ISO date')
-      }
-      updateData.periodStart = date
-    }
-
-    if (body.periodEnd !== undefined) {
-      const date = new Date(body.periodEnd)
-      if (Number.isNaN(date.getTime())) {
-        return badRequestResponse('periodEnd must be a valid ISO date')
-      }
-      updateData.periodEnd = date
-    }
-
-    if (body.cancelAtPeriodEnd !== undefined) {
-      if (typeof body.cancelAtPeriodEnd !== 'boolean') {
-        return badRequestResponse('cancelAtPeriodEnd must be a boolean')
-      }
-      updateData.cancelAtPeriodEnd = body.cancelAtPeriodEnd
-    }
-
-    if (Object.keys(updateData).length === 0) {
-      return badRequestResponse('No valid fields to update')
-    }
-
-    const [updated] = await db
-      .update(subscription)
-      .set(updateData)
-      .where(eq(subscription.id, subscriptionId))
-      .returning()
-
-    const sideEffects: {
-      limitsSynced: boolean
-      usersAffected: string[]
-      errors: string[]
-    } = {
-      limitsSynced: false,
-      usersAffected: [],
-      errors: [],
-    }
-
-    if (syncLimits) {
-      try {
-        const referenceId = updated.referenceId
-
-        if (['free', 'pro'].includes(updated.plan)) {
-          await syncUsageLimitsFromSubscription(referenceId)
-          sideEffects.usersAffected.push(referenceId)
-          sideEffects.limitsSynced = true
-        } else if (['team', 'enterprise'].includes(updated.plan)) {
-          const members = await db
-            .select({ userId: member.userId })
-            .from(member)
-            .where(eq(member.organizationId, referenceId))
-
-          for (const m of members) {
-            try {
-              await syncUsageLimitsFromSubscription(m.userId)
-              sideEffects.usersAffected.push(m.userId)
-            } catch (memberError) {
-              sideEffects.errors.push(`Failed to sync limits for user ${m.userId}`)
-              logger.error('Admin API: Failed to sync limits for member', {
-                userId: m.userId,
-                error: memberError,
-              })
-            }
-          }
-          sideEffects.limitsSynced = members.length > 0
-        }
-
-        logger.info('Admin API: Synced usage limits after subscription update', {
-          subscriptionId,
-          usersAffected: sideEffects.usersAffected.length,
-        })
-      } catch (syncError) {
-        sideEffects.errors.push('Failed to sync usage limits')
-        logger.error('Admin API: Failed to sync usage limits', {
-          subscriptionId,
-          error: syncError,
-        })
-      }
-    }
-
-    logger.info(`Admin API: Updated subscription ${subscriptionId}`, {
-      fields: Object.keys(updateData),
-      previousPlan: existing.plan,
-      previousStatus: existing.status,
-      syncLimits,
+    logger.info('Admin API: Triggered immediate subscription cancellation on Stripe', {
+      subscriptionId,
+      stripeSubscriptionId: existing.stripeSubscriptionId,
+      plan: existing.plan,
+      referenceId: existing.referenceId,
       reason,
     })
 
     return singleResponse({
-      ...toAdminSubscription(updated),
-      sideEffects,
-      warnings,
+      success: true,
+      message: 'Subscription cancellation triggered. Webhook will complete cleanup.',
+      subscriptionId,
+      stripeSubscriptionId: existing.stripeSubscriptionId,
+      atPeriodEnd: false,
     })
   } catch (error) {
-    logger.error('Admin API: Failed to update subscription', { error, subscriptionId })
-    return internalErrorResponse('Failed to update subscription')
+    logger.error('Admin API: Failed to cancel subscription', { error, subscriptionId })
+    return internalErrorResponse('Failed to cancel subscription')
   }
 })

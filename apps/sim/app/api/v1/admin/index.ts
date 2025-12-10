@@ -47,7 +47,7 @@
  *   Subscriptions:
  *   GET    /api/v1/admin/subscriptions                      - List all subscriptions
  *   GET    /api/v1/admin/subscriptions/:id                  - Get subscription details
- *   PATCH  /api/v1/admin/subscriptions/:id                  - Update subscription
+ *   DELETE /api/v1/admin/subscriptions/:id                  - Cancel subscription (?atPeriodEnd=true for scheduled)
  */
 
 export type { AdminAuthFailure, AdminAuthResult, AdminAuthSuccess } from '@/app/api/v1/admin/auth'
