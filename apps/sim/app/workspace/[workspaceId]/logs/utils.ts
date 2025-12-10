@@ -300,6 +300,7 @@ interface RawLogResponse extends LogWithDuration, LogWithExecutionData {
     total?: number
   }
   workflowName?: string
+  workflowColor?: string
   workflow?: {
     name?: string
     color?: string
