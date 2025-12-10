@@ -4151,7 +4151,7 @@ export function DuckDuckGoIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='-108 -108 216 216'>
       <circle r='108' fill='#d53' />
-      <circle r='96' fill='none' stroke='#ffffff' stroke-width='7' />
+      <circle r='96' fill='none' stroke='#ffffff' strokeWidth={7} />
       <path
         d='M-32-55C-62-48-51-6-51-6l19 93 7 3M-39-73h-8l11 4s-11 0-11 7c24-1 35 5 35 5'
         fill='#ddd'
