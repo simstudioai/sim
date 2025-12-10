@@ -15,7 +15,7 @@ import {
   useItemRename,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDeleteFolder, useDuplicateFolder } from '@/app/workspace/[workspaceId]/w/hooks'
-import { useUpdateFolder } from '@/hooks/queries/folders'
+import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import type { FolderTreeNode } from '@/stores/folders/store'
 import {
@@ -48,6 +48,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   const workspaceId = params.workspaceId as string
   const updateFolderMutation = useUpdateFolder()
   const createWorkflowMutation = useCreateWorkflow()
+  const createFolderMutation = useCreateFolder()
   const userPermissions = useUserPermissionsContext()
 
   // Delete modal state
@@ -92,6 +93,22 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
       logger.error('Failed to create workflow in folder:', error)
     }
   }, [createWorkflowMutation, workspaceId, folder.id, router])
+
+  /**
+   * Handle create sub-folder using React Query mutation.
+   * Creates a new folder inside the current folder.
+   */
+  const handleCreateFolderInFolder = useCallback(async () => {
+    try {
+      await createFolderMutation.mutateAsync({
+        workspaceId,
+        name: 'New Folder',
+        parentId: folder.id,
+      })
+    } catch (error) {
+      logger.error('Failed to create folder:', error)
+    }
+  }, [createFolderMutation, workspaceId, folder.id])
 
   // Folder expand hook
   const {
@@ -279,11 +296,14 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         onClose={closeMenu}
         onRename={handleStartEdit}
         onCreate={handleCreateWorkflowInFolder}
+        onCreateFolder={handleCreateFolderInFolder}
         onDuplicate={handleDuplicateFolder}
         onDelete={() => setIsDeleteModalOpen(true)}
         showCreate={true}
+        showCreateFolder={true}
         disableRename={!userPermissions.canEdit}
         disableCreate={!userPermissions.canEdit || createWorkflowMutation.isPending}
+        disableCreateFolder={!userPermissions.canEdit || createFolderMutation.isPending}
         disableDuplicate={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit}
       />
