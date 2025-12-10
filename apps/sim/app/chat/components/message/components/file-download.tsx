@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowDown, Loader2, Music } from 'lucide-react'
-import { Button, Tooltip } from '@/components/emcn'
+import { ArrowDown, Download, Loader2, Music } from 'lucide-react'
+import { Button } from '@/components/emcn'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ChatFile } from '@/app/chat/components/message/message'
@@ -11,6 +11,10 @@ const logger = createLogger('ChatFileDownload')
 
 interface ChatFileDownloadProps {
   file: ChatFile
+}
+
+interface ChatFileDownloadAllProps {
+  files: ChatFile[]
 }
 
 function formatFileSize(bytes: number): string {
@@ -44,36 +48,59 @@ function isImageFile(mimeType: string): boolean {
   return mimeType.startsWith('image/')
 }
 
+/**
+ * Gets the download URL for a file
+ */
+function getFileUrl(file: ChatFile): string {
+  if (file.key.startsWith('url/') && file.url) {
+    return file.url
+  }
+  if (file.url) {
+    return file.url
+  }
+  return `/api/files/serve/${encodeURIComponent(file.key)}?context=${file.context || 'execution'}`
+}
+
+async function triggerDownload(url: string, filename: string): Promise<void> {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`)
+  }
+
+  const blob = await response.blob()
+  const blobUrl = URL.createObjectURL(blob)
+
+  const link = document.createElement('a')
+  link.href = blobUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+
+  // Clean up the blob URL to free memory
+  URL.revokeObjectURL(blobUrl)
+  logger.info(`Downloaded: ${filename}`)
+}
+
+/**
+ * Single file download card component
+ */
 export function ChatFileDownload({ file }: ChatFileDownloadProps) {
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (isDownloading) return
 
     setIsDownloading(true)
 
     try {
       logger.info(`Initiating download for file: ${file.name}`)
-
-      if (file.key.startsWith('url/')) {
-        if (file.url) {
-          window.open(file.url, '_blank')
-          logger.info(`Opened URL-type file directly: ${file.url}`)
-          return
-        }
-        throw new Error('URL is required for URL-type files')
-      }
-
-      if (file.url) {
-        window.open(file.url, '_blank')
-        logger.info(`Opened file via presigned URL: ${file.name}`)
-      } else {
-        const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=${file.context || 'execution'}`
-        window.open(serveUrl, '_blank')
-        logger.info(`Opened file via serve endpoint: ${serveUrl}`)
-      }
+      const url = getFileUrl(file)
+      await triggerDownload(url, file.name)
     } catch (error) {
       logger.error(`Failed to download file ${file.name}:`, error)
+      // Fallback: open in new tab if blob download fails
       if (file.url) {
         window.open(file.url, '_blank')
       }
@@ -95,39 +122,79 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
   }
 
   return (
-    <Tooltip.Provider>
-      <Tooltip.Root delayDuration={300}>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='ghost'
-            onClick={handleDownload}
-            disabled={isDownloading}
-            className='flex h-auto w-[200px] items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700'
-          >
-            <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center'>
-              {renderIcon()}
-            </div>
-            <div className='min-w-0 flex-1 text-left'>
-              <div className='w-[100px] truncate font-medium text-gray-800 text-xs dark:text-gray-200'>
-                {file.name}
-              </div>
-              <div className='text-[10px] text-gray-500 dark:text-gray-400'>
-                {formatFileSize(file.size)}
-              </div>
-            </div>
-            <div className='flex-shrink-0'>
-              {isDownloading ? (
-                <Loader2 className='h-3.5 w-3.5 animate-spin text-gray-500 dark:text-gray-400' />
-              ) : (
-                <ArrowDown className='h-3.5 w-3.5 text-gray-500 dark:text-gray-400' />
-              )}
-            </div>
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='top' align='center' sideOffset={5}>
-          {file.name}
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </Tooltip.Provider>
+    <Button
+      variant='default'
+      onClick={handleDownload}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      disabled={isDownloading}
+      className='flex h-auto w-[200px] items-center gap-2 rounded-lg px-3 py-2'
+    >
+      <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center'>{renderIcon()}</div>
+      <div className='min-w-0 flex-1 text-left'>
+        <div className='w-[100px] truncate text-xs'>{file.name}</div>
+        <div className='text-[10px] text-[var(--text-muted)]'>{formatFileSize(file.size)}</div>
+      </div>
+      <div className='flex-shrink-0'>
+        {isDownloading ? (
+          <Loader2 className='h-3.5 w-3.5 animate-spin' />
+        ) : (
+          <ArrowDown
+            className={`h-3.5 w-3.5 transition-opacity ${isHovered ? 'opacity-100' : 'opacity-0'}`}
+          />
+        )}
+      </div>
+    </Button>
+  )
+}
+
+/**
+ * Download all files button - triggers download for each file
+ */
+export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
+  const [isDownloading, setIsDownloading] = useState(false)
+
+  if (!files || files.length === 0) return null
+
+  const handleDownloadAll = async () => {
+    if (isDownloading) return
+
+    setIsDownloading(true)
+
+    try {
+      logger.info(`Initiating download for ${files.length} files`)
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        try {
+          const url = getFileUrl(file)
+          await triggerDownload(url, file.name)
+          logger.info(`Downloaded file ${i + 1}/${files.length}: ${file.name}`)
+
+          // Small delay between downloads to avoid overwhelming the browser
+          if (i < files.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 150))
+          }
+        } catch (error) {
+          logger.error(`Failed to download file ${file.name}:`, error)
+        }
+      }
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  return (
+    <button
+      onClick={handleDownloadAll}
+      disabled={isDownloading}
+      className='text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50'
+    >
+      {isDownloading ? (
+        <Loader2 className='h-3 w-3 animate-spin' strokeWidth={2} />
+      ) : (
+        <Download className='h-3 w-3' strokeWidth={2} />
+      )}
+    </button>
   )
 }

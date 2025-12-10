@@ -3,7 +3,10 @@
 import { memo, useMemo, useState } from 'react'
 import { Check, Copy, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
-import { ChatFileDownload } from '@/app/chat/components/message/components/file-download'
+import {
+  ChatFileDownload,
+  ChatFileDownloadAll,
+} from '@/app/chat/components/message/components/file-download'
 import MarkdownRenderer from '@/app/chat/components/message/components/markdown-renderer'
 
 export interface ChatAttachment {
@@ -225,6 +228,10 @@ export const ClientChatMessage = memo(
                         {isCopied ? 'Copied!' : 'Copy to clipboard'}
                       </Tooltip.Content>
                     </Tooltip.Root>
+                  )}
+                  {/* Download All Button - Only show when there are files */}
+                  {!message.isStreaming && message.files && (
+                    <ChatFileDownloadAll files={message.files} />
                   )}
                 </div>
               )}
