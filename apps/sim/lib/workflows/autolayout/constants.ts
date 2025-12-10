@@ -75,7 +75,6 @@ export const DEFAULT_LAYOUT_OPTIONS = {
   horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
   verticalSpacing: DEFAULT_VERTICAL_SPACING,
   padding: DEFAULT_LAYOUT_PADDING,
-  alignment: 'center' as const,
 }
 
 /**
@@ -90,5 +89,4 @@ export const CONTAINER_LAYOUT_OPTIONS = {
   horizontalSpacing: DEFAULT_CONTAINER_HORIZONTAL_SPACING,
   verticalSpacing: DEFAULT_VERTICAL_SPACING,
   padding: { x: CONTAINER_PADDING_X, y: CONTAINER_PADDING_Y },
-  alignment: 'center' as const,
 }

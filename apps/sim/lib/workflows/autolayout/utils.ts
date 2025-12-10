@@ -329,7 +329,6 @@ export type LayoutFunction = (
       horizontalSpacing?: number
       verticalSpacing?: number
       padding?: { x: number; y: number }
-      alignment?: 'start' | 'center' | 'end'
     }
     subflowDepths?: Map<string, number>
   }
@@ -418,7 +417,6 @@ export function prepareContainerDimensions(
       layoutOptions: {
         horizontalSpacing: horizontalSpacing * 0.85,
         verticalSpacing,
-        alignment: 'center',
       },
     })
 

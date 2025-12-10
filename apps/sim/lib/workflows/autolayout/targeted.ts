@@ -228,7 +228,6 @@ function computeLayoutPositions(
     layoutOptions: {
       horizontalSpacing: isContainer ? horizontalSpacing * 0.85 : horizontalSpacing,
       verticalSpacing,
-      alignment: 'center',
     },
     subflowDepths,
   })

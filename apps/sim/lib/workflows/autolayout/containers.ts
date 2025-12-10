@@ -28,16 +28,12 @@ export function layoutContainers(
 ): void {
   const { children } = getBlocksByParent(blocks)
 
-  // Build container-specific layout options
-  // If horizontalSpacing provided, reduce by 15% for tighter container layout
-  // Otherwise use the default container spacing (400)
   const containerOptions: LayoutOptions = {
     horizontalSpacing: options.horizontalSpacing
       ? options.horizontalSpacing * 0.85
       : DEFAULT_CONTAINER_HORIZONTAL_SPACING,
     verticalSpacing: options.verticalSpacing ?? DEFAULT_VERTICAL_SPACING,
     padding: { x: CONTAINER_PADDING_X, y: CONTAINER_PADDING_Y },
-    alignment: options.alignment,
   }
 
   for (const [parentId, childIds] of children.entries()) {
