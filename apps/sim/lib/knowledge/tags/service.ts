@@ -573,7 +573,8 @@ export async function getTagUsage(
         and(
           eq(document.knowledgeBaseId, knowledgeBaseId),
           isNull(document.deletedAt),
-          isNotNull(sql`${sql.raw(tagSlot)}`)
+          isNotNull(sql`${sql.raw(tagSlot)}`),
+          sql`${sql.raw(tagSlot)} != ''`
         )
       )
 

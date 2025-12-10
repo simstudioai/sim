@@ -2,14 +2,18 @@
 
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { Button, Combobox, Input, Label, Textarea } from '@/components/emcn'
 import {
+  Button,
+  Combobox,
+  Input,
+  Label,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal/modal'
+  Textarea,
+} from '@/components/emcn'
 import { Skeleton, TagInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -378,7 +382,7 @@ export function TemplateDeploy({
       </form>
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete Template</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>

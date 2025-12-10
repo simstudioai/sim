@@ -3,15 +3,18 @@ import { Plus } from 'lucide-react'
 import { Trash } from '@/components/emcn/icons/trash'
 import 'prismjs/components/prism-json'
 import Editor from 'react-simple-code-editor'
-import { Badge, Button, Combobox, Input } from '@/components/emcn'
 import {
+  Badge,
+  Button,
   Code,
+  Combobox,
+  type ComboboxOption,
   calculateGutterWidth,
   getCodeEditorProps,
   highlight,
+  Input,
   languages,
-} from '@/components/emcn/components/code/code'
-import type { ComboboxOption } from '@/components/emcn/components/combobox/combobox'
+} from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'

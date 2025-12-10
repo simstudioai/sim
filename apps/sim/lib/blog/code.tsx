@@ -1,6 +1,6 @@
 'use client'
 
-import { Code } from '@/components/emcn/components/code/code'
+import { Code } from '@/components/emcn'
 
 interface CodeBlockProps {
   code: string

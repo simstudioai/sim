@@ -2,20 +2,25 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, Clipboard, Eye, EyeOff, Loader2, RefreshCw, X } from 'lucide-react'
-import { Button, Input, Label, Textarea, Tooltip } from '@/components/emcn'
 import {
+  Button,
+  Input,
+  Label,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from '@/components/emcn/components/modal/modal'
+  Textarea,
+  Tooltip,
+} from '@/components/emcn'
 import { Alert, AlertDescription, Skeleton } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { generatePassword } from '@/lib/core/security/encryption'
 import { cn } from '@/lib/core/utils/cn'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 import {
   type AuthType,
@@ -386,7 +391,7 @@ export function ChatDeploy({
       </form>
 
       <Modal open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete Chat</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
@@ -602,7 +607,9 @@ function AuthSelector({
     if (!email.trim()) return false
 
     const normalized = email.trim().toLowerCase()
-    const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.startsWith('@')
+    const isDomainPattern = normalized.startsWith('@')
+    const validation = quickValidateEmail(normalized)
+    const isValid = validation.isValid || isDomainPattern
 
     if (emails.includes(normalized) || invalidEmails.includes(normalized)) {
       return false

@@ -154,6 +154,7 @@ export function useLogsList(
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 0, // Always consider stale for real-time logs
+    placeholderData: keepPreviousData, // Keep showing old data while fetching new data
     initialPageParam: 1,
     getNextPageParam: (lastPage) => lastPage.nextPage,
   })
@@ -192,6 +193,7 @@ interface AggregateSegment {
   timestamp: string
   totalExecutions: number
   successfulExecutions: number
+  avgDurationMs?: number
 }
 
 interface ExecutionsMetricsResponse {
@@ -207,6 +209,7 @@ interface DashboardMetricsFilters {
   workflowIds?: string[]
   folderIds?: string[]
   triggers?: string[]
+  level?: string
 }
 
 async function fetchExecutionsMetrics(
@@ -228,6 +231,10 @@ async function fetchExecutionsMetrics(
 
   if (filters.triggers && filters.triggers.length > 0) {
     params.set('triggers', filters.triggers.join(','))
+  }
+
+  if (filters.level && filters.level !== 'all') {
+    params.set('level', filters.level)
   }
 
   const response = await fetch(
@@ -295,16 +302,35 @@ async function fetchExecutionsMetrics(
       timestamp: ts.toISOString(),
       totalExecutions: 0,
       successfulExecutions: 0,
+      avgDurationMs: 0,
     }
   })
+
+  const weightedDurationSums: number[] = Array(segmentCount).fill(0)
+  const executionCounts: number[] = Array(segmentCount).fill(0)
 
   for (const wf of data.workflows as any[]) {
     wf.segments.forEach((s: any, i: number) => {
       const index = Math.min(i, segmentCount - 1)
-      aggregateSegments[index].totalExecutions += s.totalExecutions || 0
+      const execCount = s.totalExecutions || 0
+
+      aggregateSegments[index].totalExecutions += execCount
       aggregateSegments[index].successfulExecutions += s.successfulExecutions || 0
+
+      if (typeof s.avgDurationMs === 'number' && s.avgDurationMs > 0 && execCount > 0) {
+        weightedDurationSums[index] += s.avgDurationMs * execCount
+        executionCounts[index] += execCount
+      }
     })
   }
+
+  aggregateSegments.forEach((seg, i) => {
+    if (executionCounts[i] > 0) {
+      seg.avgDurationMs = weightedDurationSums[i] / executionCounts[i]
+    } else {
+      seg.avgDurationMs = 0
+    }
+  })
 
   return {
     workflows: sortedWorkflows,
@@ -338,6 +364,8 @@ interface DashboardLogsFilters {
   workflowIds?: string[]
   folderIds?: string[]
   triggers?: string[]
+  level?: string
+  searchQuery?: string
   limit: number
 }
 
@@ -374,6 +402,18 @@ async function fetchDashboardLogsPage(
 
   if (filters.triggers && filters.triggers.length > 0) {
     params.set('triggers', filters.triggers.join(','))
+  }
+
+  if (filters.level && filters.level !== 'all') {
+    params.set('level', filters.level)
+  }
+
+  if (filters.searchQuery?.trim()) {
+    const parsed = parseQuery(filters.searchQuery)
+    const extraParams = queryToApiParams(parsed)
+    Object.entries(extraParams).forEach(([key, value]) => {
+      params.set(key, value)
+    })
   }
 
   const response = await fetch(`/api/logs?${params.toString()}`)

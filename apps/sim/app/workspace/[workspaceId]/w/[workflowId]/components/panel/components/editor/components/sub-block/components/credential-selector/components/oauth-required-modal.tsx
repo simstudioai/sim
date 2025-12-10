@@ -337,7 +337,7 @@ export function OAuthRequiredModal({
 
   return (
     <Modal open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <ModalContent className='w-[460px]'>
+      <ModalContent size='md'>
         <ModalHeader>Connect {providerName}</ModalHeader>
         <ModalBody>
           <div className='flex flex-col gap-[16px]'>

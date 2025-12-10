@@ -13,7 +13,7 @@ import {
   useState,
 } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { ChevronDown, Loader2, Search } from 'lucide-react'
+import { Check, ChevronDown, Loader2, Search } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
@@ -96,6 +96,10 @@ export interface ComboboxProps
   align?: 'start' | 'center' | 'end'
   /** Dropdown width - 'trigger' matches trigger width, or provide a pixel value */
   dropdownWidth?: 'trigger' | number
+  /** Show an "All" option at the top that clears selection (multi-select only) */
+  showAllOption?: boolean
+  /** Custom label for the "All" option (default: "All") */
+  allOptionLabel?: string
 }
 
 /**
@@ -130,6 +134,8 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
       searchPlaceholder = 'Search...',
       align = 'start',
       dropdownWidth = 'trigger',
+      showAllOption = false,
+      allOptionLabel = 'All',
       ...props
     },
     ref
@@ -401,7 +407,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                       ) : (
                         <>
                           {SelectedIcon && (
-                            <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0 opacity-60' />
+                            <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0' />
                           )}
                           <span className='truncate text-[var(--text-primary)]'>
                             {selectedOption?.label}
@@ -489,11 +495,11 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
             }}
           >
             {searchable && (
-              <div className='flex items-center px-[8px] py-[6px]'>
-                <Search className='mr-2 h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
+              <div className='flex items-center px-[10px] pt-[8px] pb-[4px]'>
+                <Search className='mr-[7px] ml-[1px] h-[13px] w-[13px] shrink-0 text-[var(--text-muted)]' />
                 <input
                   ref={searchInputRef}
-                  className='w-full bg-transparent text-[var(--text-primary)] text-sm placeholder:text-[var(--text-muted)] focus:outline-none'
+                  className='w-full bg-transparent font-base text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none'
                   placeholder={searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -530,22 +536,46 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                 {isLoading ? (
                   <div className='flex items-center justify-center py-[14px]'>
                     <Loader2 className='h-[16px] w-[16px] animate-spin text-[var(--text-muted)]' />
-                    <span className='ml-[8px] font-medium font-sans text-[var(--text-muted)] text-sm'>
+                    <span className='ml-[8px] font-base text-[12px] text-[var(--text-muted)]'>
                       Loading options...
                     </span>
                   </div>
                 ) : error ? (
-                  <div className='px-[8px] py-[14px] text-center font-medium font-sans text-red-500 text-sm'>
+                  <div className='px-[8px] py-[14px] text-center font-base text-[12px] text-red-500'>
                     {error}
                   </div>
                 ) : filteredOptions.length === 0 ? (
-                  <div className='py-[14px] text-center font-medium font-sans text-[var(--text-muted)] text-sm'>
+                  <div className='py-[14px] text-center font-base text-[12px] text-[var(--text-muted)]'>
                     {searchQuery || (editable && value)
                       ? 'No matching options found'
                       : 'No options available'}
                   </div>
                 ) : (
                   <div className='space-y-[2px]'>
+                    {/* "All" option for multi-select mode */}
+                    {showAllOption && multiSelect && (
+                      <div
+                        role='option'
+                        aria-selected={!multiSelectValues?.length}
+                        data-option-index={-1}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          onMultiSelectChange?.([])
+                        }}
+                        onMouseEnter={() => setHighlightedIndex(-1)}
+                        className={cn(
+                          'relative flex cursor-pointer select-none items-center rounded-[4px] px-[8px] font-medium font-sans',
+                          size === 'sm' ? 'py-[5px] text-[12px]' : 'py-[6px] text-sm',
+                          'hover:bg-[var(--surface-11)]',
+                          !multiSelectValues?.length && 'bg-[var(--surface-11)]'
+                        )}
+                      >
+                        <span className='flex-1 truncate text-[var(--text-primary)]'>
+                          {allOptionLabel}
+                        </span>
+                      </div>
+                    )}
                     {filteredOptions.map((option, index) => {
                       const isSelected = multiSelect
                         ? multiSelectValues?.includes(option.value)
@@ -572,10 +602,13 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                             (isHighlighted || isSelected) && 'bg-[var(--surface-11)]'
                           )}
                         >
-                          {OptionIcon && <OptionIcon className='mr-[8px] h-3 w-3 opacity-60' />}
+                          {OptionIcon && <OptionIcon className='mr-[8px] h-3 w-3' />}
                           <span className='flex-1 truncate text-[var(--text-primary)]'>
                             {option.label}
                           </span>
+                          {multiSelect && isSelected && (
+                            <Check className='ml-[8px] h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
+                          )}
                         </div>
                       )
                     })}
