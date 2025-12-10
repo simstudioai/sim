@@ -236,6 +236,10 @@ export function useChatStreaming() {
                     return null
                   }
 
+                  if (Array.isArray(value) && value.length === 0) {
+                    return null
+                  }
+
                   if (typeof value === 'string') {
                     return value
                   }
