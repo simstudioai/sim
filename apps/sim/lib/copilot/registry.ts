@@ -32,6 +32,7 @@ export const ToolIds = z.enum([
   'navigate_ui',
   'knowledge_base',
   'manage_custom_tool',
+  'manage_mcp_tool',
 ])
 export type ToolId = z.infer<typeof ToolIds>
 
@@ -221,6 +222,36 @@ export const ToolArgSchemas = {
         'Required for add. The JavaScript function body code. Use {{ENV_VAR}} for environment variables and reference parameters directly by name.'
       ),
   }),
+
+  manage_mcp_tool: z.object({
+    operation: z
+      .enum(['add', 'edit', 'delete'])
+      .describe('The operation to perform: add (create new), edit (update existing), or delete'),
+    serverId: z
+      .string()
+      .optional()
+      .describe(
+        'Required for edit and delete operations. The database ID of the MCP server. Use the MCP settings panel or API to get server IDs.'
+      ),
+    config: z
+      .object({
+        name: z.string().describe('The display name for the MCP server'),
+        transport: z
+          .enum(['streamable-http'])
+          .optional()
+          .default('streamable-http')
+          .describe('Transport protocol (currently only streamable-http is supported)'),
+        url: z.string().optional().describe('The MCP server endpoint URL (required for add)'),
+        headers: z
+          .record(z.string())
+          .optional()
+          .describe('Optional HTTP headers to send with requests'),
+        timeout: z.number().optional().describe('Request timeout in milliseconds (default: 30000)'),
+        enabled: z.boolean().optional().describe('Whether the server is enabled (default: true)'),
+      })
+      .optional()
+      .describe('Required for add and edit operations. The MCP server configuration.'),
+  }),
 } as const
 export type ToolArgSchemaMap = typeof ToolArgSchemas
 
@@ -286,6 +317,7 @@ export const ToolSSESchemas = {
   navigate_ui: toolCallSSEFor('navigate_ui', ToolArgSchemas.navigate_ui),
   knowledge_base: toolCallSSEFor('knowledge_base', ToolArgSchemas.knowledge_base),
   manage_custom_tool: toolCallSSEFor('manage_custom_tool', ToolArgSchemas.manage_custom_tool),
+  manage_mcp_tool: toolCallSSEFor('manage_mcp_tool', ToolArgSchemas.manage_mcp_tool),
 } as const
 export type ToolSSESchemaMap = typeof ToolSSESchemas
 
@@ -511,6 +543,13 @@ export const ToolResultSchemas = {
     operation: z.enum(['add', 'edit', 'delete']),
     toolId: z.string().optional(),
     title: z.string().optional(),
+    message: z.string().optional(),
+  }),
+  manage_mcp_tool: z.object({
+    success: z.boolean(),
+    operation: z.enum(['add', 'edit', 'delete']),
+    serverId: z.string().optional(),
+    serverName: z.string().optional(),
     message: z.string().optional(),
   }),
 } as const
