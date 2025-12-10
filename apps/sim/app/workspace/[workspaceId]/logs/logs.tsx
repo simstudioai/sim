@@ -107,6 +107,33 @@ export default function Logs() {
     }
   }, [debouncedSearchQuery, setStoreSearchQuery])
 
+  // Sync selected log with refreshed data from logs list
+  useEffect(() => {
+    if (!selectedLog?.id || logs.length === 0) return
+
+    const updatedLog = logs.find((l) => l.id === selectedLog.id)
+    if (updatedLog) {
+      // Update selectedLog with fresh data from the list
+      setSelectedLog(updatedLog)
+      // Update index in case position changed
+      const newIndex = logs.findIndex((l) => l.id === selectedLog.id)
+      if (newIndex !== selectedLogIndex) {
+        setSelectedLogIndex(newIndex)
+      }
+    }
+  }, [logs, selectedLog?.id, selectedLogIndex])
+
+  // Refetch log details during live mode
+  useEffect(() => {
+    if (!isLive || !selectedLog?.id) return
+
+    const interval = setInterval(() => {
+      logDetailQuery.refetch()
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [isLive, selectedLog?.id, logDetailQuery])
+
   const handleLogClick = (log: WorkflowLog) => {
     // If clicking on the same log that's already selected and sidebar is open, close it
     if (selectedLog?.id === log.id && isSidebarOpen) {
