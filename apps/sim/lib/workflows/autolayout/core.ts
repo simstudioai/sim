@@ -10,12 +10,55 @@ import {
   normalizePositions,
   prepareBlockMetrics,
 } from '@/lib/workflows/autolayout/utils'
+import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('AutoLayout:Core')
 
-/** Handle names that indicate edges from subflow end */
 const SUBFLOW_END_HANDLES = new Set(['loop-end-source', 'parallel-end-source'])
+const SUBFLOW_START_HANDLES = new Set(['loop-start-source', 'parallel-start-source'])
+
+/**
+ * Calculates the Y offset for a source handle based on block type and handle ID.
+ */
+function getSourceHandleYOffset(block: BlockState, sourceHandle?: string | null): number {
+  if (sourceHandle === 'error') {
+    const blockHeight = block.height || BLOCK_DIMENSIONS.MIN_HEIGHT
+    return blockHeight - HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET
+  }
+
+  if (sourceHandle && SUBFLOW_START_HANDLES.has(sourceHandle)) {
+    return HANDLE_POSITIONS.SUBFLOW_START_Y_OFFSET
+  }
+
+  if (block.type === 'condition' && sourceHandle?.startsWith('condition-')) {
+    const conditionId = sourceHandle.replace('condition-', '')
+    try {
+      const conditionsValue = block.subBlocks?.conditions?.value
+      if (typeof conditionsValue === 'string' && conditionsValue) {
+        const conditions = JSON.parse(conditionsValue) as Array<{ id?: string }>
+        const conditionIndex = conditions.findIndex((c) => c.id === conditionId)
+        if (conditionIndex >= 0) {
+          return (
+            HANDLE_POSITIONS.CONDITION_START_Y +
+            conditionIndex * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
+          )
+        }
+      }
+    } catch {
+      // Fall back to default offset
+    }
+  }
+
+  return HANDLE_POSITIONS.DEFAULT_Y_OFFSET
+}
+
+/**
+ * Calculates the Y offset for a target handle based on block type and handle ID.
+ */
+function getTargetHandleYOffset(_block: BlockState, _targetHandle?: string | null): number {
+  return HANDLE_POSITIONS.DEFAULT_Y_OFFSET
+}
 
 /**
  * Checks if an edge comes from a subflow end handle
@@ -226,17 +269,35 @@ function resolveVerticalOverlaps(nodes: GraphNode[], verticalSpacing: number): v
 }
 
 /**
+ * Checks if a block is a container type (loop or parallel)
+ */
+function isContainerBlock(node: GraphNode): boolean {
+  return node.block.type === 'loop' || node.block.type === 'parallel'
+}
+
+/**
+ * Extra vertical spacing after containers to prevent edge crossings with sibling blocks.
+ * This creates clearance for edges from container ends to route cleanly.
+ */
+const CONTAINER_VERTICAL_CLEARANCE = 120
+
+/**
  * Calculates positions for nodes organized by layer.
  * Uses cumulative width-based X positioning to properly handle containers of varying widths.
+ * Aligns blocks based on their connected predecessors to achieve handle-to-handle alignment.
+ *
+ * Handle alignment: Calculates actual source handle Y positions based on block type
+ * (condition blocks have handles at different heights for each branch).
+ * Target handles are also calculated per-block to ensure precise alignment.
  */
 export function calculatePositions(
   layers: Map<number, GraphNode[]>,
+  edges: Edge[],
   options: LayoutOptions = {}
 ): void {
   const horizontalSpacing = options.horizontalSpacing ?? DEFAULT_LAYOUT_OPTIONS.horizontalSpacing
   const verticalSpacing = options.verticalSpacing ?? DEFAULT_LAYOUT_OPTIONS.verticalSpacing
   const padding = options.padding ?? DEFAULT_LAYOUT_OPTIONS.padding
-  const alignment = options.alignment ?? DEFAULT_LAYOUT_OPTIONS.alignment
 
   const layerNumbers = Array.from(layers.keys()).sort((a, b) => a - b)
 
@@ -257,41 +318,89 @@ export function calculatePositions(
     cumulativeX += layerWidths.get(layerNum)! + horizontalSpacing
   }
 
-  // Position nodes using cumulative X
+  // Build a flat map of all nodes for quick lookups
+  const allNodes = new Map<string, GraphNode>()
+  for (const nodesInLayer of layers.values()) {
+    for (const node of nodesInLayer) {
+      allNodes.set(node.id, node)
+    }
+  }
+
+  // Build incoming edges map for handle lookups
+  const incomingEdgesMap = new Map<string, Edge[]>()
+  for (const edge of edges) {
+    if (!incomingEdgesMap.has(edge.target)) {
+      incomingEdgesMap.set(edge.target, [])
+    }
+    incomingEdgesMap.get(edge.target)!.push(edge)
+  }
+
+  // Position nodes layer by layer, aligning with connected predecessors
   for (const layerNum of layerNumbers) {
     const nodesInLayer = layers.get(layerNum)!
     const xPosition = layerXPositions.get(layerNum)!
 
-    // Calculate total height for this layer
-    const totalHeight = nodesInLayer.reduce(
-      (sum, node, idx) => sum + node.metrics.height + (idx > 0 ? verticalSpacing : 0),
-      0
-    )
+    // Separate containers and non-containers
+    const containersInLayer = nodesInLayer.filter(isContainerBlock)
+    const nonContainersInLayer = nodesInLayer.filter((n) => !isContainerBlock(n))
 
-    // Start Y based on alignment
-    let yOffset: number
-    switch (alignment) {
-      case 'start':
-        yOffset = padding.y
-        break
-      case 'center':
-        yOffset = Math.max(padding.y, 300 - totalHeight / 2)
-        break
-      case 'end':
-        yOffset = 600 - totalHeight - padding.y
-        break
-      default:
-        yOffset = padding.y
-        break
+    // For the first layer (layer 0), position sequentially from padding.y
+    if (layerNum === 0) {
+      let yOffset = padding.y
+
+      // Sort containers by height for visual balance
+      containersInLayer.sort((a, b) => b.metrics.height - a.metrics.height)
+
+      for (const node of containersInLayer) {
+        node.position = { x: xPosition, y: yOffset }
+        yOffset += node.metrics.height + verticalSpacing
+      }
+
+      if (containersInLayer.length > 0 && nonContainersInLayer.length > 0) {
+        yOffset += CONTAINER_VERTICAL_CLEARANCE
+      }
+
+      // Sort non-containers by outgoing connections
+      nonContainersInLayer.sort((a, b) => b.outgoing.size - a.outgoing.size)
+
+      for (const node of nonContainersInLayer) {
+        node.position = { x: xPosition, y: yOffset }
+        yOffset += node.metrics.height + verticalSpacing
+      }
+      continue
     }
 
-    // Position each node
-    for (const node of nodesInLayer) {
-      node.position = {
-        x: xPosition,
-        y: yOffset,
+    // For subsequent layers, align with connected predecessors (handle-to-handle)
+    for (const node of [...containersInLayer, ...nonContainersInLayer]) {
+      // Find the bottommost predecessor handle Y (highest value) and align to it
+      let bestSourceHandleY = -1
+      let bestEdge: Edge | null = null
+      const incomingEdges = incomingEdgesMap.get(node.id) || []
+
+      for (const edge of incomingEdges) {
+        const predecessor = allNodes.get(edge.source)
+        if (predecessor) {
+          // Calculate actual source handle Y position based on block type and handle
+          const sourceHandleOffset = getSourceHandleYOffset(predecessor.block, edge.sourceHandle)
+          const sourceHandleY = predecessor.position.y + sourceHandleOffset
+
+          if (sourceHandleY > bestSourceHandleY) {
+            bestSourceHandleY = sourceHandleY
+            bestEdge = edge
+          }
+        }
       }
-      yOffset += node.metrics.height + verticalSpacing
+
+      // If no predecessors found (shouldn't happen for layer > 0), use padding
+      if (bestSourceHandleY < 0) {
+        bestSourceHandleY = padding.y + HANDLE_POSITIONS.DEFAULT_Y_OFFSET
+      }
+
+      // Calculate the target handle Y offset for this node
+      const targetHandleOffset = getTargetHandleYOffset(node.block, bestEdge?.targetHandle)
+
+      // Position node so its target handle aligns with the source handle Y
+      node.position = { x: xPosition, y: bestSourceHandleY - targetHandleOffset }
     }
   }
 
@@ -338,8 +447,8 @@ export function layoutBlocksCore(
   // 3. Group by layer
   const layers = groupByLayer(nodes)
 
-  // 4. Calculate positions
-  calculatePositions(layers, layoutOptions)
+  // 4. Calculate positions (pass edges for handle offset calculations)
+  calculatePositions(layers, edges, layoutOptions)
 
   // 5. Normalize positions
   const dimensions = normalizePositions(nodes, { isContainer: options.isContainer })

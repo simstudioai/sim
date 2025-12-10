@@ -4,7 +4,6 @@ export interface LayoutOptions {
   horizontalSpacing?: number
   verticalSpacing?: number
   padding?: { x: number; y: number }
-  alignment?: 'start' | 'center' | 'end'
 }
 
 export interface LayoutResult {

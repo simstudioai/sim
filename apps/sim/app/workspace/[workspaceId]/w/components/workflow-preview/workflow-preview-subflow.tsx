@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
+import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 
 interface WorkflowPreviewSubflowData {
   name: string
@@ -47,7 +48,11 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
         position={Position.Left}
         id='target'
         className={handleClass}
-        style={{ left: '-7px', top: '20px', transform: 'translateY(-50%)' }}
+        style={{
+          left: '-7px',
+          top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px`,
+          transform: 'translateY(-50%)',
+        }}
       />
 
       {/* Header - matches actual subflow header */}
@@ -81,7 +86,11 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
         position={Position.Right}
         id={endHandleId}
         className={handleClass}
-        style={{ right: '-7px', top: '20px', transform: 'translateY(-50%)' }}
+        style={{
+          right: '-7px',
+          top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px`,
+          transform: 'translateY(-50%)',
+        }}
       />
     </div>
   )
