@@ -4,6 +4,7 @@ import type {
   MicrosoftTeamsToolParams,
 } from '@/tools/microsoft_teams/types'
 import {
+  downloadAllReferenceAttachments,
   extractMessageAttachments,
   fetchHostedContentsForChannelMessage,
 } from '@/tools/microsoft_teams/utils'
@@ -123,7 +124,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
             sender = 'System'
           }
 
-          // Optionally fetch and upload hosted contents
+          // Optionally fetch and upload hosted contents and reference attachments
           let uploaded: any[] = []
           if (
             params?.includeAttachments &&
@@ -133,12 +134,21 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
             messageId
           ) {
             try {
-              uploaded = await fetchHostedContentsForChannelMessage({
+              // Fetch hosted contents (inline images, etc.)
+              const hostedContents = await fetchHostedContentsForChannelMessage({
                 accessToken: params.accessToken,
                 teamId: params.teamId,
                 channelId: params.channelId,
                 messageId,
               })
+              uploaded.push(...hostedContents)
+
+              // Download reference attachments (SharePoint/OneDrive files)
+              const referenceFiles = await downloadAllReferenceAttachments({
+                accessToken: params.accessToken,
+                attachments,
+              })
+              uploaded.push(...referenceFiles)
             } catch (_e) {
               uploaded = []
             }

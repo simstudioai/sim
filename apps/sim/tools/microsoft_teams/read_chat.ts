@@ -3,6 +3,7 @@ import type {
   MicrosoftTeamsToolParams,
 } from '@/tools/microsoft_teams/types'
 import {
+  downloadAllReferenceAttachments,
   extractMessageAttachments,
   fetchHostedContentsForChatMessage,
 } from '@/tools/microsoft_teams/utils'
@@ -95,15 +96,24 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
         // Extract attachments without any content processing
         const attachments = extractMessageAttachments(message)
 
-        // Optionally fetch and upload hosted contents
+        // Optionally fetch and upload hosted contents and reference attachments
         let uploaded: any[] = []
         if (params?.includeAttachments && params.accessToken && params.chatId && messageId) {
           try {
-            uploaded = await fetchHostedContentsForChatMessage({
+            // Fetch hosted contents (inline images, etc.)
+            const hostedContents = await fetchHostedContentsForChatMessage({
               accessToken: params.accessToken,
               chatId: params.chatId,
               messageId,
             })
+            uploaded.push(...hostedContents)
+
+            // Download reference attachments (SharePoint/OneDrive files)
+            const referenceFiles = await downloadAllReferenceAttachments({
+              accessToken: params.accessToken,
+              attachments,
+            })
+            uploaded.push(...referenceFiles)
           } catch (_e) {
             uploaded = []
           }

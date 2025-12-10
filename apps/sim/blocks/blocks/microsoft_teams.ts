@@ -228,6 +228,12 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       },
       required: true,
     },
+    {
+      id: 'includeAttachments',
+      title: 'Include Attachments',
+      type: 'switch',
+      condition: { field: 'operation', value: ['read_chat', 'read_channel'] },
+    },
     // File upload (basic mode)
     {
       id: 'attachmentFiles',
@@ -320,6 +326,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
           files,
           messageId,
           reactionType,
+          includeAttachments,
           ...rest
         } = params
 
@@ -330,6 +337,10 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         const baseParams: Record<string, any> = {
           ...rest,
           credential,
+        }
+
+        if ((operation === 'read_chat' || operation === 'read_channel') && includeAttachments) {
+          baseParams.includeAttachments = true
         }
 
         // Add files if provided
@@ -437,6 +448,10 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       description: 'Message content. Mention users with <at>userName</at>',
     },
     reactionType: { type: 'string', description: 'Emoji reaction (e.g., ❤️, 👍, 😊)' },
+    includeAttachments: {
+      type: 'boolean',
+      description: 'Download and include message attachments',
+    },
     attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
     files: { type: 'array', description: 'Files to attach (UserFile array)' },
   },
@@ -447,6 +462,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     messages: { type: 'json', description: 'Array of message objects' },
     totalAttachments: { type: 'number', description: 'Total number of attachments' },
     attachmentTypes: { type: 'json', description: 'Array of attachment content types' },
+    attachments: { type: 'array', description: 'Downloaded message attachments' },
     updatedContent: {
       type: 'boolean',
       description: 'Whether content was successfully updated/sent',
