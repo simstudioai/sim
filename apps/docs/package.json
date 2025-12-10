@@ -13,6 +13,7 @@
   "dependencies": {
     "@tabler/icons-react": "^3.31.0",
     "@vercel/og": "^0.6.5",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "fumadocs-core": "16.2.3",
     "fumadocs-mdx": "14.1.0",

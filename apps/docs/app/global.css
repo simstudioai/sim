@@ -2,6 +2,12 @@
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
 
+/* Prevent overscroll bounce effect on the page */
+html,
+body {
+  overscroll-behavior: none;
+}
+
 @theme {
   --color-fd-primary: #802fff; /* Purple from control-bar component */
   --font-geist-sans: var(--font-geist-sans);
