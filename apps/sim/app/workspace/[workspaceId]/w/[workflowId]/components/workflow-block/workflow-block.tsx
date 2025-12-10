@@ -703,12 +703,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     const colorClasses = isError ? '!bg-red-400 dark:!bg-red-500' : '!bg-[var(--surface-12)]'
 
     const positionClasses = {
-      left: '!left-[-7px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover:!left-[-10px] hover:!w-[10px] hover:!rounded-l-full',
+      left: '!left-[-8px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover:!left-[-11px] hover:!w-[10px] hover:!rounded-l-full',
       right:
-        '!right-[-7px] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none hover:!right-[-10px] hover:!w-[10px] hover:!rounded-r-full',
-      top: '!top-[-7px] !h-[7px] !w-5 !rounded-t-[2px] !rounded-b-none hover:!top-[-10px] hover:!h-[10px] hover:!rounded-t-full',
+        '!right-[-8px] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none hover:!right-[-11px] hover:!w-[10px] hover:!rounded-r-full',
+      top: '!top-[-8px] !h-[7px] !w-5 !rounded-t-[2px] !rounded-b-none hover:!top-[-11px] hover:!h-[10px] hover:!rounded-t-full',
       bottom:
-        '!bottom-[-7px] !h-[7px] !w-5 !rounded-b-[2px] !rounded-t-none hover:!bottom-[-10px] hover:!h-[10px] hover:!rounded-b-full',
+        '!bottom-[-8px] !h-[7px] !w-5 !rounded-b-[2px] !rounded-t-none hover:!bottom-[-11px] hover:!h-[10px] hover:!rounded-b-full',
     }
 
     return cn(baseClasses, colorClasses, positionClasses[position])
