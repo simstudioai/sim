@@ -93,12 +93,13 @@ export class DocumentProcessingQueue {
         }
 
         try {
-          const result = await redis.brpop('document-queue', 1)
-          if (!result || !result[1]) {
+          const result = await redis.rpop('document-queue')
+          if (!result) {
+            await new Promise((resolve) => setTimeout(resolve, 500))
             continue
           }
 
-          const job: QueueJob = JSON.parse(result[1])
+          const job: QueueJob = JSON.parse(result)
           const promise = this.executeJob(job, processor)
           this.processing.set(job.id, promise)
 
