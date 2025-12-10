@@ -13,9 +13,6 @@ interface ChatFileDownloadProps {
   file: ChatFile
 }
 
-/**
- * Format file size in human-readable format
- */
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -24,9 +21,6 @@ function formatFileSize(bytes: number): string {
   return `${Math.round((bytes / k ** i) * 10) / 10} ${sizes[i]}`
 }
 
-/**
- * Check if file is an audio type
- */
 function isAudioFile(mimeType: string, filename: string): boolean {
   const audioMimeTypes = [
     'audio/mpeg',
@@ -46,17 +40,10 @@ function isAudioFile(mimeType: string, filename: string): boolean {
   )
 }
 
-/**
- * Check if file is an image type
- */
 function isImageFile(mimeType: string): boolean {
   return mimeType.startsWith('image/')
 }
 
-/**
- * File download component for the deployed chat interface.
- * Renders a clickable file card that opens the file in a new tab.
- */
 export function ChatFileDownload({ file }: ChatFileDownloadProps) {
   const [isDownloading, setIsDownloading] = useState(false)
 

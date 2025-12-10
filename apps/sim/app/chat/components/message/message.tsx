@@ -14,9 +14,6 @@ export interface ChatAttachment {
   size?: number
 }
 
-/**
- * File object returned from workflow execution (e.g., from download file tools)
- */
 export interface ChatFile {
   id: string
   name: string
@@ -192,7 +189,6 @@ export const ClientChatMessage = memo(
                   )}
                 </div>
               </div>
-              {/* File downloads - displayed after content */}
               {message.files && message.files.length > 0 && (
                 <div className='flex flex-wrap gap-2'>
                   {message.files.map((file) => (

@@ -8,9 +8,6 @@ import { CHAT_ERROR_MESSAGES } from '@/app/chat/constants'
 
 const logger = createLogger('UseChatStreaming')
 
-/**
- * Recursively extracts file objects from any data structure
- */
 function extractFilesFromData(
   data: any,
   files: ChatFile[] = [],
@@ -20,7 +17,6 @@ function extractFilesFromData(
     return files
   }
 
-  // Check if this object is a file
   if (isUserFile(data)) {
     if (!seenIds.has(data.id)) {
       seenIds.add(data.id)
@@ -37,7 +33,6 @@ function extractFilesFromData(
     return files
   }
 
-  // Recursively check arrays
   if (Array.isArray(data)) {
     for (const item of data) {
       extractFilesFromData(item, files, seenIds)
@@ -45,7 +40,6 @@ function extractFilesFromData(
     return files
   }
 
-  // Recursively check object properties
   for (const value of Object.values(data)) {
     extractFilesFromData(value, files, seenIds)
   }
