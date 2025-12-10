@@ -41,18 +41,17 @@ Polymarket 集成的主要功能包括：
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `closed` | string | 否 | 按关闭状态筛选 \(true/false\)。使用 false 仅显示活跃市场。 |
-| `order` | string | 否 | 排序字段 \(例如：volumeNum, liquidityNum, startDate, endDate, createdAt\) |
-| `ascending` | string | 否 | 排序方向 \(true 表示升序，false 表示降序\) |
+| `order` | string | 否 | 排序字段 \(例如，volumeNum, liquidityNum, startDate, endDate, createdAt\) |
+| `ascending` | string | 否 | 排序方向 \(true 为升序，false 为降序\) |
 | `tagId` | string | 否 | 按标签 ID 筛选 |
-| `limit` | string | 否 | 每页结果数量 \(推荐：25-50\) |
+| `limit` | string | 否 | 每页结果数量 \(最大 50\) |
 | `offset` | string | 否 | 分页偏移量 \(跳过此数量的结果\) |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 市场数据和元数据 |
+| `markets` | array | 市场对象数组 |
 
 ### `polymarket_get_market`
 
@@ -69,8 +68,7 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 市场数据和元数据 |
+| `market` | object | 包含详细信息的市场对象 |
 
 ### `polymarket_get_events`
 
@@ -81,18 +79,17 @@ Polymarket 集成的主要功能包括：
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `closed` | string | 否 | 按关闭状态筛选 \(true/false\)。使用 false 仅显示活跃事件。 |
-| `order` | string | 否 | 排序字段 \(例如：volume, liquidity, startDate, endDate, createdAt\) |
-| `ascending` | string | 否 | 排序方向 \(true 表示升序，false 表示降序\) |
+| `order` | string | 否 | 排序字段 \(例如，volume, liquidity, startDate, endDate, createdAt\) |
+| `ascending` | string | 否 | 排序方向 \(true 为升序，false 为降序\) |
 | `tagId` | string | 否 | 按标签 ID 筛选 |
-| `limit` | string | 否 | 每页结果数量 \(推荐：25-50\) |
+| `limit` | string | 否 | 每页结果数量 \(最大 50\) |
 | `offset` | string | 否 | 分页偏移量 \(跳过此数量的结果\) |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 事件数据和元数据 |
+| `events` | 数组 | 事件对象的数组 |
 
 ### `polymarket_get_event`
 
@@ -109,8 +106,7 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 事件数据和元数据 |
+| `event` | 对象 | 包含详细信息的事件对象 |
 
 ### `polymarket_get_tags`
 
@@ -120,15 +116,14 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | 否 | 每页结果数量 \(推荐：25-50\) |
-| `offset` | string | 否 | 分页偏移量 \(跳过此数量的结果\) |
+| `limit` | 字符串 | 否 | 每页结果数量 \(最多 50\) |
+| `offset` | 字符串 | 否 | 分页偏移量 \(跳过此数量的结果\) |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 标签数据和元数据 |
+| `tags` | 数组 | 包含 id、标签和 slug 的标签对象数组 |
 
 ### `polymarket_search`
 
@@ -138,16 +133,15 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | 是 | 搜索查询词 |
-| `limit` | string | 否 | 每页结果数量 \(推荐：25-50\) |
-| `offset` | string | 否 | 分页偏移量 \(跳过此数量的结果\) |
+| `query` | 字符串 | 是 | 搜索查询词 |
+| `limit` | 字符串 | 否 | 每页结果数量 \(最多 50\) |
+| `offset` | 字符串 | 否 | 分页偏移量 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 搜索结果和元数据 |
+| `results` | 对象 | 包含市场、事件和个人资料数组的搜索结果 |
 
 ### `polymarket_get_series`
 
@@ -157,15 +151,14 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | 否 | 每页结果数量 \(推荐：25-50\) |
-| `offset` | string | 否 | 分页偏移量 \(跳过此数量的结果\) |
+| `limit` | 字符串 | 否 | 每页结果数量 \(最多 50\) |
+| `offset` | 字符串 | 否 | 分页偏移量 \(跳过此数量的结果\) |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 系列数据和元数据 |
+| `series` | 数组 | 系列对象的数组 |
 
 ### `polymarket_get_series_by_id`
 
@@ -181,8 +174,7 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 系列数据和元数据 |
+| `series` | 对象 | 包含详细信息的系列对象 |
 
 ### `polymarket_get_orderbook`
 
@@ -198,8 +190,7 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 订单簿数据和元数据 |
+| `orderbook` | 对象 | 包含买入和卖出数组的订单簿 |
 
 ### `polymarket_get_price`
 
@@ -216,8 +207,7 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 价格数据和元数据 |
+| `price` | 字符串 | 市场价格 |
 
 ### `polymarket_get_midpoint`
 
@@ -233,8 +223,7 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 中间价格数据和元数据 |
+| `midpoint` | 字符串 | 中点价格 |
 
 ### `polymarket_get_price_history`
 
@@ -254,8 +243,7 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 价格历史数据和元数据 |
+| `history` | 数组 | 包含时间戳 \(t\) 和价格 \(p\) 的价格历史条目数组 |
 
 ### `polymarket_get_last_trade_price`
 
@@ -271,8 +259,7 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 最新交易价格和元数据 |
+| `price` | 字符串 | 最新交易价格 |
 
 ### `polymarket_get_spread`
 
@@ -288,8 +275,7 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 价差数据和元数据 |
+| `spread` | 对象 | 包含买价和卖价的买卖价差 |
 
 ### `polymarket_get_tick_size`
 
@@ -305,8 +291,7 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 跳动单位和元数据 |
+| `tickSize` | 字符串 | 最小价格变动单位 |
 
 ### `polymarket_get_positions`
 
@@ -323,8 +308,7 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 持仓数据和元数据 |
+| `positions` | 数组 | 持仓对象的数组 |
 
 ### `polymarket_get_trades`
 
@@ -334,17 +318,16 @@ Polymarket 集成的主要功能包括：
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `user` | string | 否 | 用户钱包地址，用于筛选交易 |
-| `market` | string | 否 | 市场 ID，用于筛选交易 |
-| `limit` | string | 否 | 每页结果数量（推荐：25-50） |
-| `offset` | string | 否 | 分页偏移量（跳过此数量的结果） |
+| `user` | 字符串 | 否 | 用于筛选交易的用户钱包地址 |
+| `market` | 字符串 | 否 | 用于筛选交易的市场 ID |
+| `limit` | 字符串 | 否 | 每页结果数量 \(最多 50\) |
+| `offset` | 字符串 | 否 | 分页偏移量 \(跳过此数量的结果\) |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 交易数据和元数据 |
+| `trades` | 数组 | 交易对象的数组 |
 
 ## 注意事项
 

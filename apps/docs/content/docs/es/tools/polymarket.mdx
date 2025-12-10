@@ -38,21 +38,20 @@ Obtener una lista de mercados de predicción de Polymarket con filtrado opcional
 
 #### Entrada
 
-| Parámetro | Tipo | Obligatorio | Descripción |
+| Parámetro | Tipo | Requerido | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `closed` | string | No | Filtrar por estado cerrado \(true/false\). Use false para mostrar solo mercados activos. |
 | `order` | string | No | Campo de ordenación \(p. ej., volumeNum, liquidityNum, startDate, endDate, createdAt\) |
 | `ascending` | string | No | Dirección de ordenación \(true para ascendente, false para descendente\) |
 | `tagId` | string | No | Filtrar por ID de etiqueta |
-| `limit` | string | No | Número de resultados por página \(recomendado: 25-50\) |
+| `limit` | string | No | Número de resultados por página \(máximo 50\) |
 | `offset` | string | No | Desplazamiento de paginación \(omitir esta cantidad de resultados\) |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de mercados y metadatos |
+| `markets` | array | Array de objetos de mercado |
 
 ### `polymarket_get_market`
 
@@ -69,8 +68,7 @@ Obtener detalles de un mercado de predicción específico por ID o slug
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de mercado y metadatos |
+| `market` | object | Objeto de mercado con detalles |
 
 ### `polymarket_get_events`
 
@@ -78,21 +76,20 @@ Obtener una lista de eventos de Polymarket con filtrado opcional
 
 #### Entrada
 
-| Parámetro | Tipo | Obligatorio | Descripción |
+| Parámetro | Tipo | Requerido | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `closed` | string | No | Filtrar por estado cerrado \(true/false\). Use false para mostrar solo eventos activos. |
 | `order` | string | No | Campo de ordenación \(p. ej., volume, liquidity, startDate, endDate, createdAt\) |
 | `ascending` | string | No | Dirección de ordenación \(true para ascendente, false para descendente\) |
 | `tagId` | string | No | Filtrar por ID de etiqueta |
-| `limit` | string | No | Número de resultados por página \(recomendado: 25-50\) |
+| `limit` | string | No | Número de resultados por página \(máximo 50\) |
 | `offset` | string | No | Desplazamiento de paginación \(omitir esta cantidad de resultados\) |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de eventos y metadatos |
+| `events` | array | Array de objetos de eventos |
 
 ### `polymarket_get_event`
 
@@ -109,8 +106,7 @@ Obtener detalles de un evento específico por ID o slug
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos y metadatos del evento |
+| `event` | object | Objeto de evento con detalles |
 
 ### `polymarket_get_tags`
 
@@ -120,15 +116,14 @@ Obtener etiquetas disponibles para filtrar mercados de Polymarket
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | No | Número de resultados por página \(recomendado: 25-50\) |
+| `limit` | string | No | Número de resultados por página \(máx 50\) |
 | `offset` | string | No | Desplazamiento de paginación \(omitir esta cantidad de resultados\) |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos y metadatos de etiquetas |
+| `tags` | array | Array de objetos de etiquetas con id, etiqueta y slug |
 
 ### `polymarket_search`
 
@@ -139,15 +134,14 @@ Buscar mercados, eventos y perfiles en Polymarket
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Sí | Término de búsqueda |
-| `limit` | string | No | Número de resultados por página \(recomendado: 25-50\) |
-| `offset` | string | No | Desplazamiento de paginación \(omitir esta cantidad de resultados\) |
+| `limit` | string | No | Número de resultados por página \(máx 50\) |
+| `offset` | string | No | Desplazamiento de paginación |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Resultados de búsqueda y metadatos |
+| `results` | object | Resultados de búsqueda que contienen arrays de mercados, eventos y perfiles |
 
 ### `polymarket_get_series`
 
@@ -157,7 +151,7 @@ Obtener series (grupos de mercados relacionados) de Polymarket
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | No | Número de resultados por página \(recomendado: 25-50\) |
+| `limit` | string | No | Número de resultados por página \(máx 50\) |
 | `offset` | string | No | Desplazamiento de paginación \(omitir esta cantidad de resultados\) |
 
 #### Salida
@@ -165,7 +159,7 @@ Obtener series (grupos de mercados relacionados) de Polymarket
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos y metadatos de la serie |
+| `output` | object | Datos de series y metadatos |
 
 ### `polymarket_get_series_by_id`
 
@@ -182,7 +176,7 @@ Recuperar una serie específica (grupo de mercado relacionado) por ID desde Poly
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos y metadatos de la serie |
+| `output` | object | Datos de serie y metadatos |
 
 ### `polymarket_get_orderbook`
 
@@ -199,7 +193,7 @@ Recuperar el resumen del libro de órdenes para un token específico
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos y metadatos del libro de órdenes |
+| `output` | object | Datos del libro de órdenes y metadatos |
 
 ### `polymarket_get_price`
 
@@ -217,7 +211,7 @@ Recuperar el precio de mercado para un token y lado específicos
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de precio y metadatos |
+| `output` | object | Datos de precio de mercado y metadatos |
 
 ### `polymarket_get_midpoint`
 
@@ -234,7 +228,7 @@ Recuperar el precio medio para un token específico
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos del precio medio y metadatos |
+| `output` | object | Datos de precio medio y metadatos |
 
 ### `polymarket_get_price_history`
 
@@ -272,7 +266,7 @@ Recuperar el último precio de operación para un token específico
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Último precio de operación y metadatos |
+| `output` | object | Datos del último precio de operación y metadatos |
 
 ### `polymarket_get_spread`
 
@@ -289,7 +283,7 @@ Recuperar el diferencial de oferta y demanda para un token específico
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos del diferencial y metadatos |
+| `output` | object | Datos del diferencial de compra-venta y metadatos |
 
 ### `polymarket_get_tick_size`
 
@@ -306,7 +300,7 @@ Recuperar el tamaño mínimo de tick para un token específico
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Tamaño del tick y metadatos |
+| `output` | object | Datos del tamaño mínimo de tick y metadatos |
 
 ### `polymarket_get_positions`
 
@@ -332,19 +326,18 @@ Recuperar historial de operaciones de Polymarket
 
 #### Entrada
 
-| Parámetro | Tipo | Requerido | Descripción |
+| Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `user` | string | No | Dirección de la cartera del usuario para filtrar operaciones |
 | `market` | string | No | ID de mercado para filtrar operaciones |
-| `limit` | string | No | Número de resultados por página \(recomendado: 25-50\) |
+| `limit` | string | No | Número de resultados por página \(máximo 50\) |
 | `offset` | string | No | Desplazamiento de paginación \(omitir esta cantidad de resultados\) |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de operaciones y metadatos |
+| `trades` | array | Array de objetos de operaciones |
 
 ## Notas
 
