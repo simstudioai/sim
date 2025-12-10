@@ -290,6 +290,10 @@ export const getBlock = (type: string): BlockConfig | undefined => {
   return registry[normalized]
 }
 
+export const getBlockByToolName = (toolName: string): BlockConfig | undefined => {
+  return Object.values(registry).find((block) => block.tools?.access?.includes(toolName))
+}
+
 export const getBlocksByCategory = (category: 'blocks' | 'tools' | 'triggers'): BlockConfig[] =>
   Object.values(registry).filter((block) => block.category === category)
 

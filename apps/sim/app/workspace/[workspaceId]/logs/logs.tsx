@@ -1,14 +1,12 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, ArrowUpRight, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { Badge, buttonVariants } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
-import { getBlock } from '@/blocks/registry'
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogDetail, useLogsList } from '@/hooks/queries/logs'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -16,160 +14,10 @@ import { useFilterStore } from '@/stores/logs/filters/store'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { useUserPermissionsContext } from '../providers/workspace-permissions-provider'
 import { Dashboard, LogDetails, LogsToolbar, NotificationSettings } from './components'
-import { formatDate, formatDuration } from './utils'
+import { formatDate, formatDuration, StatusBadge, TriggerBadge } from './utils'
 
 const LOGS_PER_PAGE = 50 as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const
-
-/**
- * Checks if a hex color is gray/neutral (low saturation) or too light/dark
- */
-function isGrayOrNeutral(hex: string): boolean {
-  const r = Number.parseInt(hex.slice(1, 3), 16)
-  const g = Number.parseInt(hex.slice(3, 5), 16)
-  const b = Number.parseInt(hex.slice(5, 7), 16)
-
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  const lightness = (max + min) / 2 / 255
-
-  // Calculate saturation
-  const delta = max - min
-  const saturation = delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1)) / 255
-
-  // Gray if low saturation, or too light (>0.8) or too dark (<0.25)
-  return saturation < 0.2 || lightness > 0.8 || lightness < 0.25
-}
-
-/**
- * Converts a hex color to a background variant with appropriate opacity
- */
-function hexToBackground(hex: string): string {
-  const r = Number.parseInt(hex.slice(1, 3), 16)
-  const g = Number.parseInt(hex.slice(3, 5), 16)
-  const b = Number.parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r}, ${g}, ${b}, 0.2)`
-}
-
-/**
- * Lightens a hex color to make it more vibrant for text
- */
-function lightenColor(hex: string, percent = 30): string {
-  const r = Number.parseInt(hex.slice(1, 3), 16)
-  const g = Number.parseInt(hex.slice(3, 5), 16)
-  const b = Number.parseInt(hex.slice(5, 7), 16)
-
-  const newR = Math.min(255, Math.round(r + (255 - r) * (percent / 100)))
-  const newG = Math.min(255, Math.round(g + (255 - g) * (percent / 100)))
-  const newB = Math.min(255, Math.round(b + (255 - b) * (percent / 100)))
-
-  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`
-}
-
-const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook'] as const
-
-interface TriggerBadgeProps {
-  /** The trigger type identifier */
-  trigger: string
-}
-
-/**
- * Displays a styled badge for a workflow trigger type.
- * Shows integration icons for non-core triggers.
- * @param props - The component props
- * @returns A styled badge element
- */
-const TriggerBadge = React.memo(({ trigger }: TriggerBadgeProps) => {
-  const metadata = getIntegrationMetadata(trigger)
-  const isIntegration = !(CORE_TRIGGER_TYPES as readonly string[]).includes(trigger)
-  const block = isIntegration ? getBlock(trigger) : null
-  const IconComponent = block?.icon
-
-  // Use default Badge for manual, generic, unknown integrations (no block), or gray/neutral colors
-  const isUnknownIntegration = isIntegration && trigger !== 'generic' && !block
-  if (
-    trigger === 'manual' ||
-    trigger === 'generic' ||
-    isUnknownIntegration ||
-    isGrayOrNeutral(metadata.color)
-  ) {
-    return (
-      <Badge
-        variant='default'
-        className='inline-flex items-center gap-[6px] rounded-[6px] px-[9px] py-[2px] font-medium text-[12px]'
-      >
-        {IconComponent && <IconComponent className='h-[12px] w-[12px]' />}
-        {metadata.label}
-      </Badge>
-    )
-  }
-
-  const textColor = lightenColor(metadata.color, 65)
-
-  return (
-    <div
-      className='inline-flex items-center gap-[6px] rounded-[6px] px-[9px] py-[2px] font-medium text-[12px]'
-      style={{ backgroundColor: hexToBackground(metadata.color), color: textColor }}
-    >
-      {IconComponent && <IconComponent className='h-[12px] w-[12px]' />}
-      {metadata.label}
-    </div>
-  )
-})
-
-TriggerBadge.displayName = 'TriggerBadge'
-
-const RUNNING_COLOR = '#22c55e' as const
-const PENDING_COLOR = '#f59e0b' as const
-
-type LogStatus = 'error' | 'pending' | 'running' | 'info'
-
-interface StatusBadgeProps {
-  /** The status to display */
-  status: LogStatus
-}
-
-/**
- * Displays a styled badge for a log execution status.
- * @param props - The component props
- * @returns A colored status badge element
- */
-const StatusBadge = React.memo(({ status }: StatusBadgeProps) => {
-  const config = {
-    error: {
-      bg: 'var(--terminal-status-error-bg)',
-      color: 'var(--text-error)',
-      label: 'Error',
-    },
-    pending: {
-      bg: hexToBackground(PENDING_COLOR),
-      color: lightenColor(PENDING_COLOR, 65),
-      label: 'Pending',
-    },
-    running: {
-      bg: hexToBackground(RUNNING_COLOR),
-      color: lightenColor(RUNNING_COLOR, 65),
-      label: 'Running',
-    },
-    info: {
-      bg: 'var(--terminal-status-info-bg)',
-      color: 'var(--terminal-status-info-color)',
-      label: 'Info',
-    },
-  }[status]
-
-  return (
-    <div
-      className='inline-flex items-center gap-[6px] rounded-[6px] px-[9px] py-[2px] font-medium text-[12px]'
-      style={{ backgroundColor: config.bg, color: config.color }}
-    >
-      <div className='h-[6px] w-[6px] rounded-[2px]' style={{ backgroundColor: config.color }} />
-      {config.label}
-    </div>
-  )
-})
-
-StatusBadge.displayName = 'StatusBadge'
 
 /**
  * Logs page component displaying workflow execution history.
@@ -184,7 +32,6 @@ export default function Logs() {
     setWorkspaceId,
     initializeFromURL,
     timeRange,
-    setTimeRange,
     level,
     workflowIds,
     folderIds,
@@ -225,7 +72,6 @@ export default function Logs() {
   const [dashboardRefreshTrigger, setDashboardRefreshTrigger] = useState(0)
   const isSearchOpenRef = useRef<boolean>(false)
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
-  const [isCustomTimeRange, setIsCustomTimeRange] = useState(false)
   const userPermissions = useUserPermissionsContext()
 
   const logFilters = useMemo(
@@ -262,6 +108,13 @@ export default function Logs() {
   }, [debouncedSearchQuery, setStoreSearchQuery])
 
   const handleLogClick = (log: WorkflowLog) => {
+    // If clicking on the same log that's already selected and sidebar is open, close it
+    if (selectedLog?.id === log.id && isSidebarOpen) {
+      handleCloseSidebar()
+      return
+    }
+
+    // Otherwise, select the log and open the sidebar
     setSelectedLog(log)
     const index = logs.findIndex((l) => l.id === log.id)
     setSelectedLogIndex(index)
@@ -480,40 +333,40 @@ export default function Logs() {
   return (
     <div className='flex h-full flex-1 flex-col overflow-hidden'>
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[28px] pb-[24px]'>
-          <LogsToolbar
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            isRefreshing={isVisuallyRefreshing}
-            onRefresh={handleRefresh}
-            isLive={isLive}
-            onToggleLive={handleToggleLive}
-            isExporting={isExporting}
-            onExport={handleExport}
-            canEdit={userPermissions.canEdit}
-            hasLogs={logs.length > 0}
-            onOpenNotificationSettings={() => setIsNotificationSettingsOpen(true)}
-            searchQuery={searchQuery}
-            onSearchQueryChange={setSearchQuery}
-            onSearchOpenChange={(open: boolean) => {
-              isSearchOpenRef.current = open
-            }}
-          />
+        <div className='flex flex-1 flex-col overflow-auto pt-[28px] pl-[24px]'>
+          <div className='pr-[24px]'>
+            <LogsToolbar
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              isRefreshing={isVisuallyRefreshing}
+              onRefresh={handleRefresh}
+              isLive={isLive}
+              onToggleLive={handleToggleLive}
+              isExporting={isExporting}
+              onExport={handleExport}
+              canEdit={userPermissions.canEdit}
+              hasLogs={logs.length > 0}
+              onOpenNotificationSettings={() => setIsNotificationSettingsOpen(true)}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              onSearchOpenChange={(open: boolean) => {
+                isSearchOpenRef.current = open
+              }}
+            />
+          </div>
 
           {/* Dashboard view */}
           {isDashboardView && (
-            <Dashboard
-              isLive={isLive}
-              refreshTrigger={dashboardRefreshTrigger}
-              onCustomTimeRangeChange={setIsCustomTimeRange}
-            />
+            <div className='pr-[24px] pb-[24px]'>
+              <Dashboard isLive={isLive} refreshTrigger={dashboardRefreshTrigger} />
+            </div>
           )}
 
           {/* Main content area with table - only show in logs view */}
           {!isDashboardView && (
-            <div className='mt-[24px] flex min-h-0 flex-1 overflow-hidden'>
+            <div className='relative mt-[24px] flex min-h-0 flex-1 overflow-hidden rounded-[6px]'>
               {/* Table container */}
-              <div className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)]'>
+              <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)]'>
                 {/* Table header */}
                 <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px]'>
                   <div className='flex items-center'>
@@ -698,24 +551,21 @@ export default function Logs() {
                   )}
                 </div>
               </div>
+
+              {/* Log Details - rendered inside table container */}
+              <LogDetails
+                log={logDetailQuery.data || selectedLog}
+                isOpen={isSidebarOpen}
+                onClose={handleCloseSidebar}
+                onNavigateNext={handleNavigateNext}
+                onNavigatePrev={handleNavigatePrev}
+                hasNext={selectedLogIndex < logs.length - 1}
+                hasPrev={selectedLogIndex > 0}
+              />
             </div>
           )}
         </div>
       </div>
-
-      {/* Log Details - only show in logs view */}
-      {!isDashboardView && (
-        <LogDetails
-          log={logDetailQuery.data || selectedLog}
-          isOpen={isSidebarOpen}
-          isLoadingDetails={logDetailQuery.isLoading}
-          onClose={handleCloseSidebar}
-          onNavigateNext={handleNavigateNext}
-          onNavigatePrev={handleNavigatePrev}
-          hasNext={selectedLogIndex < logs.length - 1}
-          hasPrev={selectedLogIndex > 0}
-        />
-      )}
 
       <NotificationSettings
         workspaceId={workspaceId}

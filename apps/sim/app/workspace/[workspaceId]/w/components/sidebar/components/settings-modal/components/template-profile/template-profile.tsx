@@ -8,6 +8,7 @@ import { AgentIcon, xIcon as XIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/hooks/use-profile-picture-upload'
 import {
@@ -218,8 +219,8 @@ export function TemplateProfile() {
 
   const validateEmail = (value: string): string | null => {
     if (!value) return null
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(value) ? null : 'Please enter a valid email'
+    const validation = quickValidateEmail(value)
+    return validation.isValid ? null : 'Please enter a valid email'
   }
 
   const updateField = <K extends keyof FormData>(field: K, value: FormData[K]) => {

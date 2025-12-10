@@ -574,7 +574,7 @@ export function Sidebar() {
               >
                 <div className='flex items-center gap-[6px]'>
                   <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-                  <p className='translate-y-[0.25px] font-medium text-[var(--text-secondary)] text-small'>
+                  <p className='translate-y-[0.25px] font-medium text-[var(--text-tertiary)] text-small'>
                     Search
                   </p>
                 </div>

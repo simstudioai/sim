@@ -1,35 +1,34 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
-import { AlertCircle, Check, Pencil, Play, Trash2, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertCircle, Plus, X } from 'lucide-react'
 import {
+  Badge,
   Button,
   Combobox,
-  Input,
+  Input as EmcnInput,
   Label,
   Modal,
   ModalBody,
   ModalContent,
-  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
-  ModalTitle,
-  Switch,
-  Tooltip,
 } from '@/components/emcn'
+import { SlackIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import {
   type NotificationSubscription,
   useCreateNotification,
   useDeleteNotification,
   useNotifications,
   useTestNotification,
-  useToggleNotificationActive,
   useUpdateNotification,
 } from '@/hooks/queries/notifications'
 import { useConnectOAuthService } from '@/hooks/queries/oauth-connections'
@@ -39,10 +38,14 @@ import { WorkflowSelector } from './components/workflow-selector'
 
 const logger = createLogger('NotificationSettings')
 
+const PRIMARY_BUTTON_STYLES =
+  '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+
 type NotificationType = 'webhook' | 'email' | 'slack'
 type LogLevel = 'info' | 'error'
 type TriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 type AlertRule =
+  | 'none'
   | 'consecutive_failures'
   | 'failure_rate'
   | 'latency_threshold'
@@ -52,6 +55,7 @@ type AlertRule =
   | 'error_count'
 
 const ALERT_RULES: { value: AlertRule; label: string; description: string }[] = [
+  { value: 'none', label: 'None', description: 'Notify on every matching execution' },
   {
     value: 'consecutive_failures',
     label: 'Consecutive Failures',
@@ -131,7 +135,7 @@ export function NotificationSettings({
 
   const [formData, setFormData] = useState({
     workflowIds: [] as string[],
-    allWorkflows: false,
+    allWorkflows: true,
     levelFilter: ['info', 'error'] as LogLevel[],
     triggerFilter: ['api', 'webhook', 'schedule', 'manual', 'chat'] as TriggerType[],
     includeFinalOutput: false,
@@ -140,12 +144,12 @@ export function NotificationSettings({
     includeUsageData: false,
     webhookUrl: '',
     webhookSecret: '',
-    emailRecipients: '',
+    emailRecipients: [] as string[],
     slackChannelId: '',
     slackChannelName: '',
     slackAccountId: '',
     useAlertRule: false,
-    alertRule: 'consecutive_failures' as AlertRule,
+    alertRule: 'none' as AlertRule,
     consecutiveFailures: 3,
     failureRatePercent: 50,
     windowHours: 24,
@@ -156,26 +160,52 @@ export function NotificationSettings({
     errorCountThreshold: 10,
   })
 
+  const [emailInputValue, setEmailInputValue] = useState('')
+  const [invalidEmails, setInvalidEmails] = useState<string[]>([])
+
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
   const { data: subscriptions = [], isLoading } = useNotifications(open ? workspaceId : undefined)
   const createNotification = useCreateNotification()
   const updateNotification = useUpdateNotification()
-  const toggleActive = useToggleNotificationActive()
   const deleteNotification = useDeleteNotification()
   const testNotification = useTestNotification()
 
   const { accounts: slackAccounts, isLoading: isLoadingSlackAccounts } = useSlackAccounts()
   const connectSlack = useConnectOAuthService()
 
+  useEffect(() => {
+    if (testStatus) {
+      const timer = setTimeout(() => {
+        setTestStatus(null)
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [testStatus])
+
   const filteredSubscriptions = useMemo(() => {
     return subscriptions.filter((s) => s.notificationType === activeTab)
   }, [subscriptions, activeTab])
 
+  const hasSubscriptions = filteredSubscriptions.length > 0
+
+  const getSubscriptionsForTab = useCallback(
+    (tab: NotificationType) => {
+      return subscriptions.filter((s) => s.notificationType === tab)
+    },
+    [subscriptions]
+  )
+
+  useEffect(() => {
+    if (!isLoading && !hasSubscriptions && !editingId) {
+      setShowForm(true)
+    }
+  }, [isLoading, hasSubscriptions, editingId, activeTab])
+
   const resetForm = useCallback(() => {
     setFormData({
       workflowIds: [],
-      allWorkflows: false,
+      allWorkflows: true,
       levelFilter: ['info', 'error'],
       triggerFilter: ['api', 'webhook', 'schedule', 'manual', 'chat'],
       includeFinalOutput: false,
@@ -184,12 +214,12 @@ export function NotificationSettings({
       includeUsageData: false,
       webhookUrl: '',
       webhookSecret: '',
-      emailRecipients: '',
+      emailRecipients: [],
       slackChannelId: '',
       slackChannelName: '',
       slackAccountId: '',
       useAlertRule: false,
-      alertRule: 'consecutive_failures',
+      alertRule: 'none',
       consecutiveFailures: 3,
       failureRatePercent: 50,
       windowHours: 24,
@@ -201,6 +231,8 @@ export function NotificationSettings({
     })
     setFormErrors({})
     setEditingId(null)
+    setEmailInputValue('')
+    setInvalidEmails([])
   }, [])
 
   const handleClose = useCallback(() => {
@@ -209,6 +241,90 @@ export function NotificationSettings({
     setTestStatus(null)
     onOpenChange(false)
   }, [onOpenChange, resetForm])
+
+  const addEmail = useCallback(
+    (email: string): boolean => {
+      if (!email.trim()) return false
+
+      const normalized = email.trim().toLowerCase()
+      const validation = quickValidateEmail(normalized)
+
+      if (formData.emailRecipients.includes(normalized) || invalidEmails.includes(normalized)) {
+        return false
+      }
+
+      if (!validation.isValid) {
+        setInvalidEmails((prev) => [...prev, normalized])
+        setEmailInputValue('')
+        return false
+      }
+
+      setFormErrors((prev) => ({ ...prev, emailRecipients: '' }))
+      setFormData((prev) => ({
+        ...prev,
+        emailRecipients: [...prev.emailRecipients, normalized],
+      }))
+      setEmailInputValue('')
+      return true
+    },
+    [formData.emailRecipients, invalidEmails]
+  )
+
+  const handleRemoveEmail = useCallback((emailToRemove: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      emailRecipients: prev.emailRecipients.filter((e) => e !== emailToRemove),
+    }))
+  }, [])
+
+  const handleRemoveInvalidEmail = useCallback((index: number) => {
+    setInvalidEmails((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handleEmailKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (['Enter', ',', ' '].includes(e.key) && emailInputValue.trim()) {
+        e.preventDefault()
+        addEmail(emailInputValue)
+      }
+
+      if (e.key === 'Backspace' && !emailInputValue) {
+        if (invalidEmails.length > 0) {
+          handleRemoveInvalidEmail(invalidEmails.length - 1)
+        } else if (formData.emailRecipients.length > 0) {
+          handleRemoveEmail(formData.emailRecipients[formData.emailRecipients.length - 1])
+        }
+      }
+    },
+    [
+      emailInputValue,
+      addEmail,
+      invalidEmails,
+      formData.emailRecipients,
+      handleRemoveInvalidEmail,
+      handleRemoveEmail,
+    ]
+  )
+
+  const handleEmailPaste = useCallback(
+    (e: React.ClipboardEvent<HTMLInputElement>) => {
+      e.preventDefault()
+      const pastedText = e.clipboardData.getData('text')
+      const pastedEmails = pastedText.split(/[\s,;]+/).filter(Boolean)
+
+      let addedCount = 0
+      pastedEmails.forEach((email) => {
+        if (addEmail(email)) {
+          addedCount++
+        }
+      })
+
+      if (addedCount === 0 && pastedEmails.length === 1) {
+        setEmailInputValue(emailInputValue + pastedEmails[0])
+      }
+    },
+    [addEmail, emailInputValue]
+  )
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {}
@@ -241,20 +357,13 @@ export function NotificationSettings({
     }
 
     if (activeTab === 'email') {
-      const emails = formData.emailRecipients
-        .split(',')
-        .map((e) => e.trim())
-        .filter(Boolean)
-      if (emails.length === 0) {
+      if (formData.emailRecipients.length === 0) {
         errors.emailRecipients = 'At least one email address is required'
-      } else if (emails.length > 10) {
+      } else if (formData.emailRecipients.length > 10) {
         errors.emailRecipients = 'Maximum 10 email recipients allowed'
-      } else {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        const invalidEmails = emails.filter((e) => !emailRegex.test(e))
-        if (invalidEmails.length > 0) {
-          errors.emailRecipients = `Invalid email addresses: ${invalidEmails.join(', ')}`
-        }
+      }
+      if (invalidEmails.length > 0) {
+        errors.emailRecipients = `Invalid email addresses: ${invalidEmails.join(', ')}`
       }
     }
 
@@ -267,7 +376,7 @@ export function NotificationSettings({
       }
     }
 
-    if (formData.useAlertRule) {
+    if (formData.alertRule !== 'none') {
       switch (formData.alertRule) {
         case 'consecutive_failures':
           if (formData.consecutiveFailures < 1 || formData.consecutiveFailures > 100) {
@@ -323,35 +432,36 @@ export function NotificationSettings({
   const handleSave = async () => {
     if (!validateForm()) return
 
-    const alertConfig = formData.useAlertRule
-      ? {
-          rule: formData.alertRule,
-          ...(formData.alertRule === 'consecutive_failures' && {
-            consecutiveFailures: formData.consecutiveFailures,
-          }),
-          ...(formData.alertRule === 'failure_rate' && {
-            failureRatePercent: formData.failureRatePercent,
-            windowHours: formData.windowHours,
-          }),
-          ...(formData.alertRule === 'latency_threshold' && {
-            durationThresholdMs: formData.durationThresholdMs,
-          }),
-          ...(formData.alertRule === 'latency_spike' && {
-            latencySpikePercent: formData.latencySpikePercent,
-            windowHours: formData.windowHours,
-          }),
-          ...(formData.alertRule === 'cost_threshold' && {
-            costThresholdDollars: formData.costThresholdDollars,
-          }),
-          ...(formData.alertRule === 'no_activity' && {
-            inactivityHours: formData.inactivityHours,
-          }),
-          ...(formData.alertRule === 'error_count' && {
-            errorCountThreshold: formData.errorCountThreshold,
-            windowHours: formData.windowHours,
-          }),
-        }
-      : null
+    const alertConfig =
+      formData.alertRule !== 'none'
+        ? {
+            rule: formData.alertRule,
+            ...(formData.alertRule === 'consecutive_failures' && {
+              consecutiveFailures: formData.consecutiveFailures,
+            }),
+            ...(formData.alertRule === 'failure_rate' && {
+              failureRatePercent: formData.failureRatePercent,
+              windowHours: formData.windowHours,
+            }),
+            ...(formData.alertRule === 'latency_threshold' && {
+              durationThresholdMs: formData.durationThresholdMs,
+            }),
+            ...(formData.alertRule === 'latency_spike' && {
+              latencySpikePercent: formData.latencySpikePercent,
+              windowHours: formData.windowHours,
+            }),
+            ...(formData.alertRule === 'cost_threshold' && {
+              costThresholdDollars: formData.costThresholdDollars,
+            }),
+            ...(formData.alertRule === 'no_activity' && {
+              inactivityHours: formData.inactivityHours,
+            }),
+            ...(formData.alertRule === 'error_count' && {
+              errorCountThreshold: formData.errorCountThreshold,
+              windowHours: formData.windowHours,
+            }),
+          }
+        : null
 
     const payload = {
       notificationType: activeTab,
@@ -371,10 +481,7 @@ export function NotificationSettings({
         },
       }),
       ...(activeTab === 'email' && {
-        emailRecipients: formData.emailRecipients
-          .split(',')
-          .map((e) => e.trim())
-          .filter(Boolean),
+        emailRecipients: formData.emailRecipients,
       }),
       ...(activeTab === 'slack' && {
         slackConfig: {
@@ -420,12 +527,12 @@ export function NotificationSettings({
       includeUsageData: subscription.includeUsageData,
       webhookUrl: subscription.webhookConfig?.url || '',
       webhookSecret: '',
-      emailRecipients: subscription.emailRecipients?.join(', ') || '',
+      emailRecipients: subscription.emailRecipients || [],
       slackChannelId: subscription.slackConfig?.channelId || '',
       slackChannelName: subscription.slackConfig?.channelName || '',
       slackAccountId: subscription.slackConfig?.accountId || '',
       useAlertRule: !!subscription.alertConfig,
-      alertRule: subscription.alertConfig?.rule || 'consecutive_failures',
+      alertRule: subscription.alertConfig?.rule || 'none',
       consecutiveFailures: subscription.alertConfig?.consecutiveFailures || 3,
       failureRatePercent: subscription.alertConfig?.failureRatePercent || 50,
       windowHours: subscription.alertConfig?.windowHours || 24,
@@ -435,6 +542,8 @@ export function NotificationSettings({
       inactivityHours: subscription.alertConfig?.inactivityHours || 24,
       errorCountThreshold: subscription.alertConfig?.errorCountThreshold || 10,
     })
+    setEmailInputValue('')
+    setInvalidEmails([])
     setShowForm(true)
   }
 
@@ -472,14 +581,6 @@ export function NotificationSettings({
     }
   }
 
-  const handleToggleActive = (subscription: NotificationSubscription) => {
-    toggleActive.mutate({
-      workspaceId,
-      notificationId: subscription.id,
-      active: !subscription.active,
-    })
-  }
-
   const renderSubscriptionItem = (subscription: NotificationSubscription) => {
     const identifier =
       subscription.notificationType === 'webhook'
@@ -489,695 +590,630 @@ export function NotificationSettings({
           : `#${subscription.slackConfig?.channelName || subscription.slackConfig?.channelId}`
 
     return (
-      <div key={subscription.id} className='mb-4 flex flex-col gap-2'>
-        <div className='flex items-center justify-between gap-4'>
-          <div className='flex flex-1 items-center gap-3'>
-            <div className='flex h-8 max-w-[400px] items-center overflow-hidden rounded-[4px] bg-[var(--surface-6)] px-3'>
-              <code className='scrollbar-hide overflow-x-auto whitespace-nowrap font-mono text-[var(--text-primary)] text-xs'>
-                {identifier}
-              </code>
+      <div key={subscription.id} className='rounded-[6px] border p-[10px]'>
+        <div className='flex items-center justify-between gap-[12px]'>
+          <div className='flex min-w-0 flex-1 flex-col gap-[6px]'>
+            <p className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+              {identifier}
+            </p>
+            <div className='flex flex-wrap items-center gap-[6px] text-[11px]'>
+              {subscription.allWorkflows ? (
+                <Badge className='rounded-[4px] px-[6px] py-[2px] text-[11px]'>All workflows</Badge>
+              ) : (
+                <Badge className='rounded-[4px] px-[6px] py-[2px] text-[11px]'>
+                  {subscription.workflowIds.length} workflow(s)
+                </Badge>
+              )}
+              {subscription.levelFilter.map((level) => (
+                <Badge key={level} className='rounded-[4px] px-[6px] py-[2px] text-[11px]'>
+                  {level}
+                </Badge>
+              ))}
+              {subscription.alertConfig && (
+                <Badge className='rounded-[4px] bg-amber-100 px-[6px] py-[2px] text-[11px] text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'>
+                  {formatAlertConfigLabel(subscription.alertConfig)}
+                </Badge>
+              )}
             </div>
-            {testStatus?.id === subscription.id && (
-              <div
-                className={`flex items-center gap-2 text-xs ${testStatus.success ? 'text-green-600' : 'text-red-600'}`}
-              >
-                {testStatus.success ? (
-                  <Check className='h-3 w-3' />
-                ) : (
-                  <AlertCircle className='h-3 w-3' />
-                )}
-                <span>{testStatus.message}</span>
-              </div>
-            )}
           </div>
 
-          <div className='flex items-center gap-2'>
-            <Switch
-              checked={subscription.active}
-              onCheckedChange={() => handleToggleActive(subscription)}
-            />
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  onClick={() => handleTest(subscription.id)}
-                  disabled={testNotification.isPending}
-                  className='h-8 w-8 p-0'
-                >
-                  <Play className='h-3.5 w-3.5' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content>Test notification</Tooltip.Content>
-            </Tooltip.Root>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  onClick={() => handleEdit(subscription)}
-                  className='h-8 w-8 p-0'
-                >
-                  <Pencil className='h-3.5 w-3.5' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content>Edit</Tooltip.Content>
-            </Tooltip.Root>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  onClick={() => {
-                    setDeletingId(subscription.id)
-                    setShowDeleteDialog(true)
-                  }}
-                  className='h-8 w-8 p-0'
-                >
-                  <Trash2 className='h-3.5 w-3.5' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content>Delete</Tooltip.Content>
-            </Tooltip.Root>
+          <div className='flex flex-shrink-0 items-center gap-[8px]'>
+            <Button
+              variant='primary'
+              onClick={() => handleTest(subscription.id)}
+              disabled={testNotification.isPending && testStatus?.id !== subscription.id}
+              className={PRIMARY_BUTTON_STYLES}
+            >
+              {testStatus?.id === subscription.id
+                ? testStatus.success
+                  ? 'Sent'
+                  : 'Failed'
+                : 'Test'}
+            </Button>
+            <Button variant='ghost' onClick={() => handleEdit(subscription)}>
+              Edit
+            </Button>
+            <Button
+              variant='ghost'
+              onClick={() => {
+                setDeletingId(subscription.id)
+                setShowDeleteDialog(true)
+              }}
+            >
+              Delete
+            </Button>
           </div>
-        </div>
-
-        <div className='flex flex-wrap items-center gap-2 text-xs'>
-          {subscription.allWorkflows ? (
-            <span className='rounded-[4px] bg-[var(--surface-6)] px-1.5 py-0.5'>All workflows</span>
-          ) : (
-            <span className='rounded-[4px] bg-[var(--surface-6)] px-1.5 py-0.5'>
-              {subscription.workflowIds.length} workflow(s)
-            </span>
-          )}
-          <span className='text-[var(--text-muted)]'>•</span>
-          {subscription.levelFilter.map((level) => (
-            <span key={level} className='rounded-[4px] bg-[var(--surface-6)] px-1.5 py-0.5'>
-              {level}
-            </span>
-          ))}
-          <span className='text-[var(--text-muted)]'>•</span>
-          {subscription.triggerFilter.slice(0, 3).map((trigger) => (
-            <span key={trigger} className='rounded-[4px] bg-[var(--surface-6)] px-1.5 py-0.5'>
-              {trigger}
-            </span>
-          ))}
-          {subscription.triggerFilter.length > 3 && (
-            <span className='rounded-[4px] bg-[var(--surface-6)] px-1.5 py-0.5'>
-              +{subscription.triggerFilter.length - 3}
-            </span>
-          )}
-          {subscription.alertConfig && (
-            <>
-              <span className='text-[var(--text-muted)]'>•</span>
-              <span className='rounded-[4px] bg-amber-100 px-1.5 py-0.5 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'>
-                {formatAlertConfigLabel(subscription.alertConfig)}
-              </span>
-            </>
-          )}
         </div>
       </div>
     )
   }
 
   const renderForm = () => (
-    <div className='flex flex-col gap-6'>
-      <div>
-        <p className='font-medium text-[14px] text-[var(--text-primary)]'>
-          {editingId ? 'Edit Notification' : 'Create New Notification'}
-        </p>
-        <p className='text-[12px] text-[var(--text-muted)]'>
-          Configure {activeTab} notifications for workflow executions
-        </p>
-      </div>
-
-      {formErrors.general && (
-        <div className='rounded-[4px] border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-950/20'>
-          <div className='flex items-start gap-2'>
-            <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400' />
-            <p className='text-red-800 text-sm dark:text-red-300'>{formErrors.general}</p>
-          </div>
-        </div>
-      )}
-
-      <div className='flex flex-col gap-6'>
-        <WorkflowSelector
-          workspaceId={workspaceId}
-          selectedIds={formData.workflowIds}
-          allWorkflows={formData.allWorkflows}
-          onChange={(ids, all) => {
-            setFormData({ ...formData, workflowIds: ids, allWorkflows: all })
-            setFormErrors({ ...formErrors, workflows: '' })
-          }}
-          error={formErrors.workflows}
-        />
-
-        <div className='space-y-4'>
-          <div className='flex items-center justify-between'>
-            <div className='flex flex-col'>
-              <Label>Alert Mode</Label>
-              <p className='text-[12px] text-[var(--text-muted)]'>
-                {formData.useAlertRule
-                  ? 'Notify when failure patterns are detected'
-                  : 'Notify on every matching execution'}
-              </p>
+    <div className='flex h-full flex-col gap-[16px]'>
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        {formErrors.general && (
+          <div className='mb-[16px] rounded-[6px] border border-[var(--text-error)]/30 bg-[var(--text-error)]/10 p-[10px]'>
+            <div className='flex items-start gap-[8px]'>
+              <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-[var(--text-error)]' />
+              <p className='text-[12px] text-[var(--text-error)]'>{formErrors.general}</p>
             </div>
-            <Switch
-              checked={formData.useAlertRule}
-              onCheckedChange={(checked) => setFormData({ ...formData, useAlertRule: checked })}
-            />
           </div>
+        )}
 
-          {formData.useAlertRule && (
-            <div className='space-y-4 rounded-[4px] border bg-[var(--surface-2)] p-4'>
-              <div className='space-y-2'>
-                <Label>Alert Rule</Label>
-                <Combobox
-                  options={ALERT_RULES.map((rule) => ({
-                    value: rule.value,
-                    label: rule.label,
-                  }))}
-                  value={formData.alertRule}
-                  onChange={(value) => setFormData({ ...formData, alertRule: value as AlertRule })}
-                  placeholder='Select alert rule'
+        <div className='flex flex-col gap-[16px]'>
+          <WorkflowSelector
+            workspaceId={workspaceId}
+            selectedIds={formData.workflowIds}
+            allWorkflows={formData.allWorkflows}
+            onChange={(ids, all) => {
+              setFormData({ ...formData, workflowIds: ids, allWorkflows: all })
+              setFormErrors({ ...formErrors, workflows: '' })
+            }}
+            error={formErrors.workflows}
+          />
+
+          {activeTab === 'webhook' && (
+            <>
+              <div className='flex flex-col gap-[8px]'>
+                <Label className='text-[var(--text-secondary)]'>Webhook URL</Label>
+                <EmcnInput
+                  type='url'
+                  placeholder='https://your-app.com/webhook'
+                  value={formData.webhookUrl}
+                  onChange={(e) => {
+                    setFormData({ ...formData, webhookUrl: e.target.value })
+                    setFormErrors({ ...formErrors, webhookUrl: '' })
+                  }}
                 />
-                <p className='text-[12px] text-[var(--text-muted)]'>
-                  {ALERT_RULES.find((r) => r.value === formData.alertRule)?.description}
-                </p>
+                {formErrors.webhookUrl && (
+                  <p className='text-[11px] text-[var(--text-error)]'>{formErrors.webhookUrl}</p>
+                )}
               </div>
+              <div className='flex flex-col gap-[8px]'>
+                <Label className='text-[var(--text-secondary)]'>Secret (optional)</Label>
+                <EmcnInput
+                  type='password'
+                  placeholder='Webhook secret for signature verification'
+                  value={formData.webhookSecret}
+                  onChange={(e) => setFormData({ ...formData, webhookSecret: e.target.value })}
+                />
+              </div>
+            </>
+          )}
 
-              {formData.alertRule === 'consecutive_failures' && (
-                <div className='space-y-2'>
-                  <Label>Failure Count</Label>
-                  <Input
-                    type='number'
-                    min={1}
-                    max={100}
-                    value={formData.consecutiveFailures}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        consecutiveFailures: Number.parseInt(e.target.value) || 1,
-                      })
-                    }
-                    className='w-32'
+          {activeTab === 'email' && (
+            <div className='flex flex-col gap-[8px]'>
+              <Label className='text-[var(--text-secondary)]'>Email Recipients</Label>
+              <div className='scrollbar-hide flex max-h-32 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[8px] py-[6px] focus-within:outline-none dark:bg-[var(--surface-9)]'>
+                {invalidEmails.map((email, index) => (
+                  <EmailTag
+                    key={`invalid-${index}`}
+                    email={email}
+                    onRemove={() => handleRemoveInvalidEmail(index)}
+                    isInvalid={true}
                   />
-                  {formErrors.consecutiveFailures && (
-                    <p className='text-red-400 text-xs'>{formErrors.consecutiveFailures}</p>
-                  )}
-                </div>
-              )}
-
-              {formData.alertRule === 'failure_rate' && (
-                <div className='flex gap-4'>
-                  <div className='flex-1 space-y-2'>
-                    <Label>Failure Rate (%)</Label>
-                    <Input
-                      type='number'
-                      min={1}
-                      max={100}
-                      value={formData.failureRatePercent}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          failureRatePercent: Number.parseInt(e.target.value) || 1,
-                        })
-                      }
-                    />
-                    {formErrors.failureRatePercent && (
-                      <p className='text-red-400 text-xs'>{formErrors.failureRatePercent}</p>
-                    )}
-                  </div>
-                  <div className='flex-1 space-y-2'>
-                    <Label>Window (hours)</Label>
-                    <Input
-                      type='number'
-                      min={1}
-                      max={168}
-                      value={formData.windowHours}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          windowHours: Number.parseInt(e.target.value) || 1,
-                        })
-                      }
-                    />
-                    {formErrors.windowHours && (
-                      <p className='text-red-400 text-xs'>{formErrors.windowHours}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {formData.alertRule === 'latency_threshold' && (
-                <div className='space-y-2'>
-                  <Label>Duration Threshold (seconds)</Label>
-                  <Input
-                    type='number'
-                    min={1}
-                    max={3600}
-                    value={Math.round(formData.durationThresholdMs / 1000)}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        durationThresholdMs: (Number.parseInt(e.target.value) || 1) * 1000,
-                      })
-                    }
-                    className='w-32'
+                ))}
+                {formData.emailRecipients.map((email, index) => (
+                  <EmailTag
+                    key={`valid-${index}`}
+                    email={email}
+                    onRemove={() => handleRemoveEmail(email)}
                   />
-                  {formErrors.durationThresholdMs && (
-                    <p className='text-red-400 text-xs'>{formErrors.durationThresholdMs}</p>
-                  )}
-                </div>
-              )}
-
-              {formData.alertRule === 'latency_spike' && (
-                <div className='flex gap-4'>
-                  <div className='flex-1 space-y-2'>
-                    <Label>Above Average (%)</Label>
-                    <Input
-                      type='number'
-                      min={10}
-                      max={1000}
-                      value={formData.latencySpikePercent}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          latencySpikePercent: Number.parseInt(e.target.value) || 10,
-                        })
-                      }
-                    />
-                    {formErrors.latencySpikePercent && (
-                      <p className='text-red-400 text-xs'>{formErrors.latencySpikePercent}</p>
-                    )}
-                  </div>
-                  <div className='flex-1 space-y-2'>
-                    <Label>Window (hours)</Label>
-                    <Input
-                      type='number'
-                      min={1}
-                      max={168}
-                      value={formData.windowHours}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          windowHours: Number.parseInt(e.target.value) || 1,
-                        })
-                      }
-                    />
-                    {formErrors.windowHours && (
-                      <p className='text-red-400 text-xs'>{formErrors.windowHours}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {formData.alertRule === 'cost_threshold' && (
-                <div className='space-y-2'>
-                  <Label>Cost Threshold ($)</Label>
-                  <Input
-                    type='number'
-                    min={0.01}
-                    max={1000}
-                    step={0.01}
-                    value={formData.costThresholdDollars}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        costThresholdDollars: Number.parseFloat(e.target.value) || 0.01,
-                      })
-                    }
-                    className='w-32'
-                  />
-                  {formErrors.costThresholdDollars && (
-                    <p className='text-red-400 text-xs'>{formErrors.costThresholdDollars}</p>
-                  )}
-                </div>
-              )}
-
-              {formData.alertRule === 'no_activity' && (
-                <div className='space-y-2'>
-                  <Label>Inactivity Period (hours)</Label>
-                  <Input
-                    type='number'
-                    min={1}
-                    max={168}
-                    value={formData.inactivityHours}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        inactivityHours: Number.parseInt(e.target.value) || 1,
-                      })
-                    }
-                    className='w-32'
-                  />
-                  {formErrors.inactivityHours && (
-                    <p className='text-red-400 text-xs'>{formErrors.inactivityHours}</p>
-                  )}
-                </div>
-              )}
-
-              {formData.alertRule === 'error_count' && (
-                <div className='flex gap-4'>
-                  <div className='flex-1 space-y-2'>
-                    <Label>Error Count</Label>
-                    <Input
-                      type='number'
-                      min={1}
-                      max={1000}
-                      value={formData.errorCountThreshold}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          errorCountThreshold: Number.parseInt(e.target.value) || 1,
-                        })
-                      }
-                    />
-                    {formErrors.errorCountThreshold && (
-                      <p className='text-red-400 text-xs'>{formErrors.errorCountThreshold}</p>
-                    )}
-                  </div>
-                  <div className='flex-1 space-y-2'>
-                    <Label>Window (hours)</Label>
-                    <Input
-                      type='number'
-                      min={1}
-                      max={168}
-                      value={formData.windowHours}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          windowHours: Number.parseInt(e.target.value) || 1,
-                        })
-                      }
-                    />
-                    {formErrors.windowHours && (
-                      <p className='text-red-400 text-xs'>{formErrors.windowHours}</p>
-                    )}
-                  </div>
-                </div>
+                ))}
+                <input
+                  type='text'
+                  value={emailInputValue}
+                  onChange={(e) => setEmailInputValue(e.target.value)}
+                  onKeyDown={handleEmailKeyDown}
+                  onPaste={handleEmailPaste}
+                  onBlur={() => emailInputValue.trim() && addEmail(emailInputValue)}
+                  placeholder={
+                    formData.emailRecipients.length > 0 || invalidEmails.length > 0
+                      ? 'Add another email'
+                      : 'Enter emails'
+                  }
+                  className='min-w-[180px] flex-1 border-none bg-transparent p-0 font-medium font-sans text-foreground text-sm outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
+                />
+              </div>
+              {formErrors.emailRecipients && (
+                <p className='text-[11px] text-[var(--text-error)]'>{formErrors.emailRecipients}</p>
               )}
             </div>
           )}
-        </div>
 
-        {activeTab === 'webhook' && (
-          <>
-            <div className='space-y-2'>
-              <Label>Webhook URL</Label>
-              <Input
-                type='url'
-                placeholder='https://your-app.com/webhook'
-                value={formData.webhookUrl}
-                onChange={(e) => {
-                  setFormData({ ...formData, webhookUrl: e.target.value })
-                  setFormErrors({ ...formErrors, webhookUrl: '' })
-                }}
-              />
-              {formErrors.webhookUrl && (
-                <p className='text-red-400 text-xs'>{formErrors.webhookUrl}</p>
-              )}
-            </div>
-            <div className='space-y-2'>
-              <Label>Secret (optional)</Label>
-              <Input
-                type='password'
-                placeholder='Webhook secret for signature verification'
-                value={formData.webhookSecret}
-                onChange={(e) => setFormData({ ...formData, webhookSecret: e.target.value })}
-              />
-              <p className='text-[12px] text-[var(--text-muted)]'>
-                Used to sign webhook payloads with HMAC-SHA256
-              </p>
-            </div>
-          </>
-        )}
-
-        {activeTab === 'email' && (
-          <div className='space-y-2'>
-            <Label>Email Recipients</Label>
-            <Input
-              type='text'
-              placeholder='email@example.com, another@example.com'
-              value={formData.emailRecipients}
-              onChange={(e) => {
-                setFormData({ ...formData, emailRecipients: e.target.value })
-                setFormErrors({ ...formErrors, emailRecipients: '' })
-              }}
-            />
-            <p className='text-[12px] text-[var(--text-muted)]'>
-              Comma-separated list of email addresses (max 10)
-            </p>
-            {formErrors.emailRecipients && (
-              <p className='text-red-400 text-xs'>{formErrors.emailRecipients}</p>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'slack' && (
-          <>
-            <div className='space-y-2'>
-              <Label>Slack Account</Label>
-              {isLoadingSlackAccounts ? (
-                <Skeleton className='h-9 w-full' />
-              ) : slackAccounts.length === 0 ? (
-                <div className='rounded-[4px] border p-4 text-center'>
-                  <p className='text-[12px] text-[var(--text-muted)]'>
-                    No Slack accounts connected
-                  </p>
-                  <Button
-                    variant='outline'
-                    className='mt-2'
-                    onClick={async () => {
-                      await connectSlack.mutateAsync({
-                        providerId: 'slack',
-                        callbackURL: window.location.href,
+          {activeTab === 'slack' && (
+            <>
+              <div className='flex flex-col gap-[8px]'>
+                <Label className='text-[var(--text-secondary)]'>Slack Account</Label>
+                {isLoadingSlackAccounts ? (
+                  <Skeleton className='h-[34px] w-full rounded-[6px]' />
+                ) : slackAccounts.length === 0 ? (
+                  <div className='flex'>
+                    <Button
+                      variant='active'
+                      onClick={async () => {
+                        await connectSlack.mutateAsync({
+                          providerId: 'slack',
+                          callbackURL: window.location.href,
+                        })
+                      }}
+                      disabled={connectSlack.isPending}
+                      className='flex items-center gap-[8px]'
+                    >
+                      <SlackIcon className='h-[11px] w-[11px]' />
+                      {connectSlack.isPending ? 'Connecting...' : 'Connect Slack'}
+                    </Button>
+                  </div>
+                ) : (
+                  <Combobox
+                    options={slackAccounts.map((acc) => ({
+                      value: acc.id,
+                      label: acc.accountId,
+                    }))}
+                    value={formData.slackAccountId}
+                    onChange={(value) => {
+                      setFormData({
+                        ...formData,
+                        slackAccountId: value,
+                        slackChannelId: '',
                       })
+                      setFormErrors({ ...formErrors, slackAccountId: '', slackChannelId: '' })
                     }}
-                    disabled={connectSlack.isPending}
-                  >
-                    {connectSlack.isPending ? 'Connecting...' : 'Connect Slack'}
-                  </Button>
+                    placeholder='Select account...'
+                  />
+                )}
+                {formErrors.slackAccountId && (
+                  <p className='text-[11px] text-[var(--text-error)]'>
+                    {formErrors.slackAccountId}
+                  </p>
+                )}
+              </div>
+              {slackAccounts.length > 0 && (
+                <div className='flex flex-col gap-[8px]'>
+                  <Label className='text-[var(--text-secondary)]'>Channel</Label>
+                  <SlackChannelSelector
+                    accountId={formData.slackAccountId}
+                    value={formData.slackChannelId}
+                    onChange={(channelId, channelName) => {
+                      setFormData({
+                        ...formData,
+                        slackChannelId: channelId,
+                        slackChannelName: channelName,
+                      })
+                      setFormErrors({ ...formErrors, slackChannelId: '' })
+                    }}
+                    disabled={!formData.slackAccountId}
+                    error={formErrors.slackChannelId}
+                  />
                 </div>
-              ) : (
-                <Combobox
-                  options={slackAccounts.map((acc) => ({
-                    value: acc.id,
-                    label: acc.accountId,
-                  }))}
-                  value={formData.slackAccountId}
-                  onChange={(value) => {
-                    setFormData({
-                      ...formData,
-                      slackAccountId: value,
-                      slackChannelId: '',
-                    })
-                    setFormErrors({ ...formErrors, slackAccountId: '', slackChannelId: '' })
-                  }}
-                  placeholder='Select account...'
-                />
               )}
-              {formErrors.slackAccountId && (
-                <p className='text-red-400 text-xs'>{formErrors.slackAccountId}</p>
+            </>
+          )}
+
+          <div className='flex flex-col gap-[8px]'>
+            <Label className='text-[var(--text-secondary)]'>Log Level Filters</Label>
+            <Combobox
+              options={LOG_LEVELS.map((level) => ({
+                label: level.charAt(0).toUpperCase() + level.slice(1),
+                value: level,
+              }))}
+              multiSelect
+              multiSelectValues={formData.levelFilter}
+              onMultiSelectChange={(values) => {
+                setFormData({ ...formData, levelFilter: values as LogLevel[] })
+                setFormErrors({ ...formErrors, levelFilter: '' })
+              }}
+              placeholder='Select log levels...'
+              overlayContent={
+                formData.levelFilter.length > 0 ? (
+                  <div className='flex items-center gap-[4px]'>
+                    {formData.levelFilter.map((level) => (
+                      <Badge
+                        key={level}
+                        variant='outline'
+                        className='pointer-events-auto cursor-pointer gap-[4px] rounded-[6px] px-[8px] py-[2px] text-[11px] capitalize'
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setFormData({
+                            ...formData,
+                            levelFilter: formData.levelFilter.filter((l) => l !== level),
+                          })
+                        }}
+                      >
+                        {level}
+                        <X className='h-3 w-3' />
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null
+              }
+              showAllOption
+              allOptionLabel='All levels'
+            />
+            {formErrors.levelFilter && (
+              <p className='text-[11px] text-[var(--text-error)]'>{formErrors.levelFilter}</p>
+            )}
+          </div>
+
+          <div className='flex flex-col gap-[8px]'>
+            <Label className='text-[var(--text-secondary)]'>Trigger Type Filters</Label>
+            <Combobox
+              options={TRIGGER_TYPES.map((trigger) => ({
+                label: trigger.charAt(0).toUpperCase() + trigger.slice(1),
+                value: trigger,
+              }))}
+              multiSelect
+              multiSelectValues={formData.triggerFilter}
+              onMultiSelectChange={(values) => {
+                setFormData({ ...formData, triggerFilter: values as TriggerType[] })
+                setFormErrors({ ...formErrors, triggerFilter: '' })
+              }}
+              placeholder='Select trigger types...'
+              overlayContent={
+                formData.triggerFilter.length > 0 ? (
+                  <div className='flex items-center gap-[4px] overflow-hidden'>
+                    {formData.triggerFilter.map((trigger) => (
+                      <Badge
+                        key={trigger}
+                        variant='outline'
+                        className='pointer-events-auto cursor-pointer gap-[4px] rounded-[6px] px-[8px] py-[2px] text-[11px] capitalize'
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setFormData({
+                            ...formData,
+                            triggerFilter: formData.triggerFilter.filter((t) => t !== trigger),
+                          })
+                        }}
+                      >
+                        {trigger}
+                        <X className='h-3 w-3' />
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null
+              }
+              showAllOption
+              allOptionLabel='All triggers'
+            />
+            {formErrors.triggerFilter && (
+              <p className='text-[11px] text-[var(--text-error)]'>{formErrors.triggerFilter}</p>
+            )}
+          </div>
+
+          <div className='flex flex-col gap-[8px]'>
+            <Label className='text-[var(--text-secondary)]'>Include in Payload</Label>
+            <Combobox
+              options={[
+                { label: 'Final Output', value: 'includeFinalOutput' },
+                { label: 'Trace Spans', value: 'includeTraceSpans' },
+                { label: 'Rate Limits', value: 'includeRateLimits' },
+                { label: 'Usage Data', value: 'includeUsageData' },
+              ]}
+              multiSelect
+              multiSelectValues={
+                [
+                  formData.includeFinalOutput && 'includeFinalOutput',
+                  formData.includeTraceSpans && 'includeTraceSpans',
+                  formData.includeRateLimits && 'includeRateLimits',
+                  formData.includeUsageData && 'includeUsageData',
+                ].filter(Boolean) as string[]
+              }
+              onMultiSelectChange={(values) => {
+                setFormData({
+                  ...formData,
+                  includeFinalOutput: values.includes('includeFinalOutput'),
+                  includeTraceSpans: values.includes('includeTraceSpans'),
+                  includeRateLimits: values.includes('includeRateLimits'),
+                  includeUsageData: values.includes('includeUsageData'),
+                })
+              }}
+              placeholder='Select data to include...'
+              overlayContent={(() => {
+                const labels: Record<string, string> = {
+                  includeFinalOutput: 'Final Output',
+                  includeTraceSpans: 'Trace Spans',
+                  includeRateLimits: 'Rate Limits',
+                  includeUsageData: 'Usage Data',
+                }
+                const selected = [
+                  formData.includeFinalOutput && 'includeFinalOutput',
+                  formData.includeTraceSpans && 'includeTraceSpans',
+                  formData.includeRateLimits && 'includeRateLimits',
+                  formData.includeUsageData && 'includeUsageData',
+                ].filter(Boolean) as string[]
+
+                if (selected.length === 0) return null
+
+                return (
+                  <div className='flex items-center gap-[4px] overflow-hidden'>
+                    {selected.slice(0, 2).map((key) => (
+                      <Badge
+                        key={key}
+                        variant='outline'
+                        className='pointer-events-auto cursor-pointer gap-[4px] rounded-[6px] px-[8px] py-[2px] text-[11px]'
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setFormData({ ...formData, [key]: false })
+                        }}
+                      >
+                        {labels[key]}
+                        <X className='h-3 w-3' />
+                      </Badge>
+                    ))}
+                    {selected.length > 2 && (
+                      <Badge
+                        variant='outline'
+                        className='rounded-[6px] px-[8px] py-[2px] text-[11px]'
+                      >
+                        +{selected.length - 2}
+                      </Badge>
+                    )}
+                  </div>
+                )
+              })()}
+              showAllOption
+              allOptionLabel='None'
+            />
+          </div>
+
+          <div className='flex flex-col gap-[8px]'>
+            <Label className='text-[var(--text-secondary)]'>Rule</Label>
+            <Combobox
+              options={ALERT_RULES.map((rule) => ({
+                value: rule.value,
+                label: rule.label,
+              }))}
+              value={formData.alertRule}
+              onChange={(value) => setFormData({ ...formData, alertRule: value as AlertRule })}
+              placeholder='Select rule'
+            />
+            <p className='text-[12px] text-[var(--text-muted)]'>
+              {ALERT_RULES.find((r) => r.value === formData.alertRule)?.description}
+            </p>
+          </div>
+
+          {formData.alertRule === 'consecutive_failures' && (
+            <div className='flex flex-col gap-[8px]'>
+              <Label className='text-[var(--text-secondary)]'>Failure Count</Label>
+              <EmcnInput
+                type='number'
+                min={1}
+                max={100}
+                value={formData.consecutiveFailures}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    consecutiveFailures: Number.parseInt(e.target.value) || 1,
+                  })
+                }
+              />
+              {formErrors.consecutiveFailures && (
+                <p className='text-[11px] text-[var(--text-error)]'>
+                  {formErrors.consecutiveFailures}
+                </p>
               )}
             </div>
-            {slackAccounts.length > 0 && (
-              <div className='space-y-2'>
-                <Label>Channel</Label>
-                <SlackChannelSelector
-                  accountId={formData.slackAccountId}
-                  value={formData.slackChannelId}
-                  onChange={(channelId, channelName) => {
+          )}
+
+          {formData.alertRule === 'failure_rate' && (
+            <div className='flex gap-[8px]'>
+              <div className='flex flex-1 flex-col gap-[8px]'>
+                <Label className='text-[var(--text-secondary)]'>Failure Rate (%)</Label>
+                <EmcnInput
+                  type='number'
+                  min={1}
+                  max={100}
+                  value={formData.failureRatePercent}
+                  onChange={(e) =>
                     setFormData({
                       ...formData,
-                      slackChannelId: channelId,
-                      slackChannelName: channelName,
+                      failureRatePercent: Number.parseInt(e.target.value) || 1,
                     })
-                    setFormErrors({ ...formErrors, slackChannelId: '' })
-                  }}
-                  disabled={!formData.slackAccountId}
-                  error={formErrors.slackChannelId}
+                  }
                 />
+                {formErrors.failureRatePercent && (
+                  <p className='text-[11px] text-[var(--text-error)]'>
+                    {formErrors.failureRatePercent}
+                  </p>
+                )}
               </div>
-            )}
-          </>
-        )}
-
-        <div className='space-y-2'>
-          <div>
-            <Label>Log Level Filters</Label>
-            <p className='text-[12px] text-[var(--text-muted)]'>
-              Select which log levels trigger notifications
-            </p>
-          </div>
-          <Combobox
-            options={LOG_LEVELS.map((level) => ({
-              label: level.charAt(0).toUpperCase() + level.slice(1),
-              value: level,
-            }))}
-            multiSelect
-            multiSelectValues={formData.levelFilter}
-            onMultiSelectChange={(values) => {
-              setFormData({ ...formData, levelFilter: values as LogLevel[] })
-              setFormErrors({ ...formErrors, levelFilter: '' })
-            }}
-            placeholder='Select log levels...'
-            overlayContent={
-              formData.levelFilter.length > 0 ? (
-                <div className='flex items-center gap-1'>
-                  {formData.levelFilter.map((level) => (
-                    <Button
-                      key={level}
-                      variant='outline'
-                      className='pointer-events-auto h-6 gap-1 rounded-[6px] px-2 text-[11px] capitalize'
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setFormData({
-                          ...formData,
-                          levelFilter: formData.levelFilter.filter((l) => l !== level),
-                        })
-                      }}
-                    >
-                      {level}
-                      <X className='h-3 w-3' />
-                    </Button>
-                  ))}
-                </div>
-              ) : null
-            }
-          />
-          {formErrors.levelFilter && (
-            <p className='text-red-400 text-xs'>{formErrors.levelFilter}</p>
+              <div className='flex flex-1 flex-col gap-[8px]'>
+                <Label className='text-[var(--text-secondary)]'>Window (hours)</Label>
+                <EmcnInput
+                  type='number'
+                  min={1}
+                  max={168}
+                  value={formData.windowHours}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      windowHours: Number.parseInt(e.target.value) || 1,
+                    })
+                  }
+                />
+                {formErrors.windowHours && (
+                  <p className='text-[11px] text-[var(--text-error)]'>{formErrors.windowHours}</p>
+                )}
+              </div>
+            </div>
           )}
-        </div>
 
-        <div className='space-y-2'>
-          <div>
-            <Label>Trigger Type Filters</Label>
-            <p className='text-[12px] text-[var(--text-muted)]'>
-              Select which trigger types send notifications
-            </p>
-          </div>
-          <Combobox
-            options={TRIGGER_TYPES.map((trigger) => ({
-              label: trigger.charAt(0).toUpperCase() + trigger.slice(1),
-              value: trigger,
-            }))}
-            multiSelect
-            multiSelectValues={formData.triggerFilter}
-            onMultiSelectChange={(values) => {
-              setFormData({ ...formData, triggerFilter: values as TriggerType[] })
-              setFormErrors({ ...formErrors, triggerFilter: '' })
-            }}
-            placeholder='Select trigger types...'
-            overlayContent={
-              formData.triggerFilter.length > 0 ? (
-                <div className='flex items-center gap-1 overflow-hidden'>
-                  {formData.triggerFilter.slice(0, 3).map((trigger) => (
-                    <Button
-                      key={trigger}
-                      variant='outline'
-                      className='pointer-events-auto h-6 gap-1 rounded-[6px] px-2 text-[11px] capitalize'
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setFormData({
-                          ...formData,
-                          triggerFilter: formData.triggerFilter.filter((t) => t !== trigger),
-                        })
-                      }}
-                    >
-                      {trigger}
-                      <X className='h-3 w-3' />
-                    </Button>
-                  ))}
-                  {formData.triggerFilter.length > 3 && (
-                    <span className='flex h-6 items-center rounded-[6px] border px-2 text-[11px]'>
-                      +{formData.triggerFilter.length - 3}
-                    </span>
-                  )}
-                </div>
-              ) : null
-            }
-          />
-          {formErrors.triggerFilter && (
-            <p className='text-red-400 text-xs'>{formErrors.triggerFilter}</p>
+          {formData.alertRule === 'latency_threshold' && (
+            <div className='flex flex-col gap-[8px]'>
+              <Label className='text-[var(--text-secondary)]'>Duration Threshold (seconds)</Label>
+              <EmcnInput
+                type='number'
+                min={1}
+                max={3600}
+                value={Math.round(formData.durationThresholdMs / 1000)}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    durationThresholdMs: (Number.parseInt(e.target.value) || 1) * 1000,
+                  })
+                }
+              />
+              {formErrors.durationThresholdMs && (
+                <p className='text-[11px] text-[var(--text-error)]'>
+                  {formErrors.durationThresholdMs}
+                </p>
+              )}
+            </div>
           )}
-        </div>
 
-        <div className='space-y-2'>
-          <div>
-            <Label>Include in Payload</Label>
-            <p className='text-[12px] text-[var(--text-muted)]'>
-              Additional data to include in notifications
-            </p>
-          </div>
-          <Combobox
-            options={[
-              { label: 'Final Output', value: 'includeFinalOutput' },
-              { label: 'Trace Spans', value: 'includeTraceSpans' },
-              { label: 'Rate Limits', value: 'includeRateLimits' },
-              { label: 'Usage Data', value: 'includeUsageData' },
-            ]}
-            multiSelect
-            multiSelectValues={
-              [
-                formData.includeFinalOutput && 'includeFinalOutput',
-                formData.includeTraceSpans && 'includeTraceSpans',
-                formData.includeRateLimits && 'includeRateLimits',
-                formData.includeUsageData && 'includeUsageData',
-              ].filter(Boolean) as string[]
-            }
-            onMultiSelectChange={(values) => {
-              setFormData({
-                ...formData,
-                includeFinalOutput: values.includes('includeFinalOutput'),
-                includeTraceSpans: values.includes('includeTraceSpans'),
-                includeRateLimits: values.includes('includeRateLimits'),
-                includeUsageData: values.includes('includeUsageData'),
-              })
-            }}
-            placeholder='Select data to include...'
-            overlayContent={(() => {
-              const labels: Record<string, string> = {
-                includeFinalOutput: 'Final Output',
-                includeTraceSpans: 'Trace Spans',
-                includeRateLimits: 'Rate Limits',
-                includeUsageData: 'Usage Data',
-              }
-              const selected = [
-                formData.includeFinalOutput && 'includeFinalOutput',
-                formData.includeTraceSpans && 'includeTraceSpans',
-                formData.includeRateLimits && 'includeRateLimits',
-                formData.includeUsageData && 'includeUsageData',
-              ].filter(Boolean) as string[]
+          {formData.alertRule === 'latency_spike' && (
+            <div className='flex gap-[8px]'>
+              <div className='flex flex-1 flex-col gap-[8px]'>
+                <Label className='text-[var(--text-secondary)]'>Above Average (%)</Label>
+                <EmcnInput
+                  type='number'
+                  min={10}
+                  max={1000}
+                  value={formData.latencySpikePercent}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      latencySpikePercent: Number.parseInt(e.target.value) || 10,
+                    })
+                  }
+                />
+                {formErrors.latencySpikePercent && (
+                  <p className='text-[11px] text-[var(--text-error)]'>
+                    {formErrors.latencySpikePercent}
+                  </p>
+                )}
+              </div>
+              <div className='flex flex-1 flex-col gap-[8px]'>
+                <Label className='text-[var(--text-secondary)]'>Window (hours)</Label>
+                <EmcnInput
+                  type='number'
+                  min={1}
+                  max={168}
+                  value={formData.windowHours}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      windowHours: Number.parseInt(e.target.value) || 1,
+                    })
+                  }
+                />
+                {formErrors.windowHours && (
+                  <p className='text-[11px] text-[var(--text-error)]'>{formErrors.windowHours}</p>
+                )}
+              </div>
+            </div>
+          )}
 
-              if (selected.length === 0) return null
+          {formData.alertRule === 'cost_threshold' && (
+            <div className='flex flex-col gap-[8px]'>
+              <Label className='text-[var(--text-secondary)]'>Cost Threshold ($)</Label>
+              <EmcnInput
+                type='number'
+                min={0.01}
+                max={1000}
+                step={0.01}
+                value={formData.costThresholdDollars}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    costThresholdDollars: Number.parseFloat(e.target.value) || 0.01,
+                  })
+                }
+              />
+              {formErrors.costThresholdDollars && (
+                <p className='text-[11px] text-[var(--text-error)]'>
+                  {formErrors.costThresholdDollars}
+                </p>
+              )}
+            </div>
+          )}
 
-              return (
-                <div className='flex items-center gap-1 overflow-hidden'>
-                  {selected.slice(0, 2).map((key) => (
-                    <Button
-                      key={key}
-                      variant='outline'
-                      className='pointer-events-auto h-6 gap-1 rounded-[6px] px-2 text-[11px]'
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setFormData({ ...formData, [key]: false })
-                      }}
-                    >
-                      {labels[key]}
-                      <X className='h-3 w-3' />
-                    </Button>
-                  ))}
-                  {selected.length > 2 && (
-                    <span className='flex h-6 items-center rounded-[6px] border px-2 text-[11px]'>
-                      +{selected.length - 2}
-                    </span>
-                  )}
-                </div>
-              )
-            })()}
-          />
+          {formData.alertRule === 'no_activity' && (
+            <div className='flex flex-col gap-[8px]'>
+              <Label className='text-[var(--text-secondary)]'>Inactivity Period (hours)</Label>
+              <EmcnInput
+                type='number'
+                min={1}
+                max={168}
+                value={formData.inactivityHours}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    inactivityHours: Number.parseInt(e.target.value) || 1,
+                  })
+                }
+              />
+              {formErrors.inactivityHours && (
+                <p className='text-[11px] text-[var(--text-error)]'>{formErrors.inactivityHours}</p>
+              )}
+            </div>
+          )}
+
+          {formData.alertRule === 'error_count' && (
+            <div className='flex gap-[8px]'>
+              <div className='flex flex-1 flex-col gap-[8px]'>
+                <Label className='text-[var(--text-secondary)]'>Error Count</Label>
+                <EmcnInput
+                  type='number'
+                  min={1}
+                  max={1000}
+                  value={formData.errorCountThreshold}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      errorCountThreshold: Number.parseInt(e.target.value) || 1,
+                    })
+                  }
+                />
+                {formErrors.errorCountThreshold && (
+                  <p className='text-[11px] text-[var(--text-error)]'>
+                    {formErrors.errorCountThreshold}
+                  </p>
+                )}
+              </div>
+              <div className='flex flex-1 flex-col gap-[8px]'>
+                <Label className='text-[var(--text-secondary)]'>Window (hours)</Label>
+                <EmcnInput
+                  type='number'
+                  min={1}
+                  max={168}
+                  value={formData.windowHours}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      windowHours: Number.parseInt(e.target.value) || 1,
+                    })
+                  }
+                />
+                {formErrors.windowHours && (
+                  <p className='text-[11px] text-[var(--text-error)]'>{formErrors.windowHours}</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1188,54 +1224,62 @@ export function NotificationSettings({
       return renderForm()
     }
 
-    if (isLoading) {
-      return (
-        <div className='space-y-4'>
-          {[1, 2].map((i) => (
-            <div key={i} className='flex flex-col gap-2'>
-              <Skeleton className='h-8 w-[300px]' />
-              <Skeleton className='h-6 w-[200px]' />
+    return (
+      <div className='flex h-full flex-col gap-[16px]'>
+        <div className='min-h-0 flex-1 overflow-y-auto'>
+          {isLoading ? (
+            <div className='flex flex-col gap-[8px]'>
+              {[1, 2].map((i) => (
+                <div key={i} className='rounded-[6px] border p-[10px]'>
+                  <div className='flex items-center justify-between gap-[12px]'>
+                    <div className='flex min-w-0 flex-1 flex-col gap-[6px]'>
+                      <Skeleton className='h-[16px] w-[200px]' />
+                      <div className='flex items-center gap-[6px]'>
+                        <Skeleton className='h-[18px] w-[80px] rounded-[4px]' />
+                        <Skeleton className='h-[18px] w-[50px] rounded-[4px]' />
+                      </div>
+                    </div>
+                    <div className='flex flex-shrink-0 items-center gap-[8px]'>
+                      <Skeleton className='h-[30px] w-[40px] rounded-[4px]' />
+                      <Skeleton className='h-[30px] w-[40px] rounded-[4px]' />
+                      <Skeleton className='h-[30px] w-[54px] rounded-[4px]' />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          ) : (
+            <div className='flex flex-col gap-[8px]'>
+              {filteredSubscriptions.map(renderSubscriptionItem)}
+            </div>
+          )}
         </div>
-      )
-    }
-
-    if (filteredSubscriptions.length === 0) {
-      return (
-        <div className='flex h-full items-center justify-center'>
-          <p className='text-[13px] text-[var(--text-muted)]'>
-            No {activeTab} notifications configured
-          </p>
-        </div>
-      )
-    }
-
-    return <div>{filteredSubscriptions.map(renderSubscriptionItem)}</div>
+      </div>
+    )
   }
 
   return (
     <>
       <Modal open={open} onOpenChange={handleClose}>
-        <ModalContent size='xl' className='h-[70vh]'>
+        <ModalContent size='lg'>
           <ModalHeader>Notifications</ModalHeader>
 
           <ModalTabs
             value={activeTab}
             onValueChange={(value: string) => {
-              if (!showForm) {
-                setActiveTab(value as NotificationType)
-              }
+              const newTab = value as NotificationType
+              const tabHasSubscriptions = getSubscriptionsForTab(newTab).length > 0
+              resetForm()
+              setActiveTab(newTab)
+              setShowForm(!tabHasSubscriptions)
             }}
             className='flex min-h-0 flex-1 flex-col'
           >
-            {!showForm && (
-              <ModalTabsList activeValue={activeTab}>
-                <ModalTabsTrigger value='webhook'>Webhook</ModalTabsTrigger>
-                <ModalTabsTrigger value='email'>Email</ModalTabsTrigger>
-                <ModalTabsTrigger value='slack'>Slack</ModalTabsTrigger>
-              </ModalTabsList>
-            )}
+            <ModalTabsList activeValue={activeTab}>
+              <ModalTabsTrigger value='webhook'>Webhook</ModalTabsTrigger>
+              <ModalTabsTrigger value='email'>Email</ModalTabsTrigger>
+              <ModalTabsTrigger value='slack'>Slack</ModalTabsTrigger>
+            </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
               <ModalTabsContent value='webhook'>{renderTabContent()}</ModalTabsContent>
@@ -1244,69 +1288,75 @@ export function NotificationSettings({
             </ModalBody>
           </ModalTabs>
 
-          {showForm ? (
-            <ModalFooter>
+          <ModalFooter>
+            {showForm ? (
+              <>
+                {hasSubscriptions && (
+                  <Button
+                    variant='default'
+                    onClick={() => {
+                      resetForm()
+                      setShowForm(false)
+                    }}
+                  >
+                    Back
+                  </Button>
+                )}
+                <Button
+                  variant='primary'
+                  onClick={handleSave}
+                  disabled={createNotification.isPending || updateNotification.isPending}
+                  className={PRIMARY_BUTTON_STYLES}
+                >
+                  {createNotification.isPending || updateNotification.isPending
+                    ? editingId
+                      ? 'Updating...'
+                      : 'Creating...'
+                    : editingId
+                      ? 'Update'
+                      : 'Create'}
+                </Button>
+              </>
+            ) : (
               <Button
-                variant='default'
-                onClick={() => {
-                  resetForm()
-                  setShowForm(false)
-                }}
-              >
-                Back
-              </Button>
-              <Button
-                variant='primary'
-                onClick={handleSave}
-                disabled={createNotification.isPending || updateNotification.isPending}
-              >
-                {createNotification.isPending || updateNotification.isPending
-                  ? editingId
-                    ? 'Updating...'
-                    : 'Creating...'
-                  : editingId
-                    ? 'Update'
-                    : 'Create'}
-              </Button>
-            </ModalFooter>
-          ) : (
-            <ModalFooter>
-              <Button
-                variant='primary'
                 onClick={() => {
                   resetForm()
                   setShowForm(true)
                 }}
+                variant='primary'
+                disabled={isLoading}
+                className={PRIMARY_BUTTON_STYLES}
               >
-                Add {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+                <Plus className='mr-[6px] h-[13px] w-[13px]' />
+                Add
               </Button>
-            </ModalFooter>
-          )}
+            )}
+          </ModalFooter>
         </ModalContent>
       </Modal>
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>Delete notification?</ModalTitle>
-            <ModalDescription>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete Notification</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               This will permanently remove the notification and stop all deliveries.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </ModalDescription>
-          </ModalHeader>
+            </p>
+          </ModalBody>
           <ModalFooter>
             <Button
-              variant='outline'
-              className='h-[32px] px-[12px]'
+              variant='default'
               disabled={deleteNotification.isPending}
               onClick={() => setShowDeleteDialog(false)}
             >
               Cancel
             </Button>
             <Button
+              variant='primary'
               onClick={handleDelete}
               disabled={deleteNotification.isPending}
-              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)]'
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {deleteNotification.isPending ? 'Deleting...' : 'Delete'}
             </Button>
@@ -1314,5 +1364,39 @@ export function NotificationSettings({
         </ModalContent>
       </Modal>
     </>
+  )
+}
+
+interface EmailTagProps {
+  email: string
+  onRemove: () => void
+  isInvalid?: boolean
+}
+
+function EmailTag({ email, onRemove, isInvalid }: EmailTagProps) {
+  return (
+    <div
+      className={cn(
+        'flex w-auto items-center gap-[4px] rounded-[4px] border px-[6px] py-[2px] text-[12px]',
+        isInvalid
+          ? 'border-[var(--text-error)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] text-[var(--text-error)] dark:bg-[color-mix(in_srgb,var(--text-error)_16%,transparent)]'
+          : 'border-[var(--surface-11)] bg-[var(--surface-5)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+      )}
+    >
+      <span className='max-w-[200px] truncate'>{email}</span>
+      <button
+        type='button'
+        onClick={onRemove}
+        className={cn(
+          'flex-shrink-0 transition-colors focus:outline-none',
+          isInvalid
+            ? 'text-[var(--text-error)] hover:text-[var(--text-error)]'
+            : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
+        )}
+        aria-label={`Remove ${email}`}
+      >
+        <X className='h-[12px] w-[12px] translate-y-[0.2px]' />
+      </button>
+    </div>
   )
 }

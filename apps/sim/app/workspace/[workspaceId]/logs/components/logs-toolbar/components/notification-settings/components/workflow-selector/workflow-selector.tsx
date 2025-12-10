@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Layers, X } from 'lucide-react'
-import { Button, Combobox, type ComboboxOption } from '@/components/emcn'
-import { Label, Skeleton } from '@/components/ui'
+import { X } from 'lucide-react'
+import { Badge, Combobox, type ComboboxOption } from '@/components/emcn'
+import { Skeleton } from '@/components/ui'
 
 interface WorkflowSelectorProps {
   workspaceId: string
@@ -13,10 +13,10 @@ interface WorkflowSelectorProps {
   error?: string
 }
 
-const ALL_WORKFLOWS_VALUE = '__all_workflows__'
-
 /**
  * Multi-select workflow selector with "All Workflows" option.
+ * Uses Combobox's built-in showAllOption for the "All Workflows" selection.
+ * When allWorkflows is true, the array is empty and "All Workflows" is selected.
  */
 export function WorkflowSelector({
   workspaceId,
@@ -47,58 +47,39 @@ export function WorkflowSelector({
   }, [workspaceId])
 
   const options: ComboboxOption[] = useMemo(() => {
-    const workflowOptions = workflows.map((w) => ({
+    return workflows.map((w) => ({
       label: w.name,
       value: w.id,
     }))
-
-    return [
-      {
-        label: 'All Workflows',
-        value: ALL_WORKFLOWS_VALUE,
-        icon: Layers,
-      },
-      ...workflowOptions,
-    ]
   }, [workflows])
 
+  /**
+   * When allWorkflows is true, pass empty array so the "All" option is selected.
+   * Otherwise, pass the selected workflow IDs.
+   */
   const currentValues = useMemo(() => {
-    if (allWorkflows) {
-      return [ALL_WORKFLOWS_VALUE]
-    }
-    return selectedIds
+    return allWorkflows ? [] : selectedIds
   }, [allWorkflows, selectedIds])
 
+  /**
+   * Handle multi-select changes from Combobox.
+   * Empty array from showAllOption = all workflows selected.
+   */
   const handleMultiSelectChange = (values: string[]) => {
-    const hasAllWorkflows = values.includes(ALL_WORKFLOWS_VALUE)
-    const hadAllWorkflows = allWorkflows
-
-    if (hasAllWorkflows && !hadAllWorkflows) {
+    if (values.length === 0) {
       onChange([], true)
-    } else if (!hasAllWorkflows && hadAllWorkflows) {
-      onChange(
-        values.filter((v) => v !== ALL_WORKFLOWS_VALUE),
-        false
-      )
     } else {
-      onChange(
-        values.filter((v) => v !== ALL_WORKFLOWS_VALUE),
-        false
-      )
+      onChange(values, false)
     }
   }
 
   const handleRemove = (e: React.MouseEvent, id: string) => {
     e.preventDefault()
     e.stopPropagation()
-    if (id === ALL_WORKFLOWS_VALUE) {
-      onChange([], false)
-    } else {
-      onChange(
-        selectedIds.filter((i) => i !== id),
-        false
-      )
-    }
+    onChange(
+      selectedIds.filter((i) => i !== id),
+      false
+    )
   }
 
   const selectedWorkflows = useMemo(() => {
@@ -107,19 +88,7 @@ export function WorkflowSelector({
 
   const overlayContent = useMemo(() => {
     if (allWorkflows) {
-      return (
-        <div className='flex items-center gap-1'>
-          <Button
-            variant='outline'
-            className='pointer-events-auto h-6 gap-1 rounded-[6px] px-2 text-[11px]'
-            onMouseDown={(e) => handleRemove(e, ALL_WORKFLOWS_VALUE)}
-          >
-            <Layers className='h-3 w-3' />
-            All Workflows
-            <X className='h-3 w-3' />
-          </Button>
-        </div>
-      )
+      return <span className='truncate text-[var(--text-primary)]'>All Workflows</span>
     }
 
     if (selectedWorkflows.length === 0) {
@@ -127,22 +96,22 @@ export function WorkflowSelector({
     }
 
     return (
-      <div className='flex items-center gap-1 overflow-hidden'>
+      <div className='flex items-center gap-[4px] overflow-hidden'>
         {selectedWorkflows.slice(0, 2).map((w) => (
-          <Button
+          <Badge
             key={w.id}
             variant='outline'
-            className='pointer-events-auto h-6 gap-1 rounded-[6px] px-2 text-[11px]'
+            className='pointer-events-auto cursor-pointer gap-[4px] rounded-[6px] px-[8px] py-[2px] text-[11px]'
             onMouseDown={(e) => handleRemove(e, w.id)}
           >
             {w.name}
             <X className='h-3 w-3' />
-          </Button>
+          </Badge>
         ))}
         {selectedWorkflows.length > 2 && (
-          <span className='flex h-6 items-center rounded-[6px] border px-2 text-[11px]'>
+          <Badge variant='outline' className='rounded-[6px] px-[8px] py-[2px] text-[11px]'>
             +{selectedWorkflows.length - 2}
-          </span>
+          </Badge>
         )}
       </div>
     )
@@ -150,16 +119,16 @@ export function WorkflowSelector({
 
   if (isLoading) {
     return (
-      <div className='space-y-2'>
-        <Label className='font-medium text-sm'>Workflows</Label>
-        <Skeleton className='h-9 w-full rounded-[4px]' />
+      <div className='flex flex-col gap-[4px]'>
+        <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Workflows</span>
+        <Skeleton className='h-[34px] w-full rounded-[6px]' />
       </div>
     )
   }
 
   return (
-    <div className='space-y-2'>
-      <Label className='font-medium text-sm'>Workflows</Label>
+    <div className='flex flex-col gap-[4px]'>
+      <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Workflows</span>
       <Combobox
         options={options}
         multiSelect
@@ -170,10 +139,9 @@ export function WorkflowSelector({
         overlayContent={overlayContent}
         searchable
         searchPlaceholder='Search workflows...'
+        showAllOption
+        allOptionLabel='All Workflows'
       />
-      <p className='text-muted-foreground text-xs'>
-        Select which workflows should trigger this notification
-      </p>
     </div>
   )
 }

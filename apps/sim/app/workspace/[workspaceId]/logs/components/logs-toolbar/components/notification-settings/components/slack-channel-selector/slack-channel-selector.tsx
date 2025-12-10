@@ -81,8 +81,8 @@ export function SlackChannelSelector({
 
   if (!accountId) {
     return (
-      <div className='rounded-[8px] border p-3 text-center'>
-        <p className='text-muted-foreground text-sm'>Select a Slack account first</p>
+      <div className='rounded-[6px] border bg-[var(--surface-3)] p-[10px] text-center'>
+        <p className='text-[12px] text-[var(--text-muted)]'>Select a Slack account first</p>
       </div>
     )
   }
@@ -93,7 +93,7 @@ export function SlackChannelSelector({
   }
 
   return (
-    <div className='space-y-1'>
+    <div className='flex flex-col gap-[4px]'>
       <Combobox
         options={options}
         value={value}
@@ -106,11 +106,11 @@ export function SlackChannelSelector({
         error={fetchError}
       />
       {selectedChannel && !fetchError && (
-        <p className='text-muted-foreground text-xs'>
+        <p className='text-[12px] text-[var(--text-muted)]'>
           {selectedChannel.isPrivate ? 'Private' : 'Public'} channel: #{selectedChannel.name}
         </p>
       )}
-      {error && <p className='text-red-400 text-xs'>{error}</p>}
+      {error && <p className='text-[11px] text-[var(--text-error)]'>{error}</p>}
     </div>
   )
 }

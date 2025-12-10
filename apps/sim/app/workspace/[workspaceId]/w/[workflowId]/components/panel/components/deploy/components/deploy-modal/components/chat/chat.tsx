@@ -20,6 +20,7 @@ import { generatePassword } from '@/lib/core/security/encryption'
 import { cn } from '@/lib/core/utils/cn'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 import {
   type AuthType,
@@ -606,7 +607,9 @@ function AuthSelector({
     if (!email.trim()) return false
 
     const normalized = email.trim().toLowerCase()
-    const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.startsWith('@')
+    const isDomainPattern = normalized.startsWith('@')
+    const validation = quickValidateEmail(normalized)
+    const isValid = validation.isValid || isDomainPattern
 
     if (emails.includes(normalized) || invalidEmails.includes(normalized)) {
       return false

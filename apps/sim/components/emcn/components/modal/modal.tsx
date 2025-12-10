@@ -159,7 +159,7 @@ const ModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] left-[50%] z-[500] flex max-h-[85vh] translate-x-[-50%] translate-y-[-50%] flex-col rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
+          'fixed top-[50%] left-[50%] z-[500] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
           MODAL_SIZES[size],
           className
         )}
@@ -247,6 +247,11 @@ const ModalTabs = TabsPrimitive.Root
 interface ModalTabsListProps extends React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> {
   /** Currently active tab value for indicator positioning */
   activeValue?: string
+  /**
+   * Whether the tabs are disabled (non-interactive with reduced opacity)
+   * @default false
+   */
+  disabled?: boolean
 }
 
 /**
@@ -255,7 +260,7 @@ interface ModalTabsListProps extends React.ComponentPropsWithoutRef<typeof TabsP
 const ModalTabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   ModalTabsListProps
->(({ className, children, activeValue, ...props }, ref) => {
+>(({ className, children, activeValue, disabled = false, ...props }, ref) => {
   const listRef = React.useRef<HTMLDivElement>(null)
   const [indicator, setIndicator] = React.useState({ left: 0, width: 0 })
   const [ready, setReady] = React.useState(false)
@@ -290,7 +295,11 @@ const ModalTabsList = React.forwardRef<
   return (
     <TabsPrimitive.List
       ref={ref}
-      className={cn('relative flex gap-[16px] px-4', className)}
+      className={cn(
+        'relative flex gap-[16px] px-4',
+        disabled && 'pointer-events-none opacity-50',
+        className
+      )}
       {...props}
     >
       <div ref={listRef} className='flex gap-[16px]'>

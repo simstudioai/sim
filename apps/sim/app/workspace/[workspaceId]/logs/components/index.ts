@@ -1,15 +1,8 @@
 export { Dashboard } from './dashboard'
-export { LogDetails, LogMarkdownRenderer } from './log-details'
-export { FrozenCanvas, FrozenCanvasModal } from './log-details/components/frozen-canvas'
-export { ToolCallsDisplay } from './log-details/components/tool-calls'
-export {
-  BlockDataDisplay,
-  CollapsibleInputOutput,
-  formatDurationDisplay,
-  normalizeChildWorkflowSpan,
-  TraceSpanItem,
-  TraceSpans,
-} from './log-details/components/trace-spans'
+export { LogDetails } from './log-details'
+export { FileCards } from './log-details/components/file-download'
+export { FrozenCanvas } from './log-details/components/frozen-canvas'
+export { TraceSpans } from './log-details/components/trace-spans'
 export {
   AutocompleteSearch,
   Controls,

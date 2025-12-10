@@ -1,35 +1,21 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Eye, Loader2, X } from 'lucide-react'
-import { highlight, languages } from 'prismjs'
-import 'prismjs/components/prism-javascript'
-import 'prismjs/components/prism-python'
-import 'prismjs/components/prism-json'
-import { Button, Tooltip } from '@/components/emcn'
-import { CopyButton } from '@/components/ui/copy-button'
+import { ChevronUp, X } from 'lucide-react'
+import { Button, Eye } from '@/components/emcn'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
-import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
-import {
-  FrozenCanvasModal,
-  ToolCallsDisplay,
-  TraceSpans,
-} from '@/app/workspace/[workspaceId]/logs/components'
-import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
+import { FileCards, FrozenCanvas, TraceSpans } from '@/app/workspace/[workspaceId]/logs/components'
+import type { LogStatus } from '@/app/workspace/[workspaceId]/logs/utils'
+import { formatDate, StatusBadge, TriggerBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import { formatCost } from '@/providers/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
-import { FileDownload } from './components/file-download'
-import { LogMarkdownRenderer } from './components/markdown-renderer'
-import '@/components/emcn/components/code/code.css'
 
 interface LogDetailsProps {
   /** The log to display details for */
   log: WorkflowLog | null
   /** Whether the sidebar is open */
   isOpen: boolean
-  /** Whether details are being loaded */
-  isLoadingDetails?: boolean
   /** Callback when closing the sidebar */
   onClose: () => void
   /** Callback to navigate to next log */
@@ -42,191 +28,23 @@ interface LogDetailsProps {
   hasPrev?: boolean
 }
 
-interface PrettifyResult {
-  isJson: boolean
-  formatted: string
-}
-
-/**
- * Tries to parse a string as JSON and prettify it.
- * @param content - String content to attempt JSON parsing
- * @returns Object containing whether content is JSON and the formatted result
- */
-const tryPrettifyJson = (content: string): PrettifyResult => {
-  try {
-    const trimmed = content.trim()
-    if (
-      !(trimmed.startsWith('{') || trimmed.startsWith('[')) ||
-      !(trimmed.endsWith('}') || trimmed.endsWith(']'))
-    ) {
-      return { isJson: false, formatted: content }
-    }
-
-    const parsed = JSON.parse(trimmed)
-    const prettified = JSON.stringify(parsed, null, 2)
-    return { isJson: true, formatted: prettified }
-  } catch (_e) {
-    return { isJson: false, formatted: content }
-  }
-}
-
-interface BlockContentDisplayProps {
-  /** System comment to display as header */
-  systemComment: string
-  /** Formatted content string */
-  formatted: string
-  /** Whether the content is JSON */
-  isJson: boolean
-  /** Optional block input data */
-  blockInput?: Record<string, unknown>
-}
-
-/**
- * Displays block content with tabs for output and input.
- * @param props - Component props
- * @returns Block content display component
- */
-const BlockContentDisplay = ({
-  systemComment,
-  formatted,
-  isJson,
-  blockInput,
-}: BlockContentDisplayProps) => {
-  const [activeTab, setActiveTab] = useState<'output' | 'input'>(blockInput ? 'output' : 'output')
-
-  const blockInputString = useMemo(() => {
-    if (!blockInput) return undefined
-    return JSON.stringify(blockInput, null, 2)
-  }, [blockInput])
-
-  const outputString = useMemo(() => {
-    if (!isJson) return formatted
-
-    try {
-      const parsedOutput = JSON.parse(formatted)
-      return JSON.stringify(parsedOutput, null, 2)
-    } catch (_e) {
-      return formatted
-    }
-  }, [formatted, isJson])
-
-  return (
-    <div className='w-full'>
-      <div className='mb-2 font-medium text-muted-foreground text-sm'>{systemComment}</div>
-
-      {/* Tabs for switching between output and input */}
-      {blockInputString && (
-        <div className='mb-2 flex space-x-1'>
-          <button
-            onClick={() => setActiveTab('output')}
-            className={`px-3 py-1 text-xs transition-colors ${
-              activeTab === 'output'
-                ? 'bg-secondary text-foreground'
-                : 'text-muted-foreground hover:bg-secondary/50'
-            }`}
-          >
-            Output
-          </button>
-          <button
-            onClick={() => setActiveTab('input')}
-            className={`px-3 py-1 text-xs transition-colors ${
-              activeTab === 'input'
-                ? 'bg-secondary text-foreground'
-                : 'text-muted-foreground hover:bg-secondary/50'
-            }`}
-          >
-            Input
-          </button>
-        </div>
-      )}
-
-      {/* Content based on active tab */}
-      <div className='group relative rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] p-3'>
-        {activeTab === 'output' ? (
-          <>
-            <CopyButton text={outputString} className='z-10 h-7 w-7' />
-            {isJson ? (
-              <div className='code-editor-theme'>
-                <pre
-                  className='w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all font-mono text-[#eeeeee] text-[11px] leading-[16px]'
-                  dangerouslySetInnerHTML={{
-                    __html: highlight(outputString, languages.json, 'json'),
-                  }}
-                />
-              </div>
-            ) : (
-              <LogMarkdownRenderer content={outputString} />
-            )}
-          </>
-        ) : blockInputString ? (
-          <>
-            <CopyButton text={blockInputString} className='z-10 h-7 w-7' />
-            <div className='code-editor-theme'>
-              <pre
-                className='w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all font-mono text-[#eeeeee] text-[11px] leading-[16px]'
-                dangerouslySetInnerHTML={{
-                  __html: highlight(blockInputString, languages.json, 'json'),
-                }}
-              />
-            </div>
-          </>
-        ) : null}
-      </div>
-    </div>
-  )
-}
-
 /**
  * Sidebar panel displaying detailed information about a selected log.
- * Supports navigation between logs, resizable width, and expandable sections.
+ * Supports navigation between logs and expandable sections.
  * @param props - Component props
  * @returns Log details sidebar component
  */
 export function LogDetails({
   log,
   isOpen,
-  isLoadingDetails = false,
   onClose,
   onNavigateNext,
   onNavigatePrev,
   hasNext = false,
   hasPrev = false,
 }: LogDetailsProps) {
-  const MIN_WIDTH = 400
-  const DEFAULT_WIDTH = 720
-  const EXPANDED_WIDTH = 900
-
-  const [width, setWidth] = useState(DEFAULT_WIDTH) // Start with default width
-  const [isDragging, setIsDragging] = useState(false)
-  const [_currentLogId, setCurrentLogId] = useState<string | null>(null)
-  const [isTraceExpanded, setIsTraceExpanded] = useState(false)
-  const [isModelsExpanded, setIsModelsExpanded] = useState(false)
   const [isFrozenCanvasOpen, setIsFrozenCanvasOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (log?.id) {
-      setCurrentLogId(log.id)
-      setIsTraceExpanded(false)
-    }
-  }, [log?.id])
-
-  const formattedContent = useMemo(() => {
-    if (!log) return null
-
-    let blockInput: Record<string, unknown> | undefined
-
-    if (log.executionData?.blockInput) {
-      blockInput = log.executionData.blockInput as Record<string, unknown>
-    } else if (log.executionData?.traceSpans) {
-      const firstSpanWithInput = log.executionData.traceSpans.find((s) => s.input)
-      if (firstSpanWithInput?.input) {
-        blockInput = firstSpanWithInput.input as Record<string, unknown>
-      }
-    }
-
-    return null
-  }, [log])
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -245,61 +63,6 @@ export function LogDetails({
   const hasCostInfo = useMemo(() => {
     return isWorkflowExecutionLog && log?.cost
   }, [log, isWorkflowExecutionLog])
-
-  const isWorkflowWithCost = useMemo(() => {
-    return isWorkflowExecutionLog && hasCostInfo
-  }, [isWorkflowExecutionLog, hasCostInfo])
-
-  const triggerMetadata = useMemo(
-    () => (log?.trigger ? getIntegrationMetadata(log.trigger) : null),
-    [log?.trigger]
-  )
-
-  const handleTraceSpanToggle = (expanded: boolean) => {
-    setIsTraceExpanded(expanded)
-
-    if (expanded) {
-      if (width < EXPANDED_WIDTH) {
-        setWidth(EXPANDED_WIDTH)
-      }
-    } else {
-      if (width === EXPANDED_WIDTH) {
-        setWidth(DEFAULT_WIDTH)
-      }
-    }
-  }
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true)
-    e.preventDefault()
-    e.stopPropagation()
-  }
-
-  useEffect(() => {
-    if (!isDragging) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const newWidth = window.innerWidth - e.clientX
-      const minWidthToUse = isTraceExpanded ? Math.max(MIN_WIDTH, EXPANDED_WIDTH) : MIN_WIDTH
-      setWidth(Math.max(minWidthToUse, Math.min(newWidth, window.innerWidth * 0.8)))
-    }
-
-    const handleMouseUp = () => {
-      setIsDragging(false)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-    document.body.style.cursor = 'ew-resize'
-    document.body.style.userSelect = 'none'
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-  }, [isDragging, isTraceExpanded])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -328,375 +91,242 @@ export function LogDetails({
     navigateFunction()
   }
 
+  const formattedTimestamp = log ? formatDate(log.createdAt) : null
+
+  const logStatus: LogStatus = useMemo(() => {
+    if (!log) return 'info'
+    const baseLevel = (log.level || 'info').toLowerCase()
+    const isError = baseLevel === 'error'
+    const isPending = !isError && log.hasPendingPause === true
+    const isRunning = !isError && !isPending && log.duration === null
+    return isError ? 'error' : isPending ? 'pending' : isRunning ? 'running' : 'info'
+  }, [log])
+
   return (
     <div
-      className={`fixed top-[94px] right-0 bottom-0 z-50 flex transform flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)] ${
+      className={`absolute top-[0px] right-0 bottom-0 z-50 w-[384px] transform overflow-hidden border-l bg-[var(--surface-1)] shadow-lg transition-transform duration-200 ease-out ${
         isOpen ? 'translate-x-0' : 'translate-x-full'
-      } ${isDragging ? '' : 'transition-all duration-300 ease-in-out'}`}
-      style={{ width: `${width}px`, minWidth: `${MIN_WIDTH}px` }}
+      }`}
       aria-label='Log details sidebar'
     >
-      {/* Resize Handle */}
-      <div
-        className='absolute top-0 bottom-0 left-[-4px] z-[60] w-[8px] cursor-ew-resize'
-        onMouseDown={handleMouseDown}
-        role='separator'
-        aria-orientation='vertical'
-        aria-label='Resize sidebar'
-      />
       {log && (
-        <>
+        <div className='flex h-full flex-col px-[14px] pt-[12px]'>
           {/* Header */}
-          <div className='flex items-center justify-between px-[8px] pt-[14px] pb-[14px]'>
-            <h2 className='font-medium text-[15px] text-[var(--text-primary)] '>Log Details</h2>
-            <div className='flex items-center gap-[4px]'>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className='h-[32px] w-[32px] p-0'
-                    onClick={() => hasPrev && handleNavigate(onNavigatePrev!)}
-                    disabled={!hasPrev}
-                    aria-label='Previous log'
-                  >
-                    <ChevronUp className='h-[14px] w-[14px]' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='bottom'>Previous log</Tooltip.Content>
-              </Tooltip.Root>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className='h-[32px] w-[32px] p-0'
-                    onClick={() => hasNext && handleNavigate(onNavigateNext!)}
-                    disabled={!hasNext}
-                    aria-label='Next log'
-                  >
-                    <ChevronDown className='h-[14px] w-[14px]' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='bottom'>Next log</Tooltip.Content>
-              </Tooltip.Root>
-
+          <div className='flex items-center justify-between'>
+            <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>Log Details</h2>
+            <div className='flex items-center gap-[1px]'>
               <Button
                 variant='ghost'
-                className='h-[32px] w-[32px] p-0'
-                onClick={onClose}
-                aria-label='Close'
+                className='!p-[4px]'
+                onClick={() => hasPrev && handleNavigate(onNavigatePrev!)}
+                disabled={!hasPrev}
+                aria-label='Previous log'
               >
+                <ChevronUp className='h-[14px] w-[14px] rotate-180' />
+              </Button>
+              <Button
+                variant='ghost'
+                className='!p-[4px]'
+                onClick={() => hasNext && handleNavigate(onNavigateNext!)}
+                disabled={!hasNext}
+                aria-label='Next log'
+              >
+                <ChevronUp className='h-[14px] w-[14px]' />
+              </Button>
+              <Button variant='ghost' className='!p-[4px]' onClick={onClose} aria-label='Close'>
                 <X className='h-[14px] w-[14px]' />
               </Button>
             </div>
           </div>
 
-          {/* Content */}
-          <div className='flex-1 overflow-hidden px-[8px]'>
-            <ScrollArea className='h-full w-full overflow-y-auto' ref={scrollAreaRef}>
-              <div className='w-full space-y-[16px] pr-[12px] pb-[16px]'>
-                {/* Timestamp */}
-                <div>
-                  <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
+          {/* Content - Scrollable */}
+          <ScrollArea className='mt-[20px] h-full w-full overflow-y-auto' ref={scrollAreaRef}>
+            <div className='flex flex-col gap-[10px] pb-[16px]'>
+              {/* Timestamp & Workflow Row */}
+              <div className='flex items-center gap-[16px] px-[1px]'>
+                {/* Timestamp Card */}
+                <div className='flex w-[140px] flex-col gap-[8px]'>
+                  <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
                     Timestamp
-                  </h3>
-                  <div className='group relative text-[13px]'>
-                    <CopyButton text={formatDate(log.createdAt).full} />
-                    {formatDate(log.createdAt).full}
+                  </div>
+                  <div className='flex items-center gap-[6px]'>
+                    <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                      {formattedTimestamp?.compactDate || 'N/A'}
+                    </span>
+                    <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                      {formattedTimestamp?.compactTime || 'N/A'}
+                    </span>
                   </div>
                 </div>
 
-                {/* Workflow */}
+                {/* Workflow Card */}
                 {log.workflow && (
-                  <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
+                  <div className='flex flex-col gap-[8px]'>
+                    <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
                       Workflow
-                    </h3>
-                    <div className='group relative text-[13px]'>
-                      <CopyButton text={log.workflow.name} />
-                      <span
-                        style={{
-                          color: log.workflow.color,
-                        }}
-                      >
+                    </div>
+                    <div className='flex items-center gap-[8px]'>
+                      <div
+                        className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
+                        style={{ backgroundColor: log.workflow?.color }}
+                      />
+                      <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                         {log.workflow.name}
                       </span>
                     </div>
                   </div>
                 )}
+              </div>
 
-                {/* Execution ID */}
-                {log.executionId && (
-                  <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
-                      Execution ID
-                    </h3>
-                    <div className='group relative break-all font-mono text-[13px]'>
-                      <CopyButton text={log.executionId} />
-                      {log.executionId}
-                    </div>
-                  </div>
-                )}
+              {/* Execution ID */}
+              {log.executionId && (
+                <div className='flex flex-col gap-[6px] rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
+                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Execution ID
+                  </span>
+                  <span className='truncate font-medium text-[14px] text-[var(--text-secondary)]'>
+                    {log.executionId}
+                  </span>
+                </div>
+              )}
 
-                {/* Status */}
-                <div>
-                  <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
-                    Status
-                  </h3>
-                  {(() => {
-                    const baseLevel = (log.level || 'info').toLowerCase()
-                    const isPending = log.duration == null
-                    const statusLabel = isPending
-                      ? 'Pending'
-                      : `${baseLevel.charAt(0).toUpperCase()}${baseLevel.slice(1)}`
-                    return (
-                      <div className='group relative text-[13px] capitalize'>
-                        <CopyButton text={statusLabel} />
-                        {statusLabel}
-                      </div>
-                    )
-                  })()}
+              {/* Details Section */}
+              <div className='flex flex-col'>
+                {/* Level */}
+                <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-[8px]'>
+                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Level</span>
+                  <StatusBadge status={logStatus} />
                 </div>
 
                 {/* Trigger */}
-                {log.trigger && triggerMetadata && (
-                  <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
-                      Trigger
-                    </h3>
-                    <div className='group relative text-[13px]'>
-                      <CopyButton text={log.trigger} />
-                      {triggerMetadata.label}
-                    </div>
-                  </div>
-                )}
+                <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-[8px]'>
+                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Trigger
+                  </span>
+                  {log.trigger ? (
+                    <TriggerBadge trigger={log.trigger} />
+                  ) : (
+                    <span className='font-medium text-[12px] text-[var(--text-secondary)]'>—</span>
+                  )}
+                </div>
 
                 {/* Duration */}
-                {log.duration && (
-                  <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
-                      Duration
-                    </h3>
-                    <div className='group relative text-[13px]'>
-                      <CopyButton text={log.duration} />
-                      {log.duration}
-                    </div>
-                  </div>
-                )}
+                <div className='flex h-[48px] items-center justify-between p-[8px]'>
+                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Duration
+                  </span>
+                  <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                    {log.duration || '—'}
+                  </span>
+                </div>
+              </div>
 
-                {/* Suspense while details load (positioned after summary fields) */}
-                {isLoadingDetails && (
-                  <div className='flex w-full items-center justify-start gap-[8px] py-[8px] text-[var(--text-secondary)] '>
-                    <Loader2 className='h-[16px] w-[16px] animate-spin' />
-                    <span className='text-[13px]'>Loading details…</span>
-                  </div>
-                )}
-
-                {/* Files */}
-                {log.files && log.files.length > 0 && (
-                  <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
-                      Files ({log.files.length})
-                    </h3>
-                    <div className='space-y-[8px]'>
-                      {log.files.map((file, index) => (
-                        <div
-                          key={file.id || index}
-                          className='flex items-center justify-between border border-[var(--border)] bg-muted/30 p-[8px]'
-                        >
-                          <div className='min-w-0 flex-1'>
-                            <div className='truncate font-medium text-[13px]' title={file.name}>
-                              {file.name}
-                            </div>
-                            <div className='text-[12px] text-[var(--text-secondary)] '>
-                              {file.size ? `${Math.round(file.size / 1024)}KB` : 'Unknown size'}
-                              {file.type && ` • ${file.type.split('/')[0]}`}
-                            </div>
-                          </div>
-                          <div className='ml-[8px] flex items-center gap-[4px]'>
-                            <FileDownload file={file} isExecutionFile={true} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Frozen Canvas Button - only show for workflow execution logs with execution ID */}
-                {isWorkflowExecutionLog && log.executionId && (
-                  <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
-                      Workflow State
-                    </h3>
-                    <Button
-                      variant='ghost'
-                      onClick={() => setIsFrozenCanvasOpen(true)}
-                      className='h-8 w-full justify-start gap-[8px] border border-[var(--border)] bg-muted/30 hover:bg-muted/50'
-                    >
-                      <Eye className='h-[14px] w-[14px]' />
+              {/* Workflow State */}
+              {isWorkflowExecutionLog && log.executionId && (
+                <div className='flex flex-col gap-[6px] rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
+                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Workflow State
+                  </span>
+                  <button
+                    onClick={() => setIsFrozenCanvasOpen(true)}
+                    className='flex items-center justify-between rounded-[6px] bg-[var(--surface-1)] px-[10px] py-[8px] transition-colors hover:bg-[var(--c-2A2A2A)]'
+                  >
+                    <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
                       View Snapshot
-                    </Button>
-                    <p className='mt-[4px] text-[12px] text-[var(--text-secondary)] '>
-                      See the exact workflow state and block inputs/outputs at execution time
+                    </span>
+                    <Eye className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+                  </button>
+                </div>
+              )}
+
+              {/* Workflow Execution - Trace Spans */}
+              {isWorkflowExecutionLog && log.executionData?.traceSpans && (
+                <TraceSpans
+                  traceSpans={log.executionData.traceSpans}
+                  totalDuration={log.executionData.totalDuration}
+                />
+              )}
+
+              {/* Files */}
+              {log.files && log.files.length > 0 && <FileCards files={log.files} isExecutionFile />}
+
+              {/* Cost Breakdown */}
+              {hasCostInfo && (
+                <div className='flex flex-col gap-[8px]'>
+                  <span className='px-[1px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Cost Breakdown
+                  </span>
+
+                  <div className='flex flex-col gap-[4px] rounded-[6px] border border-[var(--border)]'>
+                    <div className='flex flex-col gap-[10px] rounded-[6px] p-[10px]'>
+                      <div className='flex items-center justify-between'>
+                        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                          Base Execution:
+                        </span>
+                        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                          {formatCost(BASE_EXECUTION_CHARGE)}
+                        </span>
+                      </div>
+                      <div className='flex items-center justify-between'>
+                        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                          Model Input:
+                        </span>
+                        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                          {formatCost(log.cost?.input || 0)}
+                        </span>
+                      </div>
+                      <div className='flex items-center justify-between'>
+                        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                          Model Output:
+                        </span>
+                        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                          {formatCost(log.cost?.output || 0)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className='border-[var(--border)] border-t' />
+
+                    <div className='flex flex-col gap-[10px] rounded-[6px] p-[10px]'>
+                      <div className='flex items-center justify-between'>
+                        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                          Total:
+                        </span>
+                        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                          {formatCost(log.cost?.total || 0)}
+                        </span>
+                      </div>
+                      <div className='flex items-center justify-between'>
+                        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                          Tokens:
+                        </span>
+                        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                          {log.cost?.tokens?.prompt || 0} in / {log.cost?.tokens?.completion || 0}{' '}
+                          out
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className='flex items-center justify-center rounded-[6px] bg-[var(--surface-2)] p-[8px] text-center'>
+                    <p className='font-medium text-[11px] text-[var(--text-subtle)]'>
+                      Total cost includes a base execution charge of{' '}
+                      {formatCost(BASE_EXECUTION_CHARGE)} plus any model usage costs.
                     </p>
                   </div>
-                )}
-
-                {/* end suspense */}
-
-                {/* Trace Spans (if available and this is a workflow execution log) */}
-                {isWorkflowExecutionLog && log.executionData?.traceSpans && (
-                  <div className='w-full'>
-                    <div className='w-full overflow-x-hidden'>
-                      <TraceSpans
-                        traceSpans={log.executionData.traceSpans}
-                        totalDuration={log.executionData.totalDuration}
-                        onExpansionChange={handleTraceSpanToggle}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Tool Calls (if available) */}
-                {log.executionData?.toolCalls && log.executionData.toolCalls.length > 0 && (
-                  <div className='w-full'>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
-                      Tool Calls
-                    </h3>
-                    <div className='w-full overflow-x-hidden bg-secondary/30 p-[12px]'>
-                      <ToolCallsDisplay metadata={log.executionData} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Cost Information (moved to bottom) */}
-                {hasCostInfo && (
-                  <div>
-                    <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] '>
-                      Cost Breakdown
-                    </h3>
-                    <div className='overflow-hidden border border-[var(--border)]'>
-                      <div className='space-y-[8px] p-[12px]'>
-                        <div className='flex items-center justify-between'>
-                          <span className='text-[13px] text-[var(--text-secondary)] '>
-                            Base Execution:
-                          </span>
-                          <span className='text-[13px]'>{formatCost(BASE_EXECUTION_CHARGE)}</span>
-                        </div>
-                        <div className='flex items-center justify-between'>
-                          <span className='text-[13px] text-[var(--text-secondary)] '>
-                            Model Input:
-                          </span>
-                          <span className='text-[13px]'>{formatCost(log.cost?.input || 0)}</span>
-                        </div>
-                        <div className='flex items-center justify-between'>
-                          <span className='text-[13px] text-[var(--text-secondary)] '>
-                            Model Output:
-                          </span>
-                          <span className='text-[13px]'>{formatCost(log.cost?.output || 0)}</span>
-                        </div>
-                        <div className='mt-[4px] flex items-center justify-between border-[var(--border)] border-t pt-[8px]'>
-                          <span className='text-[13px] text-[var(--text-secondary)] '>Total:</span>
-                          <span className='text-[13px] text-[var(--text-primary)] '>
-                            {formatCost(log.cost?.total || 0)}
-                          </span>
-                        </div>
-                        <div className='flex items-center justify-between'>
-                          <span className='text-[12px] text-[var(--text-tertiary)] '>Tokens:</span>
-                          <span className='text-[12px] text-[var(--text-tertiary)] '>
-                            {log.cost?.tokens?.prompt || 0} in / {log.cost?.tokens?.completion || 0}{' '}
-                            out
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Models Breakdown */}
-                      {log.cost?.models && Object.keys(log.cost?.models).length > 0 && (
-                        <div className='border-[var(--border)] border-t'>
-                          <button
-                            onClick={() => setIsModelsExpanded(!isModelsExpanded)}
-                            className='flex w-full items-center justify-between p-[12px] text-left transition-colors hover:bg-muted/50'
-                          >
-                            <span className='font-medium text-[12px] text-[var(--text-tertiary)] '>
-                              Model Breakdown ({Object.keys(log.cost?.models || {}).length})
-                            </span>
-                            {isModelsExpanded ? (
-                              <ChevronUp className='h-[12px] w-[12px] text-[var(--text-tertiary)] ' />
-                            ) : (
-                              <ChevronDown className='h-[12px] w-[12px] text-[var(--text-tertiary)] ' />
-                            )}
-                          </button>
-
-                          {isModelsExpanded && (
-                            <div className='space-y-[12px] border-[var(--border)] border-t bg-muted/30 p-[12px]'>
-                              {Object.entries(log.cost?.models || {}).map(([model, cost]) => {
-                                const modelCost = cost as {
-                                  input?: number
-                                  output?: number
-                                  total?: number
-                                  tokens?: { prompt?: number; completion?: number }
-                                }
-                                return (
-                                  <div key={model} className='space-y-[4px]'>
-                                    <div className='font-medium font-mono text-[12px]'>{model}</div>
-                                    <div className='space-y-[4px] text-[12px]'>
-                                      <div className='flex justify-between'>
-                                        <span className='text-[var(--text-secondary)]'>Input:</span>
-                                        <span>{formatCost(modelCost.input || 0)}</span>
-                                      </div>
-                                      <div className='flex justify-between'>
-                                        <span className='text-[var(--text-secondary)]'>
-                                          Output:
-                                        </span>
-                                        <span>{formatCost(modelCost.output || 0)}</span>
-                                      </div>
-                                      <div className='flex justify-between border-[var(--border)] border-t pt-[4px]'>
-                                        <span className='text-[var(--text-secondary)]'>Total:</span>
-                                        <span className='font-medium'>
-                                          {formatCost(modelCost.total || 0)}
-                                        </span>
-                                      </div>
-                                      <div className='flex justify-between'>
-                                        <span className='text-[var(--text-secondary)]'>
-                                          Tokens:
-                                        </span>
-                                        <span>
-                                          {modelCost.tokens?.prompt || 0} in /{' '}
-                                          {modelCost.tokens?.completion || 0} out
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {isWorkflowWithCost && (
-                        <div className='border-[var(--border)] border-t bg-muted p-[12px] text-[12px] text-[var(--text-secondary)] '>
-                          <p>
-                            Total cost includes a base execution charge of{' '}
-                            {formatCost(BASE_EXECUTION_CHARGE)} plus any model usage costs.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-        </>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
       )}
 
       {/* Frozen Canvas Modal */}
       {log?.executionId && (
-        <FrozenCanvasModal
+        <FrozenCanvas
           executionId={log.executionId}
-          workflowName={log.workflow?.name}
-          trigger={log.trigger || undefined}
           traceSpans={log.executionData?.traceSpans}
+          isModal
           isOpen={isFrozenCanvasOpen}
           onClose={() => setIsFrozenCanvasOpen(false)}
         />
