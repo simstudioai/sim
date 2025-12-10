@@ -10,6 +10,7 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
 interface McpTool {
   id: string
   name: string
+  description?: string
   serverId: string
   serverName: string
   icon: React.ComponentType<any>
@@ -76,7 +77,10 @@ export function McpToolsList({
               },
               isExpanded: true,
               usageControl: 'auto',
-              schema: mcpTool.inputSchema,
+              schema: {
+                ...mcpTool.inputSchema,
+                description: mcpTool.description,
+              },
             }
 
             onToolSelect(newTool)

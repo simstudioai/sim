@@ -858,16 +858,22 @@ export function ToolInput({
       return
     }
 
-    const mcpToolsNeedingSchema = selectedTools.filter(
-      (tool) => tool.type === 'mcp' && !tool.schema && tool.params?.toolName
+    // Find MCP tools that need schema or are missing description
+    const mcpToolsNeedingUpdate = selectedTools.filter(
+      (tool) =>
+        tool.type === 'mcp' && tool.params?.toolName && (!tool.schema || !tool.schema.description)
     )
 
-    if (mcpToolsNeedingSchema.length === 0) {
+    if (mcpToolsNeedingUpdate.length === 0) {
       return
     }
 
     const updatedTools = selectedTools.map((tool) => {
-      if (tool.type !== 'mcp' || tool.schema || !tool.params?.toolName) {
+      if (tool.type !== 'mcp' || !tool.params?.toolName) {
+        return tool
+      }
+
+      if (tool.schema?.description) {
         return tool
       }
 
@@ -877,17 +883,27 @@ export function ToolInput({
 
       if (mcpTool?.inputSchema) {
         logger.info(`Backfilling schema for MCP tool: ${tool.params.toolName}`)
-        return { ...tool, schema: mcpTool.inputSchema }
+        return {
+          ...tool,
+          schema: {
+            ...mcpTool.inputSchema,
+            description: mcpTool.description,
+          },
+        }
       }
 
       return tool
     })
 
-    const hasChanges = updatedTools.some((tool, i) => tool.schema && !selectedTools[i].schema)
+    const hasChanges = updatedTools.some(
+      (tool, i) =>
+        (tool.schema && !selectedTools[i].schema) ||
+        (tool.schema?.description && !selectedTools[i].schema?.description)
+    )
 
     if (hasChanges) {
       hasBackfilledRef.current = true
-      logger.info(`Backfilled schemas for ${mcpToolsNeedingSchema.length} MCP tool(s)`)
+      logger.info(`Backfilled schemas for ${mcpToolsNeedingUpdate.length} MCP tool(s)`)
       setStoreValue(updatedTools)
     }
   }, [mcpTools, mcpLoading, selectedTools, isPreview, setStoreValue])
