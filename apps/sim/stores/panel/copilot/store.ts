@@ -901,10 +901,7 @@ const sseHandlers: Record<string, SSEHandler> = {
           setTimeout(() => {
             // Guard against duplicate execution - check if already executing or terminal
             const currentState = get().toolCallsById[id]?.state
-            if (
-              currentState === ClientToolCallState.executing ||
-              isTerminalState(currentState)
-            ) {
+            if (currentState === ClientToolCallState.executing || isTerminalState(currentState)) {
               return
             }
 
@@ -1012,10 +1009,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         setTimeout(() => {
           // Guard against duplicate execution - check if already executing or terminal
           const currentState = get().toolCallsById[id]?.state
-          if (
-            currentState === ClientToolCallState.executing ||
-            isTerminalState(currentState)
-          ) {
+          if (currentState === ClientToolCallState.executing || isTerminalState(currentState)) {
             return
           }
 

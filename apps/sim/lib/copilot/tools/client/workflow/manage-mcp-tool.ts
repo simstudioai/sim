@@ -1,4 +1,4 @@
-import { Check, Loader2, Plus, Server, X, XCircle } from 'lucide-react'
+import { Check, Loader2, Server, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -338,4 +338,3 @@ export class ManageMcpToolClientTool extends BaseClientTool {
     })
   }
 }
-
