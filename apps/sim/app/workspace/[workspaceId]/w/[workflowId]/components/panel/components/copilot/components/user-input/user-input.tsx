@@ -391,7 +391,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         if (mentionKeyboard.handleArrowLeft(e)) return
 
         // Enter key handling
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
           e.preventDefault()
           if (!mentionMenu.showMentionMenu) {
             handleSubmit()
