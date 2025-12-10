@@ -13,7 +13,7 @@ import {
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import {
@@ -100,6 +100,44 @@ export const auth = betterAuth({
     },
     account: {
       create: {
+        before: async (account) => {
+          const existing = await db.query.account.findFirst({
+            where: and(
+              eq(schema.account.userId, account.userId),
+              eq(schema.account.providerId, account.providerId),
+              eq(schema.account.accountId, account.accountId)
+            ),
+          })
+
+          if (existing) {
+            logger.warn(
+              '[databaseHooks.account.create.before] Duplicate account detected, updating existing',
+              {
+                existingId: existing.id,
+                userId: account.userId,
+                providerId: account.providerId,
+                accountId: account.accountId,
+              }
+            )
+
+            await db
+              .update(schema.account)
+              .set({
+                accessToken: account.accessToken,
+                refreshToken: account.refreshToken,
+                idToken: account.idToken,
+                accessTokenExpiresAt: account.accessTokenExpiresAt,
+                refreshTokenExpiresAt: account.refreshTokenExpiresAt,
+                scope: account.scope,
+                updatedAt: new Date(),
+              })
+              .where(eq(schema.account.id, existing.id))
+
+            return false
+          }
+
+          return { data: account }
+        },
         after: async (account) => {
           // Salesforce doesn't return expires_in in its token response (unlike other OAuth providers).
           // We set a default 2-hour expiration so token refresh logic works correctly.

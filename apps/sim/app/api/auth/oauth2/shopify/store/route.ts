@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
+import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('ShopifyStore')
 
@@ -66,14 +67,20 @@ export async function GET(request: NextRequest) {
       await db.update(account).set(accountData).where(eq(account.id, existing.id))
       logger.info('Updated existing Shopify account', { accountId: existing.id })
     } else {
-      await db.insert(account).values({
-        id: `shopify_${session.user.id}_${Date.now()}`,
-        userId: session.user.id,
-        providerId: 'shopify',
-        ...accountData,
-        createdAt: now,
-      })
-      logger.info('Created new Shopify account for user', { userId: session.user.id })
+      await safeAccountInsert(
+        {
+          id: `shopify_${session.user.id}_${Date.now()}`,
+          userId: session.user.id,
+          providerId: 'shopify',
+          accountId: accountData.accountId,
+          accessToken: accountData.accessToken,
+          scope: accountData.scope,
+          idToken: accountData.idToken,
+          createdAt: now,
+          updatedAt: now,
+        },
+        { provider: 'Shopify', identifier: shopDomain }
+      )
     }
 
     const returnUrl = request.cookies.get('shopify_return_url')?.value

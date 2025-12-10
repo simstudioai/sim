@@ -7,6 +7,42 @@ import { refreshOAuthToken } from '@/lib/oauth/oauth'
 
 const logger = createLogger('OAuthUtilsAPI')
 
+interface AccountInsertData {
+  id: string
+  userId: string
+  providerId: string
+  accountId: string
+  accessToken: string
+  scope: string
+  createdAt: Date
+  updatedAt: Date
+  refreshToken?: string
+  idToken?: string
+}
+
+/**
+ * Safely inserts an account record, handling duplicate constraint violations gracefully.
+ * If a duplicate is detected (unique constraint violation), logs a warning and returns success.
+ */
+export async function safeAccountInsert(
+  data: AccountInsertData,
+  context: { provider: string; identifier?: string }
+): Promise<void> {
+  try {
+    await db.insert(account).values(data)
+    logger.info(`Created new ${context.provider} account for user`, { userId: data.userId })
+  } catch (error: any) {
+    if (error?.code === '23505') {
+      logger.error(`Duplicate ${context.provider} account detected, credential already exists`, {
+        userId: data.userId,
+        identifier: context.identifier,
+      })
+    } else {
+      throw error
+    }
+  }
+}
+
 /**
  * Get the user ID based on either a session or a workflow ID
  */
