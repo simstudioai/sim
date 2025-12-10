@@ -2,6 +2,7 @@
 
 import { memo, useMemo } from 'react'
 import { Handle, type NodeProps, Position } from 'reactflow'
+import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { getBlock } from '@/blocks/registry'
 
 interface WorkflowPreviewBlockData {
@@ -62,7 +63,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
           className={horizontalHandles ? horizontalHandleClass : verticalHandleClass}
           style={
             horizontalHandles
-              ? { left: '-7px', top: '24px' }
+              ? { left: '-7px', top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px` }
               : { top: '-7px', left: '50%', transform: 'translateX(-50%)' }
           }
         />
@@ -122,7 +123,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         className={horizontalHandles ? horizontalHandleClass : verticalHandleClass}
         style={
           horizontalHandles
-            ? { right: '-7px', top: '24px' }
+            ? { right: '-7px', top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px` }
             : { bottom: '-7px', left: '50%', transform: 'translateX(-50%)' }
         }
       />

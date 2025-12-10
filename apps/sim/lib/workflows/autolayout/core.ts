@@ -1,6 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import {
-  BLOCK_DIMENSIONS,
   CONTAINER_LAYOUT_OPTIONS,
   DEFAULT_LAYOUT_OPTIONS,
   MAX_OVERLAP_ITERATIONS,
@@ -11,91 +10,54 @@ import {
   normalizePositions,
   prepareBlockMetrics,
 } from '@/lib/workflows/autolayout/utils'
+import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('AutoLayout:Core')
 
-/** Handle names that indicate edges from subflow end */
 const SUBFLOW_END_HANDLES = new Set(['loop-end-source', 'parallel-end-source'])
-
-/** Handle names that indicate edges from subflow start (inside the container) */
 const SUBFLOW_START_HANDLES = new Set(['loop-start-source', 'parallel-start-source'])
-
-/** Default handle Y offset from block top (matches workflow-block.tsx top: '20px') */
-const DEFAULT_HANDLE_Y_OFFSET = 20
-
-/** Error handle offset from block bottom (matches workflow-block.tsx bottom: '17px') */
-const ERROR_HANDLE_BOTTOM_OFFSET = 17
-
-/** Condition handle starting Y offset (matches workflow-block.tsx: 60 + condIndex * 29) */
-const CONDITION_HANDLE_START_Y = 60
-const CONDITION_HANDLE_ROW_HEIGHT = 29
-
-/**
- * Subflow start handle Y offset from subflow node top.
- * - Header height: 50px (from h-[calc(100%-50px)] on content area)
- * - Content div has position: relative
- * - Start pill at: absolute top-[16px] from content div
- * - Pill height: ~28px (py-[6px]=12px padding + ~16px text)
- * - Handle at top: '50%' within pill = 14px from pill top
- * Total: 50 + 16 + 14 = 80px from subflow node top
- */
-const SUBFLOW_START_HANDLE_Y_OFFSET = 80
 
 /**
  * Calculates the Y offset for a source handle based on block type and handle ID.
- * For condition blocks, each condition row has its own handle at different Y positions.
- * For error handles, the position is from the bottom of the block.
- * For subflow start handles, the position is based on the Start pill location.
- * For other blocks, handles are at a fixed offset from the top.
  */
 function getSourceHandleYOffset(block: BlockState, sourceHandle?: string | null): number {
-  // Error handles are positioned from the bottom of the block
   if (sourceHandle === 'error') {
     const blockHeight = block.height || BLOCK_DIMENSIONS.MIN_HEIGHT
-    return blockHeight - ERROR_HANDLE_BOTTOM_OFFSET
+    return blockHeight - HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET
   }
 
-  // Subflow start handles are positioned at the Start pill inside the container
   if (sourceHandle && SUBFLOW_START_HANDLES.has(sourceHandle)) {
-    return SUBFLOW_START_HANDLE_Y_OFFSET
+    return HANDLE_POSITIONS.SUBFLOW_START_Y_OFFSET
   }
 
-  // Condition blocks have multiple handles at different Y positions
   if (block.type === 'condition' && sourceHandle?.startsWith('condition-')) {
-    // Extract condition ID from handle (e.g., "condition-abc123" -> "abc123")
     const conditionId = sourceHandle.replace('condition-', '')
-
-    // Try to find the index by parsing the conditions subblock value
     try {
       const conditionsValue = block.subBlocks?.conditions?.value
       if (typeof conditionsValue === 'string' && conditionsValue) {
         const conditions = JSON.parse(conditionsValue) as Array<{ id?: string }>
         const conditionIndex = conditions.findIndex((c) => c.id === conditionId)
-
         if (conditionIndex >= 0) {
-          // Matches workflow-block.tsx: top: `${60 + condIndex * 29}px`
-          return CONDITION_HANDLE_START_Y + conditionIndex * CONDITION_HANDLE_ROW_HEIGHT
+          return (
+            HANDLE_POSITIONS.CONDITION_START_Y +
+            conditionIndex * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
+          )
         }
       }
     } catch {
-      // If parsing fails, fall back to default offset
+      // Fall back to default offset
     }
   }
 
-  // Loop/parallel end handles and regular blocks use default offset
-  return DEFAULT_HANDLE_Y_OFFSET
+  return HANDLE_POSITIONS.DEFAULT_Y_OFFSET
 }
 
 /**
  * Calculates the Y offset for a target handle based on block type and handle ID.
- * Most blocks have their target handle at DEFAULT_HANDLE_Y_OFFSET.
- * Subflow nodes (loop/parallel) have their target handle at the same position.
  */
 function getTargetHandleYOffset(_block: BlockState, _targetHandle?: string | null): number {
-  // All target handles are currently at the same position (20px from block top)
-  // This function exists for future extensibility if target handles vary
-  return DEFAULT_HANDLE_Y_OFFSET
+  return HANDLE_POSITIONS.DEFAULT_Y_OFFSET
 }
 
 /**
@@ -431,7 +393,7 @@ export function calculatePositions(
 
       // If no predecessors found (shouldn't happen for layer > 0), use padding
       if (bestSourceHandleY < 0) {
-        bestSourceHandleY = padding.y + DEFAULT_HANDLE_Y_OFFSET
+        bestSourceHandleY = padding.y + HANDLE_POSITIONS.DEFAULT_Y_OFFSET
       }
 
       // Calculate the target handle Y offset for this node
