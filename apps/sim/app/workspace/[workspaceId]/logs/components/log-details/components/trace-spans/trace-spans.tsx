@@ -8,6 +8,7 @@ import clsx from 'clsx'
 import { Button, ChevronDown } from '@/components/emcn'
 import type { TraceSpan } from '@/stores/logs/filters/types'
 import '@/components/emcn/components/code/code.css'
+import { WorkflowIcon } from '@/components/icons'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getBlock, getBlockByToolName } from '@/blocks'
@@ -120,6 +121,14 @@ function getBlockColor(type: string): string {
       return '#2FA1FF'
     case 'api':
       return '#2F55FF'
+    case 'loop':
+    case 'loop-iteration':
+      return '#2FB3FF'
+    case 'parallel':
+    case 'parallel-iteration':
+      return '#FEE12B'
+    case 'workflow':
+      return '#705335'
     default:
       return '#6b7280'
   }
@@ -134,11 +143,14 @@ function getBlockIconAndColor(type: string): {
 } {
   const lowerType = type.toLowerCase()
 
-  if (lowerType === 'loop') {
+  if (lowerType === 'loop' || lowerType === 'loop-iteration') {
     return { icon: LoopTool.icon, bgColor: LoopTool.bgColor }
   }
-  if (lowerType === 'parallel') {
+  if (lowerType === 'parallel' || lowerType === 'parallel-iteration') {
     return { icon: ParallelTool.icon, bgColor: ParallelTool.bgColor }
+  }
+  if (lowerType === 'workflow') {
+    return { icon: WorkflowIcon, bgColor: '#705335' }
   }
 
   const blockType = lowerType === 'model' ? 'agent' : lowerType
@@ -289,15 +301,11 @@ function InputOutputSection({
       {isExpanded && (
         <div>
           {isError && typeof data === 'object' && data !== null && 'error' in data ? (
-            <div
-              className='rounded-[6px] px-[10px] py-[8px]'
-              style={{
-                backgroundColor: 'var(--terminal-status-error-bg)',
-                color: 'var(--text-error)',
-              }}
-            >
-              <div className='font-medium text-[12px]'>Error</div>
-              <div className='mt-[4px] text-[12px]'>{(data as { error: string }).error}</div>
+            <div className='rounded-[4px] border border-[rgba(234,67,53,0.24)] bg-[rgba(234,67,53,0.08)] px-[10px] py-[8px]'>
+              <div className='font-medium text-[#EA4335] text-[12px]'>Error</div>
+              <div className='mt-[4px] text-[#FF8076] text-[12px]'>
+                {(data as { error: string }).error}
+              </div>
             </div>
           ) : (
             <div className='code-editor-theme overflow-hidden rounded-[6px] bg-[var(--surface-3)] px-[10px] py-[8px]'>
@@ -307,6 +315,116 @@ function InputOutputSection({
               />
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface NestedBlockItemProps {
+  span: TraceSpan
+  parentId: string
+  index: number
+  expandedSections: Set<string>
+  onToggle: (section: string) => void
+  workflowStartTime: number
+  totalDuration: number
+}
+
+/**
+ * Recursive component for rendering nested blocks at any depth
+ */
+function NestedBlockItem({
+  span,
+  parentId,
+  index,
+  expandedSections,
+  onToggle,
+  workflowStartTime,
+  totalDuration,
+}: NestedBlockItemProps): React.ReactNode {
+  const spanId = span.id || `${parentId}-nested-${index}`
+  const isError = span.status === 'error'
+  const toolBlock =
+    span.type?.toLowerCase() === 'tool' && span.name ? getBlockByToolName(span.name) : null
+  const { icon: SpanIcon, bgColor } = toolBlock
+    ? { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
+    : getBlockIconAndColor(span.type)
+
+  return (
+    <div className='flex flex-col gap-[8px]'>
+      <div className='flex items-center justify-between'>
+        <div className='flex items-center gap-[8px]'>
+          <div
+            className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+            style={{ background: bgColor }}
+          >
+            {SpanIcon && <SpanIcon className={clsx('text-white', '!h-[9px] !w-[9px]')} />}
+          </div>
+          <span
+            className='font-medium text-[12px]'
+            style={{
+              color: isError ? 'var(--text-error)' : 'var(--text-secondary)',
+            }}
+          >
+            {span.name}
+          </span>
+        </div>
+        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+          {formatDuration(span.duration || 0)}
+        </span>
+      </div>
+
+      <ProgressBar
+        span={span}
+        childSpans={span.children}
+        workflowStartTime={workflowStartTime}
+        totalDuration={totalDuration}
+      />
+
+      {span.input && (
+        <InputOutputSection
+          label='Input'
+          data={span.input}
+          isError={false}
+          spanId={`${spanId}-input`}
+          sectionType='input'
+          expandedSections={expandedSections}
+          onToggle={onToggle}
+        />
+      )}
+
+      {span.input && span.output && (
+        <div className='border-[var(--border)] border-t border-dashed' />
+      )}
+
+      {span.output && (
+        <InputOutputSection
+          label={isError ? 'Error' : 'Output'}
+          data={span.output}
+          isError={isError}
+          spanId={`${spanId}-output`}
+          sectionType='output'
+          expandedSections={expandedSections}
+          onToggle={onToggle}
+        />
+      )}
+
+      {/* Recursively render children */}
+      {span.children && span.children.length > 0 && (
+        <div className='mt-[8px] flex flex-col gap-[16px] border-[var(--border)] border-l-2 pl-[10px]'>
+          {span.children.map((child, childIndex) => (
+            <NestedBlockItem
+              key={child.id || `${spanId}-child-${childIndex}`}
+              span={child}
+              parentId={spanId}
+              index={childIndex}
+              expandedSections={expandedSections}
+              onToggle={onToggle}
+              workflowStartTime={workflowStartTime}
+              totalDuration={totalDuration}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -346,11 +464,22 @@ function TraceSpanItem({
   const hasOutput = Boolean(span.output)
   const isError = span.status === 'error'
 
-  const inlineChildTypes = new Set(['tool', 'model'])
-  const inlineChildren =
-    span.children?.filter((child) => inlineChildTypes.has(child.type?.toLowerCase() || '')) || []
-  const otherChildren =
-    span.children?.filter((child) => !inlineChildTypes.has(child.type?.toLowerCase() || '')) || []
+  const inlineChildTypes = new Set([
+    'tool',
+    'model',
+    'loop-iteration',
+    'parallel-iteration',
+    'workflow',
+  ])
+
+  // For workflow-in-workflow blocks, all children should be rendered inline/nested
+  const isWorkflowBlock = span.type?.toLowerCase() === 'workflow'
+  const inlineChildren = isWorkflowBlock
+    ? span.children || []
+    : span.children?.filter((child) => inlineChildTypes.has(child.type?.toLowerCase() || '')) || []
+  const otherChildren = isWorkflowBlock
+    ? []
+    : span.children?.filter((child) => !inlineChildTypes.has(child.type?.toLowerCase() || '')) || []
 
   const toolCallSpans = useMemo(() => {
     if (!hasToolCalls) return []
@@ -502,7 +631,14 @@ function TraceSpanItem({
 
                   <ProgressBar
                     span={childSpan}
-                    childSpans={undefined}
+                    childSpans={
+                      childSpan.type?.toLowerCase() === 'loop-iteration' ||
+                      childSpan.type?.toLowerCase() === 'parallel-iteration' ||
+                      childSpan.type?.toLowerCase() === 'workflow' ||
+                      (isWorkflowBlock && childSpan.children && childSpan.children.length > 0)
+                        ? childSpan.children
+                        : undefined
+                    }
                     workflowStartTime={workflowStartTime}
                     totalDuration={totalDuration}
                   />
@@ -534,6 +670,29 @@ function TraceSpanItem({
                       onToggle={handleSectionToggle}
                     />
                   )}
+
+                  {/* Render nested blocks for loop/parallel iterations, nested workflows, and workflow block children */}
+                  {(childSpan.type?.toLowerCase() === 'loop-iteration' ||
+                    childSpan.type?.toLowerCase() === 'parallel-iteration' ||
+                    childSpan.type?.toLowerCase() === 'workflow' ||
+                    isWorkflowBlock) &&
+                    childSpan.children &&
+                    childSpan.children.length > 0 && (
+                      <div className='mt-[8px] flex flex-col gap-[16px] border-[var(--border)] border-l-2 pl-[10px]'>
+                        {childSpan.children.map((nestedChild, nestedIndex) => (
+                          <NestedBlockItem
+                            key={nestedChild.id || `${childId}-nested-${nestedIndex}`}
+                            span={nestedChild}
+                            parentId={childId}
+                            index={nestedIndex}
+                            expandedSections={expandedSections}
+                            onToggle={handleSectionToggle}
+                            workflowStartTime={workflowStartTime}
+                            totalDuration={totalDuration}
+                          />
+                        ))}
+                      </div>
+                    )}
                 </div>
               </div>
             )

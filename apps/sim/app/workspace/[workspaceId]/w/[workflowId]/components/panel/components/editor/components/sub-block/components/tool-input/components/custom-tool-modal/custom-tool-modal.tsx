@@ -836,8 +836,7 @@ try {
     <>
       <Modal open={open} onOpenChange={handleClose}>
         <ModalContent
-          size='full'
-          className='h-[80vh]'
+          size='xl'
           onKeyDown={(e) => {
             if (e.key === 'Escape' && (showEnvVars || showTags || showSchemaParams)) {
               e.preventDefault()

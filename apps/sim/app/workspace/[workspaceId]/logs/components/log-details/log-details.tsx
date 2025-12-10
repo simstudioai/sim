@@ -6,10 +6,12 @@ import { Button, Eye } from '@/components/emcn'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { FileCards, FrozenCanvas, TraceSpans } from '@/app/workspace/[workspaceId]/logs/components'
+import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
 import type { LogStatus } from '@/app/workspace/[workspaceId]/logs/utils'
 import { formatDate, StatusBadge, TriggerBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import { formatCost } from '@/providers/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
+import { useLogDetailsUIStore } from '@/stores/logs/store'
 
 interface LogDetailsProps {
   /** The log to display details for */
@@ -45,6 +47,8 @@ export function LogDetails({
 }: LogDetailsProps) {
   const [isFrozenCanvasOpen, setIsFrozenCanvasOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const panelWidth = useLogDetailsUIStore((state) => state.panelWidth)
+  const { handleMouseDown } = useLogDetailsResize()
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -103,234 +107,255 @@ export function LogDetails({
   }, [log])
 
   return (
-    <div
-      className={`absolute top-[0px] right-0 bottom-0 z-50 w-[384px] transform overflow-hidden border-l bg-[var(--surface-1)] shadow-lg transition-transform duration-200 ease-out ${
-        isOpen ? 'translate-x-0' : 'translate-x-full'
-      }`}
-      aria-label='Log details sidebar'
-    >
-      {log && (
-        <div className='flex h-full flex-col px-[14px] pt-[12px]'>
-          {/* Header */}
-          <div className='flex items-center justify-between'>
-            <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>Log Details</h2>
-            <div className='flex items-center gap-[1px]'>
-              <Button
-                variant='ghost'
-                className='!p-[4px]'
-                onClick={() => hasPrev && handleNavigate(onNavigatePrev!)}
-                disabled={!hasPrev}
-                aria-label='Previous log'
-              >
-                <ChevronUp className='h-[14px] w-[14px] rotate-180' />
-              </Button>
-              <Button
-                variant='ghost'
-                className='!p-[4px]'
-                onClick={() => hasNext && handleNavigate(onNavigateNext!)}
-                disabled={!hasNext}
-                aria-label='Next log'
-              >
-                <ChevronUp className='h-[14px] w-[14px]' />
-              </Button>
-              <Button variant='ghost' className='!p-[4px]' onClick={onClose} aria-label='Close'>
-                <X className='h-[14px] w-[14px]' />
-              </Button>
-            </div>
-          </div>
+    <>
+      {/* Resize Handle - positioned outside the panel */}
+      {isOpen && (
+        <div
+          className='absolute top-0 bottom-0 z-[60] w-[8px] cursor-ew-resize'
+          style={{ right: `${panelWidth - 4}px` }}
+          onMouseDown={handleMouseDown}
+          role='separator'
+          aria-label='Resize log details panel'
+          aria-orientation='vertical'
+        />
+      )}
 
-          {/* Content - Scrollable */}
-          <ScrollArea className='mt-[20px] h-full w-full overflow-y-auto' ref={scrollAreaRef}>
-            <div className='flex flex-col gap-[10px] pb-[16px]'>
-              {/* Timestamp & Workflow Row */}
-              <div className='flex items-center gap-[16px] px-[1px]'>
-                {/* Timestamp Card */}
-                <div className='flex w-[140px] flex-col gap-[8px]'>
-                  <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                    Timestamp
+      <div
+        className={`absolute top-[0px] right-0 bottom-0 z-50 transform overflow-hidden border-l bg-[var(--surface-1)] shadow-md transition-transform duration-200 ease-out ${
+          isOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        style={{ width: `${panelWidth}px` }}
+        aria-label='Log details sidebar'
+      >
+        {log && (
+          <div className='flex h-full flex-col px-[14px] pt-[12px]'>
+            {/* Header */}
+            <div className='flex items-center justify-between'>
+              <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>Log Details</h2>
+              <div className='flex items-center gap-[1px]'>
+                <Button
+                  variant='ghost'
+                  className='!p-[4px]'
+                  onClick={() => hasPrev && handleNavigate(onNavigatePrev!)}
+                  disabled={!hasPrev}
+                  aria-label='Previous log'
+                >
+                  <ChevronUp className='h-[14px] w-[14px] rotate-180' />
+                </Button>
+                <Button
+                  variant='ghost'
+                  className='!p-[4px]'
+                  onClick={() => hasNext && handleNavigate(onNavigateNext!)}
+                  disabled={!hasNext}
+                  aria-label='Next log'
+                >
+                  <ChevronUp className='h-[14px] w-[14px]' />
+                </Button>
+                <Button variant='ghost' className='!p-[4px]' onClick={onClose} aria-label='Close'>
+                  <X className='h-[14px] w-[14px]' />
+                </Button>
+              </div>
+            </div>
+
+            {/* Content - Scrollable */}
+            <ScrollArea className='mt-[20px] h-full w-full overflow-y-auto' ref={scrollAreaRef}>
+              <div className='flex flex-col gap-[10px] pb-[16px]'>
+                {/* Timestamp & Workflow Row */}
+                <div className='flex items-center gap-[16px] px-[1px]'>
+                  {/* Timestamp Card */}
+                  <div className='flex w-[140px] flex-col gap-[8px]'>
+                    <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                      Timestamp
+                    </div>
+                    <div className='flex items-center gap-[6px]'>
+                      <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                        {formattedTimestamp?.compactDate || 'N/A'}
+                      </span>
+                      <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                        {formattedTimestamp?.compactTime || 'N/A'}
+                      </span>
+                    </div>
                   </div>
-                  <div className='flex items-center gap-[6px]'>
-                    <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                      {formattedTimestamp?.compactDate || 'N/A'}
+
+                  {/* Workflow Card */}
+                  {log.workflow && (
+                    <div className='flex flex-col gap-[8px]'>
+                      <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                        Workflow
+                      </div>
+                      <div className='flex items-center gap-[8px]'>
+                        <div
+                          className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
+                          style={{ backgroundColor: log.workflow?.color }}
+                        />
+                        <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                          {log.workflow.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Execution ID */}
+                {log.executionId && (
+                  <div className='flex flex-col gap-[6px] rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
+                    <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                      Execution ID
+                    </span>
+                    <span className='truncate font-medium text-[14px] text-[var(--text-secondary)]'>
+                      {log.executionId}
+                    </span>
+                  </div>
+                )}
+
+                {/* Details Section */}
+                <div className='flex flex-col'>
+                  {/* Level */}
+                  <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-[8px]'>
+                    <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                      Level
+                    </span>
+                    <StatusBadge status={logStatus} />
+                  </div>
+
+                  {/* Trigger */}
+                  <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-[8px]'>
+                    <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                      Trigger
+                    </span>
+                    {log.trigger ? (
+                      <TriggerBadge trigger={log.trigger} />
+                    ) : (
+                      <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                        —
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Duration */}
+                  <div className='flex h-[48px] items-center justify-between p-[8px]'>
+                    <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                      Duration
                     </span>
                     <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                      {formattedTimestamp?.compactTime || 'N/A'}
+                      {log.duration || '—'}
                     </span>
                   </div>
                 </div>
 
-                {/* Workflow Card */}
-                {log.workflow && (
-                  <div className='flex flex-col gap-[8px]'>
-                    <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Workflow
-                    </div>
-                    <div className='flex items-center gap-[8px]'>
-                      <div
-                        className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
-                        style={{ backgroundColor: log.workflow?.color }}
-                      />
-                      <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                        {log.workflow.name}
+                {/* Workflow State */}
+                {isWorkflowExecutionLog && log.executionId && (
+                  <div className='flex flex-col gap-[6px] rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
+                    <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                      Workflow State
+                    </span>
+                    <button
+                      onClick={() => setIsFrozenCanvasOpen(true)}
+                      className='flex items-center justify-between rounded-[6px] bg-[var(--surface-1)] px-[10px] py-[8px] transition-colors hover:bg-[var(--c-2A2A2A)]'
+                    >
+                      <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                        View Snapshot
                       </span>
+                      <Eye className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+                    </button>
+                  </div>
+                )}
+
+                {/* Workflow Execution - Trace Spans */}
+                {isWorkflowExecutionLog && log.executionData?.traceSpans && (
+                  <TraceSpans
+                    traceSpans={log.executionData.traceSpans}
+                    totalDuration={log.executionData.totalDuration}
+                  />
+                )}
+
+                {/* Files */}
+                {log.files && log.files.length > 0 && (
+                  <FileCards files={log.files} isExecutionFile />
+                )}
+
+                {/* Cost Breakdown */}
+                {hasCostInfo && (
+                  <div className='flex flex-col gap-[8px]'>
+                    <span className='px-[1px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                      Cost Breakdown
+                    </span>
+
+                    <div className='flex flex-col gap-[4px] rounded-[6px] border border-[var(--border)]'>
+                      <div className='flex flex-col gap-[10px] rounded-[6px] p-[10px]'>
+                        <div className='flex items-center justify-between'>
+                          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                            Base Execution:
+                          </span>
+                          <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                            {formatCost(BASE_EXECUTION_CHARGE)}
+                          </span>
+                        </div>
+                        <div className='flex items-center justify-between'>
+                          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                            Model Input:
+                          </span>
+                          <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                            {formatCost(log.cost?.input || 0)}
+                          </span>
+                        </div>
+                        <div className='flex items-center justify-between'>
+                          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                            Model Output:
+                          </span>
+                          <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                            {formatCost(log.cost?.output || 0)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className='border-[var(--border)] border-t' />
+
+                      <div className='flex flex-col gap-[10px] rounded-[6px] p-[10px]'>
+                        <div className='flex items-center justify-between'>
+                          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                            Total:
+                          </span>
+                          <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                            {formatCost(log.cost?.total || 0)}
+                          </span>
+                        </div>
+                        <div className='flex items-center justify-between'>
+                          <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                            Tokens:
+                          </span>
+                          <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                            {log.cost?.tokens?.prompt || 0} in / {log.cost?.tokens?.completion || 0}{' '}
+                            out
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className='flex items-center justify-center rounded-[6px] bg-[var(--surface-2)] p-[8px] text-center'>
+                      <p className='font-medium text-[11px] text-[var(--text-subtle)]'>
+                        Total cost includes a base execution charge of{' '}
+                        {formatCost(BASE_EXECUTION_CHARGE)} plus any model usage costs.
+                      </p>
                     </div>
                   </div>
                 )}
               </div>
+            </ScrollArea>
+          </div>
+        )}
 
-              {/* Execution ID */}
-              {log.executionId && (
-                <div className='flex flex-col gap-[6px] rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
-                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                    Execution ID
-                  </span>
-                  <span className='truncate font-medium text-[14px] text-[var(--text-secondary)]'>
-                    {log.executionId}
-                  </span>
-                </div>
-              )}
-
-              {/* Details Section */}
-              <div className='flex flex-col'>
-                {/* Level */}
-                <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-[8px]'>
-                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Level</span>
-                  <StatusBadge status={logStatus} />
-                </div>
-
-                {/* Trigger */}
-                <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-[8px]'>
-                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                    Trigger
-                  </span>
-                  {log.trigger ? (
-                    <TriggerBadge trigger={log.trigger} />
-                  ) : (
-                    <span className='font-medium text-[12px] text-[var(--text-secondary)]'>—</span>
-                  )}
-                </div>
-
-                {/* Duration */}
-                <div className='flex h-[48px] items-center justify-between p-[8px]'>
-                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                    Duration
-                  </span>
-                  <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                    {log.duration || '—'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Workflow State */}
-              {isWorkflowExecutionLog && log.executionId && (
-                <div className='flex flex-col gap-[6px] rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
-                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                    Workflow State
-                  </span>
-                  <button
-                    onClick={() => setIsFrozenCanvasOpen(true)}
-                    className='flex items-center justify-between rounded-[6px] bg-[var(--surface-1)] px-[10px] py-[8px] transition-colors hover:bg-[var(--c-2A2A2A)]'
-                  >
-                    <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                      View Snapshot
-                    </span>
-                    <Eye className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-                  </button>
-                </div>
-              )}
-
-              {/* Workflow Execution - Trace Spans */}
-              {isWorkflowExecutionLog && log.executionData?.traceSpans && (
-                <TraceSpans
-                  traceSpans={log.executionData.traceSpans}
-                  totalDuration={log.executionData.totalDuration}
-                />
-              )}
-
-              {/* Files */}
-              {log.files && log.files.length > 0 && <FileCards files={log.files} isExecutionFile />}
-
-              {/* Cost Breakdown */}
-              {hasCostInfo && (
-                <div className='flex flex-col gap-[8px]'>
-                  <span className='px-[1px] font-medium text-[12px] text-[var(--text-tertiary)]'>
-                    Cost Breakdown
-                  </span>
-
-                  <div className='flex flex-col gap-[4px] rounded-[6px] border border-[var(--border)]'>
-                    <div className='flex flex-col gap-[10px] rounded-[6px] p-[10px]'>
-                      <div className='flex items-center justify-between'>
-                        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                          Base Execution:
-                        </span>
-                        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                          {formatCost(BASE_EXECUTION_CHARGE)}
-                        </span>
-                      </div>
-                      <div className='flex items-center justify-between'>
-                        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                          Model Input:
-                        </span>
-                        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                          {formatCost(log.cost?.input || 0)}
-                        </span>
-                      </div>
-                      <div className='flex items-center justify-between'>
-                        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                          Model Output:
-                        </span>
-                        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                          {formatCost(log.cost?.output || 0)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className='border-[var(--border)] border-t' />
-
-                    <div className='flex flex-col gap-[10px] rounded-[6px] p-[10px]'>
-                      <div className='flex items-center justify-between'>
-                        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                          Total:
-                        </span>
-                        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                          {formatCost(log.cost?.total || 0)}
-                        </span>
-                      </div>
-                      <div className='flex items-center justify-between'>
-                        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                          Tokens:
-                        </span>
-                        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                          {log.cost?.tokens?.prompt || 0} in / {log.cost?.tokens?.completion || 0}{' '}
-                          out
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className='flex items-center justify-center rounded-[6px] bg-[var(--surface-2)] p-[8px] text-center'>
-                    <p className='font-medium text-[11px] text-[var(--text-subtle)]'>
-                      Total cost includes a base execution charge of{' '}
-                      {formatCost(BASE_EXECUTION_CHARGE)} plus any model usage costs.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-        </div>
-      )}
-
-      {/* Frozen Canvas Modal */}
-      {log?.executionId && (
-        <FrozenCanvas
-          executionId={log.executionId}
-          traceSpans={log.executionData?.traceSpans}
-          isModal
-          isOpen={isFrozenCanvasOpen}
-          onClose={() => setIsFrozenCanvasOpen(false)}
-        />
-      )}
-    </div>
+        {/* Frozen Canvas Modal */}
+        {log?.executionId && (
+          <FrozenCanvas
+            executionId={log.executionId}
+            traceSpans={log.executionData?.traceSpans}
+            isModal
+            isOpen={isFrozenCanvasOpen}
+            onClose={() => setIsFrozenCanvasOpen(false)}
+          />
+        )}
+      </div>
+    </>
   )
 }
