@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useReactFlow } from 'reactflow'
 import { createLogger } from '@/lib/logs/console/logger'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
+import { getBlock } from '@/blocks/registry'
 
 const logger = createLogger('NodeUtilities')
 
@@ -20,7 +21,7 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
   /**
    * Get the dimensions of a block.
-   * For regular blocks, estimates height if not yet measured by ResizeObserver.
+   * For regular blocks, estimates height based on block config if not yet measured.
    */
   const getBlockDimensions = useCallback(
     (blockId: string): { width: number; height: number } => {
@@ -47,10 +48,13 @@ export function useNodeUtilities(blocks: Record<string, any>) {
       let height = block.height
 
       if (!height) {
-        // Estimate height for workflow blocks before ResizeObserver measures them
-        // Block structure: header + content area with subblocks
-        // Each subblock row is approximately 29px (14px text + 8px gap + padding)
-        const estimatedRows = 3 // Conservative estimate for typical blocks
+        // Estimate height based on block config's subblock count for more accurate initial sizing
+        // This is critical for subflow containers to size correctly before child blocks are measured
+        const blockConfig = getBlock(block.type)
+        const subBlockCount = blockConfig?.subBlocks?.length ?? 3
+        // Many subblocks are conditionally rendered (advanced mode, provider-specific, etc.)
+        // Use roughly half the config count as a reasonable estimate, capped between 3-8 rows
+        const estimatedRows = Math.max(3, Math.min(Math.ceil(subBlockCount / 2), 8))
         const hasErrorRow = block.type !== 'starter' && block.type !== 'response' ? 1 : 0
 
         height =
@@ -305,17 +309,23 @@ export function useNodeUtilities(blocks: Record<string, any>) {
           ...node,
           depth: getNodeDepth(node.id),
         }))
-        .sort((a, b) => a.depth - b.depth)
+        // Sort by depth descending - process innermost containers first
+        // so their dimensions are correct when outer containers calculate sizes
+        .sort((a, b) => b.depth - a.depth)
 
       containerNodes.forEach((node) => {
         const dimensions = calculateLoopDimensions(node.id)
+        // Get current dimensions from the blocks store rather than React Flow's potentially stale state
+        const currentWidth = blocks[node.id]?.data?.width
+        const currentHeight = blocks[node.id]?.data?.height
 
-        if (dimensions.width !== node.data?.width || dimensions.height !== node.data?.height) {
+        // Only update if dimensions actually changed to avoid unnecessary re-renders
+        if (dimensions.width !== currentWidth || dimensions.height !== currentHeight) {
           updateNodeDimensions(node.id, dimensions)
         }
       })
     },
-    [getNodes, isContainerType, getNodeDepth, calculateLoopDimensions]
+    [getNodes, isContainerType, getNodeDepth, calculateLoopDimensions, blocks]
   )
 
   /**
