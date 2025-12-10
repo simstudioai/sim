@@ -572,16 +572,27 @@ export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
 }
 
 /**
- * Merges user-provided parameters with LLM-generated parameters
+ * Merges user-provided parameters with LLM-generated parameters.
+ * User-provided parameters take precedence, but empty strings are skipped
+ * so that LLM-generated values are used when user clears a field.
  */
 export function mergeToolParameters(
   userProvidedParams: Record<string, unknown>,
   llmGeneratedParams: Record<string, unknown>
 ): Record<string, unknown> {
-  // User-provided parameters take precedence
+  // Filter out empty strings from user-provided params
+  // so that cleared fields don't override LLM values
+  const filteredUserParams: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(userProvidedParams)) {
+    if (value !== undefined && value !== null && value !== '') {
+      filteredUserParams[key] = value
+    }
+  }
+
+  // User-provided parameters take precedence (after filtering empty values)
   return {
     ...llmGeneratedParams,
-    ...userProvidedParams,
+    ...filteredUserParams,
   }
 }
 
