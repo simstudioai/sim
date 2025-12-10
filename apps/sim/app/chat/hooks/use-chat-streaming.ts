@@ -232,7 +232,6 @@ export function useChatStreaming() {
                     return null
                   }
 
-                  // Check if this is a file object - don't format as JSON
                   if (isUserFile(value)) {
                     return null
                   }
@@ -282,7 +281,6 @@ export function useChatStreaming() {
 
                     const value = getOutputValue(blockOutputs, config.path)
 
-                    // Check if the output is a file object
                     if (isUserFile(value)) {
                       extractedFiles.push({
                         id: value.id,
@@ -296,7 +294,6 @@ export function useChatStreaming() {
                       continue
                     }
 
-                    // Also extract files from nested structures
                     const nestedFiles = extractFilesFromData(value)
                     if (nestedFiles.length > 0) {
                       extractedFiles = [...extractedFiles, ...nestedFiles]
