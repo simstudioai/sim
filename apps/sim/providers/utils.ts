@@ -1011,10 +1011,21 @@ export function prepareToolExecution(
   toolParams: Record<string, any>
   executionParams: Record<string, any>
 } {
+  // Filter out empty/null/undefined values from user params
+  // so that cleared fields don't override LLM-generated values
+  const filteredUserParams: Record<string, any> = {}
+  if (tool.params) {
+    for (const [key, value] of Object.entries(tool.params)) {
+      if (value !== undefined && value !== null && value !== '') {
+        filteredUserParams[key] = value
+      }
+    }
+  }
+
   // User-provided params take precedence over LLM-generated params
   const toolParams = {
     ...llmArgs,
-    ...tool.params,
+    ...filteredUserParams,
   }
 
   // Add system parameters for execution
