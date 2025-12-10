@@ -107,21 +107,42 @@ export default function Logs() {
     }
   }, [debouncedSearchQuery, setStoreSearchQuery])
 
+  // Track previous log state for efficient change detection
+  const prevSelectedLogRef = useRef<WorkflowLog | null>(null)
+
   // Sync selected log with refreshed data from logs list
   useEffect(() => {
     if (!selectedLog?.id || logs.length === 0) return
 
     const updatedLog = logs.find((l) => l.id === selectedLog.id)
-    if (updatedLog) {
-      // Update selectedLog with fresh data from the list
+    if (!updatedLog) return
+
+    const prevLog = prevSelectedLogRef.current
+
+    // Check if status-related fields have changed (e.g., running -> done)
+    const hasStatusChange =
+      prevLog?.id === updatedLog.id &&
+      (updatedLog.duration !== prevLog.duration ||
+        updatedLog.level !== prevLog.level ||
+        updatedLog.hasPendingPause !== prevLog.hasPendingPause)
+
+    // Only update if the log data actually changed
+    if (updatedLog !== selectedLog) {
       setSelectedLog(updatedLog)
-      // Update index in case position changed
-      const newIndex = logs.findIndex((l) => l.id === selectedLog.id)
-      if (newIndex !== selectedLogIndex) {
-        setSelectedLogIndex(newIndex)
-      }
+      prevSelectedLogRef.current = updatedLog
     }
-  }, [logs, selectedLog?.id, selectedLogIndex])
+
+    // Update index in case position changed
+    const newIndex = logs.findIndex((l) => l.id === selectedLog.id)
+    if (newIndex !== selectedLogIndex) {
+      setSelectedLogIndex(newIndex)
+    }
+
+    // Refetch log details if status changed to keep details panel in sync
+    if (hasStatusChange) {
+      logDetailQuery.refetch()
+    }
+  }, [logs, selectedLog?.id, selectedLogIndex, logDetailQuery.refetch])
 
   // Refetch log details during live mode
   useEffect(() => {
@@ -143,6 +164,7 @@ export default function Logs() {
 
     // Otherwise, select the log and open the sidebar
     setSelectedLog(log)
+    prevSelectedLogRef.current = log
     const index = logs.findIndex((l) => l.id === log.id)
     setSelectedLogIndex(index)
     setIsSidebarOpen(true)
@@ -154,6 +176,7 @@ export default function Logs() {
       setSelectedLogIndex(nextIndex)
       const nextLog = logs[nextIndex]
       setSelectedLog(nextLog)
+      prevSelectedLogRef.current = nextLog
     }
   }, [selectedLogIndex, logs])
 
@@ -163,6 +186,7 @@ export default function Logs() {
       setSelectedLogIndex(prevIndex)
       const prevLog = logs[prevIndex]
       setSelectedLog(prevLog)
+      prevSelectedLogRef.current = prevLog
     }
   }, [selectedLogIndex, logs])
 
@@ -170,6 +194,7 @@ export default function Logs() {
     setIsSidebarOpen(false)
     setSelectedLog(null)
     setSelectedLogIndex(-1)
+    prevSelectedLogRef.current = null
   }
 
   useEffect(() => {
@@ -332,6 +357,7 @@ export default function Logs() {
         e.preventDefault()
         setSelectedLogIndex(0)
         setSelectedLog(logs[0])
+        prevSelectedLogRef.current = logs[0]
         return
       }
 
