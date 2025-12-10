@@ -93,6 +93,26 @@ export class EditWorkflowClientTool extends BaseClientTool {
     }
   }
 
+  /**
+   * Safely get the current workflow JSON sanitized for copilot without throwing.
+   * Used to ensure we always include workflow state in markComplete.
+   */
+  private getCurrentWorkflowJsonSafe(logger: ReturnType<typeof createLogger>): string | undefined {
+    try {
+      const currentState = useWorkflowStore.getState().getWorkflowState()
+      if (!currentState) {
+        logger.warn('No current workflow state available')
+        return undefined
+      }
+      return this.getSanitizedWorkflowJson(currentState)
+    } catch (error) {
+      logger.warn('Failed to get current workflow JSON safely', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return undefined
+    }
+  }
+
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
       [ClientToolCallState.generating]: { text: 'Editing your workflow', icon: Loader2 },
@@ -133,66 +153,16 @@ export class EditWorkflowClientTool extends BaseClientTool {
 
   async handleAccept(): Promise<void> {
     const logger = createLogger('EditWorkflowClientTool')
-    logger.info('handleAccept called', {
-      toolCallId: this.toolCallId,
-      state: this.getState(),
-      hasResult: this.lastResult !== undefined,
-    })
-    this.setState(ClientToolCallState.success)
-
-    // Read from the workflow store to get the actual state with diff applied
-    const workflowStore = useWorkflowStore.getState()
-    const currentState = workflowStore.getWorkflowState()
-
-    // Get the workflow state that was applied, merge subblocks, and sanitize
-    // This matches what get_user_workflow would return
-    const workflowJson = this.getSanitizedWorkflowJson(currentState)
-
-    // Build sanitized data including workflow JSON and any skipped/validation info from the result
-    const sanitizedData: Record<string, any> = {}
-    if (workflowJson) {
-      sanitizedData.userWorkflow = workflowJson
-    }
-
-    // Include skipped items and validation errors in the accept response for LLM feedback
-    if (this.lastResult?.skippedItems?.length > 0) {
-      sanitizedData.skippedItems = this.lastResult.skippedItems
-      sanitizedData.skippedItemsMessage = this.lastResult.skippedItemsMessage
-    }
-    if (this.lastResult?.inputValidationErrors?.length > 0) {
-      sanitizedData.inputValidationErrors = this.lastResult.inputValidationErrors
-      sanitizedData.inputValidationMessage = this.lastResult.inputValidationMessage
-    }
-
-    // Build a message that includes info about skipped items
-    let acceptMessage = 'Workflow edits accepted'
-    if (
-      this.lastResult?.skippedItems?.length > 0 ||
-      this.lastResult?.inputValidationErrors?.length > 0
-    ) {
-      const parts: string[] = []
-      if (this.lastResult?.skippedItems?.length > 0) {
-        parts.push(`${this.lastResult.skippedItems.length} operation(s) were skipped`)
-      }
-      if (this.lastResult?.inputValidationErrors?.length > 0) {
-        parts.push(`${this.lastResult.inputValidationErrors.length} input(s) were rejected`)
-      }
-      acceptMessage = `Workflow edits accepted. Note: ${parts.join(', ')}.`
-    }
-
-    await this.markToolComplete(
-      200,
-      acceptMessage,
-      Object.keys(sanitizedData).length > 0 ? sanitizedData : undefined
-    )
+    logger.info('handleAccept called', { toolCallId: this.toolCallId, state: this.getState() })
+    // Tool was already marked complete in execute() - this is just for UI state
     this.setState(ClientToolCallState.success)
   }
 
   async handleReject(): Promise<void> {
     const logger = createLogger('EditWorkflowClientTool')
     logger.info('handleReject called', { toolCallId: this.toolCallId, state: this.getState() })
+    // Tool was already marked complete in execute() - this is just for UI state
     this.setState(ClientToolCallState.rejected)
-    await this.markToolComplete(200, 'Workflow changes rejected')
   }
 
   async execute(args?: EditWorkflowArgs): Promise<void> {
@@ -202,9 +172,14 @@ export class EditWorkflowClientTool extends BaseClientTool {
     await this.executeWithTimeout(async () => {
       if (this.hasExecuted) {
         logger.info('execute skipped (already executed)', { toolCallId: this.toolCallId })
-        // Even if skipped, ensure we mark complete
+        // Even if skipped, ensure we mark complete with current workflow state
         if (!this.hasBeenMarkedComplete()) {
-          await this.markToolComplete(200, 'Tool already executed')
+          const currentWorkflowJson = this.getCurrentWorkflowJsonSafe(logger)
+          await this.markToolComplete(
+            200,
+            'Tool already executed',
+            currentWorkflowJson ? { userWorkflow: currentWorkflowJson } : undefined
+          )
         }
         return
       }
@@ -231,7 +206,12 @@ export class EditWorkflowClientTool extends BaseClientTool {
       const operations = args?.operations || []
       if (!operations.length) {
         this.setState(ClientToolCallState.error)
-        await this.markToolComplete(400, 'No operations provided for edit_workflow')
+        const currentWorkflowJson = this.getCurrentWorkflowJsonSafe(logger)
+        await this.markToolComplete(
+          400,
+          'No operations provided for edit_workflow',
+          currentWorkflowJson ? { userWorkflow: currentWorkflowJson } : undefined
+        )
         return
       }
 
@@ -281,12 +261,22 @@ export class EditWorkflowClientTool extends BaseClientTool {
 
         if (!res.ok) {
           const errorText = await res.text().catch(() => '')
+          let errorMessage: string
           try {
             const errorJson = JSON.parse(errorText)
-            throw new Error(errorJson.error || errorText || `Server error (${res.status})`)
+            errorMessage = errorJson.error || errorText || `Server error (${res.status})`
           } catch {
-            throw new Error(errorText || `Server error (${res.status})`)
+            errorMessage = errorText || `Server error (${res.status})`
           }
+          // Mark complete with error but include current workflow state
+          this.setState(ClientToolCallState.error)
+          const currentWorkflowJson = this.getCurrentWorkflowJsonSafe(logger)
+          await this.markToolComplete(
+            res.status,
+            errorMessage,
+            currentWorkflowJson ? { userWorkflow: currentWorkflowJson } : undefined
+          )
+          return
         }
 
         const json = await res.json()
@@ -318,7 +308,14 @@ export class EditWorkflowClientTool extends BaseClientTool {
 
         // Update diff directly with workflow state - no YAML conversion needed!
         if (!result.workflowState) {
-          throw new Error('No workflow state returned from server')
+          this.setState(ClientToolCallState.error)
+          const currentWorkflowJson = this.getCurrentWorkflowJsonSafe(logger)
+          await this.markToolComplete(
+            500,
+            'No workflow state returned from server',
+            currentWorkflowJson ? { userWorkflow: currentWorkflowJson } : undefined
+          )
+          return
         }
 
         let actualDiffWorkflow: WorkflowState | null = null
@@ -336,17 +333,37 @@ export class EditWorkflowClientTool extends BaseClientTool {
         actualDiffWorkflow = workflowStore.getWorkflowState()
 
         if (!actualDiffWorkflow) {
-          throw new Error('Failed to retrieve workflow state after applying changes')
+          this.setState(ClientToolCallState.error)
+          const currentWorkflowJson = this.getCurrentWorkflowJsonSafe(logger)
+          await this.markToolComplete(
+            500,
+            'Failed to retrieve workflow state after applying changes',
+            currentWorkflowJson ? { userWorkflow: currentWorkflowJson } : undefined
+          )
+          return
         }
 
         // Get the workflow state that was just applied, merge subblocks, and sanitize
         // This matches what get_user_workflow would return (the true state after edits were applied)
-        const workflowJson = this.getSanitizedWorkflowJson(actualDiffWorkflow)
+        let workflowJson = this.getSanitizedWorkflowJson(actualDiffWorkflow)
+
+        // Fallback: try to get current workflow state if sanitization failed
+        if (!workflowJson) {
+          workflowJson = this.getCurrentWorkflowJsonSafe(logger)
+        }
+
+        // userWorkflow must always be present on success - log error if missing
+        if (!workflowJson) {
+          logger.error('Failed to get workflow JSON on success path - this should not happen', {
+            toolCallId: this.toolCallId,
+            workflowId: this.workflowId,
+          })
+        }
 
         // Build sanitized data including workflow JSON and any skipped/validation info
-        const sanitizedData: Record<string, any> = {}
-        if (workflowJson) {
-          sanitizedData.userWorkflow = workflowJson
+        // Always include userWorkflow on success paths
+        const sanitizedData: Record<string, any> = {
+          userWorkflow: workflowJson ?? '{}', // Fallback to empty object JSON if all else fails
         }
 
         // Include skipped items and validation errors in the response for LLM feedback
@@ -372,21 +389,25 @@ export class EditWorkflowClientTool extends BaseClientTool {
           completeMessage = `Workflow diff ready for review. Note: ${parts.join(', ')}.`
         }
 
-        // Mark complete early to unblock LLM stream
-        await this.markToolComplete(
-          200,
-          completeMessage,
-          Object.keys(sanitizedData).length > 0 ? sanitizedData : undefined
-        )
+        // Mark complete early to unblock LLM stream - sanitizedData always has userWorkflow
+        await this.markToolComplete(200, completeMessage, sanitizedData)
 
         // Move into review state
         this.setState(ClientToolCallState.review, { result })
       } catch (fetchError: any) {
         clearTimeout(fetchTimeout)
-        if (fetchError.name === 'AbortError') {
-          throw new Error('Server request timed out')
-        }
-        throw fetchError
+        // Handle error with current workflow state
+        this.setState(ClientToolCallState.error)
+        const currentWorkflowJson = this.getCurrentWorkflowJsonSafe(logger)
+        const errorMessage =
+          fetchError.name === 'AbortError'
+            ? 'Server request timed out'
+            : fetchError.message || String(fetchError)
+        await this.markToolComplete(
+          500,
+          errorMessage,
+          currentWorkflowJson ? { userWorkflow: currentWorkflowJson } : undefined
+        )
       }
     })
   }
