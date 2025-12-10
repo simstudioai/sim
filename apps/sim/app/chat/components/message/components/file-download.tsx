@@ -49,9 +49,6 @@ function isImageFile(mimeType: string): boolean {
 }
 
 function getFileUrl(file: ChatFile): string {
-  if (file.key.startsWith('url/') && file.url) {
-    return file.url
-  }
   if (file.url) {
     return file.url
   }
