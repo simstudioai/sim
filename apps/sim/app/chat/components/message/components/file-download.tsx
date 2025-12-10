@@ -48,9 +48,6 @@ function isImageFile(mimeType: string): boolean {
   return mimeType.startsWith('image/')
 }
 
-/**
- * Gets the download URL for a file
- */
 function getFileUrl(file: ChatFile): string {
   if (file.key.startsWith('url/') && file.url) {
     return file.url
@@ -77,14 +74,10 @@ async function triggerDownload(url: string, filename: string): Promise<void> {
   link.click()
   document.body.removeChild(link)
 
-  // Clean up the blob URL to free memory
   URL.revokeObjectURL(blobUrl)
   logger.info(`Downloaded: ${filename}`)
 }
 
-/**
- * Single file download card component
- */
 export function ChatFileDownload({ file }: ChatFileDownloadProps) {
   const [isDownloading, setIsDownloading] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -100,7 +93,6 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
       await triggerDownload(url, file.name)
     } catch (error) {
       logger.error(`Failed to download file ${file.name}:`, error)
-      // Fallback: open in new tab if blob download fails
       if (file.url) {
         window.open(file.url, '_blank')
       }
@@ -148,9 +140,6 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
   )
 }
 
-/**
- * Download all files button - triggers download for each file
- */
 export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
   const [isDownloading, setIsDownloading] = useState(false)
 
@@ -171,7 +160,6 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
           await triggerDownload(url, file.name)
           logger.info(`Downloaded file ${i + 1}/${files.length}: ${file.name}`)
 
-          // Small delay between downloads to avoid overwhelming the browser
           if (i < files.length - 1) {
             await new Promise((resolve) => setTimeout(resolve, 150))
           }
