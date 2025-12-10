@@ -3,6 +3,10 @@
 import { memo, useMemo, useState } from 'react'
 import { Check, Copy, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
+import {
+  ChatFileDownload,
+  ChatFileDownloadAll,
+} from '@/app/chat/components/message/components/file-download'
 import MarkdownRenderer from '@/app/chat/components/message/components/markdown-renderer'
 
 export interface ChatAttachment {
@@ -13,6 +17,16 @@ export interface ChatAttachment {
   size?: number
 }
 
+export interface ChatFile {
+  id: string
+  name: string
+  url: string
+  key: string
+  size: number
+  type: string
+  context?: string
+}
+
 export interface ChatMessage {
   id: string
   content: string | Record<string, unknown>
@@ -21,6 +35,7 @@ export interface ChatMessage {
   isInitialMessage?: boolean
   isStreaming?: boolean
   attachments?: ChatAttachment[]
+  files?: ChatFile[]
 }
 
 function EnhancedMarkdownRenderer({ content }: { content: string }) {
@@ -177,6 +192,13 @@ export const ClientChatMessage = memo(
                   )}
                 </div>
               </div>
+              {message.files && message.files.length > 0 && (
+                <div className='flex flex-wrap gap-2'>
+                  {message.files.map((file) => (
+                    <ChatFileDownload key={file.id} file={file} />
+                  ))}
+                </div>
+              )}
               {message.type === 'assistant' && !isJsonObject && !message.isInitialMessage && (
                 <div className='flex items-center justify-start space-x-2'>
                   {/* Copy Button - Only show when not streaming */}
@@ -207,6 +229,10 @@ export const ClientChatMessage = memo(
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
+                  {/* Download All Button - Only show when there are files */}
+                  {!message.isStreaming && message.files && (
+                    <ChatFileDownloadAll files={message.files} />
+                  )}
                 </div>
               )}
             </div>
@@ -221,7 +247,8 @@ export const ClientChatMessage = memo(
       prevProps.message.id === nextProps.message.id &&
       prevProps.message.content === nextProps.message.content &&
       prevProps.message.isStreaming === nextProps.message.isStreaming &&
-      prevProps.message.isInitialMessage === nextProps.message.isInitialMessage
+      prevProps.message.isInitialMessage === nextProps.message.isInitialMessage &&
+      prevProps.message.files?.length === nextProps.message.files?.length
     )
   }
 )

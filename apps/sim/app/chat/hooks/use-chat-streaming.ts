@@ -1,11 +1,51 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { isUserFile } from '@/lib/core/utils/display-filters'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { ChatMessage } from '@/app/chat/components/message/message'
+import type { ChatFile, ChatMessage } from '@/app/chat/components/message/message'
 import { CHAT_ERROR_MESSAGES } from '@/app/chat/constants'
 
 const logger = createLogger('UseChatStreaming')
+
+function extractFilesFromData(
+  data: any,
+  files: ChatFile[] = [],
+  seenIds = new Set<string>()
+): ChatFile[] {
+  if (!data || typeof data !== 'object') {
+    return files
+  }
+
+  if (isUserFile(data)) {
+    if (!seenIds.has(data.id)) {
+      seenIds.add(data.id)
+      files.push({
+        id: data.id,
+        name: data.name,
+        url: data.url,
+        key: data.key,
+        size: data.size,
+        type: data.type,
+        context: data.context,
+      })
+    }
+    return files
+  }
+
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      extractFilesFromData(item, files, seenIds)
+    }
+    return files
+  }
+
+  for (const value of Object.values(data)) {
+    extractFilesFromData(value, files, seenIds)
+  }
+
+  return files
+}
 
 export interface VoiceSettings {
   isVoiceEnabled: boolean
@@ -185,9 +225,18 @@ export function useChatStreaming() {
 
                 const outputConfigs = streamingOptions?.outputConfigs
                 const formattedOutputs: string[] = []
+                let extractedFiles: ChatFile[] = []
 
                 const formatValue = (value: any): string | null => {
                   if (value === null || value === undefined) {
+                    return null
+                  }
+
+                  if (isUserFile(value)) {
+                    return null
+                  }
+
+                  if (Array.isArray(value) && value.length === 0) {
                     return null
                   }
 
@@ -235,6 +284,26 @@ export function useChatStreaming() {
                     if (!blockOutputs) continue
 
                     const value = getOutputValue(blockOutputs, config.path)
+
+                    if (isUserFile(value)) {
+                      extractedFiles.push({
+                        id: value.id,
+                        name: value.name,
+                        url: value.url,
+                        key: value.key,
+                        size: value.size,
+                        type: value.type,
+                        context: value.context,
+                      })
+                      continue
+                    }
+
+                    const nestedFiles = extractFilesFromData(value)
+                    if (nestedFiles.length > 0) {
+                      extractedFiles = [...extractedFiles, ...nestedFiles]
+                      continue
+                    }
+
                     const formatted = formatValue(value)
                     if (formatted) {
                       formattedOutputs.push(formatted)
@@ -267,7 +336,7 @@ export function useChatStreaming() {
                   }
                 }
 
-                if (!finalContent) {
+                if (!finalContent && extractedFiles.length === 0) {
                   if (finalData.error) {
                     if (typeof finalData.error === 'string') {
                       finalContent = finalData.error
@@ -291,6 +360,7 @@ export function useChatStreaming() {
                           ...msg,
                           isStreaming: false,
                           content: finalContent ?? msg.content,
+                          files: extractedFiles.length > 0 ? extractedFiles : undefined,
                         }
                       : msg
                   )
