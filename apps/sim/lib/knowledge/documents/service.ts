@@ -4,7 +4,7 @@ import { document, embedding, knowledgeBase, knowledgeBaseTagDefinitions } from 
 import { tasks } from '@trigger.dev/sdk'
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
-import { getRedisClient } from '@/lib/core/config/redis'
+import { getStorageMethod, isRedisStorage } from '@/lib/core/storage'
 import { getSlotsForFieldType, type TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { DocumentProcessingQueue } from '@/lib/knowledge/documents/queue'
@@ -63,8 +63,7 @@ let documentQueue: DocumentProcessingQueue | null = null
 
 export function getDocumentQueue(): DocumentProcessingQueue {
   if (!documentQueue) {
-    const redisClient = getRedisClient()
-    const config = redisClient ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
+    const config = isRedisStorage() ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
     documentQueue = new DocumentProcessingQueue({
       maxConcurrent: config.maxConcurrentDocuments,
       retryDelay: env.KB_CONFIG_MIN_TIMEOUT || 1000,
@@ -75,8 +74,7 @@ export function getDocumentQueue(): DocumentProcessingQueue {
 }
 
 export function getProcessingConfig() {
-  const redisClient = getRedisClient()
-  return redisClient ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
+  return isRedisStorage() ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
 }
 
 export interface DocumentData {
@@ -240,174 +238,43 @@ export async function processDocumentsWithQueue(
     }
   }
 
-  // Priority 2: Redis queue
+  // Priority 2: Queue-based processing (Redis or in-memory based on storage method)
   const queue = getDocumentQueue()
-  const redisClient = getRedisClient()
+  const storageMethod = getStorageMethod()
 
-  if (redisClient) {
-    try {
-      logger.info(`[${requestId}] Using Redis queue for ${createdDocuments.length} documents`)
-
-      const jobPromises = createdDocuments.map((doc) =>
-        queue.addJob<DocumentJobData>('process-document', {
-          knowledgeBaseId,
-          documentId: doc.documentId,
-          docData: {
-            filename: doc.filename,
-            fileUrl: doc.fileUrl,
-            fileSize: doc.fileSize,
-            mimeType: doc.mimeType,
-          },
-          processingOptions,
-          requestId,
-        })
-      )
-
-      await Promise.all(jobPromises)
-
-      // Start Redis background processing
-      queue
-        .processJobs(async (job) => {
-          const data = job.data as DocumentJobData
-          const { knowledgeBaseId, documentId, docData, processingOptions } = data
-          await processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions)
-        })
-        .catch((error) => {
-          logger.error(`[${requestId}] Error in Redis queue processing:`, error)
-        })
-
-      logger.info(`[${requestId}] All documents queued for Redis processing`)
-      return
-    } catch (error) {
-      logger.warn(`[${requestId}] Redis queue failed, falling back to in-memory processing:`, error)
-    }
-  }
-
-  // Priority 3: In-memory processing
   logger.info(
-    `[${requestId}] Using fallback in-memory processing (neither Trigger.dev nor Redis available)`
+    `[${requestId}] Using ${storageMethod} queue for ${createdDocuments.length} documents`
   )
-  await processDocumentsWithConcurrencyControl(
-    createdDocuments,
-    knowledgeBaseId,
-    processingOptions,
-    requestId
+
+  const jobPromises = createdDocuments.map((doc) =>
+    queue.addJob<DocumentJobData>('process-document', {
+      knowledgeBaseId,
+      documentId: doc.documentId,
+      docData: {
+        filename: doc.filename,
+        fileUrl: doc.fileUrl,
+        fileSize: doc.fileSize,
+        mimeType: doc.mimeType,
+      },
+      processingOptions,
+      requestId,
+    })
   )
-}
 
-/**
- * Original concurrency control processing (fallback when Redis not available)
- */
-async function processDocumentsWithConcurrencyControl(
-  createdDocuments: DocumentData[],
-  knowledgeBaseId: string,
-  processingOptions: ProcessingOptions,
-  requestId: string
-): Promise<void> {
-  const totalDocuments = createdDocuments.length
-  const batches = []
+  await Promise.all(jobPromises)
 
-  for (let i = 0; i < totalDocuments; i += PROCESSING_CONFIG.batchSize) {
-    batches.push(createdDocuments.slice(i, i + PROCESSING_CONFIG.batchSize))
-  }
-
-  logger.info(`[${requestId}] Processing ${totalDocuments} documents in ${batches.length} batches`)
-
-  for (const [batchIndex, batch] of batches.entries()) {
-    logger.info(
-      `[${requestId}] Starting batch ${batchIndex + 1}/${batches.length} with ${batch.length} documents`
-    )
-
-    await processBatchWithConcurrency(batch, knowledgeBaseId, processingOptions, requestId)
-
-    if (batchIndex < batches.length - 1) {
-      const config = getProcessingConfig()
-      if (config.delayBetweenBatches > 0) {
-        await new Promise((resolve) => setTimeout(resolve, config.delayBetweenBatches))
-      }
-    }
-  }
-
-  logger.info(`[${requestId}] Completed processing initiation for all ${totalDocuments} documents`)
-}
-
-/**
- * Process a batch of documents with concurrency control using semaphore
- */
-async function processBatchWithConcurrency(
-  batch: DocumentData[],
-  knowledgeBaseId: string,
-  processingOptions: ProcessingOptions,
-  requestId: string
-): Promise<void> {
-  const config = getProcessingConfig()
-  const semaphore = new Array(config.maxConcurrentDocuments).fill(0)
-  const processingPromises = batch.map(async (doc, index) => {
-    if (index > 0 && config.delayBetweenDocuments > 0) {
-      await new Promise((resolve) => setTimeout(resolve, index * config.delayBetweenDocuments))
-    }
-
-    await new Promise<void>((resolve) => {
-      const checkSlot = () => {
-        const availableIndex = semaphore.findIndex((slot) => slot === 0)
-        if (availableIndex !== -1) {
-          semaphore[availableIndex] = 1
-          resolve()
-        } else {
-          setTimeout(checkSlot, 100)
-        }
-      }
-      checkSlot()
+  queue
+    .processJobs(async (job) => {
+      const data = job.data as DocumentJobData
+      const { knowledgeBaseId, documentId, docData, processingOptions } = data
+      await processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions)
+    })
+    .catch((error) => {
+      logger.error(`[${requestId}] Error in queue processing:`, error)
     })
 
-    try {
-      logger.info(`[${requestId}] Starting processing for document: ${doc.filename}`)
-
-      await processDocumentAsync(
-        knowledgeBaseId,
-        doc.documentId,
-        {
-          filename: doc.filename,
-          fileUrl: doc.fileUrl,
-          fileSize: doc.fileSize,
-          mimeType: doc.mimeType,
-        },
-        processingOptions
-      )
-
-      logger.info(`[${requestId}] Successfully initiated processing for document: ${doc.filename}`)
-    } catch (error: unknown) {
-      logger.error(`[${requestId}] Failed to process document: ${doc.filename}`, {
-        documentId: doc.documentId,
-        filename: doc.filename,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
-
-      try {
-        await db
-          .update(document)
-          .set({
-            processingStatus: 'failed',
-            processingError:
-              error instanceof Error ? error.message : 'Failed to initiate processing',
-            processingCompletedAt: new Date(),
-          })
-          .where(eq(document.id, doc.documentId))
-      } catch (dbError: unknown) {
-        logger.error(
-          `[${requestId}] Failed to update document status for failed document: ${doc.documentId}`,
-          dbError
-        )
-      }
-    } finally {
-      const slotIndex = semaphore.findIndex((slot) => slot === 1)
-      if (slotIndex !== -1) {
-        semaphore[slotIndex] = 0
-      }
-    }
-  })
-
-  await Promise.allSettled(processingPromises)
+  logger.info(`[${requestId}] All documents queued for processing`)
+  return
 }
 
 /**

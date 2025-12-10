@@ -1,4 +1,5 @@
 import { getRedisClient } from '@/lib/core/config/redis'
+import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('DocumentQueue')
@@ -18,20 +19,23 @@ interface QueueConfig {
   maxRetries: number
 }
 
+/**
+ * Document processing queue that uses either Redis or in-memory storage.
+ * Storage method is determined once at construction based on configuration.
+ * No switching on transient errors.
+ */
 export class DocumentProcessingQueue {
   private config: QueueConfig
+  private storageMethod: StorageMethod
   private processing = new Map<string, Promise<void>>()
-  private fallbackQueue: QueueJob[] = []
-  private fallbackProcessing = 0
+  private inMemoryQueue: QueueJob[] = []
+  private inMemoryProcessing = 0
   private processingStarted = false
 
   constructor(config: QueueConfig) {
     this.config = config
-  }
-
-  private isRedisAvailable(): boolean {
-    const redis = getRedisClient()
-    return redis !== null
+    this.storageMethod = getStorageMethod()
+    logger.info(`DocumentProcessingQueue using ${this.storageMethod} storage`)
   }
 
   async addJob<T>(type: string, data: T, options: { maxAttempts?: number } = {}): Promise<string> {
@@ -44,20 +48,18 @@ export class DocumentProcessingQueue {
       maxAttempts: options.maxAttempts || this.config.maxRetries,
     }
 
-    if (this.isRedisAvailable()) {
-      try {
-        const redis = getRedisClient()!
-        await redis.lpush('document-queue', JSON.stringify(job))
-        logger.info(`Job ${job.id} added to Redis queue`)
-        return job.id
-      } catch (error) {
-        logger.warn('Failed to add job to Redis, using fallback:', error)
+    if (this.storageMethod === 'redis') {
+      const redis = getRedisClient()
+      if (!redis) {
+        throw new Error('Redis configured but client unavailable')
       }
+      await redis.lpush('document-queue', JSON.stringify(job))
+      logger.info(`Job ${job.id} added to Redis queue`)
+    } else {
+      this.inMemoryQueue.push(job)
+      logger.info(`Job ${job.id} added to in-memory queue`)
     }
 
-    // Fallback to in-memory queue
-    this.fallbackQueue.push(job)
-    logger.info(`Job ${job.id} added to in-memory fallback queue`)
     return job.id
   }
 
@@ -68,121 +70,86 @@ export class DocumentProcessingQueue {
     }
 
     this.processingStarted = true
-    logger.info('Starting queue processing')
+    logger.info(`Starting queue processing (${this.storageMethod})`)
 
-    if (this.isRedisAvailable()) {
+    if (this.storageMethod === 'redis') {
       await this.processRedisJobs(processor)
     } else {
-      await this.processFallbackJobs(processor)
+      await this.processInMemoryJobs(processor)
     }
   }
 
   private async processRedisJobs(processor: (job: QueueJob) => Promise<void>) {
     const redis = getRedisClient()
     if (!redis) {
-      logger.warn('Redis client not available, falling back to in-memory processing')
-      await this.processFallbackJobs(processor)
-      return
+      throw new Error('Redis configured but client unavailable')
     }
 
     const processJobsContinuously = async () => {
-      let consecutiveErrors = 0
       while (true) {
         if (this.processing.size >= this.config.maxConcurrent) {
-          await new Promise((resolve) => setTimeout(resolve, 100)) // Wait before checking again
+          await new Promise((resolve) => setTimeout(resolve, 100))
           continue
         }
 
         try {
-          const currentRedis = getRedisClient()
-          if (!currentRedis) {
-            logger.warn('Redis connection lost, switching to fallback processing')
-            await this.processFallbackJobs(processor)
-            return
+          const result = await redis.rpop('document-queue')
+          if (!result) {
+            await new Promise((resolve) => setTimeout(resolve, 500))
+            continue
           }
 
-          const result = await currentRedis.brpop('document-queue', 1)
-          if (!result || !result[1]) {
-            consecutiveErrors = 0 // Reset error counter on successful operation
-            continue // Continue polling for jobs
-          }
-
-          const job: QueueJob = JSON.parse(result[1])
+          const job: QueueJob = JSON.parse(result)
           const promise = this.executeJob(job, processor)
           this.processing.set(job.id, promise)
 
           promise.finally(() => {
             this.processing.delete(job.id)
           })
-
-          consecutiveErrors = 0 // Reset error counter on success
-          // Don't await here - let it process in background while we get next job
         } catch (error: any) {
-          consecutiveErrors++
-
-          if (
-            error.message?.includes('Connection is closed') ||
-            error.message?.includes('ECONNREFUSED') ||
-            error.code === 'ECONNREFUSED' ||
-            consecutiveErrors >= 5
-          ) {
-            logger.warn(
-              `Redis connection failed (${consecutiveErrors} consecutive errors), switching to fallback processing:`,
-              error.message
-            )
-            await this.processFallbackJobs(processor)
-            return
-          }
-
           logger.error('Error processing Redis job:', error)
-          await new Promise((resolve) =>
-            setTimeout(resolve, Math.min(1000 * consecutiveErrors, 5000))
-          ) // Exponential backoff
+          await new Promise((resolve) => setTimeout(resolve, 1000))
         }
       }
     }
 
-    // Start multiple concurrent processors that run continuously
     const processors = Array(this.config.maxConcurrent)
       .fill(null)
       .map(() => processJobsContinuously())
 
-    // Don't await - let processors run in background
     Promise.allSettled(processors).catch((error) => {
       logger.error('Error in Redis queue processors:', error)
     })
   }
 
-  private async processFallbackJobs(processor: (job: QueueJob) => Promise<void>) {
-    const processFallbackContinuously = async () => {
+  private async processInMemoryJobs(processor: (job: QueueJob) => Promise<void>) {
+    const processInMemoryContinuously = async () => {
       while (true) {
-        if (this.fallbackProcessing >= this.config.maxConcurrent) {
+        if (this.inMemoryProcessing >= this.config.maxConcurrent) {
           await new Promise((resolve) => setTimeout(resolve, 100))
           continue
         }
 
-        const job = this.fallbackQueue.shift()
+        const job = this.inMemoryQueue.shift()
         if (!job) {
-          await new Promise((resolve) => setTimeout(resolve, 500)) // Wait for new jobs
+          await new Promise((resolve) => setTimeout(resolve, 500))
           continue
         }
 
-        this.fallbackProcessing++
+        this.inMemoryProcessing++
 
         this.executeJob(job, processor).finally(() => {
-          this.fallbackProcessing--
+          this.inMemoryProcessing--
         })
       }
     }
 
-    // Start multiple concurrent processors for fallback queue
     const processors = Array(this.config.maxConcurrent)
       .fill(null)
-      .map(() => processFallbackContinuously())
+      .map(() => processInMemoryContinuously())
 
-    // Don't await - let processors run in background
     Promise.allSettled(processors).catch((error) => {
-      logger.error('Error in fallback queue processors:', error)
+      logger.error('Error in in-memory queue processors:', error)
     })
   }
 
@@ -200,20 +167,18 @@ export class DocumentProcessingQueue {
       logger.error(`Job ${job.id} failed (attempt ${job.attempts}):`, error)
 
       if (job.attempts < job.maxAttempts) {
-        // Retry logic with exponential backoff
         const delay = this.config.retryDelay * 2 ** (job.attempts - 1)
 
         setTimeout(async () => {
-          if (this.isRedisAvailable()) {
-            try {
-              const redis = getRedisClient()!
-              await redis.lpush('document-queue', JSON.stringify(job))
-            } catch (retryError) {
-              logger.warn('Failed to requeue job to Redis, using fallback:', retryError)
-              this.fallbackQueue.push(job)
+          if (this.storageMethod === 'redis') {
+            const redis = getRedisClient()
+            if (!redis) {
+              logger.error('Redis unavailable for retry, job lost:', job.id)
+              return
             }
+            await redis.lpush('document-queue', JSON.stringify(job))
           } else {
-            this.fallbackQueue.push(job)
+            this.inMemoryQueue.push(job)
           }
         }, delay)
 
@@ -224,41 +189,39 @@ export class DocumentProcessingQueue {
     }
   }
 
-  async getQueueStats(): Promise<{ pending: number; processing: number; redisAvailable: boolean }> {
+  async getQueueStats(): Promise<{
+    pending: number
+    processing: number
+    storageMethod: StorageMethod
+  }> {
     let pending = 0
-    const redisAvailable = this.isRedisAvailable()
 
-    if (redisAvailable) {
-      try {
-        const redis = getRedisClient()!
+    if (this.storageMethod === 'redis') {
+      const redis = getRedisClient()
+      if (redis) {
         pending = await redis.llen('document-queue')
-      } catch (error) {
-        logger.warn('Failed to get Redis queue stats:', error)
-        pending = this.fallbackQueue.length
       }
     } else {
-      pending = this.fallbackQueue.length
+      pending = this.inMemoryQueue.length
     }
 
     return {
       pending,
-      processing: redisAvailable ? this.processing.size : this.fallbackProcessing,
-      redisAvailable,
+      processing: this.storageMethod === 'redis' ? this.processing.size : this.inMemoryProcessing,
+      storageMethod: this.storageMethod,
     }
   }
 
   async clearQueue(): Promise<void> {
-    if (this.isRedisAvailable()) {
-      try {
-        const redis = getRedisClient()!
+    if (this.storageMethod === 'redis') {
+      const redis = getRedisClient()
+      if (redis) {
         await redis.del('document-queue')
         logger.info('Redis queue cleared')
-      } catch (error) {
-        logger.error('Failed to clear Redis queue:', error)
       }
     }
 
-    this.fallbackQueue.length = 0
-    logger.info('Fallback queue cleared')
+    this.inMemoryQueue.length = 0
+    logger.info('In-memory queue cleared')
   }
 }
