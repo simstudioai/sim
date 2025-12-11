@@ -507,14 +507,6 @@ export async function POST(request: NextRequest) {
 
       const page = stagehand.context.pages()[0]
 
-      const actVariables =
-        variablesObject && Object.keys(variablesObject).length > 0 ? variablesObject : undefined
-      if (actVariables) {
-        logger.info('Variables available for act calls', {
-          variableCount: Object.keys(actVariables).length,
-        })
-      }
-
       logger.info(`Navigating to ${startUrl}`)
       await page.goto(startUrl, { waitUntil: 'networkidle' })
       logger.info('Navigation complete')
