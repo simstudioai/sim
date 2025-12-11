@@ -178,10 +178,17 @@ export class ConditionBlockHandler implements BlockHandler {
           evalContext
         )
 
-        const connection = this.findConnectionForCondition(outgoingConnections, condition.id)
-
-        if (connection && conditionMet) {
-          return { selectedConnection: connection, selectedCondition: condition }
+        if (conditionMet) {
+          const connection = this.findConnectionForCondition(outgoingConnections, condition.id)
+          if (connection) {
+            return { selectedConnection: connection, selectedCondition: condition }
+          }
+          // Condition is true but has no outgoing edge - branch ends gracefully
+          logger.info(`Condition "${condition.title}" is true but has no outgoing edge - branch ending`, {
+            blockId: block.id,
+            conditionId: condition.id,
+          })
+          return { selectedConnection: null, selectedCondition: null }
         }
       } catch (error: any) {
         logger.error(`Failed to evaluate condition "${condition.title}": ${error.message}`)
