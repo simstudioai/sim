@@ -26,6 +26,7 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@aws-sdk/client-dynamodb": "3.940.0",
     "@aws-sdk/client-rds-data": "3.940.0",
+    "@aws-sdk/client-sqs": "3.947.0",
     "@aws-sdk/client-s3": "^3.779.0",
     "@aws-sdk/lib-dynamodb": "3.940.0",
     "@aws-sdk/s3-request-presigner": "^3.779.0",

@@ -113,6 +113,7 @@ import {
   ZendeskIcon,
   ZepIcon,
   ZoomIcon,
+  SQSIcon,
 } from '@/components/icons'
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
@@ -215,6 +216,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   elevenlabs: ElevenLabsIcon,
   elasticsearch: ElasticsearchIcon,
   dynamodb: DynamoDBIcon,
+  sqs: SQSIcon,
   duckduckgo: DuckDuckGoIcon,
   dropbox: DropboxIcon,
   discord: DiscordIcon,

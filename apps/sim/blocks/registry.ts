@@ -137,6 +137,7 @@ import { ZendeskBlock } from '@/blocks/blocks/zendesk'
 import { ZepBlock } from '@/blocks/blocks/zep'
 import { ZoomBlock } from '@/blocks/blocks/zoom'
 import type { BlockConfig } from '@/blocks/types'
+import { SQSBlock } from './blocks/sqs'
 
 // Registry of all available blocks, alphabetically sorted
 export const registry: Record<string, BlockConfig> = {
@@ -226,6 +227,7 @@ export const registry: Record<string, BlockConfig> = {
   pylon: PylonBlock,
   qdrant: QdrantBlock,
   rds: RDSBlock,
+  sqs: SQSBlock,
   dynamodb: DynamoDBBlock,
   reddit: RedditBlock,
   resend: ResendBlock,

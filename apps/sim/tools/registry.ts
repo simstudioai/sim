@@ -203,8 +203,8 @@ import {
   githubCreateBranchTool,
   githubCreateFileTool,
   githubCreateIssueTool,
-  githubCreatePRTool,
   githubCreateProjectTool,
+  githubCreatePRTool,
   githubCreateReleaseTool,
   githubDeleteBranchTool,
   githubDeleteCommentTool,
@@ -227,8 +227,8 @@ import {
   githubListIssueCommentsTool,
   githubListIssuesTool,
   githubListPRCommentsTool,
-  githubListPRsTool,
   githubListProjectsTool,
+  githubListPRsTool,
   githubListReleasesTool,
   githubListWorkflowRunsTool,
   githubListWorkflowsTool,
@@ -243,8 +243,8 @@ import {
   githubUpdateCommentTool,
   githubUpdateFileTool,
   githubUpdateIssueTool,
-  githubUpdatePRTool,
   githubUpdateProjectTool,
+  githubUpdatePRTool,
   githubUpdateReleaseTool,
 } from '@/tools/github'
 import {
@@ -404,10 +404,10 @@ import {
   incidentioIncidentRolesListTool,
   incidentioIncidentRolesShowTool,
   incidentioIncidentRolesUpdateTool,
-  incidentioIncidentStatusesListTool,
   incidentioIncidentsCreateTool,
   incidentioIncidentsListTool,
   incidentioIncidentsShowTool,
+  incidentioIncidentStatusesListTool,
   incidentioIncidentsUpdateTool,
   incidentioIncidentTimestampsListTool,
   incidentioIncidentTimestampsShowTool,
@@ -1311,6 +1311,7 @@ import {
   zoomListRecordingsTool,
   zoomUpdateMeetingTool,
 } from '@/tools/zoom'
+import { sqsSendTool } from './sqs'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -2327,6 +2328,7 @@ export const tools: Record<string, ToolConfig> = {
   salesforce_query_more: salesforceQueryMoreTool,
   salesforce_describe_object: salesforceDescribeObjectTool,
   salesforce_list_objects: salesforceListObjectsTool,
+  sqs_send: sqsSendTool,
   pylon_list_issues: pylonListIssuesTool,
   pylon_create_issue: pylonCreateIssueTool,
   pylon_get_issue: pylonGetIssueTool,

@@ -86,6 +86,7 @@
     "shopify",
     "slack",
     "smtp",
+    "sqs",
     "ssh",
     "stagehand",
     "stagehand_agent",
