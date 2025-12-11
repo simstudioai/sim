@@ -57,9 +57,10 @@ import { cn } from '@/lib/core/utils/cn'
 /**
  * Shared base styles for all popover interactive items.
  * Ensures consistent height and styling across items, folders, and back button.
+ * Uses fast transitions (duration-75) to prevent hover state "jumping" during rapid mouse movement.
  */
 const POPOVER_ITEM_BASE_CLASSES =
-  'flex h-[25px] min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[var(--text-primary)] text-[12px] transition-colors dark:text-[var(--text-primary)] [&_svg]:transition-colors disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed'
+  'flex h-[25px] min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[var(--text-primary)] text-[12px] transition-colors duration-75 dark:text-[var(--text-primary)] [&_svg]:transition-colors [&_svg]:duration-75 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed'
 
 /**
  * Variant-specific active state styles for popover items.
