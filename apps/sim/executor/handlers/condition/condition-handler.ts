@@ -184,10 +184,13 @@ export class ConditionBlockHandler implements BlockHandler {
             return { selectedConnection: connection, selectedCondition: condition }
           }
           // Condition is true but has no outgoing edge - branch ends gracefully
-          logger.info(`Condition "${condition.title}" is true but has no outgoing edge - branch ending`, {
-            blockId: block.id,
-            conditionId: condition.id,
-          })
+          logger.info(
+            `Condition "${condition.title}" is true but has no outgoing edge - branch ending`,
+            {
+              blockId: block.id,
+              conditionId: condition.id,
+            }
+          )
           return { selectedConnection: null, selectedCondition: null }
         }
       } catch (error: any) {
