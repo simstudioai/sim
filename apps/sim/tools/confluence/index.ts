@@ -12,6 +12,7 @@ import { confluenceRetrieveTool } from '@/tools/confluence/retrieve'
 import { confluenceSearchTool } from '@/tools/confluence/search'
 import { confluenceUpdateTool } from '@/tools/confluence/update'
 import { confluenceUpdateCommentTool } from '@/tools/confluence/update_comment'
+import { confluenceUploadAttachmentTool } from '@/tools/confluence/upload_attachment'
 
 export {
   confluenceRetrieveTool,
@@ -25,6 +26,7 @@ export {
   confluenceDeleteCommentTool,
   confluenceListAttachmentsTool,
   confluenceDeleteAttachmentTool,
+  confluenceUploadAttachmentTool,
   confluenceListLabelsTool,
   confluenceGetSpaceTool,
   confluenceListSpacesTool,
