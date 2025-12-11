@@ -408,215 +408,216 @@ export default function Logs() {
             />
           </div>
 
-          {/* Dashboard view */}
-          {isDashboardView && (
-            <div className='flex min-h-0 flex-1 flex-col pr-[24px]'>
-              <Dashboard isLive={isLive} refreshTrigger={dashboardRefreshTrigger} />
-            </div>
-          )}
+          {/* Dashboard view - always mounted to preserve state and query cache */}
+          <div
+            className={cn('flex min-h-0 flex-1 flex-col pr-[24px]', !isDashboardView && 'hidden')}
+          >
+            <Dashboard isLive={isLive} refreshTrigger={dashboardRefreshTrigger} />
+          </div>
 
           {/* Main content area with table - only show in logs view */}
-          {!isDashboardView && (
-            <div className='relative mt-[24px] flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px]'>
-              {/* Table container */}
-              <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)]'>
-                {/* Table header */}
-                <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px]'>
-                  <div className='flex items-center'>
-                    <span className='w-[8%] min-w-[70px] font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Date
-                    </span>
-                    <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Time
-                    </span>
-                    <span className='w-[12%] min-w-[100px] font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Status
-                    </span>
-                    <span className='w-[22%] min-w-[140px] font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Workflow
-                    </span>
-                    <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Cost
-                    </span>
-                    <span className='w-[14%] min-w-[110px] font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Trigger
-                    </span>
-                    <span className='w-[20%] min-w-[100px] font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Duration
-                    </span>
-                  </div>
-                </div>
-
-                {/* Table body - scrollable */}
-                <div
-                  className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden'
-                  ref={scrollContainerRef}
-                >
-                  {logsQuery.isLoading && !logsQuery.data ? (
-                    <div className='flex h-full items-center justify-center'>
-                      <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
-                        <Loader2 className='h-[16px] w-[16px] animate-spin' />
-                        <span className='text-[13px]'>Loading logs...</span>
-                      </div>
-                    </div>
-                  ) : logsQuery.isError ? (
-                    <div className='flex h-full items-center justify-center'>
-                      <div className='flex items-center gap-[8px] text-[var(--text-error)]'>
-                        <AlertCircle className='h-[16px] w-[16px]' />
-                        <span className='text-[13px]'>
-                          Error: {logsQuery.error?.message || 'Failed to load logs'}
-                        </span>
-                      </div>
-                    </div>
-                  ) : logs.length === 0 ? (
-                    <div className='flex h-full items-center justify-center'>
-                      <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
-                        <span className='text-[13px]'>No logs found</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      {logs.map((log) => {
-                        const formattedDate = formatDate(log.createdAt)
-                        const isSelected = selectedLog?.id === log.id
-                        const baseLevel = (log.level || 'info').toLowerCase()
-                        const isError = baseLevel === 'error'
-                        const isPending = !isError && log.hasPendingPause === true
-                        const isRunning = !isError && !isPending && log.duration === null
-
-                        return (
-                          <div
-                            key={log.id}
-                            ref={isSelected ? selectedRowRef : null}
-                            className={cn(
-                              'relative flex h-[44px] cursor-pointer items-center px-[24px] hover:bg-[var(--c-2A2A2A)]',
-                              isSelected && 'bg-[var(--c-2A2A2A)]'
-                            )}
-                            onClick={() => handleLogClick(log)}
-                          >
-                            <div className='flex flex-1 items-center'>
-                              {/* Date */}
-                              <span className='w-[8%] min-w-[70px] font-medium text-[12px] text-[var(--text-primary)]'>
-                                {formattedDate.compactDate}
-                              </span>
-
-                              {/* Time */}
-                              <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-primary)]'>
-                                {formattedDate.compactTime}
-                              </span>
-
-                              {/* Status */}
-                              <div className='w-[12%] min-w-[100px]'>
-                                <StatusBadge
-                                  status={
-                                    isError
-                                      ? 'error'
-                                      : isPending
-                                        ? 'pending'
-                                        : isRunning
-                                          ? 'running'
-                                          : 'info'
-                                  }
-                                />
-                              </div>
-
-                              {/* Workflow */}
-                              <div className='flex w-[22%] min-w-[140px] items-center gap-[8px] pr-[8px]'>
-                                <div
-                                  className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
-                                  style={{ backgroundColor: log.workflow?.color }}
-                                />
-                                <span className='min-w-0 truncate font-medium text-[12px] text-[var(--text-primary)]'>
-                                  {log.workflow?.name || 'Unknown'}
-                                </span>
-                              </div>
-
-                              {/* Cost */}
-                              <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-primary)]'>
-                                {typeof log.cost?.total === 'number'
-                                  ? `$${log.cost.total.toFixed(4)}`
-                                  : '—'}
-                              </span>
-
-                              {/* Trigger */}
-                              <div className='w-[14%] min-w-[110px]'>
-                                {log.trigger ? (
-                                  <TriggerBadge trigger={log.trigger} />
-                                ) : (
-                                  <span className='font-medium text-[12px] text-[var(--text-primary)]'>
-                                    —
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Duration */}
-                              <div className='w-[20%] min-w-[100px]'>
-                                <Badge
-                                  variant='default'
-                                  className='rounded-[6px] px-[9px] py-[2px] text-[12px]'
-                                >
-                                  {formatDuration(log.duration) || '—'}
-                                </Badge>
-                              </div>
-                            </div>
-
-                            {/* Resume Link */}
-                            {isPending &&
-                              log.executionId &&
-                              (log.workflow?.id || log.workflowId) && (
-                                <Link
-                                  href={`/resume/${log.workflow?.id || log.workflowId}/${log.executionId}`}
-                                  target='_blank'
-                                  rel='noopener noreferrer'
-                                  className={cn(
-                                    buttonVariants({ variant: 'active' }),
-                                    'absolute right-[24px] h-[26px] w-[26px] rounded-[6px] p-0'
-                                  )}
-                                  aria-label='Open resume console'
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <ArrowUpRight className='h-[14px] w-[14px]' />
-                                </Link>
-                              )}
-                          </div>
-                        )
-                      })}
-
-                      {/* Infinite scroll loader */}
-                      {logsQuery.hasNextPage && (
-                        <div className='flex items-center justify-center py-[16px]'>
-                          <div
-                            ref={loaderRef}
-                            className='flex items-center gap-[8px] text-[var(--text-secondary)]'
-                          >
-                            {logsQuery.isFetchingNextPage ? (
-                              <>
-                                <Loader2 className='h-[16px] w-[16px] animate-spin' />
-                                <span className='text-[13px]'>Loading more...</span>
-                              </>
-                            ) : (
-                              <span className='text-[13px]'>Scroll to load more</span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+          <div
+            className={cn(
+              'relative mt-[24px] flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px]',
+              isDashboardView && 'hidden'
+            )}
+          >
+            {/* Table container */}
+            <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)]'>
+              {/* Table header */}
+              <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px]'>
+                <div className='flex items-center'>
+                  <span className='w-[8%] min-w-[70px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Date
+                  </span>
+                  <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Time
+                  </span>
+                  <span className='w-[12%] min-w-[100px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Status
+                  </span>
+                  <span className='w-[22%] min-w-[140px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Workflow
+                  </span>
+                  <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Cost
+                  </span>
+                  <span className='w-[14%] min-w-[110px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Trigger
+                  </span>
+                  <span className='w-[20%] min-w-[100px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    Duration
+                  </span>
                 </div>
               </div>
 
-              {/* Log Details - rendered inside table container */}
-              <LogDetails
-                log={logDetailQuery.data || selectedLog}
-                isOpen={isSidebarOpen}
-                onClose={handleCloseSidebar}
-                onNavigateNext={handleNavigateNext}
-                onNavigatePrev={handleNavigatePrev}
-                hasNext={selectedLogIndex < logs.length - 1}
-                hasPrev={selectedLogIndex > 0}
-              />
+              {/* Table body - scrollable */}
+              <div
+                className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden'
+                ref={scrollContainerRef}
+              >
+                {logsQuery.isLoading && !logsQuery.data ? (
+                  <div className='flex h-full items-center justify-center'>
+                    <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
+                      <Loader2 className='h-[16px] w-[16px] animate-spin' />
+                      <span className='text-[13px]'>Loading logs...</span>
+                    </div>
+                  </div>
+                ) : logsQuery.isError ? (
+                  <div className='flex h-full items-center justify-center'>
+                    <div className='flex items-center gap-[8px] text-[var(--text-error)]'>
+                      <AlertCircle className='h-[16px] w-[16px]' />
+                      <span className='text-[13px]'>
+                        Error: {logsQuery.error?.message || 'Failed to load logs'}
+                      </span>
+                    </div>
+                  </div>
+                ) : logs.length === 0 ? (
+                  <div className='flex h-full items-center justify-center'>
+                    <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
+                      <span className='text-[13px]'>No logs found</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {logs.map((log) => {
+                      const formattedDate = formatDate(log.createdAt)
+                      const isSelected = selectedLog?.id === log.id
+                      const baseLevel = (log.level || 'info').toLowerCase()
+                      const isError = baseLevel === 'error'
+                      const isPending = !isError && log.hasPendingPause === true
+                      const isRunning = !isError && !isPending && log.duration === null
+
+                      return (
+                        <div
+                          key={log.id}
+                          ref={isSelected ? selectedRowRef : null}
+                          className={cn(
+                            'relative flex h-[44px] cursor-pointer items-center px-[24px] hover:bg-[var(--c-2A2A2A)]',
+                            isSelected && 'bg-[var(--c-2A2A2A)]'
+                          )}
+                          onClick={() => handleLogClick(log)}
+                        >
+                          <div className='flex flex-1 items-center'>
+                            {/* Date */}
+                            <span className='w-[8%] min-w-[70px] font-medium text-[12px] text-[var(--text-primary)]'>
+                              {formattedDate.compactDate}
+                            </span>
+
+                            {/* Time */}
+                            <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-primary)]'>
+                              {formattedDate.compactTime}
+                            </span>
+
+                            {/* Status */}
+                            <div className='w-[12%] min-w-[100px]'>
+                              <StatusBadge
+                                status={
+                                  isError
+                                    ? 'error'
+                                    : isPending
+                                      ? 'pending'
+                                      : isRunning
+                                        ? 'running'
+                                        : 'info'
+                                }
+                              />
+                            </div>
+
+                            {/* Workflow */}
+                            <div className='flex w-[22%] min-w-[140px] items-center gap-[8px] pr-[8px]'>
+                              <div
+                                className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
+                                style={{ backgroundColor: log.workflow?.color }}
+                              />
+                              <span className='min-w-0 truncate font-medium text-[12px] text-[var(--text-primary)]'>
+                                {log.workflow?.name || 'Unknown'}
+                              </span>
+                            </div>
+
+                            {/* Cost */}
+                            <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-primary)]'>
+                              {typeof log.cost?.total === 'number'
+                                ? `$${log.cost.total.toFixed(4)}`
+                                : '—'}
+                            </span>
+
+                            {/* Trigger */}
+                            <div className='w-[14%] min-w-[110px]'>
+                              {log.trigger ? (
+                                <TriggerBadge trigger={log.trigger} />
+                              ) : (
+                                <span className='font-medium text-[12px] text-[var(--text-primary)]'>
+                                  —
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Duration */}
+                            <div className='w-[20%] min-w-[100px]'>
+                              <Badge
+                                variant='default'
+                                className='rounded-[6px] px-[9px] py-[2px] text-[12px]'
+                              >
+                                {formatDuration(log.duration) || '—'}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          {/* Resume Link */}
+                          {isPending && log.executionId && (log.workflow?.id || log.workflowId) && (
+                            <Link
+                              href={`/resume/${log.workflow?.id || log.workflowId}/${log.executionId}`}
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className={cn(
+                                buttonVariants({ variant: 'active' }),
+                                'absolute right-[24px] h-[26px] w-[26px] rounded-[6px] p-0'
+                              )}
+                              aria-label='Open resume console'
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ArrowUpRight className='h-[14px] w-[14px]' />
+                            </Link>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {/* Infinite scroll loader */}
+                    {logsQuery.hasNextPage && (
+                      <div className='flex items-center justify-center py-[16px]'>
+                        <div
+                          ref={loaderRef}
+                          className='flex items-center gap-[8px] text-[var(--text-secondary)]'
+                        >
+                          {logsQuery.isFetchingNextPage ? (
+                            <>
+                              <Loader2 className='h-[16px] w-[16px] animate-spin' />
+                              <span className='text-[13px]'>Loading more...</span>
+                            </>
+                          ) : (
+                            <span className='text-[13px]'>Scroll to load more</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+
+            {/* Log Details - rendered inside table container */}
+            <LogDetails
+              log={logDetailQuery.data || selectedLog}
+              isOpen={isSidebarOpen}
+              onClose={handleCloseSidebar}
+              onNavigateNext={handleNavigateNext}
+              onNavigatePrev={handleNavigatePrev}
+              hasNext={selectedLogIndex < logs.length - 1}
+              hasPrev={selectedLogIndex > 0}
+            />
+          </div>
         </div>
       </div>
 

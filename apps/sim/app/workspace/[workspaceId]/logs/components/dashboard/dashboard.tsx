@@ -289,8 +289,18 @@ export default function Dashboard({
 
   const executions = metricsQuery.data?.workflows ?? []
   const aggregateSegments = metricsQuery.data?.aggregateSegments ?? []
-  const loading = metricsQuery.isLoading
   const error = metricsQuery.error?.message ?? null
+
+  /**
+   * Loading state logic using TanStack Query best practices:
+   * - isPending: true when there's no cached data (initial load only)
+   * - isFetching: true when any fetch is in progress
+   * - isPlaceholderData: true when showing stale data from keepPreviousData
+   *
+   * We only show skeleton on initial load (isPending + no data).
+   * For subsequent fetches, keepPreviousData shows stale content while fetching.
+   */
+  const showSkeleton = metricsQuery.isPending && !metricsQuery.data
 
   // Check if any filters are actually applied
   const hasActiveFilters = useMemo(
@@ -747,7 +757,7 @@ export default function Dashboard({
     }
   }, [refreshTrigger])
 
-  if (loading) {
+  if (showSkeleton) {
     return <DashboardSkeleton />
   }
 
