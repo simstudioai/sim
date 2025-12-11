@@ -49,11 +49,11 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 | `type` | string | No | Search type: neural, keyword, auto or fast \(default: auto\) |
 | `includeDomains` | string | No | Comma-separated list of domains to include in results |
 | `excludeDomains` | string | No | Comma-separated list of domains to exclude from results |
-| `category` | string | No | Filter by category: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `category` | string | No | Filter by category: company, research paper, news, pdf, github, tweet, personal site, linkedin profile, financial report |
 | `text` | boolean | No | Include full text content in results \(default: false\) |
 | `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
 | `summary` | boolean | No | Include AI-generated summaries in results \(default: false\) |
-| `livecrawl` | string | No | Live crawling mode: always, fallback, or never \(default: never\) |
+| `livecrawl` | string | No | Live crawling mode: never \(default\), fallback, always, or preferred \(always try livecrawl, fall back to cache if fails\) |
 | `apiKey` | string | Yes | Exa AI API Key |
 
 #### Output
@@ -76,7 +76,7 @@ Retrieve the contents of webpages using Exa AI. Returns the title, text content,
 | `subpages` | number | No | Number of subpages to crawl from the provided URLs |
 | `subpageTarget` | string | No | Comma-separated keywords to target specific subpages \(e.g., "docs,tutorial,about"\) |
 | `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
-| `livecrawl` | string | No | Live crawling mode: always, fallback, or never \(default: never\) |
+| `livecrawl` | string | No | Live crawling mode: never \(default\), fallback, always, or preferred \(always try livecrawl, fall back to cache if fails\) |
 | `apiKey` | string | Yes | Exa AI API Key |
 
 #### Output
@@ -99,10 +99,9 @@ Find webpages similar to a given URL using Exa AI. Returns a list of similar lin
 | `includeDomains` | string | No | Comma-separated list of domains to include in results |
 | `excludeDomains` | string | No | Comma-separated list of domains to exclude from results |
 | `excludeSourceDomain` | boolean | No | Exclude the source domain from results \(default: false\) |
-| `category` | string | No | Filter by category: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
 | `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
 | `summary` | boolean | No | Include AI-generated summaries in results \(default: false\) |
-| `livecrawl` | string | No | Live crawling mode: always, fallback, or never \(default: never\) |
+| `livecrawl` | string | No | Live crawling mode: never \(default\), fallback, always, or preferred \(always try livecrawl, fall back to cache if fails\) |
 | `apiKey` | string | Yes | Exa AI API Key |
 
 #### Output
