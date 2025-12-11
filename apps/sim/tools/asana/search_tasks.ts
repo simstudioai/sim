@@ -73,31 +73,57 @@ export const asanaSearchTasksTool: ToolConfig<AsanaSearchTasksParams, AsanaSearc
     if (!responseText) {
       return {
         success: false,
+        output: {},
         error: 'Empty response from Asana',
       }
     }
 
     const data = JSON.parse(responseText)
-
-    if (data.success && data.output) {
-      return data
-    }
-
+    const { success, error, ...output } = data
     return {
-      success: data.success || false,
-      output: data.output || { ts: new Date().toISOString(), tasks: [] },
-      error: data.error,
+      success: success ?? true,
+      output,
+      error,
     }
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
+    success: { type: 'boolean', description: 'Operation success status' },
+    ts: { type: 'string', description: 'Timestamp of the response' },
+    tasks: {
+      type: 'array',
+      description: 'Array of matching tasks',
+      items: {
+        type: 'object',
+        properties: {
+          gid: { type: 'string', description: 'Task GID' },
+          resource_type: { type: 'string', description: 'Resource type' },
+          resource_subtype: { type: 'string', description: 'Resource subtype' },
+          name: { type: 'string', description: 'Task name' },
+          notes: { type: 'string', description: 'Task notes' },
+          completed: { type: 'boolean', description: 'Completion status' },
+          assignee: {
+            type: 'object',
+            description: 'Assignee details',
+            properties: {
+              gid: { type: 'string', description: 'Assignee GID' },
+              name: { type: 'string', description: 'Assignee name' },
+            },
+          },
+          due_on: { type: 'string', description: 'Due date' },
+          created_at: { type: 'string', description: 'Creation timestamp' },
+          modified_at: { type: 'string', description: 'Modified timestamp' },
+        },
+      },
     },
-    output: {
+    next_page: {
       type: 'object',
-      description: 'List of tasks matching the search criteria',
+      description: 'Pagination info',
+      properties: {
+        offset: { type: 'string', description: 'Offset token' },
+        path: { type: 'string', description: 'API path' },
+        uri: { type: 'string', description: 'Full URI' },
+      },
     },
   },
 }

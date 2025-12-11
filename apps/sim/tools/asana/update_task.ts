@@ -92,33 +92,21 @@ export const asanaUpdateTaskTool: ToolConfig<AsanaUpdateTaskParams, AsanaUpdateT
     }
 
     const data = JSON.parse(responseText)
-
-    if (data.success && data.output) {
-      return data
-    }
-
+    const { success, error, ...output } = data
     return {
-      success: data.success || false,
-      output: data.output || {
-        ts: new Date().toISOString(),
-        gid: 'unknown',
-        name: 'Task update failed',
-        notes: '',
-        completed: false,
-        modified_at: new Date().toISOString(),
-      },
-      error: data.error,
+      success: success ?? true,
+      output,
+      error,
     }
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description: 'Updated task details with timestamp, gid, name, notes, and modified timestamp',
-    },
+    success: { type: 'boolean', description: 'Operation success status' },
+    ts: { type: 'string', description: 'Timestamp of the response' },
+    gid: { type: 'string', description: 'Task globally unique identifier' },
+    name: { type: 'string', description: 'Task name' },
+    notes: { type: 'string', description: 'Task notes or description' },
+    completed: { type: 'boolean', description: 'Whether the task is completed' },
+    modified_at: { type: 'string', description: 'Task last modified timestamp' },
   },
 }

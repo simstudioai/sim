@@ -205,6 +205,19 @@ const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[
     } else if (typeof value === 'object' && value !== null) {
       if ('type' in value && typeof value.type === 'string') {
         paths.push(currentPath)
+        // Handle nested objects and arrays
+        if (value.type === 'object' && value.properties) {
+          paths.push(...generateOutputPaths(value.properties, currentPath))
+        } else if (value.type === 'array' && value.items?.properties) {
+          paths.push(...generateOutputPaths(value.items.properties, currentPath))
+        } else if (
+          value.type === 'array' &&
+          value.items &&
+          typeof value.items === 'object' &&
+          !('type' in value.items)
+        ) {
+          paths.push(...generateOutputPaths(value.items, currentPath))
+        }
       } else {
         const subPaths = generateOutputPaths(value, currentPath)
         paths.push(...subPaths)

@@ -9,56 +9,52 @@ export interface AsanaGetTaskParams {
 }
 
 export interface AsanaGetTaskResponse extends ToolResponse {
-  output:
-    | {
-        ts: string
+  output: {
+    ts: string
+    gid?: string
+    resource_type?: string
+    resource_subtype?: string
+    name?: string
+    notes?: string
+    completed?: boolean
+    assignee?: {
+      gid: string
+      name: string
+    }
+    created_by?: {
+      gid: string
+      resource_type: string
+      name: string
+    }
+    due_on?: string
+    created_at?: string
+    modified_at?: string
+    tasks?: Array<{
+      gid: string
+      resource_type: string
+      resource_subtype: string
+      name: string
+      notes?: string
+      completed: boolean
+      assignee?: {
+        gid: string
+        name: string
+      }
+      created_by?: {
         gid: string
         resource_type: string
-        resource_subtype: string
         name: string
-        notes: string
-        completed: boolean
-        assignee?: {
-          gid: string
-          name: string
-        }
-        created_by?: {
-          gid: string
-          resource_type: string
-          name: string
-        }
-        due_on?: string
-        created_at: string
-        modified_at: string
       }
-    | {
-        ts: string
-        tasks: Array<{
-          gid: string
-          resource_type: string
-          resource_subtype: string
-          name: string
-          notes?: string
-          completed: boolean
-          assignee?: {
-            gid: string
-            name: string
-          }
-          created_by?: {
-            gid: string
-            resource_type: string
-            name: string
-          }
-          due_on?: string
-          created_at: string
-          modified_at: string
-        }>
-        next_page?: {
-          offset: string
-          path: string
-          uri: string
-        }
-      }
+      due_on?: string
+      created_at: string
+      modified_at: string
+    }>
+    next_page?: {
+      offset: string
+      path: string
+      uri: string
+    }
+  }
 }
 
 export interface AsanaCreateTaskParams {

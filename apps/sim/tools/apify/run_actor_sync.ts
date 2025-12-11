@@ -101,7 +101,6 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
     success: { type: 'boolean', description: 'Whether the actor run succeeded' },
     runId: { type: 'string', description: 'APIFY run ID' },
     status: { type: 'string', description: 'Run status (SUCCEEDED, FAILED, etc.)' },
-    datasetId: { type: 'string', description: 'Dataset ID containing results' },
     items: { type: 'array', description: 'Dataset items (if completed)' },
   },
 }

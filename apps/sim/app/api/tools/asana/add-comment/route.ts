@@ -86,18 +86,16 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      output: {
-        ts: new Date().toISOString(),
-        gid: story.gid,
-        text: story.text || '',
-        created_at: story.created_at,
-        created_by: story.created_by
-          ? {
-              gid: story.created_by.gid,
-              name: story.created_by.name,
-            }
-          : undefined,
-      },
+      ts: new Date().toISOString(),
+      gid: story.gid,
+      text: story.text || '',
+      created_at: story.created_at,
+      created_by: story.created_by
+        ? {
+            gid: story.created_by.gid,
+            name: story.created_by.name,
+          }
+        : undefined,
     })
   } catch (error) {
     logger.error('Error processing request:', error)
