@@ -7,7 +7,6 @@ import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
 const logger = createLogger('StagehandAgentAPI')
 
-// Environment variables for Browserbase
 const BROWSERBASE_API_KEY = env.BROWSERBASE_API_KEY
 const BROWSERBASE_PROJECT_ID = env.BROWSERBASE_PROJECT_ID
 
@@ -44,9 +43,7 @@ function extractActionDirectives(task: string): {
   let match
   let processedTask = task
 
-  // Find all action directives in the task
   while ((match = actionRegex.exec(task)) !== null) {
-    const _fullMatch = match[0]
     const actionText = match[1].trim()
     const index = match.index
 
@@ -56,8 +53,6 @@ function extractActionDirectives(task: string): {
     })
   }
 
-  // Replace action directives with placeholders for the agent
-  // We'll number them to make it clear to the agent what's happening
   if (actionDirectives.length > 0) {
     let offset = 0
     for (let i = 0; i < actionDirectives.length; i++) {
@@ -65,22 +60,18 @@ function extractActionDirectives(task: string): {
       const originalIndex = directive.index
       const placeholder = `[SECURE ACTION ${i + 1}]`
 
-      // Calculate position considering previous replacements
       const adjustedIndex = originalIndex - offset
 
-      // Get text to replace
       const fullMatch = task.substring(
         originalIndex,
         originalIndex + task.substring(originalIndex).indexOf(']]') + 2
       )
 
-      // Replace in processed task
       processedTask =
         processedTask.substring(0, adjustedIndex) +
         placeholder +
         processedTask.substring(adjustedIndex + fullMatch.length)
 
-      // Update offset for next replacement
       offset += fullMatch.length - placeholder.length
     }
   }
@@ -88,7 +79,6 @@ function extractActionDirectives(task: string): {
   return { processedTask, actionDirectives }
 }
 
-// Function to process secure actions in a given message
 async function processSecureActions(
   message: string,
   stagehand: Stagehand,
@@ -98,21 +88,17 @@ async function processSecureActions(
   modifiedMessage: string
   executedActions: Array<{ action: string; result: { success: boolean; message: string } }>
 }> {
-  // Track executed actions and modified message
   const executedActions: Array<{ action: string; result: { success: boolean; message: string } }> =
     []
   let modifiedMessage = message
 
-  // Look for secure action execute directives
   const secureActionMatches = [...message.matchAll(/EXECUTE SECURE ACTION (\d+)/gi)]
 
-  // Process each secure action request
   for (const match of secureActionMatches) {
     const fullMatch = match[0]
-    const actionIndex = Number.parseInt(match[1], 10) - 1 // Convert to 0-based index
+    const actionIndex = Number.parseInt(match[1], 10) - 1
 
     if (actionDirectives[actionIndex]) {
-      // Found a secure action directive to execute
       const actionDirective = actionDirectives[actionIndex]
       let resultMessage = ''
 
@@ -121,14 +107,10 @@ async function processSecureActions(
           action: actionDirective.action,
         })
 
-        // Perform the action with variable substitution at runtime
-        // This uses act() directly, which handles variables securely
-        const result = await stagehand.page.act({
-          action: actionDirective.action,
+        const result = await stagehand.act(actionDirective.action, {
           variables: variables || {},
         })
 
-        // Store the result for later reporting
         executedActions.push({
           action: actionDirective.action,
           result: {
@@ -137,7 +119,6 @@ async function processSecureActions(
           },
         })
 
-        // Success message to replace the execution request
         resultMessage = `\nSecure action ${actionIndex + 1} executed successfully.\n`
       } catch (error) {
         logger.error(`Error executing secure action ${actionIndex + 1}`, {
@@ -145,7 +126,6 @@ async function processSecureActions(
           action: actionDirective.action,
         })
 
-        // Store the failed result
         executedActions.push({
           action: actionDirective.action,
           result: {
@@ -154,14 +134,11 @@ async function processSecureActions(
           },
         })
 
-        // Error message to replace the execution request
         resultMessage = `\nError executing secure action ${actionIndex + 1}: ${error instanceof Error ? error.message : 'Unknown error'}\n`
       }
 
-      // Replace the execution directive with the result message
       modifiedMessage = modifiedMessage.replace(fullMatch, resultMessage)
     } else {
-      // Invalid action index - replace with error message
       const errorMessage = `\nError: Secure action ${actionIndex + 1} does not exist.\n`
       modifiedMessage = modifiedMessage.replace(fullMatch, errorMessage)
     }
@@ -170,7 +147,6 @@ async function processSecureActions(
   return { modifiedMessage, executedActions }
 }
 
-// Helper function for direct login attempt
 async function attemptDirectLogin(
   stagehand: Stagehand,
   variables: Record<string, string> | undefined
@@ -187,11 +163,9 @@ async function attemptDirectLogin(
     }
   }
 
-  // Define common variable keys for credentials
   const usernameKeys = ['username', 'email', 'user']
   const passwordKeys = ['password', 'pass', 'secret']
 
-  // Find the actual keys used in the variables
   const usernameKey = usernameKeys.find((key) => variables[key] !== undefined)
   const passwordKey = passwordKeys.find((key) => variables[key] !== undefined)
 
@@ -210,9 +184,8 @@ async function attemptDirectLogin(
   logger.info('Attempting direct login with provided variables.')
 
   try {
-    const page = stagehand.page
+    const page = stagehand.context.pages()[0]
 
-    // Common selectors for username/email fields
     const usernameSelectors = [
       'input[type="text"][name*="user"]',
       'input[type="email"]',
@@ -225,7 +198,6 @@ async function attemptDirectLogin(
       'input[aria-label*="email" i]',
     ]
 
-    // Common selectors for password fields
     const passwordSelectors = [
       'input[type="password"]',
       'input[name*="pass"]',
@@ -234,7 +206,6 @@ async function attemptDirectLogin(
       'input[aria-label*="pass" i]',
     ]
 
-    // Common selectors for submit buttons
     const submitSelectors = [
       'button[type="submit"]',
       'input[type="submit"]',
@@ -246,12 +217,10 @@ async function attemptDirectLogin(
       'button[name*="submit"]',
     ]
 
-    // Find and fill username
     let usernameFilled = false
     for (const selector of usernameSelectors) {
       const input = page.locator(selector).first()
-      if ((await input.count()) > 0 && (await input.isVisible({ timeout: 1000 }))) {
-        // Short timeout
+      if ((await input.count()) > 0 && (await input.isVisible())) {
         logger.info(`Found username field: ${selector}`)
         await input.fill(usernameValue)
         usernameFilled = true
@@ -268,11 +237,10 @@ async function attemptDirectLogin(
       }
     }
 
-    // Find and fill password
     let passwordFilled = false
     for (const selector of passwordSelectors) {
       const input = page.locator(selector).first()
-      if ((await input.count()) > 0 && (await input.isVisible({ timeout: 1000 }))) {
+      if ((await input.count()) > 0 && (await input.isVisible())) {
         logger.info(`Found password field: ${selector}`)
         await input.fill(passwordValue)
         passwordFilled = true
@@ -282,7 +250,6 @@ async function attemptDirectLogin(
 
     if (!passwordFilled) {
       logger.warn('Could not find a visible password field for direct login.')
-      // Even if password field not found, maybe username submit works? Unlikely but possible.
       return {
         attempted: true,
         success: false,
@@ -291,20 +258,13 @@ async function attemptDirectLogin(
       }
     }
 
-    // Find and click submit button
     let submitClicked = false
     for (const selector of submitSelectors) {
       const button = page.locator(selector).first()
-      // Check if button exists and is visible/enabled
-      if (
-        (await button.count()) > 0 &&
-        (await button.isVisible({ timeout: 1000 })) &&
-        (await button.isEnabled({ timeout: 1000 }))
-      ) {
+      if ((await button.count()) > 0 && (await button.isVisible())) {
         logger.info(`Found submit button: ${selector}`)
         await button.click()
-        // Wait longer for login processing
-        await page.waitForTimeout(3000)
+        await new Promise((resolve) => setTimeout(resolve, 3000))
         submitClicked = true
         break
       }
@@ -324,8 +284,6 @@ async function attemptDirectLogin(
       'Direct login attempt completed (fields filled, submit clicked). Verifying result...'
     )
 
-    // Verify if login was successful by checking for common success indicators
-    // 1. Check if we're redirected away from login page
     const currentUrl = page.url()
     const isStillOnLoginPage =
       currentUrl.includes('login') ||
@@ -334,9 +292,7 @@ async function attemptDirectLogin(
       currentUrl.includes('signup') ||
       currentUrl.includes('register')
 
-    // 2. Check for login error messages
     const hasLoginError = await page.evaluate(() => {
-      // Look for common error message elements
       const errorSelectors = [
         '[class*="error" i]',
         '[id*="error" i]',
@@ -367,9 +323,7 @@ async function attemptDirectLogin(
       return false
     })
 
-    // 3. Check for common success indicators
     const hasSuccessIndicators = await page.evaluate(() => {
-      // Check for user menu elements, profile info, etc.
       const userMenuSelectors = [
         '[class*="avatar" i]',
         '[class*="profile" i]',
@@ -454,26 +408,19 @@ export async function POST(request: NextRequest) {
     }
 
     const params = validationResult.data
-    // Simplify variable handling - safely convert any format to the object we need
     let variablesObject: Record<string, string> | undefined
 
-    // Handle different formats of variables that might come from the UI
     if (params.variables) {
       if (Array.isArray(params.variables)) {
-        // For array format (from table input)
         variablesObject = {}
         params.variables.forEach((item: any) => {
-          // Check if item and item.cells exist, and Key is a string
           if (item?.cells?.Key && typeof item.cells.Key === 'string') {
-            // Access Key and Value within the 'cells' object
             variablesObject![item.cells.Key] = item.cells.Value || ''
           }
         })
       } else if (typeof params.variables === 'object' && params.variables !== null) {
-        // For object format (already in correct format)
         variablesObject = { ...params.variables }
       } else if (typeof params.variables === 'string') {
-        // Handle string format (sometimes comes as JSON string)
         try {
           variablesObject = JSON.parse(params.variables)
         } catch (_e) {
@@ -481,14 +428,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Verify we have non-empty variables
       if (!variablesObject || Object.keys(variablesObject).length === 0) {
         logger.warn('Variables object is empty after processing', {
           originalVariables: params.variables,
           variablesType: typeof params.variables,
         })
 
-        // Try to recover username/password from the raw variables if we can
         if (typeof params.variables === 'object' && params.variables !== null) {
           variablesObject = {}
           for (const key in params.variables) {
@@ -502,7 +447,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Log the collected variables (careful not to log actual passwords)
       if (variablesObject) {
         const safeVarKeys = Object.keys(variablesObject).map((key) => {
           return key.toLowerCase().includes('password')
@@ -519,10 +463,8 @@ export async function POST(request: NextRequest) {
 
     const { task, startUrl: rawStartUrl, outputSchema, apiKey } = params
 
-    // Normalize the starting URL - only add https:// if needed
     let startUrl = rawStartUrl
 
-    // Add https:// if no protocol is specified
     startUrl = normalizeUrl(startUrl)
 
     logger.info('Starting Stagehand agent process', {
@@ -532,7 +474,6 @@ export async function POST(request: NextRequest) {
       hasVariables: !!variablesObject && Object.keys(variablesObject).length > 0,
     })
 
-    // Check for required environment variables
     if (!BROWSERBASE_API_KEY || !BROWSERBASE_PROJECT_ID) {
       logger.error('Missing required environment variables', {
         hasBrowserbaseApiKey: !!BROWSERBASE_API_KEY,
@@ -546,68 +487,49 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Initialize Stagehand with Browserbase
-      logger.info('Initializing Stagehand with Browserbase')
+      logger.info('Initializing Stagehand with Browserbase (v3)')
+
       stagehand = new Stagehand({
         env: 'BROWSERBASE',
         apiKey: BROWSERBASE_API_KEY,
         projectId: BROWSERBASE_PROJECT_ID,
         verbose: 1,
-        // Use a custom logger wrapper that adapts our logger to Stagehand's expected format
         logger: (msg) => logger.info(typeof msg === 'string' ? msg : JSON.stringify(msg)),
-        disablePino: true,
-        modelName: 'claude-3-7-sonnet-20250219',
-        modelClientOptions: {
-          apiKey: apiKey, // User's OpenAI API key
+        model: {
+          modelName: 'claude-sonnet-4-20250514',
+          apiKey: apiKey,
         },
       })
 
-      // Initialize Stagehand
       logger.info('Starting stagehand.init()')
       await stagehand.init()
       logger.info('Stagehand initialized successfully')
 
-      // Monkey patch the page.act method to automatically apply variables to all actions
-      if (variablesObject && Object.keys(variablesObject).length > 0) {
-        logger.info('Setting up automatic variable substitution for all actions')
-        const originalAct = stagehand.page.act.bind(stagehand.page)
-        stagehand.page.act = async (options: any) => {
-          // If options is a string, convert it to object
-          if (typeof options === 'string') {
-            options = { action: options }
-          }
+      const page = stagehand.context.pages()[0]
 
-          // Ensure variables are included
-          options.variables = { ...(options.variables || {}), ...variablesObject }
-
-          logger.info('Executing act with variables', {
-            action: options.action,
-            hasVariables: true,
-            variableCount: Object.keys(options.variables).length,
-          })
-
-          // Call original method
-          return originalAct(options)
-        }
+      const actVariables =
+        variablesObject && Object.keys(variablesObject).length > 0 ? variablesObject : undefined
+      if (actVariables) {
+        logger.info('Variables available for act calls', {
+          variableCount: Object.keys(actVariables).length,
+        })
       }
 
-      // Navigate to the start URL
       logger.info(`Navigating to ${startUrl}`)
-      await stagehand.page.goto(startUrl, { waitUntil: 'networkidle' })
+      await page.goto(startUrl, { waitUntil: 'networkidle' })
       logger.info('Navigation complete')
 
-      // Helper function to detect and navigate to login page if needed
       const ensureLoginPage = async (): Promise<boolean> => {
         if (!stagehand) {
           logger.error('Stagehand instance is null')
           return false
         }
 
+        const currentPage = stagehand.context.pages()[0]
         logger.info('Checking if we need to navigate to login page')
 
         try {
-          // Check if we're already on a page with login form
-          const loginFormExists = await stagehand.page.evaluate(() => {
+          const loginFormExists = await currentPage.evaluate(() => {
             const usernameInput = document.querySelector(
               'input[type="text"], input[type="email"], input[name="username"], input[id="username"]'
             )
@@ -620,10 +542,7 @@ export async function POST(request: NextRequest) {
             return true
           }
 
-          // Look for common login buttons/links
-          const loginElements = await stagehand.page.observe({
-            instruction: 'Find login buttons or links on this page',
-          })
+          const loginElements = await stagehand.observe('Find login buttons or links on this page')
 
           if (loginElements && loginElements.length > 0) {
             for (const element of loginElements) {
@@ -633,18 +552,13 @@ export async function POST(request: NextRequest) {
               ) {
                 logger.info(`Found login element: ${element.description}`)
 
-                // Click the login button/link
                 if (element.selector) {
                   logger.info(`Clicking login element: ${element.selector}`)
-                  await stagehand.page.act({
-                    action: `Click on the ${element.description}`,
-                  })
+                  await stagehand.act(`Click on the ${element.description}`)
 
-                  // Wait for navigation or DOM changes
-                  await stagehand.page.waitForTimeout(2000)
+                  await new Promise((resolve) => setTimeout(resolve, 2000))
 
-                  // Check if we're now on login page
-                  const loginPageAfterClick = await stagehand.page.evaluate(() => {
+                  const loginPageAfterClick = await currentPage.evaluate(() => {
                     const usernameInput = document.querySelector(
                       'input[type="text"], input[type="email"], input[name="username"], input[id="username"]'
                     )
@@ -661,15 +575,13 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // Try direct navigation to /login if we couldn't find login elements
           logger.info('Trying direct navigation to /login path')
-          const currentUrl = await stagehand.page.url()
+          const currentUrl = currentPage.url()
           const loginUrl = new URL('/login', currentUrl).toString()
 
-          await stagehand.page.goto(loginUrl, { waitUntil: 'networkidle' })
+          await currentPage.goto(loginUrl, { waitUntil: 'networkidle' })
 
-          // Check if we're now on login page
-          const loginPageAfterDirectNav = await stagehand.page.evaluate(() => {
+          const loginPageAfterDirectNav = await currentPage.evaluate(() => {
             const usernameInput = document.querySelector(
               'input[type="text"], input[type="email"], input[name="username"], input[id="username"]'
             )
@@ -690,14 +602,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // --- Direct Login Logic ---
       let directLoginAttempted = false
       let directLoginSuccess = false
       let loginMessage = ''
-      let taskForAgent = task // Use original task by default
-      let agentInstructions = '' // Will be generated below
+      let taskForAgent = task
+      let agentInstructions = ''
 
-      // Only attempt direct login if relevant variables exist
       const hasLoginVars =
         variablesObject &&
         Object.keys(variablesObject).some((k) =>
@@ -725,7 +635,6 @@ export async function POST(request: NextRequest) {
           })
 
           if (directLoginAttempted) {
-            // Modify task for agent regardless of login success/failure
             if (directLoginSuccess) {
               taskForAgent = `Login has been completed programmatically and was successful. Please verify that you are logged in and then proceed with the original task: ${task}`
             } else {
@@ -741,19 +650,15 @@ export async function POST(request: NextRequest) {
       } else {
         logger.info('Skipping direct login: No relevant username/password variables found.')
       }
-      // --- End Direct Login Logic ---
 
-      // Extract action directives with variable placeholders (from original task)
-      const { processedTask, actionDirectives } = extractActionDirectives(task) // Use original task for extraction
+      const { processedTask, actionDirectives } = extractActionDirectives(task)
 
       logger.info('Extracted action directives', {
         actionCount: actionDirectives.length,
         hasActionDirectives: actionDirectives.length > 0,
       })
 
-      // Generate instructions based on whether direct login was attempted
       if (directLoginAttempted) {
-        // Construct specific instructions based on login attempt outcome
         const loginInstructions = directLoginSuccess
           ? 'Login was completed programmatically and appears successful. Please VERIFY if the login was successful by checking for elements that only appear when logged in.'
           : `Login was attempted programmatically but appears to have FAILED (${loginMessage}). 
@@ -767,7 +672,6 @@ Once you've verified the login state, proceed with the following task: ${task}
 ${actionDirectives.length > 0 ? `\n\nNote on Secure Actions: You might see [SECURE ACTION X] placeholders. Handle these by outputting "EXECUTE SECURE ACTION X" when appropriate.` : ''}
 ${outputSchema && typeof outputSchema === 'object' && outputSchema !== null ? `\n\nIMPORTANT: You MUST return your final result in the following JSON format exactly:\n${formatSchemaForInstructions(getSchemaObject(outputSchema))}\n\nYour response should consist of valid JSON only, with no additional text.` : ''}`
       } else {
-        // Original detailed instructions if agent needs to handle login/placeholders
         agentInstructions = `You are a helpful web browsing assistant that will complete tasks on websites. Your goal is to accomplish the following task: ${processedTask}\n
 ${actionDirectives.length > 0 ? `\n\nYou'll see [SECURE ACTION X] placeholders in the task. These represent secure actions that will be handled automatically when you navigate to the appropriate page. When you reach a point where a secure action should be performed, output a line with exactly: "EXECUTE SECURE ACTION X" (where X is the action number). Then wait for confirmation before proceeding.` : ''}\n
 IMPORTANT: For any form fields that require sensitive information like usernames or passwords:
@@ -790,40 +694,30 @@ WEBSITE NAVIGATION GUIDANCE:
 ${outputSchema && typeof outputSchema === 'object' && outputSchema !== null ? `\n\nIMPORTANT: You MUST return your final result in the following JSON format exactly:\n${formatSchemaForInstructions(getSchemaObject(outputSchema))}\n\nYour response should consist of valid JSON only, with no additional text. Ensure the data in your response adheres strictly to the schema provided.` : ''}`
       }
 
-      // Create agent to execute the task
       logger.info('Creating Stagehand agent', {
         directLoginAttempted,
         directLoginSuccess,
         loginMessage,
       })
-      const agent = stagehand.agent({
-        provider: 'anthropic',
-        model: 'claude-3-7-sonnet-20250219',
-        instructions: agentInstructions, // Use the generated instructions
-        options: {
-          apiKey: apiKey,
-          // Conditional additional instructions based on direct login attempt
-          additionalInstructions: directLoginAttempted
-            ? `Login was ${directLoginSuccess ? 'successfully completed' : 'attempted but failed'}. 
-               ${loginMessage}
-               First check the current state of the page. 
-               If login failed, you may need to click the login button again after ensuring fields are properly filled.`
-            : `
+
+      const additionalContext = directLoginAttempted
+        ? `Login was ${directLoginSuccess ? 'successfully completed' : 'attempted but failed'}.
+           ${loginMessage}
+           First check the current state of the page.
+           If login failed, you may need to click the login button again after ensuring fields are properly filled.`
+        : `
 This task may contain placeholder variables like %username% and %password%.
 When you need to fill form fields, use these placeholders directly (e.g., type "%username%").
 The system will substitute actual values when these placeholders are used, keeping sensitive data secure.
-          `.trim(),
-        },
+        `.trim()
+
+      const agent = stagehand.agent({
+        model: 'anthropic/claude-sonnet-4-20250514',
+        systemPrompt: `${agentInstructions}\n\n${additionalContext}`,
       })
 
-      // Since we can't use events directly, we'll need to handle secure actions
-      // by running the agent and then processing any EXECUTE SECURE ACTION directives
-      // in its output, then decide if we need to continue the conversation
-
-      // Sequence to execute agent with secure action processing
       const runAgentWithSecureActions = async (): Promise<any> => {
-        // Use taskForAgent which might have been modified if direct login occurred
-        let currentResult = await agent.execute(taskForAgent)
+        let currentResult = await agent.execute({ instruction: taskForAgent })
         let allExecutedActions: Array<{
           action: string
           result: { success: boolean; message: string }
@@ -833,17 +727,13 @@ The system will substitute actual values when these placeholders are used, keepi
 
         while (iterationCount < maxIterations && stagehand !== null) {
           if (!currentResult.message) {
-            // No message to process, we're done
             break
           }
 
-          // Check if there are secure action directives in the message
           if (!/EXECUTE SECURE ACTION \d+/i.test(currentResult.message)) {
-            // No secure actions to execute, we're done
             break
           }
 
-          // Process secure actions in the message
           const { modifiedMessage, executedActions } = await processSecureActions(
             currentResult.message,
             stagehand,
@@ -851,39 +741,28 @@ The system will substitute actual values when these placeholders are used, keepi
             variablesObject
           )
 
-          // Add executed actions to our collection
           allExecutedActions = [...allExecutedActions, ...executedActions]
 
           if (executedActions.length === 0) {
-            // No actions were executed, we can stop
             break
           }
 
-          // Continue conversation with the agent using the modified message as context
           iterationCount++
 
-          // Only continue if we need to - if we reached the final state
-          // with structured output, don't keep going
           const hasStructuredOutput = /```json|^\s*{/.test(modifiedMessage)
           if (hasStructuredOutput) {
-            // Already has structured output, let's not continue and risk losing it
             currentResult.message = modifiedMessage
             break
           }
 
-          // Continue the conversation with the agent
           logger.info(
             `Continuing agent execution with processed actions, iteration ${iterationCount}`
           )
 
           try {
-            // Here we'd continue the agent conversation, but since agent.execute
-            // doesn't support continuation easily, we have to create a new prompt
-            // that synthesizes what's happened so far
             const continuationPrompt = `${modifiedMessage}\n\nPlease continue with the task.`
-            const nextResult = await agent.execute(continuationPrompt)
+            const nextResult = await agent.execute({ instruction: continuationPrompt })
 
-            // Merge results - keep actions from both iterations but update message
             currentResult = {
               ...nextResult,
               actions: [...currentResult.actions, ...nextResult.actions],
@@ -894,16 +773,14 @@ The system will substitute actual values when these placeholders are used, keepi
           }
         }
 
-        // Return the final result and all executed secure actions
         return {
           ...currentResult,
           secureActions: allExecutedActions,
         }
       }
 
-      // Execute the agent with secure action handling
       logger.info('Executing agent task', {
-        task: taskForAgent, // Log the task actually given to the agent
+        task: taskForAgent,
         actionDirectiveCount: actionDirectives.length,
         directLoginAttempted,
         directLoginSuccess,
@@ -925,21 +802,16 @@ The system will substitute actual values when these placeholders are used, keepi
         executedActionCount: agentExecutionResult.secureActions?.length || 0,
       })
 
-      // Parse the structured data from the agent's message if possible
       let structuredOutput = null
       if (agentResult.message) {
         try {
-          // Try to parse JSON from the message
-          // First, clean up the message to extract just the JSON
           let jsonContent = agentResult.message
 
-          // Look for JSON block markers in case the model wrapped it in ```json blocks
           const jsonBlockMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
           if (jsonBlockMatch?.[1]) {
             jsonContent = jsonBlockMatch[1]
           }
 
-          // Try to parse the content as JSON
           structuredOutput = JSON.parse(jsonContent)
           logger.info('Successfully parsed structured output from agent response')
         } catch (parseError) {
@@ -948,7 +820,6 @@ The system will substitute actual values when these placeholders are used, keepi
             message: agentResult.message,
           })
 
-          // If we have a schema, try one more approach with extract
           if (
             outputSchema &&
             typeof outputSchema === 'object' &&
@@ -960,12 +831,10 @@ The system will substitute actual values when these placeholders are used, keepi
               const schemaObj = getSchemaObject(outputSchema)
               const zodSchema = ensureZodObject(logger, schemaObj)
 
-              // Use the extract API to get structured data from whatever page we ended up on
-              structuredOutput = await stagehand.page.extract({
-                instruction:
-                  'Extract the requested information from this page according to the schema',
-                schema: zodSchema,
-              } as any)
+              structuredOutput = await stagehand.extract(
+                'Extract the requested information from this page according to the schema',
+                zodSchema
+              )
 
               logger.info('Successfully extracted structured data as fallback', {
                 keys: structuredOutput ? Object.keys(structuredOutput) : [],
@@ -977,7 +846,6 @@ The system will substitute actual values when these placeholders are used, keepi
         }
       }
 
-      // Return agent result, structured output, and secure action results
       return NextResponse.json({
         agentResult,
         structuredOutput,
@@ -990,7 +858,6 @@ The system will substitute actual values when these placeholders are used, keepi
         stack: error instanceof Error ? error.stack : undefined,
       })
 
-      // Provide detailed error information
       let errorMessage = 'Unknown error during agent execution'
       let errorDetails: Record<string, any> = {}
 
@@ -1001,7 +868,6 @@ The system will substitute actual values when these placeholders are used, keepi
           stack: error.stack,
         }
 
-        // Log additional properties for context
         const errorObj = error as any
         if (typeof errorObj.code !== 'undefined') {
           errorDetails.code = errorObj.code
@@ -1036,7 +902,6 @@ The system will substitute actual values when these placeholders are used, keepi
       { status: 500 }
     )
   } finally {
-    // Clean up Stagehand resources
     if (stagehand) {
       try {
         logger.info('Closing Stagehand instance')
