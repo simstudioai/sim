@@ -5,7 +5,7 @@ import path from 'path'
 import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { validateExternalUrl } from '@/lib/core/security/input-validation'
+import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console/logger'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
@@ -270,7 +270,7 @@ async function handleExternalUrl(
     logger.info('Fetching external URL:', url)
     logger.info('WorkspaceId for URL save:', workspaceId)
 
-    const urlValidation = validateExternalUrl(url, 'fileUrl')
+    const urlValidation = await validateUrlWithDNS(url, 'fileUrl')
     if (!urlValidation.isValid) {
       logger.warn(`Blocked external URL request: ${urlValidation.error}`)
       return {
@@ -346,8 +346,12 @@ async function handleExternalUrl(
       }
     }
 
-    const response = await fetch(url, {
+    const pinnedUrl = createPinnedUrl(url, urlValidation.resolvedIP!)
+    const response = await fetch(pinnedUrl, {
       signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+      headers: {
+        Host: urlValidation.originalHostname!,
+      },
     })
     if (!response.ok) {
       throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`)

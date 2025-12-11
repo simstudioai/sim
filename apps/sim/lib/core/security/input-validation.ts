@@ -1,3 +1,4 @@
+import dns from 'dns/promises'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('InputValidation')
@@ -849,4 +850,111 @@ export function validateProxyUrl(
   paramName = 'proxyUrl'
 ): ValidationResult {
   return validateExternalUrl(url, paramName)
+}
+
+/**
+ * Checks if an IP address is private or reserved (not routable on the public internet)
+ */
+function isPrivateOrReservedIP(ip: string): boolean {
+  const patterns = [
+    /^127\./, // Loopback
+    /^10\./, // Private Class A
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./, // Private Class B
+    /^192\.168\./, // Private Class C
+    /^169\.254\./, // Link-local
+    /^0\./, // Current network
+    /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./, // Carrier-grade NAT
+    /^192\.0\.0\./, // IETF Protocol Assignments
+    /^192\.0\.2\./, // TEST-NET-1
+    /^198\.51\.100\./, // TEST-NET-2
+    /^203\.0\.113\./, // TEST-NET-3
+    /^224\./, // Multicast
+    /^240\./, // Reserved
+    /^255\./, // Broadcast
+    /^::1$/, // IPv6 loopback
+    /^fe80:/i, // IPv6 link-local
+    /^fc00:/i, // IPv6 unique local
+    /^fd00:/i, // IPv6 unique local
+    /^::ffff:(127\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|169\.254\.)/i, // IPv4-mapped IPv6
+  ]
+  return patterns.some((pattern) => pattern.test(ip))
+}
+
+/**
+ * Result type for async URL validation with resolved IP
+ */
+export interface AsyncValidationResult extends ValidationResult {
+  resolvedIP?: string
+  originalHostname?: string
+}
+
+/**
+ * Validates a URL and resolves its DNS to prevent SSRF via DNS rebinding
+ *
+ * This function:
+ * 1. Performs basic URL validation (protocol, format)
+ * 2. Resolves the hostname to an IP address
+ * 3. Validates the resolved IP is not private/reserved
+ * 4. Returns the resolved IP for use in the actual request
+ *
+ * @param url - The URL to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns AsyncValidationResult with resolved IP for DNS pinning
+ */
+export async function validateUrlWithDNS(
+  url: string | null | undefined,
+  paramName = 'url'
+): Promise<AsyncValidationResult> {
+  const basicValidation = validateExternalUrl(url, paramName)
+  if (!basicValidation.isValid) {
+    return basicValidation
+  }
+
+  const parsedUrl = new URL(url!)
+  const hostname = parsedUrl.hostname
+
+  try {
+    const { address } = await dns.lookup(hostname)
+
+    if (isPrivateOrReservedIP(address)) {
+      logger.warn('URL resolves to blocked IP address', {
+        paramName,
+        hostname,
+        resolvedIP: address,
+      })
+      return {
+        isValid: false,
+        error: `${paramName} resolves to a blocked IP address`,
+      }
+    }
+
+    return {
+      isValid: true,
+      resolvedIP: address,
+      originalHostname: hostname,
+    }
+  } catch (error) {
+    logger.warn('DNS lookup failed for URL', {
+      paramName,
+      hostname,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} hostname could not be resolved`,
+    }
+  }
+}
+
+/**
+ * Creates a fetch URL that uses a resolved IP address to prevent DNS rebinding
+ *
+ * @param originalUrl - The original URL
+ * @param resolvedIP - The resolved IP address to use
+ * @returns The URL with IP substituted for hostname
+ */
+export function createPinnedUrl(originalUrl: string, resolvedIP: string): string {
+  const parsed = new URL(originalUrl)
+  const port = parsed.port ? `:${parsed.port}` : ''
+  return `${parsed.protocol}//${resolvedIP}${port}${parsed.pathname}${parsed.search}`
 }
