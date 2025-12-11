@@ -111,6 +111,7 @@ export async function executeWorkflowCore(
     let edges: Edge[]
     let loops
     let parallels
+    let deploymentVersionId: string | undefined
 
     // Use workflowStateOverride if provided (for diff workflows)
     if (metadata.workflowStateOverride) {
@@ -118,6 +119,7 @@ export async function executeWorkflowCore(
       edges = metadata.workflowStateOverride.edges
       loops = metadata.workflowStateOverride.loops || {}
       parallels = metadata.workflowStateOverride.parallels || {}
+      deploymentVersionId = metadata.workflowStateOverride.deploymentVersionId
 
       logger.info(`[${requestId}] Using workflow state override (diff workflow execution)`, {
         blocksCount: Object.keys(blocks).length,
@@ -144,6 +146,7 @@ export async function executeWorkflowCore(
       edges = deployedData.edges
       loops = deployedData.loops
       parallels = deployedData.parallels
+      deploymentVersionId = deployedData.deploymentVersionId
 
       logger.info(`[${requestId}] Using deployed workflow state (deployed execution)`)
     }
@@ -174,6 +177,7 @@ export async function executeWorkflowCore(
       workspaceId: providedWorkspaceId,
       variables,
       skipLogCreation, // Skip if resuming an existing execution
+      deploymentVersionId, // Only set for deployed executions
     })
 
     // Process block states with env var substitution using pre-decrypted values

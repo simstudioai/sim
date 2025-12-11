@@ -293,6 +293,10 @@ export const workflowExecutionLogs = pgTable(
     stateSnapshotId: text('state_snapshot_id')
       .notNull()
       .references(() => workflowExecutionSnapshots.id),
+    deploymentVersionId: text('deployment_version_id').references(
+      () => workflowDeploymentVersion.id,
+      { onDelete: 'set null' }
+    ),
 
     level: text('level').notNull(), // 'info', 'error'
     trigger: text('trigger').notNull(), // 'api', 'webhook', 'schedule', 'manual', 'chat'
@@ -310,6 +314,9 @@ export const workflowExecutionLogs = pgTable(
     workflowIdIdx: index('workflow_execution_logs_workflow_id_idx').on(table.workflowId),
     stateSnapshotIdIdx: index('workflow_execution_logs_state_snapshot_id_idx').on(
       table.stateSnapshotId
+    ),
+    deploymentVersionIdIdx: index('workflow_execution_logs_deployment_version_id_idx').on(
+      table.deploymentVersionId
     ),
     triggerIdx: index('workflow_execution_logs_trigger_idx').on(table.trigger),
     levelIdx: index('workflow_execution_logs_level_idx').on(table.level),

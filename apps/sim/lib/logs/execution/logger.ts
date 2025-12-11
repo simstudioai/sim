@@ -113,11 +113,13 @@ export class ExecutionLogger implements IExecutionLoggerService {
     trigger: ExecutionTrigger
     environment: ExecutionEnvironment
     workflowState: WorkflowState
+    deploymentVersionId?: string
   }): Promise<{
     workflowLog: WorkflowExecutionLog
     snapshot: WorkflowExecutionSnapshot
   }> {
-    const { workflowId, executionId, trigger, environment, workflowState } = params
+    const { workflowId, executionId, trigger, environment, workflowState, deploymentVersionId } =
+      params
 
     logger.debug(`Starting workflow execution ${executionId} for workflow ${workflowId}`)
 
@@ -168,6 +170,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         workflowId,
         executionId,
         stateSnapshotId: snapshotResult.snapshot.id,
+        deploymentVersionId: deploymentVersionId ?? null,
         level: 'info',
         trigger: trigger.type,
         startedAt: startTime,

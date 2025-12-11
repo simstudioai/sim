@@ -40,6 +40,10 @@ export interface NormalizedWorkflowData {
   isFromNormalizedTables: boolean // Flag to indicate source (true = normalized tables, false = deployed state)
 }
 
+export interface DeployedWorkflowData extends NormalizedWorkflowData {
+  deploymentVersionId: string
+}
+
 export async function blockExistsInDeployment(
   workflowId: string,
   blockId: string
@@ -68,12 +72,11 @@ export async function blockExistsInDeployment(
   }
 }
 
-export async function loadDeployedWorkflowState(
-  workflowId: string
-): Promise<NormalizedWorkflowData> {
+export async function loadDeployedWorkflowState(workflowId: string): Promise<DeployedWorkflowData> {
   try {
     const [active] = await db
       .select({
+        id: workflowDeploymentVersion.id,
         state: workflowDeploymentVersion.state,
         createdAt: workflowDeploymentVersion.createdAt,
       })
@@ -99,6 +102,7 @@ export async function loadDeployedWorkflowState(
       loops: state.loops || {},
       parallels: state.parallels || {},
       isFromNormalizedTables: false,
+      deploymentVersionId: active.id,
     }
   } catch (error) {
     logger.error(`Error loading deployed workflow state ${workflowId}:`, error)

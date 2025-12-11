@@ -21,6 +21,7 @@ export interface ExecutionMetadata {
     edges: Edge[]
     loops?: Record<string, any>
     parallels?: Record<string, any>
+    deploymentVersionId?: string // ID of deployment version if this is deployed state
   }
 }
 

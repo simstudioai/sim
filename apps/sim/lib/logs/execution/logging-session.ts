@@ -22,6 +22,7 @@ export interface SessionStartParams {
   variables?: Record<string, string>
   triggerData?: Record<string, unknown>
   skipLogCreation?: boolean // For resume executions - reuse existing log entry
+  deploymentVersionId?: string // ID of the deployment version used (null for manual/editor executions)
 }
 
 export interface SessionCompleteParams {
@@ -65,7 +66,8 @@ export class LoggingSession {
   }
 
   async start(params: SessionStartParams = {}): Promise<void> {
-    const { userId, workspaceId, variables, triggerData, skipLogCreation } = params
+    const { userId, workspaceId, variables, triggerData, skipLogCreation, deploymentVersionId } =
+      params
 
     try {
       this.trigger = createTriggerObject(this.triggerType, triggerData)
@@ -86,6 +88,7 @@ export class LoggingSession {
           trigger: this.trigger,
           environment: this.environment,
           workflowState: this.workflowState,
+          deploymentVersionId,
         })
 
         if (this.requestId) {
@@ -267,7 +270,7 @@ export class LoggingSession {
 
       // Fallback: create a minimal logging session without full workflow state
       try {
-        const { userId, workspaceId, variables, triggerData } = params
+        const { userId, workspaceId, variables, triggerData, deploymentVersionId } = params
         this.trigger = createTriggerObject(this.triggerType, triggerData)
         this.environment = createEnvironmentObject(
           this.workflowId,
@@ -290,6 +293,7 @@ export class LoggingSession {
           trigger: this.trigger,
           environment: this.environment,
           workflowState: this.workflowState,
+          deploymentVersionId,
         })
 
         if (this.requestId) {
