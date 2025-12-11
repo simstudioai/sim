@@ -42,46 +42,6 @@ export async function executeQuery(
 export function validateQuery(query: string): { isValid: boolean; error?: string } {
   const trimmedQuery = query.trim().toLowerCase()
 
-  // Block dangerous SQL operations
-  const dangerousPatterns = [
-    /drop\s+database/i,
-    /drop\s+schema/i,
-    /drop\s+user/i,
-    /create\s+user/i,
-    /create\s+role/i,
-    /grant\s+/i,
-    /revoke\s+/i,
-    /alter\s+user/i,
-    /alter\s+role/i,
-    /set\s+role/i,
-    /reset\s+role/i,
-    /copy\s+.*from/i,
-    /copy\s+.*to/i,
-    /lo_import/i,
-    /lo_export/i,
-    /pg_read_file/i,
-    /pg_write_file/i,
-    /pg_ls_dir/i,
-    /information_schema\.tables/i,
-    /pg_catalog/i,
-    /pg_user/i,
-    /pg_shadow/i,
-    /pg_roles/i,
-    /pg_authid/i,
-    /pg_stat_activity/i,
-    /dblink/i,
-    /\\\\copy/i,
-  ]
-
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(query)) {
-      return {
-        isValid: false,
-        error: `Query contains potentially dangerous operation: ${pattern.source}`,
-      }
-    }
-  }
-
   const allowedStatements = /^(select|insert|update|delete|with|explain|analyze|show)\s+/i
   if (!allowedStatements.test(trimmedQuery)) {
     return {

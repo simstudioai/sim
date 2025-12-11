@@ -19,7 +19,6 @@ export async function createMySQLConnection(config: MySQLConnectionConfig) {
   }
 
   if (config.ssl === 'disabled') {
-    // Don't set ssl property at all to disable SSL
   } else if (config.ssl === 'required') {
     connectionConfig.ssl = { rejectUnauthorized: true }
   } else if (config.ssl === 'preferred') {
@@ -53,42 +52,6 @@ export async function executeQuery(
 
 export function validateQuery(query: string): { isValid: boolean; error?: string } {
   const trimmedQuery = query.trim().toLowerCase()
-
-  const dangerousPatterns = [
-    /drop\s+database/i,
-    /drop\s+schema/i,
-    /drop\s+user/i,
-    /create\s+user/i,
-    /grant\s+/i,
-    /revoke\s+/i,
-    /alter\s+user/i,
-    /set\s+global/i,
-    /set\s+session/i,
-    /load\s+data/i,
-    /into\s+outfile/i,
-    /into\s+dumpfile/i,
-    /load_file\s*\(/i,
-    /system\s+/i,
-    /exec\s+/i,
-    /execute\s+immediate/i,
-    /xp_cmdshell/i,
-    /sp_configure/i,
-    /information_schema\.tables/i,
-    /mysql\.user/i,
-    /mysql\.db/i,
-    /mysql\.host/i,
-    /performance_schema/i,
-    /sys\./i,
-  ]
-
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(query)) {
-      return {
-        isValid: false,
-        error: `Query contains potentially dangerous operation: ${pattern.source}`,
-      }
-    }
-  }
 
   const allowedStatements = /^(select|insert|update|delete|with|show|describe|explain)\s+/i
   if (!allowedStatements.test(trimmedQuery)) {
