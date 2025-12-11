@@ -119,9 +119,10 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
           fileName: params.fileName,
           file: params.file,
           folderId: params.manualFolderId || params.folderSelector,
-          mimeType: params.mimeType,
-          // Optional Excel content write-after-create
-          values: params.values,
+          // Only include mimeType if it has a value (it's optional for regular uploads)
+          ...(params.mimeType && { mimeType: params.mimeType }),
+          // Only include values if provided
+          ...(params.values && { values: params.values }),
         }
       }
 

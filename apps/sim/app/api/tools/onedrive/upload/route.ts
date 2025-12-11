@@ -8,6 +8,48 @@ import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { normalizeExcelValues } from '@/tools/onedrive/utils'
 
+/**
+ * Get file extension from MIME type
+ */
+function getExtensionFromMimeType(mimeType: string): string | null {
+  const mimeToExtension: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'text/plain': 'txt',
+    'text/csv': 'csv',
+    'application/json': 'json',
+    'application/xml': 'xml',
+    'text/xml': 'xml',
+    'text/html': 'html',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    'application/msword': 'doc',
+    'application/vnd.ms-excel': 'xls',
+    'application/vnd.ms-powerpoint': 'ppt',
+    'text/markdown': 'md',
+    'application/rtf': 'rtf',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'image/svg+xml': 'svg',
+    'audio/mpeg': 'mp3',
+    'audio/mp3': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/wav': 'wav',
+    'audio/webm': 'webm',
+    'audio/ogg': 'ogg',
+    'video/mp4': 'mp4',
+    'video/quicktime': 'mov',
+    'video/x-msvideo': 'avi',
+    'video/webm': 'webm',
+    'application/zip': 'zip',
+    'application/x-zip-compressed': 'zip',
+    'application/gzip': 'gz',
+  }
+  return mimeToExtension[mimeType.toLowerCase()] || null
+}
+
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OneDriveUploadAPI')
@@ -27,9 +69,9 @@ const OneDriveUploadSchema = z.object({
   fileName: z.string().min(1, 'File name is required'),
   file: z.any().optional(), // UserFile object (optional for blank Excel creation)
   folderId: z.string().optional().nullable(),
-  mimeType: z.string().optional(),
+  mimeType: z.string().nullish(), // Accept string, null, or undefined
   // Optional Excel write-after-create inputs
-  values: ExcelValuesSchema.optional(),
+  values: ExcelValuesSchema.optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {
@@ -149,9 +191,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Ensure file name has correct extension for Excel files
+    // Ensure file name has an appropriate extension
     let fileName = validatedData.fileName
-    if (isExcelCreation && !fileName.endsWith('.xlsx')) {
+    const hasExtension = fileName.includes('.') && fileName.lastIndexOf('.') > 0
+
+    if (!hasExtension) {
+      // If no extension provided, derive from mimeType
+      const extension = getExtensionFromMimeType(mimeType)
+      if (extension) {
+        fileName = `${fileName}.${extension}`
+        logger.info(`[${requestId}] Added extension to filename: ${fileName}`)
+      }
+    } else if (isExcelCreation && !fileName.endsWith('.xlsx')) {
+      // For Excel creation, ensure .xlsx extension
       fileName = `${fileName.replace(/\.[^.]*$/, '')}.xlsx`
     }
 
