@@ -170,28 +170,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `items` | 数组 | 播放列表中的视频数组 |
 
-### `youtube_related_videos`
-
-查找与特定 YouTube 视频相关的视频。
-
-#### 输入
-
-| 参数 | 类型 | 必需 | 描述 |
-| --------- | ---- | -------- | ----------- |
-| `videoId` | 字符串 | 是 | 用于查找相关视频的 YouTube 视频 ID |
-| `maxResults` | 数字 | 否 | 返回相关视频的最大数量 \(1-50\) |
-| `pageToken` | 字符串 | 否 | 分页的页面令牌 |
-| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
-
-#### 输出
-
-| 参数 | 类型 | 描述 |
-| --------- | ---- | ----------- |
-| `items` | 数组 | 相关视频的数组 |
-
 ### `youtube_comments`
 
-从 YouTube 视频中获取评论。
+从 YouTube 视频获取评论。
 
 #### 输入
 
@@ -207,7 +188,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `items` | 数组 | 视频评论的数组 |
+| `items` | 数组 | 视频中的评论数组 |
 
 ## 注意事项
 

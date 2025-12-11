@@ -73,8 +73,9 @@ Recupera una lista de tickets de Zendesk con filtrado opcional
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos y metadatos de los tickets |
+| `tickets` | array | Array de objetos de ticket |
+| `paging` | object | Información de paginación |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_get_ticket`
 
@@ -93,8 +94,8 @@ Obtener un solo ticket por ID desde Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos del ticket |
+| `ticket` | object | Objeto de ticket |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_create_ticket`
 
@@ -122,8 +123,8 @@ Crear un nuevo ticket en Zendesk con soporte para campos personalizados
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos del ticket creado |
+| `ticket` | object | Objeto de ticket creado |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_create_tickets_bulk`
 
@@ -142,8 +143,8 @@ Crear múltiples tickets en Zendesk a la vez (máximo 100)
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Estado del trabajo de creación masiva |
+| `jobStatus` | object | Objeto de estado del trabajo |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_update_ticket`
 
@@ -171,8 +172,8 @@ Actualizar un ticket existente en Zendesk con soporte para campos personalizados
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos actualizados del ticket |
+| `ticket` | object | Objeto de ticket actualizado |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_update_tickets_bulk`
 
@@ -196,8 +197,8 @@ Actualizar múltiples tickets en Zendesk a la vez (máximo 100)
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Estado del trabajo de actualización masiva |
+| `jobStatus` | object | Objeto de estado del trabajo |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_delete_ticket`
 
@@ -216,8 +217,8 @@ Eliminar un ticket de Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Confirmación de eliminación |
+| `deleted` | boolean | Éxito de la eliminación |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_merge_tickets`
 
@@ -238,8 +239,8 @@ Fusionar múltiples tickets en un ticket objetivo
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Estado del trabajo de fusión |
+| `jobStatus` | object | Objeto de estado del trabajo |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_get_users`
 
@@ -261,8 +262,9 @@ Recuperar una lista de usuarios de Zendesk con filtrado opcional
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de usuarios y metadatos |
+| `users` | array | Array de objetos de usuario |
+| `paging` | object | Información de paginación |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_get_user`
 
@@ -281,8 +283,8 @@ Obtener un solo usuario por ID desde Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos del usuario |
+| `user` | object | Objeto de usuario |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_get_current_user`
 
@@ -300,8 +302,8 @@ Obtener el usuario actualmente autenticado desde Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos del usuario actual |
+| `user` | object | Objeto del usuario actual |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_search_users`
 
@@ -323,8 +325,9 @@ Buscar usuarios en Zendesk usando una cadena de consulta
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Resultados de búsqueda de usuarios |
+| `users` | array | Array de objetos de usuario |
+| `paging` | object | Información de paginación |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_create_user`
 
@@ -350,8 +353,8 @@ Crear un nuevo usuario en Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos del usuario creado |
+| `user` | object | Objeto del usuario creado |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_create_users_bulk`
 
@@ -370,8 +373,8 @@ Crear múltiples usuarios en Zendesk mediante importación masiva
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Estado del trabajo de creación masiva |
+| `jobStatus` | object | Objeto de estado del trabajo |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_update_user`
 
@@ -398,8 +401,8 @@ Actualizar un usuario existente en Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos actualizados del usuario |
+| `user` | object | Objeto del usuario actualizado |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_update_users_bulk`
 
@@ -418,8 +421,8 @@ Actualizar múltiples usuarios en Zendesk usando actualización masiva
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Estado del trabajo de actualización masiva |
+| `jobStatus` | object | Objeto de estado del trabajo |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_delete_user`
 
@@ -438,8 +441,8 @@ Eliminar un usuario de Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos del usuario eliminado |
+| `deleted` | boolean | Éxito de eliminación |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_get_organizations`
 
@@ -459,8 +462,9 @@ Obtener una lista de organizaciones de Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos y metadatos de las organizaciones |
+| `organizations` | array | Array de objetos de organización |
+| `paging` | object | Información de paginación |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_get_organization`
 
@@ -479,8 +483,8 @@ Obtener una única organización por ID desde Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de la organización |
+| `organization` | object | Objeto de organización |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_autocomplete_organizations`
 
@@ -501,8 +505,9 @@ Autocompletar organizaciones en Zendesk por prefijo de nombre (para coincidencia
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Resultados de búsqueda de organizaciones |
+| `organizations` | array | Array de objetos de organización |
+| `paging` | object | Información de paginación |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_create_organization`
 
@@ -526,8 +531,8 @@ Crear una nueva organización en Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de la organización creada |
+| `organization` | object | Objeto de organización creada |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_create_organizations_bulk`
 
@@ -546,8 +551,8 @@ Crear múltiples organizaciones en Zendesk mediante importación masiva
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Estado del trabajo de creación masiva |
+| `jobStatus` | object | Objeto de estado del trabajo |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_update_organization`
 
@@ -572,8 +577,8 @@ Actualizar una organización existente en Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de la organización actualizada |
+| `organization` | object | Objeto de organización actualizada |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_delete_organization`
 
@@ -592,8 +597,8 @@ Eliminar una organización de Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de la organización eliminada |
+| `deleted` | boolean | Éxito de eliminación |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_search`
 
@@ -616,8 +621,9 @@ Búsqueda unificada a través de tickets, usuarios y organizaciones en Zendesk
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Resultados de la búsqueda |
+| `results` | array | Array de objetos de resultado |
+| `paging` | object | Información de paginación |
+| `metadata` | object | Metadatos de la operación |
 
 ### `zendesk_search_count`
 
@@ -636,8 +642,8 @@ Contar el número de resultados de búsqueda que coinciden con una consulta en Z
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Resultado del recuento de búsqueda |
+| `count` | number | Número de resultados coincidentes |
+| `metadata` | object | Metadatos de la operación |
 
 ## Notas
 
