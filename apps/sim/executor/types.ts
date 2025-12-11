@@ -190,6 +190,7 @@ export interface ExecutionContext {
       completedCount: number
       totalExpectedNodes: number
       parallelType?: 'count' | 'collection'
+      items?: any[]
     }
   >
 
@@ -223,6 +224,9 @@ export interface ExecutionContext {
 
   // Cancellation support
   isCancelled?: boolean
+
+  // Dynamically added nodes that need to be scheduled (e.g., from parallel expansion)
+  pendingDynamicNodes?: string[]
 }
 
 export interface ExecutionResult {

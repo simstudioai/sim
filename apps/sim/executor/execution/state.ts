@@ -22,6 +22,7 @@ export interface ParallelScope {
   branchOutputs: Map<number, NormalizedBlockOutput[]>
   completedCount: number
   totalExpectedNodes: number
+  items?: any[]
 }
 
 export class ExecutionState implements BlockStateController {
