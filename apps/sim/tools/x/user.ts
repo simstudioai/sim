@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
-import type { XUser, XUserParams, XUserResponse } from '@/tools/x/types'
+import type { XUserParams, XUserResponse } from '@/tools/x/types'
+import { transformUser } from '@/tools/x/types'
 
 const logger = createLogger('XUserTool')
 
@@ -85,21 +86,7 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
       }
 
       const userData = responseData.data
-
-      // Create the base user object with defensive coding for missing properties
-      const user: XUser = {
-        id: userData.id,
-        username: userData.username,
-        name: userData.name || '',
-        description: userData.description || '',
-        profileImageUrl: userData.profile_image_url || '',
-        verified: !!userData.verified,
-        metrics: {
-          followersCount: userData.public_metrics?.followers_count || 0,
-          followingCount: userData.public_metrics?.following_count || 0,
-          tweetCount: userData.public_metrics?.tweet_count || 0,
-        },
-      }
+      const user = transformUser(userData)
 
       return {
         success: true,

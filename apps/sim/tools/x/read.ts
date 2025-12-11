@@ -1,5 +1,9 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XReadParams, XReadResponse, XTweet } from '@/tools/x/types'
+import { transformTweet } from '@/tools/x/types'
+
+const logger = createLogger('XReadTool')
 
 export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
   id: 'x_read',
@@ -39,11 +43,36 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
         'author_id',
         'in_reply_to_user_id',
         'referenced_tweets.id',
+        'referenced_tweets.id.author_id',
         'attachments.media_keys',
         'attachments.poll_ids',
       ].join(',')
 
-      return `https://api.twitter.com/2/tweets/${params.tweetId}?expansions=${expansions}`
+      const tweetFields = [
+        'created_at',
+        'conversation_id',
+        'in_reply_to_user_id',
+        'attachments',
+        'context_annotations',
+        'public_metrics',
+      ].join(',')
+
+      const userFields = [
+        'name',
+        'username',
+        'description',
+        'profile_image_url',
+        'verified',
+        'public_metrics',
+      ].join(',')
+
+      const queryParams = new URLSearchParams({
+        expansions,
+        'tweet.fields': tweetFields,
+        'user.fields': userFields,
+      })
+
+      return `https://api.twitter.com/2/tweets/${params.tweetId}?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -52,39 +81,79 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     const data = await response.json()
 
-    const transformTweet = (tweet: any): XTweet => ({
-      id: tweet.id,
-      text: tweet.text,
-      createdAt: tweet.created_at,
-      authorId: tweet.author_id,
-      conversationId: tweet.conversation_id,
-      inReplyToUserId: tweet.in_reply_to_user_id,
-      attachments: {
-        mediaKeys: tweet.attachments?.media_keys,
-        pollId: tweet.attachments?.poll_ids?.[0],
-      },
-    })
+    if (data.errors && !data.data) {
+      logger.error('X Read API Error:', JSON.stringify(data, null, 2))
+      return {
+        success: false,
+        error: data.errors?.[0]?.detail || data.errors?.[0]?.message || 'Failed to fetch tweet',
+        output: {
+          tweet: {} as XTweet,
+        },
+      }
+    }
 
     const mainTweet = transformTweet(data.data)
     const context: { parentTweet?: XTweet; rootTweet?: XTweet } = {}
 
-    // Get parent and root tweets if available
     if (data.includes?.tweets) {
       const referencedTweets = data.data.referenced_tweets || []
       const parentTweetRef = referencedTweets.find((ref: any) => ref.type === 'replied_to')
-      const rootTweetRef = referencedTweets.find((ref: any) => ref.type === 'replied_to_root')
+      const quotedTweetRef = referencedTweets.find((ref: any) => ref.type === 'quoted')
 
       if (parentTweetRef) {
         const parentTweet = data.includes.tweets.find((t: any) => t.id === parentTweetRef.id)
         if (parentTweet) context.parentTweet = transformTweet(parentTweet)
       }
 
-      if (rootTweetRef) {
-        const rootTweet = data.includes.tweets.find((t: any) => t.id === rootTweetRef.id)
-        if (rootTweet) context.rootTweet = transformTweet(rootTweet)
+      if (!parentTweetRef && quotedTweetRef) {
+        const quotedTweet = data.includes.tweets.find((t: any) => t.id === quotedTweetRef.id)
+        if (quotedTweet) context.rootTweet = transformTweet(quotedTweet)
+      }
+    }
+
+    let replies: XTweet[] = []
+    if (params?.includeReplies && mainTweet.id) {
+      try {
+        const repliesExpansions = ['author_id', 'referenced_tweets.id'].join(',')
+        const repliesTweetFields = [
+          'created_at',
+          'conversation_id',
+          'in_reply_to_user_id',
+          'public_metrics',
+        ].join(',')
+
+        const conversationId = mainTweet.conversationId || mainTweet.id
+        const searchQuery = `conversation_id:${conversationId}`
+        const searchParams = new URLSearchParams({
+          query: searchQuery,
+          expansions: repliesExpansions,
+          'tweet.fields': repliesTweetFields,
+          max_results: '100', // Max allowed
+        })
+
+        const repliesResponse = await fetch(
+          `https://api.twitter.com/2/tweets/search/recent?${searchParams.toString()}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${params?.accessToken || ''}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+
+        const repliesData = await repliesResponse.json()
+
+        if (repliesData.data && Array.isArray(repliesData.data)) {
+          replies = repliesData.data
+            .filter((tweet: any) => tweet.id !== mainTweet.id)
+            .map(transformTweet)
+        }
+      } catch (error) {
+        logger.warn('Failed to fetch replies:', error)
       }
     }
 
@@ -92,7 +161,8 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
       success: true,
       output: {
         tweet: mainTweet,
-        context,
+        replies: replies.length > 0 ? replies : undefined,
+        context: Object.keys(context).length > 0 ? context : undefined,
       },
     }
   },
