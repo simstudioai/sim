@@ -169,7 +169,7 @@ export function WorkflowList({
     if (lastScrolledWorkflowRef.current === workflowId) return
     lastScrolledWorkflowRef.current = workflowId
 
-    // Scroll after render if element is off-screen
+    // Scroll after render only if element is completely off-screen
     requestAnimationFrame(() => {
       const element = document.querySelector(`[data-item-id="${workflowId}"]`)
       const container = scrollContainerRef.current
@@ -178,6 +178,7 @@ export function WorkflowList({
       const { top: elTop, bottom: elBottom } = element.getBoundingClientRect()
       const { top: ctTop, bottom: ctBottom } = container.getBoundingClientRect()
 
+      // Only scroll if completely above or below the visible area
       if (elBottom <= ctTop || elTop >= ctBottom) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
