@@ -28,8 +28,8 @@
   "overrides": {
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "next": "16.0.7",
-    "@next/env": "16.0.7",
+    "next": "16.0.9",
+    "@next/env": "16.0.9",
     "drizzle-orm": "^0.44.5",
     "postgres": "^3.4.5"
   },
@@ -56,7 +56,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
-    "@next/env": "16.0.7",
+    "@next/env": "16.0.9",
     "@octokit/rest": "^21.0.0",
     "@tailwindcss/typography": "0.5.19",
     "@types/nodemailer": "7.0.4",
