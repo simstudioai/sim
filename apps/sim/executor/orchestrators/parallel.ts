@@ -10,6 +10,7 @@ import {
   extractBranchIndex,
   parseDistributionItems,
 } from '@/executor/utils/subflow-utils'
+import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedParallel } from '@/serializer/types'
 
 const logger = createLogger('ParallelOrchestrator')
@@ -29,10 +30,16 @@ export interface ParallelAggregationResult {
 }
 
 export class ParallelOrchestrator {
+  private resolver: VariableResolver | null = null
+
   constructor(
     private dag: DAG,
     private state: BlockStateWriter
   ) {}
+
+  setResolver(resolver: VariableResolver): void {
+    this.resolver = resolver
+  }
 
   initializeParallelScope(
     ctx: ExecutionContext,
@@ -40,18 +47,81 @@ export class ParallelOrchestrator {
     totalBranches: number,
     terminalNodesCount = 1
   ): ParallelScope {
+    const parallelConfig = this.dag.parallelConfigs.get(parallelId)
+    const items = parallelConfig ? this.resolveDistributionItems(ctx, parallelConfig) : undefined
+
     const scope: ParallelScope = {
       parallelId,
       totalBranches,
       branchOutputs: new Map(),
       completedCount: 0,
       totalExpectedNodes: totalBranches * terminalNodesCount,
+      items,
     }
     if (!ctx.parallelExecutions) {
       ctx.parallelExecutions = new Map()
     }
     ctx.parallelExecutions.set(parallelId, scope)
     return scope
+  }
+
+  /**
+   * Resolve distribution items at runtime, handling references like <previousBlock.items>
+   * This mirrors how LoopOrchestrator.resolveForEachItems works.
+   */
+  private resolveDistributionItems(ctx: ExecutionContext, config: SerializedParallel): any[] {
+    const rawItems = config.distribution
+
+    if (rawItems === undefined || rawItems === null) {
+      return []
+    }
+
+    // Already an array - return as-is
+    if (Array.isArray(rawItems)) {
+      return rawItems
+    }
+
+    // Object - convert to entries array (consistent with loop forEach behavior)
+    if (typeof rawItems === 'object') {
+      return Object.entries(rawItems)
+    }
+
+    // String handling
+    if (typeof rawItems === 'string') {
+      // Resolve references at runtime using the variable resolver
+      if (rawItems.startsWith('<') && rawItems.endsWith('>') && this.resolver) {
+        const resolved = this.resolver.resolveSingleReference(ctx, '', rawItems)
+        if (Array.isArray(resolved)) {
+          return resolved
+        }
+        if (typeof resolved === 'object' && resolved !== null) {
+          return Object.entries(resolved)
+        }
+        logger.warn('Distribution reference did not resolve to array or object', {
+          rawItems,
+          resolved,
+        })
+        return []
+      }
+
+      // Try to parse as JSON
+      try {
+        const normalized = rawItems.replace(/'/g, '"')
+        const parsed = JSON.parse(normalized)
+        if (Array.isArray(parsed)) {
+          return parsed
+        }
+        if (typeof parsed === 'object' && parsed !== null) {
+          return Object.entries(parsed)
+        }
+        return []
+      } catch (error) {
+        logger.error('Failed to parse distribution items', { rawItems, error })
+        return []
+      }
+    }
+
+    return []
   }
 
   handleParallelBranchCompletion(

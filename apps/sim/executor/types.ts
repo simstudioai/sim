@@ -190,6 +190,7 @@ export interface ExecutionContext {
       completedCount: number
       totalExpectedNodes: number
       parallelType?: 'count' | 'collection'
+      items?: any[]
     }
   >
 
