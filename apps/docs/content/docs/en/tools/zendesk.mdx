@@ -76,8 +76,9 @@ Retrieve a list of tickets from Zendesk with optional filtering
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Tickets data and metadata |
+| `tickets` | array | Array of ticket objects |
+| `paging` | object | Pagination information |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_get_ticket`
 
@@ -96,8 +97,8 @@ Get a single ticket by ID from Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Ticket data |
+| `ticket` | object | Ticket object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_create_ticket`
 
@@ -125,8 +126,8 @@ Create a new ticket in Zendesk with support for custom fields
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Created ticket data |
+| `ticket` | object | Created ticket object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_create_tickets_bulk`
 
@@ -145,8 +146,8 @@ Create multiple tickets in Zendesk at once (max 100)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Bulk create job status |
+| `jobStatus` | object | Job status object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_update_ticket`
 
@@ -174,8 +175,8 @@ Update an existing ticket in Zendesk with support for custom fields
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Updated ticket data |
+| `ticket` | object | Updated ticket object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_update_tickets_bulk`
 
@@ -199,8 +200,8 @@ Update multiple tickets in Zendesk at once (max 100)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Bulk update job status |
+| `jobStatus` | object | Job status object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_delete_ticket`
 
@@ -219,8 +220,8 @@ Delete a ticket from Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Delete confirmation |
+| `deleted` | boolean | Deletion success |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_merge_tickets`
 
@@ -241,8 +242,8 @@ Merge multiple tickets into a target ticket
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Merge job status |
+| `jobStatus` | object | Job status object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_get_users`
 
@@ -264,8 +265,9 @@ Retrieve a list of users from Zendesk with optional filtering
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Users data and metadata |
+| `users` | array | Array of user objects |
+| `paging` | object | Pagination information |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_get_user`
 
@@ -284,8 +286,8 @@ Get a single user by ID from Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | User data |
+| `user` | object | User object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_get_current_user`
 
@@ -303,8 +305,8 @@ Get the currently authenticated user from Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Current user data |
+| `user` | object | Current user object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_search_users`
 
@@ -326,8 +328,9 @@ Search for users in Zendesk using a query string
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Users search results |
+| `users` | array | Array of user objects |
+| `paging` | object | Pagination information |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_create_user`
 
@@ -353,8 +356,8 @@ Create a new user in Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Created user data |
+| `user` | object | Created user object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_create_users_bulk`
 
@@ -373,8 +376,8 @@ Create multiple users in Zendesk using bulk import
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Bulk creation job status |
+| `jobStatus` | object | Job status object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_update_user`
 
@@ -401,8 +404,8 @@ Update an existing user in Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Updated user data |
+| `user` | object | Updated user object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_update_users_bulk`
 
@@ -421,8 +424,8 @@ Update multiple users in Zendesk using bulk update
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Bulk update job status |
+| `jobStatus` | object | Job status object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_delete_user`
 
@@ -441,8 +444,8 @@ Delete a user from Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deleted user data |
+| `deleted` | boolean | Deletion success |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_get_organizations`
 
@@ -462,8 +465,9 @@ Retrieve a list of organizations from Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Organizations data and metadata |
+| `organizations` | array | Array of organization objects |
+| `paging` | object | Pagination information |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_get_organization`
 
@@ -482,8 +486,8 @@ Get a single organization by ID from Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Organization data |
+| `organization` | object | Organization object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_autocomplete_organizations`
 
@@ -504,8 +508,9 @@ Autocomplete organizations in Zendesk by name prefix (for name matching/autocomp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Organizations search results |
+| `organizations` | array | Array of organization objects |
+| `paging` | object | Pagination information |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_create_organization`
 
@@ -529,8 +534,8 @@ Create a new organization in Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Created organization data |
+| `organization` | object | Created organization object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_create_organizations_bulk`
 
@@ -549,8 +554,8 @@ Create multiple organizations in Zendesk using bulk import
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Bulk creation job status |
+| `jobStatus` | object | Job status object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_update_organization`
 
@@ -575,8 +580,8 @@ Update an existing organization in Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Updated organization data |
+| `organization` | object | Updated organization object |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_delete_organization`
 
@@ -595,8 +600,8 @@ Delete an organization from Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deleted organization data |
+| `deleted` | boolean | Deletion success |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_search`
 
@@ -619,8 +624,9 @@ Unified search across tickets, users, and organizations in Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Search results |
+| `results` | array | Array of result objects |
+| `paging` | object | Pagination information |
+| `metadata` | object | Operation metadata |
 
 ### `zendesk_search_count`
 
@@ -639,8 +645,8 @@ Count the number of search results matching a query in Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Search count result |
+| `count` | number | Number of matching results |
+| `metadata` | object | Operation metadata |
 
 
 

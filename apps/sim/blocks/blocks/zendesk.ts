@@ -504,7 +504,48 @@ export const ZendeskBlock: BlockConfig = {
     subdomain: { type: 'string', description: 'Zendesk subdomain' },
   },
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: { type: 'json', description: 'Operation result data' },
+    // Ticket operations - list
+    tickets: { type: 'json', description: 'Array of ticket objects (get_tickets)' },
+    // Ticket operations - single
+    ticket: {
+      type: 'json',
+      description: 'Single ticket object (get_ticket, create_ticket, update_ticket)',
+    },
+    // User operations - list
+    users: { type: 'json', description: 'Array of user objects (get_users, search_users)' },
+    // User operations - single
+    user: {
+      type: 'json',
+      description: 'Single user object (get_user, get_current_user, create_user, update_user)',
+    },
+    // Organization operations - list
+    organizations: {
+      type: 'json',
+      description: 'Array of organization objects (get_organizations, autocomplete_organizations)',
+    },
+    // Organization operations - single
+    organization: {
+      type: 'json',
+      description:
+        'Single organization object (get_organization, create_organization, update_organization)',
+    },
+    // Search operations
+    results: { type: 'json', description: 'Array of search result objects (search)' },
+    count: { type: 'number', description: 'Number of matching results (search_count)' },
+    // Bulk/async operations
+    jobStatus: {
+      type: 'json',
+      description:
+        'Job status for async operations (create_tickets_bulk, update_tickets_bulk, merge_tickets, create_users_bulk, update_users_bulk, create_organizations_bulk)',
+    },
+    // Delete operations
+    deleted: {
+      type: 'boolean',
+      description: 'Deletion confirmation (delete_ticket, delete_user, delete_organization)',
+    },
+    // Pagination (shared across list operations)
+    paging: { type: 'json', description: 'Pagination information for list operations' },
+    // Metadata (shared across all operations)
+    metadata: { type: 'json', description: 'Operation metadata including operation type' },
   },
 }

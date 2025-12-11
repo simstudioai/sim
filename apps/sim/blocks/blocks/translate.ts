@@ -1,28 +1,15 @@
 import { TranslateIcon } from '@/components/icons'
 import { isHosted } from '@/lib/core/config/environment'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
-import {
-  getAllModelProviders,
-  getHostedModels,
-  getProviderIcon,
-  providers,
-} from '@/providers/utils'
+import { getHostedModels, getProviderIcon, providers } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 
 const getCurrentOllamaModels = () => {
   return useProvidersStore.getState().providers.ollama.models
 }
 
-const getTranslationPrompt = (
-  targetLanguage: string
-) => `You are a highly skilled translator. Your task is to translate the given text into ${targetLanguage || 'English'} while:
-1. Preserving the original meaning and nuance
-2. Maintaining appropriate formality levels
-3. Adapting idioms and cultural references appropriately
-4. Preserving formatting and special characters
-5. Handling technical terms accurately
-
-Only return the translated text without any explanations or notes. The translation should be natural and fluent in ${targetLanguage || 'English'}.`
+const getTranslationPrompt = (targetLanguage: string) =>
+  `Translate the following text into ${targetLanguage || 'English'}. Output ONLY the translated text with no additional commentary, explanations, or notes.`
 
 export const TranslateBlock: BlockConfig = {
   type: 'translate',
@@ -123,19 +110,17 @@ export const TranslateBlock: BlockConfig = {
     },
   ],
   tools: {
-    access: ['openai_chat', 'anthropic_chat', 'google_chat'],
+    access: ['llm_chat'],
     config: {
-      tool: (params: Record<string, any>) => {
-        const model = params.model || 'gpt-4o'
-        if (!model) {
-          throw new Error('No model selected')
-        }
-        const tool = getAllModelProviders()[model]
-        if (!tool) {
-          throw new Error(`Invalid model selected: ${model}`)
-        }
-        return tool
-      },
+      tool: () => 'llm_chat',
+      params: (params: Record<string, any>) => ({
+        model: params.model,
+        systemPrompt: getTranslationPrompt(params.targetLanguage || 'English'),
+        context: params.context,
+        apiKey: params.apiKey,
+        azureEndpoint: params.azureEndpoint,
+        azureApiVersion: params.azureApiVersion,
+      }),
     },
   },
   inputs: {

@@ -579,6 +579,7 @@ import {
 } from '@/tools/linear'
 import { linkedInGetProfileTool, linkedInSharePostTool } from '@/tools/linkedin'
 import { linkupSearchTool } from '@/tools/linkup'
+import { llmChatTool } from '@/tools/llm'
 import {
   mailchimpAddMemberTagsTool,
   mailchimpAddMemberTool,
@@ -1256,7 +1257,6 @@ import {
   youtubeChannelVideosTool,
   youtubeCommentsTool,
   youtubePlaylistItemsTool,
-  youtubeRelatedVideosTool,
   youtubeSearchTool,
   youtubeVideoDetailsTool,
 } from '@/tools/youtube'
@@ -1327,6 +1327,7 @@ export const tools: Record<string, ToolConfig> = {
   openai_embeddings: openAIEmbeddingsTool,
   http_request: httpRequestTool,
   huggingface_chat: huggingfaceChatTool,
+  llm_chat: llmChatTool,
   function_execute: functionExecuteTool,
   vision_tool: visionTool,
   file_parser: fileParseTool,
@@ -1526,7 +1527,6 @@ export const tools: Record<string, ToolConfig> = {
   youtube_comments: youtubeCommentsTool,
   youtube_channel_videos: youtubeChannelVideosTool,
   youtube_channel_playlists: youtubeChannelPlaylistsTool,
-  youtube_related_videos: youtubeRelatedVideosTool,
   notion_read: notionReadTool,
   notion_read_database: notionReadDatabaseTool,
   notion_write: notionWriteTool,

@@ -183,15 +183,7 @@ export const zendeskCreateTicketTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Created ticket data',
-      properties: {
-        ticket: { type: 'object', description: 'Created ticket object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
-    },
+    ticket: { type: 'object', description: 'Created ticket object' },
+    metadata: { type: 'object', description: 'Operation metadata' },
   },
 }

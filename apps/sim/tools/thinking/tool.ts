@@ -12,9 +12,9 @@ export const thinkingTool: ToolConfig<ThinkingToolParams, ThinkingToolResponse> 
     thought: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'llm-only',
       description:
-        'The thought process or instruction provided by the user in the Thinking Step block.',
+        'Your internal reasoning, analysis, or thought process. Use this to think through the problem step by step before responding.',
     },
   },
 
