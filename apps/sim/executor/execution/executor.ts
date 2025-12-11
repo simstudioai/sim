@@ -68,6 +68,7 @@ export class DAGExecutor {
     const allHandlers = createBlockHandlers()
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions, state)
     const edgeManager = new EdgeManager(dag)
+    loopOrchestrator.setEdgeManager(edgeManager)
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
       state,

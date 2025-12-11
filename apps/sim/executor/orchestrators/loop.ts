@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildLoopIndexCondition, DEFAULTS, EDGE } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
+import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
 import type { BlockStateController } from '@/executor/execution/types'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
@@ -26,11 +27,17 @@ export interface LoopContinuationResult {
 }
 
 export class LoopOrchestrator {
+  private edgeManager: EdgeManager | null = null
+
   constructor(
     private dag: DAG,
     private state: BlockStateController,
     private resolver: VariableResolver
   ) {}
+
+  setEdgeManager(edgeManager: EdgeManager): void {
+    this.edgeManager = edgeManager
+  }
 
   initializeLoopScope(ctx: ExecutionContext, loopId: string): LoopScope {
     const loopConfig = this.dag.loopConfigs.get(loopId) as SerializedLoop | undefined
@@ -216,7 +223,11 @@ export class LoopOrchestrator {
     const loopNodes = loopConfig.nodes
     const allLoopNodeIds = new Set([sentinelStartId, sentinelEndId, ...loopNodes])
 
-    let restoredCount = 0
+    // Clear deactivated edges for loop nodes so error/success edges can be re-evaluated
+    if (this.edgeManager) {
+      this.edgeManager.clearDeactivatedEdgesForNodes(allLoopNodeIds)
+    }
+
     for (const nodeId of allLoopNodeIds) {
       const nodeToRestore = this.dag.nodes.get(nodeId)
       if (!nodeToRestore) continue
@@ -224,7 +235,7 @@ export class LoopOrchestrator {
       for (const [potentialSourceId, potentialSourceNode] of this.dag.nodes) {
         if (!allLoopNodeIds.has(potentialSourceId)) continue
 
-        for (const [_, edge] of potentialSourceNode.outgoingEdges) {
+        for (const [, edge] of potentialSourceNode.outgoingEdges) {
           if (edge.target === nodeId) {
             const isBackwardEdge =
               edge.sourceHandle === EDGE.LOOP_CONTINUE ||
@@ -232,7 +243,6 @@ export class LoopOrchestrator {
 
             if (!isBackwardEdge) {
               nodeToRestore.incomingEdges.add(potentialSourceId)
-              restoredCount++
             }
           }
         }
