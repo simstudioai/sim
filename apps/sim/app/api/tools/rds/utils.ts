@@ -82,29 +82,6 @@ function parseFieldValue(field: Field): unknown {
 export function validateQuery(query: string): { isValid: boolean; error?: string } {
   const trimmedQuery = query.trim().toLowerCase()
 
-  const dangerousPatterns = [
-    /drop\s+database/i,
-    /drop\s+schema/i,
-    /drop\s+user/i,
-    /create\s+user/i,
-    /create\s+role/i,
-    /grant\s+/i,
-    /revoke\s+/i,
-    /alter\s+user/i,
-    /alter\s+role/i,
-    /set\s+role/i,
-    /reset\s+role/i,
-  ]
-
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(query)) {
-      return {
-        isValid: false,
-        error: `Query contains potentially dangerous operation: ${pattern.source}`,
-      }
-    }
-  }
-
   const allowedStatements = /^(select|insert|update|delete|with|explain|show)\s+/i
   if (!allowedStatements.test(trimmedQuery)) {
     return {

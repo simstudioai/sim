@@ -30,41 +30,11 @@ export async function createNeo4jDriver(config: Neo4jConnectionConfig) {
   return driver
 }
 
-export function validateCypherQuery(
-  query: string,
-  allowDangerousOps = false
-): { isValid: boolean; error?: string } {
+export function validateCypherQuery(query: string): { isValid: boolean; error?: string } {
   if (!query || typeof query !== 'string') {
     return {
       isValid: false,
       error: 'Query must be a non-empty string',
-    }
-  }
-
-  if (!allowDangerousOps) {
-    const dangerousPatterns = [
-      /DROP\s+DATABASE/i,
-      /DROP\s+CONSTRAINT/i,
-      /DROP\s+INDEX/i,
-      /CREATE\s+DATABASE/i,
-      /CREATE\s+CONSTRAINT/i,
-      /CREATE\s+INDEX/i,
-      /CALL\s+dbms\./i,
-      /CALL\s+db\./i,
-      /LOAD\s+CSV/i,
-      /apoc\.cypher\.run/i,
-      /apoc\.load/i,
-      /apoc\.periodic/i,
-    ]
-
-    for (const pattern of dangerousPatterns) {
-      if (pattern.test(query)) {
-        return {
-          isValid: false,
-          error:
-            'Query contains potentially dangerous operations (schema changes, system procedures, or external data loading)',
-        }
-      }
     }
   }
 

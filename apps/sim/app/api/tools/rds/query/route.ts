@@ -25,7 +25,6 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Executing RDS query on ${params.database}`)
 
-    // Validate the query
     const validation = validateQuery(params.query)
     if (!validation.isValid) {
       logger.warn(`[${requestId}] Query validation failed: ${validation.error}`)
