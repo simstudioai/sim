@@ -90,6 +90,7 @@ import {
   ShopifyIcon,
   SlackIcon,
   SmtpIcon,
+  SQSIcon,
   SshIcon,
   STTIcon,
   StagehandIcon,
@@ -113,7 +114,6 @@ import {
   ZendeskIcon,
   ZepIcon,
   ZoomIcon,
-  SQSIcon,
 } from '@/components/icons'
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>

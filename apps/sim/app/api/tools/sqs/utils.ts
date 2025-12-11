@@ -1,9 +1,5 @@
-import { SqsConnectionConfig } from "@/tools/sqs/types";
-import {
-  SendMessageCommand,
-  SendMessageCommandOutput,
-  SQSClient,
-} from "@aws-sdk/client-sqs";
+import { SendMessageCommand, type SendMessageCommandOutput, SQSClient } from '@aws-sdk/client-sqs'
+import type { SqsConnectionConfig } from '@/tools/sqs/types'
 
 export function createSqsClient(config: SqsConnectionConfig): SQSClient {
   return new SQSClient({
@@ -12,7 +8,7 @@ export function createSqsClient(config: SqsConnectionConfig): SQSClient {
       accessKeyId: config.accessKeyId,
       secretAccessKey: config.secretAccessKey,
     },
-  });
+  })
 }
 
 export async function sendMessage(
@@ -26,21 +22,19 @@ export async function sendMessage(
     QueueUrl: queueUrl,
     MessageBody: JSON.stringify(data),
     MessageGroupId: messageGroupId ?? undefined,
-    ...(messageDeduplicationId
-      ? { MessageDeduplicationId: messageDeduplicationId }
-      : {}),
-  });
+    ...(messageDeduplicationId ? { MessageDeduplicationId: messageDeduplicationId } : {}),
+  })
 
-  const response = await client.send(command);
-  return parseSendMessageResponse(response);
+  const response = await client.send(command)
+  return parseSendMessageResponse(response)
 }
 
 function parseSendMessageResponse(
   response: SendMessageCommandOutput
 ): Record<string, unknown> | null {
   if (!response) {
-    return null;
+    return null
   }
 
-  return { id: response.MessageId };
+  return { id: response.MessageId }
 }

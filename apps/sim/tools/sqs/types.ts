@@ -1,21 +1,21 @@
-import type { ToolResponse } from "@/tools/types";
+import type { ToolResponse } from '@/tools/types'
 
 export interface SqsConnectionConfig {
-  region: string;
-  accessKeyId: string;
-  secretAccessKey: string;
+  region: string
+  accessKeyId: string
+  secretAccessKey: string
 }
 
 export interface SqsSendMessageParams extends SqsConnectionConfig {
-  queueUrl: string;
-  data: Record<string, unknown>;
-  messageGroupId?: string | null;
-  messageDeduplicationId?: string | null;
+  queueUrl: string
+  data: Record<string, unknown>
+  messageGroupId?: string | null
+  messageDeduplicationId?: string | null
 }
 
 export interface SqsBaseResponse extends ToolResponse {
-  output: { message: string; id?: string };
-  error?: string;
+  output: { message: string; id?: string }
+  error?: string
 }
 
 export interface SqsSendMessageResponse extends SqsBaseResponse {}

@@ -1,39 +1,37 @@
-import { createLogger } from "@/lib/logs/console/logger";
-import { randomUUID } from "crypto";
-import { type NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { createSqsClient, sendMessage } from "../utils";
+import { randomUUID } from 'crypto'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { createLogger } from '@/lib/logs/console/logger'
+import { createSqsClient, sendMessage } from '../utils'
 
-const logger = createLogger("SQSSendMessageAPI");
+const logger = createLogger('SQSSendMessageAPI')
 
 const SendMessageSchema = z.object({
-  region: z.string().min(1, "AWS region is required"),
-  accessKeyId: z.string().min(1, "AWS access key ID is required"),
-  secretAccessKey: z.string().min(1, "AWS secret access key is required"),
-  queueUrl: z.string().min(1, "Queue URL is required"),
+  region: z.string().min(1, 'AWS region is required'),
+  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
+  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
+  queueUrl: z.string().min(1, 'Queue URL is required'),
   messageGroupId: z.string().nullish(),
   messageDeduplicationId: z.string().nullish(),
   data: z.record(z.unknown()).refine((obj) => Object.keys(obj).length > 0, {
-    message: "Data object must have at least one field",
+    message: 'Data object must have at least one field',
   }),
-});
+})
 
 export async function POST(request: NextRequest) {
-  const requestId = randomUUID().slice(0, 8);
+  const requestId = randomUUID().slice(0, 8)
 
   try {
-    const body = await request.json();
-    const params = SendMessageSchema.parse(body);
+    const body = await request.json()
+    const params = SendMessageSchema.parse(body)
 
-    logger.info(
-      `[${requestId}] Sending message to SQS queue ${params.queueUrl}`
-    );
+    logger.info(`[${requestId}] Sending message to SQS queue ${params.queueUrl}`)
 
     const client = createSqsClient({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
-    });
+    })
 
     try {
       const result = await sendMessage(
@@ -42,37 +40,31 @@ export async function POST(request: NextRequest) {
         params.data,
         params.messageGroupId,
         params.messageDeduplicationId
-      );
+      )
 
-      logger.info(
-        `[${requestId}] Message sent to SQS queue ${params.queueUrl}`
-      );
+      logger.info(`[${requestId}] Message sent to SQS queue ${params.queueUrl}`)
 
       return NextResponse.json({
         message: `Message sent to SQS queue ${params.queueUrl}`,
         id: result?.id,
-      });
+      })
     } finally {
-      client.destroy();
+      client.destroy()
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
       logger.warn(`[${requestId}] Invalid request data`, {
         errors: error.errors,
-      });
+      })
       return NextResponse.json(
-        { error: "Invalid request data", details: error.errors },
+        { error: 'Invalid request data', details: error.errors },
         { status: 400 }
-      );
+      )
     }
 
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error occurred";
-    logger.error(`[${requestId}] SQS send message failed:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    logger.error(`[${requestId}] SQS send message failed:`, error)
 
-    return NextResponse.json(
-      { error: `SQS send message failed: ${errorMessage}` },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: `SQS send message failed: ${errorMessage}` }, { status: 500 })
   }
 }

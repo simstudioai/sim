@@ -1,3 +1,3 @@
-import { sendTool } from "./send";
+import { sendTool } from './send'
 
-export const sqsSendTool = sendTool;
+export const sqsSendTool = sendTool
