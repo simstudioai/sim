@@ -3,7 +3,11 @@ import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
+import {
+  getFileExtension,
+  getMimeTypeFromExtension,
+  processSingleFileToUserFile,
+} from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
@@ -22,47 +26,6 @@ const WordPressUploadSchema = z.object({
   altText: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
 })
-
-/**
- * Get MIME type from filename extension
- */
-function getMimeType(filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase() || ''
-  const mimeTypes: Record<string, string> = {
-    // Images
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    gif: 'image/gif',
-    webp: 'image/webp',
-    svg: 'image/svg+xml',
-    bmp: 'image/bmp',
-    ico: 'image/x-icon',
-    // Documents
-    pdf: 'application/pdf',
-    doc: 'application/msword',
-    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    xls: 'application/vnd.ms-excel',
-    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ppt: 'application/vnd.ms-powerpoint',
-    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    // Video
-    mp4: 'video/mp4',
-    webm: 'video/webm',
-    avi: 'video/x-msvideo',
-    mov: 'video/quicktime',
-    // Audio
-    mp3: 'audio/mpeg',
-    wav: 'audio/wav',
-    ogg: 'audio/ogg',
-    // Other
-    zip: 'application/zip',
-    txt: 'text/plain',
-    csv: 'text/csv',
-    json: 'application/json',
-  }
-  return mimeTypes[ext] || 'application/octet-stream'
-}
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
@@ -146,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     // Use provided filename or fall back to the original file name
     const filename = validatedData.filename || userFile.name
-    const mimeType = userFile.type || getMimeType(filename)
+    const mimeType = userFile.type || getMimeTypeFromExtension(getFileExtension(filename))
 
     logger.info(`[${requestId}] Uploading to WordPress`, {
       siteId: validatedData.siteId,
