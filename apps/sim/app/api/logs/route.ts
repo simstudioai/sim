@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { pausedExecutions, permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import {
+  pausedExecutions,
+  permissions,
+  workflow,
+  workflowDeploymentVersion,
+  workflowExecutionLogs,
+} from '@sim/db/schema'
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -51,6 +57,7 @@ export async function GET(request: NextRequest) {
               workflowId: workflowExecutionLogs.workflowId,
               executionId: workflowExecutionLogs.executionId,
               stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
+              deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
               level: workflowExecutionLogs.level,
               trigger: workflowExecutionLogs.trigger,
               startedAt: workflowExecutionLogs.startedAt,
@@ -71,6 +78,8 @@ export async function GET(request: NextRequest) {
               pausedStatus: pausedExecutions.status,
               pausedTotalPauseCount: pausedExecutions.totalPauseCount,
               pausedResumedCount: pausedExecutions.resumedCount,
+              deploymentVersion: workflowDeploymentVersion.version,
+              deploymentVersionName: workflowDeploymentVersion.name,
             }
           : {
               // Basic mode - exclude large fields for better performance
@@ -78,6 +87,7 @@ export async function GET(request: NextRequest) {
               workflowId: workflowExecutionLogs.workflowId,
               executionId: workflowExecutionLogs.executionId,
               stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
+              deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
               level: workflowExecutionLogs.level,
               trigger: workflowExecutionLogs.trigger,
               startedAt: workflowExecutionLogs.startedAt,
@@ -98,6 +108,8 @@ export async function GET(request: NextRequest) {
               pausedStatus: pausedExecutions.status,
               pausedTotalPauseCount: pausedExecutions.totalPauseCount,
               pausedResumedCount: pausedExecutions.resumedCount,
+              deploymentVersion: workflowDeploymentVersion.version,
+              deploymentVersionName: sql<null>`NULL`, // Only needed in full mode for details panel
             }
 
       const baseQuery = db
@@ -106,6 +118,10 @@ export async function GET(request: NextRequest) {
         .leftJoin(
           pausedExecutions,
           eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+        )
+        .leftJoin(
+          workflowDeploymentVersion,
+          eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
         )
         .innerJoin(
           workflow,
@@ -397,6 +413,9 @@ export async function GET(request: NextRequest) {
           id: log.id,
           workflowId: log.workflowId,
           executionId: log.executionId,
+          deploymentVersionId: log.deploymentVersionId,
+          deploymentVersion: log.deploymentVersion ?? null,
+          deploymentVersionName: log.deploymentVersionName ?? null,
           level: log.level,
           duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
           trigger: log.trigger,

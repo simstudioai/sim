@@ -298,6 +298,8 @@ export function Terminal() {
     setOutputPanelWidth,
     openOnRun,
     setOpenOnRun,
+    wrapText,
+    setWrapText,
     setHasHydrated,
   } = useTerminalStore()
   const isExpanded = useTerminalStore((state) => state.terminalHeight > NEAR_MIN_THRESHOLD)
@@ -312,7 +314,6 @@ export function Terminal() {
   const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
   const [isToggling, setIsToggling] = useState(false)
-  const [wrapText, setWrapText] = useState(true)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showInput, setShowInput] = useState(false)
   const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
@@ -1528,7 +1529,7 @@ export function Terminal() {
                         showCheck
                         onClick={(e) => {
                           e.stopPropagation()
-                          setWrapText((prev) => !prev)
+                          setWrapText(!wrapText)
                         }}
                       >
                         <span>Wrap text</span>

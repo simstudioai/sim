@@ -193,6 +193,7 @@ async function runWorkflowExecution({
     const deployedData = await loadDeployedWorkflowState(payload.workflowId)
 
     const blocks = deployedData.blocks
+    const { deploymentVersionId } = deployedData
     logger.info(`[${requestId}] Loaded deployed workflow ${payload.workflowId}`)
 
     if (payload.blockId) {
@@ -233,6 +234,7 @@ async function runWorkflowExecution({
       userId: actorUserId,
       workspaceId: workflowRecord.workspaceId || '',
       variables: variables || {},
+      deploymentVersionId,
     })
 
     const metadata: ExecutionMetadata = {

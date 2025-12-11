@@ -209,7 +209,7 @@ export function LogDetails({
                 )}
 
                 {/* Details Section */}
-                <div className='flex flex-col'>
+                <div className='flex min-w-0 flex-col overflow-hidden'>
                   {/* Level */}
                   <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-[8px]'>
                     <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
@@ -233,14 +233,30 @@ export function LogDetails({
                   </div>
 
                   {/* Duration */}
-                  <div className='flex h-[48px] items-center justify-between p-[8px]'>
+                  <div
+                    className={`flex h-[48px] items-center justify-between border-b p-[8px] ${log.deploymentVersion ? 'border-[var(--border)]' : 'border-transparent'}`}
+                  >
                     <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
                       Duration
                     </span>
-                    <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                    <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
                       {log.duration || '—'}
                     </span>
                   </div>
+
+                  {/* Version */}
+                  {log.deploymentVersion && (
+                    <div className='flex h-[48px] items-center gap-[8px] p-[8px]'>
+                      <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
+                        Version
+                      </span>
+                      <div className='flex w-0 flex-1 justify-end'>
+                        <span className='max-w-full truncate rounded-[6px] bg-[#14291B] px-[9px] py-[2px] font-medium text-[#86EFAC] text-[12px]'>
+                          {log.deploymentVersionName || `v${log.deploymentVersion}`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Workflow State */}
