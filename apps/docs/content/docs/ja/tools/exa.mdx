@@ -46,11 +46,11 @@ Exa AIを使用してウェブを検索します。タイトル、URL、テキ�
 | `type` | string | いいえ | 検索タイプ：neural、keyword、auto、またはfast（デフォルト：auto） |
 | `includeDomains` | string | いいえ | 結果に含めるドメインのカンマ区切りリスト |
 | `excludeDomains` | string | いいえ | 結果から除外するドメインのカンマ区切りリスト |
-| `category` | string | いいえ | カテゴリによるフィルタリング：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
+| `category` | string | いいえ | カテゴリによるフィルタリング：company、research paper、news、pdf、github、tweet、personal site、linkedin profile、financial report |
 | `text` | boolean | いいえ | 結果に全文コンテンツを含める（デフォルト：false） |
 | `highlights` | boolean | いいえ | 結果にハイライトされたスニペットを含める（デフォルト：false） |
 | `summary` | boolean | いいえ | 結果にAI生成の要約を含める（デフォルト：false） |
-| `livecrawl` | string | いいえ | ライブクロールモード：always、fallback、またはnever（デフォルト：never） |
+| `livecrawl` | string | いいえ | ライブクロールモード：never（デフォルト）、fallback、always、またはpreferred（常にライブクロールを試み、失敗した場合はキャッシュにフォールバック） |
 | `apiKey` | string | はい | Exa AI APIキー |
 
 #### 出力
@@ -68,12 +68,12 @@ Exa AIを使用してウェブページのコンテンツを取得します。�
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `urls` | string | はい | コンテンツを取得するURLのカンマ区切りリスト |
-| `text` | boolean | いいえ | trueの場合、デフォルト設定でページ全文を返します。falseの場合、テキスト返却を無効にします。 |
+| `text` | boolean | いいえ | trueの場合、デフォルト設定で完全なページテキストを返します。falseの場合、テキスト返却を無効にします。 |
 | `summaryQuery` | string | いいえ | 要約生成をガイドするクエリ |
 | `subpages` | number | いいえ | 提供されたURLからクロールするサブページの数 |
-| `subpageTarget` | string | いいえ | 特定のサブページを対象とするカンマ区切りのキーワード（例："docs,tutorial,about"） |
+| `subpageTarget` | string | いいえ | 特定のサブページをターゲットにするためのカンマ区切りキーワード（例："docs,tutorial,about"） |
 | `highlights` | boolean | いいえ | 結果にハイライトされたスニペットを含める（デフォルト：false） |
-| `livecrawl` | string | いいえ | ライブクロールモード：always、fallback、またはnever（デフォルト：never） |
+| `livecrawl` | string | いいえ | ライブクロールモード：never（デフォルト）、fallback、always、またはpreferred（常にライブクロールを試み、失敗した場合はキャッシュにフォールバック） |
 | `apiKey` | string | はい | Exa AI APIキー |
 
 #### 出力
@@ -96,10 +96,9 @@ Exa AIを使用して、指定されたURLに類似したウェブページを�
 | `includeDomains` | string | いいえ | 結果に含めるドメインのカンマ区切りリスト |
 | `excludeDomains` | string | いいえ | 結果から除外するドメインのカンマ区切りリスト |
 | `excludeSourceDomain` | boolean | いいえ | 結果からソースドメインを除外する（デフォルト：false） |
-| `category` | string | いいえ | カテゴリによるフィルタリング：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
 | `highlights` | boolean | いいえ | 結果にハイライトされたスニペットを含める（デフォルト：false） |
 | `summary` | boolean | いいえ | 結果にAI生成の要約を含める（デフォルト：false） |
-| `livecrawl` | string | いいえ | ライブクロールモード：always、fallback、またはnever（デフォルト：never） |
+| `livecrawl` | string | いいえ | ライブクロールモード：never（デフォルト）、fallback、always、またはpreferred（常にライブクロールを試み、失敗した場合はキャッシュにフォールバック） |
 | `apiKey` | string | はい | Exa AI APIキー |
 
 #### 出力
