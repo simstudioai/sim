@@ -199,7 +199,7 @@ export function Knowledge() {
               </div>
             </div>
 
-            <div className='mt-[24px] grid grid-cols-1 gap-x-[20px] gap-y-[40px] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+            <div className='mt-[24px] grid grid-cols-1 gap-[20px] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
               {isLoading ? (
                 <BaseCardSkeletonGrid count={8} />
               ) : filteredAndSortedKnowledgeBases.length === 0 ? (

@@ -7,7 +7,6 @@ import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
 const logger = createLogger('StagehandExtractAPI')
 
-// Environment variables for Browserbase
 const BROWSERBASE_API_KEY = env.BROWSERBASE_API_KEY
 const BROWSERBASE_PROJECT_ID = env.BROWSERBASE_PROJECT_ID
 
@@ -21,7 +20,7 @@ const requestSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  let stagehand = null
+  let stagehand: Stagehand | null = null
 
   try {
     const body = await request.json()
@@ -42,14 +41,13 @@ export async function POST(request: NextRequest) {
     }
 
     const params = validationResult.data
-    const { url: rawUrl, instruction, selector, useTextExtract, apiKey, schema } = params
+    const { url: rawUrl, instruction, selector, apiKey, schema } = params
     const url = normalizeUrl(rawUrl)
 
     logger.info('Starting Stagehand extraction process', {
       rawUrl,
       url,
       hasInstruction: !!instruction,
-      useTextExtract: !!useTextExtract,
       schemaType: typeof schema,
     })
 
@@ -79,16 +77,16 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      logger.info('Initializing Stagehand with Browserbase')
+      logger.info('Initializing Stagehand with Browserbase (v3)')
+
       stagehand = new Stagehand({
         env: 'BROWSERBASE',
         apiKey: BROWSERBASE_API_KEY,
         projectId: BROWSERBASE_PROJECT_ID,
         verbose: 1,
         logger: (msg) => logger.info(typeof msg === 'string' ? msg : JSON.stringify(msg)),
-        disablePino: true,
-        modelName: 'gpt-4o',
-        modelClientOptions: {
+        model: {
+          modelName: 'gpt-4o',
           apiKey: apiKey,
         },
       })
@@ -97,8 +95,10 @@ export async function POST(request: NextRequest) {
       await stagehand.init()
       logger.info('Stagehand initialized successfully')
 
+      const page = stagehand.context.pages()[0]
+
       logger.info(`Navigating to ${url}`)
-      await stagehand.page.goto(url, { waitUntil: 'networkidle' })
+      await page.goto(url, { waitUntil: 'networkidle' })
       logger.info('Navigation complete')
 
       logger.info('Preparing extraction schema', {
@@ -130,32 +130,19 @@ export async function POST(request: NextRequest) {
           zodSchema = undefined
         }
 
-        const extractOptions: any = {
-          instruction,
-          useTextExtract: !!useTextExtract,
-        }
-
-        if (zodSchema) {
-          extractOptions.schema = zodSchema
-        }
-
-        if (selector) {
-          logger.info(`Using selector: ${selector}`)
-          extractOptions.selector = selector
-        }
-
-        logger.info('Calling stagehand.page.extract with options', {
-          hasInstruction: !!extractOptions.instruction,
-          hasSchema: !!extractOptions.schema,
-          hasSelector: !!extractOptions.selector,
-          useTextExtract: extractOptions.useTextExtract,
+        logger.info('Calling stagehand.extract with options', {
+          hasInstruction: !!instruction,
+          hasSchema: !!zodSchema,
+          hasSelector: !!selector,
         })
 
         let extractedData
         if (zodSchema) {
-          extractedData = await stagehand.page.extract(extractOptions)
+          extractedData = await stagehand.extract(instruction, zodSchema, {
+            selector: selector || undefined,
+          })
         } else {
-          extractedData = await stagehand.page.extract(extractOptions.instruction)
+          extractedData = await stagehand.extract(instruction)
         }
 
         logger.info('Extraction successful', {

@@ -841,6 +841,13 @@
       "when": 1765339999291,
       "tag": "0120_illegal_moon_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1765434895472,
+      "tag": "0121_new_mantis",
+      "breakpoints": true
     }
   ]
 }

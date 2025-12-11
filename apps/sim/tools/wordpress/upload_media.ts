@@ -1,9 +1,8 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
-import {
-  WORDPRESS_COM_API_BASE,
-  type WordPressUploadMediaParams,
-  type WordPressUploadMediaResponse,
-} from './types'
+import type { WordPressUploadMediaParams, WordPressUploadMediaResponse } from './types'
+
+const logger = createLogger('WordPressUploadMediaTool')
 
 export const uploadMediaTool: ToolConfig<WordPressUploadMediaParams, WordPressUploadMediaResponse> =
   {
@@ -26,16 +25,16 @@ export const uploadMediaTool: ToolConfig<WordPressUploadMediaParams, WordPressUp
         description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
       },
       file: {
-        type: 'string',
-        required: true,
-        visibility: 'user-or-llm',
-        description: 'Base64 encoded file data or URL to fetch file from',
+        type: 'file',
+        required: false,
+        visibility: 'user-only',
+        description: 'File to upload (UserFile object)',
       },
       filename: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-or-llm',
-        description: 'Filename with extension (e.g., image.jpg)',
+        description: 'Optional filename override (e.g., image.jpg)',
       },
       title: {
         type: 'string',
@@ -64,66 +63,37 @@ export const uploadMediaTool: ToolConfig<WordPressUploadMediaParams, WordPressUp
     },
 
     request: {
-      url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/media`,
+      url: () => '/api/tools/wordpress/upload',
       method: 'POST',
-      headers: (params) => {
-        // Determine content type from filename
-        const ext = params.filename.split('.').pop()?.toLowerCase() || ''
-        const mimeTypes: Record<string, string> = {
-          jpg: 'image/jpeg',
-          jpeg: 'image/jpeg',
-          png: 'image/png',
-          gif: 'image/gif',
-          webp: 'image/webp',
-          svg: 'image/svg+xml',
-          pdf: 'application/pdf',
-          mp4: 'video/mp4',
-          mp3: 'audio/mpeg',
-          wav: 'audio/wav',
-          doc: 'application/msword',
-          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        }
-        const contentType = mimeTypes[ext] || 'application/octet-stream'
-
-        return {
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${params.filename}"`,
-          Authorization: `Bearer ${params.accessToken}`,
-        }
-      },
-      body: (params) => {
-        // If the file is a base64 string, we need to decode it
-        // The body function returns the data directly for binary uploads
-        // In this case, we return the file data as-is and let the executor handle it
-        return params.file as any
-      },
+      headers: () => ({
+        'Content-Type': 'application/json',
+      }),
+      body: (params) => ({
+        accessToken: params.accessToken,
+        siteId: params.siteId,
+        file: params.file,
+        filename: params.filename,
+        title: params.title,
+        caption: params.caption,
+        altText: params.altText,
+        description: params.description,
+      }),
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.message || `WordPress API error: ${response.status}`)
-      }
-
       const data = await response.json()
+
+      if (!data.success) {
+        logger.error('Failed to upload media via custom API route', {
+          error: data.error,
+        })
+        throw new Error(data.error || 'Failed to upload media to WordPress')
+      }
 
       return {
         success: true,
         output: {
-          media: {
-            id: data.id,
-            date: data.date,
-            slug: data.slug,
-            type: data.type,
-            link: data.link,
-            title: data.title,
-            caption: data.caption,
-            alt_text: data.alt_text,
-            media_type: data.media_type,
-            mime_type: data.mime_type,
-            source_url: data.source_url,
-            media_details: data.media_details,
-          },
+          media: data.output.media,
         },
       }
     },

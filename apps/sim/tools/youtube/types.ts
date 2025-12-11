@@ -166,27 +166,6 @@ export interface YouTubeChannelPlaylistsResponse extends ToolResponse {
   }
 }
 
-export interface YouTubeRelatedVideosParams {
-  apiKey: string
-  videoId: string
-  maxResults?: number
-  pageToken?: string
-}
-
-export interface YouTubeRelatedVideosResponse extends ToolResponse {
-  output: {
-    items: Array<{
-      videoId: string
-      title: string
-      description: string
-      thumbnail: string
-      channelTitle: string
-    }>
-    totalResults: number
-    nextPageToken?: string
-  }
-}
-
 export type YouTubeResponse =
   | YouTubeSearchResponse
   | YouTubeVideoDetailsResponse
@@ -195,4 +174,3 @@ export type YouTubeResponse =
   | YouTubeCommentsResponse
   | YouTubeChannelVideosResponse
   | YouTubeChannelPlaylistsResponse
-  | YouTubeRelatedVideosResponse

@@ -12,7 +12,6 @@ import {
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
@@ -53,7 +52,7 @@ export function AddDocumentsModal({
   const [dragCounter, setDragCounter] = useState(0)
   const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(new Set())
 
-  const { isUploading, uploadProgress, uploadFiles, clearError } = useKnowledgeUpload({
+  const { isUploading, uploadProgress, uploadFiles, uploadError, clearError } = useKnowledgeUpload({
     workspaceId,
     onUploadComplete: () => {
       logger.info(`Successfully uploaded ${files.length} files`)
@@ -234,11 +233,7 @@ export function AddDocumentsModal({
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='space-y-[12px]'>
               {fileError && (
-                <Alert variant='destructive'>
-                  <AlertCircle className='h-4 w-4' />
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{fileError}</AlertDescription>
-                </Alert>
+                <p className='text-[11px] text-[var(--text-error)] leading-tight'>{fileError}</p>
               )}
 
               <div className='flex flex-col gap-[8px]'>
@@ -341,24 +336,31 @@ export function AddDocumentsModal({
           </div>
         </ModalBody>
 
-        <ModalFooter>
-          <Button variant='default' onClick={handleClose} type='button' disabled={isUploading}>
-            Cancel
-          </Button>
-          <Button
-            variant='primary'
-            type='button'
-            onClick={handleUpload}
-            disabled={files.length === 0 || isUploading}
-          >
-            {isUploading
-              ? uploadProgress.stage === 'uploading'
-                ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
-                : uploadProgress.stage === 'processing'
-                  ? 'Processing...'
-                  : 'Uploading...'
-              : 'Upload'}
-          </Button>
+        <ModalFooter className='flex-col items-stretch gap-[12px]'>
+          {uploadError && (
+            <p className='text-[11px] text-[var(--text-error)] leading-tight'>
+              {uploadError.message}
+            </p>
+          )}
+          <div className='flex justify-end gap-[8px]'>
+            <Button variant='default' onClick={handleClose} type='button' disabled={isUploading}>
+              Cancel
+            </Button>
+            <Button
+              variant='primary'
+              type='button'
+              onClick={handleUpload}
+              disabled={files.length === 0 || isUploading}
+            >
+              {isUploading
+                ? uploadProgress.stage === 'uploading'
+                  ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
+                  : uploadProgress.stage === 'processing'
+                    ? 'Processing...'
+                    : 'Uploading...'
+                : 'Upload'}
+            </Button>
+          </div>
         </ModalFooter>
       </ModalContent>
     </Modal>

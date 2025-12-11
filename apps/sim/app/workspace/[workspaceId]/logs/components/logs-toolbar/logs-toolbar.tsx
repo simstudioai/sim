@@ -343,17 +343,18 @@ export function LogsToolbar({
           </Button>
 
           {/* View mode toggle */}
-          <div className='flex h-[32px] items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-elevated)] p-[2px]'>
+          <div
+            className='flex h-[32px] cursor-pointer items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-elevated)] p-[2px]'
+            onClick={() => onViewModeChange(isDashboardView ? 'logs' : 'dashboard')}
+          >
             <Button
               variant={!isDashboardView ? 'active' : 'ghost'}
-              onClick={() => onViewModeChange('logs')}
               className='h-[26px] rounded-[4px] px-[10px]'
             >
               Logs
             </Button>
             <Button
               variant={isDashboardView ? 'active' : 'ghost'}
-              onClick={() => onViewModeChange('dashboard')}
               className='h-[26px] rounded-[4px] px-[10px]'
             >
               Dashboard

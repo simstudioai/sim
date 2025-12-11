@@ -31,39 +31,32 @@ Integrieren Sie Übersetzen in den Workflow. Kann Text in jede Sprache übersetz
 
 ## Tools
 
-### `openai_chat`
+### `llm_chat`
+
+Senden Sie eine Chat-Completion-Anfrage an jeden unterstützten LLM-Anbieter
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
+| `model` | string | Ja | Das zu verwendende Modell (z.B. gpt-4o, claude-sonnet-4-5, gemini-2.0-flash) |
+| `systemPrompt` | string | Nein | System-Prompt zur Festlegung des Assistentenverhaltens |
+| `context` | string | Ja | Die Benutzernachricht oder der Kontext, der an das Modell gesendet wird |
+| `apiKey` | string | Nein | API-Schlüssel für den Anbieter (verwendet den Plattformschlüssel, wenn für gehostete Modelle nicht angegeben) |
+| `temperature` | number | Nein | Temperatur für die Antwortgenerierung (0-2) |
+| `maxTokens` | number | Nein | Maximale Tokens in der Antwort |
+| `azureEndpoint` | string | Nein | Azure OpenAI-Endpunkt-URL |
+| `azureApiVersion` | string | Nein | Azure OpenAI API-Version |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `content` | string | Übersetzter Text |
-| `model` | string | Verwendetes Modell |
-| `tokens` | json | Token-Nutzung |
+| `content` | string | Der generierte Antwortinhalt |
+| `model` | string | Das für die Generierung verwendete Modell |
+| `tokens` | object | Informationen zur Token-Nutzung |
 
-### `anthropic_chat`
-
-### `google_chat`
-
-#### Eingabe
-
-| Parameter | Typ | Erforderlich | Beschreibung |
-| --------- | ---- | -------- | ----------- |
-
-#### Ausgabe
-
-| Parameter | Typ | Beschreibung |
-| --------- | ---- | ----------- |
-| `content` | string | Übersetzter Text |
-| `model` | string | Verwendetes Modell |
-| `tokens` | json | Token-Nutzung |
-
-## Notizen
+## Hinweise
 
 - Kategorie: `tools`
 - Typ: `translate`

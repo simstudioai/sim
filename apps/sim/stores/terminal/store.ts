@@ -20,6 +20,8 @@ interface TerminalState {
   setOutputPanelWidth: (width: number) => void
   openOnRun: boolean
   setOpenOnRun: (open: boolean) => void
+  wrapText: boolean
+  setWrapText: (wrap: boolean) => void
   /**
    * Indicates whether the terminal is currently being resized via mouse drag.
    *
@@ -35,8 +37,6 @@ interface TerminalState {
    * @param isResizing - True while the terminal is being resized.
    */
   setIsResizing: (isResizing: boolean) => void
-  // displayMode: DisplayMode
-  // setDisplayMode: (mode: DisplayMode) => void
   _hasHydrated: boolean
   setHasHydrated: (hasHydrated: boolean) => void
 }
@@ -119,10 +119,15 @@ export const useTerminalStore = create<TerminalState>()(
       setOpenOnRun: (open) => {
         set({ openOnRun: open })
       },
-      // displayMode: DEFAULT_DISPLAY_MODE,
-      // setDisplayMode: (mode) => {
-      //   set({ displayMode: mode })
-      // },
+      wrapText: true,
+      /**
+       * Enables or disables text wrapping in the output panel.
+       *
+       * @param wrap - Whether output text should wrap.
+       */
+      setWrapText: (wrap) => {
+        set({ wrapText: wrap })
+      },
       /**
        * Indicates whether the terminal store has finished client-side hydration.
        */

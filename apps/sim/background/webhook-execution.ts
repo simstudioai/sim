@@ -138,18 +138,26 @@ async function executeWebhookJobInternal(
     requestId
   )
 
+  // Track deploymentVersionId at function scope so it's available in catch block
+  let deploymentVersionId: string | undefined
+
   try {
-    const workflowData =
-      payload.executionTarget === 'live'
-        ? await loadWorkflowFromNormalizedTables(payload.workflowId)
-        : await loadDeployedWorkflowState(payload.workflowId)
+    const useDraftState = payload.executionTarget === 'live'
+    const workflowData = useDraftState
+      ? await loadWorkflowFromNormalizedTables(payload.workflowId)
+      : await loadDeployedWorkflowState(payload.workflowId)
     if (!workflowData) {
       throw new Error(
-        `Workflow state not found. The workflow may not be ${payload.executionTarget === 'live' ? 'saved' : 'deployed'} or the deployment data may be corrupted.`
+        `Workflow state not found. The workflow may not be ${useDraftState ? 'saved' : 'deployed'} or the deployment data may be corrupted.`
       )
     }
 
     const { blocks, edges, loops, parallels } = workflowData
+    // Only deployed executions have a deployment version ID
+    deploymentVersionId =
+      !useDraftState && 'deploymentVersionId' in workflowData
+        ? (workflowData.deploymentVersionId as string)
+        : undefined
 
     const wfRows = await db
       .select({ workspaceId: workflowTable.workspaceId, variables: workflowTable.variables })
@@ -229,6 +237,13 @@ async function executeWebhookJobInternal(
           useDraftState: false,
           startTime: new Date().toISOString(),
           isClientSession: false,
+          workflowStateOverride: {
+            blocks,
+            edges,
+            loops: loops || {},
+            parallels: parallels || {},
+            deploymentVersionId,
+          },
         }
 
         const snapshot = new ExecutionSnapshot(
@@ -280,6 +295,18 @@ async function executeWebhookJobInternal(
       // No changes to process
       logger.info(`[${requestId}] No Airtable changes to process`)
 
+      // Start logging session so the complete call has a log entry to update
+      await loggingSession.safeStart({
+        userId: payload.userId,
+        workspaceId: workspaceId || '',
+        variables: {},
+        triggerData: {
+          isTest: payload.testMode === true,
+          executionTarget: payload.executionTarget || 'deployed',
+        },
+        deploymentVersionId,
+      })
+
       await loggingSession.safeComplete({
         endedAt: new Date().toISOString(),
         totalDurationMs: 0,
@@ -325,6 +352,19 @@ async function executeWebhookJobInternal(
 
     if (!input && payload.provider === 'whatsapp') {
       logger.info(`[${requestId}] No messages in WhatsApp payload, skipping execution`)
+
+      // Start logging session so the complete call has a log entry to update
+      await loggingSession.safeStart({
+        userId: payload.userId,
+        workspaceId: workspaceId || '',
+        variables: {},
+        triggerData: {
+          isTest: payload.testMode === true,
+          executionTarget: payload.executionTarget || 'deployed',
+        },
+        deploymentVersionId,
+      })
+
       await loggingSession.safeComplete({
         endedAt: new Date().toISOString(),
         totalDurationMs: 0,
@@ -444,6 +484,13 @@ async function executeWebhookJobInternal(
       useDraftState: false,
       startTime: new Date().toISOString(),
       isClientSession: false,
+      workflowStateOverride: {
+        blocks,
+        edges,
+        loops: loops || {},
+        parallels: parallels || {},
+        deploymentVersionId,
+      },
     }
 
     const snapshot = new ExecutionSnapshot(metadata, workflow, input || {}, workflowVariables, [])
@@ -495,7 +542,6 @@ async function executeWebhookJobInternal(
     })
 
     try {
-      // Ensure logging session is started (safe to call multiple times)
       await loggingSession.safeStart({
         userId: payload.userId,
         workspaceId: '', // May not be available for early errors
@@ -504,6 +550,7 @@ async function executeWebhookJobInternal(
           isTest: payload.testMode === true,
           executionTarget: payload.executionTarget || 'deployed',
         },
+        deploymentVersionId, // Pass if available (undefined for early errors)
       })
 
       const executionResult = (error?.executionResult as ExecutionResult | undefined) || {

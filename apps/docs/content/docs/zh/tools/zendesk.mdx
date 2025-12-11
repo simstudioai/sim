@@ -73,8 +73,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 工单数据和元数据 |
+| `tickets` | array | 工单对象数组 |
+| `paging` | object | 分页信息 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_get_ticket`
 
@@ -93,8 +94,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 工单数据 |
+| `ticket` | object | 工单对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_create_ticket`
 
@@ -122,8 +123,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的工单数据 |
+| `ticket` | object | 创建的工单对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_create_tickets_bulk`
 
@@ -142,8 +143,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 批量创建任务状态 |
+| `jobStatus` | object | 任务状态对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_update_ticket`
 
@@ -171,8 +172,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 更新的工单数据 |
+| `ticket` | object | 更新的工单对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_update_tickets_bulk`
 
@@ -196,8 +197,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 批量更新任务状态 |
+| `jobStatus` | object | 任务状态对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_delete_ticket`
 
@@ -216,8 +217,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 删除确认 |
+| `deleted` | boolean | 删除成功 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_merge_tickets`
 
@@ -238,8 +239,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 合并任务状态 |
+| `jobStatus` | object | 任务状态对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_get_users`
 
@@ -261,8 +262,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 用户数据和元数据 |
+| `users` | array | 用户对象数组 |
+| `paging` | object | 分页信息 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_get_user`
 
@@ -281,8 +283,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 用户数据 |
+| `user` | object | 用户对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_get_current_user`
 
@@ -300,8 +302,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 当前用户数据 |
+| `user` | object | 当前用户对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_search_users`
 
@@ -323,8 +325,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 用户搜索结果 |
+| `users` | array | 用户对象数组 |
+| `paging` | object | 分页信息 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_create_user`
 
@@ -350,8 +353,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的用户数据 |
+| `user` | object | 创建的用户对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_create_users_bulk`
 
@@ -370,8 +373,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 批量创建任务状态 |
+| `jobStatus` | object | 任务状态对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_update_user`
 
@@ -398,8 +401,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 更新的用户数据 |
+| `user` | object | 更新的用户对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_update_users_bulk`
 
@@ -418,8 +421,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 批量更新任务状态 |
+| `jobStatus` | object | 任务状态对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_delete_user`
 
@@ -438,8 +441,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 已删除的用户数据 |
+| `deleted` | boolean | 删除成功 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_get_organizations`
 
@@ -459,8 +462,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 组织数据和元数据 |
+| `organizations` | array | 组织对象数组 |
+| `paging` | object | 分页信息 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_get_organization`
 
@@ -479,8 +483,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 组织数据 |
+| `organization` | object | 组织对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_autocomplete_organizations`
 
@@ -501,8 +505,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 组织搜索结果 |
+| `organizations` | array | 组织对象数组 |
+| `paging` | object | 分页信息 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_create_organization`
 
@@ -526,8 +531,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的组织数据 |
+| `organization` | object | 创建的组织对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_create_organizations_bulk`
 
@@ -546,8 +551,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 批量创建任务状态 |
+| `jobStatus` | object | 任务状态对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_update_organization`
 
@@ -572,8 +577,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 更新后的组织数据 |
+| `organization` | object | 更新的组织对象 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_delete_organization`
 
@@ -592,8 +597,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 已删除的组织数据 |
+| `deleted` | boolean | 删除成功 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_search`
 
@@ -616,8 +621,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 搜索结果 |
+| `results` | array | 结果对象的数组 |
+| `paging` | object | 分页信息 |
+| `metadata` | object | 操作元数据 |
 
 ### `zendesk_search_count`
 
@@ -636,8 +642,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 搜索计数结果 |
+| `count` | number | 匹配结果的数量 |
+| `metadata` | object | 操作元数据 |
 
 ## 注意事项
 

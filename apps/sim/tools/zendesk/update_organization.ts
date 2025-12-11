@@ -157,15 +157,7 @@ export const zendeskUpdateOrganizationTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Updated organization data',
-      properties: {
-        organization: { type: 'object', description: 'Updated organization object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
-    },
+    organization: { type: 'object', description: 'Updated organization object' },
+    metadata: { type: 'object', description: 'Operation metadata' },
   },
 }

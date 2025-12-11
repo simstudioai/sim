@@ -199,16 +199,8 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
     },
 
     outputs: {
-      success: { type: 'boolean', description: 'Operation success status' },
-      output: {
-        type: 'object',
-        description: 'Tickets data and metadata',
-        properties: {
-          tickets: { type: 'array', description: 'Array of ticket objects' },
-          paging: { type: 'object', description: 'Pagination information' },
-          metadata: { type: 'object', description: 'Operation metadata' },
-          success: { type: 'boolean', description: 'Operation success' },
-        },
-      },
+      tickets: { type: 'array', description: 'Array of ticket objects' },
+      paging: { type: 'object', description: 'Pagination information' },
+      metadata: { type: 'object', description: 'Operation metadata' },
     },
   }

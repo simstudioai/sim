@@ -250,13 +250,13 @@ Sim 与 WordPress 的集成让您的代理可以自动化处理重要的网站�
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `siteId` | 字符串 | 是 | WordPress.com 站点 ID 或域名（例如：12345678 或 mysite.wordpress.com） |
-| `file` | 字符串 | 是 | Base64 编码的文件数据或用于获取文件的 URL |
-| `filename` | 字符串 | 是 | 带扩展名的文件名（例如：image.jpg） |
-| `title` | 字符串 | 否 | 媒体标题 |
-| `caption` | 字符串 | 否 | 媒体说明 |
-| `altText` | 字符串 | 否 | 用于无障碍的替代文本 |
-| `description` | 字符串 | 否 | 媒体描述 |
+| `siteId` | string | 是 | WordPress.com 站点 ID 或域名 \(例如：12345678 或 mysite.wordpress.com\) |
+| `file` | file | 否 | 要上传的文件 \(UserFile 对象\) |
+| `filename` | string | 否 | 可选的文件名覆盖 \(例如：image.jpg\) |
+| `title` | string | 否 | 媒体标题 |
+| `caption` | string | 否 | 媒体说明 |
+| `altText` | string | 否 | 用于无障碍的替代文本 |
+| `description` | string | 否 | 媒体描述 |
 
 #### 输出
 

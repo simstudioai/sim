@@ -31,39 +31,32 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## ツール
 
-### `openai_chat`
+### `llm_chat`
+
+サポートされている任意のLLMプロバイダーにチャット完了リクエストを送信する
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
+| `model` | string | はい | 使用するモデル（例：gpt-4o、claude-sonnet-4-5、gemini-2.0-flash） |
+| `systemPrompt` | string | いいえ | アシスタントの動作を設定するシステムプロンプト |
+| `context` | string | はい | モデルに送信するユーザーメッセージまたはコンテキスト |
+| `apiKey` | string | いいえ | プロバイダーのAPIキー（ホストされたモデルの場合、提供されなければプラットフォームキーを使用） |
+| `temperature` | number | いいえ | レスポンス生成の温度（0-2） |
+| `maxTokens` | number | いいえ | レスポンスの最大トークン数 |
+| `azureEndpoint` | string | いいえ | Azure OpenAIエンドポイントURL |
+| `azureApiVersion` | string | いいえ | Azure OpenAI APIバージョン |
 
 #### 出力
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `content` | string | 翻訳されたテキスト |
-| `model` | string | 使用されたモデル |
-| `tokens` | json | トークン使用量 |
+| `content` | string | 生成されたレスポンスの内容 |
+| `model` | string | 生成に使用されたモデル |
+| `tokens` | object | トークン使用情報 |
 
-### `anthropic_chat`
-
-### `google_chat`
-
-#### 入力
-
-| パラメータ | 型 | 必須 | 説明 |
-| --------- | ---- | -------- | ----------- |
-
-#### 出力
-
-| パラメータ | 型 | 説明 |
-| --------- | ---- | ----------- |
-| `content` | string | 翻訳されたテキスト |
-| `model` | string | 使用されたモデル |
-| `tokens` | json | トークン使用量 |
-
-## メモ
+## 注意事項
 
 - カテゴリー: `tools`
 - タイプ: `translate`

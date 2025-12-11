@@ -50,7 +50,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       required: false,
       visibility: 'user-only',
       description:
-        'Filter by category: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site',
+        'Filter by category: company, research paper, news, pdf, github, tweet, personal site, linkedin profile, financial report',
     },
     text: {
       type: 'boolean',
@@ -74,7 +74,8 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Live crawling mode: always, fallback, or never (default: never)',
+      description:
+        'Live crawling mode: never (default), fallback, always, or preferred (always try livecrawl, fall back to cache if fails)',
     },
     apiKey: {
       type: 'string',

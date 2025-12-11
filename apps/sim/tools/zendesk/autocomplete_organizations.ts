@@ -129,16 +129,8 @@ export const zendeskAutocompleteOrganizationsTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Organizations search results',
-      properties: {
-        organizations: { type: 'array', description: 'Array of organization objects' },
-        paging: { type: 'object', description: 'Pagination information' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
-    },
+    organizations: { type: 'array', description: 'Array of organization objects' },
+    paging: { type: 'object', description: 'Pagination information' },
+    metadata: { type: 'object', description: 'Operation metadata' },
   },
 }

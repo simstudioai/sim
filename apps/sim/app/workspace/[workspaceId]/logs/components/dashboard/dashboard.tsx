@@ -41,6 +41,14 @@ const DEFAULT_SEGMENTS = 72
 const MIN_SEGMENT_PX = 10
 
 /**
+ * Predetermined heights for skeleton bars to avoid hydration mismatch.
+ * Using static values instead of Math.random() ensures server/client consistency.
+ */
+const SKELETON_BAR_HEIGHTS = [
+  45, 72, 38, 85, 52, 68, 30, 90, 55, 42, 78, 35, 88, 48, 65, 28, 82, 58, 40, 75, 32, 95, 50, 70,
+]
+
+/**
  * Skeleton loader for a single graph card
  */
 function GraphCardSkeleton({ title }: { title: string }) {
@@ -56,12 +64,12 @@ function GraphCardSkeleton({ title }: { title: string }) {
         <div className='flex h-[166px] flex-col justify-end gap-[4px]'>
           {/* Skeleton bars simulating chart */}
           <div className='flex items-end gap-[2px]'>
-            {Array.from({ length: 24 }).map((_, i) => (
+            {SKELETON_BAR_HEIGHTS.map((height, i) => (
               <Skeleton
                 key={i}
                 className='flex-1'
                 style={{
-                  height: `${Math.random() * 80 + 20}%`,
+                  height: `${height}%`,
                 }}
               />
             ))}
@@ -289,8 +297,18 @@ export default function Dashboard({
 
   const executions = metricsQuery.data?.workflows ?? []
   const aggregateSegments = metricsQuery.data?.aggregateSegments ?? []
-  const loading = metricsQuery.isLoading
   const error = metricsQuery.error?.message ?? null
+
+  /**
+   * Loading state logic using TanStack Query best practices:
+   * - isPending: true when there's no cached data (initial load only)
+   * - isFetching: true when any fetch is in progress
+   * - isPlaceholderData: true when showing stale data from keepPreviousData
+   *
+   * We only show skeleton on initial load (isPending + no data).
+   * For subsequent fetches, keepPreviousData shows stale content while fetching.
+   */
+  const showSkeleton = metricsQuery.isPending && !metricsQuery.data
 
   // Check if any filters are actually applied
   const hasActiveFilters = useMemo(
@@ -747,7 +765,7 @@ export default function Dashboard({
     }
   }, [refreshTrigger])
 
-  if (loading) {
+  if (showSkeleton) {
     return <DashboardSkeleton />
   }
 
@@ -793,7 +811,6 @@ export default function Dashboard({
             <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-1)] px-[14px] py-[10px]'>
               {globalDetails ? (
                 <LineChart
-                  key={`runs-${expandedWorkflowId || 'all'}-${Object.keys(selectedSegments).length}-${filteredExecutions.length}`}
                   data={globalDetails.executionCounts}
                   label=''
                   color='var(--brand-tertiary)'
@@ -822,7 +839,6 @@ export default function Dashboard({
             <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-1)] px-[14px] py-[10px]'>
               {globalDetails ? (
                 <LineChart
-                  key={`errors-${expandedWorkflowId || 'all'}-${Object.keys(selectedSegments).length}-${filteredExecutions.length}`}
                   data={globalDetails.failureCounts}
                   label=''
                   color='var(--text-error)'
@@ -851,7 +867,6 @@ export default function Dashboard({
             <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-1)] px-[14px] py-[10px]'>
               {globalDetails ? (
                 <LineChart
-                  key={`latency-${expandedWorkflowId || 'all'}-${Object.keys(selectedSegments).length}-${filteredExecutions.length}`}
                   data={globalDetails.latencies}
                   label=''
                   color='var(--c-F59E0B)'

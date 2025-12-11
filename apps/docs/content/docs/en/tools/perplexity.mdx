@@ -54,8 +54,9 @@ Generate completions using Perplexity AI chat models
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Chat completion results |
+| `content` | string | Generated text content |
+| `model` | string | Model used for generation |
+| `usage` | object | Token usage information |
 
 ### `perplexity_search`
 
@@ -79,8 +80,7 @@ Get ranked search results from Perplexity
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Search results |
+| `results` | array | Array of search results |
 
 
 

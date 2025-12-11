@@ -136,16 +136,8 @@ export const zendeskSearchUsersTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Users search results',
-      properties: {
-        users: { type: 'array', description: 'Array of user objects' },
-        paging: { type: 'object', description: 'Pagination information' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
-    },
+    users: { type: 'array', description: 'Array of user objects' },
+    paging: { type: 'object', description: 'Pagination information' },
+    metadata: { type: 'object', description: 'Operation metadata' },
   },
 }

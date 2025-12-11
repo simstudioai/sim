@@ -133,6 +133,11 @@ export function validateFileType(fileName: string, mimeType: string): FileValida
 
   const baseMimeType = mimeType.split(';')[0].trim()
 
+  // Allow empty MIME types if the extension is supported (browsers often don't recognize certain file types)
+  if (!baseMimeType) {
+    return null
+  }
+
   const allowedMimeTypes = SUPPORTED_MIME_TYPES[extension]
   if (!allowedMimeTypes.includes(baseMimeType)) {
     return {

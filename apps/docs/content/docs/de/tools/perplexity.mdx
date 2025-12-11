@@ -51,8 +51,9 @@ Generieren Sie Vervollständigungen mit Perplexity AI-Chatmodellen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Ergebnisse der Chat-Vervollständigung |
+| `content` | string | Generierter Textinhalt |
+| `model` | string | Für die Generierung verwendetes Modell |
+| `usage` | object | Informationen zur Token-Nutzung |
 
 ### `perplexity_search`
 
@@ -76,8 +77,7 @@ Erhalte bewertete Suchergebnisse von Perplexity
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Suchergebnisse |
+| `results` | array | Array von Suchergebnissen |
 
 ## Hinweise
 
