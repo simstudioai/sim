@@ -822,7 +822,7 @@ export class AgentBlockHandler implements BlockHandler {
       provider: providerId,
       model,
       systemPrompt: validMessages ? undefined : inputs.systemPrompt,
-      context: stringifyJSON(messages),
+      context: validMessages ? undefined : stringifyJSON(messages),
       tools: formattedTools,
       temperature: inputs.temperature,
       maxTokens: inputs.maxTokens,
