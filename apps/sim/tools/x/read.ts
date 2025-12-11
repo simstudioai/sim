@@ -139,7 +139,7 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
           {
             method: 'GET',
             headers: {
-              Authorization: `Bearer ${params.accessToken}`,
+              Authorization: `Bearer ${params?.accessToken || ''}`,
               'Content-Type': 'application/json',
             },
           }
