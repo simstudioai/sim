@@ -304,15 +304,44 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
 
   outputs: {
     transcript: { type: 'string', description: 'Full transcribed text' },
-    segments: { type: 'array', description: 'Timestamped segments with speaker labels' },
+    segments: {
+      type: 'array',
+      description: 'Timestamped segments with speaker labels',
+      condition: { field: 'timestamps', value: 'none', not: true },
+    },
     language: { type: 'string', description: 'Detected or specified language' },
     duration: { type: 'number', description: 'Audio duration in seconds' },
     confidence: {
       type: 'number',
-      description: 'Overall confidence score (Deepgram, AssemblyAI only)',
+      description: 'Overall confidence score',
+      condition: { field: 'provider', value: ['deepgram', 'assemblyai', 'gemini'] },
     },
-    sentiment: { type: 'array', description: 'Sentiment analysis results (AssemblyAI only)' },
-    entities: { type: 'array', description: 'Detected entities (AssemblyAI only)' },
-    summary: { type: 'string', description: 'Auto-generated summary (AssemblyAI only)' },
+    sentiment: {
+      type: 'array',
+      description: 'Sentiment analysis results',
+      condition: {
+        field: 'provider',
+        value: 'assemblyai',
+        and: { field: 'sentiment', value: true },
+      },
+    },
+    entities: {
+      type: 'array',
+      description: 'Detected entities',
+      condition: {
+        field: 'provider',
+        value: 'assemblyai',
+        and: { field: 'entityDetection', value: true },
+      },
+    },
+    summary: {
+      type: 'string',
+      description: 'Auto-generated summary',
+      condition: {
+        field: 'provider',
+        value: 'assemblyai',
+        and: { field: 'summarization', value: true },
+      },
+    },
   },
 }

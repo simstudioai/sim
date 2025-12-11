@@ -227,16 +227,16 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Transcription completed successfully`)
 
-    return NextResponse.json({
-      transcript,
-      segments,
-      language: detectedLanguage,
-      duration,
-      confidence,
-      sentiment: sentimentResults,
-      entities,
-      summary,
-    })
+    const response: Record<string, any> = { transcript }
+    if (segments !== undefined) response.segments = segments
+    if (detectedLanguage !== undefined) response.language = detectedLanguage
+    if (duration !== undefined) response.duration = duration
+    if (confidence !== undefined) response.confidence = confidence
+    if (sentimentResults !== undefined) response.sentiment = sentimentResults
+    if (entities !== undefined) response.entities = entities
+    if (summary !== undefined) response.summary = summary
+
+    return NextResponse.json(response)
   } catch (error) {
     logger.error(`[${requestId}] STT proxy error:`, error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -277,11 +277,11 @@ async function transcribeWithWhisper(
     formData.append('temperature', temperature.toString())
   }
 
+  formData.append('response_format', 'verbose_json')
+
   if (timestamps === 'word') {
-    formData.append('response_format', 'verbose_json')
     formData.append('timestamp_granularities', 'word')
   } else if (timestamps === 'sentence') {
-    formData.append('response_format', 'verbose_json')
     formData.append('timestamp_granularities', 'segment')
   }
 
@@ -302,17 +302,14 @@ async function transcribeWithWhisper(
 
   const data = await response.json()
 
-  if (timestamps === 'none') {
-    return {
-      transcript: data.text,
-      language: data.language,
-    }
+  let segments: TranscriptSegment[] | undefined
+  if (timestamps !== 'none') {
+    segments = (data.segments || data.words || []).map((seg: any) => ({
+      text: seg.text,
+      start: seg.start,
+      end: seg.end,
+    }))
   }
-  const segments: TranscriptSegment[] = (data.segments || data.words || []).map((seg: any) => ({
-    text: seg.text,
-    start: seg.start,
-    end: seg.end,
-  }))
 
   return {
     transcript: data.text,
