@@ -250,9 +250,9 @@ Eine Mediendatei (Bild, Video, Dokument) zu WordPress.com hochladen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Ja | WordPress.com-Website-ID oder Domain \(z.B. 12345678 oder meinwebsite.wordpress.com\) |
-| `file` | string | Ja | Base64-kodierte Dateidaten oder URL, von der die Datei abgerufen werden soll |
-| `filename` | string | Ja | Dateiname mit Erweiterung \(z.B. bild.jpg\) |
+| `siteId` | string | Ja | WordPress.com-Site-ID oder Domain \(z.B. 12345678 oder mysite.wordpress.com\) |
+| `file` | file | Nein | Hochzuladende Datei \(UserFile-Objekt\) |
+| `filename` | string | Nein | Optionale Überschreibung des Dateinamens \(z.B. bild.jpg\) |
 | `title` | string | Nein | Medientitel |
 | `caption` | string | Nein | Medienunterschrift |
 | `altText` | string | Nein | Alternativer Text für Barrierefreiheit |

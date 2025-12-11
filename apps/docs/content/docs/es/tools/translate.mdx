@@ -31,37 +31,30 @@ Integra Translate en el flujo de trabajo. Puede traducir texto a cualquier idiom
 
 ## Herramientas
 
-### `openai_chat`
+### `llm_chat`
+
+Envía una solicitud de completado de chat a cualquier proveedor de LLM compatible
 
 #### Entrada
 
-| Parámetro | Tipo | Requerido | Descripción |
+| Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
+| `model` | string | Sí | El modelo a utilizar \(p. ej., gpt-4o, claude-sonnet-4-5, gemini-2.0-flash\) |
+| `systemPrompt` | string | No | Prompt del sistema para establecer el comportamiento del asistente |
+| `context` | string | Sí | El mensaje del usuario o contexto para enviar al modelo |
+| `apiKey` | string | No | Clave API para el proveedor \(usa la clave de la plataforma si no se proporciona para modelos alojados\) |
+| `temperature` | number | No | Temperatura para la generación de respuestas \(0-2\) |
+| `maxTokens` | number | No | Tokens máximos en la respuesta |
+| `azureEndpoint` | string | No | URL del endpoint de Azure OpenAI |
+| `azureApiVersion` | string | No | Versión de la API de Azure OpenAI |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `content` | string | Texto traducido |
-| `model` | string | Modelo utilizado |
-| `tokens` | json | Uso de tokens |
-
-### `anthropic_chat`
-
-### `google_chat`
-
-#### Entrada
-
-| Parámetro | Tipo | Requerido | Descripción |
-| --------- | ---- | -------- | ----------- |
-
-#### Salida
-
-| Parámetro | Tipo | Descripción |
-| --------- | ---- | ----------- |
-| `content` | string | Texto traducido |
-| `model` | string | Modelo utilizado |
-| `tokens` | json | Uso de tokens |
+| `content` | string | El contenido de la respuesta generada |
+| `model` | string | El modelo utilizado para la generación |
+| `tokens` | object | Información de uso de tokens |
 
 ## Notas
 

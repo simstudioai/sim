@@ -170,25 +170,6 @@ YouTube再生リストから動画を取得します。
 | --------- | ---- | ----------- |
 | `items` | array | プレイリスト内の動画の配列 |
 
-### `youtube_related_videos`
-
-特定のYouTube動画に関連する動画を検索します。
-
-#### 入力
-
-| パラメータ | 型 | 必須 | 説明 |
-| --------- | ---- | -------- | ----------- |
-| `videoId` | string | はい | 関連動画を検索するYouTube動画ID |
-| `maxResults` | number | いいえ | 返す関連動画の最大数（1-50） |
-| `pageToken` | string | いいえ | ページネーション用のページトークン |
-| `apiKey` | string | はい | YouTube APIキー |
-
-#### 出力
-
-| パラメータ | 型 | 説明 |
-| --------- | ---- | ----------- |
-| `items` | array | 関連動画の配列 |
-
 ### `youtube_comments`
 
 YouTube動画からコメントを取得します。
@@ -199,7 +180,7 @@ YouTube動画からコメントを取得します。
 | --------- | ---- | -------- | ----------- |
 | `videoId` | string | はい | YouTube動画ID |
 | `maxResults` | number | いいえ | 返すコメントの最大数 |
-| `order` | string | いいえ | コメントの並び順：timeまたはrelevance |
+| `order` | string | いいえ | コメントの並び順：time（時間順）またはrelevance（関連性順） |
 | `pageToken` | string | いいえ | ページネーション用のページトークン |
 | `apiKey` | string | はい | YouTube APIキー |
 
@@ -211,5 +192,5 @@ YouTube動画からコメントを取得します。
 
 ## 注意事項
 
-- カテゴリー: `tools`
+- カテゴリ: `tools`
 - タイプ: `youtube`

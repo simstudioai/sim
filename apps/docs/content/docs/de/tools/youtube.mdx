@@ -170,28 +170,9 @@ Videos aus einer YouTube-Playlist abrufen.
 | --------- | ---- | ----------- |
 | `items` | array | Array von Videos in der Playlist |
 
-### `youtube_related_videos`
-
-Finde Videos, die mit einem bestimmten YouTube-Video verwandt sind.
-
-#### Eingabe
-
-| Parameter | Typ | Erforderlich | Beschreibung |
-| --------- | ---- | -------- | ----------- |
-| `videoId` | string | Ja | YouTube-Video-ID, für die verwandte Videos gefunden werden sollen |
-| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden verwandten Videos \(1-50\) |
-| `pageToken` | string | Nein | Page-Token für Paginierung |
-| `apiKey` | string | Ja | YouTube API-Schlüssel |
-
-#### Ausgabe
-
-| Parameter | Typ | Beschreibung |
-| --------- | ---- | ----------- |
-| `items` | array | Array von verwandten Videos |
-
 ### `youtube_comments`
 
-Rufe Kommentare von einem YouTube-Video ab.
+Kommentare von einem YouTube-Video abrufen.
 
 #### Eingabe
 
@@ -200,7 +181,7 @@ Rufe Kommentare von einem YouTube-Video ab.
 | `videoId` | string | Ja | YouTube-Video-ID |
 | `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Kommentare |
 | `order` | string | Nein | Reihenfolge der Kommentare: time oder relevance |
-| `pageToken` | string | Nein | Page-Token für Paginierung |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
 | `apiKey` | string | Ja | YouTube API-Schlüssel |
 
 #### Ausgabe

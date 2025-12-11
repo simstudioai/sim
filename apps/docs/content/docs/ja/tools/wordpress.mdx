@@ -251,10 +251,10 @@ IDによってWordPress.comから単一のページを取得する
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `siteId` | string | はい | WordPress.comのサイトIDまたはドメイン \(例：12345678またはmysite.wordpress.com\) |
-| `file` | string | はい | Base64エンコードされたファイルデータまたはファイルを取得するURL |
-| `filename` | string | はい | 拡張子付きのファイル名 \(例：image.jpg\) |
-| `title` | string | いいえ | メディアのタイトル |
-| `caption` | string | いいえ | メディアのキャプション |
+| `file` | file | いいえ | アップロードするファイル（UserFileオブジェクト） |
+| `filename` | string | いいえ | オプションのファイル名上書き（例：image.jpg） |
+| `title` | string | いいえ | メディアタイトル |
+| `caption` | string | いいえ | メディアキャプション |
 | `altText` | string | いいえ | アクセシビリティのための代替テキスト |
 | `description` | string | いいえ | メディアの説明 |
 

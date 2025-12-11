@@ -31,39 +31,32 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 工具
 
-### `openai_chat`
+### `llm_chat`
+
+向任何支持的 LLM 提供商发送聊天完成请求
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
+| `model` | string | 是 | 要使用的模型 \(例如，gpt-4o、claude-sonnet-4-5、gemini-2.0-flash\) |
+| `systemPrompt` | string | 否 | 设置助手行为的系统提示 |
+| `context` | string | 是 | 要发送给模型的用户消息或上下文 |
+| `apiKey` | string | 否 | 提供商的 API 密钥 \(如果未为托管模型提供，则使用平台密钥\) |
+| `temperature` | number | 否 | 响应生成的温度 \(0-2\) |
+| `maxTokens` | number | 否 | 响应的最大令牌数 |
+| `azureEndpoint` | string | 否 | Azure OpenAI 端点 URL |
+| `azureApiVersion` | string | 否 | Azure OpenAI API 版本 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `content` | string | 翻译后的文本 |
-| `model` | string | 使用的模型 |
-| `tokens` | json | 令牌使用情况 |
+| `content` | string | 生成的响应内容 |
+| `model` | string | 用于生成的模型 |
+| `tokens` | object | 令牌使用信息 |
 
-### `anthropic_chat`
+## 注意
 
-### `google_chat`
-
-#### 输入
-
-| 参数 | 类型 | 必需 | 描述 |
-| --------- | ---- | -------- | ----------- |
-
-#### 输出
-
-| 参数 | 类型 | 描述 |
-| --------- | ---- | ----------- |
-| `content` | string | 翻译后的文本 |
-| `model` | string | 使用的模型 |
-| `tokens` | json | Token 使用情况 |
-
-## 注意事项
-
-- 类别：`tools`
-- 类型：`translate`
+- 类别: `tools`
+- 类型: `translate`

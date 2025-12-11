@@ -251,12 +251,12 @@ Subir un archivo multimedia (imagen, video, documento) a WordPress.com
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `siteId` | string | Sí | ID del sitio o dominio de WordPress.com \(p. ej., 12345678 o misitio.wordpress.com\) |
-| `file` | string | Sí | Datos del archivo codificados en Base64 o URL para obtener el archivo |
-| `filename` | string | Sí | Nombre del archivo con extensión \(p. ej., imagen.jpg\) |
-| `title` | string | No | Título del archivo multimedia |
-| `caption` | string | No | Leyenda del archivo multimedia |
+| `file` | file | No | Archivo para subir \(objeto UserFile\) |
+| `filename` | string | No | Anulación opcional del nombre de archivo \(p. ej., imagen.jpg\) |
+| `title` | string | No | Título del medio |
+| `caption` | string | No | Leyenda del medio |
 | `altText` | string | No | Texto alternativo para accesibilidad |
-| `description` | string | No | Descripción del archivo multimedia |
+| `description` | string | No | Descripción del medio |
 
 #### Salida
 
