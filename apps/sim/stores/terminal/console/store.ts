@@ -110,6 +110,10 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
             if (isErrorNotificationsEnabled) {
               try {
                 const errorMessage = String(newEntry.error)
+                const blockName = newEntry.blockName || 'Unknown Block'
+
+                // Copilot message includes block name for better debugging context
+                const copilotMessage = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
 
                 useNotificationStore.getState().addNotification({
                   level: 'error',
@@ -117,7 +121,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
                   workflowId: entry.workflowId,
                   action: {
                     type: 'copilot',
-                    message: errorMessage,
+                    message: copilotMessage,
                   },
                 })
               } catch (notificationError) {
