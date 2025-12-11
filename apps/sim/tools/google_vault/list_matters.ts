@@ -46,11 +46,22 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
     headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: GoogleVaultListMattersParams) => {
     const data = await response.json()
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to list matters')
     }
+    // If a specific matter was requested, wrap it in 'matter' field
+    if (params?.matterId) {
+      return { success: true, output: { matter: data } }
+    }
+    // Otherwise return the list response as-is (contains 'matters' array and 'nextPageToken')
     return { success: true, output: data }
+  },
+
+  outputs: {
+    matters: { type: 'json', description: 'Array of matter objects' },
+    matter: { type: 'json', description: 'Single matter object (when matterId is provided)' },
+    nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
   },
 }

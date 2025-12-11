@@ -41,11 +41,22 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
     headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: GoogleVaultListMattersHoldsParams) => {
     const data = await response.json()
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to list holds')
     }
+    // If a specific hold was requested, wrap it in 'hold' field
+    if (params?.holdId) {
+      return { success: true, output: { hold: data } }
+    }
+    // Otherwise return the list response as-is (contains 'holds' array and 'nextPageToken')
     return { success: true, output: data }
+  },
+
+  outputs: {
+    holds: { type: 'json', description: 'Array of hold objects' },
+    hold: { type: 'json', description: 'Single hold object (when holdId is provided)' },
+    nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
   },
 }

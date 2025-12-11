@@ -40,6 +40,10 @@ export const createMattersTool: ToolConfig<GoogleVaultCreateMattersParams> = {
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to create matter')
     }
-    return { success: true, output: data }
+    return { success: true, output: { matter: data } }
+  },
+
+  outputs: {
+    matter: { type: 'json', description: 'Created matter object' },
   },
 }

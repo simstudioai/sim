@@ -42,13 +42,22 @@ export const listMattersExportTool: ToolConfig<GoogleVaultListMattersExportParam
     headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: GoogleVaultListMattersExportParams) => {
     const data = await response.json()
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to list exports')
     }
-
-    // Return the raw API response without modifications
+    // If a specific export was requested, wrap it in 'export' field
+    if (params?.exportId) {
+      return { success: true, output: { export: data } }
+    }
+    // Otherwise return the list response as-is (contains 'exports' array and 'nextPageToken')
     return { success: true, output: data }
+  },
+
+  outputs: {
+    exports: { type: 'json', description: 'Array of export objects' },
+    export: { type: 'json', description: 'Single export object (when exportId is provided)' },
+    nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
   },
 }

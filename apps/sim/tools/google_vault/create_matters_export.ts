@@ -91,6 +91,10 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to create export')
     }
-    return { success: true, output: data }
+    return { success: true, output: { export: data } }
+  },
+
+  outputs: {
+    export: { type: 'json', description: 'Created export object' },
   },
 }

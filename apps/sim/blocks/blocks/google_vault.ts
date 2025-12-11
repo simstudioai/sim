@@ -257,9 +257,16 @@ export const GoogleVaultBlock: BlockConfig = {
     description: { type: 'string', description: 'Matter description' },
   },
   outputs: {
-    // Common outputs
-    output: { type: 'json', description: 'Vault API response data' },
-    // Download export file output
+    matters: { type: 'json', description: 'Array of matter objects (for list_matters)' },
+    exports: { type: 'json', description: 'Array of export objects (for list_matters_export)' },
+    holds: { type: 'json', description: 'Array of hold objects (for list_matters_holds)' },
+    matter: { type: 'json', description: 'Created matter object (for create_matters)' },
+    export: { type: 'json', description: 'Created export object (for create_matters_export)' },
+    hold: { type: 'json', description: 'Created hold object (for create_matters_holds)' },
     file: { type: 'json', description: 'Downloaded export file (UserFile) from execution files' },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token for fetching next page of results (for list operations)',
+    },
   },
 }
