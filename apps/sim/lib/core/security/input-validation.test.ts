@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  createPinnedUrl,
   sanitizeForLogging,
   validateAlphanumericId,
   validateEnum,
@@ -7,6 +8,7 @@ import {
   validateHostname,
   validateNumericId,
   validatePathSegment,
+  validateUrlWithDNS,
   validateUUID,
 } from '@/lib/core/security/input-validation'
 
@@ -586,5 +588,85 @@ describe('sanitizeForLogging', () => {
     const input = 'This is a safe string'
     const result = sanitizeForLogging(input)
     expect(result).toBe(input)
+  })
+})
+
+describe('validateUrlWithDNS', () => {
+  describe('basic validation', () => {
+    it('should reject invalid URLs', async () => {
+      const result = await validateUrlWithDNS('not-a-url')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('valid URL')
+    })
+
+    it('should reject http:// URLs', async () => {
+      const result = await validateUrlWithDNS('http://example.com')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('https://')
+    })
+
+    it('should reject localhost URLs', async () => {
+      const result = await validateUrlWithDNS('https://localhost/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('localhost')
+    })
+
+    it('should reject private IP URLs', async () => {
+      const result = await validateUrlWithDNS('https://192.168.1.1/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
+    it('should reject null', async () => {
+      const result = await validateUrlWithDNS(null)
+      expect(result.isValid).toBe(false)
+    })
+
+    it('should reject empty string', async () => {
+      const result = await validateUrlWithDNS('')
+      expect(result.isValid).toBe(false)
+    })
+  })
+
+  describe('DNS resolution', () => {
+    it('should accept valid public URLs and return resolved IP', async () => {
+      const result = await validateUrlWithDNS('https://example.com')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBeDefined()
+      expect(result.originalHostname).toBe('example.com')
+    })
+
+    it('should reject URLs that resolve to private IPs', async () => {
+      const result = await validateUrlWithDNS('https://localhost.localdomain')
+      expect(result.isValid).toBe(false)
+    })
+
+    it('should reject unresolvable hostnames', async () => {
+      const result = await validateUrlWithDNS('https://this-domain-does-not-exist-xyz123.invalid')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('could not be resolved')
+    })
+  })
+})
+
+describe('createPinnedUrl', () => {
+  it('should replace hostname with IP', () => {
+    const result = createPinnedUrl('https://example.com/api/data', '93.184.216.34')
+    expect(result).toBe('https://93.184.216.34/api/data')
+  })
+
+  it('should preserve port if specified', () => {
+    const result = createPinnedUrl('https://example.com:8443/api', '93.184.216.34')
+    expect(result).toBe('https://93.184.216.34:8443/api')
+  })
+
+  it('should preserve query string', () => {
+    const result = createPinnedUrl('https://example.com/api?foo=bar&baz=qux', '93.184.216.34')
+    expect(result).toBe('https://93.184.216.34/api?foo=bar&baz=qux')
+  })
+
+  it('should preserve path', () => {
+    const result = createPinnedUrl('https://example.com/a/b/c/d', '93.184.216.34')
+    expect(result).toBe('https://93.184.216.34/a/b/c/d')
   })
 })
