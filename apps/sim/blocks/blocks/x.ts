@@ -145,32 +145,23 @@ export const XBlock: BlockConfig<XResponse> = {
       params: (params) => {
         const { credential, ...rest } = params
 
-        // Convert string values to appropriate types
         const parsedParams: Record<string, any> = {
           credential: credential,
         }
 
-        // Add other params
         Object.keys(rest).forEach((key) => {
           const value = rest[key]
 
-          // Convert string boolean values to actual booleans
           if (value === 'true' || value === 'false') {
             parsedParams[key] = value === 'true'
-          }
-          // Convert numeric strings to numbers where appropriate
-          else if (key === 'maxResults' && value) {
+          } else if (key === 'maxResults' && value) {
             parsedParams[key] = Number.parseInt(value as string, 10)
-          }
-          // Handle mediaIds conversion from comma-separated string to array
-          else if (key === 'mediaIds' && typeof value === 'string') {
+          } else if (key === 'mediaIds' && typeof value === 'string') {
             parsedParams[key] = value
               .split(',')
               .map((id) => id.trim())
               .filter((id) => id !== '')
-          }
-          // Keep other values as is
-          else {
+          } else {
             parsedParams[key] = value
           }
         })
@@ -197,13 +188,49 @@ export const XBlock: BlockConfig<XResponse> = {
     includeRecentTweets: { type: 'boolean', description: 'Include recent tweets' },
   },
   outputs: {
-    tweet: { type: 'json', description: 'Tweet data' },
-    replies: { type: 'json', description: 'Tweet replies' },
-    context: { type: 'json', description: 'Tweet context' },
-    tweets: { type: 'json', description: 'Tweets data' },
-    includes: { type: 'json', description: 'Additional data' },
-    meta: { type: 'json', description: 'Response metadata' },
-    user: { type: 'json', description: 'User profile data' },
-    recentTweets: { type: 'json', description: 'Recent tweets data' },
+    // Write and Read operation outputs
+    tweet: {
+      type: 'json',
+      description: 'Tweet data including contextAnnotations and publicMetrics',
+      condition: { field: 'operation', value: ['x_write', 'x_read'] },
+    },
+    // Read operation outputs
+    replies: {
+      type: 'json',
+      description: 'Tweet replies (when includeReplies is true)',
+      condition: { field: 'operation', value: 'x_read' },
+    },
+    context: {
+      type: 'json',
+      description: 'Tweet context (parent and quoted tweets)',
+      condition: { field: 'operation', value: 'x_read' },
+    },
+    // Search operation outputs
+    tweets: {
+      type: 'json',
+      description: 'Tweets data including contextAnnotations and publicMetrics',
+      condition: { field: 'operation', value: 'x_search' },
+    },
+    includes: {
+      type: 'json',
+      description: 'Additional data (users, media, polls)',
+      condition: { field: 'operation', value: 'x_search' },
+    },
+    meta: {
+      type: 'json',
+      description: 'Response metadata',
+      condition: { field: 'operation', value: 'x_search' },
+    },
+    // User operation outputs
+    user: {
+      type: 'json',
+      description: 'User profile data',
+      condition: { field: 'operation', value: 'x_user' },
+    },
+    recentTweets: {
+      type: 'json',
+      description: 'Recent tweets data',
+      condition: { field: 'operation', value: 'x_user' },
+    },
   },
 }

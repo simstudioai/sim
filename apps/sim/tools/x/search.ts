@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
-import type { XSearchParams, XSearchResponse, XTweet, XUser } from '@/tools/x/types'
+import type { XSearchParams, XSearchResponse } from '@/tools/x/types'
+import { transformTweet, transformUser } from '@/tools/x/types'
 
 const logger = createLogger('XSearchTool')
 
@@ -67,7 +68,8 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
       const queryParams = new URLSearchParams({
         query,
         expansions,
-        'tweet.fields': 'created_at,conversation_id,in_reply_to_user_id,attachments',
+        'tweet.fields':
+          'created_at,conversation_id,in_reply_to_user_id,attachments,context_annotations,public_metrics',
         'user.fields': 'name,username,description,profile_image_url,verified,public_metrics',
       })
 
@@ -92,7 +94,6 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
   transformResponse: async (response) => {
     const data = await response.json()
 
-    // Check if data.data is undefined/null or not an array
     if (!data.data || !Array.isArray(data.data)) {
       logger.error('X Search API Error:', JSON.stringify(data, null, 2))
       return {
@@ -117,33 +118,6 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
         },
       }
     }
-
-    const transformTweet = (tweet: any): XTweet => ({
-      id: tweet.id,
-      text: tweet.text,
-      createdAt: tweet.created_at,
-      authorId: tweet.author_id,
-      conversationId: tweet.conversation_id,
-      inReplyToUserId: tweet.in_reply_to_user_id,
-      attachments: {
-        mediaKeys: tweet.attachments?.media_keys,
-        pollId: tweet.attachments?.poll_ids?.[0],
-      },
-    })
-
-    const transformUser = (user: any): XUser => ({
-      id: user.id,
-      username: user.username,
-      name: user.name,
-      description: user.description,
-      profileImageUrl: user.profile_image_url,
-      verified: user.verified,
-      metrics: {
-        followersCount: user.public_metrics.followers_count,
-        followingCount: user.public_metrics.following_count,
-        tweetCount: user.public_metrics.tweet_count,
-      },
-    })
 
     return {
       success: true,
