@@ -22,12 +22,6 @@ export async function sendMessage(
   messageGroupId?: string | null,
   messageDeduplicationId?: string | null
 ): Promise<Record<string, unknown> | null> {
-  console.log(
-    "messageDeduplicationId",
-    messageDeduplicationId,
-    messageDeduplicationId ?? undefined
-  );
-
   const command = new SendMessageCommand({
     QueueUrl: queueUrl,
     MessageBody: JSON.stringify(data),
