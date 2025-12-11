@@ -3,7 +3,6 @@ import { userStats } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { deductFromCredits } from '@/lib/billing/credits/balance'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { checkInternalApiKey } from '@/lib/copilot/utils'
 import { isBillingEnabled } from '@/lib/core/config/environment'
@@ -92,17 +91,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'User stats record not found' }, { status: 500 })
     }
 
-    const { creditsUsed, overflow } = await deductFromCredits(userId, cost)
-    if (creditsUsed > 0) {
-      logger.info(`[${requestId}] Deducted cost from credits`, { userId, creditsUsed, overflow })
-    }
-    const costToStore = overflow
-
     const updateFields = {
-      totalCost: sql`total_cost + ${costToStore}`,
-      currentPeriodCost: sql`current_period_cost + ${costToStore}`,
-      totalCopilotCost: sql`total_copilot_cost + ${costToStore}`,
-      currentPeriodCopilotCost: sql`current_period_copilot_cost + ${costToStore}`,
+      totalCost: sql`total_cost + ${cost}`,
+      currentPeriodCost: sql`current_period_cost + ${cost}`,
+      totalCopilotCost: sql`total_copilot_cost + ${cost}`,
+      currentPeriodCopilotCost: sql`current_period_copilot_cost + ${cost}`,
       totalCopilotCalls: sql`total_copilot_calls + 1`,
       lastActive: new Date(),
     }
