@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
         verbose: 1,
         logger: (msg) => logger.info(typeof msg === 'string' ? msg : JSON.stringify(msg)),
         model: {
-          modelName: 'gpt-4o',
+          modelName: 'openai/gpt-4o',
           apiKey: apiKey,
         },
       })

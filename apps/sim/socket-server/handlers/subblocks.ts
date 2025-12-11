@@ -195,8 +195,6 @@ async function flushSubblockUpdate(
           sock.emit('operation-confirmed', { operationId: opId, serverTimestamp: Date.now() })
         }
       })
-
-      logger.debug(`Flushed subblock update ${workflowId}: ${blockId}.${subblockId}`)
     } else {
       pending.opToSocket.forEach((socketId, opId) => {
         const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
