@@ -91,11 +91,11 @@ Parallel AIを使用してウェブ全体で包括的な詳細調査を実施し
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `status` | string | タスクのステータス（実行中、完了、失敗） |
+| `status` | string | タスクのステータス（完了、失敗） |
 | `run_id` | string | この調査タスクの一意のID |
-| `message` | string | ステータスメッセージ（実行中のタスク用） |
+| `message` | string | ステータスメッセージ |
 | `content` | object | 調査結果（output_schemaに基づいて構造化） |
-| `basis` | array | 引用と情報源（抜粋と信頼度レベルを含む） |
+| `basis` | array | 引用と情報源（根拠と信頼度レベルを含む） |
 
 ## 注意事項
 

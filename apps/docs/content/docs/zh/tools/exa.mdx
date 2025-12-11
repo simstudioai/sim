@@ -46,11 +46,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `type` | string | 否 | 搜索类型：neural、keyword、auto 或 fast \(默认值: auto\) |
 | `includeDomains` | string | 否 | 用逗号分隔的域名列表，包含在结果中 |
 | `excludeDomains` | string | 否 | 用逗号分隔的域名列表，从结果中排除 |
-| `category` | string | 否 | 按类别筛选：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
+| `category` | string | 否 | 按类别筛选：company、research paper、news、pdf、github、tweet、personal site、linkedin profile、financial report |
 | `text` | boolean | 否 | 在结果中包含完整文本内容 \(默认值: false\) |
 | `highlights` | boolean | 否 | 在结果中包含高亮片段 \(默认值: false\) |
 | `summary` | boolean | 否 | 在结果中包含 AI 生成的摘要 \(默认值: false\) |
-| `livecrawl` | string | 否 | 实时爬取模式：always、fallback 或 never \(默认值: never\) |
+| `livecrawl` | string | 否 | 实时爬取模式：never \(默认值\)、fallback、always 或 preferred \(始终尝试实时爬取，失败时回退到缓存\) |
 | `apiKey` | string | 是 | Exa AI API 密钥 |
 
 #### 输出
@@ -67,13 +67,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `urls` | string | 是 | 用逗号分隔的 URL 列表，用于获取内容 |
-| `text` | boolean | 否 | 如果为 true，则返回默认设置的完整页面文本。如果为 false，则禁用文本返回。 |
+| `urls` | string | 是 | 用逗号分隔的 URL 列表，用于检索内容 |
+| `text` | boolean | 否 | 如果为 true，则返回具有默认设置的完整页面文本。如果为 false，则禁用文本返回。 |
 | `summaryQuery` | string | 否 | 用于指导摘要生成的查询 |
-| `subpages` | number | 否 | 从提供的 URL 爬取的子页面数量 |
+| `subpages` | number | 否 | 从提供的 URL 中爬取的子页面数量 |
 | `subpageTarget` | string | 否 | 用逗号分隔的关键字，用于定位特定子页面 \(例如："docs,tutorial,about"\) |
 | `highlights` | boolean | 否 | 在结果中包含高亮片段 \(默认值: false\) |
-| `livecrawl` | string | 否 | 实时爬取模式：always、fallback 或 never \(默认值: never\) |
+| `livecrawl` | string | 否 | 实时爬取模式：never \(默认值\)、fallback、always 或 preferred \(始终尝试实时爬取，失败时回退到缓存\) |
 | `apiKey` | string | 是 | Exa AI API 密钥 |
 
 #### 输出
@@ -90,16 +90,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | 是 | 要查找相似链接的 URL |
+| `url` | string | 是 | 用于查找相似链接的 URL |
 | `numResults` | number | 否 | 要返回的相似链接数量 \(默认值: 10，最大值: 25\) |
 | `text` | boolean | 否 | 是否包含相似页面的完整文本 |
 | `includeDomains` | string | 否 | 用逗号分隔的域名列表，包含在结果中 |
 | `excludeDomains` | string | 否 | 用逗号分隔的域名列表，从结果中排除 |
 | `excludeSourceDomain` | boolean | 否 | 从结果中排除源域名 \(默认值: false\) |
-| `category` | string | 否 | 按类别筛选：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
 | `highlights` | boolean | 否 | 在结果中包含高亮片段 \(默认值: false\) |
 | `summary` | boolean | 否 | 在结果中包含 AI 生成的摘要 \(默认值: false\) |
-| `livecrawl` | string | 否 | 实时爬取模式：always、fallback 或 never \(默认值: never\) |
+| `livecrawl` | string | 否 | 实时爬取模式：never \(默认值\), fallback, always, 或 preferred \(始终尝试实时爬取，失败时回退到缓存\) |
 | `apiKey` | string | 是 | Exa AI API 密钥 |
 
 #### 输出

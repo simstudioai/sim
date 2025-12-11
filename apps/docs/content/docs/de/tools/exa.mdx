@@ -46,11 +46,11 @@ Durchsuchen Sie das Web mit Exa AI. Liefert relevante Suchergebnisse mit Titeln,
 | `type` | string | Nein | Suchtyp: neural, keyword, auto oder fast \(Standard: auto\) |
 | `includeDomains` | string | Nein | Kommagetrennte Liste von Domains, die in den Ergebnissen enthalten sein sollen |
 | `excludeDomains` | string | Nein | Kommagetrennte Liste von Domains, die aus den Ergebnissen ausgeschlossen werden sollen |
-| `category` | string | Nein | Nach Kategorie filtern: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `category` | string | Nein | Nach Kategorie filtern: company, research paper, news, pdf, github, tweet, personal site, linkedin profile, financial report |
 | `text` | boolean | Nein | Vollständigen Textinhalt in Ergebnissen einschließen \(Standard: false\) |
 | `highlights` | boolean | Nein | Hervorgehobene Ausschnitte in Ergebnissen einschließen \(Standard: false\) |
 | `summary` | boolean | Nein | KI-generierte Zusammenfassungen in Ergebnissen einschließen \(Standard: false\) |
-| `livecrawl` | string | Nein | Live-Crawling-Modus: always, fallback oder never \(Standard: never\) |
+| `livecrawl` | string | Nein | Live-Crawling-Modus: never \(Standard\), fallback, always oder preferred \(immer livecrawl versuchen, bei Fehlschlag auf Cache zurückgreifen\) |
 | `apiKey` | string | Ja | Exa AI API-Schlüssel |
 
 #### Ausgabe
@@ -69,11 +69,11 @@ Ruft den Inhalt von Webseiten mit Exa AI ab. Gibt den Titel, Textinhalt und opti
 | --------- | ---- | -------- | ----------- |
 | `urls` | string | Ja | Kommagetrennte Liste von URLs, von denen Inhalte abgerufen werden sollen |
 | `text` | boolean | Nein | Wenn true, gibt den vollständigen Seitentext mit Standardeinstellungen zurück. Wenn false, deaktiviert die Textrückgabe. |
-| `summaryQuery` | string | Nein | Abfrage zur Steuerung der Zusammenfassungserstellung |
-| `subpages` | number | Nein | Anzahl der Unterseiten, die von den angegebenen URLs gecrawlt werden sollen |
+| `summaryQuery` | string | Nein | Anfrage zur Steuerung der Zusammenfassungserstellung |
+| `subpages` | number | Nein | Anzahl der Unterseiten, die von den bereitgestellten URLs gecrawlt werden sollen |
 | `subpageTarget` | string | Nein | Kommagetrennte Schlüsselwörter zur Zielausrichtung auf bestimmte Unterseiten \(z.B. "docs,tutorial,about"\) |
 | `highlights` | boolean | Nein | Hervorgehobene Ausschnitte in Ergebnissen einschließen \(Standard: false\) |
-| `livecrawl` | string | Nein | Live-Crawling-Modus: always, fallback oder never \(Standard: never\) |
+| `livecrawl` | string | Nein | Live-Crawling-Modus: never \(Standard\), fallback, always oder preferred \(immer livecrawl versuchen, bei Fehlschlag auf Cache zurückgreifen\) |
 | `apiKey` | string | Ja | Exa AI API-Schlüssel |
 
 #### Ausgabe
@@ -95,11 +95,10 @@ Finde Webseiten, die einer bestimmten URL ähnlich sind, mit Exa AI. Gibt eine L
 | `text` | boolean | Nein | Ob der vollständige Text der ähnlichen Seiten eingeschlossen werden soll |
 | `includeDomains` | string | Nein | Kommagetrennte Liste von Domains, die in den Ergebnissen enthalten sein sollen |
 | `excludeDomains` | string | Nein | Kommagetrennte Liste von Domains, die aus den Ergebnissen ausgeschlossen werden sollen |
-| `excludeSourceDomain` | boolean | Nein | Quell-Domain aus Ergebnissen ausschließen \(Standard: false\) |
-| `category` | string | Nein | Nach Kategorie filtern: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `excludeSourceDomain` | boolean | Nein | Die Quell-Domain aus den Ergebnissen ausschließen \(Standard: false\) |
 | `highlights` | boolean | Nein | Hervorgehobene Ausschnitte in Ergebnissen einschließen \(Standard: false\) |
 | `summary` | boolean | Nein | KI-generierte Zusammenfassungen in Ergebnissen einschließen \(Standard: false\) |
-| `livecrawl` | string | Nein | Live-Crawling-Modus: always, fallback oder never \(Standard: never\) |
+| `livecrawl` | string | Nein | Live-Crawling-Modus: never \(Standard\), fallback, always oder preferred \(versucht immer livecrawl, fällt auf Cache zurück, wenn es fehlschlägt\) |
 | `apiKey` | string | Ja | Exa AI API-Schlüssel |
 
 #### Ausgabe

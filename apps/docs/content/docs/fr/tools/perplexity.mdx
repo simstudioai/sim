@@ -51,8 +51,9 @@ Générez des compléments à l'aide des modèles de chat Perplexity AI
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Résultats du complément de chat |
+| `content` | string | Contenu de texte généré |
+| `model` | string | Modèle utilisé pour la génération |
+| `usage` | object | Informations sur l'utilisation des tokens |
 
 ### `perplexity_search`
 
@@ -76,8 +77,7 @@ Obtenez des résultats de recherche classés depuis Perplexity
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Résultats de recherche |
+| `results` | array | Tableau des résultats de recherche |
 
 ## Notes
 

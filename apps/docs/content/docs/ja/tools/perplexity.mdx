@@ -51,8 +51,9 @@ Perplexity AIチャットモデルを使用して文章を生成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | チャット生成結果 |
+| `content` | string | 生成されたテキストコンテンツ |
+| `model` | string | 生成に使用されたモデル |
+| `usage` | object | トークン使用情報 |
 
 ### `perplexity_search`
 
@@ -76,8 +77,7 @@ Perplexityからランク付けされた検索結果を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | 検索結果 |
+| `results` | array | 検索結果の配列 |
 
 ## 注意事項
 
