@@ -214,7 +214,6 @@ export function Sidebar() {
 
   /**
    * Scrolls a newly created element into view if completely off-screen.
-   * Uses requestAnimationFrame to sync with render, then scrolls.
    */
   const scrollToElement = useCallback((elementId: string) => {
     requestAnimationFrame(() => {
@@ -225,7 +224,6 @@ export function Sidebar() {
       const { top: elTop, bottom: elBottom } = element.getBoundingClientRect()
       const { top: ctTop, bottom: ctBottom } = container.getBoundingClientRect()
 
-      // Only scroll if element is completely off-screen
       if (elBottom <= ctTop || elTop >= ctBottom) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
