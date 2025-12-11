@@ -89,15 +89,7 @@ export const zendeskGetUserTool: ToolConfig<ZendeskGetUserParams, ZendeskGetUser
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'User data',
-      properties: {
-        user: { type: 'object', description: 'User object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
-    },
+    user: { type: 'object', description: 'User object' },
+    metadata: { type: 'object', description: 'Operation metadata' },
   },
 }

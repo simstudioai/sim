@@ -254,8 +254,8 @@ Upload a media file (image, video, document) to WordPress.com
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
-| `file` | string | Yes | Base64 encoded file data or URL to fetch file from |
-| `filename` | string | Yes | Filename with extension \(e.g., image.jpg\) |
+| `file` | file | No | File to upload \(UserFile object\) |
+| `filename` | string | No | Optional filename override \(e.g., image.jpg\) |
 | `title` | string | No | Media title |
 | `caption` | string | No | Media caption |
 | `altText` | string | No | Alternative text for accessibility |

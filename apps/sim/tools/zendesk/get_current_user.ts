@@ -85,15 +85,7 @@ export const zendeskGetCurrentUserTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Current user data',
-      properties: {
-        user: { type: 'object', description: 'Current user object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
-    },
+    user: { type: 'object', description: 'Current user object' },
+    metadata: { type: 'object', description: 'Operation metadata' },
   },
 }

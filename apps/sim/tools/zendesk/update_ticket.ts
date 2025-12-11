@@ -181,15 +181,7 @@ export const zendeskUpdateTicketTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Updated ticket data',
-      properties: {
-        ticket: { type: 'object', description: 'Updated ticket object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
-    },
+    ticket: { type: 'object', description: 'Updated ticket object' },
+    metadata: { type: 'object', description: 'Operation metadata' },
   },
 }

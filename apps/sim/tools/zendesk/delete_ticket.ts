@@ -93,15 +93,7 @@ export const zendeskDeleteTicketTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Delete confirmation',
-      properties: {
-        deleted: { type: 'boolean', description: 'Deletion success' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
-    },
+    deleted: { type: 'boolean', description: 'Deletion success' },
+    metadata: { type: 'object', description: 'Operation metadata' },
   },
 }

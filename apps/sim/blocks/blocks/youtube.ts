@@ -26,7 +26,6 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
         { label: 'Get Channel Videos', id: 'youtube_channel_videos' },
         { label: 'Get Channel Playlists', id: 'youtube_channel_playlists' },
         { label: 'Get Playlist Items', id: 'youtube_playlist_items' },
-        { label: 'Get Related Videos', id: 'youtube_related_videos' },
         { label: 'Get Video Comments', id: 'youtube_comments' },
       ],
       value: () => 'youtube_search',
@@ -250,25 +249,6 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       integer: true,
       condition: { field: 'operation', value: 'youtube_playlist_items' },
     },
-    // Get Related Videos operation inputs
-    {
-      id: 'videoId',
-      title: 'Video ID',
-      type: 'short-input',
-      placeholder: 'Enter YouTube video ID to find related videos',
-      required: true,
-      condition: { field: 'operation', value: 'youtube_related_videos' },
-    },
-    {
-      id: 'maxResults',
-      title: 'Max Results',
-      type: 'slider',
-      min: 1,
-      max: 50,
-      step: 1,
-      integer: true,
-      condition: { field: 'operation', value: 'youtube_related_videos' },
-    },
     // Get Video Comments operation inputs
     {
       id: 'videoId',
@@ -317,7 +297,6 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       'youtube_channel_videos',
       'youtube_channel_playlists',
       'youtube_playlist_items',
-      'youtube_related_videos',
       'youtube_comments',
     ],
     config: {
@@ -340,8 +319,6 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
             return 'youtube_channel_playlists'
           case 'youtube_playlist_items':
             return 'youtube_playlist_items'
-          case 'youtube_related_videos':
-            return 'youtube_related_videos'
           case 'youtube_comments':
             return 'youtube_comments'
           default:

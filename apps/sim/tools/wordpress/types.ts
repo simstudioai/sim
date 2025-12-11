@@ -254,8 +254,8 @@ export interface WordPressListPagesResponse extends ToolResponse {
 
 // Upload Media
 export interface WordPressUploadMediaParams extends WordPressBaseParams {
-  file: string // Base64 encoded file data or URL
-  filename: string
+  file: any // UserFile object from file upload
+  filename?: string // Optional filename override
   title?: string
   caption?: string
   altText?: string

@@ -34,38 +34,30 @@ Integrate Translate into the workflow. Can translate text to any language.
 
 ## Tools
 
-### `openai_chat`
+### `llm_chat`
+
+Send a chat completion request to any supported LLM provider
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `model` | string | Yes | The model to use \(e.g., gpt-4o, claude-sonnet-4-5, gemini-2.0-flash\) |
+| `systemPrompt` | string | No | System prompt to set the behavior of the assistant |
+| `context` | string | Yes | The user message or context to send to the model |
+| `apiKey` | string | No | API key for the provider \(uses platform key if not provided for hosted models\) |
+| `temperature` | number | No | Temperature for response generation \(0-2\) |
+| `maxTokens` | number | No | Maximum tokens in the response |
+| `azureEndpoint` | string | No | Azure OpenAI endpoint URL |
+| `azureApiVersion` | string | No | Azure OpenAI API version |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Translated text |
-| `model` | string | Model used |
-| `tokens` | json | Token usage |
-
-### `anthropic_chat`
-
-
-### `google_chat`
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `content` | string | Translated text |
-| `model` | string | Model used |
-| `tokens` | json | Token usage |
+| `content` | string | The generated response content |
+| `model` | string | The model used for generation |
+| `tokens` | object | Token usage information |
 
 
 

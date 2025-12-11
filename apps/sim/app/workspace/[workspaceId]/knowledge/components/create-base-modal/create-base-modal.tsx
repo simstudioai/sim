@@ -17,7 +17,6 @@ import {
   ModalHeader,
   Textarea,
 } from '@/components/emcn'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
@@ -89,7 +88,7 @@ export function CreateBaseModal({
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  const { uploadFiles, isUploading, uploadProgress, clearError } = useKnowledgeUpload({
+  const { uploadFiles, isUploading, uploadProgress, uploadError, clearError } = useKnowledgeUpload({
     workspaceId,
     onUploadComplete: (uploadedFiles) => {
       logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
@@ -280,21 +279,35 @@ export function CreateBaseModal({
       const newKnowledgeBase = result.data
 
       if (files.length > 0) {
-        newKnowledgeBase.docCount = files.length
+        try {
+          const uploadedFiles = await uploadFiles(files, newKnowledgeBase.id, {
+            chunkSize: data.maxChunkSize,
+            minCharactersPerChunk: data.minChunkSize,
+            chunkOverlap: data.overlapSize,
+            recipe: 'default',
+          })
 
-        if (onKnowledgeBaseCreated) {
-          onKnowledgeBaseCreated(newKnowledgeBase)
+          logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
+          logger.info(`Started processing ${uploadedFiles.length} documents in the background`)
+
+          newKnowledgeBase.docCount = uploadedFiles.length
+
+          if (onKnowledgeBaseCreated) {
+            onKnowledgeBaseCreated(newKnowledgeBase)
+          }
+        } catch (uploadError) {
+          // If file upload fails completely, delete the knowledge base to avoid orphaned empty KB
+          logger.error('File upload failed, deleting knowledge base:', uploadError)
+          try {
+            await fetch(`/api/knowledge/${newKnowledgeBase.id}`, {
+              method: 'DELETE',
+            })
+            logger.info(`Deleted orphaned knowledge base: ${newKnowledgeBase.id}`)
+          } catch (deleteError) {
+            logger.error('Failed to delete orphaned knowledge base:', deleteError)
+          }
+          throw uploadError
         }
-
-        const uploadedFiles = await uploadFiles(files, newKnowledgeBase.id, {
-          chunkSize: data.maxChunkSize,
-          minCharactersPerChunk: data.minChunkSize,
-          chunkOverlap: data.overlapSize,
-          recipe: 'default',
-        })
-
-        logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
-        logger.info(`Started processing ${uploadedFiles.length} documents in the background`)
       } else {
         if (onKnowledgeBaseCreated) {
           onKnowledgeBaseCreated(newKnowledgeBase)
@@ -325,14 +338,6 @@ export function CreateBaseModal({
           <ModalBody className='!pb-[16px]'>
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
               <div className='space-y-[12px]'>
-                {submitStatus && submitStatus.type === 'error' && (
-                  <Alert variant='destructive'>
-                    <AlertCircle className='h-4 w-4' />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{submitStatus.message}</AlertDescription>
-                  </Alert>
-                )}
-
                 <div className='flex flex-col gap-[8px]'>
                   <Label htmlFor='name'>Name</Label>
                   <Input
@@ -498,36 +503,39 @@ export function CreateBaseModal({
                 )}
 
                 {fileError && (
-                  <Alert variant='destructive'>
-                    <AlertCircle className='h-4 w-4' />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{fileError}</AlertDescription>
-                  </Alert>
+                  <p className='text-[11px] text-[var(--text-error)] leading-tight'>{fileError}</p>
                 )}
               </div>
             </div>
           </ModalBody>
 
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => handleClose(false)}
-              type='button'
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button variant='primary' type='submit' disabled={isSubmitting || !nameValue?.trim()}>
-              {isSubmitting
-                ? isUploading
-                  ? uploadProgress.stage === 'uploading'
-                    ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
-                    : uploadProgress.stage === 'processing'
-                      ? 'Processing...'
-                      : 'Creating...'
-                  : 'Creating...'
-                : 'Create'}
-            </Button>
+          <ModalFooter className='flex-col items-stretch gap-[12px]'>
+            {(submitStatus?.type === 'error' || uploadError) && (
+              <p className='text-[11px] text-[var(--text-error)] leading-tight'>
+                {uploadError?.message || submitStatus?.message}
+              </p>
+            )}
+            <div className='flex justify-end gap-[8px]'>
+              <Button
+                variant='default'
+                onClick={() => handleClose(false)}
+                type='button'
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button variant='primary' type='submit' disabled={isSubmitting || !nameValue?.trim()}>
+                {isSubmitting
+                  ? isUploading
+                    ? uploadProgress.stage === 'uploading'
+                      ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
+                      : uploadProgress.stage === 'processing'
+                        ? 'Processing...'
+                        : 'Creating...'
+                    : 'Creating...'
+                  : 'Create'}
+              </Button>
+            </div>
           </ModalFooter>
         </form>
       </ModalContent>

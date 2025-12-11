@@ -272,22 +272,35 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Media Operations
+    // Media Operations - File upload (basic mode)
+    {
+      id: 'fileUpload',
+      title: 'Upload File',
+      type: 'file-upload',
+      canonicalParamId: 'file',
+      placeholder: 'Upload a media file to WordPress',
+      condition: { field: 'operation', value: 'wordpress_upload_media' },
+      mode: 'basic',
+      multiple: false,
+      required: false,
+    },
+    // Variable reference (advanced mode) - for referencing files from previous blocks
     {
       id: 'file',
-      title: 'File',
+      title: 'File Reference',
       type: 'short-input',
-      placeholder: 'Base64 encoded file data or file URL',
+      canonicalParamId: 'file',
+      placeholder: 'Reference file from previous block (e.g., {{block_name.file}})',
       condition: { field: 'operation', value: 'wordpress_upload_media' },
-      required: { field: 'operation', value: 'wordpress_upload_media' },
+      mode: 'advanced',
+      required: false,
     },
     {
       id: 'filename',
-      title: 'Filename',
+      title: 'Filename Override',
       type: 'short-input',
-      placeholder: 'image.jpg',
+      placeholder: 'Optional: Override filename (e.g., image.jpg)',
       condition: { field: 'operation', value: 'wordpress_upload_media' },
-      required: { field: 'operation', value: 'wordpress_upload_media' },
     },
     {
       id: 'mediaTitle',
@@ -756,7 +769,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
           case 'wordpress_upload_media':
             return {
               ...baseParams,
-              file: params.file,
+              file: params.fileUpload || params.file,
               filename: params.filename,
               title: params.mediaTitle,
               caption: params.caption,
@@ -891,8 +904,9 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     parent: { type: 'number', description: 'Parent page ID' },
     menuOrder: { type: 'number', description: 'Menu order' },
     // Media inputs
-    file: { type: 'string', description: 'File data (base64) or URL' },
-    filename: { type: 'string', description: 'Filename with extension' },
+    fileUpload: { type: 'json', description: 'File to upload (UserFile object)' },
+    file: { type: 'json', description: 'File reference from previous block' },
+    filename: { type: 'string', description: 'Optional filename override' },
     mediaTitle: { type: 'string', description: 'Media title' },
     caption: { type: 'string', description: 'Media caption' },
     altText: { type: 'string', description: 'Alt text' },

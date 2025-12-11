@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('KnowledgeUpload')
 
@@ -144,6 +145,17 @@ const calculateThroughputMbps = (bytes: number, durationMs: number) => {
 const formatDurationSeconds = (durationMs: number) => Number((durationMs / 1000).toFixed(2))
 
 /**
+ * Gets the content type for a file, falling back to extension-based lookup if browser doesn't provide one
+ */
+const getFileContentType = (file: File): string => {
+  if (file.type?.trim()) {
+    return file.type
+  }
+  const extension = getFileExtension(file.name)
+  return getMimeTypeFromExtension(extension)
+}
+
+/**
  * Runs async operations with concurrency limit
  */
 const runWithConcurrency = async <T, R>(
@@ -280,7 +292,7 @@ const getPresignedData = async (
       },
       body: JSON.stringify({
         fileName: file.name,
-        contentType: file.type,
+        contentType: getFileContentType(file),
         fileSize: file.size,
       }),
       signal: localController.signal,
@@ -529,7 +541,9 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
               throughputMbps: calculateThroughputMbps(file.size, durationMs),
               status: xhr.status,
             })
-            resolve(createUploadedFile(file.name, fullFileUrl, file.size, file.type, file))
+            resolve(
+              createUploadedFile(file.name, fullFileUrl, file.size, getFileContentType(file), file)
+            )
           } else {
             logger.error('S3 PUT request failed', {
               status: xhr.status,
@@ -597,7 +611,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fileName: file.name,
-          contentType: file.type,
+          contentType: getFileContentType(file),
           fileSize: file.size,
         }),
       })
@@ -736,7 +750,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       const fullFileUrl = path.startsWith('http') ? path : `${window.location.origin}${path}`
 
-      return createUploadedFile(file.name, fullFileUrl, file.size, file.type, file)
+      return createUploadedFile(file.name, fullFileUrl, file.size, getFileContentType(file), file)
     } catch (error) {
       logger.error(`Multipart upload failed for ${file.name}:`, error)
       const durationMs = getHighResTime() - startTime
@@ -800,7 +814,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         file.name,
         filePath.startsWith('http') ? filePath : `${window.location.origin}${filePath}`,
         file.size,
-        file.type,
+        getFileContentType(file),
         file
       )
     } finally {
@@ -855,7 +869,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         const batchRequest = {
           files: batchFiles.map((file) => ({
             fileName: file.name,
-            contentType: file.type,
+            contentType: getFileContentType(file),
             fileSize: file.size,
           })),
         }
