@@ -14,6 +14,7 @@ import {
   useItemDrag,
   useItemRename,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useDeleteFolder, useDuplicateFolder } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
@@ -87,6 +88,10 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
 
       if (result.id) {
         router.push(`/workspace/${workspaceId}/w/${result.id}`)
+        // Scroll to the newly created workflow
+        window.dispatchEvent(
+          new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: result.id } })
+        )
       }
     } catch (error) {
       // Error already handled by mutation's onError callback
@@ -100,11 +105,17 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
    */
   const handleCreateFolderInFolder = useCallback(async () => {
     try {
-      await createFolderMutation.mutateAsync({
+      const result = await createFolderMutation.mutateAsync({
         workspaceId,
         name: 'New Folder',
         parentId: folder.id,
       })
+      if (result.id) {
+        // Scroll to the newly created folder
+        window.dispatchEvent(
+          new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: result.id } })
+        )
+      }
     } catch (error) {
       logger.error('Failed to create folder:', error)
     }

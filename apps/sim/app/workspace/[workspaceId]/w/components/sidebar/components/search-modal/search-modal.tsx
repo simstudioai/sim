@@ -10,6 +10,7 @@ import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/core/utils/cn'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { searchItems } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/search-utils'
+import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { getAllBlocks } from '@/blocks'
 
 interface SearchModalProps {
@@ -430,6 +431,12 @@ export function SearchModal({
               window.open(item.href, '_blank', 'noopener,noreferrer')
             } else {
               router.push(item.href)
+              // Scroll to the workflow in the sidebar after navigation
+              if (item.type === 'workflow') {
+                window.dispatchEvent(
+                  new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: item.id } })
+                )
+              }
             }
           }
           break
