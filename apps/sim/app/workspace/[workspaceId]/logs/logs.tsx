@@ -417,7 +417,7 @@ export default function Logs() {
 
           {/* Main content area with table - only show in logs view */}
           {!isDashboardView && (
-            <div className='relative mt-[24px] flex min-h-0 flex-1 overflow-hidden rounded-[6px]'>
+            <div className='relative mt-[24px] flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px]'>
               {/* Table container */}
               <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)]'>
                 {/* Table header */}

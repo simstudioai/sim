@@ -161,9 +161,9 @@ export function LogDetails({
             <ScrollArea className='mt-[20px] h-full w-full overflow-y-auto' ref={scrollAreaRef}>
               <div className='flex flex-col gap-[10px] pb-[16px]'>
                 {/* Timestamp & Workflow Row */}
-                <div className='flex items-center gap-[16px] px-[1px]'>
+                <div className='flex min-w-0 items-center gap-[16px] px-[1px]'>
                   {/* Timestamp Card */}
-                  <div className='flex w-[140px] flex-col gap-[8px]'>
+                  <div className='flex w-[140px] flex-shrink-0 flex-col gap-[8px]'>
                     <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
                       Timestamp
                     </div>
@@ -179,16 +179,16 @@ export function LogDetails({
 
                   {/* Workflow Card */}
                   {log.workflow && (
-                    <div className='flex flex-col gap-[8px]'>
+                    <div className='flex w-0 min-w-0 flex-1 flex-col gap-[8px]'>
                       <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
                         Workflow
                       </div>
-                      <div className='flex items-center gap-[8px]'>
+                      <div className='flex min-w-0 items-center gap-[8px]'>
                         <div
                           className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
                           style={{ backgroundColor: log.workflow?.color }}
                         />
-                        <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                        <span className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-secondary)]'>
                           {log.workflow.name}
                         </span>
                       </div>
