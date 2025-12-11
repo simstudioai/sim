@@ -206,7 +206,10 @@ function TemplateCardInner({
         className
       )}
     >
-      <div ref={previewRef} className='relative h-[180px] w-full overflow-hidden rounded-[6px]'>
+      <div
+        ref={previewRef}
+        className='pointer-events-none h-[180px] w-full overflow-hidden rounded-[6px]'
+      >
         {normalizedState && isInView ? (
           <WorkflowPreview
             workflowState={normalizedState}
@@ -222,8 +225,6 @@ function TemplateCardInner({
         ) : (
           <div className='h-full w-full bg-[#2A2A2A]' />
         )}
-        {/* Transparent overlay to block all pointer events from the preview */}
-        <div className='pointer-events-none absolute inset-0' />
       </div>
 
       <div className='mt-[10px] flex items-center justify-between'>

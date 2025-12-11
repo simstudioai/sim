@@ -29,6 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Skeleton } from '@/components/ui/skeleton'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -40,6 +41,95 @@ import { getBlock } from '@/blocks/registry'
 import { useStarTemplate, useTemplate } from '@/hooks/queries/templates'
 
 const logger = createLogger('TemplateDetails')
+
+interface TemplateDetailsLoadingProps {
+  isWorkspaceContext?: boolean
+  workspaceId?: string | null
+}
+
+function TemplateDetailsLoading({ isWorkspaceContext, workspaceId }: TemplateDetailsLoadingProps) {
+  const breadcrumbItems = [
+    {
+      label: 'Templates',
+      href:
+        isWorkspaceContext && workspaceId ? `/workspace/${workspaceId}/templates` : '/templates',
+    },
+    { label: 'Template' },
+  ]
+
+  return (
+    <div
+      className={cn(
+        'flex flex-col',
+        isWorkspaceContext ? 'h-full flex-1 overflow-hidden' : 'min-h-screen'
+      )}
+    >
+      <div className={cn('flex flex-1', isWorkspaceContext && 'overflow-hidden')}>
+        <div
+          className={cn(
+            'flex flex-1 flex-col px-[24px] pt-[24px] pb-[24px]',
+            isWorkspaceContext ? 'overflow-auto' : 'overflow-visible'
+          )}
+        >
+          {/* Breadcrumb navigation */}
+          <Breadcrumb items={breadcrumbItems} />
+
+          {/* Template name and action buttons */}
+          <div className='mt-[14px] flex items-center justify-between'>
+            <Skeleton className='h-[27px] w-[250px] rounded-[4px]' />
+            <div className='flex items-center gap-[8px]'>
+              <Skeleton className='h-[32px] w-[80px] rounded-[6px]' />
+            </div>
+          </div>
+
+          {/* Template tagline */}
+          <div className='mt-[4px]'>
+            <Skeleton className='h-[21px] w-[400px] rounded-[4px]' />
+          </div>
+
+          {/* Creator and stats row */}
+          <div className='mt-[16px] flex items-center gap-[8px]'>
+            {/* Star icon and count */}
+            <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+            <Skeleton className='h-[21px] w-[24px] rounded-[4px]' />
+
+            {/* Views icon and count */}
+            <Skeleton className='h-[16px] w-[16px] rounded-[2px]' />
+            <Skeleton className='h-[21px] w-[32px] rounded-[4px]' />
+
+            {/* Vertical divider */}
+            <div className='mx-[4px] mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[var(--border)]' />
+
+            {/* Creator profile pic */}
+            <Skeleton className='h-[16px] w-[16px] rounded-full' />
+            {/* Creator name */}
+            <Skeleton className='h-[21px] w-[100px] rounded-[4px]' />
+          </div>
+
+          {/* Credentials needed */}
+          <div className='mt-[12px]'>
+            <Skeleton className='h-[18px] w-[280px] rounded-[4px]' />
+          </div>
+
+          {/* Canvas preview */}
+          <div className='relative mt-[24px] h-[450px] w-full flex-shrink-0 overflow-hidden rounded-[8px] border border-[var(--border)]'>
+            <Skeleton className='h-full w-full rounded-none' />
+          </div>
+
+          {/* About this Workflow */}
+          <div className='mt-8'>
+            <Skeleton className='mb-4 h-[24px] w-[180px] rounded-[4px]' />
+            <div className='space-y-2'>
+              <Skeleton className='h-[18px] w-full rounded-[4px]' />
+              <Skeleton className='h-[18px] w-[90%] rounded-[4px]' />
+              <Skeleton className='h-[18px] w-[75%] rounded-[4px]' />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 interface TemplateDetailsProps {
   isWorkspaceContext?: boolean
@@ -207,11 +297,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
   if (loading) {
     return (
-      <div className='flex h-screen items-center justify-center'>
-        <div className='text-center'>
-          <p className='font-sans text-muted-foreground text-sm'>Loading template...</p>
-        </div>
-      </div>
+      <TemplateDetailsLoading isWorkspaceContext={isWorkspaceContext} workspaceId={workspaceId} />
     )
   }
 
@@ -542,9 +628,19 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
   }
 
   return (
-    <div className={cn('flex flex-col', isWorkspaceContext ? 'h-full flex-1' : 'min-h-screen')}>
-      <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+    <div
+      className={cn(
+        'flex flex-col',
+        isWorkspaceContext ? 'h-full flex-1 overflow-hidden' : 'min-h-screen'
+      )}
+    >
+      <div className={cn('flex flex-1', isWorkspaceContext && 'overflow-hidden')}>
+        <div
+          className={cn(
+            'flex flex-1 flex-col px-[24px] pt-[24px] pb-[24px]',
+            isWorkspaceContext ? 'overflow-auto' : 'overflow-visible'
+          )}
+        >
           {/* Breadcrumb navigation */}
           <Breadcrumb items={breadcrumbItems} />
 
@@ -697,7 +793,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
           {/* Template tagline */}
           {template.details?.tagline && (
-            <p className='mt-[4px] font-medium text-[14px] text-[var(--text-tertiary)]'>
+            <p className='mt-[4px] line-clamp-2 max-w-[40vw] font-medium text-[14px] text-[var(--text-tertiary)]'>
               {template.details.tagline}
             </p>
           )}
@@ -770,7 +866,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
           {/* Canvas preview */}
           <div
-            className='relative mt-[24px] h-[450px] w-full overflow-hidden rounded-[8px] border border-[var(--border)]'
+            className='relative mt-[24px] h-[450px] w-full flex-shrink-0 overflow-hidden rounded-[8px] border border-[var(--border)]'
             onWheelCapture={handleCanvasWheelCapture}
           >
             {renderWorkflowPreview()}
