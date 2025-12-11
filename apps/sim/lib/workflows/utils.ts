@@ -255,22 +255,48 @@ export function hasWorkflowChanged(
     const currentBlock = currentState.blocks[blockId]
     const deployedBlock = deployedState.blocks[blockId]
 
-    // Destructure and exclude non-functional fields
-    const { position: _currentPos, subBlocks: currentSubBlocks = {}, ...currentRest } = currentBlock
+    // Destructure and exclude non-functional fields:
+    // - position: visual positioning only
+    // - subBlocks: handled separately below
+    // - layout: contains measuredWidth/measuredHeight from autolayout
+    // - height: block height measurement from autolayout
+    const {
+      position: _currentPos,
+      subBlocks: currentSubBlocks = {},
+      layout: _currentLayout,
+      height: _currentHeight,
+      ...currentRest
+    } = currentBlock
 
     const {
       position: _deployedPos,
       subBlocks: deployedSubBlocks = {},
+      layout: _deployedLayout,
+      height: _deployedHeight,
       ...deployedRest
     } = deployedBlock
 
+    // Also exclude width/height from data object (container dimensions from autolayout)
+    const {
+      width: _currentDataWidth,
+      height: _currentDataHeight,
+      ...currentDataRest
+    } = currentRest.data || {}
+    const {
+      width: _deployedDataWidth,
+      height: _deployedDataHeight,
+      ...deployedDataRest
+    } = deployedRest.data || {}
+
     normalizedCurrentBlocks[blockId] = {
       ...currentRest,
+      data: currentDataRest,
       subBlocks: undefined,
     }
 
     normalizedDeployedBlocks[blockId] = {
       ...deployedRest,
+      data: deployedDataRest,
       subBlocks: undefined,
     }
 

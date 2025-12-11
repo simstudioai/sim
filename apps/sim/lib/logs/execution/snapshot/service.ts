@@ -146,11 +146,17 @@ export class SnapshotService implements ISnapshotService {
     const normalizedBlocks: Record<string, any> = {}
 
     for (const [blockId, block] of Object.entries(state.blocks || {})) {
-      // Skip position as it doesn't affect functionality
-      const { position, ...blockWithoutPosition } = block
+      const { position, layout, height, ...blockWithoutLayoutFields } = block
+
+      // Also exclude width/height from data object (container dimensions from autolayout)
+      const {
+        width: _dataWidth,
+        height: _dataHeight,
+        ...dataRest
+      } = blockWithoutLayoutFields.data || {}
 
       // Handle subBlocks with detailed comparison (same as hasWorkflowChanged)
-      const subBlocks = blockWithoutPosition.subBlocks || {}
+      const subBlocks = blockWithoutLayoutFields.subBlocks || {}
       const normalizedSubBlocks: Record<string, any> = {}
 
       for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
@@ -168,7 +174,8 @@ export class SnapshotService implements ISnapshotService {
       }
 
       normalizedBlocks[blockId] = {
-        ...blockWithoutPosition,
+        ...blockWithoutLayoutFields,
+        data: dataRest,
         subBlocks: normalizedSubBlocks,
       }
     }
