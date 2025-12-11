@@ -53,6 +53,20 @@ export class NodeExecutionOrchestrator {
       }
     }
 
+    // Initialize parallel scope BEFORE execution so <parallel.currentItem> can be resolved
+    const parallelId = node.metadata.parallelId
+    if (parallelId && !this.parallelOrchestrator.getParallelScope(ctx, parallelId)) {
+      const totalBranches = node.metadata.branchTotal || 1
+      const parallelConfig = this.dag.parallelConfigs.get(parallelId)
+      const nodesInParallel = (parallelConfig as any)?.nodes?.length || 1
+      this.parallelOrchestrator.initializeParallelScope(
+        ctx,
+        parallelId,
+        totalBranches,
+        nodesInParallel
+      )
+    }
+
     if (node.metadata.isSentinel) {
       const output = this.handleSentinel(ctx, node)
       const isFinalOutput = node.outgoingEdges.size === 0

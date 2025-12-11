@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isDev } from '@/lib/core/config/environment'
-import { validateProxyUrl } from '@/lib/core/security/input-validation'
+import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -173,7 +173,7 @@ export async function GET(request: Request) {
     return createErrorResponse("Missing 'url' parameter", 400)
   }
 
-  const urlValidation = validateProxyUrl(targetUrl)
+  const urlValidation = await validateUrlWithDNS(targetUrl)
   if (!urlValidation.isValid) {
     logger.warn(`[${requestId}] Blocked proxy request`, {
       url: targetUrl.substring(0, 100),
@@ -211,11 +211,13 @@ export async function GET(request: Request) {
   logger.info(`[${requestId}] Proxying ${method} request to: ${targetUrl}`)
 
   try {
-    const response = await fetch(targetUrl, {
+    const pinnedUrl = createPinnedUrl(targetUrl, urlValidation.resolvedIP!)
+    const response = await fetch(pinnedUrl, {
       method: method,
       headers: {
         ...getProxyHeaders(),
         ...customHeaders,
+        Host: urlValidation.originalHostname!,
       },
       body: body || undefined,
     })

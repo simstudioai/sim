@@ -496,7 +496,7 @@ export async function POST(request: NextRequest) {
         verbose: 1,
         logger: (msg) => logger.info(typeof msg === 'string' ? msg : JSON.stringify(msg)),
         model: {
-          modelName: 'claude-sonnet-4-20250514',
+          modelName: 'anthropic/claude-3-7-sonnet-latest',
           apiKey: apiKey,
         },
       })
@@ -704,7 +704,14 @@ The system will substitute actual values when these placeholders are used, keepi
         `.trim()
 
       const agent = stagehand.agent({
-        model: 'anthropic/claude-sonnet-4-20250514',
+        model: {
+          modelName: 'anthropic/claude-3-7-sonnet-latest',
+          apiKey: apiKey,
+        },
+        executionModel: {
+          modelName: 'anthropic/claude-3-7-sonnet-latest',
+          apiKey: apiKey,
+        },
         systemPrompt: `${agentInstructions}\n\n${additionalContext}`,
       })
 
@@ -795,6 +802,9 @@ The system will substitute actual values when these placeholders are used, keepi
       })
 
       let structuredOutput = null
+      const hasOutputSchema =
+        outputSchema && typeof outputSchema === 'object' && outputSchema !== null
+
       if (agentResult.message) {
         try {
           let jsonContent = agentResult.message
@@ -807,33 +817,31 @@ The system will substitute actual values when these placeholders are used, keepi
           structuredOutput = JSON.parse(jsonContent)
           logger.info('Successfully parsed structured output from agent response')
         } catch (parseError) {
-          logger.error('Failed to parse JSON from agent message', {
-            error: parseError,
-            message: agentResult.message,
-          })
+          if (hasOutputSchema) {
+            logger.warn('Failed to parse JSON from agent message, attempting fallback extraction', {
+              error: parseError,
+            })
 
-          if (
-            outputSchema &&
-            typeof outputSchema === 'object' &&
-            outputSchema !== null &&
-            stagehand
-          ) {
-            try {
-              logger.info('Attempting to extract structured data using Stagehand extract')
-              const schemaObj = getSchemaObject(outputSchema)
-              const zodSchema = ensureZodObject(logger, schemaObj)
+            if (stagehand) {
+              try {
+                logger.info('Attempting to extract structured data using Stagehand extract')
+                const schemaObj = getSchemaObject(outputSchema)
+                const zodSchema = ensureZodObject(logger, schemaObj)
 
-              structuredOutput = await stagehand.extract(
-                'Extract the requested information from this page according to the schema',
-                zodSchema
-              )
+                structuredOutput = await stagehand.extract(
+                  'Extract the requested information from this page according to the schema',
+                  zodSchema
+                )
 
-              logger.info('Successfully extracted structured data as fallback', {
-                keys: structuredOutput ? Object.keys(structuredOutput) : [],
-              })
-            } catch (extractError) {
-              logger.error('Fallback extraction also failed', { error: extractError })
+                logger.info('Successfully extracted structured data as fallback', {
+                  keys: structuredOutput ? Object.keys(structuredOutput) : [],
+                })
+              } catch (extractError) {
+                logger.error('Fallback extraction also failed', { error: extractError })
+              }
             }
+          } else {
+            logger.info('Agent returned plain text response (no schema provided)')
           }
         }
       }

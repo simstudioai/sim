@@ -1,15 +1,17 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { DAG } from '@/executor/dag/builder'
+import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { ParallelScope } from '@/executor/execution/state'
 import type { BlockStateWriter } from '@/executor/execution/types'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
 import {
+  buildBranchNodeId,
   calculateBranchCount,
   extractBaseBlockId,
   extractBranchIndex,
   parseDistributionItems,
 } from '@/executor/utils/subflow-utils'
+import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedParallel } from '@/serializer/types'
 
 const logger = createLogger('ParallelOrchestrator')
@@ -29,10 +31,16 @@ export interface ParallelAggregationResult {
 }
 
 export class ParallelOrchestrator {
+  private resolver: VariableResolver | null = null
+
   constructor(
     private dag: DAG,
     private state: BlockStateWriter
   ) {}
+
+  setResolver(resolver: VariableResolver): void {
+    this.resolver = resolver
+  }
 
   initializeParallelScope(
     ctx: ExecutionContext,
@@ -40,18 +48,306 @@ export class ParallelOrchestrator {
     totalBranches: number,
     terminalNodesCount = 1
   ): ParallelScope {
+    const parallelConfig = this.dag.parallelConfigs.get(parallelId)
+    const items = parallelConfig ? this.resolveDistributionItems(ctx, parallelConfig) : undefined
+
+    // If we have more items than pre-built branches, expand the DAG
+    const actualBranchCount = items && items.length > totalBranches ? items.length : totalBranches
+
     const scope: ParallelScope = {
       parallelId,
-      totalBranches,
+      totalBranches: actualBranchCount,
       branchOutputs: new Map(),
       completedCount: 0,
-      totalExpectedNodes: totalBranches * terminalNodesCount,
+      totalExpectedNodes: actualBranchCount * terminalNodesCount,
+      items,
     }
     if (!ctx.parallelExecutions) {
       ctx.parallelExecutions = new Map()
     }
     ctx.parallelExecutions.set(parallelId, scope)
+
+    // Dynamically expand DAG if needed
+    if (items && items.length > totalBranches && parallelConfig) {
+      logger.info('Dynamically expanding parallel branches', {
+        parallelId,
+        existingBranches: totalBranches,
+        targetBranches: items.length,
+        itemsCount: items.length,
+      })
+
+      const newEntryNodes = this.expandParallelBranches(
+        parallelId,
+        parallelConfig,
+        totalBranches,
+        items.length
+      )
+
+      logger.info('Parallel expansion complete', {
+        parallelId,
+        newEntryNodes,
+        totalNodesInDag: this.dag.nodes.size,
+      })
+
+      // Add new entry nodes to pending dynamic nodes so the engine can schedule them
+      if (newEntryNodes.length > 0) {
+        if (!ctx.pendingDynamicNodes) {
+          ctx.pendingDynamicNodes = []
+        }
+        ctx.pendingDynamicNodes.push(...newEntryNodes)
+      }
+    } else {
+      logger.info('No parallel expansion needed', {
+        parallelId,
+        itemsLength: items?.length,
+        totalBranches,
+        hasParallelConfig: !!parallelConfig,
+      })
+    }
+
     return scope
+  }
+
+  /**
+   * Dynamically expand the DAG to include additional branch nodes when
+   * the resolved item count exceeds the pre-built branch count.
+   */
+  private expandParallelBranches(
+    parallelId: string,
+    config: SerializedParallel,
+    existingBranchCount: number,
+    targetBranchCount: number
+  ): string[] {
+    // Get all blocks that are part of this parallel
+    const blocksInParallel = config.nodes
+    const blocksInParallelSet = new Set(blocksInParallel)
+
+    // Step 1: Create all new nodes first
+    for (const blockId of blocksInParallel) {
+      const branch0NodeId = buildBranchNodeId(blockId, 0)
+      const templateNode = this.dag.nodes.get(branch0NodeId)
+
+      if (!templateNode) {
+        logger.warn('Template node not found for parallel expansion', { blockId, branch0NodeId })
+        continue
+      }
+
+      for (let branchIndex = existingBranchCount; branchIndex < targetBranchCount; branchIndex++) {
+        const newNodeId = buildBranchNodeId(blockId, branchIndex)
+
+        const newNode: DAGNode = {
+          id: newNodeId,
+          block: {
+            ...templateNode.block,
+            id: newNodeId,
+          },
+          incomingEdges: new Set(),
+          outgoingEdges: new Map(),
+          metadata: {
+            ...templateNode.metadata,
+            branchIndex,
+            branchTotal: targetBranchCount,
+            originalBlockId: blockId,
+          },
+        }
+
+        this.dag.nodes.set(newNodeId, newNode)
+      }
+    }
+
+    // Step 2: Wire edges between the new branch nodes
+    this.wireExpandedBranchEdges(
+      parallelId,
+      blocksInParallel,
+      existingBranchCount,
+      targetBranchCount
+    )
+
+    // Step 3: Update metadata on existing nodes to reflect new total
+    this.updateExistingBranchMetadata(blocksInParallel, existingBranchCount, targetBranchCount)
+
+    // Step 4: Identify entry nodes AFTER edges are wired
+    // Entry nodes are those with no INTERNAL incoming edges (edges from outside parallel don't count)
+    const newEntryNodes: string[] = []
+    for (const blockId of blocksInParallel) {
+      const branch0NodeId = buildBranchNodeId(blockId, 0)
+      const templateNode = this.dag.nodes.get(branch0NodeId)
+      if (!templateNode) continue
+
+      // Check if template has any INTERNAL incoming edges
+      let hasInternalIncoming = false
+      for (const incomingId of templateNode.incomingEdges) {
+        const baseIncomingId = extractBaseBlockId(incomingId)
+        if (blocksInParallelSet.has(baseIncomingId)) {
+          hasInternalIncoming = true
+          break
+        }
+      }
+
+      // If no internal incoming edges, the new branches of this block are entry nodes
+      if (!hasInternalIncoming) {
+        for (
+          let branchIndex = existingBranchCount;
+          branchIndex < targetBranchCount;
+          branchIndex++
+        ) {
+          newEntryNodes.push(buildBranchNodeId(blockId, branchIndex))
+        }
+      }
+    }
+
+    return newEntryNodes
+  }
+
+  /**
+   * Wire edges between expanded branch nodes by replicating the edge pattern from branch 0.
+   * Handles both internal edges (within the parallel) and exit edges (to blocks after the parallel).
+   */
+  private wireExpandedBranchEdges(
+    parallelId: string,
+    blocksInParallel: string[],
+    existingBranchCount: number,
+    targetBranchCount: number
+  ): void {
+    const blocksInParallelSet = new Set(blocksInParallel)
+
+    // For each block, look at branch 0's outgoing edges and replicate for new branches
+    for (const blockId of blocksInParallel) {
+      const branch0NodeId = buildBranchNodeId(blockId, 0)
+      const branch0Node = this.dag.nodes.get(branch0NodeId)
+
+      if (!branch0Node) continue
+
+      // Replicate outgoing edges for each new branch
+      for (const [, edge] of branch0Node.outgoingEdges) {
+        // Use edge.target (the actual target node ID), not the Map key which may be a formatted edge ID
+        const actualTargetNodeId = edge.target
+
+        // Extract the base target block ID
+        const baseTargetId = extractBaseBlockId(actualTargetNodeId)
+
+        // Check if target is inside or outside the parallel
+        const isInternalEdge = blocksInParallelSet.has(baseTargetId)
+
+        for (
+          let branchIndex = existingBranchCount;
+          branchIndex < targetBranchCount;
+          branchIndex++
+        ) {
+          const sourceNodeId = buildBranchNodeId(blockId, branchIndex)
+          const sourceNode = this.dag.nodes.get(sourceNodeId)
+
+          if (!sourceNode) continue
+
+          if (isInternalEdge) {
+            // Internal edge: wire to the corresponding branch of the target
+            const newTargetNodeId = buildBranchNodeId(baseTargetId, branchIndex)
+            const targetNode = this.dag.nodes.get(newTargetNodeId)
+
+            if (targetNode) {
+              sourceNode.outgoingEdges.set(newTargetNodeId, {
+                target: newTargetNodeId,
+                sourceHandle: edge.sourceHandle,
+                targetHandle: edge.targetHandle,
+              })
+              targetNode.incomingEdges.add(sourceNodeId)
+            }
+          } else {
+            // Exit edge: wire to the same external target (blocks after the parallel)
+            // All branches point to the same external node
+            const externalTargetNode = this.dag.nodes.get(actualTargetNodeId)
+
+            if (externalTargetNode) {
+              sourceNode.outgoingEdges.set(actualTargetNodeId, {
+                target: actualTargetNodeId,
+                sourceHandle: edge.sourceHandle,
+                targetHandle: edge.targetHandle,
+              })
+              // Add incoming edge from this new branch to the external node
+              externalTargetNode.incomingEdges.add(sourceNodeId)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Update existing branch nodes' metadata to reflect the new total branch count.
+   */
+  private updateExistingBranchMetadata(
+    blocksInParallel: string[],
+    existingBranchCount: number,
+    targetBranchCount: number
+  ): void {
+    for (const blockId of blocksInParallel) {
+      for (let branchIndex = 0; branchIndex < existingBranchCount; branchIndex++) {
+        const nodeId = buildBranchNodeId(blockId, branchIndex)
+        const node = this.dag.nodes.get(nodeId)
+        if (node) {
+          node.metadata.branchTotal = targetBranchCount
+        }
+      }
+    }
+  }
+
+  /**
+   * Resolve distribution items at runtime, handling references like <previousBlock.items>
+   * This mirrors how LoopOrchestrator.resolveForEachItems works.
+   */
+  private resolveDistributionItems(ctx: ExecutionContext, config: SerializedParallel): any[] {
+    const rawItems = config.distribution
+
+    if (rawItems === undefined || rawItems === null) {
+      return []
+    }
+
+    // Already an array - return as-is
+    if (Array.isArray(rawItems)) {
+      return rawItems
+    }
+
+    // Object - convert to entries array (consistent with loop forEach behavior)
+    if (typeof rawItems === 'object') {
+      return Object.entries(rawItems)
+    }
+
+    // String handling
+    if (typeof rawItems === 'string') {
+      // Resolve references at runtime using the variable resolver
+      if (rawItems.startsWith('<') && rawItems.endsWith('>') && this.resolver) {
+        const resolved = this.resolver.resolveSingleReference(ctx, '', rawItems)
+        if (Array.isArray(resolved)) {
+          return resolved
+        }
+        if (typeof resolved === 'object' && resolved !== null) {
+          return Object.entries(resolved)
+        }
+        logger.warn('Distribution reference did not resolve to array or object', {
+          rawItems,
+          resolved,
+        })
+        return []
+      }
+
+      // Try to parse as JSON
+      try {
+        const normalized = rawItems.replace(/'/g, '"')
+        const parsed = JSON.parse(normalized)
+        if (Array.isArray(parsed)) {
+          return parsed
+        }
+        if (typeof parsed === 'object' && parsed !== null) {
+          return Object.entries(parsed)
+        }
+        return []
+      } catch (error) {
+        logger.error('Failed to parse distribution items', { rawItems, error })
+        return []
+      }
+    }
+
+    return []
   }
 
   handleParallelBranchCompletion(

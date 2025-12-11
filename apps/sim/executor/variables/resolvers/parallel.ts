@@ -49,7 +49,10 @@ export class ParallelResolver implements Resolver {
       return undefined
     }
 
-    const distributionItems = this.getDistributionItems(parallelConfig)
+    // First try to get items from the parallel scope (resolved at runtime)
+    // This is the same pattern as LoopResolver reading from loopScope.items
+    const parallelScope = context.executionContext.parallelExecutions?.get(parallelId)
+    const distributionItems = parallelScope?.items ?? this.getDistributionItems(parallelConfig)
 
     let value: any
     switch (property) {

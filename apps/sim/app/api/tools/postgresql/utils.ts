@@ -33,9 +33,10 @@ export async function executeQuery(
   params: unknown[] = []
 ): Promise<{ rows: unknown[]; rowCount: number }> {
   const result = await sql.unsafe(query, params)
+  const rowCount = result.count ?? result.length ?? 0
   return {
     rows: Array.isArray(result) ? result : [result],
-    rowCount: Array.isArray(result) ? result.length : result ? 1 : 0,
+    rowCount,
   }
 }
 
@@ -107,9 +108,10 @@ export async function executeInsert(
   const query = `INSERT INTO ${sanitizedTable} (${sanitizedColumns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`
   const result = await sql.unsafe(query, values)
 
+  const rowCount = result.count ?? result.length ?? 0
   return {
     rows: Array.isArray(result) ? result : [result],
-    rowCount: Array.isArray(result) ? result.length : result ? 1 : 0,
+    rowCount,
   }
 }
 
@@ -130,9 +132,10 @@ export async function executeUpdate(
   const query = `UPDATE ${sanitizedTable} SET ${setClause} WHERE ${where} RETURNING *`
   const result = await sql.unsafe(query, values)
 
+  const rowCount = result.count ?? result.length ?? 0
   return {
     rows: Array.isArray(result) ? result : [result],
-    rowCount: Array.isArray(result) ? result.length : result ? 1 : 0,
+    rowCount,
   }
 }
 
@@ -147,8 +150,9 @@ export async function executeDelete(
   const query = `DELETE FROM ${sanitizedTable} WHERE ${where} RETURNING *`
   const result = await sql.unsafe(query, [])
 
+  const rowCount = result.count ?? result.length ?? 0
   return {
     rows: Array.isArray(result) ? result : [result],
-    rowCount: Array.isArray(result) ? result.length : result ? 1 : 0,
+    rowCount,
   }
 }
