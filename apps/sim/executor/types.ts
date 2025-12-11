@@ -224,6 +224,9 @@ export interface ExecutionContext {
 
   // Cancellation support
   isCancelled?: boolean
+
+  // Dynamically added nodes that need to be scheduled (e.g., from parallel expansion)
+  pendingDynamicNodes?: string[]
 }
 
 export interface ExecutionResult {

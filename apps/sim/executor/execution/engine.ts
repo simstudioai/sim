@@ -279,6 +279,14 @@ export class ExecutionEngine {
     })
 
     this.addMultipleToQueue(readyNodes)
+
+    // Check for dynamically added nodes (e.g., from parallel expansion)
+    if (this.context.pendingDynamicNodes && this.context.pendingDynamicNodes.length > 0) {
+      const dynamicNodes = this.context.pendingDynamicNodes
+      this.context.pendingDynamicNodes = []
+      logger.info('Adding dynamically expanded parallel nodes', { dynamicNodes })
+      this.addMultipleToQueue(dynamicNodes)
+    }
   }
 
   private buildPausedResult(startTime: number): ExecutionResult {
