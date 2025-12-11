@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { useParams, usePathname } from 'next/navigation'
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item'
@@ -144,25 +144,44 @@ export function WorkflowList({
     [pathname, workspaceId]
   )
 
+  // Track last scrolled workflow to avoid redundant scroll checks
+  const lastScrolledWorkflowRef = useRef<string | null>(null)
+
   /**
-   * Auto-expand folders and select the active workflow
+   * Auto-expand folders, select active workflow, and scroll into view if needed.
    */
   useEffect(() => {
     if (!workflowId || isLoading || foldersLoading) return
 
-    // Expand folder path
+    // Expand folder path to reveal workflow
     if (activeWorkflowFolderId) {
       const folderPath = getFolderPath(activeWorkflowFolderId)
-      for (const folder of folderPath) {
-        setExpanded(folder.id, true)
-      }
+      folderPath.forEach((folder) => setExpanded(folder.id, true))
     }
 
-    // Auto-select active workflow if not already selected
+    // Select workflow if not already selected
     const { selectedWorkflows, selectOnly } = useFolderStore.getState()
     if (!selectedWorkflows.has(workflowId)) {
       selectOnly(workflowId)
     }
+
+    // Skip scroll check if already handled for this workflow
+    if (lastScrolledWorkflowRef.current === workflowId) return
+    lastScrolledWorkflowRef.current = workflowId
+
+    // Scroll after render if element is off-screen
+    requestAnimationFrame(() => {
+      const element = document.querySelector(`[data-item-id="${workflowId}"]`)
+      const container = scrollContainerRef.current
+      if (!element || !container) return
+
+      const { top: elTop, bottom: elBottom } = element.getBoundingClientRect()
+      const { top: ctTop, bottom: ctBottom } = container.getBoundingClientRect()
+
+      if (elBottom <= ctTop || elTop >= ctBottom) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    })
   }, [workflowId, activeWorkflowFolderId, isLoading, foldersLoading, getFolderPath, setExpanded])
 
   const renderWorkflowItem = useCallback(

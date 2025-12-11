@@ -212,64 +212,27 @@ export function Sidebar() {
   // Combined loading state
   const isLoading = workflowsLoading || sessionLoading
 
-  // Ref to track active timeout IDs for cleanup
-  const scrollTimeoutRef = useRef<number | null>(null)
-
   /**
-   * Scrolls an element into view if it's not already visible in the scroll container.
-   * Uses a retry mechanism with cleanup to wait for the element to be rendered in the DOM.
-   *
-   * @param elementId - The ID of the element to scroll to
-   * @param maxRetries - Maximum number of retry attempts (default: 10)
+   * Scrolls a newly created element into view.
+   * Uses requestAnimationFrame to sync with render, then scrolls.
    */
-  const scrollToElement = useCallback(
-    (elementId: string, maxRetries = 10) => {
-      // Clear any existing timeout
-      if (scrollTimeoutRef.current !== null) {
-        clearTimeout(scrollTimeoutRef.current)
-        scrollTimeoutRef.current = null
+  const scrollToElement = useCallback((elementId: string) => {
+    requestAnimationFrame(() => {
+      const element = document.querySelector(`[data-item-id="${elementId}"]`)
+      if (!element) return
+
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      const elementRect = element.getBoundingClientRect()
+      const containerRect = container.getBoundingClientRect()
+      const isVisible =
+        elementRect.top >= containerRect.top && elementRect.bottom <= containerRect.bottom
+
+      if (!isVisible) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
-
-      let attempts = 0
-
-      const tryScroll = () => {
-        attempts++
-        const element = document.querySelector(`[data-item-id="${elementId}"]`)
-        const container = scrollContainerRef.current
-
-        if (element && container) {
-          const elementRect = element.getBoundingClientRect()
-          const containerRect = container.getBoundingClientRect()
-
-          // Check if element is not fully visible in the container
-          const isAboveView = elementRect.top < containerRect.top
-          const isBelowView = elementRect.bottom > containerRect.bottom
-
-          if (isAboveView || isBelowView) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-          }
-          scrollTimeoutRef.current = null
-        } else if (attempts < maxRetries) {
-          // Element not in DOM yet, retry after a short delay
-          scrollTimeoutRef.current = window.setTimeout(tryScroll, 50)
-        } else {
-          scrollTimeoutRef.current = null
-        }
-      }
-
-      // Start the scroll attempt after a small delay to ensure rendering.
-      scrollTimeoutRef.current = window.setTimeout(tryScroll, 50)
-    },
-    [scrollContainerRef]
-  )
-
-  // Cleanup timeouts on unmount
-  useEffect(() => {
-    return () => {
-      if (scrollTimeoutRef.current !== null) {
-        clearTimeout(scrollTimeoutRef.current)
-      }
-    }
+    })
   }, [])
 
   /**
