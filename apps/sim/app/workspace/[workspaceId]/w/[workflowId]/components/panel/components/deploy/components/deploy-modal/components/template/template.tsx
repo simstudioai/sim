@@ -16,6 +16,7 @@ import {
 } from '@/components/emcn'
 import { Skeleton, TagInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import {
@@ -87,7 +88,8 @@ export function TemplateDeploy({
   const deleteMutation = useDeleteTemplate()
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending
-  const isFormValid = formData.name.trim().length > 0 && formData.name.length <= 100
+  const isFormValid =
+    formData.name.trim().length > 0 && formData.name.length <= 100 && formData.tagline.length <= 200
 
   const updateField = <K extends keyof TemplateFormData>(field: K, value: TemplateFormData[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -302,6 +304,7 @@ export function TemplateDeploy({
             value={formData.tagline}
             onChange={(e) => updateField('tagline', e.target.value)}
             disabled={isSubmitting}
+            className={cn(formData.tagline.length > 200 && 'border-[var(--text-error)]')}
           />
         </div>
 
