@@ -211,30 +211,15 @@ export class ParallelOrchestrator {
   ): void {
     const blocksInParallelSet = new Set(blocksInParallel)
 
-    logger.info('wireExpandedBranchEdges starting', {
-      parallelId,
-      blocksInParallel,
-      existingBranchCount,
-      targetBranchCount,
-    })
-
     // For each block, look at branch 0's outgoing edges and replicate for new branches
     for (const blockId of blocksInParallel) {
       const branch0NodeId = buildBranchNodeId(blockId, 0)
       const branch0Node = this.dag.nodes.get(branch0NodeId)
 
-      logger.info('Processing block for edge wiring', {
-        blockId,
-        branch0NodeId,
-        branch0NodeFound: !!branch0Node,
-        outgoingEdgesCount: branch0Node?.outgoingEdges.size ?? 0,
-        outgoingEdgeTargets: branch0Node ? Array.from(branch0Node.outgoingEdges.keys()) : [],
-      })
-
       if (!branch0Node) continue
 
       // Replicate outgoing edges for each new branch
-      for (const [edgeKey, edge] of branch0Node.outgoingEdges) {
+      for (const [, edge] of branch0Node.outgoingEdges) {
         // Use edge.target (the actual target node ID), not the Map key which may be a formatted edge ID
         const actualTargetNodeId = edge.target
 
@@ -244,14 +229,6 @@ export class ParallelOrchestrator {
         // Check if target is inside or outside the parallel
         const isInternalEdge = blocksInParallelSet.has(baseTargetId)
 
-        logger.info('Processing outgoing edge from branch 0', {
-          edgeKey,
-          actualTargetNodeId,
-          baseTargetId,
-          isInternalEdge,
-          blocksInParallelSet: Array.from(blocksInParallelSet),
-        })
-
         for (
           let branchIndex = existingBranchCount;
           branchIndex < targetBranchCount;
@@ -260,10 +237,7 @@ export class ParallelOrchestrator {
           const sourceNodeId = buildBranchNodeId(blockId, branchIndex)
           const sourceNode = this.dag.nodes.get(sourceNodeId)
 
-          if (!sourceNode) {
-            logger.warn('Source node not found for edge wiring', { sourceNodeId })
-            continue
-          }
+          if (!sourceNode) continue
 
           if (isInternalEdge) {
             // Internal edge: wire to the corresponding branch of the target
@@ -283,13 +257,6 @@ export class ParallelOrchestrator {
             // All branches point to the same external node
             const externalTargetNode = this.dag.nodes.get(actualTargetNodeId)
 
-            logger.info('Wiring exit edge', {
-              sourceNodeId,
-              actualTargetNodeId,
-              externalTargetNodeFound: !!externalTargetNode,
-              sourceNodeOutgoingBefore: Array.from(sourceNode.outgoingEdges.keys()),
-            })
-
             if (externalTargetNode) {
               sourceNode.outgoingEdges.set(actualTargetNodeId, {
                 target: actualTargetNodeId,
@@ -298,13 +265,6 @@ export class ParallelOrchestrator {
               })
               // Add incoming edge from this new branch to the external node
               externalTargetNode.incomingEdges.add(sourceNodeId)
-
-              logger.info('Added exit edge from dynamic branch to external node', {
-                sourceNodeId,
-                actualTargetNodeId,
-                sourceNodeOutgoingAfter: Array.from(sourceNode.outgoingEdges.keys()),
-                externalNodeIncomingEdges: Array.from(externalTargetNode.incomingEdges),
-              })
             }
           }
         }

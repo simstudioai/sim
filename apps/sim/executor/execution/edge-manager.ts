@@ -60,27 +60,15 @@ export class EdgeManager {
   }
 
   isNodeReady(node: DAGNode): boolean {
-    logger.info('Checking node readiness', {
-      nodeId: node.id,
-      incomingEdgesSize: node.incomingEdges.size,
-      incomingEdges: Array.from(node.incomingEdges),
-    })
-
     if (node.incomingEdges.size === 0) {
-      logger.info('Node ready - no incoming edges', { nodeId: node.id })
       return true
     }
 
     const activeIncomingCount = this.countActiveIncomingEdges(node)
     if (activeIncomingCount > 0) {
-      logger.info('Node not ready - has active incoming edges', {
-        nodeId: node.id,
-        activeIncomingCount,
-      })
       return false
     }
 
-    logger.info('Node ready - no active incoming edges', { nodeId: node.id })
     return true
   }
 
@@ -188,40 +176,21 @@ export class EdgeManager {
   private countActiveIncomingEdges(node: DAGNode): number {
     let count = 0
 
-    logger.info('Counting active incoming edges', {
-      nodeId: node.id,
-      incomingEdges: Array.from(node.incomingEdges),
-    })
-
     for (const sourceId of node.incomingEdges) {
       const sourceNode = this.dag.nodes.get(sourceId)
-      if (!sourceNode) {
-        logger.warn('Source node not found for incoming edge', { sourceId, targetNodeId: node.id })
-        continue
-      }
+      if (!sourceNode) continue
 
-      let foundEdge = false
-      for (const [_, edge] of sourceNode.outgoingEdges) {
+      for (const [, edge] of sourceNode.outgoingEdges) {
         if (edge.target === node.id) {
           const edgeKey = this.createEdgeKey(sourceId, edge.target, edge.sourceHandle)
           if (!this.deactivatedEdges.has(edgeKey)) {
             count++
-            foundEdge = true
             break
           }
         }
       }
-
-      if (!foundEdge) {
-        logger.warn('Source node does not have outgoing edge to target', {
-          sourceId,
-          targetNodeId: node.id,
-          sourceOutgoingEdges: Array.from(sourceNode.outgoingEdges.keys()),
-        })
-      }
     }
 
-    logger.info('Active incoming edges count', { nodeId: node.id, count })
     return count
   }
 
