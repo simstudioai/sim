@@ -609,7 +609,7 @@ export default function Logs() {
 
             {/* Log Details - rendered inside table container */}
             <LogDetails
-              log={logDetailQuery.data || selectedLog}
+              log={logDetailQuery.data ? { ...selectedLog, ...logDetailQuery.data } : selectedLog}
               isOpen={isSidebarOpen}
               onClose={handleCloseSidebar}
               onNavigateNext={handleNavigateNext}

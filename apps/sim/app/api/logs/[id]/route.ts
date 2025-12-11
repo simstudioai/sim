@@ -1,5 +1,10 @@
 import { db } from '@sim/db'
-import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import {
+  permissions,
+  workflow,
+  workflowDeploymentVersion,
+  workflowExecutionLogs,
+} from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -29,6 +34,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         workflowId: workflowExecutionLogs.workflowId,
         executionId: workflowExecutionLogs.executionId,
         stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
+        deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
         level: workflowExecutionLogs.level,
         trigger: workflowExecutionLogs.trigger,
         startedAt: workflowExecutionLogs.startedAt,
@@ -46,9 +52,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         workflowWorkspaceId: workflow.workspaceId,
         workflowCreatedAt: workflow.createdAt,
         workflowUpdatedAt: workflow.updatedAt,
+        deploymentVersion: workflowDeploymentVersion.version,
+        deploymentVersionName: workflowDeploymentVersion.name,
       })
       .from(workflowExecutionLogs)
       .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+      .leftJoin(
+        workflowDeploymentVersion,
+        eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
+      )
       .innerJoin(
         permissions,
         and(
@@ -81,6 +93,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       id: log.id,
       workflowId: log.workflowId,
       executionId: log.executionId,
+      deploymentVersionId: log.deploymentVersionId,
+      deploymentVersion: log.deploymentVersion ?? null,
+      deploymentVersionName: log.deploymentVersionName ?? null,
       level: log.level,
       duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
       trigger: log.trigger,

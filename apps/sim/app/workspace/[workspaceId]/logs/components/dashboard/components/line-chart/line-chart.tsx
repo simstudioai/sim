@@ -30,8 +30,8 @@ export function LineChart({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const uniqueId = useRef(`chart-${Math.random().toString(36).substring(2, 9)}`).current
-  const [containerWidth, setContainerWidth] = useState<number>(420)
-  const width = containerWidth
+  const [containerWidth, setContainerWidth] = useState<number | null>(null)
+  const width = containerWidth ?? 0
   const height = 166
   const padding = { top: 16, right: 28, bottom: 26, left: 26 }
   useEffect(() => {
@@ -39,14 +39,14 @@ export function LineChart({
     const element = containerRef.current
     const ro = new ResizeObserver((entries) => {
       const entry = entries[0]
-      if (entry?.contentRect) {
+      if (entry?.contentRect && entry.contentRect.width > 0) {
         const w = Math.max(280, Math.floor(entry.contentRect.width))
         setContainerWidth(w)
       }
     })
     ro.observe(element)
     const rect = element.getBoundingClientRect()
-    if (rect?.width) setContainerWidth(Math.max(280, Math.floor(rect.width)))
+    if (rect?.width && rect.width > 0) setContainerWidth(Math.max(280, Math.floor(rect.width)))
     return () => ro.disconnect()
   }, [])
   const chartWidth = width - padding.left - padding.right
@@ -94,6 +94,16 @@ export function LineChart({
   }, [color, series])
 
   const hasExternalWrapper = !label || label === ''
+
+  if (containerWidth === null) {
+    return (
+      <div
+        ref={containerRef}
+        className={cn('w-full', !hasExternalWrapper && 'rounded-lg border bg-card p-4')}
+        style={{ height }}
+      />
+    )
+  }
 
   if (data.length === 0) {
     return (

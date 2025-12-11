@@ -4,8 +4,8 @@ import { persist } from 'zustand/middleware'
 /**
  * Width constraints for the log details panel.
  */
-export const MIN_LOG_DETAILS_WIDTH = 340
-export const DEFAULT_LOG_DETAILS_WIDTH = 340
+export const MIN_LOG_DETAILS_WIDTH = 400
+export const DEFAULT_LOG_DETAILS_WIDTH = 400
 
 /**
  * Returns the maximum log details panel width (50vw).
