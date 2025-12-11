@@ -1,5 +1,8 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type { ParallelDeepResearchParams } from '@/tools/parallel/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+
+const logger = createLogger('ParallelDeepResearchTool')
 
 export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolResponse> = {
   id: 'parallel_deep_research',
@@ -90,34 +93,83 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (data.status === 'running') {
-      return {
-        success: true,
-        output: {
-          status: 'running',
-          run_id: data.run_id,
-          message:
-            'Deep research task is running. This can take up to 15 minutes. Use the run_id to check status.',
-        },
-      }
-    }
-
     return {
       success: true,
       output: {
-        status: data.status,
         run_id: data.run_id,
-        content: data.content || {},
-        basis: data.basis || [],
-        metadata: data.metadata || {},
+        status: data.status,
+        message: `Research task ${data.status}, waiting for completion...`,
+        content: {},
+        basis: [],
       },
+    }
+  },
+
+  postProcess: async (result, params) => {
+    if (!result.success) {
+      return result
+    }
+
+    const runId = result.output.run_id
+    if (!runId) {
+      return {
+        ...result,
+        success: false,
+        error: 'No run_id returned from task creation',
+      }
+    }
+
+    logger.info(`Parallel AI deep research task ${runId} created, fetching results...`)
+
+    try {
+      const resultResponse = await fetch(`https://api.parallel.ai/v1/tasks/runs/${runId}/result`, {
+        method: 'GET',
+        headers: {
+          'x-api-key': params.apiKey,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!resultResponse.ok) {
+        const errorText = await resultResponse.text()
+        throw new Error(`Failed to get task result: ${resultResponse.status} - ${errorText}`)
+      }
+
+      const taskResult = await resultResponse.json()
+      logger.info(`Parallel AI deep research task ${runId} completed`)
+
+      const output = taskResult.output || {}
+      const run = taskResult.run || {}
+
+      return {
+        success: true,
+        output: {
+          status: run.status || 'completed',
+          run_id: runId,
+          message: 'Research completed successfully',
+          content: output.content || {},
+          basis: output.basis || [],
+        },
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      logger.error('Error fetching research task result:', {
+        message: errorMessage,
+        runId,
+      })
+
+      return {
+        ...result,
+        success: false,
+        error: `Error fetching research task result: ${errorMessage}`,
+      }
     }
   },
 
   outputs: {
     status: {
       type: 'string',
-      description: 'Task status (running, completed, failed)',
+      description: 'Task status (completed, failed)',
     },
     run_id: {
       type: 'string',
@@ -125,7 +177,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
     },
     message: {
       type: 'string',
-      description: 'Status message (for running tasks)',
+      description: 'Status message',
     },
     content: {
       type: 'object',
@@ -133,20 +185,27 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
     },
     basis: {
       type: 'array',
-      description: 'Citations and sources with excerpts and confidence levels',
+      description: 'Citations and sources with reasoning and confidence levels',
       items: {
         type: 'object',
         properties: {
-          url: { type: 'string', description: 'Source URL' },
-          title: { type: 'string', description: 'Source title' },
-          excerpt: { type: 'string', description: 'Relevant excerpt' },
-          confidence: { type: 'number', description: 'Confidence level' },
+          field: { type: 'string', description: 'Output field name' },
+          reasoning: { type: 'string', description: 'Explanation for the result' },
+          citations: {
+            type: 'array',
+            description: 'Array of sources',
+            items: {
+              type: 'object',
+              properties: {
+                url: { type: 'string', description: 'Source URL' },
+                title: { type: 'string', description: 'Source title' },
+                excerpts: { type: 'array', description: 'Relevant excerpts from the source' },
+              },
+            },
+          },
+          confidence: { type: 'string', description: 'Confidence level indicator' },
         },
       },
-    },
-    metadata: {
-      type: 'object',
-      description: 'Additional task metadata',
     },
   },
 }
