@@ -118,14 +118,6 @@ export const ollamaProvider: ProviderConfig = {
       })
     }
 
-    // Add context if present
-    if (request.context) {
-      allMessages.push({
-        role: 'user',
-        content: request.context,
-      })
-    }
-
     // Add remaining messages
     if (request.messages) {
       allMessages.push(...request.messages)
