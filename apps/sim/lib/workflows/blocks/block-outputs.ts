@@ -11,10 +11,79 @@ import {
   USER_FILE_PROPERTY_TYPES,
 } from '@/lib/workflows/types'
 import { getBlock } from '@/blocks'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, OutputCondition } from '@/blocks/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
 type OutputDefinition = Record<string, any>
+
+/**
+ * Evaluates an output condition against subBlock values.
+ * Returns true if the condition is met and the output should be shown.
+ */
+function evaluateOutputCondition(
+  condition: OutputCondition,
+  subBlocks: Record<string, any> | undefined
+): boolean {
+  if (!subBlocks) return false
+
+  const fieldValue = subBlocks[condition.field]?.value
+
+  let matches: boolean
+  if (Array.isArray(condition.value)) {
+    matches = condition.value.includes(fieldValue)
+  } else {
+    matches = fieldValue === condition.value
+  }
+
+  if (condition.not) {
+    matches = !matches
+  }
+
+  if (condition.and) {
+    const andFieldValue = subBlocks[condition.and.field]?.value
+    let andMatches: boolean
+
+    if (Array.isArray(condition.and.value)) {
+      andMatches = condition.and.value.includes(andFieldValue)
+    } else {
+      andMatches = andFieldValue === condition.and.value
+    }
+
+    if (condition.and.not) {
+      andMatches = !andMatches
+    }
+
+    matches = matches && andMatches
+  }
+
+  return matches
+}
+
+/**
+ * Filters outputs based on their conditions.
+ * Returns a new OutputDefinition with only the outputs whose conditions are met.
+ */
+function filterOutputsByCondition(
+  outputs: OutputDefinition,
+  subBlocks: Record<string, any> | undefined
+): OutputDefinition {
+  const filtered: OutputDefinition = {}
+
+  for (const [key, value] of Object.entries(outputs)) {
+    if (!value || typeof value !== 'object' || !('condition' in value)) {
+      filtered[key] = value
+      continue
+    }
+
+    const condition = value.condition as OutputCondition | undefined
+    if (!condition || evaluateOutputCondition(condition, subBlocks)) {
+      const { condition: _, ...rest } = value
+      filtered[key] = rest
+    }
+  }
+
+  return filtered
+}
 
 const CHAT_OUTPUTS: OutputDefinition = {
   input: { type: 'string', description: 'User message' },
@@ -184,7 +253,8 @@ export function getBlockOutputs(
   }
 
   const baseOutputs = { ...(blockConfig.outputs || {}) }
-  return applyInputFormatToOutputs(blockType, blockConfig, subBlocks, baseOutputs)
+  const filteredOutputs = filterOutputsByCondition(baseOutputs, subBlocks)
+  return applyInputFormatToOutputs(blockType, blockConfig, subBlocks, filteredOutputs)
 }
 
 function shouldFilterReservedField(

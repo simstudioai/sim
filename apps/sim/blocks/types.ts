@@ -116,9 +116,33 @@ export type BlockOutput =
   | PrimitiveValueType
   | { [key: string]: PrimitiveValueType | Record<string, any> }
 
+/**
+ * Condition for showing an output field.
+ * Uses the same pattern as SubBlockConfig.condition
+ */
+export interface OutputCondition {
+  field: string
+  value: string | number | boolean | Array<string | number | boolean>
+  not?: boolean
+  and?: {
+    field: string
+    value: string | number | boolean | Array<string | number | boolean> | undefined
+    not?: boolean
+  }
+}
+
 export type OutputFieldDefinition =
   | PrimitiveValueType
-  | { type: PrimitiveValueType; description?: string }
+  | {
+      type: PrimitiveValueType
+      description?: string
+      /**
+       * Optional condition for when this output should be shown.
+       * If not specified, the output is always shown.
+       * Uses the same condition format as subBlocks.
+       */
+      condition?: OutputCondition
+    }
 
 export interface ParamConfig {
   type: ParamType

@@ -579,7 +579,11 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
   outputs: {
     audioUrl: { type: 'string', description: 'URL to the generated audio file' },
     audioFile: { type: 'json', description: 'Generated audio file object (UserFile)' },
-    duration: { type: 'number', description: 'Audio duration in seconds' },
+    duration: {
+      type: 'number',
+      description: 'Audio duration in seconds',
+      condition: { field: 'provider', value: 'deepgram' },
+    },
     characterCount: { type: 'number', description: 'Number of characters processed' },
     format: { type: 'string', description: 'Audio format' },
     provider: { type: 'string', description: 'TTS provider used' },

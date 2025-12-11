@@ -126,29 +126,22 @@ export const searchTool: ToolConfig<PerplexitySearchParams, PerplexitySearchResp
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Search results',
-      properties: {
-        results: {
-          type: 'array',
-          description: 'Array of search results',
-          items: {
-            type: 'object',
-            properties: {
-              title: { type: 'string', description: 'Title of the search result' },
-              url: { type: 'string', description: 'URL of the search result' },
-              snippet: { type: 'string', description: 'Brief excerpt or summary of the content' },
-              date: {
-                type: 'string',
-                description: "Date the page was crawled and added to Perplexity's index",
-              },
-              last_updated: {
-                type: 'string',
-                description: "Date the page was last updated in Perplexity's index",
-              },
-            },
+    results: {
+      type: 'array',
+      description: 'Array of search results',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Title of the search result' },
+          url: { type: 'string', description: 'URL of the search result' },
+          snippet: { type: 'string', description: 'Brief excerpt or summary of the content' },
+          date: {
+            type: 'string',
+            description: "Date the page was crawled and added to Perplexity's index",
+          },
+          last_updated: {
+            type: 'string',
+            description: "Date the page was last updated in Perplexity's index",
           },
         },
       },
