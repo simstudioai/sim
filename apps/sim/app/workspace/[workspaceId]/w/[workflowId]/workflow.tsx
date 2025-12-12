@@ -17,7 +17,7 @@ import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/o
 import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthProvider } from '@/lib/oauth'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   CommandList,
   DiffControls,
@@ -43,9 +43,8 @@ import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
-import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
-import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { usePanelEditorStore } from '@/stores/panel/editor/store'
@@ -291,7 +290,8 @@ const WorkflowContent = React.memo(() => {
     })
   }, [edges, isShowingDiff, isDiffReady, diffAnalysis, blocks])
 
-  const userPermissions = useUserPermissionsContext()
+  const { userPermissions, workspacePermissions, permissionsError } =
+    useWorkspacePermissionsContext()
 
   /** Returns read-only permissions when viewing snapshot, otherwise user permissions. */
   const effectivePermissions = useMemo(() => {
@@ -305,10 +305,6 @@ const WorkflowContent = React.memo(() => {
     }
     return userPermissions
   }, [userPermissions, currentWorkflow.isSnapshotView])
-
-  const { permissions: workspacePermissions, error: permissionsError } = useWorkspacePermissions(
-    workspaceId || null
-  )
 
   const {
     collaborativeAddBlock: addBlock,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { ArrowDown, Plus } from 'lucide-react'
 import {
   Badge,
@@ -143,6 +143,9 @@ export function WorkspaceHeader({
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const contextMenuRef = useRef<HTMLDivElement | null>(null)
   const capturedWorkspaceRef = useRef<{ id: string; name: string } | null>(null)
+
+  // Stable ID for Popover to prevent hydration mismatch
+  const workspaceSwitcherId = useId()
 
   /**
    * Focus the inline list rename input when it becomes active
@@ -295,6 +298,7 @@ export function WorkspaceHeader({
             </Button>
           </PopoverTrigger>
           <PopoverContent
+            id={workspaceSwitcherId}
             align='end'
             side='bottom'
             sideOffset={8}
