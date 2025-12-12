@@ -14,8 +14,9 @@ COPY package.json bun.lock turbo.json ./
 RUN mkdir -p packages/db
 COPY packages/db/package.json ./packages/db/package.json
 
-# Install dependencies (this layer will be cached if package files don't change)
-RUN bun install --ignore-scripts
+# Install dependencies with cache mount for faster builds
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile --ignore-scripts
 
 # ========================================
 # Runner Stage: Production Environment

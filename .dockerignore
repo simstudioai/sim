@@ -1,11 +1,67 @@
+# Git
+.git
+.gitignore
+
+# Documentation
 LICENSE
 NOTICE
+README.md
+*.md
+docs/
+
+# IDE and editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Environment and config
+.env*
+!.env.example
 .prettierrc
 .prettierignore
-README.md
-.gitignore
-.husky
+.eslintrc*
+.eslintignore
+
+# CI/CD and DevOps
 .github
 .devcontainer
-.env.example
+.husky
+docker-compose*.yml
+Dockerfile*
+
+# Build artifacts and caches
+.next
+.turbo
+.cache
+dist
+build
+out
+coverage
+*.log
+
+# Dependencies (will be installed fresh in container)
 node_modules
+.bun
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+__tests__
+__mocks__
+jest.config.*
+vitest.config.*
+
+# TypeScript build info
+*.tsbuildinfo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp
+temp
+*.tmp
