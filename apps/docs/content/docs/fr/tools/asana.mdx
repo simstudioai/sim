@@ -34,7 +34,14 @@ Récupérer une tâche unique par GID ou obtenir plusieurs tâches avec des filt
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Détails d'une tâche unique ou tableau de tâches, selon que taskGid a été fourni ou non |
+| `ts` | string | Horodatage de la réponse |
+| `gid` | string | Identifiant unique global de la tâche |
+| `resource_type` | string | Type de ressource \(tâche\) |
+| `resource_subtype` | string | Sous-type de ressource |
+| `name` | string | Nom de la tâche |
+| `notes` | string | Notes ou description de la tâche |
+| `completed` | boolean | Si la tâche est terminée |
+| `assignee` | object | Détails de l'assigné |
 
 ### `asana_create_task`
 
@@ -54,8 +61,14 @@ Créer une nouvelle tâche dans Asana
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Statut de réussite de l'opération |
-| `output` | objet | Détails de la tâche créée avec horodatage, gid, nom, notes et lien permanent |
+| `success` | boolean | Statut de réussite de l'opération |
+| `ts` | string | Horodatage de la réponse |
+| `gid` | string | Identifiant unique global de la tâche |
+| `name` | string | Nom de la tâche |
+| `notes` | string | Notes ou description de la tâche |
+| `completed` | boolean | Si la tâche est terminée |
+| `created_at` | string | Horodatage de création de la tâche |
+| `permalink_url` | string | URL vers la tâche dans Asana |
 
 ### `asana_update_task`
 
@@ -77,7 +90,12 @@ Mettre à jour une tâche existante dans Asana
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Détails de la tâche mise à jour avec horodatage, gid, nom, notes et horodatage de modification |
+| `ts` | string | Horodatage de la réponse |
+| `gid` | string | Identifiant unique global de la tâche |
+| `name` | string | Nom de la tâche |
+| `notes` | string | Notes ou description de la tâche |
+| `completed` | boolean | Si la tâche est terminée |
+| `modified_at` | string | Horodatage de dernière modification de la tâche |
 
 ### `asana_get_projects`
 
@@ -94,7 +112,8 @@ Récupérer tous les projets d'un espace de travail Asana
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Liste des projets avec leur gid, nom et type de ressource |
+| `ts` | string | Horodatage de la réponse |
+| `projects` | array | Tableau de projets |
 
 ### `asana_search_tasks`
 
@@ -115,7 +134,8 @@ Rechercher des tâches dans un espace de travail Asana
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Liste des tâches correspondant aux critères de recherche |
+| `ts` | string | Horodatage de la réponse |
+| `tasks` | array | Tableau des tâches correspondantes |
 
 ### `asana_add_comment`
 
@@ -133,7 +153,11 @@ Ajouter un commentaire (story) à une tâche Asana
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Détails du commentaire incluant gid, texte, horodatage de création et auteur |
+| `ts` | string | Horodatage de la réponse |
+| `gid` | string | Identifiant unique global du commentaire |
+| `text` | string | Contenu textuel du commentaire |
+| `created_at` | string | Horodatage de création du commentaire |
+| `created_by` | object | Détails de l'auteur du commentaire |
 
 ## Notes
 

@@ -49,10 +49,11 @@ Alle Deals von Pipedrive mit optionalen Filtern abrufen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `deals` | array | Array von Deal-Objekten aus Pipedrive |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Deals-Daten und Metadaten |
 
 ### `pipedrive_get_deal`
 
@@ -66,10 +67,11 @@ Detaillierte Informationen über einen bestimmten Deal abrufen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `deal` | object | Deal-Objekt mit vollständigen Details |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Deal-Details |
 
 ### `pipedrive_create_deal`
 
@@ -93,8 +95,9 @@ Einen neuen Deal in Pipedrive erstellen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `deal` | object | Das erstellte Deal-Objekt |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Details des erstellten Deals |
 
 ### `pipedrive_update_deal`
 
@@ -115,8 +118,9 @@ Aktualisieren eines bestehenden Deals in Pipedrive
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `deal` | object | Das aktualisierte Deal-Objekt |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Details des aktualisierten Deals |
 
 ### `pipedrive_get_files`
 
@@ -133,10 +137,11 @@ Dateien von Pipedrive mit optionalen Filtern abrufen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Dateidaten |
+| `files` | array | Array von Datei-Objekten aus Pipedrive |
+| `metadata` | object | Operationsmetadaten |
+| `success` | boolean | Erfolgsstatus der Operation |
 
 ### `pipedrive_get_mail_messages`
 
@@ -151,10 +156,11 @@ E-Mail-Threads aus dem Pipedrive-Postfach abrufen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | E-Mail-Thread-Daten |
+| `messages` | array | Array von E-Mail-Thread-Objekten aus der Pipedrive-Mailbox |
+| `metadata` | object | Operationsmetadaten |
+| `success` | boolean | Erfolgsstatus der Operation |
 
 ### `pipedrive_get_mail_thread`
 
@@ -168,10 +174,11 @@ Alle Nachrichten aus einem bestimmten E-Mail-Thread abrufen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `messages` | array | Array von E-Mail-Nachrichtenobjekten aus dem Thread |
+| `metadata` | object | Operationsmetadaten einschließlich Thread-ID |
 | `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Nachrichtendaten des E-Mail-Threads |
 
 ### `pipedrive_get_pipelines`
 
@@ -190,8 +197,9 @@ Alle Pipelines aus Pipedrive abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Pipeline-Daten |
+| `pipelines` | array | Array von Pipeline-Objekten aus Pipedrive |
+| `metadata` | object | Operationsmetadaten |
+| `success` | boolean | Status des Operationserfolgs |
 
 ### `pipedrive_get_pipeline_deals`
 
@@ -210,8 +218,9 @@ Alle Deals in einer bestimmten Pipeline abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Pipeline-Deals-Daten |
+| `deals` | array | Array von Deal-Objekten aus der Pipeline |
+| `metadata` | object | Operationsmetadaten einschließlich Pipeline-ID |
+| `success` | boolean | Status des Operationserfolgs |
 
 ### `pipedrive_get_projects`
 
@@ -229,8 +238,10 @@ Alle Projekte oder ein bestimmtes Projekt von Pipedrive abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Projektdaten oder Details eines einzelnen Projekts |
+| `projects` | array | Array von Projektobjekten (bei Auflistung aller) |
+| `project` | object | Einzelnes Projektobjekt (wenn project_id angegeben ist) |
+| `metadata` | object | Operationsmetadaten |
+| `success` | boolean | Status des Operationserfolgs |
 
 ### `pipedrive_create_project`
 
@@ -249,8 +260,9 @@ Erstelle ein neues Projekt in Pipedrive
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `project` | object | Das erstellte Projektobjekt |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Details des erstellten Projekts |
 
 ### `pipedrive_get_activities`
 
@@ -271,8 +283,9 @@ Aktivitäten (Aufgaben) von Pipedrive mit optionalen Filtern abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `activities` | array | Array von Aktivitätsobjekten aus Pipedrive |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Aktivitätsdaten |
 
 ### `pipedrive_create_activity`
 
@@ -296,8 +309,9 @@ Eine neue Aktivität (Aufgabe) in Pipedrive erstellen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `activity` | object | Das erstellte Aktivitätsobjekt |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Details der erstellten Aktivität |
 
 ### `pipedrive_update_activity`
 
@@ -317,10 +331,11 @@ Eine bestehende Aktivität (Aufgabe) in Pipedrive aktualisieren
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Aktualisierte Aktivitätsdetails |
+| `activity` | object | Das aktualisierte Aktivitätsobjekt |
+| `metadata` | object | Operationsmetadaten |
+| `success` | boolean | Status des Operationserfolgs |
 
 ### `pipedrive_get_leads`
 
@@ -339,10 +354,12 @@ Alle Leads oder einen bestimmten Lead von Pipedrive abrufen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Lead-Daten oder Details eines einzelnen Leads |
+| `leads` | array | Array von Lead-Objekten (bei Auflistung aller) |
+| `lead` | object | Einzelnes Lead-Objekt (wenn lead_id angegeben ist) |
+| `metadata` | object | Operationsmetadaten |
+| `success` | boolean | Status des Operationserfolgs |
 
 ### `pipedrive_create_lead`
 
@@ -363,10 +380,11 @@ Einen neuen Lead in Pipedrive erstellen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Details des erstellten Leads |
+| `lead` | object | Das erstellte Lead-Objekt |
+| `metadata` | object | Operationsmetadaten |
+| `success` | boolean | Status des Operationserfolgs |
 
 ### `pipedrive_update_lead`
 
@@ -388,10 +406,11 @@ Einen vorhandenen Lead in Pipedrive aktualisieren
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Details des aktualisierten Leads |
+| `lead` | object | Das aktualisierte Lead-Objekt |
+| `metadata` | object | Operationsmetadaten |
+| `success` | boolean | Status des Operationserfolgs |
 
 ### `pipedrive_delete_lead`
 
@@ -407,8 +426,9 @@ Einen bestimmten Lead aus Pipedrive löschen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Löschergebnis |
+| `data` | object | Löschbestätigungsdaten |
+| `metadata` | object | Operationsmetadaten |
+| `success` | boolean | Status des Operationserfolgs |
 
 ## Hinweise
 

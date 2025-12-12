@@ -34,7 +34,14 @@ Recupera una tarea individual por GID u obtén múltiples tareas con filtros
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de una tarea individual o matriz de tareas, dependiendo de si se proporcionó taskGid |
+| `ts` | string | Marca de tiempo de la respuesta |
+| `gid` | string | Identificador único global de la tarea |
+| `resource_type` | string | Tipo de recurso \(tarea\) |
+| `resource_subtype` | string | Subtipo de recurso |
+| `name` | string | Nombre de la tarea |
+| `notes` | string | Notas o descripción de la tarea |
+| `completed` | boolean | Si la tarea está completada |
+| `assignee` | object | Detalles del asignado |
 
 ### `asana_create_task`
 
@@ -55,7 +62,13 @@ Crear una nueva tarea en Asana
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de la tarea creada con marca de tiempo, gid, nombre, notas y enlace permanente |
+| `ts` | string | Marca de tiempo de la respuesta |
+| `gid` | string | Identificador único global de la tarea |
+| `name` | string | Nombre de la tarea |
+| `notes` | string | Notas o descripción de la tarea |
+| `completed` | boolean | Si la tarea está completada |
+| `created_at` | string | Marca de tiempo de creación de la tarea |
+| `permalink_url` | string | URL a la tarea en Asana |
 
 ### `asana_update_task`
 
@@ -77,7 +90,12 @@ Actualizar una tarea existente en Asana
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles actualizados de la tarea con marca de tiempo, gid, nombre, notas y marca de tiempo de modificación |
+| `ts` | string | Marca de tiempo de la respuesta |
+| `gid` | string | Identificador único global de la tarea |
+| `name` | string | Nombre de la tarea |
+| `notes` | string | Notas o descripción de la tarea |
+| `completed` | boolean | Si la tarea está completada |
+| `modified_at` | string | Marca de tiempo de última modificación de la tarea |
 
 ### `asana_get_projects`
 
@@ -94,7 +112,8 @@ Recuperar todos los proyectos de un espacio de trabajo de Asana
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Lista de proyectos con su gid, nombre y tipo de recurso |
+| `ts` | string | Marca de tiempo de la respuesta |
+| `projects` | array | Array de proyectos |
 
 ### `asana_search_tasks`
 
@@ -115,7 +134,8 @@ Buscar tareas en un espacio de trabajo de Asana
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Lista de tareas que coinciden con los criterios de búsqueda |
+| `ts` | string | Marca de tiempo de la respuesta |
+| `tasks` | array | Array de tareas coincidentes |
 
 ### `asana_add_comment`
 
@@ -133,7 +153,11 @@ Añadir un comentario (historia) a una tarea de Asana
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles del comentario incluyendo gid, texto, marca de tiempo de creación y autor |
+| `ts` | string | Marca de tiempo de la respuesta |
+| `gid` | string | Identificador único global del comentario |
+| `text` | string | Contenido de texto del comentario |
+| `created_at` | string | Marca de tiempo de creación del comentario |
+| `created_by` | object | Detalles del autor del comentario |
 
 ## Notas
 

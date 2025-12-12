@@ -34,7 +34,8 @@ Google Workspaceドメイン内のすべてのグループを一覧表示する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Google グループ API レスポンスデータ |
+| `groups` | json | グループオブジェクトの配列 |
+| `nextPageToken` | string | 次のページの結果を取得するためのトークン |
 
 ### `google_groups_get_group`
 
@@ -50,7 +51,7 @@ Google Workspaceドメイン内のすべてのグループを一覧表示する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Google グループ API レスポンスデータ |
+| `group` | json | グループオブジェクト |
 
 ### `google_groups_create_group`
 
@@ -68,7 +69,7 @@ Google Workspaceドメイン内のすべてのグループを一覧表示する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups APIのレスポンスデータ |
+| `group` | json | 作成されたグループオブジェクト |
 
 ### `google_groups_update_group`
 
@@ -87,7 +88,7 @@ Google Workspaceドメイン内のすべてのグループを一覧表示する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups APIのレスポンスデータ |
+| `group` | json | 更新されたグループオブジェクト |
 
 ### `google_groups_delete_group`
 
@@ -103,7 +104,7 @@ Googleグループを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups APIのレスポンスデータ |
+| `message` | string | 成功メッセージ |
 
 ### `google_groups_list_members`
 
@@ -122,7 +123,8 @@ Google グループのすべてのメンバーを一覧表示する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups APIのレスポンスデータ |
+| `members` | json | メンバーオブジェクトの配列 |
+| `nextPageToken` | string | 次のページの結果を取得するためのトークン |
 
 ### `google_groups_get_member`
 
@@ -139,7 +141,7 @@ Google グループ内の特定のメンバーの詳細を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups APIのレスポンスデータ |
+| `member` | json | メンバーオブジェクト |
 
 ### `google_groups_add_member`
 
@@ -157,7 +159,7 @@ Google グループに新しいメンバーを追加する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups APIレスポンスデータ |
+| `member` | json | 追加されたメンバーオブジェクト |
 
 ### `google_groups_remove_member`
 
@@ -174,7 +176,7 @@ Google Groupからメンバーを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups APIレスポンスデータ |
+| `message` | string | 成功メッセージ |
 
 ### `google_groups_update_member`
 
@@ -192,7 +194,7 @@ Google Groupからメンバーを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups APIレスポンスデータ |
+| `member` | json | 更新されたメンバーオブジェクト |
 
 ### `google_groups_has_member`
 
@@ -209,7 +211,7 @@ Google Groupからメンバーを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Google グループ API レスポンスデータ |
+| `isMember` | boolean | ユーザーがグループのメンバーであるかどうか |
 
 ## 注意事項
 

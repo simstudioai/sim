@@ -221,17 +221,44 @@ Eliminar un comentario de una página de Confluence.
 | `commentId` | string | ID del comentario eliminado |
 | `deleted` | boolean | Estado de eliminación |
 
-### `confluence_list_attachments`
+### `confluence_upload_attachment`
 
-Listar todos los archivos adjuntos en una página de Confluence.
+Sube un archivo como adjunto a una página de Confluence.
 
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
-| `pageId` | string | Sí | ID de la página de Confluence de la que listar los archivos adjuntos |
-| `limit` | number | No | Número máximo de archivos adjuntos a devolver \(predeterminado: 25\) |
+| `pageId` | string | Sí | ID de la página de Confluence a la que adjuntar el archivo |
+| `file` | file | Sí | El archivo a subir como adjunto |
+| `fileName` | string | No | Nombre de archivo personalizado opcional para el adjunto |
+| `comment` | string | No | Comentario opcional para añadir al adjunto |
+| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de la subida |
+| `attachmentId` | string | ID del adjunto subido |
+| `title` | string | Nombre del archivo adjunto |
+| `fileSize` | number | Tamaño del archivo en bytes |
+| `mediaType` | string | Tipo MIME del adjunto |
+| `downloadUrl` | string | URL de descarga del adjunto |
+| `pageId` | string | ID de la página a la que se añadió el adjunto |
+
+### `confluence_list_attachments`
+
+Lista todos los adjuntos en una página de Confluence.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
+| `pageId` | string | Sí | ID de la página de Confluence de la que listar adjuntos |
+| `limit` | number | No | Número máximo de adjuntos a devolver \(predeterminado: 25\) |
 | `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
 
 #### Salida
@@ -239,31 +266,31 @@ Listar todos los archivos adjuntos en una página de Confluence.
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `ts` | string | Marca de tiempo de la recuperación |
-| `attachments` | array | Lista de adjuntos |
+| `attachments` | array | Lista de archivos adjuntos |
 
 ### `confluence_delete_attachment`
 
-Eliminar un adjunto de una página de Confluence (se mueve a la papelera).
+Eliminar un archivo adjunto de una página de Confluence (lo mueve a la papelera).
 
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
-| `attachmentId` | string | Sí | ID del adjunto de Confluence a eliminar |
+| `attachmentId` | string | Sí | ID del archivo adjunto de Confluence a eliminar |
 | `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `ts` | string | Marca de tiempo de la eliminación |
-| `attachmentId` | string | ID del adjunto eliminado |
-| `deleted` | boolean | Estado de la eliminación |
+| `ts` | string | Marca de tiempo de eliminación |
+| `attachmentId` | string | ID del archivo adjunto eliminado |
+| `deleted` | boolean | Estado de eliminación |
 
 ### `confluence_list_labels`
 
-Listar todas las etiquetas en una página de Confluence.
+Listar todas las etiquetas de una página de Confluence.
 
 #### Entrada
 

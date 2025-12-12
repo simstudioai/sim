@@ -35,8 +35,7 @@ Einen Export in einer Angelegenheit erstellen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API-Antwortdaten |
-| `file` | json | Heruntergeladene Exportdatei \(UserFile\) aus Ausführungsdateien |
+| `export` | json | Erstelltes Export-Objekt |
 
 ### `google_vault_list_matters_export`
 
@@ -55,8 +54,9 @@ Exporte für eine Angelegenheit auflisten
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API-Antwortdaten |
-| `file` | json | Heruntergeladene Exportdatei \(UserFile\) aus Ausführungsdateien |
+| `exports` | json | Array von Export-Objekten |
+| `export` | json | Einzelnes Export-Objekt \(wenn exportId angegeben ist\) |
+| `nextPageToken` | string | Token zum Abrufen der nächsten Ergebnisseite |
 
 ### `google_vault_download_export_file`
 
@@ -95,8 +95,7 @@ Eine Aufbewahrung in einer Angelegenheit erstellen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Vault-API-Antwortdaten |
-| `file` | json | Heruntergeladene Exportdatei \(UserFile\) aus Ausführungsdateien |
+| `hold` | json | Erstelltes Hold-Objekt |
 
 ### `google_vault_list_matters_holds`
 
@@ -113,10 +112,11 @@ Aufbewahrungen für eine Angelegenheit auflisten
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API-Antwortdaten |
-| `file` | json | Heruntergeladene Exportdatei \(UserFile\) aus Ausführungsdateien |
+| `holds` | json | Array von Hold-Objekten |
+| `hold` | json | Einzelnes Hold-Objekt \(wenn holdId angegeben ist\) |
+| `nextPageToken` | string | Token zum Abrufen der nächsten Ergebnisseite |
 
 ### `google_vault_create_matters`
 
@@ -131,10 +131,9 @@ Einen neuen Fall in Google Vault erstellen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API-Antwortdaten |
-| `file` | json | Heruntergeladene Exportdatei \(UserFile\) aus Ausführungsdateien |
+| `matter` | json | Erstelltes Matter-Objekt |
 
 ### `google_vault_list_matters`
 
@@ -150,10 +149,11 @@ Fälle auflisten oder einen bestimmten Fall abrufen, wenn matterId angegeben ist
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API-Antwortdaten |
-| `file` | json | Heruntergeladene Exportdatei \(UserFile\) aus Ausführungsdateien |
+| `matters` | json | Array von Matter-Objekten |
+| `matter` | json | Einzelnes Matter-Objekt \(wenn matterId angegeben ist\) |
+| `nextPageToken` | string | Token zum Abrufen der nächsten Ergebnisseite |
 
 ## Hinweise
 

@@ -46,10 +46,11 @@ Alle Benutzer vom HubSpot-Konto abrufen
 
 #### Output
 
-| Parameter | Type | Description |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Benutzerdaten |
+| `users` | array | Array von HubSpot-Benutzerobjekten |
+| `metadata` | object | Operationsmetadaten |
+| `success` | boolean | Erfolgsstatus der Operation |
 
 ### `hubspot_list_contacts`
 
@@ -68,8 +69,10 @@ Alle Kontakte vom HubSpot-Konto mit Paginierungsunterstützung abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `contacts` | array | Array von HubSpot-Kontaktobjekten |
+| `paging` | object | Paginierungsinformationen |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Kontaktdaten |
 
 ### `hubspot_get_contact`
 
@@ -88,8 +91,9 @@ Einen einzelnen Kontakt anhand von ID oder E-Mail aus HubSpot abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `contact` | object | HubSpot-Kontaktobjekt mit Eigenschaften |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Kontaktdaten |
 
 ### `hubspot_create_contact`
 
@@ -106,8 +110,9 @@ Erstellt einen neuen Kontakt in HubSpot. Erfordert mindestens eines der folgende
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `contact` | object | Erstelltes HubSpot-Kontaktobjekt |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Daten des erstellten Kontakts |
 
 ### `hubspot_update_contact`
 
@@ -125,8 +130,9 @@ Aktualisiert einen bestehenden Kontakt in HubSpot anhand von ID oder E-Mail
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `contact` | object | Aktualisiertes HubSpot-Kontaktobjekt |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Daten des aktualisierten Kontakts |
 
 ### `hubspot_search_contacts`
 
@@ -147,8 +153,11 @@ Suche nach Kontakten in HubSpot mit Filtern, Sortierung und Abfragen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `contacts` | array | Array übereinstimmender HubSpot-Kontaktobjekte |
+| `total` | number | Gesamtanzahl übereinstimmender Kontakte |
+| `paging` | object | Paginierungsinformationen |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Suchergebnisse |
 
 ### `hubspot_list_companies`
 
@@ -167,8 +176,10 @@ Alle Unternehmen aus dem HubSpot-Konto mit Paginierungsunterstützung abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `companies` | array | Array von HubSpot-Unternehmensobjekten |
+| `paging` | object | Paginierungsinformationen |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Unternehmensdaten |
 
 ### `hubspot_get_company`
 
@@ -187,8 +198,9 @@ Ruft ein einzelnes Unternehmen anhand der ID oder Domain von HubSpot ab
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `company` | object | HubSpot-Unternehmensobjekt mit Eigenschaften |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Unternehmensdaten |
 
 ### `hubspot_create_company`
 
@@ -205,8 +217,9 @@ Erstellt ein neues Unternehmen in HubSpot
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `company` | object | Erstelltes HubSpot-Unternehmensobjekt |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Daten des erstellten Unternehmens |
 
 ### `hubspot_update_company`
 
@@ -224,8 +237,9 @@ Aktualisiert ein bestehendes Unternehmen in HubSpot anhand der ID oder Domain
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `company` | object | Aktualisiertes HubSpot-Unternehmensobjekt |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Aktualisierte Unternehmensdaten |
 
 ### `hubspot_search_companies`
 
@@ -246,8 +260,11 @@ Suche nach Unternehmen in HubSpot mit Filtern, Sortierung und Abfragen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `companies` | array | Array übereinstimmender HubSpot-Unternehmensobjekte |
+| `total` | number | Gesamtzahl übereinstimmender Unternehmen |
+| `paging` | object | Paginierungsinformationen |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Suchergebnisse |
 
 ### `hubspot_list_deals`
 
@@ -266,8 +283,10 @@ Alle Deals vom HubSpot-Konto mit Paginierungsunterstützung abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `deals` | array | Array von HubSpot-Deal-Objekten |
+| `paging` | object | Paginierungsinformationen |
+| `metadata` | object | Operationsmetadaten |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Deals-Daten |
 
 ## Hinweise
 

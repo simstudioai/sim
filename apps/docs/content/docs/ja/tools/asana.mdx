@@ -33,8 +33,15 @@ GIDで単一のタスクを取得するか、フィルターを使用して複�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | taskGidが提供されたかどうかに応じて、単一のタスクの詳細またはタスクの配列 |
+| `success` | boolean | 操作成功ステータス |
+| `ts` | string | レスポンスのタイムスタンプ |
+| `gid` | string | タスクのグローバル一意識別子 |
+| `resource_type` | string | リソースタイプ（タスク） |
+| `resource_subtype` | string | リソースのサブタイプ |
+| `name` | string | タスク名 |
+| `notes` | string | タスクのメモや説明 |
+| `completed` | boolean | タスクが完了しているかどうか |
+| `assignee` | object | 担当者の詳細 |
 
 ### `asana_create_task`
 
@@ -54,8 +61,14 @@ Asanaで新しいタスクを作成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | タイムスタンプ、GID、名前、メモ、パーマリンクを含む作成されたタスクの詳細 |
+| `success` | boolean | 操作成功ステータス |
+| `ts` | string | レスポンスのタイムスタンプ |
+| `gid` | string | タスクのグローバル一意識別子 |
+| `name` | string | タスク名 |
+| `notes` | string | タスクのメモや説明 |
+| `completed` | boolean | タスクが完了しているかどうか |
+| `created_at` | string | タスク作成のタイムスタンプ |
+| `permalink_url` | string | Asana内のタスクへのURL |
 
 ### `asana_update_task`
 
@@ -77,7 +90,12 @@ Asanaの既存タスクを更新する
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、gid、名前、メモ、更新タイムスタンプを含む更新されたタスクの詳細 |
+| `ts` | string | レスポンスのタイムスタンプ |
+| `gid` | string | タスクのグローバル一意識別子 |
+| `name` | string | タスク名 |
+| `notes` | string | タスクのメモや説明 |
+| `completed` | boolean | タスクが完了しているかどうか |
+| `modified_at` | string | タスクの最終更新タイムスタンプ |
 
 ### `asana_get_projects`
 
@@ -94,7 +112,8 @@ Asanaワークスペースからすべてのプロジェクトを取得する
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | gid、名前、リソースタイプを含むプロジェクトのリスト |
+| `ts` | string | レスポンスのタイムスタンプ |
+| `projects` | array | プロジェクトの配列 |
 
 ### `asana_search_tasks`
 
@@ -115,7 +134,8 @@ Asanaワークスペース内のタスクを検索する
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 検索条件に一致するタスクのリスト |
+| `ts` | string | レスポンスのタイムスタンプ |
+| `tasks` | array | 一致するタスクの配列 |
 
 ### `asana_add_comment`
 
@@ -133,7 +153,11 @@ Asanaタスクにコメント（ストーリー）を追加する
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | gid、テキスト、作成タイムスタンプ、作成者を含むコメントの詳細 |
+| `ts` | string | レスポンスのタイムスタンプ |
+| `gid` | string | コメントのグローバル一意識別子 |
+| `text` | string | コメントのテキスト内容 |
+| `created_at` | string | コメント作成タイムスタンプ |
+| `created_by` | object | コメント投稿者の詳細 |
 
 ## 注意事項
 

@@ -48,25 +48,9 @@ Recuperar respuestas de formularios de Typeform
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `total_items` | number | Recuento total de respuestas/formularios |
-| `page_count` | number | Recuento total de páginas |
-| `items` | json | Array de elementos de respuesta/formulario |
-| `id` | string | Identificador único del formulario |
-| `title` | string | Título del formulario |
-| `type` | string | Tipo de formulario |
-| `created_at` | string | Marca de tiempo ISO de creación del formulario |
-| `last_updated_at` | string | Marca de tiempo ISO de última actualización |
-| `settings` | json | Objeto de configuración del formulario |
-| `theme` | json | Objeto de configuración del tema |
-| `workspace` | json | Información del espacio de trabajo |
-| `fields` | json | Array de campos/preguntas del formulario |
-| `thankyou_screens` | json | Array de pantallas de agradecimiento |
-| `_links` | json | Enlaces a recursos relacionados |
-| `deleted` | boolean | Si el formulario se eliminó correctamente |
-| `message` | string | Mensaje de confirmación de eliminación |
-| `fileUrl` | string | URL del archivo descargado |
-| `contentType` | string | Tipo de contenido del archivo |
-| `filename` | string | Nombre del archivo |
+| `total_items` | number | Número total de respuestas |
+| `page_count` | number | Número total de páginas disponibles |
+| `items` | array | Array de objetos de respuesta con response_id, submitted_at, answers y metadata |
 
 ### `typeform_files`
 
@@ -128,7 +112,7 @@ Recupera una lista de todos los formularios en tu cuenta de Typeform
 | --------- | ---- | ----------- |
 | `total_items` | number | Número total de formularios en la cuenta |
 | `page_count` | number | Número total de páginas disponibles |
-| `items` | array | Array de objetos de formulario |
+| `items` | array | Array de objetos de formulario con id, title, created_at, last_updated_at, settings, theme y _links |
 
 ### `typeform_get_form`
 
@@ -148,11 +132,13 @@ Recuperar detalles completos y estructura de un formulario específico
 | `id` | string | Identificador único del formulario |
 | `title` | string | Título del formulario |
 | `type` | string | Tipo de formulario \(form, quiz, etc.\) |
-| `created_at` | string | Marca de tiempo ISO de creación del formulario |
-| `last_updated_at` | string | Marca de tiempo ISO de última actualización |
 | `settings` | object | Configuración del formulario incluyendo idioma, barra de progreso, etc. |
-| `theme` | object | Configuración del tema con colores, fuentes y ajustes de diseño |
-| `workspace` | object | Información del espacio de trabajo |
+| `theme` | object | Referencia del tema |
+| `workspace` | object | Referencia del espacio de trabajo |
+| `fields` | array | Array de campos/preguntas del formulario |
+| `welcome_screens` | array | Array de pantallas de bienvenida |
+| `thankyou_screens` | array | Array de pantallas de agradecimiento |
+| `_links` | object | Enlaces a recursos relacionados incluyendo URL pública del formulario |
 
 ### `typeform_create_form`
 
@@ -177,13 +163,8 @@ Crear un nuevo formulario con campos y configuraciones
 | `id` | string | Identificador único del formulario creado |
 | `title` | string | Título del formulario |
 | `type` | string | Tipo de formulario |
-| `created_at` | string | Marca de tiempo ISO de creación del formulario |
-| `last_updated_at` | string | Marca de tiempo ISO de última actualización |
-| `settings` | object | Configuración del formulario |
-| `theme` | object | Configuración del tema aplicado |
-| `workspace` | object | Información del espacio de trabajo |
-| `fields` | array | Array de campos del formulario creados |
-| `_links` | object | Enlaces a recursos relacionados |
+| `fields` | array | Array de campos del formulario creado |
+| `_links` | object | Enlaces a recursos relacionados incluyendo URL pública del formulario |
 
 ### `typeform_update_form`
 
@@ -204,12 +185,11 @@ Actualizar un formulario existente usando operaciones JSON Patch
 | `id` | string | Identificador único del formulario actualizado |
 | `title` | string | Título del formulario |
 | `type` | string | Tipo de formulario |
-| `created_at` | string | Marca de tiempo ISO de creación del formulario |
-| `last_updated_at` | string | Marca de tiempo ISO de última actualización |
 | `settings` | object | Configuración del formulario |
-| `theme` | object | Configuración del tema |
-| `workspace` | object | Información del espacio de trabajo |
+| `theme` | object | Referencia del tema |
+| `workspace` | object | Referencia del espacio de trabajo |
 | `fields` | array | Array de campos del formulario |
+| `welcome_screens` | array | Array de pantallas de bienvenida |
 | `thankyou_screens` | array | Array de pantallas de agradecimiento |
 | `_links` | object | Enlaces a recursos relacionados |
 

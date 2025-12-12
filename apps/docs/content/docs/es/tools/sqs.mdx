@@ -3,9 +3,9 @@ title: Amazon SQS
 description: Conectar a Amazon SQS
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card";
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="sqs"
   color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 />
@@ -40,22 +40,22 @@ Enviar un mensaje a una cola de Amazon SQS
 
 #### Entrada
 
-| Parámetro                | Tipo   | Requerido | Descripción                                                                   |
-| ------------------------ | ------ | -------- | ----------------------------------------------------------------------------- |
-| `region`                 | string | Sí      | Región de AWS \(p. ej., us-east-1\)                                                |
-| `accessKeyId`            | string | Sí      | ID de clave de acceso de AWS                                                             |
-| `secretAccessKey`        | string | Sí      | Clave de acceso secreta de AWS                                                         |
-| `queueUrl`               | string | Sí      | URL de la cola \(p. ej., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
-| `data`                   | object | Sí      | Cuerpo del mensaje para enviar como objeto JSON                                           |
-| `messageGroupId`         | string | No       | ID de grupo de mensajes \(opcional\)                                                 |
-| `messageDeduplicationId` | string | No       | ID de deduplicación de mensajes para colas FIFO \(opcional\)                         |
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Sí | Región de AWS (p. ej., us-east-1) |
+| `accessKeyId` | string | Sí | ID de clave de acceso de AWS |
+| `secretAccessKey` | string | Sí | Clave de acceso secreta de AWS |
+| `queueUrl` | string | Sí | URL de la cola |
+| `data` | object | Sí | Cuerpo del mensaje a enviar |
+| `messageGroupId` | string | No | ID del grupo de mensajes (opcional) |
+| `messageDeduplicationId` | string | No | ID de deduplicación del mensaje (opcional) |
 
 #### Salida
 
-| Parámetro | Tipo   | Descripción                                               |
-| --------- | ------ | --------------------------------------------------------- |
-| `message` | string | Mensaje de éxito o error que describe el resultado de la operación |
-| `id`      | string | ID del mensaje                                                |
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `id` | string | ID del mensaje |
 
 ## Notas
 

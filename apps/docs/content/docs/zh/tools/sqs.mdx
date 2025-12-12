@@ -3,9 +3,9 @@ title: Amazon SQS
 description: 连接到 Amazon SQS
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card";
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="sqs"
   color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 />
@@ -40,22 +40,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card";
 
 #### 输入
 
-| 参数                     | 类型   | 必需   | 描述                                                                         |
-| ------------------------ | ------ | ------ | -------------------------------------------------------------------------- |
-| `region`                 | string | 是      | AWS 区域 \(例如，us-east-1\)                                                |
-| `accessKeyId`            | string | 是      | AWS 访问密钥 ID                                                             |
-| `secretAccessKey`        | string | 是      | AWS 秘密访问密钥                                                           |
-| `queueUrl`               | string | 是      | 队列 URL \(例如，https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
-| `data`                   | object | 是      | 要作为 JSON 对象发送的消息正文                                             |
-| `messageGroupId`         | string | 否      | 消息组 ID \(可选\)                                                         |
-| `messageDeduplicationId` | string | 否      | FIFO 队列的消息去重 ID \(可选\)                                            |
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `queueUrl` | string | 是 | 队列 URL |
+| `data` | object | 是 | 要发送的消息正文 |
+| `messageGroupId` | string | 否 | 消息组 ID \(可选\) |
+| `messageDeduplicationId` | string | 否 | 消息去重 ID \(可选\) |
 
 #### 输出
 
-| 参数       | 类型   | 描述                                                     |
-| --------- | ------ | --------------------------------------------------------- |
-| `message` | string | 描述操作结果的成功或错误信息                              |
-| `id`      | string | 消息 ID                                                  |
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `id` | string | 消息 ID |
 
 ## 注意事项
 

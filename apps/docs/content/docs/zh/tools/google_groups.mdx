@@ -34,7 +34,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API 响应数据 |
+| `groups` | json | 群组对象的数组 |
+| `nextPageToken` | string | 用于获取下一页结果的令牌 |
 
 ### `google_groups_get_group`
 
@@ -50,7 +51,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API 响应数据 |
+| `group` | json | 群组对象 |
 
 ### `google_groups_create_group`
 
@@ -68,7 +69,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API 响应数据 |
+| `group` | json | 创建的群组对象 |
 
 ### `google_groups_update_group`
 
@@ -87,7 +88,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API 响应数据 |
+| `group` | json | 更新的群组对象 |
 
 ### `google_groups_delete_group`
 
@@ -103,7 +104,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API 响应数据 |
+| `message` | string | 成功消息 |
 
 ### `google_groups_list_members`
 
@@ -122,7 +123,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API 响应数据 |
+| `members` | json | 成员对象的数组 |
+| `nextPageToken` | string | 用于获取下一页结果的令牌 |
 
 ### `google_groups_get_member`
 
@@ -139,7 +141,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API 响应数据 |
+| `member` | json | 成员对象 |
 
 ### `google_groups_add_member`
 
@@ -157,7 +159,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API 响应数据 |
+| `member` | json | 添加的成员对象 |
 
 ### `google_groups_remove_member`
 
@@ -174,7 +176,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API 响应数据 |
+| `message` | string | 成功消息 |
 
 ### `google_groups_update_member`
 
@@ -192,7 +194,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API 响应数据 |
+| `member` | json | 更新的成员对象 |
 
 ### `google_groups_has_member`
 
@@ -209,7 +211,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API 响应数据 |
+| `isMember` | boolean | 用户是否是该群组的成员 |
 
 ## 注意事项
 

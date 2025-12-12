@@ -47,8 +47,9 @@ HubSpotアカウントからすべてのユーザーを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | ユーザーデータ |
+| `users` | array | HubSpotユーザーオブジェクトの配列 |
+| `metadata` | object | 操作メタデータ |
+| `success` | boolean | 操作成功ステータス |
 
 ### `hubspot_list_contacts`
 
@@ -67,8 +68,10 @@ HubSpotアカウントからすべてのユーザーを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `contacts` | array | HubSpotコンタクトオブジェクトの配列 |
+| `paging` | object | ページネーション情報 |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | コンタクトデータ |
 
 ### `hubspot_get_contact`
 
@@ -87,8 +90,9 @@ HubSpotからIDまたはメールで単一のコンタクトを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `contact` | object | プロパティを持つHubSpotコンタクトオブジェクト |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | コンタクトデータ |
 
 ### `hubspot_create_contact`
 
@@ -105,8 +109,9 @@ HubSpotで新しい連絡先を作成します。少なくともemail、firstnam
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | 作成された連絡先データ |
+| `contact` | object | 作成されたHubSpotコンタクトオブジェクト |
+| `metadata` | object | 操作メタデータ |
+| `success` | boolean | 操作成功ステータス |
 
 ### `hubspot_update_contact`
 
@@ -124,8 +129,9 @@ IDまたはメールアドレスでHubSpotの既存の連絡先を更新しま�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | 更新された連絡先データ |
+| `contact` | object | 更新されたHubSpotコンタクトオブジェクト |
+| `metadata` | object | 操作メタデータ |
+| `success` | boolean | 操作成功ステータス |
 
 ### `hubspot_search_contacts`
 
@@ -146,8 +152,11 @@ IDまたはメールアドレスでHubSpotの既存の連絡先を更新しま�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | 検索結果 |
+| `contacts` | array | 一致するHubSpotコンタクトオブジェクトの配列 |
+| `total` | number | 一致するコンタクトの総数 |
+| `paging` | object | ページネーション情報 |
+| `metadata` | object | 操作メタデータ |
+| `success` | boolean | 操作成功ステータス |
 
 ### `hubspot_list_companies`
 
@@ -166,8 +175,10 @@ IDまたはメールアドレスでHubSpotの既存の連絡先を更新しま�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | 企業データ |
+| `companies` | array | HubSpot会社オブジェクトの配列 |
+| `paging` | object | ページネーション情報 |
+| `metadata` | object | 操作メタデータ |
+| `success` | boolean | 操作成功ステータス |
 
 ### `hubspot_get_company`
 
@@ -186,8 +197,9 @@ IDまたはドメインからHubSpotの単一企業を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `company` | object | プロパティを持つHubSpot会社オブジェクト |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 企業データ |
 
 ### `hubspot_create_company`
 
@@ -204,8 +216,9 @@ HubSpotに新しい企業を作成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `company` | object | 作成されたHubSpot会社オブジェクト |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 作成された企業データ |
 
 ### `hubspot_update_company`
 
@@ -223,8 +236,9 @@ IDまたはドメインによってHubSpotの既存企業を更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `company` | object | 更新されたHubSpot会社オブジェクト |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 更新された会社データ |
 
 ### `hubspot_search_companies`
 
@@ -245,8 +259,11 @@ IDまたはドメインによってHubSpotの既存企業を更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `companies` | array | 一致するHubSpot会社オブジェクトの配列 |
+| `total` | number | 一致する会社の総数 |
+| `paging` | object | ページネーション情報 |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 検索結果 |
 
 ### `hubspot_list_deals`
 
@@ -265,8 +282,10 @@ IDまたはドメインによってHubSpotの既存企業を更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `deals` | array | HubSpotディールオブジェクトの配列 |
+| `paging` | object | ページネーション情報 |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 取引データ |
 
 ## 注意事項
 

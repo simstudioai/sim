@@ -221,6 +221,33 @@ Confluenceページからコメントを削除します。
 | `commentId` | string | 削除されたコメントID |
 | `deleted` | boolean | 削除ステータス |
 
+### `confluence_upload_attachment`
+
+ファイルをConfluenceページに添付ファイルとしてアップロードします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | ファイルを添付するConfluenceページID |
+| `file` | file | はい | 添付ファイルとしてアップロードするファイル |
+| `fileName` | string | いいえ | 添付ファイルのオプションのカスタムファイル名 |
+| `comment` | string | いいえ | 添付ファイルに追加するオプションのコメント |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | アップロードのタイムスタンプ |
+| `attachmentId` | string | アップロードされた添付ファイルID |
+| `title` | string | 添付ファイル名 |
+| `fileSize` | number | ファイルサイズ（バイト単位） |
+| `mediaType` | string | 添付ファイルのMIMEタイプ |
+| `downloadUrl` | string | 添付ファイルのダウンロードURL |
+| `pageId` | string | 添付ファイルが追加されたページID |
+
 ### `confluence_list_attachments`
 
 Confluenceページのすべての添付ファイルを一覧表示します。
@@ -282,7 +309,7 @@ Confluenceページのすべてのラベルを一覧表示します。
 
 ### `confluence_get_space`
 
-特定のConfluenceスペースの詳細を取得します。
+特定のConfluenceスペースに関する詳細を取得します。
 
 #### 入力
 

@@ -34,8 +34,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API 响应数据 |
-| `file` | json | 从执行文件中下载的导出文件 \(UserFile\) |
+| `export` | json | 创建的导出对象 |
 
 ### `google_vault_list_matters_export`
 
@@ -54,8 +53,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API 响应数据 |
-| `file` | json | 从执行文件中下载的导出文件 \(UserFile\) |
+| `exports` | json | 导出对象的数组 |
+| `export` | json | 单个导出对象（当提供 exportId 时） |
+| `nextPageToken` | string | 用于获取下一页结果的令牌 |
 
 ### `google_vault_download_export_file`
 
@@ -94,8 +94,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API 响应数据 |
-| `file` | json | 从执行文件中下载的导出文件 \(UserFile\) |
+| `hold` | json | 创建的保留对象 |
 
 ### `google_vault_list_matters_holds`
 
@@ -114,8 +113,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API 响应数据 |
-| `file` | json | 从执行文件中下载的导出文件 \(UserFile\) |
+| `holds` | json | 保留对象的数组 |
+| `hold` | json | 单个保留对象（当提供 holdId 时） |
+| `nextPageToken` | string | 用于获取下一页结果的令牌 |
 
 ### `google_vault_create_matters`
 
@@ -132,8 +132,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API 响应数据 |
-| `file` | json | 从执行文件中下载的导出文件 \(UserFile\) |
+| `matter` | json | 创建的事项对象 |
 
 ### `google_vault_list_matters`
 
@@ -151,8 +150,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API 响应数据 |
-| `file` | json | 从执行文件中下载的导出文件 \(UserFile\) |
+| `matters` | json | 事项对象的数组 |
+| `matter` | json | 单个事项对象（当提供 matterId 时） |
+| `nextPageToken` | string | 用于获取下一页结果的令牌 |
 
 ## 注意事项
 
