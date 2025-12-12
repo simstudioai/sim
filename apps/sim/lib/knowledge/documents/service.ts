@@ -1089,7 +1089,7 @@ export async function markDocumentAsFailedTimeout(
 ): Promise<{ success: boolean; processingDuration: number }> {
   const now = new Date()
   const processingDuration = now.getTime() - processingStartedAt.getTime()
-  const DEAD_PROCESS_THRESHOLD_MS = 150 * 1000
+  const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
 
   if (processingDuration <= DEAD_PROCESS_THRESHOLD_MS) {
     throw new Error('Document has not been processing long enough to be considered dead')

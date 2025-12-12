@@ -144,7 +144,9 @@ export async function proxy(request: NextRequest) {
     if (hasActiveSession) {
       return NextResponse.redirect(new URL('/workspace', request.url))
     }
-    return NextResponse.next()
+    const response = NextResponse.next()
+    response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+    return response
   }
 
   if (url.pathname.startsWith('/chat/')) {

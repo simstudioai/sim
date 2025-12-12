@@ -135,6 +135,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
               priority
               loading='eager'
               quality={100}
+              unoptimized
             />
           ) : (
             <Image

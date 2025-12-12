@@ -466,7 +466,7 @@ export function KnowledgeBase({
    */
   const checkForDeadProcesses = async () => {
     const now = new Date()
-    const DEAD_PROCESS_THRESHOLD_MS = 150 * 1000
+    const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
 
     const staleDocuments = documents.filter((doc) => {
       if (doc.processingStatus !== 'processing' || !doc.processingStartedAt) {
