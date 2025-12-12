@@ -47,8 +47,9 @@ HubSpot CRM 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 用户数据 |
+| `users` | 数组 | HubSpot 用户对象的数组 |
+| `metadata` | 对象 | 操作元数据 |
+| `success` | 布尔值 | 操作成功状态 |
 
 ### `hubspot_list_contacts`
 
@@ -67,8 +68,10 @@ HubSpot CRM 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 联系人数据 |
+| `contacts` | 数组 | HubSpot 联系人对象的数组 |
+| `paging` | 对象 | 分页信息 |
+| `metadata` | 对象 | 操作元数据 |
+| `success` | 布尔值 | 操作成功状态 |
 
 ### `hubspot_get_contact`
 
@@ -87,8 +90,9 @@ HubSpot CRM 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 联系人数据 |
+| `contact` | 对象 | 带有属性的 HubSpot 联系人对象 |
+| `metadata` | 对象 | 操作元数据 |
+| `success` | 布尔值 | 操作成功状态 |
 
 ### `hubspot_create_contact`
 
@@ -105,8 +109,9 @@ HubSpot CRM 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的联系人数据 |
+| `contact` | 对象 | 创建的 HubSpot 联系人对象 |
+| `metadata` | 对象 | 操作元数据 |
+| `success` | 布尔值 | 操作成功状态 |
 
 ### `hubspot_update_contact`
 
@@ -124,8 +129,9 @@ HubSpot CRM 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 更新的联系人数据 |
+| `contact` | 对象 | 更新的 HubSpot 联系人对象 |
+| `metadata` | 对象 | 操作元数据 |
+| `success` | 布尔值 | 操作成功状态 |
 
 ### `hubspot_search_contacts`
 
@@ -146,8 +152,11 @@ HubSpot CRM 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 搜索结果 |
+| `contacts` | 数组 | 匹配的 HubSpot 联系人对象的数组 |
+| `total` | 数字 | 匹配的联系人总数 |
+| `paging` | 对象 | 分页信息 |
+| `metadata` | 对象 | 操作元数据 |
+| `success` | 布尔值 | 操作成功状态 |
 
 ### `hubspot_list_companies`
 
@@ -166,8 +175,10 @@ HubSpot CRM 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `companies` | array | HubSpot 公司对象的数组 |
+| `paging` | object | 分页信息 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 公司数据 |
 
 ### `hubspot_get_company`
 
@@ -186,8 +197,9 @@ HubSpot CRM 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `company` | object | 带有属性的 HubSpot 公司对象 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 公司数据 |
 
 ### `hubspot_create_company`
 
@@ -204,8 +216,9 @@ HubSpot CRM 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `company` | object | 创建的 HubSpot 公司对象 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的公司数据 |
 
 ### `hubspot_update_company`
 
@@ -223,8 +236,9 @@ HubSpot CRM 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `company` | object | 更新的 HubSpot 公司对象 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 更新的公司数据 |
 
 ### `hubspot_search_companies`
 
@@ -245,8 +259,11 @@ HubSpot CRM 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `companies` | array | 匹配的 HubSpot 公司对象的数组 |
+| `total` | number | 匹配的公司总数 |
+| `paging` | object | 分页信息 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 搜索结果 |
 
 ### `hubspot_list_deals`
 
@@ -265,8 +282,10 @@ HubSpot CRM 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 交易数据 |
+| `deals` | array | HubSpot 交易对象的数组 |
+| `paging` | object | 分页信息 |
+| `metadata` | object | 操作元数据 |
+| `success` | boolean | 操作成功状态 |
 
 ## 注意事项
 

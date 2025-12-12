@@ -34,7 +34,8 @@ Listar todos los grupos en un dominio de Google Workspace
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Google Groups |
+| `groups` | json | Array de objetos de grupo |
+| `nextPageToken` | string | Token para obtener la siguiente página de resultados |
 
 ### `google_groups_get_group`
 
@@ -50,7 +51,7 @@ Obtener detalles de un Grupo de Google específico por correo electrónico o ID 
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Google Groups |
+| `group` | json | Objeto de grupo |
 
 ### `google_groups_create_group`
 
@@ -68,7 +69,7 @@ Crear un nuevo Grupo de Google en el dominio
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Google Groups |
+| `group` | json | Objeto de grupo creado |
 
 ### `google_groups_update_group`
 
@@ -87,7 +88,7 @@ Actualizar un grupo de Google existente
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Google Groups |
+| `group` | json | Objeto de grupo actualizado |
 
 ### `google_groups_delete_group`
 
@@ -103,7 +104,7 @@ Eliminar un grupo de Google
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Google Groups |
+| `message` | string | Mensaje de éxito |
 
 ### `google_groups_list_members`
 
@@ -122,7 +123,8 @@ Listar todos los miembros de un Grupo de Google
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Grupos de Google |
+| `members` | json | Array de objetos de miembro |
+| `nextPageToken` | string | Token para obtener la siguiente página de resultados |
 
 ### `google_groups_get_member`
 
@@ -139,7 +141,7 @@ Obtener detalles de un miembro específico en un Grupo de Google
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Grupos de Google |
+| `member` | json | Objeto de miembro |
 
 ### `google_groups_add_member`
 
@@ -157,7 +159,7 @@ Añadir un nuevo miembro a un Grupo de Google
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Google Groups |
+| `member` | json | Objeto de miembro añadido |
 
 ### `google_groups_remove_member`
 
@@ -174,7 +176,7 @@ Eliminar un miembro de un grupo de Google
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Google Groups |
+| `message` | string | Mensaje de éxito |
 
 ### `google_groups_update_member`
 
@@ -192,7 +194,7 @@ Actualizar un miembro
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Google Groups |
+| `member` | json | Objeto de miembro actualizado |
 
 ### `google_groups_has_member`
 
@@ -209,7 +211,7 @@ Comprobar si un usuario es miembro de un grupo de Google
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Google Groups |
+| `isMember` | boolean | Indica si el usuario es miembro del grupo |
 
 ## Notas
 

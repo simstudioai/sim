@@ -34,8 +34,7 @@ Crear una exportación en un asunto
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Vault |
-| `file` | json | Archivo de exportación descargado \(UserFile\) de los archivos de ejecución |
+| `export` | json | Objeto de exportación creado |
 
 ### `google_vault_list_matters_export`
 
@@ -54,8 +53,9 @@ Listar exportaciones para un asunto
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Vault |
-| `file` | json | Archivo de exportación descargado \(UserFile\) de los archivos de ejecución |
+| `exports` | json | Array de objetos de exportación |
+| `export` | json | Objeto de exportación único \(cuando se proporciona exportId\) |
+| `nextPageToken` | string | Token para obtener la siguiente página de resultados |
 
 ### `google_vault_download_export_file`
 
@@ -94,8 +94,7 @@ Crear una retención en un asunto
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Vault |
-| `file` | json | Archivo de exportación descargado \(UserFile\) de los archivos de ejecución |
+| `hold` | json | Objeto de retención creado |
 
 ### `google_vault_list_matters_holds`
 
@@ -114,8 +113,9 @@ Listar retenciones para un asunto
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Vault |
-| `file` | json | Archivo de exportación descargado (UserFile) de los archivos de ejecución |
+| `holds` | json | Array de objetos de retención |
+| `hold` | json | Objeto de retención único \(cuando se proporciona holdId\) |
+| `nextPageToken` | string | Token para obtener la siguiente página de resultados |
 
 ### `google_vault_create_matters`
 
@@ -132,8 +132,7 @@ Crear un nuevo asunto en Google Vault
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Vault |
-| `file` | json | Archivo de exportación descargado (UserFile) de los archivos de ejecución |
+| `matter` | json | Objeto de asunto creado |
 
 ### `google_vault_list_matters`
 
@@ -151,8 +150,9 @@ Listar asuntos, o obtener un asunto específico si se proporciona matterId
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `output` | json | Datos de respuesta de la API de Vault |
-| `file` | json | Archivo de exportación descargado (UserFile) de los archivos de ejecución |
+| `matters` | json | Array de objetos de asunto |
+| `matter` | json | Objeto de asunto único \(cuando se proporciona matterId\) |
+| `nextPageToken` | string | Token para obtener la siguiente página de resultados |
 
 ## Notas
 

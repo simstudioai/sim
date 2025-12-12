@@ -48,25 +48,9 @@ Formularantworten von Typeform abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `total_items` | number | Gesamtzahl der Antworten/Formulare |
-| `page_count` | number | Gesamtseitenanzahl |
-| `items` | json | Array der Antwort-/Formularelemente |
-| `id` | string | Eindeutige Formular-ID |
-| `title` | string | Formulartitel |
-| `type` | string | Formulartyp |
-| `created_at` | string | ISO-Zeitstempel der Formularerstellung |
-| `last_updated_at` | string | ISO-Zeitstempel der letzten Aktualisierung |
-| `settings` | json | Formulareinstellungsobjekt |
-| `theme` | json | Theme-Konfigurationsobjekt |
-| `workspace` | json | Workspace-Informationen |
-| `fields` | json | Array der Formularfelder/Fragen |
-| `thankyou_screens` | json | Array der Dankesbildschirme |
-| `_links` | json | Links zu verwandten Ressourcen |
-| `deleted` | boolean | Ob das Formular erfolgreich gelöscht wurde |
-| `message` | string | Löschbestätigungsnachricht |
-| `fileUrl` | string | URL der heruntergeladenen Datei |
-| `contentType` | string | Datei-Content-Type |
-| `filename` | string | Dateiname |
+| `total_items` | number | Gesamtanzahl der Antworten |
+| `page_count` | number | Gesamtanzahl der verfügbaren Seiten |
+| `items` | array | Array von Antwortobjekten mit response_id, submitted_at, answers und metadata |
 
 ### `typeform_files`
 
@@ -128,7 +112,7 @@ Eine Liste aller Formulare in Ihrem Typeform-Konto abrufen
 | --------- | ---- | ----------- |
 | `total_items` | number | Gesamtanzahl der Formulare im Konto |
 | `page_count` | number | Gesamtanzahl der verfügbaren Seiten |
-| `items` | array | Array von Formularobjekten |
+| `items` | array | Array von Formularobjekten mit id, title, created_at, last_updated_at, settings, theme und _links |
 
 ### `typeform_get_form`
 
@@ -148,11 +132,13 @@ Vollständige Details und Struktur eines bestimmten Formulars abrufen
 | `id` | string | Eindeutige Formular-ID |
 | `title` | string | Formulartitel |
 | `type` | string | Formulartyp \(form, quiz, etc.\) |
-| `created_at` | string | ISO-Zeitstempel der Formularerstellung |
-| `last_updated_at` | string | ISO-Zeitstempel der letzten Aktualisierung |
 | `settings` | object | Formulareinstellungen einschließlich Sprache, Fortschrittsbalken, etc. |
-| `theme` | object | Theme-Konfiguration mit Farben, Schriftarten und Design-Einstellungen |
-| `workspace` | object | Workspace-Informationen |
+| `theme` | object | Theme-Referenz |
+| `workspace` | object | Workspace-Referenz |
+| `fields` | array | Array von Formularfeldern/Fragen |
+| `welcome_screens` | array | Array von Begrüßungsbildschirmen |
+| `thankyou_screens` | array | Array von Dankesbildschirmen |
+| `_links` | object | Links zu verwandten Ressourcen einschließlich öffentlicher Formular-URL |
 
 ### `typeform_create_form`
 
@@ -177,13 +163,8 @@ Ein neues Formular mit Feldern und Einstellungen erstellen
 | `id` | string | Eindeutige Kennung des erstellten Formulars |
 | `title` | string | Formulartitel |
 | `type` | string | Formulartyp |
-| `created_at` | string | ISO-Zeitstempel der Formularerstellung |
-| `last_updated_at` | string | ISO-Zeitstempel der letzten Aktualisierung |
-| `settings` | object | Formulareinstellungen |
-| `theme` | object | Angewandte Theme-Konfiguration |
-| `workspace` | object | Workspace-Informationen |
 | `fields` | array | Array der erstellten Formularfelder |
-| `_links` | object | Links zu verwandten Ressourcen |
+| `_links` | object | Links zu verwandten Ressourcen einschließlich öffentlicher Formular-URL |
 
 ### `typeform_update_form`
 
@@ -204,13 +185,12 @@ Ein bestehendes Formular mit JSON Patch-Operationen aktualisieren
 | `id` | string | Eindeutige Kennung des aktualisierten Formulars |
 | `title` | string | Formulartitel |
 | `type` | string | Formulartyp |
-| `created_at` | string | ISO-Zeitstempel der Formularerstellung |
-| `last_updated_at` | string | ISO-Zeitstempel der letzten Aktualisierung |
 | `settings` | object | Formulareinstellungen |
-| `theme` | object | Theme-Konfiguration |
-| `workspace` | object | Workspace-Informationen |
-| `fields` | array | Array der Formularfelder |
-| `thankyou_screens` | array | Array der Dankesbildschirme |
+| `theme` | object | Theme-Referenz |
+| `workspace` | object | Workspace-Referenz |
+| `fields` | array | Array von Formularfeldern |
+| `welcome_screens` | array | Array von Begrüßungsbildschirmen |
+| `thankyou_screens` | array | Array von Dankesbildschirmen |
 | `_links` | object | Links zu verwandten Ressourcen |
 
 ### `typeform_delete_form`

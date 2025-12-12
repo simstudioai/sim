@@ -51,8 +51,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `deals` | array | 来自 Pipedrive 的交易对象数组 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 交易数据和元数据 |
 
 ### `pipedrive_get_deal`
 
@@ -68,8 +69,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `deal` | object | 包含完整详细信息的交易对象 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 交易详情 |
 
 ### `pipedrive_create_deal`
 
@@ -93,8 +95,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `deal` | object | 创建的交易对象 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的交易详情 |
 
 ### `pipedrive_update_deal`
 
@@ -115,8 +118,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `deal` | object | 更新的交易对象 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 更新的交易详情 |
 
 ### `pipedrive_get_files`
 
@@ -135,8 +139,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `files` | array | 来自 Pipedrive 的文件对象数组 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 文件数据 |
 
 ### `pipedrive_get_mail_messages`
 
@@ -153,8 +158,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `messages` | array | 来自 Pipedrive 邮箱的邮件线程对象数组 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 邮件线程数据 |
 
 ### `pipedrive_get_mail_thread`
 
@@ -170,8 +176,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `messages` | array | 邮件线程中的邮件消息对象数组 |
+| `metadata` | object | 包含线程 ID 的操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 邮件线程消息数据 |
 
 ### `pipedrive_get_pipelines`
 
@@ -190,8 +197,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `pipelines` | array | 来自 Pipedrive 的管道对象数组 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 管道数据 |
 
 ### `pipedrive_get_pipeline_deals`
 
@@ -210,8 +218,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `deals` | array | 管道中的交易对象数组 |
+| `metadata` | object | 包含管道 ID 的操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 管道交易数据 |
 
 ### `pipedrive_get_projects`
 
@@ -229,8 +238,10 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `projects` | array | 项目对象数组（列出所有项目时） |
+| `project` | object | 单个项目对象（提供 project_id 时） |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 项目数据或单个项目详情 |
 
 ### `pipedrive_create_project`
 
@@ -249,8 +260,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `project` | object | 创建的项目对象 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的项目详情 |
 
 ### `pipedrive_get_activities`
 
@@ -271,8 +283,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `activities` | array | 来自 Pipedrive 的活动对象数组 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 活动数据 |
 
 ### `pipedrive_create_activity`
 
@@ -296,8 +309,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `activity` | object | 创建的活动对象 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的活动详情 |
 
 ### `pipedrive_update_activity`
 
@@ -319,8 +333,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `activity` | object | 更新的活动对象 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 更新的活动详情 |
 
 ### `pipedrive_get_leads`
 
@@ -341,8 +356,10 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `leads` | array | 潜在客户对象数组（列出所有时） |
+| `lead` | object | 单个潜在客户对象（提供 lead_id 时） |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 潜在客户数据或单个潜在客户详情 |
 
 ### `pipedrive_create_lead`
 
@@ -365,8 +382,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `lead` | object | 创建的潜在客户对象 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的潜在客户详情 |
 
 ### `pipedrive_update_lead`
 
@@ -390,8 +408,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `lead` | object | 更新的潜在客户对象 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 更新的潜在客户详情 |
 
 ### `pipedrive_delete_lead`
 
@@ -407,8 +426,9 @@ Pipedrive 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `data` | object | 删除确认数据 |
+| `metadata` | object | 操作元数据 |
 | `success` | boolean | 操作成功状态 |
-| `output` | object | 删除结果 |
 
 ## 注意事项
 

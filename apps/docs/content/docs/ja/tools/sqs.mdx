@@ -3,9 +3,9 @@ title: Amazon SQS
 description: Amazon SQSに接続
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card";
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="sqs"
   color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 />
@@ -40,22 +40,22 @@ Amazon SQSキューにメッセージを送信
 
 #### 入力
 
-| パラメータ                | 型   | 必須 | 説明                                                                   |
-| ------------------------ | ------ | -------- | ----------------------------------------------------------------------------- |
-| `region`                 | string | はい      | AWSリージョン（例：us-east-1）                                                |
-| `accessKeyId`            | string | はい      | AWSアクセスキーID                                                             |
-| `secretAccessKey`        | string | はい      | AWSシークレットアクセスキー                                                         |
-| `queueUrl`               | string | はい      | キューURL（例：https://sqs.us-east-1.amazonaws.com/123456789012/my-queue）|
-| `data`                   | object | はい      | JSONオブジェクトとして送信するメッセージ本文                                           |
-| `messageGroupId`         | string | いいえ       | メッセージグループID（オプション）                                                 |
-| `messageDeduplicationId` | string | いいえ       | FIFOキュー用のメッセージ重複排除ID（オプション）                         |
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWS リージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWS アクセスキーID |
+| `secretAccessKey` | string | はい | AWS シークレットアクセスキー |
+| `queueUrl` | string | はい | キューURL |
+| `data` | object | はい | 送信するメッセージ本文 |
+| `messageGroupId` | string | いいえ | メッセージグループID（オプション） |
+| `messageDeduplicationId` | string | いいえ | メッセージ重複排除ID（オプション） |
 
 #### 出力
 
-| パラメータ | 型   | 説明                                               |
-| --------- | ------ | --------------------------------------------------------- |
-| `message` | string | 操作結果を説明する成功またはエラーメッセージ |
-| `id`      | string | メッセージID                                                |
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `id` | string | メッセージID |
 
 ## 注意事項
 

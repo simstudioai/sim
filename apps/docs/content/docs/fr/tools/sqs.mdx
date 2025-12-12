@@ -3,9 +3,9 @@ title: Amazon SQS
 description: Se connecter à Amazon SQS
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card";
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="sqs"
   color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 />
@@ -40,22 +40,22 @@ Envoyer un message à une file d'attente Amazon SQS
 
 #### Entrée
 
-| Paramètre                | Type   | Obligatoire | Description                                                                   |
-| ------------------------ | ------ | ----------- | ----------------------------------------------------------------------------- |
-| `region`                 | string | Oui         | Région AWS (par ex., us-east-1)                                               |
-| `accessKeyId`            | string | Oui         | ID de clé d'accès AWS                                                         |
-| `secretAccessKey`        | string | Oui         | Clé d'accès secrète AWS                                                       |
-| `queueUrl`               | string | Oui         | URL de la file d'attente (par ex., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
-| `data`                   | object | Oui         | Corps du message à envoyer sous forme d'objet JSON                            |
-| `messageGroupId`         | string | Non         | ID de groupe de messages (facultatif)                                         |
-| `messageDeduplicationId` | string | Non         | ID de déduplication de message pour les files d'attente FIFO (facultatif)     |
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `region` | string | Oui | Région AWS (par ex., us-east-1) |
+| `accessKeyId` | string | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | string | Oui | Clé d'accès secrète AWS |
+| `queueUrl` | string | Oui | URL de la file d'attente |
+| `data` | object | Oui | Corps du message à envoyer |
+| `messageGroupId` | string | Non | ID de groupe de messages (facultatif) |
+| `messageDeduplicationId` | string | Non | ID de déduplication de message (facultatif) |
 
 #### Sortie
 
-| Paramètre | Type   | Description                                               |
-| --------- | ------ | --------------------------------------------------------- |
-| `message` | chaîne | Message de succès ou d'erreur décrivant le résultat de l'opération |
-| `id`      | chaîne | ID du message                                                |
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `id` | string | ID du message |
 
 ## Notes
 

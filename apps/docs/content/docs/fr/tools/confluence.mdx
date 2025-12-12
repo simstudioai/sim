@@ -221,6 +221,33 @@ Supprimer un commentaire d'une page Confluence.
 | `commentId` | chaîne | ID du commentaire supprimé |
 | `deleted` | booléen | Statut de la suppression |
 
+### `confluence_upload_attachment`
+
+Téléverser un fichier en tant que pièce jointe à une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence à laquelle joindre le fichier |
+| `file` | fichier | Oui | Le fichier à téléverser en tant que pièce jointe |
+| `fileName` | chaîne | Non | Nom de fichier personnalisé optionnel pour la pièce jointe |
+| `comment` | chaîne | Non | Commentaire optionnel à ajouter à la pièce jointe |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage du téléversement |
+| `attachmentId` | chaîne | ID de la pièce jointe téléversée |
+| `title` | chaîne | Nom du fichier de la pièce jointe |
+| `fileSize` | nombre | Taille du fichier en octets |
+| `mediaType` | chaîne | Type MIME de la pièce jointe |
+| `downloadUrl` | chaîne | URL de téléchargement de la pièce jointe |
+| `pageId` | chaîne | ID de la page à laquelle la pièce jointe a été ajoutée |
+
 ### `confluence_list_attachments`
 
 Lister toutes les pièces jointes d'une page Confluence.

@@ -48,25 +48,9 @@ Récupérer les réponses aux formulaires depuis Typeform
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `total_items` | nombre | Nombre total de réponses/formulaires |
-| `page_count` | nombre | Nombre total de pages |
-| `items` | json | Tableau des éléments de réponse/formulaire |
-| `id` | chaîne | Identifiant unique du formulaire |
-| `title` | chaîne | Titre du formulaire |
-| `type` | chaîne | Type de formulaire |
-| `created_at` | chaîne | Horodatage ISO de création du formulaire |
-| `last_updated_at` | chaîne | Horodatage ISO de la dernière mise à jour |
-| `settings` | json | Objet des paramètres du formulaire |
-| `theme` | json | Objet de configuration du thème |
-| `workspace` | json | Informations sur l'espace de travail |
-| `fields` | json | Tableau des champs/questions du formulaire |
-| `thankyou_screens` | json | Tableau des écrans de remerciement |
-| `_links` | json | Liens vers les ressources associées |
-| `deleted` | booléen | Indique si le formulaire a été supprimé avec succès |
-| `message` | chaîne | Message de confirmation de suppression |
-| `fileUrl` | chaîne | URL du fichier téléchargé |
-| `contentType` | chaîne | Type de contenu du fichier |
-| `filename` | chaîne | Nom du fichier |
+| `total_items` | nombre | Nombre total de réponses |
+| `page_count` | nombre | Nombre total de pages disponibles |
+| `items` | tableau | Tableau d'objets de réponse avec response_id, submitted_at, answers et metadata |
 
 ### `typeform_files`
 
@@ -128,7 +112,7 @@ Récupérer la liste de tous les formulaires dans votre compte Typeform
 | --------- | ---- | ----------- |
 | `total_items` | nombre | Nombre total de formulaires dans le compte |
 | `page_count` | nombre | Nombre total de pages disponibles |
-| `items` | tableau | Tableau d'objets de formulaire |
+| `items` | tableau | Tableau d'objets de formulaire avec id, title, created_at, last_updated_at, settings, theme et _links |
 
 ### `typeform_get_form`
 
@@ -148,11 +132,13 @@ Récupérer les détails complets et la structure d'un formulaire spécifique
 | `id` | chaîne | Identifiant unique du formulaire |
 | `title` | chaîne | Titre du formulaire |
 | `type` | chaîne | Type de formulaire \(form, quiz, etc.\) |
-| `created_at` | chaîne | Horodatage ISO de création du formulaire |
-| `last_updated_at` | chaîne | Horodatage ISO de la dernière mise à jour |
 | `settings` | objet | Paramètres du formulaire incluant langue, barre de progression, etc. |
-| `theme` | objet | Configuration du thème avec couleurs, polices et paramètres de design |
-| `workspace` | objet | Informations sur l'espace de travail |
+| `theme` | objet | Référence du thème |
+| `workspace` | objet | Référence de l'espace de travail |
+| `fields` | tableau | Tableau des champs/questions du formulaire |
+| `welcome_screens` | tableau | Tableau des écrans d'accueil |
+| `thankyou_screens` | tableau | Tableau des écrans de remerciement |
+| `_links` | objet | Liens vers les ressources associées, y compris l'URL publique du formulaire |
 
 ### `typeform_create_form`
 
@@ -177,13 +163,8 @@ Créer un nouveau formulaire avec champs et paramètres
 | `id` | chaîne | Identifiant unique du formulaire créé |
 | `title` | chaîne | Titre du formulaire |
 | `type` | chaîne | Type de formulaire |
-| `created_at` | chaîne | Horodatage ISO de création du formulaire |
-| `last_updated_at` | chaîne | Horodatage ISO de la dernière mise à jour |
-| `settings` | objet | Paramètres du formulaire |
-| `theme` | objet | Configuration du thème appliqué |
-| `workspace` | objet | Informations sur l'espace de travail |
-| `fields` | tableau | Tableau des champs de formulaire créés |
-| `_links` | objet | Liens vers les ressources associées |
+| `fields` | tableau | Tableau des champs du formulaire créé |
+| `_links` | objet | Liens vers les ressources associées, y compris l'URL publique du formulaire |
 
 ### `typeform_update_form`
 
@@ -204,12 +185,11 @@ Mettre à jour un formulaire existant à l'aide d'opérations JSON Patch
 | `id` | chaîne | Identifiant unique du formulaire mis à jour |
 | `title` | chaîne | Titre du formulaire |
 | `type` | chaîne | Type de formulaire |
-| `created_at` | chaîne | Horodatage ISO de création du formulaire |
-| `last_updated_at` | chaîne | Horodatage ISO de la dernière mise à jour |
 | `settings` | objet | Paramètres du formulaire |
-| `theme` | objet | Configuration du thème |
-| `workspace` | objet | Informations sur l'espace de travail |
+| `theme` | objet | Référence du thème |
+| `workspace` | objet | Référence de l'espace de travail |
 | `fields` | tableau | Tableau des champs du formulaire |
+| `welcome_screens` | tableau | Tableau des écrans d'accueil |
 | `thankyou_screens` | tableau | Tableau des écrans de remerciement |
 | `_links` | objet | Liens vers les ressources associées |
 

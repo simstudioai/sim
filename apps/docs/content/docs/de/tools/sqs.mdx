@@ -3,9 +3,9 @@ title: Amazon SQS
 description: Verbindung zu Amazon SQS
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card";
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="sqs"
   color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 />
@@ -40,22 +40,22 @@ Eine Nachricht an eine Amazon SQS-Warteschlange senden
 
 #### Eingabe
 
-| Parameter                | Typ    | Erforderlich | Beschreibung                                                                 |
-| ------------------------ | ------ | ------------ | ---------------------------------------------------------------------------- |
-| `region`                 | string | Ja           | AWS-Region (z.B. us-east-1)                                                  |
-| `accessKeyId`            | string | Ja           | AWS-Zugriffsschlüssel-ID                                                     |
-| `secretAccessKey`        | string | Ja           | AWS-Geheimzugriffsschlüssel                                                 |
-| `queueUrl`               | string | Ja           | Warteschlangen-URL (z.B. https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
-| `data`                   | object | Ja           | Nachrichteninhalt als JSON-Objekt zu senden                                  |
-| `messageGroupId`         | string | Nein          | Nachrichtengruppen-ID (optional)                                             |
-| `messageDeduplicationId` | string | Nein          | Nachrichten-Deduplizierungs-ID für FIFO-Warteschlangen (optional)           |
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Ja | AWS-Region (z.B. us-east-1) |
+| `accessKeyId` | string | Ja | AWS-Zugriffsschlüssel-ID |
+| `secretAccessKey` | string | Ja | AWS-Geheimzugriffsschlüssel |
+| `queueUrl` | string | Ja | Queue-URL |
+| `data` | object | Ja | Zu sendender Nachrichtentext |
+| `messageGroupId` | string | Nein | Nachrichtengruppen-ID (optional) |
+| `messageDeduplicationId` | string | Nein | Nachrichtendeduplizierungs-ID (optional) |
 
 #### Ausgabe
 
-| Parameter | Typ    | Beschreibung                                             |
-| --------- | ------ | -------------------------------------------------------- |
-| `message` | string | Erfolgs- oder Fehlermeldung, die das Ergebnis der Operation beschreibt |
-| `id`      | string | Nachrichten-ID                                           |
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `id` | string | Nachrichten-ID |
 
 ## Hinweise
 
