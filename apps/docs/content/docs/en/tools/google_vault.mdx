@@ -36,8 +36,7 @@ Create an export in a matter
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API response data |
-| `file` | json | Downloaded export file \(UserFile\) from execution files |
+| `export` | json | Created export object |
 
 ### `google_vault_list_matters_export`
 
@@ -56,8 +55,9 @@ List exports for a matter
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API response data |
-| `file` | json | Downloaded export file \(UserFile\) from execution files |
+| `exports` | json | Array of export objects |
+| `export` | json | Single export object \(when exportId is provided\) |
+| `nextPageToken` | string | Token for fetching next page of results |
 
 ### `google_vault_download_export_file`
 
@@ -96,8 +96,7 @@ Create a hold in a matter
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API response data |
-| `file` | json | Downloaded export file \(UserFile\) from execution files |
+| `hold` | json | Created hold object |
 
 ### `google_vault_list_matters_holds`
 
@@ -116,8 +115,9 @@ List holds for a matter
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API response data |
-| `file` | json | Downloaded export file \(UserFile\) from execution files |
+| `holds` | json | Array of hold objects |
+| `hold` | json | Single hold object \(when holdId is provided\) |
+| `nextPageToken` | string | Token for fetching next page of results |
 
 ### `google_vault_create_matters`
 
@@ -134,8 +134,7 @@ Create a new matter in Google Vault
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API response data |
-| `file` | json | Downloaded export file \(UserFile\) from execution files |
+| `matter` | json | Created matter object |
 
 ### `google_vault_list_matters`
 
@@ -153,8 +152,9 @@ List matters, or get a specific matter if matterId is provided
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Vault API response data |
-| `file` | json | Downloaded export file \(UserFile\) from execution files |
+| `matters` | json | Array of matter objects |
+| `matter` | json | Single matter object \(when matterId is provided\) |
+| `nextPageToken` | string | Token for fetching next page of results |
 
 
 

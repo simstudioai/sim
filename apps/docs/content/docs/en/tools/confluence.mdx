@@ -224,6 +224,33 @@ Delete a comment from a Confluence page.
 | `commentId` | string | Deleted comment ID |
 | `deleted` | boolean | Deletion status |
 
+### `confluence_upload_attachment`
+
+Upload a file as an attachment to a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | Confluence page ID to attach the file to |
+| `file` | file | Yes | The file to upload as an attachment |
+| `fileName` | string | No | Optional custom file name for the attachment |
+| `comment` | string | No | Optional comment to add to the attachment |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of upload |
+| `attachmentId` | string | Uploaded attachment ID |
+| `title` | string | Attachment file name |
+| `fileSize` | number | File size in bytes |
+| `mediaType` | string | MIME type of the attachment |
+| `downloadUrl` | string | Download URL for the attachment |
+| `pageId` | string | Page ID the attachment was added to |
+
 ### `confluence_list_attachments`
 
 List all attachments on a Confluence page.

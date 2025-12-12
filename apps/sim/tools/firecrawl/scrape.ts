@@ -42,28 +42,27 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
         formats: params.formats || params.scrapeOptions?.formats || ['markdown'],
       }
 
-      // Add all optional top-level parameters if provided
-      if (params.onlyMainContent !== undefined) body.onlyMainContent = params.onlyMainContent
-      if (params.includeTags !== undefined) body.includeTags = params.includeTags
-      if (params.excludeTags !== undefined) body.excludeTags = params.excludeTags
-      if (params.maxAge !== undefined) body.maxAge = Number(params.maxAge)
-      if (params.headers !== undefined) body.headers = params.headers
-      if (params.waitFor !== undefined) body.waitFor = Number(params.waitFor)
-      if (params.mobile !== undefined) body.mobile = params.mobile
-      if (params.skipTlsVerification !== undefined)
+      if (typeof params.onlyMainContent === 'boolean') body.onlyMainContent = params.onlyMainContent
+      if (params.includeTags) body.includeTags = params.includeTags
+      if (params.excludeTags) body.excludeTags = params.excludeTags
+      if (params.maxAge) body.maxAge = Number(params.maxAge)
+      if (params.headers) body.headers = params.headers
+      if (params.waitFor) body.waitFor = Number(params.waitFor)
+      if (typeof params.mobile === 'boolean') body.mobile = params.mobile
+      if (typeof params.skipTlsVerification === 'boolean')
         body.skipTlsVerification = params.skipTlsVerification
-      if (params.timeout !== undefined) body.timeout = Number(params.timeout)
-      if (params.parsers !== undefined) body.parsers = params.parsers
-      if (params.actions !== undefined) body.actions = params.actions
-      if (params.location !== undefined) body.location = params.location
-      if (params.removeBase64Images !== undefined)
+      if (params.timeout) body.timeout = Number(params.timeout)
+      if (params.parsers) body.parsers = params.parsers
+      if (params.actions) body.actions = params.actions
+      if (params.location) body.location = params.location
+      if (typeof params.removeBase64Images === 'boolean')
         body.removeBase64Images = params.removeBase64Images
-      if (params.blockAds !== undefined) body.blockAds = params.blockAds
-      if (params.proxy !== undefined) body.proxy = params.proxy
-      if (params.storeInCache !== undefined) body.storeInCache = params.storeInCache
-      if (params.zeroDataRetention !== undefined) body.zeroDataRetention = params.zeroDataRetention
+      if (typeof params.blockAds === 'boolean') body.blockAds = params.blockAds
+      if (params.proxy) body.proxy = params.proxy
+      if (typeof params.storeInCache === 'boolean') body.storeInCache = params.storeInCache
+      if (typeof params.zeroDataRetention === 'boolean')
+        body.zeroDataRetention = params.zeroDataRetention
 
-      // Support legacy scrapeOptions for backwards compatibility
       if (params.scrapeOptions) {
         Object.assign(body, params.scrapeOptions)
       }

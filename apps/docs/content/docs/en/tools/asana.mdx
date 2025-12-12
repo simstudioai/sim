@@ -36,7 +36,14 @@ Retrieve a single task by GID or get multiple tasks with filters
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
-| `output` | object | Single task details or array of tasks, depending on whether taskGid was provided |
+| `ts` | string | Timestamp of the response |
+| `gid` | string | Task globally unique identifier |
+| `resource_type` | string | Resource type \(task\) |
+| `resource_subtype` | string | Resource subtype |
+| `name` | string | Task name |
+| `notes` | string | Task notes or description |
+| `completed` | boolean | Whether the task is completed |
+| `assignee` | object | Assignee details |
 
 ### `asana_create_task`
 
@@ -57,7 +64,13 @@ Create a new task in Asana
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
-| `output` | object | Created task details with timestamp, gid, name, notes, and permalink |
+| `ts` | string | Timestamp of the response |
+| `gid` | string | Task globally unique identifier |
+| `name` | string | Task name |
+| `notes` | string | Task notes or description |
+| `completed` | boolean | Whether the task is completed |
+| `created_at` | string | Task creation timestamp |
+| `permalink_url` | string | URL to the task in Asana |
 
 ### `asana_update_task`
 
@@ -79,7 +92,12 @@ Update an existing task in Asana
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
-| `output` | object | Updated task details with timestamp, gid, name, notes, and modified timestamp |
+| `ts` | string | Timestamp of the response |
+| `gid` | string | Task globally unique identifier |
+| `name` | string | Task name |
+| `notes` | string | Task notes or description |
+| `completed` | boolean | Whether the task is completed |
+| `modified_at` | string | Task last modified timestamp |
 
 ### `asana_get_projects`
 
@@ -96,7 +114,8 @@ Retrieve all projects from an Asana workspace
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
-| `output` | object | List of projects with their gid, name, and resource type |
+| `ts` | string | Timestamp of the response |
+| `projects` | array | Array of projects |
 
 ### `asana_search_tasks`
 
@@ -117,7 +136,8 @@ Search for tasks in an Asana workspace
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
-| `output` | object | List of tasks matching the search criteria |
+| `ts` | string | Timestamp of the response |
+| `tasks` | array | Array of matching tasks |
 
 ### `asana_add_comment`
 
@@ -135,7 +155,11 @@ Add a comment (story) to an Asana task
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
-| `output` | object | Comment details including gid, text, created timestamp, and author |
+| `ts` | string | Timestamp of the response |
+| `gid` | string | Comment globally unique identifier |
+| `text` | string | Comment text content |
+| `created_at` | string | Comment creation timestamp |
+| `created_by` | object | Comment author details |
 
 
 
