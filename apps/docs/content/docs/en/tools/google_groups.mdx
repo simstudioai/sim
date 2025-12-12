@@ -36,7 +36,8 @@ List all groups in a Google Workspace domain
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API response data |
+| `groups` | json | Array of group objects |
+| `nextPageToken` | string | Token for fetching next page of results |
 
 ### `google_groups_get_group`
 
@@ -52,7 +53,7 @@ Get details of a specific Google Group by email or group ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API response data |
+| `group` | json | Group object |
 
 ### `google_groups_create_group`
 
@@ -70,7 +71,7 @@ Create a new Google Group in the domain
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API response data |
+| `group` | json | Created group object |
 
 ### `google_groups_update_group`
 
@@ -89,7 +90,7 @@ Update an existing Google Group
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API response data |
+| `group` | json | Updated group object |
 
 ### `google_groups_delete_group`
 
@@ -105,7 +106,7 @@ Delete a Google Group
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API response data |
+| `message` | string | Success message |
 
 ### `google_groups_list_members`
 
@@ -124,7 +125,8 @@ List all members of a Google Group
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API response data |
+| `members` | json | Array of member objects |
+| `nextPageToken` | string | Token for fetching next page of results |
 
 ### `google_groups_get_member`
 
@@ -141,7 +143,7 @@ Get details of a specific member in a Google Group
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API response data |
+| `member` | json | Member object |
 
 ### `google_groups_add_member`
 
@@ -159,7 +161,7 @@ Add a new member to a Google Group
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API response data |
+| `member` | json | Added member object |
 
 ### `google_groups_remove_member`
 
@@ -176,7 +178,7 @@ Remove a member from a Google Group
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API response data |
+| `message` | string | Success message |
 
 ### `google_groups_update_member`
 
@@ -194,7 +196,7 @@ Update a member
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API response data |
+| `member` | json | Updated member object |
 
 ### `google_groups_has_member`
 
@@ -211,7 +213,7 @@ Check if a user is a member of a Google Group
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API response data |
+| `isMember` | boolean | Whether the user is a member of the group |
 
 
 

@@ -50,8 +50,9 @@ Retrieve all users from HubSpot account
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `users` | array | Array of HubSpot user objects |
+| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
-| `output` | object | Users data |
 
 ### `hubspot_list_contacts`
 
@@ -70,8 +71,10 @@ Retrieve all contacts from HubSpot account with pagination support
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `contacts` | array | Array of HubSpot contact objects |
+| `paging` | object | Pagination information |
+| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
-| `output` | object | Contacts data |
 
 ### `hubspot_get_contact`
 
@@ -90,8 +93,9 @@ Retrieve a single contact by ID or email from HubSpot
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `contact` | object | HubSpot contact object with properties |
+| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
-| `output` | object | Contact data |
 
 ### `hubspot_create_contact`
 
@@ -108,8 +112,9 @@ Create a new contact in HubSpot. Requires at least one of: email, firstname, or 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `contact` | object | Created HubSpot contact object |
+| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
-| `output` | object | Created contact data |
 
 ### `hubspot_update_contact`
 
@@ -127,8 +132,9 @@ Update an existing contact in HubSpot by ID or email
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `contact` | object | Updated HubSpot contact object |
+| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
-| `output` | object | Updated contact data |
 
 ### `hubspot_search_contacts`
 
@@ -149,8 +155,11 @@ Search for contacts in HubSpot using filters, sorting, and queries
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `contacts` | array | Array of matching HubSpot contact objects |
+| `total` | number | Total number of matching contacts |
+| `paging` | object | Pagination information |
+| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
-| `output` | object | Search results |
 
 ### `hubspot_list_companies`
 
@@ -169,8 +178,10 @@ Retrieve all companies from HubSpot account with pagination support
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `companies` | array | Array of HubSpot company objects |
+| `paging` | object | Pagination information |
+| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
-| `output` | object | Companies data |
 
 ### `hubspot_get_company`
 
@@ -189,8 +200,9 @@ Retrieve a single company by ID or domain from HubSpot
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `company` | object | HubSpot company object with properties |
+| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
-| `output` | object | Company data |
 
 ### `hubspot_create_company`
 
@@ -207,8 +219,9 @@ Create a new company in HubSpot
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `company` | object | Created HubSpot company object |
+| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
-| `output` | object | Created company data |
 
 ### `hubspot_update_company`
 
@@ -226,8 +239,9 @@ Update an existing company in HubSpot by ID or domain
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `company` | object | Updated HubSpot company object |
+| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
-| `output` | object | Updated company data |
 
 ### `hubspot_search_companies`
 
@@ -248,8 +262,11 @@ Search for companies in HubSpot using filters, sorting, and queries
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `companies` | array | Array of matching HubSpot company objects |
+| `total` | number | Total number of matching companies |
+| `paging` | object | Pagination information |
+| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
-| `output` | object | Search results |
 
 ### `hubspot_list_deals`
 
@@ -268,8 +285,10 @@ Retrieve all deals from HubSpot account with pagination support
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `deals` | array | Array of HubSpot deal objects |
+| `paging` | object | Pagination information |
+| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
-| `output` | object | Deals data |
 
 
 

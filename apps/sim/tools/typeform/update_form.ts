@@ -65,29 +65,25 @@ export const updateFormTool: ToolConfig<TypeformUpdateFormParams, TypeformUpdate
       type: 'string',
       description: 'Form type',
     },
-    created_at: {
-      type: 'string',
-      description: 'ISO timestamp of form creation',
-    },
-    last_updated_at: {
-      type: 'string',
-      description: 'ISO timestamp of last update',
-    },
     settings: {
       type: 'object',
       description: 'Form settings',
     },
     theme: {
       type: 'object',
-      description: 'Theme configuration',
+      description: 'Theme reference',
     },
     workspace: {
       type: 'object',
-      description: 'Workspace information',
+      description: 'Workspace reference',
     },
     fields: {
       type: 'array',
       description: 'Array of form fields',
+    },
+    welcome_screens: {
+      type: 'array',
+      description: 'Array of welcome screens',
     },
     thankyou_screens: {
       type: 'array',

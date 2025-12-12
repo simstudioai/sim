@@ -3,9 +3,9 @@ title: Amazon SQS
 description: Connect to Amazon SQS
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card";
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="sqs"
   color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 />
@@ -28,9 +28,12 @@ In Sim, the SQS integration enables your agents to send messages to Amazon SQS q
 This integration allows your agents to automate message sending workflows without manual intervention. By connecting Sim with Amazon SQS, you can build agents that publish messages to queues within your workflows—all without handling queue infrastructure or connections.
 {/* MANUAL-CONTENT-END */}
 
+
 ## Usage Instructions
 
 Integrate Amazon SQS into the workflow. Can send messages to SQS queues.
+
+
 
 ## Tools
 
@@ -40,22 +43,24 @@ Send a message to an Amazon SQS queue
 
 #### Input
 
-| Parameter                | Type   | Required | Description                                                                   |
-| ------------------------ | ------ | -------- | ----------------------------------------------------------------------------- |
-| `region`                 | string | Yes      | AWS region \(e.g., us-east-1\)                                                |
-| `accessKeyId`            | string | Yes      | AWS access key ID                                                             |
-| `secretAccessKey`        | string | Yes      | AWS secret access key                                                         |
-| `queueUrl`               | string | Yes      | Queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
-| `data`                   | object | Yes      | Message body to send as JSON object                                           |
-| `messageGroupId`         | string | No       | Message group ID \(optional\)                                                 |
-| `messageDeduplicationId` | string | No       | Message deduplication ID for FIFO queues \(optional\)                         |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | Queue URL |
+| `data` | object | Yes | Message body to send |
+| `messageGroupId` | string | No | Message group ID \(optional\) |
+| `messageDeduplicationId` | string | No | Message deduplication ID \(optional\) |
 
 #### Output
 
-| Parameter | Type   | Description                                               |
-| --------- | ------ | --------------------------------------------------------- |
-| `message` | string | Success or error message describing the operation outcome |
-| `id`      | string | Message ID                                                |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `id` | string | Message ID |
+
+
 
 ## Notes
 
