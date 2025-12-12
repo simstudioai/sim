@@ -119,11 +119,9 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the card was created successfully' },
     card: {
       type: 'object',
       description: 'The created card object with id, name, desc, url, and other properties',
     },
-    error: { type: 'string', description: 'Error message if operation failed' },
   },
 }
