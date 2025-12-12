@@ -278,6 +278,7 @@ export function validateKnowledgeBaseFile(
 
 /**
  * Extract storage key from a file path
+ * Handles URLs like /api/files/serve/s3/key or /api/files/serve/blob/key
  */
 export function extractStorageKey(filePath: string): string {
   let pathWithoutQuery = filePath.split('?')[0]
@@ -292,7 +293,13 @@ export function extractStorageKey(filePath: string): string {
   }
 
   if (pathWithoutQuery.startsWith('/api/files/serve/')) {
-    return decodeURIComponent(pathWithoutQuery.substring('/api/files/serve/'.length))
+    let key = decodeURIComponent(pathWithoutQuery.substring('/api/files/serve/'.length))
+    if (key.startsWith('s3/')) {
+      key = key.substring(3)
+    } else if (key.startsWith('blob/')) {
+      key = key.substring(5)
+    }
+    return key
   }
   return pathWithoutQuery
 }
