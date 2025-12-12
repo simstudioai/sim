@@ -15,6 +15,7 @@ import {
   extractCleanFilename,
   extractStorageKey,
   extractWorkspaceIdFromExecutionKey,
+  getMimeTypeFromExtension,
   getViewerUrl,
   inferContextFromKey,
 } from '@/lib/uploads/utils/file-utils'
@@ -42,36 +43,6 @@ interface ParseResult {
     hash: string
     processingTime: number
   }
-}
-
-const fileTypeMap: Record<string, string> = {
-  // Text formats
-  txt: 'text/plain',
-  csv: 'text/csv',
-  json: 'application/json',
-  xml: 'application/xml',
-  md: 'text/markdown',
-  html: 'text/html',
-  css: 'text/css',
-  js: 'application/javascript',
-  ts: 'application/typescript',
-  // Document formats
-  pdf: 'application/pdf',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  // Spreadsheet formats
-  xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  // Presentation formats
-  ppt: 'application/vnd.ms-powerpoint',
-  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  // Image formats
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  // Archive formats
-  zip: 'application/zip',
 }
 
 /**
@@ -378,7 +349,8 @@ async function handleExternalUrl(
           })
         } else {
           const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace')
-          const mimeType = response.headers.get('content-type') || getMimeType(extension)
+          const mimeType =
+            response.headers.get('content-type') || getMimeTypeFromExtension(extension)
           await uploadWorkspaceFile(workspaceId, userId, buffer, filename, mimeType)
           logger.info(`Saved URL file to workspace storage: ${filename}`)
         }
@@ -570,7 +542,7 @@ async function handleLocalFile(
       content: result.content,
       filePath,
       metadata: {
-        fileType: fileType || getMimeType(extension),
+        fileType: fileType || getMimeTypeFromExtension(extension),
         size: stats.size,
         hash,
         processingTime: 0,
@@ -705,7 +677,7 @@ async function handleGenericTextBuffer(
           content: result.content,
           filePath: originalPath || filename,
           metadata: {
-            fileType: fileType || getMimeType(extension),
+            fileType: fileType || getMimeTypeFromExtension(extension),
             size: fileBuffer.length,
             hash: createHash('md5').update(fileBuffer).digest('hex'),
             processingTime: 0,
@@ -723,7 +695,7 @@ async function handleGenericTextBuffer(
       content,
       filePath: originalPath || filename,
       metadata: {
-        fileType: fileType || getMimeType(extension),
+        fileType: fileType || getMimeTypeFromExtension(extension),
         size: fileBuffer.length,
         hash: createHash('md5').update(fileBuffer).digest('hex'),
         processingTime: 0,
@@ -764,7 +736,7 @@ function handleGenericBuffer(
     content,
     filePath: filename,
     metadata: {
-      fileType: fileType || getMimeType(extension),
+      fileType: fileType || getMimeTypeFromExtension(extension),
       size: fileBuffer.length,
       hash: createHash('md5').update(fileBuffer).digest('hex'),
       processingTime: 0,
@@ -785,13 +757,6 @@ async function parseBufferAsPdf(buffer: Buffer) {
   } catch (error) {
     throw new Error(`PDF parsing failed: ${(error as Error).message}`)
   }
-}
-
-/**
- * Get MIME type from file extension
- */
-function getMimeType(extension: string): string {
-  return fileTypeMap[extension] || 'application/octet-stream'
 }
 
 /**

@@ -4,48 +4,12 @@ import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
+import {
+  getExtensionFromMimeType,
+  processSingleFileToUserFile,
+} from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { normalizeExcelValues } from '@/tools/onedrive/utils'
-
-function getExtensionFromMimeType(mimeType: string): string | null {
-  const mimeToExtension: Record<string, string> = {
-    'application/pdf': 'pdf',
-    'text/plain': 'txt',
-    'text/csv': 'csv',
-    'application/json': 'json',
-    'application/xml': 'xml',
-    'text/xml': 'xml',
-    'text/html': 'html',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
-    'application/msword': 'doc',
-    'application/vnd.ms-excel': 'xls',
-    'application/vnd.ms-powerpoint': 'ppt',
-    'text/markdown': 'md',
-    'application/rtf': 'rtf',
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/gif': 'gif',
-    'image/webp': 'webp',
-    'image/svg+xml': 'svg',
-    'audio/mpeg': 'mp3',
-    'audio/mp3': 'mp3',
-    'audio/mp4': 'm4a',
-    'audio/wav': 'wav',
-    'audio/webm': 'webm',
-    'audio/ogg': 'ogg',
-    'video/mp4': 'mp4',
-    'video/quicktime': 'mov',
-    'video/x-msvideo': 'avi',
-    'video/webm': 'webm',
-    'application/zip': 'zip',
-    'application/x-zip-compressed': 'zip',
-    'application/gzip': 'gz',
-  }
-  return mimeToExtension[mimeType.toLowerCase()] || null
-}
 
 export const dynamic = 'force-dynamic'
 
@@ -67,7 +31,6 @@ const OneDriveUploadSchema = z.object({
   file: z.any().optional(), // UserFile object (optional for blank Excel creation)
   folderId: z.string().optional().nullable(),
   mimeType: z.string().nullish(), // Accept string, null, or undefined
-  // Optional Excel write-after-create inputs
   values: ExcelValuesSchema.optional().nullable(),
 })
 

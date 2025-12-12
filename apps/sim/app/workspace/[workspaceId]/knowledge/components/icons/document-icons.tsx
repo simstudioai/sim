@@ -1,4 +1,8 @@
 import type React from 'react'
+import {
+  SUPPORTED_AUDIO_EXTENSIONS,
+  SUPPORTED_VIDEO_EXTENSIONS,
+} from '@/lib/uploads/utils/validation'
 
 interface IconProps {
   className?: string
@@ -223,13 +227,19 @@ export const DefaultFileIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) 
 export function getDocumentIcon(mimeType: string, filename: string): React.FC<IconProps> {
   const extension = filename.split('.').pop()?.toLowerCase()
 
-  const audioExtensions = ['mp3', 'm4a', 'wav', 'webm', 'ogg', 'flac', 'aac', 'opus']
-  if (mimeType.startsWith('audio/') || (extension && audioExtensions.includes(extension))) {
+  if (
+    mimeType.startsWith('audio/') ||
+    (extension &&
+      SUPPORTED_AUDIO_EXTENSIONS.includes(extension as (typeof SUPPORTED_AUDIO_EXTENSIONS)[number]))
+  ) {
     return AudioIcon
   }
 
-  const videoExtensions = ['mp4', 'mov', 'avi', 'mkv']
-  if (mimeType.startsWith('video/') || (extension && videoExtensions.includes(extension))) {
+  if (
+    mimeType.startsWith('video/') ||
+    (extension &&
+      SUPPORTED_VIDEO_EXTENSIONS.includes(extension as (typeof SUPPORTED_VIDEO_EXTENSIONS)[number]))
+  ) {
     return VideoIcon
   }
 
