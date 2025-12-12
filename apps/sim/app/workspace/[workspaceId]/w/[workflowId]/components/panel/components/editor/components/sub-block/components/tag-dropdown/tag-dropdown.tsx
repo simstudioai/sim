@@ -206,7 +206,18 @@ const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[
       paths.push(currentPath)
     } else if (typeof value === 'object' && value !== null) {
       if ('type' in value && typeof value.type === 'string') {
-        paths.push(currentPath)
+        const hasNestedProperties =
+          (value.type === 'object' && value.properties) ||
+          (value.type === 'array' && value.items?.properties) ||
+          (value.type === 'array' &&
+            value.items &&
+            typeof value.items === 'object' &&
+            !('type' in value.items))
+
+        if (!hasNestedProperties) {
+          paths.push(currentPath)
+        }
+
         if (value.type === 'object' && value.properties) {
           paths.push(...generateOutputPaths(value.properties, currentPath))
         } else if (value.type === 'array' && value.items?.properties) {

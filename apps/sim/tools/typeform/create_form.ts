@@ -115,37 +115,13 @@ export const createFormTool: ToolConfig<TypeformCreateFormParams, TypeformCreate
       type: 'string',
       description: 'Form type',
     },
-    created_at: {
-      type: 'string',
-      description: 'ISO timestamp of form creation',
-    },
-    last_updated_at: {
-      type: 'string',
-      description: 'ISO timestamp of last update',
-    },
-    settings: {
-      type: 'object',
-      description: 'Form settings',
-    },
-    theme: {
-      type: 'object',
-      description: 'Applied theme configuration',
-    },
-    workspace: {
-      type: 'object',
-      description: 'Workspace information',
-    },
     fields: {
       type: 'array',
       description: 'Array of created form fields',
     },
     _links: {
       type: 'object',
-      description: 'Related resource links',
-      properties: {
-        display: { type: 'string', description: 'Public form URL' },
-        responses: { type: 'string', description: 'Responses API endpoint' },
-      },
+      description: 'Related resource links including public form URL',
     },
   },
 }

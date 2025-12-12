@@ -308,29 +308,30 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
     operations: { type: 'json', description: 'JSON Patch operations array' },
   },
   outputs: {
-    // Common outputs (used by responses, list_forms)
+    // List/responses outputs
     total_items: { type: 'number', description: 'Total response/form count' },
     page_count: { type: 'number', description: 'Total page count' },
     items: { type: 'json', description: 'Response/form items array' },
-    // Form details outputs (get_form, create_form, update_form)
+    // Form details outputs
     id: { type: 'string', description: 'Form unique identifier' },
     title: { type: 'string', description: 'Form title' },
     type: { type: 'string', description: 'Form type' },
-    created_at: { type: 'string', description: 'ISO timestamp of form creation' },
-    last_updated_at: { type: 'string', description: 'ISO timestamp of last update' },
     settings: { type: 'json', description: 'Form settings object' },
-    theme: { type: 'json', description: 'Theme configuration object' },
-    workspace: { type: 'json', description: 'Workspace information' },
-    fields: { type: 'json', description: 'Form fields/questions array' },
+    theme: { type: 'json', description: 'Theme reference' },
+    workspace: { type: 'json', description: 'Workspace reference' },
+    fields: { type: 'json', description: 'Form fields array' },
+    welcome_screens: { type: 'json', description: 'Welcome screens array' },
     thankyou_screens: { type: 'json', description: 'Thank you screens array' },
     _links: { type: 'json', description: 'Related resource links' },
     // Delete form outputs
-    deleted: { type: 'boolean', description: 'Whether the form was successfully deleted' },
+    deleted: { type: 'boolean', description: 'Whether the form was deleted' },
     message: { type: 'string', description: 'Deletion confirmation message' },
     // File operation outputs
     fileUrl: { type: 'string', description: 'Downloaded file URL' },
     contentType: { type: 'string', description: 'File content type' },
     filename: { type: 'string', description: 'File name' },
+    // Insights outputs
+    form: { type: 'json', description: 'Form analytics and performance data' },
   },
   triggers: {
     enabled: true,

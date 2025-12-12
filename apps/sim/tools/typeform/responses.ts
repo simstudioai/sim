@@ -85,4 +85,20 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
       output: data,
     }
   },
+
+  outputs: {
+    total_items: {
+      type: 'number',
+      description: 'Total number of responses',
+    },
+    page_count: {
+      type: 'number',
+      description: 'Total number of pages available',
+    },
+    items: {
+      type: 'array',
+      description:
+        'Array of response objects with response_id, submitted_at, answers, and metadata',
+    },
+  },
 }

@@ -51,25 +51,9 @@ Retrieve form responses from Typeform
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `total_items` | number | Total response/form count |
-| `page_count` | number | Total page count |
-| `items` | json | Response/form items array |
-| `id` | string | Form unique identifier |
-| `title` | string | Form title |
-| `type` | string | Form type |
-| `created_at` | string | ISO timestamp of form creation |
-| `last_updated_at` | string | ISO timestamp of last update |
-| `settings` | json | Form settings object |
-| `theme` | json | Theme configuration object |
-| `workspace` | json | Workspace information |
-| `fields` | json | Form fields/questions array |
-| `thankyou_screens` | json | Thank you screens array |
-| `_links` | json | Related resource links |
-| `deleted` | boolean | Whether the form was successfully deleted |
-| `message` | string | Deletion confirmation message |
-| `fileUrl` | string | Downloaded file URL |
-| `contentType` | string | File content type |
-| `filename` | string | File name |
+| `total_items` | number | Total number of responses |
+| `page_count` | number | Total number of pages available |
+| `items` | array | Array of response objects with response_id, submitted_at, answers, and metadata |
 
 ### `typeform_files`
 
@@ -131,7 +115,7 @@ Retrieve a list of all forms in your Typeform account
 | --------- | ---- | ----------- |
 | `total_items` | number | Total number of forms in the account |
 | `page_count` | number | Total number of pages available |
-| `items` | array | Array of form objects |
+| `items` | array | Array of form objects with id, title, created_at, last_updated_at, settings, theme, and _links |
 
 ### `typeform_get_form`
 
@@ -151,11 +135,13 @@ Retrieve complete details and structure of a specific form
 | `id` | string | Form unique identifier |
 | `title` | string | Form title |
 | `type` | string | Form type \(form, quiz, etc.\) |
-| `created_at` | string | ISO timestamp of form creation |
-| `last_updated_at` | string | ISO timestamp of last update |
 | `settings` | object | Form settings including language, progress bar, etc. |
-| `theme` | object | Theme configuration with colors, fonts, and design settings |
-| `workspace` | object | Workspace information |
+| `theme` | object | Theme reference |
+| `workspace` | object | Workspace reference |
+| `fields` | array | Array of form fields/questions |
+| `welcome_screens` | array | Array of welcome screens |
+| `thankyou_screens` | array | Array of thank you screens |
+| `_links` | object | Related resource links including public form URL |
 
 ### `typeform_create_form`
 
@@ -180,13 +166,8 @@ Create a new form with fields and settings
 | `id` | string | Created form unique identifier |
 | `title` | string | Form title |
 | `type` | string | Form type |
-| `created_at` | string | ISO timestamp of form creation |
-| `last_updated_at` | string | ISO timestamp of last update |
-| `settings` | object | Form settings |
-| `theme` | object | Applied theme configuration |
-| `workspace` | object | Workspace information |
 | `fields` | array | Array of created form fields |
-| `_links` | object | Related resource links |
+| `_links` | object | Related resource links including public form URL |
 
 ### `typeform_update_form`
 
@@ -207,12 +188,11 @@ Update an existing form using JSON Patch operations
 | `id` | string | Updated form unique identifier |
 | `title` | string | Form title |
 | `type` | string | Form type |
-| `created_at` | string | ISO timestamp of form creation |
-| `last_updated_at` | string | ISO timestamp of last update |
 | `settings` | object | Form settings |
-| `theme` | object | Theme configuration |
-| `workspace` | object | Workspace information |
+| `theme` | object | Theme reference |
+| `workspace` | object | Workspace reference |
 | `fields` | array | Array of form fields |
+| `welcome_screens` | array | Array of welcome screens |
 | `thankyou_screens` | array | Array of thank you screens |
 | `_links` | object | Related resource links |
 
