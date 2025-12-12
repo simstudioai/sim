@@ -90,21 +90,8 @@ export const hubspotCreateCompanyTool: ToolConfig<
   },
 
   outputs: {
+    company: { type: 'object', description: 'Created HubSpot company object' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Created company data',
-      properties: {
-        company: {
-          type: 'object',
-          description: 'Created company object with properties and ID',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

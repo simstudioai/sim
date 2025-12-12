@@ -132,29 +132,10 @@ export const hubspotSearchCompaniesTool: ToolConfig<
   },
 
   outputs: {
+    companies: { type: 'array', description: 'Array of matching HubSpot company objects' },
+    total: { type: 'number', description: 'Total number of matching companies' },
+    paging: { type: 'object', description: 'Pagination information' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Search results',
-      properties: {
-        companies: {
-          type: 'array',
-          description: 'Array of matching company objects',
-        },
-        total: {
-          type: 'number',
-          description: 'Total number of matching companies',
-        },
-        paging: {
-          type: 'object',
-          description: 'Pagination information',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

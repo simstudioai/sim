@@ -97,21 +97,8 @@ export const hubspotUpdateCompanyTool: ToolConfig<
   },
 
   outputs: {
+    company: { type: 'object', description: 'Updated HubSpot company object' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Updated company data',
-      properties: {
-        company: {
-          type: 'object',
-          description: 'Updated company object with properties',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

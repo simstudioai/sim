@@ -110,25 +110,9 @@ export const hubspotListContactsTool: ToolConfig<
   },
 
   outputs: {
+    contacts: { type: 'array', description: 'Array of HubSpot contact objects' },
+    paging: { type: 'object', description: 'Pagination information' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Contacts data',
-      properties: {
-        contacts: {
-          type: 'array',
-          description: 'Array of contact objects',
-        },
-        paging: {
-          type: 'object',
-          description: 'Pagination information',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

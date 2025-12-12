@@ -132,29 +132,10 @@ export const hubspotSearchContactsTool: ToolConfig<
   },
 
   outputs: {
+    contacts: { type: 'array', description: 'Array of matching HubSpot contact objects' },
+    total: { type: 'number', description: 'Total number of matching contacts' },
+    paging: { type: 'object', description: 'Pagination information' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Search results',
-      properties: {
-        contacts: {
-          type: 'array',
-          description: 'Array of matching contact objects',
-        },
-        total: {
-          type: 'number',
-          description: 'Total number of matching contacts',
-        },
-        paging: {
-          type: 'object',
-          description: 'Pagination information',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

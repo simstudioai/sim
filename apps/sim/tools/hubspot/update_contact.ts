@@ -97,21 +97,8 @@ export const hubspotUpdateContactTool: ToolConfig<
   },
 
   outputs: {
+    contact: { type: 'object', description: 'Updated HubSpot contact object' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Updated contact data',
-      properties: {
-        contact: {
-          type: 'object',
-          description: 'Updated contact object with properties',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }
