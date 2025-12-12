@@ -107,7 +107,6 @@ interface BlockData {
  */
 const WorkflowContent = React.memo(() => {
   const [isCanvasReady, setIsCanvasReady] = useState(false)
-  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<SelectedEdgeInfo | null>(null)
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
@@ -1026,7 +1025,6 @@ const WorkflowContent = React.memo(() => {
     screenToFlowPosition,
     blocks,
     addBlock,
-    addEdge,
     findClosestOutput,
     determineSourceHandle,
     effectivePermissions.canEdit,
@@ -1099,10 +1097,9 @@ const WorkflowContent = React.memo(() => {
     // Only recenter when diff transitions from not ready to ready
     if (isDiffReady && !prevDiffReadyRef.current && diffAnalysis) {
       logger.info('Diff ready - recentering canvas to show changes')
-      // Use a small delay to ensure the diff has fully rendered
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         fitView({ padding: 0.3, duration: 600 })
-      }, 100)
+      })
     }
     prevDiffReadyRef.current = isDiffReady
   }, [isDiffReady, diffAnalysis, fitView])
@@ -1683,9 +1680,6 @@ const WorkflowContent = React.memo(() => {
   /** Handles node drag to detect container intersections and update highlighting. */
   const onNodeDrag = useCallback(
     (_event: React.MouseEvent, node: any) => {
-      // Store currently dragged node ID
-      setDraggedNodeId(node.id)
-
       // Note: We don't emit position updates during drag to avoid flooding socket events.
       // The final position is sent in onNodeDragStop for collaborative updates.
 
@@ -1857,27 +1851,25 @@ const WorkflowContent = React.memo(() => {
       collaborativeUpdateBlockPosition(node.id, node.position, true)
 
       // Record single move entry on drag end to avoid micro-moves
-      try {
-        const start = getDragStartPosition()
-        if (start && start.id === node.id) {
-          const before = { x: start.x, y: start.y, parentId: start.parentId }
-          const after = {
-            x: node.position.x,
-            y: node.position.y,
-            parentId: node.parentId || blocks[node.id]?.data?.parentId,
-          }
-          const moved =
-            before.x !== after.x || before.y !== after.y || before.parentId !== after.parentId
-          if (moved) {
-            window.dispatchEvent(
-              new CustomEvent('workflow-record-move', {
-                detail: { blockId: node.id, before, after },
-              })
-            )
-          }
-          setDragStartPosition(null)
+      const start = getDragStartPosition()
+      if (start && start.id === node.id) {
+        const before = { x: start.x, y: start.y, parentId: start.parentId }
+        const after = {
+          x: node.position.x,
+          y: node.position.y,
+          parentId: node.parentId || blocks[node.id]?.data?.parentId,
         }
-      } catch {}
+        const moved =
+          before.x !== after.x || before.y !== after.y || before.parentId !== after.parentId
+        if (moved) {
+          window.dispatchEvent(
+            new CustomEvent('workflow-record-move', {
+              detail: { blockId: node.id, before, after },
+            })
+          )
+        }
+        setDragStartPosition(null)
+      }
 
       // Don't process parent changes if the node hasn't actually changed parent or is being moved within same parent
       if (potentialParentId === dragStartParentId) return
@@ -1889,23 +1881,8 @@ const WorkflowContent = React.memo(() => {
           blockId: node.id,
           attemptedParentId: potentialParentId,
         })
-        // Reset state without updating parent
-        setDraggedNodeId(null)
         setPotentialParentId(null)
         return // Exit early - don't allow starter blocks to have parents
-      }
-
-      // Subflow nodes cannot be placed inside other subflows
-      // This check is redundant with onNodeDrag but serves as a safety guard
-      if (node.type === 'subflowNode' && potentialParentId) {
-        logger.warn('Prevented subflow node from being placed inside a container', {
-          blockId: node.id,
-          attemptedParentId: potentialParentId,
-        })
-        // Reset state without updating parent
-        setDraggedNodeId(null)
-        setPotentialParentId(null)
-        return
       }
 
       // Trigger blocks cannot be placed inside loop or parallel subflows
@@ -1922,8 +1899,6 @@ const WorkflowContent = React.memo(() => {
             blockType: block.type,
             attemptedParentId: potentialParentId,
           })
-          // Reset state without updating parent
-          setDraggedNodeId(null)
           setPotentialParentId(null)
           return
         }
@@ -2030,7 +2005,6 @@ const WorkflowContent = React.memo(() => {
       }
 
       // Reset state
-      setDraggedNodeId(null)
       setPotentialParentId(null)
     },
     [
@@ -2055,10 +2029,7 @@ const WorkflowContent = React.memo(() => {
   /** Clears edge selection and panel state when clicking empty canvas. */
   const onPaneClick = useCallback(() => {
     setSelectedEdgeInfo(null)
-    try {
-      // Clear current design selection when clicking on empty canvas
-      usePanelEditorStore.getState().clearCurrentBlock()
-    } catch {}
+    usePanelEditorStore.getState().clearCurrentBlock()
   }, [])
 
   /** Handles edge selection with container context tracking. */
@@ -2086,67 +2057,41 @@ const WorkflowContent = React.memo(() => {
     [getNodes]
   )
 
-  /** Transforms edges to include selection state and delete handlers. */
-  const edgesWithSelection = edgesForDisplay.map((edge) => {
-    // Check if this edge connects nodes inside a loop
-    const sourceNode = getNodes().find((n) => n.id === edge.source)
-    const targetNode = getNodes().find((n) => n.id === edge.target)
-    const parentLoopId = sourceNode?.parentId || targetNode?.parentId
-    const isInsideLoop = Boolean(parentLoopId)
+  /** Stable delete handler to avoid creating new function references per edge. */
+  const handleEdgeDelete = useCallback(
+    (edgeId: string) => {
+      removeEdge(edgeId)
+      setSelectedEdgeInfo((current) => (current?.id === edgeId ? null : current))
+    },
+    [removeEdge]
+  )
 
-    // Create a unique context ID for this edge
-    const edgeContextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
+  /** Transforms edges to include selection state and delete handlers. Memoized to prevent re-renders. */
+  const edgesWithSelection = useMemo(() => {
+    // Build node lookup map once - O(n) instead of O(n) per edge
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]))
 
-    // Determine if this edge is selected using context-aware matching
-    const isSelected = selectedEdgeInfo?.contextId === edgeContextId
+    return edgesForDisplay.map((edge) => {
+      const sourceNode = nodeMap.get(edge.source)
+      const targetNode = nodeMap.get(edge.target)
+      const parentLoopId = sourceNode?.parentId || targetNode?.parentId
+      const edgeContextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
 
-    return {
-      ...edge,
-      data: {
-        // Preserve original edge data
-        ...edge.data,
-        // Send only necessary data to the edge component
-        isSelected,
-        isInsideLoop,
-        parentLoopId,
-        sourceHandle: edge.sourceHandle,
-        onDelete: (edgeId: string) => {
-          // Log deletion for debugging
-
-          // Only delete this specific edge
-          removeEdge(edgeId)
-
-          // Only clear selection if this was the selected edge
-          if (selectedEdgeInfo?.id === edgeId) {
-            setSelectedEdgeInfo(null)
-          }
+      return {
+        ...edge,
+        data: {
+          ...edge.data,
+          isSelected: selectedEdgeInfo?.contextId === edgeContextId,
+          isInsideLoop: Boolean(parentLoopId),
+          parentLoopId,
+          sourceHandle: edge.sourceHandle,
+          onDelete: handleEdgeDelete,
         },
-      },
-    }
-  })
-
-  /** Handles Delete/Backspace to remove selected edges. */
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeInfo) {
-        // Only delete the specific selected edge
-        removeEdge(selectedEdgeInfo.id)
-        setSelectedEdgeInfo(null)
       }
-    }
+    })
+  }, [edgesForDisplay, nodes, selectedEdgeInfo?.contextId, handleEdgeDelete])
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEdgeInfo, removeEdge])
-
-  /**
-   * Handle Delete / Backspace for removing selected blocks.
-   *
-   * This mirrors the behavior of clicking the ActionBar delete button by
-   * invoking the collaborative remove-block helper. The handler is disabled
-   * while focus is inside editable elements so it does not interfere with
-   * text editing.
-   */
+  /** Handles Delete/Backspace to remove selected edges or blocks. */
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Delete' && event.key !== 'Backspace') {
@@ -2164,6 +2109,14 @@ const WorkflowContent = React.memo(() => {
         return
       }
 
+      // Handle edge deletion first (edges take priority if selected)
+      if (selectedEdgeInfo) {
+        removeEdge(selectedEdgeInfo.id)
+        setSelectedEdgeInfo(null)
+        return
+      }
+
+      // Handle block deletion
       if (!effectivePermissions.canEdit) {
         return
       }
@@ -2173,21 +2126,14 @@ const WorkflowContent = React.memo(() => {
         return
       }
 
-      // Prevent default browser behavior (e.g., page navigation) when we act
       event.preventDefault()
-
-      try {
-        // For now, mirror edge behavior and delete the primary selected block
-        const primaryNode = selectedNodes[0]
-        removeBlock(primaryNode.id)
-      } catch (err) {
-        logger.error('Failed to delete block via keyboard', { err })
-      }
+      const primaryNode = selectedNodes[0]
+      removeBlock(primaryNode.id)
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [getNodes, removeBlock, effectivePermissions.canEdit])
+  }, [selectedEdgeInfo, removeEdge, getNodes, removeBlock, effectivePermissions.canEdit])
 
   /** Handles sub-block value updates from custom events. */
   useEffect(() => {
@@ -2284,8 +2230,10 @@ const WorkflowContent = React.memo(() => {
           snapToGrid={false}
           snapGrid={snapGrid}
           elevateEdgesOnSelect={true}
-          // Performance optimizations
-          onlyRenderVisibleElements={true}
+          // Disabled onlyRenderVisibleElements - the mounting cost of blocks (with their
+          // many hooks/queries) when zooming out exceeds the rendering cost of keeping
+          // all blocks mounted. This trades memory for smooth zoom performance.
+          onlyRenderVisibleElements={false}
           deleteKeyCode={null}
           elevateNodesOnSelect={true}
           autoPanOnConnect={effectivePermissions.canEdit}

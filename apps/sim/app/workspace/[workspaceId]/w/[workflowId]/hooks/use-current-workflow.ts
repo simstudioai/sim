@@ -61,8 +61,15 @@ export function useCurrentWorkflow(): CurrentWorkflow {
     })
   )
 
-  // Get diff state - now including isDiffReady
-  const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore()
+  // Get diff state - optimized with shallow comparison
+  const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore(
+    useShallow((state) => ({
+      isShowingDiff: state.isShowingDiff,
+      isDiffReady: state.isDiffReady,
+      hasActiveDiff: state.hasActiveDiff,
+      baselineWorkflow: state.baselineWorkflow,
+    }))
+  )
 
   // Create the abstracted interface - optimized to prevent unnecessary re-renders
   const currentWorkflow = useMemo((): CurrentWorkflow => {
