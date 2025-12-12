@@ -65,8 +65,9 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       if (typeof params.allowSubdomains === 'boolean') body.allowSubdomains = params.allowSubdomains
       if (typeof params.ignoreQueryParameters === 'boolean')
         body.ignoreQueryParameters = params.ignoreQueryParameters
-      if (params.delay) body.delay = Number(params.delay)
-      if (params.maxConcurrency) body.maxConcurrency = Number(params.maxConcurrency)
+      if (params.delay != null && params.delay !== '') body.delay = Number(params.delay)
+      if (params.maxConcurrency != null && params.maxConcurrency !== '')
+        body.maxConcurrency = Number(params.maxConcurrency)
       if (params.excludePaths) body.excludePaths = params.excludePaths
       if (params.includePaths) body.includePaths = params.includePaths
       if (params.webhook) body.webhook = params.webhook
