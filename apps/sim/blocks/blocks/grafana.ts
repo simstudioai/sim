@@ -298,7 +298,8 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       id: 'annotationDashboardUid',
       title: 'Dashboard UID',
       type: 'short-input',
-      placeholder: 'Optional - attach to specific dashboard',
+      placeholder: 'Enter dashboard UID',
+      required: true,
       condition: {
         field: 'operation',
         value: ['grafana_create_annotation', 'grafana_list_annotations'],
