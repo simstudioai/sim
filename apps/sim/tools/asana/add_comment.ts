@@ -52,31 +52,33 @@ export const asanaAddCommentTool: ToolConfig<AsanaAddCommentParams, AsanaAddComm
     if (!responseText) {
       return {
         success: false,
+        output: {},
         error: 'Empty response from Asana',
       }
     }
 
     const data = JSON.parse(responseText)
-
-    if (data.success && data.output) {
-      return data
-    }
-
+    const { success, error, ...output } = data
     return {
-      success: data.success || false,
-      output: data.output || null,
-      error: data.error,
+      success: success ?? true,
+      output,
+      error,
     }
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    ts: { type: 'string', description: 'Timestamp of the response' },
+    gid: { type: 'string', description: 'Comment globally unique identifier' },
+    text: { type: 'string', description: 'Comment text content' },
+    created_at: { type: 'string', description: 'Comment creation timestamp' },
+    created_by: {
       type: 'object',
-      description: 'Comment details including gid, text, created timestamp, and author',
+      description: 'Comment author details',
+      properties: {
+        gid: { type: 'string', description: 'Author GID' },
+        name: { type: 'string', description: 'Author name' },
+      },
     },
   },
 }

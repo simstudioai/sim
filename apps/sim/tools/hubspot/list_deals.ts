@@ -106,25 +106,9 @@ export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotLis
   },
 
   outputs: {
+    deals: { type: 'array', description: 'Array of HubSpot deal objects' },
+    paging: { type: 'object', description: 'Pagination information' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Deals data',
-      properties: {
-        deals: {
-          type: 'array',
-          description: 'Array of deal objects',
-        },
-        paging: {
-          type: 'object',
-          description: 'Pagination information',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

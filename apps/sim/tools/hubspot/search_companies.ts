@@ -84,17 +84,47 @@ export const hubspotSearchCompaniesTool: ToolConfig<
     body: (params) => {
       const body: any = {}
 
-      if (params.filterGroups && params.filterGroups.length > 0) {
-        body.filterGroups = params.filterGroups
+      if (params.filterGroups) {
+        let parsedFilterGroups = params.filterGroups
+        if (typeof params.filterGroups === 'string') {
+          try {
+            parsedFilterGroups = JSON.parse(params.filterGroups)
+          } catch (e) {
+            throw new Error(`Invalid JSON for filterGroups: ${(e as Error).message}`)
+          }
+        }
+        if (Array.isArray(parsedFilterGroups) && parsedFilterGroups.length > 0) {
+          body.filterGroups = parsedFilterGroups
+        }
       }
-      if (params.sorts && params.sorts.length > 0) {
-        body.sorts = params.sorts
+      if (params.sorts) {
+        let parsedSorts = params.sorts
+        if (typeof params.sorts === 'string') {
+          try {
+            parsedSorts = JSON.parse(params.sorts)
+          } catch (e) {
+            throw new Error(`Invalid JSON for sorts: ${(e as Error).message}`)
+          }
+        }
+        if (Array.isArray(parsedSorts) && parsedSorts.length > 0) {
+          body.sorts = parsedSorts
+        }
       }
       if (params.query) {
         body.query = params.query
       }
-      if (params.properties && params.properties.length > 0) {
-        body.properties = params.properties
+      if (params.properties) {
+        let parsedProperties = params.properties
+        if (typeof params.properties === 'string') {
+          try {
+            parsedProperties = JSON.parse(params.properties)
+          } catch (e) {
+            throw new Error(`Invalid JSON for properties: ${(e as Error).message}`)
+          }
+        }
+        if (Array.isArray(parsedProperties) && parsedProperties.length > 0) {
+          body.properties = parsedProperties
+        }
       }
       if (params.limit) {
         body.limit = params.limit
@@ -115,46 +145,29 @@ export const hubspotSearchCompaniesTool: ToolConfig<
       throw new Error(data.message || 'Failed to search companies in HubSpot')
     }
 
+    const result = {
+      companies: data.results || [],
+      total: data.total,
+      paging: data.paging,
+      metadata: {
+        operation: 'search_companies' as const,
+        totalReturned: data.results?.length || 0,
+        total: data.total,
+      },
+    }
+
     return {
       success: true,
-      output: {
-        companies: data.results || [],
-        total: data.total,
-        paging: data.paging,
-        metadata: {
-          operation: 'search_companies' as const,
-          totalReturned: data.results?.length || 0,
-          total: data.total,
-        },
-        success: true,
-      },
+      output: result,
+      ...result,
     }
   },
 
   outputs: {
+    companies: { type: 'array', description: 'Array of matching HubSpot company objects' },
+    total: { type: 'number', description: 'Total number of matching companies' },
+    paging: { type: 'object', description: 'Pagination information' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Search results',
-      properties: {
-        companies: {
-          type: 'array',
-          description: 'Array of matching company objects',
-        },
-        total: {
-          type: 'number',
-          description: 'Total number of matching companies',
-        },
-        paging: {
-          type: 'object',
-          description: 'Pagination information',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

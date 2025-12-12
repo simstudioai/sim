@@ -79,7 +79,11 @@ export const updateGroupTool: ToolConfig<GoogleGroupsUpdateParams, GoogleGroupsR
     }
     return {
       success: true,
-      output: data,
+      output: { group: data },
     }
+  },
+
+  outputs: {
+    group: { type: 'json', description: 'Updated group object' },
   },
 }

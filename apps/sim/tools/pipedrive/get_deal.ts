@@ -61,21 +61,8 @@ export const pipedriveGetDealTool: ToolConfig<PipedriveGetDealParams, PipedriveG
   },
 
   outputs: {
+    deal: { type: 'object', description: 'Deal object with full details' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Deal details',
-      properties: {
-        deal: {
-          type: 'object',
-          description: 'Deal object with full details',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

@@ -64,7 +64,11 @@ export const updateMemberTool: ToolConfig<GoogleGroupsUpdateMemberParams, Google
     }
     return {
       success: true,
-      output: data,
+      output: { member: data },
     }
+  },
+
+  outputs: {
+    member: { type: 'json', description: 'Updated member object' },
   },
 }

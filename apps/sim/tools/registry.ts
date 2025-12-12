@@ -80,6 +80,7 @@ import {
   confluenceSearchTool,
   confluenceUpdateCommentTool,
   confluenceUpdateTool,
+  confluenceUploadAttachmentTool,
 } from '@/tools/confluence'
 import {
   cursorAddFollowupTool,
@@ -1807,6 +1808,7 @@ export const tools: Record<string, ToolConfig> = {
   confluence_update_comment: confluenceUpdateCommentTool,
   confluence_delete_comment: confluenceDeleteCommentTool,
   confluence_list_attachments: confluenceListAttachmentsTool,
+  confluence_upload_attachment: confluenceUploadAttachmentTool,
   confluence_delete_attachment: confluenceDeleteAttachmentTool,
   confluence_list_labels: confluenceListLabelsTool,
   confluence_get_space: confluenceGetSpaceTool,

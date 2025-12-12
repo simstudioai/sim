@@ -78,7 +78,15 @@ export const listMembersTool: ToolConfig<GoogleGroupsListMembersParams, GoogleGr
     }
     return {
       success: true,
-      output: data,
+      output: {
+        members: data.members || [],
+        nextPageToken: data.nextPageToken,
+      },
     }
+  },
+
+  outputs: {
+    members: { type: 'json', description: 'Array of member objects' },
+    nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
   },
 }

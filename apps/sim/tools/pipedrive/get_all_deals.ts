@@ -118,44 +118,8 @@ export const pipedriveGetAllDealsTool: ToolConfig<
   },
 
   outputs: {
+    deals: { type: 'array', description: 'Array of deal objects from Pipedrive' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Deals data and metadata',
-      properties: {
-        deals: {
-          type: 'array',
-          description: 'Array of deal objects from Pipedrive',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'number', description: 'Deal ID' },
-              title: { type: 'string', description: 'Deal title' },
-              value: { type: 'number', description: 'Deal value' },
-              currency: { type: 'string', description: 'Deal currency' },
-              status: { type: 'string', description: 'Deal status' },
-              stage_id: { type: 'number', description: 'Stage ID' },
-              pipeline_id: { type: 'number', description: 'Pipeline ID' },
-              owner_id: { type: 'number', description: 'Owner user ID' },
-              add_time: { type: 'string', description: 'Deal creation time' },
-              update_time: { type: 'string', description: 'Deal last update time' },
-            },
-          },
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-          properties: {
-            operation: { type: 'string', description: 'The operation performed' },
-            totalItems: { type: 'number', description: 'Total number of deals returned' },
-            hasMore: {
-              type: 'boolean',
-              description: 'Whether there are more items to fetch via pagination',
-            },
-          },
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

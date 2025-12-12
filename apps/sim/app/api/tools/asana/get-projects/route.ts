@@ -73,14 +73,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      output: {
-        ts: new Date().toISOString(),
-        projects: projects.map((project: any) => ({
-          gid: project.gid,
-          name: project.name,
-          resource_type: project.resource_type,
-        })),
-      },
+      ts: new Date().toISOString(),
+      projects: projects.map((project: any) => ({
+        gid: project.gid,
+        name: project.name,
+        resource_type: project.resource_type,
+      })),
     })
   } catch (error) {
     logger.error('Error processing request:', error)

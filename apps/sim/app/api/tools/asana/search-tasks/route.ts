@@ -96,34 +96,32 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      output: {
-        ts: new Date().toISOString(),
-        tasks: tasks.map((task: any) => ({
-          gid: task.gid,
-          resource_type: task.resource_type,
-          resource_subtype: task.resource_subtype,
-          name: task.name,
-          notes: task.notes || '',
-          completed: task.completed || false,
-          assignee: task.assignee
-            ? {
-                gid: task.assignee.gid,
-                name: task.assignee.name,
-              }
-            : undefined,
-          created_by: task.created_by
-            ? {
-                gid: task.created_by.gid,
-                resource_type: task.created_by.resource_type,
-                name: task.created_by.name,
-              }
-            : undefined,
-          due_on: task.due_on || undefined,
-          created_at: task.created_at,
-          modified_at: task.modified_at,
-        })),
-        next_page: result.next_page,
-      },
+      ts: new Date().toISOString(),
+      tasks: tasks.map((task: any) => ({
+        gid: task.gid,
+        resource_type: task.resource_type,
+        resource_subtype: task.resource_subtype,
+        name: task.name,
+        notes: task.notes || '',
+        completed: task.completed || false,
+        assignee: task.assignee
+          ? {
+              gid: task.assignee.gid,
+              name: task.assignee.name,
+            }
+          : undefined,
+        created_by: task.created_by
+          ? {
+              gid: task.created_by.gid,
+              resource_type: task.created_by.resource_type,
+              name: task.created_by.name,
+            }
+          : undefined,
+        due_on: task.due_on || undefined,
+        created_at: task.created_at,
+        modified_at: task.modified_at,
+      })),
+      next_page: result.next_page,
     })
   } catch (error) {
     logger.error('Error processing request:', error)

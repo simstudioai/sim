@@ -131,16 +131,13 @@ export interface HubSpotUpdateContactParams {
 
 // Search Contacts
 export interface HubSpotSearchContactsResponse extends ToolResponse {
-  output: {
-    contacts: HubSpotContact[]
+  contacts: HubSpotContact[]
+  total: number
+  paging?: HubSpotPaging
+  metadata: {
+    operation: 'search_contacts'
+    totalReturned: number
     total: number
-    paging?: HubSpotPaging
-    metadata: {
-      operation: 'search_contacts'
-      totalReturned: number
-      total: number
-    }
-    success: boolean
   }
 }
 
@@ -212,17 +209,14 @@ export type HubSpotUpdateCompanyResponse = Omit<HubSpotUpdateContactResponse, 'o
   }
 }
 export type HubSpotSearchCompaniesParams = HubSpotSearchContactsParams
-export type HubSpotSearchCompaniesResponse = Omit<HubSpotSearchContactsResponse, 'output'> & {
-  output: {
-    companies: HubSpotContact[]
+export interface HubSpotSearchCompaniesResponse extends ToolResponse {
+  companies: HubSpotContact[]
+  total: number
+  paging?: HubSpotPaging
+  metadata: {
+    operation: 'search_companies'
+    totalReturned: number
     total: number
-    paging?: HubSpotPaging
-    metadata: {
-      operation: 'search_companies'
-      totalReturned: number
-      total: number
-    }
-    success: boolean
   }
 }
 

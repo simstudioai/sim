@@ -142,6 +142,28 @@ export interface ConfluenceAttachmentResponse extends ToolResponse {
   }
 }
 
+export interface ConfluenceUploadAttachmentParams {
+  accessToken: string
+  domain: string
+  pageId: string
+  file: any
+  fileName?: string
+  comment?: string
+  cloudId?: string
+}
+
+export interface ConfluenceUploadAttachmentResponse extends ToolResponse {
+  output: {
+    ts: string
+    attachmentId: string
+    title: string
+    fileSize: number
+    mediaType: string
+    downloadUrl: string
+    pageId: string
+  }
+}
+
 // Label operations
 export interface ConfluenceLabelParams {
   accessToken: string
@@ -201,5 +223,6 @@ export type ConfluenceResponse =
   | ConfluenceSearchResponse
   | ConfluenceCommentResponse
   | ConfluenceAttachmentResponse
+  | ConfluenceUploadAttachmentResponse
   | ConfluenceLabelResponse
   | ConfluenceSpaceResponse
