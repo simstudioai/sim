@@ -100,6 +100,7 @@ import { SftpBlock } from '@/blocks/blocks/sftp'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock } from '@/blocks/blocks/shopify'
 import { SlackBlock } from '@/blocks/blocks/slack'
+import { SpotifyBlock } from '@/blocks/blocks/spotify'
 import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { SSHBlock } from '@/blocks/blocks/ssh'
 import { StagehandBlock } from '@/blocks/blocks/stagehand'
@@ -241,6 +242,7 @@ export const registry: Record<string, BlockConfig> = {
   sharepoint: SharepointBlock,
   shopify: ShopifyBlock,
   slack: SlackBlock,
+  spotify: SpotifyBlock,
   smtp: SmtpBlock,
   sftp: SftpBlock,
   ssh: SSHBlock,
