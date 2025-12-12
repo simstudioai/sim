@@ -72,21 +72,37 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'contactId',
       title: 'Contact ID or Email',
       type: 'short-input',
-      placeholder: 'Optional - Leave empty to list all contacts',
-      condition: { field: 'operation', value: ['get_contacts', 'update_contact'] },
+      placeholder: 'Leave empty to list all contacts',
+      condition: { field: 'operation', value: 'get_contacts' },
+    },
+    {
+      id: 'contactId',
+      title: 'Contact ID or Email',
+      type: 'short-input',
+      placeholder: 'Numeric ID, or email (requires ID Property below)',
+      condition: { field: 'operation', value: 'update_contact' },
+      required: true,
     },
     {
       id: 'companyId',
       title: 'Company ID or Domain',
       type: 'short-input',
-      placeholder: 'Optional - Leave empty to list all companies',
-      condition: { field: 'operation', value: ['get_companies', 'update_company'] },
+      placeholder: 'Leave empty to list all companies',
+      condition: { field: 'operation', value: 'get_companies' },
+    },
+    {
+      id: 'companyId',
+      title: 'Company ID or Domain',
+      type: 'short-input',
+      placeholder: 'Numeric ID, or domain (requires ID Property below)',
+      condition: { field: 'operation', value: 'update_company' },
+      required: true,
     },
     {
       id: 'idProperty',
       title: 'ID Property',
       type: 'short-input',
-      placeholder: 'Optional - e.g., "email" for contacts, "domain" for companies',
+      placeholder: 'Required if using email/domain (e.g., "email" or "domain")',
       condition: {
         field: 'operation',
         value: ['get_contacts', 'update_contact', 'get_companies', 'update_company'],
@@ -822,33 +838,48 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
           credential,
         }
 
-        if (propertiesToSet) {
+        const createUpdateOps = [
+          'create_contact',
+          'update_contact',
+          'create_company',
+          'update_company',
+        ]
+        if (propertiesToSet && createUpdateOps.includes(operation as string)) {
           cleanParams.properties = propertiesToSet
         }
 
-        if (properties && !searchProperties) {
+        const getListOps = ['get_contacts', 'get_companies', 'get_deals']
+        if (properties && !searchProperties && getListOps.includes(operation as string)) {
           cleanParams.properties = properties
         }
 
-        if (searchProperties) {
+        const searchOps = ['search_contacts', 'search_companies']
+        if (searchProperties && searchOps.includes(operation as string)) {
           cleanParams.properties = searchProperties
         }
 
-        if (filterGroups) {
+        if (filterGroups && searchOps.includes(operation as string)) {
           cleanParams.filterGroups = filterGroups
         }
 
-        if (sorts) {
+        if (sorts && searchOps.includes(operation as string)) {
           cleanParams.sorts = sorts
         }
 
-        if (associations) {
+        if (associations && ['create_contact', 'create_company'].includes(operation as string)) {
           cleanParams.associations = associations
         }
 
-        // Add other params
+        const excludeKeys = [
+          'propertiesToSet',
+          'properties',
+          'searchProperties',
+          'filterGroups',
+          'sorts',
+          'associations',
+        ]
         Object.entries(rest).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== '') {
+          if (value !== undefined && value !== null && value !== '' && !excludeKeys.includes(key)) {
             cleanParams[key] = value
           }
         })
