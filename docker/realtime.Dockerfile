@@ -10,16 +10,14 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Install turbo globally (cached separately, changes infrequently)
-RUN bun install -g turbo
-
 COPY package.json bun.lock turbo.json ./
 RUN mkdir -p apps packages/db
 COPY apps/sim/package.json ./apps/sim/package.json
 COPY packages/db/package.json ./packages/db/package.json
 
-# Install dependencies (this layer will be cached if package files don't change)
-RUN bun install --omit dev --ignore-scripts
+# Install dependencies with cache mount for faster builds
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile --omit dev --ignore-scripts
 
 # ========================================
 # Builder Stage: Prepare source code
