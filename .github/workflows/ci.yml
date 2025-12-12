@@ -204,7 +204,7 @@ jobs:
   # Create GHCR multi-arch manifests (only for main, after both builds)
   create-ghcr-manifests:
     name: Create GHCR Manifests
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     needs: [build-amd64, build-ghcr-arm64, detect-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
