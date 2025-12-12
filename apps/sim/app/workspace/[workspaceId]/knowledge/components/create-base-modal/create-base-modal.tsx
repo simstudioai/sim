@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, Loader2, RotateCcw, X } from 'lucide-react'
+import { Loader2, RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -449,11 +449,11 @@ export function CreateBaseModal({
                         return (
                           <div
                             key={index}
-                            className='flex items-center gap-2 rounded-[4px] border p-[8px]'
-                          >
-                            {isFailed && !isRetrying && (
-                              <AlertCircle className='h-4 w-4 flex-shrink-0 text-[var(--text-error)]' />
+                            className={cn(
+                              'flex items-center gap-2 rounded-[4px] border p-[8px]',
+                              isFailed && !isRetrying && 'border-[var(--text-error)]'
                             )}
+                          >
                             <span
                               className={cn(
                                 'min-w-0 flex-1 truncate text-[12px]',
@@ -467,32 +467,34 @@ export function CreateBaseModal({
                               {formatFileSize(file.size)}
                             </span>
                             <div className='flex flex-shrink-0 items-center gap-1'>
-                              {isFailed && !isRetrying && (
-                                <Button
-                                  type='button'
-                                  variant='ghost'
-                                  className='h-4 w-4 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                  onClick={() => {
-                                    setRetryingIndexes((prev) => new Set(prev).add(index))
-                                    removeFile(index)
-                                  }}
-                                  disabled={isUploading}
-                                >
-                                  <RotateCcw className='h-3.5 w-3.5' />
-                                </Button>
-                              )}
                               {isProcessing ? (
                                 <Loader2 className='h-4 w-4 animate-spin text-[var(--text-muted)]' />
                               ) : (
-                                <Button
-                                  type='button'
-                                  variant='ghost'
-                                  className='h-4 w-4 p-0'
-                                  onClick={() => removeFile(index)}
-                                  disabled={isUploading}
-                                >
-                                  <X className='h-3.5 w-3.5' />
-                                </Button>
+                                <>
+                                  {isFailed && (
+                                    <Button
+                                      type='button'
+                                      variant='ghost'
+                                      className='h-4 w-4 p-0'
+                                      onClick={() => {
+                                        setRetryingIndexes((prev) => new Set(prev).add(index))
+                                        removeFile(index)
+                                      }}
+                                      disabled={isUploading}
+                                    >
+                                      <RotateCcw className='h-3 w-3' />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    type='button'
+                                    variant='ghost'
+                                    className='h-4 w-4 p-0'
+                                    onClick={() => removeFile(index)}
+                                    disabled={isUploading}
+                                  >
+                                    <X className='h-3.5 w-3.5' />
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </div>
@@ -509,32 +511,40 @@ export function CreateBaseModal({
             </div>
           </ModalBody>
 
-          <ModalFooter className='flex-col items-stretch gap-[12px]'>
-            {(submitStatus?.type === 'error' || uploadError) && (
-              <p className='text-[11px] text-[var(--text-error)] leading-tight'>
-                {uploadError?.message || submitStatus?.message}
-              </p>
-            )}
-            <div className='flex justify-end gap-[8px]'>
-              <Button
-                variant='default'
-                onClick={() => handleClose(false)}
-                type='button'
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button variant='primary' type='submit' disabled={isSubmitting || !nameValue?.trim()}>
-                {isSubmitting
-                  ? isUploading
-                    ? uploadProgress.stage === 'uploading'
-                      ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
-                      : uploadProgress.stage === 'processing'
-                        ? 'Processing...'
-                        : 'Creating...'
-                    : 'Creating...'
-                  : 'Create'}
-              </Button>
+          <ModalFooter>
+            <div className='flex w-full items-center justify-between gap-[12px]'>
+              {submitStatus?.type === 'error' || uploadError ? (
+                <p className='min-w-0 flex-1 truncate text-[11px] text-[var(--text-error)] leading-tight'>
+                  {uploadError?.message || submitStatus?.message}
+                </p>
+              ) : (
+                <div />
+              )}
+              <div className='flex flex-shrink-0 gap-[8px]'>
+                <Button
+                  variant='default'
+                  onClick={() => handleClose(false)}
+                  type='button'
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant='primary'
+                  type='submit'
+                  disabled={isSubmitting || !nameValue?.trim()}
+                >
+                  {isSubmitting
+                    ? isUploading
+                      ? uploadProgress.stage === 'uploading'
+                        ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
+                        : uploadProgress.stage === 'processing'
+                          ? 'Processing...'
+                          : 'Creating...'
+                      : 'Creating...'
+                    : 'Create'}
+                </Button>
+              </div>
             </div>
           </ModalFooter>
         </form>
