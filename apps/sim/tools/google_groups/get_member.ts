@@ -53,7 +53,11 @@ export const getMemberTool: ToolConfig<GoogleGroupsGetMemberParams, GoogleGroups
     }
     return {
       success: true,
-      output: data,
+      output: { member: data },
     }
+  },
+
+  outputs: {
+    member: { type: 'json', description: 'Member object' },
   },
 }

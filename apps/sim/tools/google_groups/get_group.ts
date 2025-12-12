@@ -46,7 +46,11 @@ export const getGroupTool: ToolConfig<GoogleGroupsGetParams, GoogleGroupsRespons
     }
     return {
       success: true,
-      output: data,
+      output: { group: data },
     }
+  },
+
+  outputs: {
+    group: { type: 'json', description: 'Group object' },
   },
 }

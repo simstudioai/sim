@@ -91,7 +91,15 @@ export const listGroupsTool: ToolConfig<GoogleGroupsListParams, GoogleGroupsResp
     }
     return {
       success: true,
-      output: data,
+      output: {
+        groups: data.groups || [],
+        nextPageToken: data.nextPageToken,
+      },
     }
+  },
+
+  outputs: {
+    groups: { type: 'json', description: 'Array of group objects' },
+    nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
   },
 }

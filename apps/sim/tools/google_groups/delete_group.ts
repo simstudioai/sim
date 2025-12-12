@@ -49,4 +49,8 @@ export const deleteGroupTool: ToolConfig<GoogleGroupsDeleteParams, GoogleGroupsR
       output: { message: 'Group deleted successfully' },
     }
   },
+
+  outputs: {
+    message: { type: 'string', description: 'Success message' },
+  },
 }
