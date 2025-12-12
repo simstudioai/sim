@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowDown, Plus } from 'lucide-react'
 import {
   Badge,
@@ -144,8 +144,11 @@ export function WorkspaceHeader({
   const contextMenuRef = useRef<HTMLDivElement | null>(null)
   const capturedWorkspaceRef = useRef<{ id: string; name: string } | null>(null)
 
-  // Stable ID for Popover to prevent hydration mismatch
-  const workspaceSwitcherId = useId()
+  // Client-only rendering for Popover to prevent Radix ID hydration mismatch
+  const [isMounted, setIsMounted] = useState(false)
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   /**
    * Focus the inline list rename input when it becomes active
@@ -272,105 +275,121 @@ export function WorkspaceHeader({
         <Badge className='cursor-pointer' onClick={() => setIsInviteModalOpen(true)}>
           Invite
         </Badge>
-        {/* Workspace Switcher Popover */}
-        <Popover
-          open={isWorkspaceMenuOpen}
-          onOpenChange={(open) => {
-            // Don't close if context menu is opening
-            if (!open && isContextMenuOpen) {
-              return
-            }
-            setIsWorkspaceMenuOpen(open)
-          }}
-        >
-          <PopoverTrigger asChild>
-            <Button
-              variant='ghost-secondary'
-              type='button'
-              aria-label='Switch workspace'
-              className='group !p-[3px] -m-[3px]'
-            >
-              <ChevronDown
-                className={`h-[8px] w-[12px] transition-transform duration-100 ${
-                  isWorkspaceMenuOpen ? 'rotate-180' : ''
-                }`}
-              />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            id={workspaceSwitcherId}
-            align='end'
-            side='bottom'
-            sideOffset={8}
-            style={{ maxWidth: '160px', minWidth: '160px' }}
-            onOpenAutoFocus={(e) => e.preventDefault()}
+        {/* Workspace Switcher Popover - only render after mount to avoid Radix ID hydration mismatch */}
+        {isMounted ? (
+          <Popover
+            open={isWorkspaceMenuOpen}
+            onOpenChange={(open) => {
+              // Don't close if context menu is opening
+              if (!open && isContextMenuOpen) {
+                return
+              }
+              setIsWorkspaceMenuOpen(open)
+            }}
           >
-            {isWorkspacesLoading ? (
-              <PopoverItem disabled>
-                <span>Loading workspaces...</span>
-              </PopoverItem>
-            ) : (
-              <>
-                <div className='relative flex items-center justify-between'>
-                  <PopoverSection>Workspaces</PopoverSection>
-                  <div className='flex items-center gap-[6px]'>
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          type='button'
-                          aria-label='Import workspace'
-                          className='!p-[3px]'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onImportWorkspace()
-                          }}
-                          disabled={isImportingWorkspace}
-                        >
-                          <ArrowDown className='h-[14px] w-[14px]' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content className='py-[2.5px]'>
-                        <p>
-                          {isImportingWorkspace ? 'Importing workspace...' : 'Import workspace'}
-                        </p>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          type='button'
-                          aria-label='Create workspace'
-                          className='!p-[3px]'
-                          onClick={async (e) => {
-                            e.stopPropagation()
-                            await onCreateWorkspace()
-                            setIsWorkspaceMenuOpen(false)
-                          }}
-                          disabled={isCreatingWorkspace}
-                        >
-                          <Plus className='h-[14px] w-[14px]' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content className='py-[2.5px]'>
-                        <p>{isCreatingWorkspace ? 'Creating workspace...' : 'Create workspace'}</p>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
+            <PopoverTrigger asChild>
+              <Button
+                variant='ghost-secondary'
+                type='button'
+                aria-label='Switch workspace'
+                className='group !p-[3px] -m-[3px]'
+              >
+                <ChevronDown
+                  className={`h-[8px] w-[12px] transition-transform duration-100 ${
+                    isWorkspaceMenuOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align='end'
+              side='bottom'
+              sideOffset={8}
+              style={{ maxWidth: '160px', minWidth: '160px' }}
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              {isWorkspacesLoading ? (
+                <PopoverItem disabled>
+                  <span>Loading workspaces...</span>
+                </PopoverItem>
+              ) : (
+                <>
+                  <div className='relative flex items-center justify-between'>
+                    <PopoverSection>Workspaces</PopoverSection>
+                    <div className='flex items-center gap-[6px]'>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            variant='ghost'
+                            type='button'
+                            aria-label='Import workspace'
+                            className='!p-[3px]'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onImportWorkspace()
+                            }}
+                            disabled={isImportingWorkspace}
+                          >
+                            <ArrowDown className='h-[14px] w-[14px]' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content className='py-[2.5px]'>
+                          <p>
+                            {isImportingWorkspace ? 'Importing workspace...' : 'Import workspace'}
+                          </p>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            variant='ghost'
+                            type='button'
+                            aria-label='Create workspace'
+                            className='!p-[3px]'
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              await onCreateWorkspace()
+                              setIsWorkspaceMenuOpen(false)
+                            }}
+                            disabled={isCreatingWorkspace}
+                          >
+                            <Plus className='h-[14px] w-[14px]' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content className='py-[2.5px]'>
+                          <p>
+                            {isCreatingWorkspace ? 'Creating workspace...' : 'Create workspace'}
+                          </p>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    </div>
                   </div>
-                </div>
-                <div className='max-h-[200px] overflow-y-auto'>
-                  {workspaces.map((workspace, index) => (
-                    <div key={workspace.id} className={index > 0 ? 'mt-[2px]' : ''}>
-                      {editingWorkspaceId === workspace.id ? (
-                        <div className='flex h-[25px] items-center gap-[8px] rounded-[6px] bg-[var(--surface-9)] px-[6px]'>
-                          <input
-                            ref={listRenameInputRef}
-                            value={editingName}
-                            onChange={(e) => setEditingName(e.target.value)}
-                            onKeyDown={async (e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault()
+                  <div className='max-h-[200px] overflow-y-auto'>
+                    {workspaces.map((workspace, index) => (
+                      <div key={workspace.id} className={index > 0 ? 'mt-[2px]' : ''}>
+                        {editingWorkspaceId === workspace.id ? (
+                          <div className='flex h-[25px] items-center gap-[8px] rounded-[6px] bg-[var(--surface-9)] px-[6px]'>
+                            <input
+                              ref={listRenameInputRef}
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                              onKeyDown={async (e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  setIsListRenaming(true)
+                                  try {
+                                    await onRenameWorkspace(workspace.id, editingName.trim())
+                                    setEditingWorkspaceId(null)
+                                  } finally {
+                                    setIsListRenaming(false)
+                                  }
+                                } else if (e.key === 'Escape') {
+                                  e.preventDefault()
+                                  setEditingWorkspaceId(null)
+                                }
+                              }}
+                              onBlur={async () => {
+                                if (!editingWorkspaceId) return
                                 setIsListRenaming(true)
                                 try {
                                   await onRenameWorkspace(workspace.id, editingName.trim())
@@ -378,50 +397,47 @@ export function WorkspaceHeader({
                                 } finally {
                                   setIsListRenaming(false)
                                 }
-                              } else if (e.key === 'Escape') {
+                              }}
+                              className='w-full border-0 bg-transparent p-0 font-base text-[12px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                              maxLength={100}
+                              autoComplete='off'
+                              autoCorrect='off'
+                              autoCapitalize='off'
+                              spellCheck='false'
+                              disabled={isListRenaming}
+                              onClick={(e) => {
                                 e.preventDefault()
-                                setEditingWorkspaceId(null)
-                              }
-                            }}
-                            onBlur={async () => {
-                              if (!editingWorkspaceId) return
-                              setIsListRenaming(true)
-                              try {
-                                await onRenameWorkspace(workspace.id, editingName.trim())
-                                setEditingWorkspaceId(null)
-                              } finally {
-                                setIsListRenaming(false)
-                              }
-                            }}
-                            className='w-full border-0 bg-transparent p-0 font-base text-[12px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
-                            maxLength={100}
-                            autoComplete='off'
-                            autoCorrect='off'
-                            autoCapitalize='off'
-                            spellCheck='false'
-                            disabled={isListRenaming}
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <PopoverItem
-                          active={workspace.id === workspaceId}
-                          onClick={() => onWorkspaceSwitch(workspace)}
-                          onContextMenu={(e) => handleContextMenu(e, workspace)}
-                        >
-                          <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
-                        </PopoverItem>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </PopoverContent>
-        </Popover>
+                                e.stopPropagation()
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <PopoverItem
+                            active={workspace.id === workspaceId}
+                            onClick={() => onWorkspaceSwitch(workspace)}
+                            onContextMenu={(e) => handleContextMenu(e, workspace)}
+                          >
+                            <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
+                          </PopoverItem>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <Button
+            variant='ghost-secondary'
+            type='button'
+            aria-label='Switch workspace'
+            className='group !p-[3px] -m-[3px]'
+            disabled
+          >
+            <ChevronDown className='h-[8px] w-[12px]' />
+          </Button>
+        )}
         {/* Sidebar Collapse Toggle */}
         {showCollapseButton && (
           <Button

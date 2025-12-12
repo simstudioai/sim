@@ -38,11 +38,10 @@ export function TeamManagement() {
 
   const { data: organizationsData } = useOrganizations()
   const activeOrganization = organizationsData?.activeOrganization
-  const billingData = organizationsData?.billingData?.data
-  const hasTeamPlan = billingData?.isTeam ?? false
-  const hasEnterprisePlan = billingData?.isEnterprise ?? false
 
   const { data: userSubscriptionData } = useSubscriptionData()
+  const hasTeamPlan = userSubscriptionData?.data?.isTeam ?? false
+  const hasEnterprisePlan = userSubscriptionData?.data?.isEnterprise ?? false
 
   const {
     data: organization,
