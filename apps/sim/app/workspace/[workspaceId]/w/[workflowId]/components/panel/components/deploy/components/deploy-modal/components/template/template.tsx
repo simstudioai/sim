@@ -89,7 +89,10 @@ export function TemplateDeploy({
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending
   const isFormValid =
-    formData.name.trim().length > 0 && formData.name.length <= 100 && formData.tagline.length <= 200
+    formData.name.trim().length > 0 &&
+    formData.name.length <= 100 &&
+    formData.tagline.length <= 200 &&
+    formData.creatorId.length > 0
 
   const updateField = <K extends keyof TemplateFormData>(field: K, value: TemplateFormData[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -201,7 +204,7 @@ export function TemplateDeploy({
           tagline: formData.tagline.trim(),
           about: formData.about.trim(),
         },
-        creatorId: formData.creatorId || undefined,
+        creatorId: formData.creatorId,
         tags: formData.tags,
       }
 
@@ -285,7 +288,7 @@ export function TemplateDeploy({
 
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Name
+            Name <span className='text-[var(--text-error)]'>*</span>
           </Label>
           <Input
             placeholder='Deep Research Agent'
@@ -323,29 +326,34 @@ export function TemplateDeploy({
 
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Creator
+            Creator <span className='text-[var(--text-error)]'>*</span>
           </Label>
           {creatorOptions.length === 0 && !loadingCreators ? (
-            <Button
-              type='button'
-              variant='primary'
-              onClick={() => {
-                try {
-                  const event = new CustomEvent('open-settings', {
-                    detail: { tab: 'template-profile' },
-                  })
-                  window.dispatchEvent(event)
-                  logger.info('Opened Settings modal at template-profile section')
-                } catch (error) {
-                  logger.error('Failed to open Settings modal for template profile', {
-                    error,
-                  })
-                }
-              }}
-              className='gap-[8px]'
-            >
-              <span>Create Template Profile</span>
-            </Button>
+            <div className='space-y-[8px]'>
+              <p className='text-[12px] text-[var(--text-tertiary)]'>
+                A creator profile is required to publish templates.
+              </p>
+              <Button
+                type='button'
+                variant='primary'
+                onClick={() => {
+                  try {
+                    const event = new CustomEvent('open-settings', {
+                      detail: { tab: 'template-profile' },
+                    })
+                    window.dispatchEvent(event)
+                    logger.info('Opened Settings modal at template-profile section')
+                  } catch (error) {
+                    logger.error('Failed to open Settings modal for template profile', {
+                      error,
+                    })
+                  }
+                }}
+                className='gap-[8px]'
+              >
+                <span>Create Template Profile</span>
+              </Button>
+            </div>
           ) : (
             <Combobox
               options={creatorOptions.map((option) => ({
