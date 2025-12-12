@@ -20,6 +20,7 @@ import {
   useDeleteMcpServer,
   useMcpServers,
   useMcpToolsQuery,
+  useRefreshMcpServer,
 } from '@/hooks/queries/mcp'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
 import type { InputFieldType, McpServerFormData, McpServerTestResult } from './components'
@@ -89,27 +90,24 @@ export function MCP() {
   } = useMcpToolsQuery(workspaceId)
   const createServerMutation = useCreateMcpServer()
   const deleteServerMutation = useDeleteMcpServer()
+  const refreshServerMutation = useRefreshMcpServer()
   const { testResult, isTestingConnection, testConnection, clearTestResult } = useMcpServerTest()
 
   const urlInputRef = useRef<HTMLInputElement>(null)
 
-  // Form state
   const [showAddForm, setShowAddForm] = useState(false)
   const [formData, setFormData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
   const [isAddingServer, setIsAddingServer] = useState(false)
 
-  // Search and filtering state
   const [searchTerm, setSearchTerm] = useState('')
   const [deletingServers, setDeletingServers] = useState<Set<string>>(new Set())
 
-  // Delete confirmation dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [serverToDelete, setServerToDelete] = useState<{ id: string; name: string } | null>(null)
 
-  // Server details view state
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
+  const [refreshStatus, setRefreshStatus] = useState<'idle' | 'refreshing' | 'refreshed'>('idle')
 
-  // Environment variable dropdown state
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [envSearchTerm, setEnvSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)
@@ -255,7 +253,6 @@ export function MCP() {
         workspaceId,
       }
 
-      // Test connection if not already tested
       if (!testResult) {
         const result = await testConnection(serverConfig)
         if (!result.success) return
@@ -397,6 +394,25 @@ export function MCP() {
   }, [])
 
   /**
+   * Refreshes a server's tools by re-discovering them from the MCP server.
+   */
+  const handleRefreshServer = useCallback(
+    async (serverId: string) => {
+      try {
+        setRefreshStatus('refreshing')
+        await refreshServerMutation.mutateAsync({ workspaceId, serverId })
+        logger.info(`Refreshed MCP server: ${serverId}`)
+        setRefreshStatus('refreshed')
+        setTimeout(() => setRefreshStatus('idle'), 2000)
+      } catch (error) {
+        logger.error('Failed to refresh MCP server:', error)
+        setRefreshStatus('idle')
+      }
+    },
+    [refreshServerMutation, workspaceId]
+  )
+
+  /**
    * Gets the selected server and its tools for the detail view.
    */
   const selectedServer = useMemo(() => {
@@ -412,12 +428,10 @@ export function MCP() {
   const showEmptyState = !hasServers && !showAddForm
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && servers.length > 0
 
-  // Form validation state
   const isFormValid = formData.name.trim() && formData.url?.trim()
   const isSubmitDisabled = serversLoading || isAddingServer || !isFormValid
   const testButtonLabel = getTestButtonLabel(testResult, isTestingConnection)
 
-  // Show detail view if a server is selected
   if (selectedServer) {
     const { server, tools } = selectedServer
     const transportLabel = formatTransportLabel(server.transport || 'http')
@@ -478,7 +492,18 @@ export function MCP() {
           </div>
         </div>
 
-        <div className='mt-auto flex items-center justify-end'>
+        <div className='mt-auto flex items-center justify-between'>
+          <Button
+            onClick={() => handleRefreshServer(server.id)}
+            variant='default'
+            disabled={refreshStatus !== 'idle'}
+          >
+            {refreshStatus === 'refreshing'
+              ? 'Refreshing...'
+              : refreshStatus === 'refreshed'
+                ? 'Refreshed'
+                : 'Refresh Tools'}
+          </Button>
           <Button
             onClick={handleBackToList}
             variant='primary'

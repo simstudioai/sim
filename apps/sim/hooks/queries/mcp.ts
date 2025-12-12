@@ -56,7 +56,6 @@ export interface McpTool {
 async function fetchMcpServers(workspaceId: string): Promise<McpServer[]> {
   const response = await fetch(`/api/mcp/servers?workspaceId=${workspaceId}`)
 
-  // Treat 404 as "no servers configured" - return empty array
   if (response.status === 404) {
     return []
   }
@@ -134,9 +133,6 @@ export function useCreateMcpServer() {
       const serverData = {
         ...config,
         workspaceId,
-        id: `mcp-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       }
 
       const response = await fetch('/api/mcp/servers', {
@@ -151,11 +147,21 @@ export function useCreateMcpServer() {
         throw new Error(data.error || 'Failed to create MCP server')
       }
 
-      logger.info(`Created MCP server: ${config.name} in workspace: ${workspaceId}`)
+      const serverId = data.data?.serverId
+      const wasUpdated = data.data?.updated === true
+
+      logger.info(
+        wasUpdated
+          ? `Updated existing MCP server: ${config.name} (ID: ${serverId})`
+          : `Created MCP server: ${config.name} (ID: ${serverId})`
+      )
+
       return {
         ...serverData,
+        id: serverId,
         connectionStatus: 'disconnected' as const,
-        serverId: data.data?.serverId,
+        serverId,
+        updated: wasUpdated,
       }
     },
     onSuccess: (_data, variables) => {
@@ -243,6 +249,52 @@ export function useUpdateMcpServer() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
+    },
+  })
+}
+
+/**
+ * Refresh MCP server mutation - re-discovers tools from the server
+ */
+interface RefreshMcpServerParams {
+  workspaceId: string
+  serverId: string
+}
+
+export interface RefreshMcpServerResult {
+  status: 'connected' | 'disconnected' | 'error'
+  toolCount: number
+  lastConnected: string | null
+  error: string | null
+}
+
+export function useRefreshMcpServer() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      serverId,
+    }: RefreshMcpServerParams): Promise<RefreshMcpServerResult> => {
+      const response = await fetch(
+        `/api/mcp/servers/${serverId}/refresh?workspaceId=${workspaceId}`,
+        {
+          method: 'POST',
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to refresh MCP server')
+      }
+
+      logger.info(`Refreshed MCP server: ${serverId}`)
+      return data.data
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.tools(variables.workspaceId) })
     },
   })
 }

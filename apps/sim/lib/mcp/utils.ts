@@ -141,3 +141,51 @@ export function parseMcpToolId(toolId: string): { serverId: string; toolName: st
 
   return { serverId, toolName }
 }
+
+/**
+ * Generate a deterministic MCP server ID based on workspace and URL.
+ *
+ * This ensures that re-adding the same MCP server (same URL in the same workspace)
+ * produces the same ID, preventing "server not found" errors when workflows
+ * reference the old server ID.
+ *
+ * The ID is a hash of: workspaceId + normalized URL
+ * Format: mcp-<8 char hash>
+ */
+export function generateMcpServerId(workspaceId: string, url: string): string {
+  const normalizedUrl = normalizeUrlForHashing(url)
+
+  const input = `${workspaceId}:${normalizedUrl}`
+  const hash = simpleHash(input)
+
+  return `mcp-${hash}`
+}
+
+/**
+ * Normalize URL for consistent hashing.
+ * - Converts to lowercase
+ * - Removes trailing slashes
+ * - Removes query parameters and fragments
+ */
+function normalizeUrlForHashing(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const normalized = `${parsed.origin}${parsed.pathname}`.toLowerCase().replace(/\/+$/, '')
+    return normalized
+  } catch {
+    return url.toLowerCase().trim().replace(/\/+$/, '')
+  }
+}
+
+/**
+ * Simple deterministic hash function that produces an 8-character hex string.
+ * Uses a variant of djb2 hash algorithm.
+ */
+function simpleHash(str: string): string {
+  let hash = 5381
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) + hash + str.charCodeAt(i)
+    hash = hash >>> 0
+  }
+  return hash.toString(16).padStart(8, '0').slice(0, 8)
+}
